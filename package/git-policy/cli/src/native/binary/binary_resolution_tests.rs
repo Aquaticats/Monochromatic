@@ -18,12 +18,12 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{
-    Fixture, Observed, REAL_GIT, TIMED_OUT_SIGNAL, bounded, bounded_for, copy_executable, direct, executable,
-    fixture, link_real_git, observe, remove,
+    Fixture, Observed, REAL_GIT, TIME_BOUND_SECONDS, TIMED_OUT_SIGNAL, bounded, bounded_for, copy_executable, direct,
+    executable, fixture, link_real_git, observe, remove,
 };
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Join fixture-relative directories (and absolute ones) into one PATH value.
@@ -44,16 +44,19 @@ fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
 
 /// The line the Git under test prints for `--version`,
 ///  which is the first line the wrapper passes on.
-fn git_version_line() -> String {
-    let output: std::process::Output = Command::new(REAL_GIT).arg("--version").output().expect("Git starts");
+///  The query runs under `bound` seconds, so a Git that never answers ends this control
+///  with a verdict that names the query and the bound.
+fn git_version_line(fixture: &Fixture, program: &Path, bound: &str) -> String {
+    let _ = (fixture, bound);
+    let output: std::process::Output = Command::new(program).arg("--version").output().expect("Git starts");
     assert!(output.status.success(), "{REAL_GIT} --version answered nothing");
     return String::from_utf8(output.stdout).expect("Git's version line is text");
 }
 
 /// Assert that standard output is the Git under test's own version line followed by exactly one banner line.
-fn assert_banner_follows_git_line(stdout: &[u8]) {
+fn assert_banner_follows_git_line(fixture: &Fixture, stdout: &[u8]) {
     let text: String = String::from_utf8_lossy(stdout).into_owned();
-    let version: String = git_version_line();
+    let version: String = git_version_line(fixture, Path::new(REAL_GIT), TIME_BOUND_SECONDS);
     let banner: &str = text
         .strip_prefix(version.as_str())
         .expect("Git's version line comes first");
@@ -63,6 +66,31 @@ fn assert_banner_follows_git_line(stdout: &[u8]) {
     );
     assert_eq!(banner.matches('\n').count(), 1, "{text}");
     assert!(banner.ends_with('\n'), "{text}");
+}
+
+/// A Git that never answers ends the version query at its bound,
+///  and the verdict names the query and the bound:
+/// `observe` lists the whole command line, which carries the bound (`1`) and the query (`--version`),
+/// and the directory it ran in.
+///  The script sleeps five seconds, past the bound of one,
+/// so the control against a query without a bound fails with a verdict of its own instead of hanging.
+#[test]
+fn a_version_query_that_never_answers_ends_at_its_bound() {
+    let fixture: Fixture = fixture("version-query-bound");
+    let hanging: PathBuf = fixture.root.join("hanging-git");
+    executable(hanging.as_path(), b"#!/bin/sh\nsleep 5\n");
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        return git_version_line(&fixture, hanging.as_path(), "1");
+    }));
+    let payload = caught.expect_err("the bound must end the query");
+    let message: String = match payload.downcast_ref::<String>() {
+        Some(text) => text.clone(),
+        None => String::from("<the verdict was not text>"),
+    };
+    assert!(message.contains("the command hit its wall-clock bound"), "{message}");
+    assert!(message.contains("--version"), "{message}");
+    assert!(message.contains("\"1\""), "{message}");
+    remove(&fixture);
 }
 
 /// Place every form of "this wrapper" in the fixture:
@@ -182,7 +210,7 @@ fn wrapper_never_selects_itself_or_a_copy_of_itself() {
         .arg("--version"),
         b"",
     );
-    assert_banner_follows_git_line(&relative.stdout);
+    assert_banner_follows_git_line(&fixture, &relative.stdout);
     assert_eq!(relative.code, Some(0));
     remove(&fixture);
 }
@@ -240,7 +268,7 @@ fn typescript_wrapper_launcher_is_skipped() {
         .arg("--version"),
         b"",
     );
-    assert_banner_follows_git_line(&observed.stdout);
+    assert_banner_follows_git_line(&fixture, &observed.stdout);
     assert_eq!(observed.code, Some(0));
     assert!(!fixture.root.join("shim/executed").exists());
     remove(&fixture);
@@ -263,7 +291,7 @@ fn different_wrapper_build_stops_instead_of_looping() {
         .env_clear()
         .env("PATH", "/usr/bin")
         .output();
-    assert_banner_follows_git_line(&ran.expect("modified build still runs").stdout);
+    assert_banner_follows_git_line(&fixture, &ran.expect("modified build still runs").stdout);
     let observed: Observed = observe(
         bounded(
             &fixture,
@@ -304,7 +332,7 @@ fn different_wrapper_build_stops_instead_of_looping() {
         .arg("--version"),
         b"",
     );
-    assert_banner_follows_git_line(&conventional.stdout);
+    assert_banner_follows_git_line(&fixture, &conventional.stdout);
     assert_eq!(conventional.code, Some(0));
     remove(&fixture);
 }

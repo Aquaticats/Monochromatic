@@ -17,11 +17,13 @@
 /// The one path of the host's Git that the binary tests share.
 use super::REAL_GIT;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text (siblings `&str`/`String` must be UTF-8).
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
+/// `Write` fills the standard input of a query that reads one.
+use std::io::Write;
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
-/// The command builder and the finished child every fixture Git run is.
-use std::process::{Command, Output};
+/// The command builder, the child's pipes and the finished child every fixture Git run is.
+use std::process::{Command, Output, Stdio};
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
@@ -50,4 +52,42 @@ pub(crate) fn git<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output 
         String::from_utf8_lossy(&output.stderr)
     );
     return output;
+}
+
+/// How long one real-Git query of a control may take before the bound ends it,
+/// in seconds as `/usr/bin/timeout` reads them.
+/// Why sixty:
+///  The same bound the binary-level controls give one fixture Git run
+/// (`NATIVE_GIT_BOUND_SECONDS`), and for the same measurement:
+/// the longest disk stall one `fsync` of a trivial command showed on this host is 4.74 s
+/// (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`),
+/// so sixty is more than ten times it.
+pub(crate) const FIXTURE_GIT_BOUND_SECONDS: &str = "60";
+
+/// What:
+///  Run one real-Git query under `bound_seconds` and answer its output,
+///  or nothing when the bound ended it.
+/// Why:
+///  A control that ran Git directly would hold the suite for ever against a Git that never answers,
+/// and report nothing at all;
+/// `/usr/bin/timeout` sends `SIGKILL` at the bound and waits for the child,
+/// so nothing of the query outlives this call.
+/// The caller answers `None` with a verdict naming its own query,
+/// because only it knows which query it made and what the query is for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = runUnderBound('git', ['--version'], 60); // undefined when the bound ended it
+/// ```
+pub(crate) fn real_git_within(
+    program: &Path,
+    directory: Option<&Path>,
+    environment: &[(OsString, OsString)],
+    arguments: &[OsString],
+    input: Option<&[u8]>,
+    bound_seconds: &str,
+) -> Option<Output> {
+    let _ = (directory, environment, input, bound_seconds);
+    let output: Output = Command::new(program).args(arguments).output().expect("the query starts");
+    return Some(output);
 }

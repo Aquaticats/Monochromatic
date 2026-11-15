@@ -312,6 +312,56 @@ fn exit_codes_and_stderr_match_native_git() {
 }
 
 /// What:
+///  How long a signalled wrapper may take to end before the control calls it a hang.
+/// Why:
+///   A signal ends the wrapper at once,
+/// so anything near this is a defect rather than a slow host,
+/// and it is far under
+///  the harness's own backstop for a command that never ends
+/// (`binary_supervisor::SHARED_BACKSTOP_SECONDS`,
+/// 600 seconds).
+/// The control waits with this bound instead of
+///  `Child::wait`,
+/// which a test may not call without one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIGNAL_WAIT = 30_000;
+/// ```
+const SIGNAL_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What:
+///  Waits for a child with a bound,
+/// and ends it when the bound passes.
+/// Why:
+///   A test may not wait without a bound:
+/// the covered run holds its own standard input open,
+/// so a signal that never arrives
+///  leaves the wrapper waiting for ever
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-2 review).
+/// A child the bound ends is named with what it printed,
+/// so the failure says what happened rather than hanging.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitWithin(child: Child, bound: number): ExitStatus { const began = Date.now(); while (Date.now() - began < bound) { const status = child.tryWait(); if (status) return status; sleep(10); } child.kill(); throw new Error(`did not end within ${bound} ms`); }
+/// ```
+fn wait_within(child: &mut Child, bound: std::time::Duration) -> std::process::ExitStatus {
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < bound {
+        if let Some(status) = child.try_wait().expect("the child's state") {
+            return status;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let _killed = child.kill();
+    let status: std::process::ExitStatus = child.wait().expect("the ended child");
+    panic!("the command did not end within {bound:?}: {status:?}");
+}
+
+
+/// What:
 ///  Run a command whose reader takes one line and then goes away,
 /// and report how the command ended:
 /// its exit
@@ -539,55 +589,6 @@ fn pin_our_own_child(child: &Child) -> Pin {
     let number: i32 = i32::try_from(child.id()).expect("a process number");
     let started: u64 = stat_of(number).expect("our unreaped child is in the process table").started;
     return Pin::open(number, started).expect("our unreaped child can be pinned");
-}
-
-/// What:
-///  How long a signalled wrapper may take to end before the control calls it a hang.
-/// Why:
-///   A signal ends the wrapper at once,
-/// so anything near this is a defect rather than a slow host,
-/// and it is far under
-///  the harness's own backstop for a command that never ends
-/// (`binary_supervisor::SHARED_BACKSTOP_SECONDS`,
-/// 600 seconds).
-/// The control waits with this bound instead of
-///  `Child::wait`,
-/// which a test may not call without one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const SIGNAL_WAIT = 30_000;
-/// ```
-const SIGNAL_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// What:
-///  Waits for a child with a bound,
-/// and ends it when the bound passes.
-/// Why:
-///   A test may not wait without a bound:
-/// the covered run holds its own standard input open,
-/// so a signal that never arrives
-///  leaves the wrapper waiting for ever
-/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-/// finding 4 of the round-2 review).
-/// A child the bound ends is named with what it printed,
-/// so the failure says what happened rather than hanging.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function waitWithin(child: Child, bound: number): ExitStatus { const began = Date.now(); while (Date.now() - began < bound) { const status = child.tryWait(); if (status) return status; sleep(10); } child.kill(); throw new Error(`did not end within ${bound} ms`); }
-/// ```
-fn wait_within(child: &mut Child, bound: std::time::Duration) -> std::process::ExitStatus {
-    let began: std::time::Instant = std::time::Instant::now();
-    while began.elapsed() < bound {
-        if let Some(status) = child.try_wait().expect("the child's state") {
-            return status;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    let _killed = child.kill();
-    let status: std::process::ExitStatus = child.wait().expect("the ended child");
-    panic!("the command did not end within {bound:?}: {status:?}");
 }
 
 /// What:

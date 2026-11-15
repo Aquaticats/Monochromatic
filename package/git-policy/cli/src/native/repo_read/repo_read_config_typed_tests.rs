@@ -11,10 +11,8 @@ use super::*;
 use crate::repo_read_layout::read_layout_with;
 use crate::repo_read_query::{Answer, Query, answer_with};
 use crate::repo_read_query::tests::scope;
-use crate::test_support::{REAL_GIT, fixture, git, git_output, remove, repository};
-use std::io::Write;
+use crate::test_support::{FIXTURE_GIT_BOUND_SECONDS, REAL_GIT, fixture, git, git_output, real_git_within, remove, repository};
 use std::path::PathBuf;
-use std::process::Stdio;
 
 /// The malformed spellings the sweep tries for every documented key:
 /// a word no type reads,
@@ -73,27 +71,26 @@ fn shapes(head: &str) -> Vec<Shape> {
 }
 
 /// What real Git prints and returns for a shape.
+///  Every query of this control runs under the bound a control gives its fixture Git,
+/// so a Git that never answers ends this control with a verdict that names the shape and the bound
+/// instead of holding the suite.
 fn real(repo: &Path, shape: &Shape) -> (Vec<u8>, Vec<u8>, Option<i32>) {
-    let mut child = std::process::Command::new(REAL_GIT)
-        .current_dir(repo)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("HOME", repo.join("no-home"))
-        .args(&shape.0)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Git");
-    let mut stdin = child.stdin.take().expect("stdin");
-    if let Some(input) = &shape.1 {
-        stdin.write_all(input.as_slice()).expect("input");
-    }
-    drop(stdin);
-    let output = child.wait_with_output().expect("output");
+    let words: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
+    let asked: Option<std::process::Output> = real_git_within(Path::new(REAL_GIT), Some(repo), &hermetic_environment(repo), words.as_slice(), shape.1.as_deref(), FIXTURE_GIT_BOUND_SECONDS);
+    let output: std::process::Output = asked.unwrap_or_else(|| panic!("the query {:?} did not answer within {FIXTURE_GIT_BOUND_SECONDS} s: the bound ended it", shape.0));
     return (output.stdout, output.stderr, output.status.code());
+}
+
+/// The environment every real-Git query of this control runs with:
+///  no system or global configuration,
+/// and a home inside the repository, so nothing of the account's own reaches a fixture.
+fn hermetic_environment(repo: &Path) -> Vec<(OsString, OsString)> {
+    return vec![
+        (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+        (OsString::from("HOME"), repo.join("no-home").into_os_string()),
+    ];
 }
 
 /// What the readers answer for a shape.
@@ -521,22 +518,22 @@ fn numbers_are_read_only_when_decimal_and_small() {
 const MONITOR_ON: &str = "[core]\n\tfsmonitor = true\n";
 
 /// Real Git in `repo` with `global` as the user's configuration file,
-/// and nothing else of the user's environment.
+/// and nothing else of the user's environment,
+///  run under the bound a control gives its fixture Git.
 fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::Output {
     // The monitor daemon changes to the home directory when it starts,
     // so the home must exist.
     let home: PathBuf = repo.with_file_name("monitor-home");
     std::fs::create_dir_all(&home).expect("home");
-    return std::process::Command::new(REAL_GIT)
-        .current_dir(repo)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", global)
-        .env("HOME", home)
-        .args(arguments)
-        .output()
-        .expect("Git");
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_GLOBAL"), global.as_os_str().to_os_string()),
+        (OsString::from("HOME"), home.into_os_string()),
+    ];
+    let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
+    let asked: Option<std::process::Output> = real_git_within(Path::new(REAL_GIT), Some(repo), environment.as_slice(), words.as_slice(), None, FIXTURE_GIT_BOUND_SECONDS);
+    return asked.unwrap_or_else(|| panic!("the query {arguments:?} did not answer within {FIXTURE_GIT_BOUND_SECONDS} s: the bound ended it"));
 }
 
 /// Stops the monitor daemon a test started in `repo`,
