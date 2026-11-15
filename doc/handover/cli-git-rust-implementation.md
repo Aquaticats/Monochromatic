@@ -1330,6 +1330,58 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The journal change is answered and goes to review; its author met a commit service that stopped answering and two commits taken back (2026-11-14T22:22:48-05:00)
+
+Not final and not approved:
+what one author reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **A service a test starts writes no line into the user journal of the machine**,
+  its author's second run,
+  ended 22:18:02 at `c7d0c96cd9`,
+  its report whole.
+  For the review's first finding the words of a fixture's service are kept in the test process's memory when the log file cannot hold them,
+  and one line naming the file and the reason is written only where standard error is not the journal's stream;
+  the control fails with the memory taken out.
+  For the second the guard now reads what each child start is given:
+  no inherited stream,
+  each start accounting for its standard error or standing in a counted list with a reason,
+  a service start and a shell that names the wrapper never excused;
+  a leaking start added to a test file fails it,
+  and the same start passes the older rule.
+  It says plainly that 171 of 525 child starts in the tests still inherit the run's standard error,
+  119 of them children of programs that cannot run the wrapper,
+  listed and not changed.
+  A real journal window of four changed controls:
+  no entry.
+  Clippy clean;
+  three guard modules 43 of 43;
+  of 266 service tests five fail,
+  each also on `main`.
+- Its review is queued second
+  (`main...c7d0c96cd9`,
+  nineteen files,
+  four of them code that is not a test).
+- **What it met under the installed wrapper**,
+  one agent's report:
+  "the commit service of this worktree stopped answering mid-run (`…@033c….socket` inactive),
+  two commits were made by Git and rolled back — I started that socket unit and the commits landed."
+  Weighed as the more serious of this evening's two sightings of a commit service that is not there:
+  a commit taken back is a commit that failed.
+  Added,
+  with that weighing,
+  to the brief of the fresh run for the service that did not start,
+  which had not begun
+  (`commit-in-an-agents-worktree-whose-commit-service-did-not-start-has-its-cause-found-prompt.md`),
+  and that run is moved up the queue.
+- Read at 22:22:23:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  twenty runs going.
+  The queue held 73 entries at 22:22:48.
+
 ##### The lock-holders folder's review finds three ways a lock loses the record that would clear it; the author is resumed (2026-11-14T22:08:13-05:00)
 
 Not final and not approved:
