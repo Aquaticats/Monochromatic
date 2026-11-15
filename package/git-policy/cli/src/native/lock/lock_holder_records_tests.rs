@@ -138,29 +138,32 @@ fn a_record_of_a_finished_command_is_removed_and_one_a_lock_needs_is_kept() {
 }
 
 /// What:
-///  A record whose writer may still run is kept,
-///  even when its only holder is dead and no lock names it,
-///  and the line the writer appends after another command read the record is not lost.
+///  The line a live writer appends after another command read its record is not lost:
+///  a record whose reading names every process dead, and one that names no writer,
+///  is left where it is.
 /// Why:
 ///  This is the shape that loses a live Git's line (a review of `2af2ecb879`, finding 3):
-///  a command reads the records, the writer appends its next child's line, and the removal acts on what it read.
-///  The writer is this test process, which is alive and appends through the shipped writer,
-///  so the line is placed by the same seam the pass uses: the reading and the removal are two calls.
+///  a record an earlier release wrote names only its children,
+///  a command reads it,
+///  the writer appends its next child's line,
+///  and a removal that acts on the reading unlinks the file with the new line in it.
+///  The record is this test process's own, so the appended line is written by the shipped writer,
+///  and the second actor is placed by the same seam the pass uses: the reading and the removal are two calls.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const records = everyRecord(folder); recordChild(liveChild); removeRecordsNoOneNeeds(folder, records, []); expect(record).toContain(liveChild);
+/// write(header + childLineOfADeadProcess); const records = everyRecord(folder); recordChild(liveChild);
+/// removeRecordsNoOneNeeds(folder, records, []); expect(record).toContain(liveChild);
 /// ```
 #[test]
-fn a_record_whose_writer_may_still_run_is_kept_and_its_new_line_survives() {
+fn a_line_a_writer_appends_after_another_command_read_its_record_is_not_lost() {
     let root: PathBuf = fixture("record-writer-alive");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
     let (gone, identity): (i64, String) = a_dead_process();
-    let own: i64 = i64::from(std::process::id());
-    let own_identity: String = identity_of_process(own).expect("this process's identity");
     let record: PathBuf = this_process_record_path(root.as_path()).expect("this process's record path");
-    std::fs::write(record.as_path(), record_text(&[(SELF_KIND, own, own_identity), (CHILD_KIND, gone, identity)]).as_bytes()).expect("a record whose writer is alive and whose only child is gone");
+    // The spelling a release before this one wrote: a header and a child's line, and no line naming the writer.
+    std::fs::write(record.as_path(), record_text(&[(CHILD_KIND, gone, identity)]).as_bytes()).expect("a record whose only child is gone");
     // The reading another command makes of this repository's records.
     let read: Vec<Record> = every_record(root.as_path());
     // The writer's next child, still running, appended after that reading.
@@ -173,8 +176,43 @@ fn a_record_whose_writer_may_still_run_is_kept_and_its_new_line_survives() {
         .expect("a live child starts");
     record_a_child_started(root.as_path(), live.id());
     remove_records_no_one_needs(root.as_path(), read.as_slice(), &[]);
-    let kept: String = std::fs::read_to_string(record.as_path()).expect("the record of a writer that may still run stays");
+    let kept: String = std::fs::read_to_string(record.as_path()).expect("a record that names no writer is left where it is");
     assert!(kept.contains(format!("child {} ", live.id()).as_str()), "the line appended after the reading is still there: {kept:?}");
+    let _killed = live.kill();
+    let _waited = live.wait();
+    remove(root.as_path());
+}
+
+/// What:
+///  A line for a child creates the record with the writer's own line,
+///  so every record a command writes names the one process that may append to it.
+/// Why:
+///  A record that names no writer may not be removed by any other command,
+///  because nothing says whether more lines will follow;
+///  naming the writer when the file is made is what lets every record be judged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordChild(liveChild); expect(readFileSync(thisProcessRecordPath())).toContain(`self ${process.pid} `);
+/// ```
+#[test]
+fn a_record_a_child_note_makes_names_its_writer() {
+    let root: PathBuf = fixture("record-names-its-writer");
+    let folder: PathBuf = folder_of(root.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the folder");
+    let mut live: std::process::Child = std::process::Command::new("sleep")
+        .arg("60")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("a live child starts");
+    record_a_child_started(root.as_path(), live.id());
+    let record: PathBuf = this_process_record_path(root.as_path()).expect("this process's record path");
+    let text: String = std::fs::read_to_string(record.as_path()).expect("the record a child note made");
+    assert!(text.starts_with(RECORD_HEADER), "a record starts with its header: {text:?}");
+    assert!(text.contains(format!("{SELF_KIND} {} ", std::process::id()).as_str()), "the record names the process that wrote it: {text:?}");
+    assert!(text.contains(format!("{CHILD_KIND} {} ", live.id()).as_str()), "and the child that note was about: {text:?}");
     let _killed = live.kill();
     let _waited = live.wait();
     remove(root.as_path());
