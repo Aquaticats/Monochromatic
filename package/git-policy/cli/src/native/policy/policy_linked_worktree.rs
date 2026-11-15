@@ -122,13 +122,42 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const namesTheSharedFile = (named, directory, shared) => resolve(named.startsWith('/') ? named : join(directory, named)) === resolve(shared);
 /// ```
-fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> bool {
+fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> Result<bool, String> {
     let spelled: PathBuf = if named.is_absolute() {
         named.to_path_buf()
     } else {
         directory.join(named)
     };
-    return resolve_as_far_as_it_exists(spelled.as_path()) == resolve_as_far_as_it_exists(shared_file);
+    return names_the_shared_file_read_with(spelled.as_path(), shared_file, crate::wait_ceilings::WORKTREE_LOOKUP_CEILING);
+}
+
+/// What:
+///  The same comparison with its ceiling given,
+///  so a control can stall the resolution and read the answer the ceiling gives.
+/// Why:
+///  Resolving two paths reads the file system,
+///  and a `canonicalize` on a mount whose server stopped answering never returns;
+///  so both resolutions run in one job the pass waits for only until the ceiling,
+///  and a comparison that gives no answer is a failure the caller refuses on,
+///  never "this is another file".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesTheSharedFileReadWith('/r/named.config', '/r/.git/config', 100ms); // true
+/// ```
+fn names_the_shared_file_read_with(spelled: &Path, shared_file: &Path, ceiling: std::time::Duration) -> Result<bool, String> {
+    let named_path: PathBuf = spelled.to_path_buf();
+    let shared: PathBuf = shared_file.to_path_buf();
+    let Some((resolved_named, resolved_shared)) = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+        return (resolve_as_far_as_it_exists(named_path.as_path()), resolve_as_far_as_it_exists(shared.as_path()));
+    }) else {
+        return Err(format!(
+            "monochromatic-git-policy-cli could not read whether `{}` is the configuration file this repository's worktrees share: the lookup did not answer within {} seconds, so the command was not judged.",
+            spelled.display(),
+            ceiling.as_secs()
+        ));
+    };
+    return Ok(resolved_named == resolved_shared);
 }
 
 /// What:
@@ -193,8 +222,10 @@ fn refuse_shared_remote_settings(
             Ok(found) => found,
             Err(message) => return fact_unavailable(message),
         };
-        if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
-            return clean();
+        match names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
+            Ok(true) => {}
+            Ok(false) => return clean(),
+            Err(message) => return fact_unavailable(message),
         }
     }
     let main_checkout: PathBuf = match facts.main_worktree_root() {

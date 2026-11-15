@@ -74,17 +74,17 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function pathsTheTreeWrites(facts, written, runIn): Promise<Buffer[]>; // throws
 /// ```
-pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths, run_in: &Path) -> Result<Vec<Vec<u8>>, String> {
+pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths, run_in: &Path) -> Result<Vec<WrittenPlace>, String> {
     return match written {
         WrittenPaths::Tree { revision, guesses_a_remote_branch, .. } => {
-            tree_paths(facts, revision.as_deref(), &[], *guesses_a_remote_branch, run_in)
+            Ok(inside_places(tree_paths(facts, revision.as_deref(), &[], *guesses_a_remote_branch, run_in)?))
         }
         WrittenPaths::MatchingTree { revision, pathspecs } => {
             // A form that names paths writes the tree of the word before them, and Git resolves that word as a
             //  revision alone: `checkout -f topic -- b.txt` answers `invalid reference: topic` for a remote-only name.
-            tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in)
+            Ok(inside_places(tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in)?))
         }
-        WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice(), run_in),
+        WrittenPaths::Index { pathspecs } => Ok(inside_places(index_paths(facts, pathspecs.as_slice(), run_in)?)),
         WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix, run_in),
         WrittenPaths::MoveInto { sources, destination } => move_paths(facts, sources.as_slice(), destination, run_in),
         WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref(), run_in),
@@ -92,8 +92,10 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             let pathspecs: Vec<OsString> = pathspecs_in_the_file(facts, file, *nul_separated, run_in)?;
             if !pathspecs.is_empty() {
                 return match target {
-                    PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in),
-                    PathspecTarget::Index => index_paths(facts, pathspecs.as_slice(), run_in),
+                    PathspecTarget::Tree(revision) => {
+                        Ok(inside_places(tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in)?))
+                    }
+                    PathspecTarget::Index => Ok(inside_places(index_paths(facts, pathspecs.as_slice(), run_in)?)),
                 };
             }
             // Git reads a zero-byte file as "no pathspecs were given", so the form becomes the one without a path at
@@ -101,9 +103,9 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             //  branch its name stands for, and a `restore` is Git's own refusal, which writes nothing.
             return match target {
                 PathspecTarget::Tree(Some(revision)) => {
-                    tree_paths(facts, Some(revision.as_os_str()), &[], *guesses_a_remote_branch, run_in)
+                    Ok(inside_places(tree_paths(facts, Some(revision.as_os_str()), &[], *guesses_a_remote_branch, run_in)?))
                 }
-                PathspecTarget::Tree(None) | PathspecTarget::Index => Ok(Vec::<Vec<u8>>::new()),
+                PathspecTarget::Tree(None) | PathspecTarget::Index => Ok(Vec::<WrittenPlace>::new()),
             };
         }
     };
@@ -150,7 +152,7 @@ fn move_paths(
     sources: &[OsString],
     destination: &OsStr,
     run_in: &Path,
-) -> Result<Vec<Vec<u8>>, String> {
+) -> Result<Vec<WrittenPlace>, String> {
     let reached: Named = named_entry(run_in.join(destination).as_path())?;
     // Which source is a directory of its own decides two of Git's refusals, and a source that is not there is
     //  Git's `bad source`, which writes nothing.
@@ -158,15 +160,15 @@ fn move_paths(
     for source in sources {
         let named: &[u8] = without_trailing_separators(source.as_encoded_bytes());
         if named.is_empty() {
-            return Ok(Vec::<Vec<u8>>::new());
+            return Ok(Vec::<WrittenPlace>::new());
         }
         match named_entry(run_in.join(path_from_bytes(named).as_os_str()).as_path())? {
-            Named::Missing => return Ok(Vec::<Vec<u8>>::new()),
+            Named::Missing => return Ok(Vec::<WrittenPlace>::new()),
             Named::Directory => sources_are_directories.push(true),
             Named::Other => sources_are_directories.push(false),
         }
     }
-    let mut written: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    let mut written: Vec<WrittenPlace> = Vec::<WrittenPlace>::new();
     match reached {
         // A destination that is a directory is one Git moves into: the entry in the way is each source's name
         //  inside it, and the directory itself is not written.
@@ -179,12 +181,9 @@ fn move_paths(
                 target.extend(source_name(source));
                 match named_entry(run_in.join(path_from_bytes(target.as_slice()).as_os_str()).as_path())? {
                     // Git refuses to write over a directory of that name (`Cannot overwrite`), and writes nothing.
-                    Named::Directory => return Ok(Vec::<Vec<u8>>::new()),
+                    Named::Directory => return Ok(Vec::<WrittenPlace>::new()),
                     Named::Missing | Named::Other => {
-                        // A path that leaves the worktree is no entry of it, and Git refuses that destination itself.
-                        if let Some(spelled) = rooted_at_the_run_directory(facts, run_in, target.as_slice())? {
-                            written.push(spelled);
-                        }
+                        written.push(the_place_a_word_names(facts, run_in, target.as_slice())?);
                     }
                 }
             }
@@ -195,8 +194,8 @@ fn move_paths(
             let refused: bool = destination.as_encoded_bytes().ends_with(b"/")
                 || sources.len() > 1
                 || (matches!(reached, Named::Other) && sources_are_directories.first() == Some(&true));
-            if !refused && let Some(spelled) = rooted_at_the_run_directory(facts, run_in, destination.as_encoded_bytes())? {
-                written.push(spelled);
+            if !refused {
+                written.push(the_place_a_word_names(facts, run_in, destination.as_encoded_bytes())?);
             }
         }
     }
@@ -307,38 +306,141 @@ fn source_name(source: &OsStr) -> Vec<u8> {
 }
 
 /// What:
-///  One path a form writes,
-///  as the worktree root and Git's own listings spell it:
-///  the run directory's own prefix followed by the path the form's words name,
-///  with no `.` or `..` component,
-///  no doubled separator and no trailing one,
-///  and nothing at all when the path leaves the worktree.
-///  `&Path` borrows the directory the command runs in, `&[u8]` the path the form's words name.
+///  One file a guarded form writes, at the place Git will write it.
 /// Why:
-///  The entries in the way are the ones Git's own listings print,
-///  and those are always this one spelling:
-///  `mv -f a.txt ./b.txt` and `checkout-index -f --prefix=./out/ -a` wrote over an untracked
-///  `b.txt` and `out/a.txt` while the reading named `./b.txt` and `./out/a.txt` and found nothing
-///  (the seventh review, reproduced here).
-///  A path with a `..` component above the worktree is one Git writes outside it,
-///  where this reading names no entry of the worktree.
-///  A form run from a directory below the root names its own paths from there,
-///  which is not the caller's directory when Git runs the shell of a `!` alias at the top:
-///  a `git mv` inside an alias that stood below the top wrote a file the guard looked for one
-///  directory down.
+///  Git writes both kinds: an entry of this worktree,
+///  spelled as its own listings spell it,
+///  and a path anywhere else on the machine,
+///  which an absolute word names,
+///  a `..` that leaves the worktree reaches,
+///  a `--prefix` glued to an index path as text produces,
+///  or a link on the way turns one into.
+///  A file the form writes outside the worktree is a person's file as much as one inside it,
+///  so the guard looks at it where it lies,
+///  and there is no third answer here:
+///  "no path" is the answer that let Git write a file nobody watched
+///  (the eighth review, 2026-11-15).
+///  A word this reading cannot place is an `Err` naming it,
+///  which the caller refuses on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const rooted = (facts, runIn, './b.txt') => asListed(runPrefix(facts, runIn), './b.txt'); // 'b.txt'
+/// type WrittenPlace = { kind: 'inside'; path: Buffer } | { kind: 'outside'; path: string };
 /// ```
-fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8]) -> Result<Option<Vec<u8>>, String> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum WrittenPlace {
+    /// Below the worktree root, as Git's listings spell it:
+    ///  relative,
+    ///  no `.` or `..` component,
+    ///  no doubled or trailing separator.
+    Inside(Vec<u8>),
+    /// A path that leaves the worktree, resolved as the operating system reads it.
+    Outside(PathBuf),
+}
+
+/// What:
+///  One word of a command line as the place Git will write,
+///  or why this reading cannot tell.
+///  `&[u8]` borrows the word, `&Path` the directory the command runs in.
+/// Why:
+///  The word is read the way the kernel reads it:
+///  joined to the directory the command runs in,
+///  every link on the way resolved as far as the path exists,
+///  and every `.` and `..` applied there,
+///  so an absolute path inside the worktree is that entry,
+///  a `..` that leaves it is a path outside,
+///  and a path through a link is the file the link reaches
+///  (`git mv -f a.txt link-out/b.txt` writes the link's target, measured on this host with native
+///  Git 2.56.0,
+///  2026-11-15).
+///  Both resolutions run in one job the command waits for only until the worktree lookup ceiling,
+///  because a `canonicalize` on a mount whose server stopped answering never returns,
+///  and a path it cannot read is an `Err` that names the word rather than a place it guessed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePlaceAWordNames(facts, runIn, '/abs/w/b.txt') === { kind: 'inside', path: 'b.txt' };
+/// thePlaceAWordNames(facts, runIn, '../outside/b.txt') === { kind: 'outside', path: '/abs/outside/b.txt' };
+/// ```
+fn the_place_a_word_names(facts: &mut GitFacts, run_in: &Path, word: &[u8]) -> Result<WrittenPlace, String> {
     let location: crate::repository_location::RepositoryLocation = facts.location()?;
-    let prefix: Vec<u8> = match worktree_root(&location.identity) {
-        Some(root) => crate::command_run_directory::run_directory_prefix(root, run_in, location.prefix.as_slice()),
-        // A repository with no worktree of its own has no directory a name is read from.
-        None => location.prefix.clone(),
+    let Some(root) = worktree_root(&location.identity) else {
+        return Err(format!(
+            "the guard could not place the path `{}` this command writes: this repository has no worktree of its own, so no directory reads that word",
+            String::from_utf8_lossy(word)
+        ));
     };
-    return Ok(as_the_worktree_listing_spells_it(prefix.as_slice(), path));
+    let named: PathBuf = if word.starts_with(b"/") {
+        PathBuf::from(path_from_bytes(word))
+    } else {
+        run_in.join(path_from_bytes(word))
+    };
+    let (resolved_root, resolved_named): (PathBuf, PathBuf) = match resolve_within_a_ceiling(root, named.as_path()) {
+        Some(found) => found,
+        None => {
+            return Err(format!(
+                "the guard could not place the path `{}` this command writes: the worktree did not answer within {} seconds, so the guard cannot tell which file that word names",
+                String::from_utf8_lossy(word),
+                WORKTREE_LOOKUP_CEILING.as_secs()
+            ));
+        }
+    };
+    return place_of(resolved_root.as_path(), resolved_named, word);
+}
+
+/// What:
+///  Two paths resolved as the operating system reads them, as far as they exist,
+///  in one job the command waits for only until the worktree lookup ceiling.
+///  Nothing when the job gave no answer in that time.
+///  `&Path` borrows the worktree root and the word's path.
+/// Why:
+///  A path is one place only as the kernel resolves it,
+///  so both sides of the comparison resolve:
+///  the root Git named,
+///  and the word joined to the directory the command runs in.
+///  The job is one thread because the ceiling covers the pair,
+///  and a lookup that never answers must not hold the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const both = workWithin(CEILING, () => [resolve(root), resolve(joined)]);
+/// ```
+fn resolve_within_a_ceiling(root: &Path, named: &Path) -> Option<(PathBuf, PathBuf)> {
+    let root_owned: PathBuf = root.to_path_buf();
+    let named_owned: PathBuf = named.to_path_buf();
+    return crate::work_awaited_within_a_ceiling::work_within(WORKTREE_LOOKUP_CEILING, move || {
+        return (
+            crate::repository_link_paths::resolve_as_far_as_it_exists(root_owned.as_path()),
+            crate::repository_link_paths::resolve_as_far_as_it_exists(named_owned.as_path()),
+        );
+    });
+}
+
+/// What:
+///  One resolved path as the place it is, below the resolved worktree root or outside it.
+///  `&[u8]` borrows the word it came from, for the sentence of a refusal.
+/// Why:
+///  The comparison is between two resolved paths,
+///  so a word that reaches an entry of the worktree by any route is that entry,
+///  and everything else is a path outside it.
+///  The root itself is no file a form writes,
+///  so a word that resolves to it is an `Err` naming the word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeOf('/abs/w', '/abs/w/b.txt', '../b.txt') === { kind: 'inside', path: 'b.txt' };
+/// ```
+fn place_of(resolved_root: &Path, resolved: PathBuf, word: &[u8]) -> Result<WrittenPlace, String> {
+    let Ok(relative) = resolved.strip_prefix(resolved_root) else {
+        return Ok(WrittenPlace::Outside(resolved));
+    };
+    return match as_the_worktree_listing_spells_it(&[], relative.as_os_str().as_encoded_bytes()) {
+        Some(spelled) => Ok(WrittenPlace::Inside(spelled)),
+        None => Err(format!(
+            "the guard could not place the path `{}` this command writes: it names the worktree's own top, which is no file",
+            String::from_utf8_lossy(word)
+        )),
+    };
 }
 
 /// What:
@@ -354,10 +456,11 @@ fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8])
 ///  no doubled or trailing separator.
 ///  The entries this reading compares with are those printed paths,
 ///  so a word that names one of them in another spelling is the same entry and must be written the
-///  same way, or the comparison misses a file the command would overwrite.
-///  A leading separator is refused here:
-///  an absolute path is a different question, asked by the caller that can resolve it against the
-///  worktree root (`below_the_worktree_root` for a `--prefix`).
+///  same way, or the comparison misses a file the command would overwrite
+///  (`mv -f a.txt ./b.txt` and `checkout-index -f --prefix=./out/ -a` wrote over an untracked
+///  `b.txt` and `out/a.txt` while the reading named `./b.txt` and `./out/a.txt`).
+///  A leading separator is refused here: an absolute path is the caller's question,
+///  asked of the place a word names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -393,6 +496,21 @@ pub(super) fn as_the_worktree_listing_spells_it(prefix: &[u8], path: &[u8]) -> O
         spelled.extend_from_slice(name);
     }
     return Some(spelled);
+}
+
+/// What:
+///  Answers Git printed as index paths, each as the place it names below the worktree root.
+/// Why:
+///  A listing prints the worktree's own paths,
+///  and it never names a path outside the worktree,
+///  so these are entries of the worktree and nothing is resolved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// insidePlaces(['a.txt', 'sub/b.txt']) === [{ kind: 'inside', path: 'a.txt' }, ...];
+/// ```
+fn inside_places(paths: Vec<Vec<u8>>) -> Vec<WrittenPlace> {
+    return paths.into_iter().map(|path| return WrittenPlace::Inside(path)).collect();
 }
 
 /// What:
@@ -999,10 +1117,25 @@ fn listed_paths_of(
     }
     // A path form's answers are relative to the directory Git runs in, and the entries in the way are named from the
     //  worktree root, so that directory's own prefix is written before each of them.
+    //  An answer that cannot be spelled below the root is no entry of the worktree this reading can compare, and
+    //  dropping it would be the empty answer the place type exists to make impossible.
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    let Some(root) = worktree_root(&location.identity) else {
+        return Err(String::from(
+            "the guard could not place the paths Git answered for this command: the repository has no worktree of its own",
+        ));
+    };
+    let prefix: Vec<u8> = crate::command_run_directory::run_directory_prefix(root, run_in, location.prefix.as_slice());
     let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
     for path in paths.drain(..) {
-        if let Some(spelled) = rooted_at_the_run_directory(facts, run_in, path.as_slice())? {
-            rooted.push(spelled);
+        match as_the_worktree_listing_spells_it(prefix.as_slice(), path.as_slice()) {
+            Some(spelled) => rooted.push(spelled),
+            None => {
+                return Err(format!(
+                    "the guard could not place the path `{}` Git answered for this command, which stands outside the worktree this reading compares entries with",
+                    String::from_utf8_lossy(path.as_slice())
+                ));
+            }
         }
     }
     return Ok(Some(rooted));
@@ -1253,38 +1386,106 @@ fn read_tree_paths(
     revisions: &[OsString],
     prefix: Option<&OsStr>,
     run_in: &Path,
-) -> Result<Vec<Vec<u8>>, String> {
+) -> Result<Vec<WrittenPlace>, String> {
+    let root: PathBuf = worktree_root_of(facts)?;
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for revision in revisions {
-        for path in tree_paths(facts, Some(revision.as_os_str()), &[], false, run_in)? {
-            // A path the prefix carries outside the worktree is no entry of it.
-            if let Some(shifted) = under_the_prefix(path, prefix) {
-                paths.push(shifted);
-            }
-        }
+        paths.extend(tree_paths(facts, Some(revision.as_os_str()), &[], false, run_in)?);
     }
-    return Ok(paths);
+    return the_places_under_a_prefix(root.as_path(), prefix, paths);
 }
 
 /// What:
-///  One path as the form writes it:
-///  below the prefix when it names one,
-///  and unchanged when it names none.
+///  The worktree root of this repository, or the sentence of a refusal when it has none.
 /// Why:
-///  `read-tree --prefix=sub/ -u other` writes `other`'s `a.txt` at `sub/a.txt`,
-///  so the entry in the way is the one below the prefix, not the tree's own path.
+///  Every place this reading answers is either relative to that root or compared with it,
+///  so a repository without a worktree of its own has no place to answer,
+///  and no form this reading guards runs there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const underThePrefix = (path, prefix) => prefix ? Buffer.concat([prefix, path]) : path;
+/// const root = worktreeRootOf(facts); // '/abs/worktree'
 /// ```
-fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Option<Vec<u8>> {
-    let Some(named) = prefix else {
-        // With no prefix the tree's own path is the worktree's path, and it is still written as the listing
-        //  spells it: a tree path never holds `.` or `..`, so this is the same bytes.
-        return as_the_worktree_listing_spells_it(&[], path.as_slice());
+fn worktree_root_of(facts: &mut GitFacts) -> Result<PathBuf, String> {
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    return match worktree_root(&location.identity) {
+        Some(root) => Ok(root.to_path_buf()),
+        None => Err(String::from(
+            "the guard could not place the paths this command writes: the repository has no worktree of its own, so no directory reads them",
+        )),
     };
-    return as_the_worktree_listing_spells_it(named.as_encoded_bytes(), path.as_slice());
+}
+
+/// What:
+///  The index's or a tree's paths as the places one prefix writes them at,
+///  or those paths themselves as entries of the worktree when no prefix is named.
+///  `&Path` borrows the worktree root the prefix is read from,
+///  `Option<&OsStr>` the prefix as the form spelled it.
+/// Why:
+///  Git joins a prefix to each path as text and resolves the pair from the top of the working tree
+///  (`setup_work_tree` moves there before any entry is written),
+///  so `--prefix=out/` and `a.txt` write `out/a.txt`,
+///  `--prefix=out2` and `sub/b.txt` write `out2sub/b.txt`,
+///  and a prefix that names a directory outside the worktree writes a person's file there,
+///  which this reading now names instead of dropping
+///  (measured on this host with native Git 2.56.0, 2026-11-15).
+///  The prefix is resolved once for all of its paths,
+///  because every path is appended to it as text,
+///  and that resolution is where a link on the way and a `..` are read the way the kernel reads them.
+///  A trailing separator is kept as the form wrote it:
+///  it decides whether the first path's name is a name inside the prefix's directory or continues it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePlacesUnderAPrefix(facts, root, 'out/', ['a.txt']) === [{ kind: 'inside', path: 'out/a.txt' }];
+/// ```
+fn the_places_under_a_prefix(
+    root: &Path,
+    prefix: Option<&OsStr>,
+    paths: Vec<Vec<u8>>,
+) -> Result<Vec<WrittenPlace>, String> {
+    let Some(prefix) = prefix else {
+        return Ok(inside_places(paths));
+    };
+    let written: Vec<u8> = prefix.as_encoded_bytes().to_vec();
+    let named: PathBuf = if written.starts_with(b"/") {
+        PathBuf::from(prefix)
+    } else {
+        root.join(prefix)
+    };
+    // One resolution of the prefix, under the same ceiling as a word's place.
+    let resolved: PathBuf = match resolve_within_a_ceiling(root, named.as_path()) {
+        Some((_resolved_root, resolved_prefix)) => resolved_prefix,
+        None => {
+            return Err(format!(
+                "the guard could not place the prefix `{}` this command writes below: the worktree did not answer within {} seconds",
+                String::from_utf8_lossy(written.as_slice()),
+                WORKTREE_LOOKUP_CEILING.as_secs()
+            ));
+        }
+    };
+    let mut base: Vec<u8> = resolved.as_os_str().as_encoded_bytes().to_vec();
+    if written.ends_with(b"/") && !base.ends_with(b"/") {
+        base.push(b'/');
+    }
+    let resolved_root: PathBuf = match resolve_within_a_ceiling(root, root) {
+        Some((resolved_root, _same)) => resolved_root,
+        None => {
+            return Err(format!(
+                "the guard could not place the paths below `{}`: the worktree did not answer within {} seconds",
+                String::from_utf8_lossy(written.as_slice()),
+                WORKTREE_LOOKUP_CEILING.as_secs()
+            ));
+        }
+    };
+    let mut places: Vec<WrittenPlace> = Vec::<WrittenPlace>::with_capacity(paths.len());
+    for path in paths {
+        let mut glued: Vec<u8> = Vec::<u8>::with_capacity(base.len() + path.len());
+        glued.extend_from_slice(base.as_slice());
+        glued.extend_from_slice(path.as_slice());
+        places.push(place_of(resolved_root.as_path(), PathBuf::from(path_from_bytes(glued.as_slice())), glued.as_slice())?);
+    }
+    return Ok(places);
 }
 
 /// What:
@@ -1304,72 +1505,30 @@ fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Option<Vec<u8>> {
 ///  and `--prefix=out2` without a separator writes `out2sub/b.txt`
 ///  (measured on this host with native Git 2.56.0,
 ///  2026-11-14).
-///  A prefix naming a directory outside the worktree writes no entry of it,
-///  and a command that writes nothing of the worktree is no reason to refuse.
+///  A prefix naming a directory outside the worktree writes a person's file there,
+///  and this reading names that file where it lies
+///  (the eighth review, 2026-11-15:
+///  `git checkout-index -f --prefix=/abs/outside/ -a` wrote over a file outside the worktree without a
+///  refusal).
 ///  The index paths it shifts are already the worktree root's own, so no directory prefix is
 ///  written before them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function indexUnderPrefixPaths(facts, pathspecs, prefix, runIn): Promise<Buffer[]>; // throws
+/// function indexUnderPrefixPaths(facts, pathspecs, prefix, runIn): Promise<WrittenPlace[]>; // throws
 /// ```
 fn index_under_prefix_paths(
     facts: &mut GitFacts,
     pathspecs: &[OsString],
     prefix: &OsStr,
     run_in: &Path,
-) -> Result<Vec<Vec<u8>>, String> {
+) -> Result<Vec<WrittenPlace>, String> {
     let written: Vec<Vec<u8>> = index_paths(facts, pathspecs, run_in)?;
     if written.is_empty() {
-        return Ok(written);
+        return Ok(Vec::<WrittenPlace>::new());
     }
-    let prefix_bytes: &[u8] = prefix.as_encoded_bytes();
-    let root: Option<PathBuf> = if prefix_bytes.starts_with(b"/") {
-        let location: crate::repository_location::RepositoryLocation = facts.location()?;
-        match worktree_root(&location.identity) {
-            Some(found) => Some(found.to_path_buf()),
-            // A repository with no worktree of its own holds no entry a write outside it could lose.
-            None => return Ok(Vec::<Vec<u8>>::new()),
-        }
-    } else {
-        None
-    };
-    let mut shifted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(written.len());
-    for path in written {
-        let mut joined: Vec<u8> = Vec::<u8>::with_capacity(prefix_bytes.len() + path.len());
-        joined.extend_from_slice(prefix_bytes);
-        joined.extend(path);
-        // An entry outside the worktree is not one it holds, so nothing there is lost.
-        let spelled: Option<Vec<u8>> = match root.as_ref() {
-            Some(found) => below_the_worktree_root(found.as_path(), joined.as_slice())
-                .and_then(|below| return as_the_worktree_listing_spells_it(&[], below.as_slice())),
-            None => as_the_worktree_listing_spells_it(&[], joined.as_slice()),
-        };
-        if let Some(found) = spelled {
-            shifted.push(found);
-        }
-    }
-    return Ok(shifted);
-}
-
-/// What:
-///  One absolute path as the worktree root names it,
-///  or nothing when it does not stand below that root.
-///  `&Path` borrows the root, `&[u8]` the path's bytes.
-/// Why:
-///  The entries in the way are the worktree's own, named from its root,
-///  and a path Git writes outside the worktree is an entry of no worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const below = (root, '/r/out/a.txt') => '/r/' === root + '/' ? 'out/a.txt' : undefined;
-/// ```
-fn below_the_worktree_root(root: &Path, absolute: &[u8]) -> Option<Vec<u8>> {
-    let mut root_prefix: Vec<u8> = root.as_os_str().as_encoded_bytes().to_vec();
-    if !root_prefix.ends_with(b"/") {
-        root_prefix.push(b'/');
-    }
-    return absolute.strip_prefix(root_prefix.as_slice()).map(<[u8]>::to_vec);
+    let root: PathBuf = worktree_root_of(facts)?;
+    return the_places_under_a_prefix(root.as_path(), Some(prefix), written);
 }
 
 /// What:

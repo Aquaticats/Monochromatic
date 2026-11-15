@@ -62,9 +62,8 @@ struct Row {
 enum Place {
     /// Below the worktree root, as Git's listings spell it.
     Inside(String),
-    /// A path this reading cannot place at all.
-    #[allow(dead_code)]
-    Unplaced,
+    /// Outside the worktree, as the operating system reads it.
+    Outside(PathBuf),
 }
 
 /// Every file below `root`, with its bytes.
@@ -112,11 +111,19 @@ fn files_a_person_lost(before: &BTreeMap<PathBuf, Vec<u8>>, after: &BTreeMap<Pat
 /// `&Path` is the worktree root the inside places are relative to.
 fn named(lost: &Path, places: &[Place], root: &Path) -> bool {
     for place in places {
-        if let Place::Inside(spelled) = place
-            && let Ok(relative) = lost.strip_prefix(root)
-            && relative.as_os_str().as_encoded_bytes() == spelled.as_bytes()
-        {
-            return true;
+        match place {
+            Place::Inside(spelled) => {
+                if let Ok(relative) = lost.strip_prefix(root)
+                    && relative.as_os_str().as_encoded_bytes() == spelled.as_bytes()
+                {
+                    return true;
+                }
+            }
+            Place::Outside(path) => {
+                if lost == path {
+                    return true;
+                }
+            }
         }
     }
     return false;
@@ -130,11 +137,17 @@ fn guard_places(repository: &Path, directory: &Path, command: GuardedCommand, wo
     };
     let prefix: Vec<OsString> = vec![OsString::from("-C"), repository.as_os_str().to_os_string()];
     let mut facts: GitFacts = git_facts(Path::new(REAL_GIT), prefix.as_slice(), isolated_overlay().as_slice());
-    let paths: Vec<Vec<u8>> = paths_the_tree_writes(&mut facts, &written, directory)?;
-    return Ok(paths
-        .into_iter()
-        .map(|path| return Place::Inside(String::from_utf8_lossy(path.as_slice()).into_owned()))
-        .collect());
+    let paths: Vec<super::WrittenPlace> = paths_the_tree_writes(&mut facts, &written, directory)?;
+    let mut places: Vec<Place> = Vec::<Place>::new();
+    for path in paths {
+        match path {
+            super::WrittenPlace::Inside(bytes) => {
+                places.push(Place::Inside(String::from_utf8_lossy(bytes.as_slice()).into_owned()));
+            }
+            super::WrittenPlace::Outside(path) => places.push(Place::Outside(path)),
+        }
+    }
+    return Ok(places);
 }
 
 /// One repository, one branch whose tree differs, and the files a person holds inside and outside it.
@@ -383,7 +396,7 @@ fn every_row_names_the_place_of_a_file_git_writes() {
                             path.display(),
                             named_places.iter().map(|place| return match place {
                                 Place::Inside(spelled) => format!("inside:{spelled}"),
-                                Place::Unplaced => String::from("unplaced"),
+                                Place::Outside(path) => format!("outside:{}", path.display()),
                             }).collect::<Vec<String>>(),
                             observed.status.code()
                         ));

@@ -101,6 +101,7 @@ const STORAGE_CALLS: &[&str] = &[
     "a_directory_is(",
     "directory_beneath(",
     "read_at_most(",
+    "resolve_as_far_as_it_exists(",
 ];
 
 /// One storage call of the guard,
@@ -191,6 +192,26 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
         file: "command/command_clean_nested_repositories.rs",
         call: "return a_directory_is(directory.join(\"refs\").as_path());",
         why: "the same walk job, through `a_bare_repository_is`: the `refs` marker",
+    },
+    UnderACeiling {
+        file: "policy/policy_linked_worktree.rs",
+        call: "return (resolve_as_far_as_it_exists(named_path.as_path()), resolve_as_far_as_it_exists(shared.as_path()));",
+        why: "the job of `work_within` in `names_the_shared_file_read_with`, bounded by `WORKTREE_LOOKUP_CEILING`: whether a `--file` write names the configuration file every worktree shares, and a comparison that gives no answer refuses",
+    },
+    UnderACeiling {
+        file: "repo_read/repository_facts_written_paths.rs",
+        call: "crate::repository_link_paths::resolve_as_far_as_it_exists(root_owned.as_path()),",
+        why: "the job of `work_within` in `resolve_within_a_ceiling`, bounded by `WORKTREE_LOOKUP_CEILING`: the worktree root as the kernel resolves it, for comparing a word's place with it",
+    },
+    UnderACeiling {
+        file: "repo_read/repository_facts_written_paths.rs",
+        call: "crate::repository_link_paths::resolve_as_far_as_it_exists(named_owned.as_path()),",
+        why: "the same job of `work_within` in `resolve_within_a_ceiling`, bounded by `WORKTREE_LOOKUP_CEILING`: the word a command writes, resolved as the kernel reads it, so an absolute path inside the worktree, a `..` that leaves it and a link are placed where Git writes",
+    },
+    UnderACeiling {
+        file: "repo_read/repository_facts_paths_in_the_way.rs",
+        call: "match std::fs::symlink_metadata(named) {",
+        why: "the job of `work_within` in `entries_a_form_would_replace_outside`, bounded by `WORKTREE_LOOKUP_CEILING`: what stands at a place outside the worktree, and on the way to it",
     },
     UnderACeiling {
         file: "repo_read/repository_facts_written_paths.rs",

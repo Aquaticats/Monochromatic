@@ -76,9 +76,23 @@ use std::path::{Path, PathBuf};
 /// ```
 pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<String>, String> {
     let run_in: PathBuf = crate::command_run_directory::command_run_directory(facts.global_prefix.as_slice())?;
-    let mut asked: Vec<Vec<u8>> = paths_the_tree_writes(facts, written, run_in.as_path())?;
+    let places: Vec<crate::repository_facts_written_paths::WrittenPlace> =
+        paths_the_tree_writes(facts, written, run_in.as_path())?;
+    let mut asked: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    let mut outside: Vec<PathBuf> = Vec::<PathBuf>::new();
+    for place in places {
+        match place {
+            crate::repository_facts_written_paths::WrittenPlace::Inside(path) => asked.push(path),
+            crate::repository_facts_written_paths::WrittenPlace::Outside(path) => outside.push(path),
+        }
+    }
+    // A file the form writes outside the worktree is a person's file as much as one inside it, and the repository
+    //  holds nothing there: every entry standing at or on the way to such a place is one it would lose.
+    let mut lost_outside: Vec<String> = entries_a_form_would_replace_outside(outside)?;
     if asked.is_empty() {
-        return Ok(Vec::<String>::new());
+        lost_outside.sort();
+        lost_outside.dedup();
+        return Ok(lost_outside);
     }
     // Sorted once, every worktree entry is placed among the written paths by two searches instead of by a
     //  comparison against each of them: a worktree holding thousands of untracked entries met twenty thousand
@@ -102,7 +116,9 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
     }
     let kept: Vec<Vec<u8>> = outermost_entries(found);
     if kept.is_empty() {
-        return Ok(Vec::<String>::new());
+        lost_outside.sort();
+        lost_outside.dedup();
+        return Ok(lost_outside);
     }
     // A repository with no worktree of its own has no entry to name, and the caller asked a worktree question.
     let location: crate::repository_location::RepositoryLocation = facts.location()?;
@@ -122,7 +138,89 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
             crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
         ));
     };
-    return Ok(named);
+    let mut all: Vec<String> = named;
+    all.extend(lost_outside);
+    all.sort();
+    all.dedup();
+    return Ok(all);
+}
+
+/// What:
+///  The files a form would lose outside the worktree:
+///  for each place outside it,
+///  the first entry that stands there or on the way to it,
+///  or why the look gave no answer.
+///  `&[PathBuf]` borrows the places.
+/// Why:
+///  The repository holds nothing outside its worktree,
+///  so an entry standing at one of those places,
+///  or anywhere on the way to it,
+///  is a person's file the form replaces:
+///  `git checkout-index -f --prefix=/abs/outside/ -a` wrote over a file outside the worktree with no
+///  refusal (the eighth review, 2026-11-15),
+///  and `git mv -f a.txt ../outside/b.txt` renames onto it.
+///  Git creates the directories a place needs,
+///  and a file standing where one must go is removed to make it,
+///  which is why every component is asked about and not only the place.
+///  A place that is still missing, and a directory where a file must go, answer nothing:
+///  Git creates the one and its own error answers the other.
+///  A lookup that fails for any other reason is a failure, never "nothing stands there".
+///  Every lookup runs on a thread this process waits for only until the worktree lookup ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entriesAFormWouldReplaceOutside(['/abs/outside/a.txt']) === ['/abs/outside/a.txt'];
+/// ```
+fn entries_a_form_would_replace_outside(places: Vec<PathBuf>) -> Result<Vec<String>, String> {
+    if places.is_empty() {
+        return Ok(Vec::<String>::new());
+    }
+    let Some(answer) = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+        return the_entries_standing_at_the_outside_places(places.as_slice());
+    }) else {
+        return Err(format!(
+            "the files this command writes outside the worktree did not answer within {} seconds, so the guard cannot tell which of them it would lose",
+            crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+        ));
+    };
+    return answer;
+}
+
+/// What:
+///  The first entry standing at each place outside the worktree that is a file or a link,
+///  and nothing for a place that is missing or is a directory.
+/// Why:
+///  The job `entries_a_form_would_replace_outside` waits for, kept apart so a control names the look
+///  rather than a mount.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const look = (places) => places.map(nearestEntry).filter(Boolean);
+/// ```
+fn the_entries_standing_at_the_outside_places(places: &[PathBuf]) -> Result<Vec<String>, String> {
+    let mut found: Vec<String> = Vec::<String>::new();
+    for place in places {
+        let mut current: Option<&Path> = Some(place.as_path());
+        while let Some(named) = current {
+            match std::fs::symlink_metadata(named) {
+                Ok(metadata) if metadata.file_type().is_dir() => break,
+                Ok(_) => {
+                    found.push(named.display().to_string());
+                    break;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    current = named.parent();
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "Git would write `{}`, and the guard could not read what stands there: {error}",
+                        named.display()
+                    ));
+                }
+            }
+        }
+    }
+    return Ok(found);
 }
 
 /// What:

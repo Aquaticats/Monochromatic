@@ -28,6 +28,37 @@ use crate::test_support::{REAL_GIT, isolated_overlay, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+/// What:
+///  The places a reading answered, as entries of the worktree this control asks about,
+///  or the sentence of a failure when one of them lies outside it.
+/// Why:
+///  These controls ask which entries of the worktree a form writes;
+///  a place outside the worktree is the walk's question
+///  (`repository_facts_written_paths_place_tests.rs`),
+///  and a control that met one here should fail rather than pass over it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const insideOnly = (places) => places.map((place) => place.kind === 'inside' ? place.path : fail(place.path));
+/// ```
+fn inside_paths(places: Result<Vec<super::WrittenPlace>, String>) -> Result<Vec<Vec<u8>>, String> {
+    return places.and_then(|places| {
+        let mut inside: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+        for place in places {
+            match place {
+                super::WrittenPlace::Inside(path) => inside.push(path),
+                super::WrittenPlace::Outside(path) => {
+                    return Err(format!(
+                        "the reading answers a place outside the worktree, which this control does not ask about: {}",
+                        path.display()
+                    ));
+                }
+            }
+        }
+        return Ok(inside);
+    });
+}
+
 /// A provider for real Git after `-C <repository>`.
 fn facts_in(repository: &Path) -> GitFacts {
     let prefix: Vec<OsString> = vec![OsString::from("-C"), repository.as_os_str().to_os_string()];
@@ -38,7 +69,7 @@ fn facts_in(repository: &Path) -> GitFacts {
 /// with the guess of a remote branch set the way a `checkout` or a `reset` sets it.
 fn tree_of(repository: &Path, revision: &str, guesses: bool) -> Result<Vec<Vec<u8>>, String> {
     let mut facts: GitFacts = facts_in(repository);
-    return paths_the_tree_writes(
+    return inside_paths(paths_the_tree_writes(
         &mut facts,
         &WrittenPaths::Tree {
             revision: Some(OsString::from(revision)),
@@ -46,7 +77,7 @@ fn tree_of(repository: &Path, revision: &str, guesses: bool) -> Result<Vec<Vec<u
             guesses_a_remote_branch: guesses,
         },
         repository,
-    );
+    ));
 }
 
 /// What:
@@ -193,7 +224,7 @@ fn from_the_file(
     nul_separated: bool,
 ) -> Result<Vec<Vec<u8>>, String> {
     let mut facts: GitFacts = facts_in(repository);
-    return paths_the_tree_writes(
+    return inside_paths(paths_the_tree_writes(
         &mut facts,
         &WrittenPaths::PathspecFile {
             target,
@@ -203,7 +234,7 @@ fn from_the_file(
             guesses_a_remote_branch: true,
         },
         repository,
-    );
+    ));
 }
 
 /// What:
@@ -338,7 +369,7 @@ fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
         let mut facts: GitFacts = git_facts(shim.as_path(), prefix.as_slice(), overlay.as_slice());
         // The shape the review's case has: a forced `checkout` of a remote-only name, which asks the repository
         //  whether it leaves the guess on before it can read the tree.
-        let answer: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        let answer: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
             &mut facts,
             &WrittenPaths::Tree {
                 revision: Some(OsString::from("topic")),
@@ -346,7 +377,7 @@ fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
                 guesses_a_remote_branch: true,
             },
             repository.as_path(),
-        );
+        ));
         match answer {
             Err(cause) => assert!(cause.contains("ended by a signal"), "{word}: {cause}"),
             Ok(found) => panic!("a {word} child a signal ended was read as {found:?}"),
@@ -471,14 +502,14 @@ fn the_worktree_state(root: &Path) -> Vec<String> {
 /// The written paths one forced move answers, as text.
 fn moved_paths(repository: &Path, sources: &[&str], destination: &str) -> Result<Vec<String>, String> {
     let mut facts: GitFacts = facts_in(repository);
-    let answered: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+    let answered: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
         &mut facts,
         &WrittenPaths::MoveInto {
             sources: sources.iter().map(|source| return OsString::from(*source)).collect(),
             destination: OsString::from(destination),
         },
         repository,
-    );
+    ));
     return answered.map(|paths| {
         return paths.iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect::<Vec<String>>();
     });
@@ -731,14 +762,14 @@ fn a_prefix_names_the_entry_git_writes_from_the_worktree_root() {
     let below: PathBuf = repository.join("sub");
     let at: Vec<OsString> = vec![OsString::from("-C"), below.clone().into_os_string()];
     let mut facts: GitFacts = git_facts(Path::new(REAL_GIT), at.as_slice(), isolated_overlay().as_slice());
-    let written: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+    let written: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
         &mut facts,
         &WrittenPaths::IndexUnderPrefix {
             pathspecs: vec![OsString::from("inside.txt")],
             prefix: OsString::from("out/"),
         },
         below.as_path(),
-    );
+    ));
     assert_eq!(
         written,
         Ok(vec![b"out/sub/inside.txt".to_vec()]),
@@ -750,11 +781,11 @@ fn a_prefix_names_the_entry_git_writes_from_the_worktree_root() {
         &[OsString::from("-C"), repository.join("sub").into_os_string()],
         isolated_overlay().as_slice(),
     );
-    let all: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+    let all: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
         &mut whole,
         &WrittenPaths::IndexUnderPrefix { pathspecs: Vec::new(), prefix: OsString::from("out/") },
         repository.join("sub").as_path(),
-    );
+    ));
     let names: Vec<String> = all.expect("the whole index").iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect();
     assert!(names.contains(&String::from("out/sub/inside.txt")), "{names:?}");
     assert!(
@@ -768,18 +799,22 @@ fn a_prefix_names_the_entry_git_writes_from_the_worktree_root() {
     //  Git wrote it, and the reading named `./out/a.txt`, so the untracked file was never found
     //  (reproduced here).
     let mut dotted: GitFacts = facts_in(repository.as_path());
-    let spelled: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+    let spelled: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
         &mut dotted,
         &WrittenPaths::IndexUnderPrefix {
             pathspecs: vec![OsString::from("tracked.txt")],
             prefix: OsString::from("./out/"),
         },
         repository.as_path(),
-    );
+    ));
     assert_eq!(spelled, Ok(vec![b"out/tracked.txt".to_vec()]), "a `./` prefix is the listing's own path");
-    // A prefix that steps above the worktree writes no entry of it.
+    // What:
+    //  A prefix that steps above the worktree writes a file outside it, and the reading names that file.
+    // Why:
+    //  The eighth review ran `git checkout-index -f --prefix=../outside/ -a`: Git wrote over a person's
+    //  file outside the worktree, and the reading dropped the path, so nothing was refused.
     let mut outside: GitFacts = facts_in(repository.as_path());
-    let leaving: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+    let leaving: Result<Vec<super::WrittenPlace>, String> = paths_the_tree_writes(
         &mut outside,
         &WrittenPaths::IndexUnderPrefix {
             pathspecs: vec![OsString::from("tracked.txt")],
@@ -787,18 +822,27 @@ fn a_prefix_names_the_entry_git_writes_from_the_worktree_root() {
         },
         repository.as_path(),
     );
-    assert_eq!(leaving, Ok(Vec::<Vec<u8>>::new()), "a path that leaves the worktree is no entry of it");
+    let written_outside: std::path::PathBuf = repository
+        .parent()
+        .expect("the repository's directory")
+        .join("outside")
+        .join("tracked.txt");
+    assert_eq!(
+        leaving,
+        Ok(vec![super::WrittenPlace::Outside(written_outside)]),
+        "a prefix that leaves the worktree names the file Git writes there"
+    );
     // The index alone, for a restore with no source: `--full-name` answers are the root's own.
     let mut plain: GitFacts = git_facts(
         Path::new(REAL_GIT),
         &[OsString::from("-C"), repository.join("sub").into_os_string()],
         isolated_overlay().as_slice(),
     );
-    let restore: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+    let restore: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
         &mut plain,
         &WrittenPaths::Index { pathspecs: vec![OsString::from("inside.txt")] },
         repository.join("sub").as_path(),
-    );
+    ));
     assert_eq!(restore, Ok(vec![b"sub/inside.txt".to_vec()]));
     remove(directory.as_path());
 }
