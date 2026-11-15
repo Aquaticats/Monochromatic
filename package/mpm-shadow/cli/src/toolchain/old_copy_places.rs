@@ -169,7 +169,7 @@ fn visible_checkouts(scope: &Scope, runner: &dyn Runner, places: &mut Places) ->
         return Vec::new();
     }
     let mut checkouts: Vec<PathBuf> = vec![scope.root.clone()];
-    match listed_worktrees(runner, &scope.root) {
+    match listed_worktrees(runner, &scope.root, None) {
         Ok(listed) => {
             for worktree in listed {
                 if worktree.directory.is_dir() {

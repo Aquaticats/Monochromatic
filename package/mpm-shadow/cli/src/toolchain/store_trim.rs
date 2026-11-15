@@ -79,22 +79,49 @@
 //!
 //! ## The steps that move or delete a tree, and what each proves when it acts
 //!
-//! Every deletion goes through `delete_for_good`, and every move is one rename:
+//! ## The one place that renames or unlinks anything
 //!
-//! - the inventory reads what a version is (its device and inode, its own write time, its file count, its bytes and the
-//!   newest write inside it), so a write anywhere inside the tree is seen, not just at its root.
-//! - the plan proves the version is unpinned by every lock it read, outside the age floor, not named by `current`, and
-//!   held by no process.
-//! - the move aside proves the entry is the one judged: identity compared after the rename, and put back when it
-//!   differs; then it records what it holds, before anything may delete inside it.
-//! - the pass asks the process table once more before a tree it moved aside is deleted, and a version a process holds
-//!   goes back under its name, never under the process.
-//! - the deletion proves, at the instant it acts, that the tree still has the identity the inventory read (or that the
-//!   pass itself renamed it a moment ago) and that its bytes are a duplicate or belong to no version at all; the step
-//!   renames the tree to its deletion name first, so a kill inside it leaves a name the next run finishes.
-//! - the finish pass puts a tree under a removal name back under the version's name, and deletes it only when a
-//!   finished copy of that version stands at the name; a deletion name it finishes without asking, because the
-//!   deletion has begun.
+//! Everything this module does to the drive goes through `settle`, and nothing else in it renames, moves back or
+//! unlinks. It takes the exact path, the facts that path was judged by, the scan of the process table, and what the
+//! caller wants done, and it reads the path again at the instant it acts:
+//!
+//! - a scan that could not be read in full answers kept, with the processes that could not be described;
+//! - a process that holds that exact path, or anything below it, answers kept, with the process;
+//! - a path it cannot read whole now answers kept: a failed read is a "cannot tell", never a "no";
+//! - a path whose facts are not the facts it was judged by answers kept: a copy that replaced the judged one is a
+//!   different object;
+//! - only then does it rename (proving the entry under the new name is the same one and moving it back when it is not)
+//!   or delete (renaming the tree to its deletion name before unlinking, so a kill inside leaves a name the next run
+//!   finishes).
+//!
+//! A version and its archives are two objects, judged separately and settled separately; a flat leftover file is a third,
+//! asked about by its own path. A recovery is a removal like any other: a tree a killed pass left is judged from
+//! nothing, by what is on the drive now, never by what the dead pass had decided.
+//!
+//! ## Every read that can fail, and what its failure means
+//!
+//! - `judged_of_tree`: a path that cannot be read, or a tree the walk could not read in full, is nothing this pass
+//!   judges, so nothing happens to it.
+//! - `read_judged`: no record, or one this program did not write, proves nothing about the tree, so the tree is put
+//!   back unfinished and never deleted.
+//! - `provably_absent`: only `NotFound` says a path is absent; a permission or I/O failure answers kept.
+//! - `current_names` / `current_links`: a failed read is "may name it", and the pass keeps every version.
+//! - `judged_entry_difference`: a write time that cannot be read is not the judged entry, so the version is kept.
+//! - `has_unfinished_removal` and the store scan: a marker that cannot be read is "no marker", which may make the next
+//!   install skip the pass and never makes it delete anything; the store scan itself is what brings the pass back.
+//! - `version_directories` / `removal_markers`: a tool directory or a marker that cannot be listed is not a version
+//!   or not a marker, so the pass judges less and never removes more.
+//! - `tree_facts`: a directory or an entry that cannot be read makes the walk partial, and a partial tree is kept.
+//! - `holders_of`: a process the kernel will not describe makes the scan incomplete, and every version is kept.
+//!
+//! ## What bounds each call that can block
+//!
+//! - the inventory, the walks and the deletions stop at the work limit's deadline (a check every 128 entries);
+//! - the process scan stops at the deadline (a check every 64 processes);
+//! - `git worktree list` is started with the same deadline, and the real runner ends and reaps it there;
+//! - a single file-system call (a rename, an unlink, a `stat`) cannot be bounded by this program, and a stalled drive
+//!   holds the pass inside one;
+//! - the lock files are read with plain reads and are small.
 //!
 //! ## What a kill leaves, and what the next run does
 //!
@@ -203,10 +230,10 @@ use super::scope::{EnvMap, ScopeKind, global_scope, named_repository_root};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    JudgedTree, RemovalMarker, TreeFacts, VersionDirectory, deleting_of, downloads_of, inode_of,
-    install_directory_name, judged_of_tree, leftover_downloads, read_judged, record_of, record_of_marker,
+    JudgedTree, RemovalMarker, TreeFacts, VersionDirectory, deleting_of, downloads_of,
+    install_directory_name, judged_of_tree, leftover_downloads, newest_write, read_judged, record_of, record_of_marker,
     removal_markers, tombstone_of,
-    tree_facts, version_directories, write_judged,
+    version_directories, write_judged,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -505,6 +532,8 @@ pub struct TrimCandidate {
     pub directory: PathBuf,
     /// The directory holding the archives downloaded for this version.
     pub downloads: Option<PathBuf>,
+    /// What the archives were judged to be, when they could be read whole.
+    pub downloads_facts: Option<JudgedTree>,
     /// The space removing it gives back, in bytes.
     pub bytes: u64,
     /// The space the version's own tree weighs, in bytes, without the archives kept for it.
@@ -553,6 +582,7 @@ pub fn candidates_of(
                 version: String::new(),
                 directory: leftover.file,
                 downloads: None,
+                downloads_facts: None,
                 bytes: leftover.bytes,
                 tree_bytes: leftover.bytes,
                 written: leftover.written,
@@ -575,6 +605,7 @@ fn candidate_of_version(root: &Path, version: VersionDirectory) -> TrimCandidate
         version: version.version,
         directory: version.directory,
         downloads: version.downloads,
+        downloads_facts: version.downloads_facts,
         bytes: version.bytes,
         tree_bytes: version.tree_bytes,
         written: version.written,
@@ -588,7 +619,8 @@ fn candidate_of_version(root: &Path, version: VersionDirectory) -> TrimCandidate
 /// Orders two candidates oldest write first,
 /// by path when they were written in the same second.
 fn compare_oldest_first(left: &TrimCandidate, right: &TrimCandidate) -> std::cmp::Ordering {
-    let by_write: std::cmp::Ordering = left.written.cmp(&right.written);
+    let by_write: std::cmp::Ordering =
+        newest_write(left.written, left.newest).cmp(&newest_write(right.written, right.newest));
     if by_write != std::cmp::Ordering::Equal {
         return by_write;
     }
@@ -766,10 +798,11 @@ pub fn plan_trim(
         if remaining <= bounds.size_bound_bytes {
             break;
         }
-        // What: the age is the age of the newest write anywhere inside the tree.
+        // What: the age is the age of the newest write anywhere inside the tree, read from the one place that says
+        // when a tree was written.
         // Why: a write into a folder that already existed leaves the version root's own write time alone, so a tree
-        // whose root looks old can hold a file written a moment ago; the root's time is a lower bound, never the age.
-        let newest: SystemTime = if candidate.newest > candidate.written { candidate.newest } else { candidate.written };
+        // whose root looks old can hold a file written a moment ago.
+        let newest: SystemTime = newest_write(candidate.written, candidate.newest);
         let age: Duration = now.duration_since(newest).unwrap_or(Duration::ZERO);
         if age < bounds.age_floor {
             steps.push(TrimStep::Keep(
@@ -873,33 +906,11 @@ pub fn has_unfinished_removal(root: &Path) -> bool {
     return fs::symlink_metadata(unfinished_marker(root)).is_ok();
 }
 
-/// What a removal moved out of the way before anything was deleted.
-pub(crate) struct MovedAside {
-    /// The marker holding the version directory.
-    pub(crate) version_marker: PathBuf,
-    /// The marker holding the downloads directory,
-    /// when the removal moved one aside.
-    pub(crate) downloads_marker: Option<PathBuf>,
-}
-
-/// Where a version's own trees stand.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Trees {
-    /// Under their own names.
-    InPlace,
-    /// Moved aside by a removal,
-    /// so each tree stands under a marker and its own name is free.
-    MovedAside,
-}
-
 /// What:
-/// Every path one version of a tool owns in a store:
-/// its directory and the archives downloaded for it,
-/// and, while a removal holds them aside, the markers that hold them with the names they take back.
+/// The two trees one version of a tool owns in a store: its directory and the archives downloaded for it.
 /// Why:
-/// A hold can name any of these,
-/// and the checks that keep a version a live process uses are only as good as the list they consult.
-/// One list answers for all of them, so no check can forget a tree.
+/// A hold can name either, and the checks that keep a version a live process uses are only as good as the list they
+/// consult. A tree a removal moved aside is asked about where it stands, by the one function that acts on it.
 /// The two trees are the whole of what an install writes for a version:
 /// `install_archive` downloads into `<root>/downloads/<tool>/<version>` and unpacks into
 /// `<root>/<tool>/<version>`, `install_cargo` and `install_rust_android` write only under the version directory,
@@ -907,22 +918,10 @@ enum Trees {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ownedPaths(root: string, tool: string, version: string, trees: Trees): string[]
+/// function ownedPaths(root: string, tool: string, version: string): string[]
 /// ```
-fn owned_paths(root: &Path, tool: &str, version: &str, trees: Trees) -> Vec<PathBuf> {
-    let version_directory: PathBuf = root.join(tool).join(version);
-    let downloads_directory: PathBuf = downloads_of(root, tool, version);
-    return match trees {
-        Trees::InPlace => vec![version_directory, downloads_directory],
-        // Both the markers and the names they take back: a hold recorded before the rename keeps its descriptor,
-        // and the path the descriptor reports is the one the tree stands under now or the one it left.
-        Trees::MovedAside => vec![
-            tombstone_of(&version_directory),
-            version_directory,
-            tombstone_of(&downloads_directory),
-            downloads_directory,
-        ],
-    };
+fn owned_paths(root: &Path, tool: &str, version: &str) -> Vec<PathBuf> {
+    return vec![root.join(tool).join(version), downloads_of(root, tool, version)];
 }
 
 /// What:
@@ -935,8 +934,8 @@ fn owned_paths(root: &Path, tool: &str, version: &str, trees: Trees) -> Vec<Path
 /// ```ts
 /// function ownedHoldReason(root: string, tool: string, version: string, trees: Trees, holders: StoreHolders): string | undefined
 /// ```
-fn owned_hold_reason(holders: &StoreHolders, root: &Path, tool: &str, version: &str, trees: Trees) -> Option<String> {
-    for path in owned_paths(root, tool, version, trees) {
+fn owned_hold_reason(holders: &StoreHolders, root: &Path, tool: &str, version: &str) -> Option<String> {
+    for path in owned_paths(root, tool, version) {
         if let Some(reason) = held_reason(holders, &path) {
             return Some(reason);
         }
@@ -968,44 +967,24 @@ fn current_names(root: &Path, tool: &str, version: &str) -> bool {
 }
 
 /// What:
-/// How `metadata` differs from the entry `candidate` was judged as,
-/// or `None` when it is that entry.
+/// What the inventory judged one candidate to be, as the facts a removal proves before it acts.
 /// Why:
-/// A pass looks at a version, decides, and acts later,
-/// and an install can replace the directory in between;
-/// the entry an install put there is not the one that was judged and must not be removed.
-/// The inode number tells one directory from another at the same name,
-/// and the write time tells an install that wrote in place.
+/// The facts a decision was made on are the inventory's, not a read taken after the decision:
+/// a copy that replaced the judged one between the two is a different object, and `settle` is asked to prove the
+/// judged one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function judgedEntryDifference(metadata: Stats, candidate: TrimCandidate): string | undefined
+/// function judgedOfCandidate(candidate: TrimCandidate): TreeJudgement
 /// ```
-fn judged_entry_difference(metadata: &fs::Metadata, candidate: &TrimCandidate, facts: &TreeFacts) -> Option<&'static str> {
-    // What: the inode number is compared first.
-    // Why: a replaced directory answers every question, and the inode says that is what happened.
-    match (candidate.inode, inode_of(metadata)) {
-        (Some(judged), Some(found)) if judged != found => return Some(NOT_THE_JUDGED_ENTRY),
-        // A platform that reports no inode number is answered by the write time alone.
-        _ => {}
-    }
-    // What: a tree that could not be read whole, or that differs in any of its whole-tree facts, is not the
-    // judged one.
-    // Why: a write into a folder that already existed changes neither the root's inode nor the root's own write time;
-    // it changes the file count, the bytes and the newest write inside the tree.
-    if !facts.complete {
-        return Some("it could not be read whole at this moment");
-    }
-    if facts.files != candidate.files || facts.bytes != candidate.tree_bytes || facts.newest != candidate.newest {
-        return Some("another run wrote it while the cleanup ran");
-    }
-    if metadata.modified().ok() != Some(candidate.written) {
-        return Some("another run wrote it while the cleanup ran");
-    }
-    return None;
+fn judged_of_candidate(candidate: &TrimCandidate) -> JudgedTree {
+    return JudgedTree {
+        inode: candidate.inode,
+        written: candidate.written,
+        facts: TreeFacts { bytes: candidate.tree_bytes, files: candidate.files, newest: candidate.newest, complete: true },
+    };
 }
 
-/// What:
 /// How many entries the deletion walk reads between two reads of the clock.
 const DEADLINE_CHECK_EVERY: u64 = 128;
 
@@ -1024,373 +1003,222 @@ const CARGO_TOOL_PREFIX: &str = "cargo/";
 const NOT_THE_JUDGED_ENTRY: &str =
     "another run installed this version while the cleanup ran, so the entry found there is not the one judged";
 
-/// What:
-/// The first half of a removal:
-/// reads the version's own entry and refuses unless it is the one the pass judged.
-/// Why:
-/// It is the cheap early answer, and it is a separate step from the move
-/// so a control can hold the order between them without a race of threads:
-/// whatever an install does between this step and the next is caught by the second look, inside the move.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function judged_entry_still_there(candidate: TrimCandidate): boolean | undefined  // undefined: gone
-/// ```
-pub(crate) fn judged_entry_still_there(candidate: &TrimCandidate, deadline: Instant) -> Result<Option<()>, String> {
-    let metadata: fs::Metadata = match fs::symlink_metadata(&candidate.directory) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("it cannot be read: {error}")),
-    };
-    let facts: TreeFacts = tree_facts(&candidate.directory, deadline);
-    if let Some(difference) = judged_entry_difference(&metadata, candidate, &facts) {
-        return Err(difference.to_string());
-    }
-    return Ok(Some(()));
+/// A version a removal moved out of its name, with what was judged of it and of the archives kept for it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct MovedAside {
+    /// The tree, under its removal name.
+    pub version_marker: PathBuf,
+    /// What the tree was judged to be, read at the moment it was moved.
+    pub version_judged: JudgedTree,
+    /// The archives, under their removal name, when the version had any.
+    pub downloads_marker: Option<PathBuf>,
+    /// What the archives were judged to be.
+    pub downloads_judged: Option<JudgedTree>,
 }
 
-/// What:
-/// The second half of a removal:
-/// moves the version's downloads and then the version itself out of their names,
-/// and puts both back unless the entry under the marker is the one the pass judged.
-/// Why:
-/// The marker is a name only this program writes,
-/// so the entry standing under it after the rename is exactly what the removal holds,
-/// and its inode and write time say whether it is the judged entry or one an install put there meanwhile.
-/// A different entry goes back at once, so a fresh install is never what a removal deletes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function move_judged_entry(candidate: TrimCandidate): MovedAside | undefined  // throws on a refusal
-/// ```
-pub(crate) fn move_judged_entry(candidate: &TrimCandidate, deadline: Instant) -> Result<Option<MovedAside>, String> {
-    // What: the marker is written before the first rename.
-    // Why: a run killed inside `remove_dir_all` leaves the marker, and the next install finishes the removal.
-    let _ = fs::write(unfinished_marker(&candidate.root), b"");
-    // What: the downloads are moved out of their name first, then the version.
-    // Why: a kill between the two leaves the version whole and a downloads marker the next run finishes, never a
-    // version that is gone while its downloads still sit under a version's name.
-    let downloads_marker: Option<PathBuf> = match &candidate.downloads {
-        Some(downloads) => {
-            let marker: PathBuf = tombstone_of(downloads);
-            match fs::rename(downloads, &marker) {
-                Ok(()) => Some(marker),
-                Err(error) if error.kind() == ErrorKind::NotFound => None,
-                Err(error) => return Err(format!("its downloads cannot be moved aside: {error}")),
-            }
-        }
-        None => None,
-    };
-    let version_marker: PathBuf = tombstone_of(&candidate.directory);
-    if let Err(error) = fs::rename(&candidate.directory, &version_marker) {
-        // The version stays, so its downloads go back to the name they had.
-        if let Some(marker) = &downloads_marker
-            && let Some(downloads) = &candidate.downloads
-        {
-            let _ = fs::rename(marker, downloads);
-        }
-        return Err(format!("it cannot be moved aside: {error}"));
-    }
-    // What: the entry the removal now holds is compared with the one that was judged.
-    // Why: an install that replaced the version between the look and this rename is holding a finished copy under
-    // the marker now, and deleting it would discard the install.
-    let held: fs::Metadata = match fs::symlink_metadata(&version_marker) {
-        Ok(held) => held,
-        // The marker is gone already: another run finished the removal this pass was making.
-        Err(_) => return Ok(None),
-    };
-    let held_facts: TreeFacts = tree_facts(&version_marker, deadline);
-    if let Some(difference) = judged_entry_difference(&held, candidate, &held_facts) {
-        let aside: MovedAside = MovedAside { version_marker: version_marker.clone(), downloads_marker };
-        let reason: String = match put_back(candidate, &aside, deadline, false) {
-            PutBack::Back | PutBack::NameTaken | PutBack::NameUnfinished => difference.to_string(),
-            PutBack::Failed(problem) => format!("{difference}; {problem}"),
-        };
-        return Err(reason);
-    }
-    // What: the facts of the tree this removal holds are written beside it before anything else happens to it.
-    // Why: a later pass has no other record of the judgement, and with it the whole tree is put back as the finished
-    // copy it was; without it, that pass can only put it back as a copy nothing may take for finished.
-    // The walk above is the judgement itself, so the record holds what the identity check just proved is there.
-    let judged: JudgedTree = JudgedTree {
-        inode: inode_of(&held),
-        written: held.modified().unwrap_or(candidate.written),
-        facts: held_facts,
-    };
-    let _ = write_judged(&candidate.directory, &judged);
-    return Ok(Some(MovedAside { version_marker, downloads_marker }));
-}
-
-/// What:
-/// Moves one version out of its name,
-/// in the two steps a control can hold apart:
-/// the look that refuses an entry that is not the one judged,
-/// then the move that refuses one an install put there between the look and itself.
-/// Why:
-/// A reader then sees the version or its removal marker and never a half version,
-/// a kill at any later point leaves markers the next run finishes,
-/// and the entry a removal deletes is always the one a pass judged.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function moveAside(candidate: TrimCandidate): MovedAside | undefined  // throws on a refusal
-/// ```
-fn move_aside(candidate: &TrimCandidate, deadline: Instant) -> Result<Option<MovedAside>, String> {
-    if judged_entry_still_there(candidate, deadline)?.is_none() {
-        return Ok(None);
-    }
-    return move_judged_entry(candidate, deadline);
-}
-
-/// What putting a version back under its name ended in.
-enum PutBack {
-    /// The version is back under its name.
+/// What a pass wants done with one tree or file it has judged.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Settle {
+    /// Move it out of its live name.
+    Aside,
+    /// Move it back under its live name.
     Back,
-    /// The name holds another copy,
-    /// so this copy is deleted instead of restored.
-    NameTaken,
-    /// The name holds an install that has not finished,
-    /// so neither copy may be touched by this pass.
-    NameUnfinished,
-    /// Neither worked,
-    /// and the marker stays.
-    Failed(String),
+    /// Delete it for good.
+    Delete,
+}
+
+/// What settling a tree or a file ended in.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Settled {
+    /// It is where the action puts it.
+    Done,
+    /// Nothing happened to it, and why.
+    Kept(String),
+}
+
+/// One tree or file to act on, with what the action has to prove before it acts.
+struct ToSettle<'a> {
+    /// The exact path the action is about, as it stands now.
+    path: &'a Path,
+    /// Where the action moves it: its removal name, or its live name.
+    target: &'a Path,
+    /// What it was judged to be.
+    judged: &'a JudgedTree,
+    /// What the process table said for this pass.
+    holders: &'a StoreHolders,
+    /// What to do.
+    action: Settle,
+    /// When the work limit runs out.
+    deadline: Instant,
+}
+
+/// What:
+/// The one place this module renames, moves back or unlinks a tree or a file.
+/// Why:
+/// A pass looks at a tree, decides, and acts later, and other commands and people act in between.
+/// A deletion that trusted a name, a proof about a different object, and a read that failed each cost a review a copy,
+/// so everything this module does to the drive goes through this function:
+/// it reads the exact path again at the moment it acts, asks the process table about that exact path, and answers
+/// "kept" for anything it cannot show.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function settle(tree: { path: string; target: string; judged: TreeJudgement; holders: StoreHolders;
+///   action: "aside" | "back" | "delete" }): { done: true } | { kept: string }
+/// ```
+fn settle(tree: &ToSettle<'_>) -> Settled {
+    // What: a scan that could not be completed, or a process that holds this exact path, keeps it.
+    // Why: a process the kernel will not describe may run any version, and one that holds the path is using it.
+    if let Some(reason) = &tree.holders.incomplete {
+        return Settled::Kept(format!("the process table could not be read in full: {reason}"));
+    }
+    if let Some(reason) = held_reason(tree.holders, tree.path) {
+        return Settled::Kept(format!("it is in use: {reason}"));
+    }
+    // What: the path is read again now, and must be the tree and the bytes that were judged.
+    // Why: a rename or an unlink acts on whatever stands at the path at that instant.
+    let Some(now) = judged_of_tree(tree.path, tree.deadline) else {
+        return Settled::Kept("it could not be read in full at this moment".to_string());
+    };
+    if !tree.judged.matches(&now) {
+        return Settled::Kept(if tree.judged.inode != now.inode {
+            NOT_THE_JUDGED_ENTRY.to_string()
+        } else {
+            "something was written in it after it was judged".to_string()
+        });
+    }
+    return match tree.action {
+        Settle::Delete => match delete_tree_within(tree.path, tree.deadline) {
+            None => Settled::Done,
+            Some(failure) => Settled::Kept(failure),
+        },
+        Settle::Aside | Settle::Back => move_to(tree.path, tree.target, &now, tree.deadline),
+    };
+}
+
+/// What:
+/// Moves the tree at `path` to `target`, and proves the entry under the new name is the one that was judged.
+/// Why:
+/// A rename is one step on one filesystem, and saying so is what keeps a proof about one object from being read as a
+/// proof about another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function moveTo(path: string, target: string, judged: TreeJudgement): { done: true } | { kept: string }
+/// ```
+fn move_to(path: &Path, target: &Path, judged: &JudgedTree, deadline: Instant) -> Settled {
+    if let Err(error) = fs::rename(path, target) {
+        return Settled::Kept(format!("{} could not be moved to {}: {error}", path.display(), target.display()));
+    }
+    return match judged_of_tree(target, deadline) {
+        Some(moved) if judged.matches(&moved) => Settled::Done,
+        Some(_) => {
+            let _ = fs::rename(target, path);
+            Settled::Kept(format!(
+                "the entry moved to {} is not the tree that was judged, so it went back",
+                target.display()
+            ))
+        }
+        None => Settled::Kept(format!("{} could not be read after the move, so it is left there", target.display())),
+    };
+}
+
+/// What:
+/// Whether `path` is provably not there.
+/// Why:
+/// Only `NotFound` says a path is absent; a permission or I/O failure says nothing about it, and reading that as
+/// "absent" deleted the archives of a version that was there all along.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function provablyAbsent(path: string): boolean  // throws when it cannot tell
+/// ```
+fn provably_absent(path: &Path) -> Result<bool, String> {
+    return match fs::symlink_metadata(path) {
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(true),
+        Err(error) => Err(format!("{} cannot be read: {error}", path.display())),
+    };
 }
 
 /// What:
 /// Whether the copy of `tool`'s version at `directory` is a finished install.
 /// Why:
-/// A held, finished copy may be deleted only in favour of a copy that finished.
-/// A route that installs in place leaves a half-written directory under the version's name,
-/// and deleting the good copy for it would leave the only working one gone.
-/// An archive install writes its completion marker last and a `cargo binstall` crate writes its record last;
-/// a route that leaves neither is never read as finished here,
-/// so its copy stays aside rather than being deleted for a name this pass cannot judge.
+/// A route that installs in place leaves a half-written directory under the version's name, and a finished copy at the
+/// name is the only proof that a copy a removal holds may be deleted as a duplicate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function finished_copy_at(tool: string, directory: string): boolean
+/// function finishedCopyAt(tool: string, directory: string): boolean
 /// ```
 fn finished_copy_at(tool: &str, directory: &Path) -> bool {
     if has_complete_marker(directory) {
         return true;
     }
-    if let Some(crate_name) = tool.strip_prefix("cargo/") {
+    if let Some(crate_name) = tool.strip_prefix(CARGO_TOOL_PREFIX) {
         return recorded_version(directory, crate_name).is_some();
     }
     return false;
 }
 
 /// What:
-/// Puts a moved-aside version and its downloads back under their names,
-/// or deletes them when the name is taken again.
+/// Takes away what would make the version at `tree` count as a finished install of `tool`.
 /// Why:
-/// A version that turns out to be in use is not removed,
-/// and its name is the only thing it lost.
-/// A name that holds a copy again means another run installed that version while this pass held the old copy out
-/// of the way, and then the old copy is the one to delete:
-/// leaving it a marker would retry the restore on every later pass.
+/// A tree no record proved whole may be one a deletion has begun inside, and the completion marker it still carries
+/// says otherwise to every later reader.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function putBack(candidate: TrimCandidate, moved: MovedAside): 'back' | 'nameTaken' | { failed: string }
+/// function unfinishTree(tool: string, tree: string): string | undefined  // the failure, if any
 /// ```
-fn put_back(candidate: &TrimCandidate, moved: &MovedAside, deadline: Instant, held: bool) -> PutBack {
-    return restore_or_delete(
-        &candidate.tool,
-        &moved.version_marker,
-        &candidate.directory,
-        moved.downloads_marker.as_deref(),
-        candidate.downloads.as_deref(),
-        deadline,
-        held,
-    );
-}
-
-/// What putting a tree under its version's name ended in, and the record of the judgement goes with the name it
-/// described.
-fn restore_or_delete(
-    tool: &str,
-    version_marker: &Path,
-    version_directory: &Path,
-    downloads_marker: Option<&Path>,
-    downloads_directory: Option<&Path>,
-    deadline: Instant,
-    held: bool,
-) -> PutBack {
-    if fs::symlink_metadata(version_directory).is_ok() {
-        // What: a copy a live process uses is never deleted, whatever stands at its name.
-        // Why: the point of the holder check is that the process keeps working; deleting the copy under it.
-        if held {
-            return PutBack::NameUnfinished;
+fn unfinish_tree(tool: &str, tree: &Path) -> Option<String> {
+    let mut paths: Vec<PathBuf> = vec![tree.join(COMPLETE_MARKER)];
+    if tool.starts_with(CARGO_TOOL_PREFIX) {
+        paths.push(tree.join(CARGO_RECORD_NAME));
+    }
+    for path in paths {
+        if let Err(error) = fs::remove_file(&path)
+            && error.kind() != ErrorKind::NotFound
+        {
+            return Some(format!("{} still says it is finished: {error}", path.display()));
         }
-        // What: a name taken by an install that has not finished keeps the held copy aside.
-        // Why: deleting the held, finished copy for a half-written one loses the only working copy,
-        // and putting the held copy back would write over the install in flight.
-        if !finished_copy_at(tool, version_directory) {
-            return PutBack::NameUnfinished;
-        }
-        // The held copy is a duplicate of the finished one at the name, which is the only proof this step has.
-        return match remove_trees(tool, version_marker, downloads_marker, &Proof::Duplicate(version_directory), deadline) {
-            None => {
-                let _ = fs::remove_file(record_of(version_directory));
-                PutBack::NameTaken
-            }
-            Some(failure) => PutBack::Failed(failure),
-        };
-    }
-    if let Err(error) = fs::rename(version_marker, version_directory) {
-        return PutBack::Failed(format!("{} could not be put back: {error}", version_directory.display()));
-    }
-    // What: the record goes with the removal it described.
-    // Why: a record left behind describes a tree that is under its own name again, and a later removal of the same
-    // version that is killed before writing its own would otherwise be read through this older one.
-    let _ = fs::remove_file(record_of(version_directory));
-    if let (Some(marker), Some(directory)) = (downloads_marker, downloads_directory)
-        && let Err(error) = fs::rename(marker, directory)
-    {
-        return PutBack::Failed(format!("{} could not be put back: {error}", directory.display()));
-    }
-    return PutBack::Back;
-}
-
-/// Deletes the trees a removal moved aside,
-/// whichever of them exist.
-fn remove_trees(tool: &str, version_marker: &Path, downloads_marker: Option<&Path>, proof: &Proof<'_>, deadline: Instant) -> Option<String> {
-    // What: each tree goes through the one deletion site with the proof of its own kind.
-    // Why: the version's tree is what a pass judged and is checked by identity where that proof is available;
-    // the archives were renamed by the same call that renamed the version and no other program writes their
-    // marker's name.
-    let version_proof: Proof<'_> = match proof {
-        Proof::Judged(candidate) => Proof::Judged(candidate),
-        _ => Proof::MovedByThisPass,
-    };
-    if let Some(failure) = delete_for_good(tool, version_marker, version_proof, deadline) {
-        return Some(format!("{} is left half removed: {failure}", version_marker.display()));
-    }
-    if let Some(marker) = downloads_marker
-        && let Some(failure) = delete_for_good(tool, marker, Proof::MovedByThisPass, deadline)
-    {
-        return Some(format!("{} is left half removed: {failure}", marker.display()));
     }
     return None;
-}
-
-/// What:
-/// Deletes what a removal moved aside.
-/// Why:
-/// This is the only step that gives the space back,
-/// and it runs after the process table was asked about the moved version.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function deleteMoved(candidate: TrimCandidate, moved: MovedAside): string | undefined  // the failure, if any
-/// ```
-fn delete_moved(candidate: &TrimCandidate, moved: &MovedAside, deadline: Instant) -> Option<String> {
-    // What: the version's marker is deleted on the identity of the entry the pass judged.
-    // Why: the entry under the marker is what the removal holds, and its inode and write time say whether it is still
-    // the judged one; the second look before this call asked the same question, and this asks it again at the delete.
-    let judged: Proof<'_> = Proof::Judged(candidate);
-    if let Some(failure) = remove_trees(&candidate.tool, &moved.version_marker, moved.downloads_marker.as_deref(), &judged, deadline) {
-        return Some(failure);
-    }
-    // What: the record of the judgement goes with the tree it described.
-    // Why: a record left under a name no tree stands at is nobody's, and a later removal of the same version that is
-    // killed before writing its own would otherwise be read through it.
-    let _ = fs::remove_file(record_of(&candidate.directory));
-    if let Some(downloads) = &candidate.downloads
-        && let Some(tool_downloads) = downloads.parent()
-    {
-        // Best effort: a tool's downloads directory goes once its last version's archives are gone.
-        let _ = fs::remove_dir(tool_downloads);
-    }
-    return None;
-}
-
-/// What a deletion has proven about the bytes it deletes,
-/// at the instant it deletes them.
-/// Why:
-/// Four reviews each found a copy lost at a different step,
-/// and every one of them was a deletion that trusted a name:
-/// a version's own name, a marker's name, or a name an install had just taken.
-/// A name proves nothing about what stands under it,
-/// so every deletion names the proof it has and the one function below checks it.
-enum Proof<'a> {
-    /// The entry is the one a pass judged:
-    /// same device and inode number, same write time.
-    Judged(&'a TrimCandidate),
-    /// The bytes were renamed here by this pass a moment ago,
-    /// and no other program writes a marker's name.
-    MovedByThisPass,
-    /// A finished copy of the same version stands at the version's own name,
-    /// so the copy under the marker is a duplicate.
-    Duplicate(&'a Path),
-    /// The archives are unwanted because their version stands at neither name any more.
-    OrphanedDownloads(&'a Path),
-}
-
-/// What:
-/// The only function that deletes anything for good.
-/// It checks the proof it is given at the instant of the deletion,
-/// and refuses when the proof no longer holds.
-/// Why:
-/// A pass looks, decides, and acts later, and an install can change the bytes in between;
-/// putting every deletion behind one check of one named proof is what keeps a removal from deleting something it did
-/// not judge, and makes "what does this deletion prove" a question with one answer to read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function deleteForGood(tool: string, path: string, proof: Proof): string | undefined  // the refusal, if any
-/// ```
-fn delete_for_good(tool: &str, path: &Path, proof: Proof<'_>, deadline: Instant) -> Option<String> {
-    let holds: bool = match proof {
-        Proof::Judged(candidate) => match fs::symlink_metadata(path) {
-            Ok(metadata) => judged_entry_difference(&metadata, candidate, &tree_facts(path, deadline)).is_none(),
-            Err(error) if error.kind() == ErrorKind::NotFound => true,
-            Err(_) => false,
-        },
-        Proof::MovedByThisPass => true,
-        Proof::Duplicate(version_directory) => finished_copy_at(tool, version_directory),
-        Proof::OrphanedDownloads(version_directory) => {
-            let marker_of_version: PathBuf = tombstone_of(version_directory);
-            fs::symlink_metadata(version_directory).is_err() && fs::symlink_metadata(marker_of_version).is_err()
-        }
-    };
-    if !holds {
-        return Some(format!("{} is not what this removal judged any more, so it was kept", path.display()));
-    }
-    return delete_tree_within(path, deadline);
 }
 
 /// What:
 /// Deletes one tree,
-/// renaming it to a deletion name first so a kill inside the walk leaves something the next run finishes rather
+/// renaming it to its deletion name first so a kill inside the walk leaves something the next run finishes rather
 /// than something it could put back,
 /// and stopping at `deadline` with whatever is left under that name for the next run.
 /// Why:
 /// A recursive deletion cannot be undone once a file inside it is gone, so the name says what happened to it:
 /// a removal name may be put back, a deletion name never is.
+/// It is called only from `settle`, which has proved the tree is the one judged and that nobody holds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function delete_tree_within(path: string, deadline: Instant): string | undefined
+/// function deleteTreeWithin(path: string, deadline: Instant): string | undefined
 /// ```
 pub(crate) fn delete_tree_within(path: &Path, deadline: Instant) -> Option<String> {
+    let deleting: PathBuf = deleting_of(path);
+    let move_to_deleting = || -> Option<String> {
+        return match fs::rename(path, &deleting) {
+            Ok(()) => None,
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => Some(format!("{} could not be moved to its deletion name: {error}", path.display())),
+        };
+    };
     // What: a walk whose limit is already gone does not begin.
     // Why: beginning it would hold the pass for work it has no time to finish.
-    let deleting: PathBuf = deleting_of(path);
     if Instant::now() >= deadline {
-        if let Err(error) = fs::rename(path, &deleting)
-            && error.kind() != ErrorKind::NotFound
-        {
-            return Some(format!("{} could not be moved to its deletion name: {error}", path.display()));
+        if let Some(failure) = move_to_deleting() {
+            return Some(failure);
         }
         return Some(format!("{} is left under its deletion name for the next run", deleting.display()));
     }
-    if let Err(error) = fs::rename(path, &deleting)
-        && error.kind() != ErrorKind::NotFound
-    {
-        return Some(format!("{} could not be moved to its deletion name: {error}", path.display()));
+    if let Some(failure) = move_to_deleting() {
+        return Some(failure);
     }
     // What: the walk stops at the deadline, and what it did not reach stays under the deletion name.
     // Why: the work limit has to bound the work itself; the next run finishes it without asking what it is.
@@ -1431,24 +1259,84 @@ pub(crate) fn delete_tree_within(path: &Path, deadline: Instant) -> Option<Strin
 }
 
 /// What:
-/// Removes one download file an earlier layout left.
+/// Moves one version out of its name, its archives first, each proved and asked about as the object it is.
 /// Why:
-/// Such a file is not a version:
-/// unlinking it is one atomic step, so there is nothing to move aside and nothing to finish.
+/// A kill between the two renames leaves the version whole and its archives aside, which the next pass puts back;
+/// a kill inside either rename leaves a name the next pass finishes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function removeLeftover(candidate: TrimCandidate): boolean  // false when it was gone already
+/// function moveAside(candidate: TrimCandidate, holders: StoreHolders): MovedAside | undefined  // throws the reason
 /// ```
-fn remove_leftover(candidate: &TrimCandidate, deadline: Instant) -> Result<bool, String> {
-    // What: the file is checked against the identity it had when the pass judged it.
-    // Why: a file under the same name is not necessarily the one the plan meant.
-    return match delete_for_good(&candidate.tool, &candidate.directory, Proof::Judged(candidate), deadline) {
-        None => Ok(true),
-        Some(refusal) => Err(refusal),
+pub(crate) fn move_aside(candidate: &TrimCandidate, holders: &StoreHolders, deadline: Instant) -> Result<Option<MovedAside>, String> {
+    let version_judged: JudgedTree = judged_of_candidate(candidate);
+    // What: the archives are an object of their own, and are shown to be the ones judged before either moves.
+    // Why: a replacement tree under the downloads path is not what the plan judged, and deleting it lost a download.
+    let downloads_judged: Option<JudgedTree> = match (&candidate.downloads, &candidate.downloads_facts) {
+        (Some(downloads), Some(judged)) => match judged_of_tree(downloads, deadline) {
+            Some(now) if judged.matches(&now) => Some(now),
+            Some(_) => {
+                return Err("its archives are not the ones this pass judged, so neither they nor the version are removed"
+                    .to_string());
+            }
+            None => {
+                return Err("its archives could not be read in full at this moment, so neither they nor the version are removed"
+                    .to_string());
+            }
+        },
+        (Some(_), None) => {
+            return Err("its archives could not be judged, so neither they nor the version are removed".to_string());
+        }
+        (None, _) => None,
     };
+    // What: the marker is written before the first rename.
+    // Why: a pass killed inside a removal leaves it, and the next install runs the pass to finish it.
+    let _ = fs::write(unfinished_marker(&candidate.root), b"");
+    let mut downloads_marker: Option<PathBuf> = None;
+    if let (Some(downloads), Some(judged)) = (&candidate.downloads, &downloads_judged) {
+        let target: PathBuf = tombstone_of(downloads);
+        match settle(&ToSettle { path: downloads, target: &target, judged, holders, action: Settle::Aside, deadline }) {
+            Settled::Done => downloads_marker = Some(target),
+            Settled::Kept(reason) => return Err(format!("its archives stay where they are: {reason}")),
+        }
+    }
+    let version_marker: PathBuf = tombstone_of(&candidate.directory);
+    match settle(&ToSettle { path: &candidate.directory, target: &version_marker, judged: &version_judged, holders, action: Settle::Aside, deadline }) {
+        Settled::Done => {}
+        Settled::Kept(reason) => {
+            if let (Some(marker), Some(downloads), Some(judged)) = (&downloads_marker, &candidate.downloads, &downloads_judged) {
+                let _ = settle(&ToSettle { path: marker, target: downloads, judged, holders, action: Settle::Back, deadline });
+            }
+            return Err(reason);
+        }
+    }
+    // What: the record of what this removal holds is written before anything may delete inside the tree.
+    // Why: a later pass puts the tree back as the finished copy it was only when this record still describes it.
+    let _ = write_judged(&candidate.directory, &version_judged);
+    return Ok(Some(MovedAside { version_marker, version_judged, downloads_marker, downloads_judged }));
 }
 
+/// What:
+/// Removes one download file an earlier layout left.
+/// Why:
+/// Such a file is not a version: it is judged, proved and asked about by its own path, and unlinked in one step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeLeftover(candidate: TrimCandidate, holders: StoreHolders): boolean  // false when it was gone
+/// ```
+fn remove_leftover(candidate: &TrimCandidate, holders: &StoreHolders, deadline: Instant) -> Result<bool, String> {
+    if let Err(error) = fs::symlink_metadata(&candidate.directory)
+        && error.kind() == ErrorKind::NotFound
+    {
+        return Ok(false);
+    }
+    let judged: JudgedTree = judged_of_candidate(candidate);
+    return match settle(&ToSettle { path: &candidate.directory, target: &candidate.directory, judged: &judged, holders, action: Settle::Delete, deadline }) {
+        Settled::Done => Ok(true),
+        Settled::Kept(reason) => Err(reason),
+    };
+}
 /// What:
 /// Removes what the plan decided,
 /// for at most the work limit,
@@ -1469,6 +1357,9 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
     let mut lines: Vec<Option<String>> = vec![None; plan.steps.len()];
     let mut moved: Vec<(usize, TrimCandidate, MovedAside)> = Vec::new();
     let mut deferred: usize = 0;
+    // What: the process table as it stands before anything is moved.
+    // Why: a tree a process holds is never moved aside, and a scan that could not be completed keeps every version.
+    let first_look: StoreHolders = run.look();
     for (index, step) in plan.steps.iter().enumerate() {
         match step {
             TrimStep::Keep(candidate, reason) => lines[index] = Some(kept_line(candidate, reason)),
@@ -1479,7 +1370,7 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     continue;
                 }
                 if candidate.leftover {
-                    match remove_leftover(candidate, run.deadline()) {
+                    match remove_leftover(candidate, &first_look, run.deadline()) {
                         Ok(true) => {
                             outcome.removed += 1;
                             outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
@@ -1491,7 +1382,7 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     }
                     continue;
                 }
-                match move_aside(candidate, run.deadline()) {
+                match move_aside(candidate, &first_look, run.deadline()) {
                     Ok(Some(aside)) => moved.push((index, candidate.clone(), aside)),
                     Ok(None) => {}
                     Err(reason) => lines[index] = Some(kept_line(candidate, &reason)),
@@ -1500,68 +1391,103 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
         }
     }
     if !moved.is_empty() {
-        let holders: StoreHolders = run.look();
+        // What: the process table is asked again once the whole batch is out of its names.
+        // Why: nothing can start using a version after its rename, so this second look is the moment the removals
+        // become final, and a tree something holds goes back under its name.
+        let second_look: StoreHolders = run.look();
         for (index, candidate, aside) in moved {
-            let reason: Option<String> = match &holders.incomplete {
-                Some(failed) => Some(format!("the process table could not be read: {failed}")),
+            // What: the tool's current link is read again, after the move.
+            // Why: nothing can start using a version after its rename, but another command can repoint the link, and a
+            // version the link names at that moment is never removed.
+            let mut kept: Option<String> = if current_names(&candidate.root, &candidate.tool, &candidate.version) {
+                Some("the tool's current link names it".to_string())
+            } else {
+                None
+            };
+            // What: nothing is deleted when a protection already answered kept.
+            // Why: a version the link names at that moment is never removed, and a deletion once done cannot be undone.
+            if kept.is_none()
+                && let Settled::Kept(reason) = settle(&ToSettle {
+                    path: &aside.version_marker,
+                    target: &candidate.directory,
+                    judged: &aside.version_judged,
+                    holders: &second_look,
+                    action: Settle::Delete,
+                    deadline: run.deadline(),
+                })
+            {
+                kept = Some(reason);
+            }
+            if kept.is_none()
+                && let (Some(marker), Some(judged)) = (&aside.downloads_marker, &aside.downloads_judged)
+                && let Settled::Kept(reason) = settle(&ToSettle {
+                    path: marker,
+                    target: marker,
+                    judged,
+                    holders: &second_look,
+                    action: Settle::Delete,
+                    deadline: run.deadline(),
+                })
+            {
+                kept = Some(format!("its archives are still being removed: {reason}"));
+            }
+            match kept {
                 None => {
-                    // What: the link is read again after the move, with the holders.
-                    // Why: a repoint that landed between the refusal in `move_aside` and the move itself is seen
-                    // here, and the version goes back under its name.
-                    if current_names(&candidate.root, &candidate.tool, &candidate.version) {
-                        Some("the tool's current link names it".to_string())
-                    } else {
-                        owned_hold_reason(
-                            &holders,
-                            &candidate.root,
-                            &candidate.tool,
-                            &candidate.version,
-                            Trees::MovedAside,
-                        )
-                        .map(|held| return format!("it is in use: {held}"))
+                    let _ = fs::remove_file(record_of(&candidate.directory));
+                    // Best effort: a tool's downloads directory goes once its last version's archives are gone.
+                    if let Some(downloads) = &candidate.downloads
+                        && let Some(tool_downloads) = downloads.parent()
+                    {
+                        let _ = fs::remove_dir(tool_downloads);
+                    }
+                    outcome.removed += 1;
+                    outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
+                    lines[index] = Some(removed_line(&candidate));
+                }
+                Some(reason) => {
+                    // What: a tree the second look keeps goes back under its name, whole, as the record proved it.
+                    // Why: it is the tree this pass judged a moment ago and nothing was written in it since; only its
+                    // reader changed, and a copy a process uses is never deleted.
+                    match settle(&ToSettle {
+                        path: &aside.version_marker,
+                        target: &candidate.directory,
+                        judged: &aside.version_judged,
+                        holders: &second_look,
+                        action: Settle::Back,
+                        deadline: run.deadline(),
+                    }) {
+                        Settled::Done => {
+                            let _ = fs::remove_file(record_of(&candidate.directory));
+                            if let (Some(marker), Some(downloads), Some(judged)) =
+                                (&aside.downloads_marker, &candidate.downloads, &aside.downloads_judged)
+                            {
+                                let _ = settle(&ToSettle {
+                                    path: marker,
+                                    target: downloads,
+                                    judged,
+                                    holders: &second_look,
+                                    action: Settle::Back,
+                                    deadline: run.deadline(),
+                                });
+                            }
+                            lines[index] = Some(kept_line(&candidate, &reason));
+                        }
+                        Settled::Kept(why) => {
+                            outcome.unfinished.insert(candidate.root.clone());
+                            let _ = fs::write(unfinished_marker(&candidate.root), b"");
+                            lines[index] = Some(kept_line(
+                                &candidate,
+                                &format!("{reason}; it stays out of its name: {why}"),
+                            ));
+                        }
                     }
                 }
-            };
-            match reason {
-                Some(why) => match put_back(&candidate, &aside, run.deadline(), why.starts_with("it is in use") || why.starts_with("it may be in use")) {
-                    PutBack::Back => lines[index] = Some(kept_line(&candidate, &why)),
-                    PutBack::NameTaken => {
-                        outcome.removed += 1;
-                        outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
-                        lines[index] = Some(format!(
-                            "{}, and a newer copy took its name while it was held, so the held copy was deleted",
-                            removed_line(&candidate)
-                        ));
-                    }
-                    PutBack::NameUnfinished => {
-                        outcome.unfinished.insert(candidate.root.clone());
-                        lines[index] = Some(kept_line(
-                            &candidate,
-                            &format!("{why}; the version's name holds an install that has not finished, so the held copy stays aside"),
-                        ));
-                    }
-                    PutBack::Failed(failure) => {
-                        outcome.unfinished.insert(candidate.root.clone());
-                        lines[index] = Some(kept_line(&candidate, &format!("{why}; {failure}")));
-                    }
-                },
-                None => match delete_moved(&candidate, &aside, run.deadline()) {
-                    None => {
-                        outcome.removed += 1;
-                        outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
-                        lines[index] = Some(removed_line(&candidate));
-                    }
-                    Some(failure) => {
-                        outcome.unfinished.insert(candidate.root.clone());
-                        lines[index] = Some(kept_line(&candidate, &failure));
-                    }
-                },
             }
         }
     }
     // What: a root whose removals were all deferred gets the marker too.
-    // Why: the marker is what makes the next install run the pass, and only the move wrote it before, so a pass
-    // that moved nothing left no trace and the cleanup waited for an install that happened to install something.
+    // Why: the marker is what makes the next install run the pass, and a pass that could not move anything left no
+    // trace otherwise.
     for root in &outcome.unfinished {
         let _ = fs::write(unfinished_marker(root), b"");
     }
@@ -1576,7 +1502,6 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
     }
     return outcome;
 }
-
 /// The line for a version that stays,
 /// with the reason it stays.
 fn kept_line(candidate: &TrimCandidate, reason: &str) -> String {
@@ -1589,7 +1514,7 @@ fn removed_line(candidate: &TrimCandidate) -> String {
         "mpm-shadow: removed {} ({}), last written {} ago",
         candidate.directory.display(),
         format_size(candidate.bytes),
-        format_age(SystemTime::now(), candidate.written)
+        format_age(SystemTime::now(), newest_write(candidate.written, candidate.newest))
     );
 }
 
@@ -1620,6 +1545,20 @@ pub struct FinishOutcome {
 /// export function finishRemovals(run: TrimRun): FinishOutcome
 /// ```
 pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
+    return finish_removals_with(run, &NamedVersions::default());
+}
+
+/// What:
+/// `finish_removals` with the lock set the pass read.
+/// Why:
+/// A recovery is a removal like any other: a tree a killed pass left is judged again from nothing, by what is on the
+/// drive now, and a lock that names its version now keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function finishRemovalsWith(run: TrimRun, named: NamedVersions): FinishOutcome
+/// ```
+pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutcome {
     let mut outcome: FinishOutcome = FinishOutcome::default();
     let mut markers: Vec<RemovalMarker> = Vec::new();
     for root in &run.roots {
@@ -1634,153 +1573,48 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
             outcome.unfinished.insert(marker.root.clone());
             break;
         }
+        let locked: Option<String> = named.naming_lock(&marker.tool, &marker.version).map(str::to_string);
         // What: a deletion name is finished, never restored.
-        // Why: only the deletion step writes that name, and it writes it before it unlinks the first file, so what
-        // stands under it is condemned and may be partly gone; putting it under the version's name would present a
-        // broken copy as whole.
+        // Why: only the deletion step writes that name, and it wrote it before unlinking the first file.
         if marker.version_deleting {
-            match delete_tree_within(&marker.version_marker, run.deadline()) {
-                None => {
-                    // What: the record names the version, so it is found from either removal name.
-                    // Why: a deletion name is built from the removal name, and a record left behind is what a later
-                    // removal of the same version would be read through.
-                    if let Some(record) = record_of_marker(&marker.version_marker) {
-                        let _ = fs::remove_file(record);
-                    }
-                    outcome.lines.push(format!(
-                        "mpm-shadow: removed {} and finished a deletion an earlier run started",
-                        marker.version_directory.display()
-                    ));
-                }
-                Some(failure) => {
-                    outcome.unfinished.insert(marker.root.clone());
-                    outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {failure}", marker.version_directory.display()));
-                }
-            }
-            continue;
-        }
-        // What: a marker for the downloads alone, with the version still under its name, is a removal that never got
-        // past its first rename: `move_aside` moves the downloads first, `put_back` restores the version first.
-        // The version is live, and what it was downloaded as belongs to it.
-        // Why: reading "no marker for the version" as "condemned" deleted the archives of a version every protection
-        // keeps, and a record is beside the version's removal name, so it says nothing about this state either.
-        let version_present: bool = fs::symlink_metadata(&marker.version_marker).is_ok();
-        if !version_present {
-            if fs::symlink_metadata(&marker.version_directory).is_ok() {
-                match restore_downloads(&marker) {
-                    None => outcome.lines.push(format!(
-                        "mpm-shadow: kept {} ({}): the version it belongs to is still there, so what a removal \
-                         moved aside is put back",
-                        marker.downloads_directory.as_ref().map(|path| return path.display().to_string()).unwrap_or_default(),
-                        format_size(removal_marker_size(0, &marker, run.deadline()))
-                    )),
-                    Some(failure) => {
-                        outcome.unfinished.insert(marker.root.clone());
-                        outcome.lines.push(format!(
-                            "mpm-shadow: kept {}: it is still being removed: {failure}",
-                            marker.version_directory.display()
-                        ));
-                    }
-                }
-                continue;
-            }
-            // The version stands at neither name: only what it was downloaded as is left, and that goes.
-            outcome.lines.push(finish_downloads_line(&marker, run.deadline()));
+            finish_the_deletion(
+                &marker.version_marker,
+                &marker.root,
+                locked.as_deref(),
+                &holders,
+                run.deadline(),
+                &mut outcome,
+                format!("{} and finished a deletion an earlier run started", marker.version_directory.display()),
+            );
             continue;
         }
         if marker.downloads_deleting
             && let Some(downloads) = &marker.downloads_marker
         {
-            match delete_tree_within(downloads, run.deadline()) {
-                None => outcome.lines.push(format!(
-                    "mpm-shadow: removed {} and finished a deletion an earlier run started",
-                    downloads.display()
-                )),
-                Some(failure) => {
-                    outcome.unfinished.insert(marker.root.clone());
-                    outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {failure}", downloads.display()));
-                }
-            }
+            finish_the_deletion(
+                downloads,
+                &marker.root,
+                locked.as_deref(),
+                &holders,
+                run.deadline(),
+                &mut outcome,
+                format!("{} and finished a deletion an earlier run started", downloads.display()),
+            );
             continue;
         }
-        // What: a tree under a removal name is put back under its version's name, always.
-        // Why: no pass that finds such a tree can know which entry the run that left it judged, and four reviews each
-        // found a copy lost by a deletion that trusted a name. A copy a lock names, a person wants, or a process holds
-        // is never deleted here; it goes back where the next install finds it, and the next pass that can prove what
-        // it is judges it again.
-        // The record beside it decides only one thing: whether it goes back as the finished copy it was, or as a copy
-        // nothing may take for finished.
-        let (proven, tree_bytes): (bool, u64) = proven_whole(&marker.version_marker, &marker.version_directory, run.deadline());
-        let bytes: u64 = removal_marker_size(tree_bytes, &marker, run.deadline());
-        let reason: Option<String> = match &holders.incomplete {
-            Some(failed) => Some(format!("the process table could not be read: {failed}")),
-            None => {
-                if current_names(&marker.root, &marker.tool, &marker.version) {
-                    Some("the tool's current link names it".to_string())
-                } else {
-                    owned_hold_reason(&holders, &marker.root, &marker.tool, &marker.version, Trees::MovedAside)
-                        .map(|held| return format!("it is in use: {held}"))
-                }
+        match fs::symlink_metadata(&marker.version_marker) {
+            Ok(_) => restore_the_removal(&marker, locked.as_deref(), &holders, run.deadline(), &mut outcome),
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                finish_without_a_version(&marker, &holders, run.deadline(), &mut outcome);
             }
-        };
-        let candidate_reason: String = match reason {
-            Some(why) => why,
-            None => "it is put back under its own name, and a later pass judges it again".to_string(),
-        };
-        let held: bool = candidate_reason.starts_with("it is in use") || candidate_reason.starts_with("it may be in use");
-        match restore_marker(&marker, run.deadline(), held, proven) {
-            Restored::Back => {
-                outcome.put_back.insert(marker.version_directory.clone(), candidate_reason.clone());
-                // What: a `current` link that names a copy put back unfinished is taken away.
-                // Why: a launcher follows that link without asking whether the version finished, and while the copy
-                // was aside the link named nothing at all, so leaving it would turn an absent tool into a run of a
-                // copy nothing proved whole. Nothing is deleted, and the next install points the link again.
-                let unlinked: bool = !proven
-                    && current_names(&marker.root, &marker.tool, &marker.version)
-                    && fs::remove_file(marker.root.join(&marker.tool).join(CURRENT_LINK_NAME)).is_ok();
-                outcome.lines.push(if proven {
-                    format!(
-                        "mpm-shadow: kept {} ({}): {candidate_reason}; the removal an earlier run started is undone",
-                        marker.version_directory.display(),
-                        format_size(bytes)
-                    )
-                } else if unlinked {
-                    format!(
-                        "mpm-shadow: kept {} ({}): {candidate_reason}; the removal an earlier run started is undone, \
-                         and no record beside it proved the copy whole, so it is put back unfinished, the next install \
-                         of that version replaces it, and the tool's current link is taken away until then",
-                        marker.version_directory.display(),
-                        format_size(bytes)
-                    )
-                } else {
-                    format!(
-                        "mpm-shadow: kept {} ({}): {candidate_reason}; the removal an earlier run started is undone, \
-                         and no record beside it proved the copy whole, so it is put back unfinished and the next \
-                         install of that version replaces it",
-                        marker.version_directory.display(),
-                        format_size(bytes)
-                    )
-                });
-            }
-            Restored::NameUnfinished => {
+            // What: a path that cannot be read is not a path that is absent.
+            // Why: reading a failed read as "gone" deleted a version's archives while it was there.
+            Err(error) => {
                 outcome.unfinished.insert(marker.root.clone());
                 outcome.lines.push(format!(
-                    "mpm-shadow: kept {}: {candidate_reason}; the version's name holds an install that has not \
-                     finished, so the held copy stays aside",
+                    "mpm-shadow: kept {}: {} cannot be read: {error}",
+                    marker.version_directory.display(),
                     marker.version_marker.display()
-                ));
-            }
-            Restored::NameTaken => outcome.lines.push(format!(
-                "mpm-shadow: removed {} ({}) and finished a removal an earlier run started, and a newer copy holds \
-                 its name",
-                marker.version_marker.display(),
-                format_size(bytes)
-            )),
-            Restored::Failed(failure) => {
-                outcome.unfinished.insert(marker.root.clone());
-                outcome.lines.push(format!(
-                    "mpm-shadow: kept {}: {candidate_reason}; it is still being removed: {failure}",
-                    marker.version_directory.display()
                 ));
             }
         }
@@ -1789,166 +1623,275 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
 }
 
 /// What:
-/// Whether the record beside a removal name still describes the tree standing under it,
-/// and the space that tree weighs.
+/// Finishes a tree under a deletion name, judged again from nothing: its facts read now, the holders asked now, and a
+/// lock that names its version keeping it.
 /// Why:
-/// A record can outlive the tree it described: a put-back leaves the copy under its version's name, and a later
-/// removal of the same version can be killed before it writes a record of its own.
-/// Pairing that older record with a tree it never described is what would let this pass delete a copy, so the
-/// identity and the facts in the record are compared, and any difference is read as "no record".
-/// The record is named by the version's own directory, because it sits beside that version's removal name.
+/// The pass that began the deletion is dead, and what it decided is not evidence about what is on the drive now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenWhole(versionMarker: string, versionDirectory: string, deadline: Instant):
-///   { proven: boolean; bytes: number }
+/// function finishTheDeletion(tree: string, locked: string | undefined, holders: StoreHolders, line: string): void
 /// ```
-fn proven_whole(version_marker: &Path, version_directory: &Path, deadline: Instant) -> (bool, u64) {
-    let now: Option<JudgedTree> = judged_of_tree(version_marker, deadline);
-    let bytes: u64 = now.map(|found| return found.facts.bytes).unwrap_or(0);
-    let proven: bool = match (now, read_judged(version_directory)) {
-        (Some(here), Some(judged)) => judged.matches(&here),
-        _ => false,
+fn finish_the_deletion(
+    tree: &Path,
+    root: &Path,
+    locked: Option<&str>,
+    holders: &StoreHolders,
+    deadline: Instant,
+    outcome: &mut FinishOutcome,
+    line_when_done: String,
+) {
+    let Some(judged) = judged_of_tree(tree, deadline) else {
+        outcome.unfinished.insert(root.to_path_buf());
+        outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", tree.display()));
+        return;
     };
-    return (proven, bytes);
-}
-
-/// The space a removal marker holds,
-/// the version and the downloads counted together.
-fn removal_marker_size(version_bytes: u64, marker: &RemovalMarker, deadline: Instant) -> u64 {
-    let mut bytes: u64 = version_bytes;
-    if let Some(downloads) = &marker.downloads_marker {
-        bytes = bytes.saturating_add(tree_facts(downloads, deadline).bytes);
+    if let Some(lock) = locked {
+        outcome.unfinished.insert(root.to_path_buf());
+        outcome.lines.push(format!("mpm-shadow: kept {}: the lock {lock} names it now, so its deletion waits", tree.display()));
+        return;
     }
-    return bytes;
-}
-
-/// What:
-/// Puts the downloads a marker holds back under the name the version keeps them at.
-/// Why:
-/// They belong to a version that is still there,
-/// and a newer install may have written its own archives under that name already,
-/// in which case this copy is the older one and goes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function restoreDownloads(marker: RemovalMarker): string | undefined  // the failure, if any
-/// ```
-fn restore_downloads(marker: &RemovalMarker) -> Option<String> {
-    let (Some(downloads_marker), Some(downloads_directory)) = (&marker.downloads_marker, &marker.downloads_directory)
-    else {
-        return None;
-    };
-    if fs::symlink_metadata(downloads_directory).is_ok() {
-        return remove_dir_or_file(downloads_marker);
-    }
-    return match fs::rename(downloads_marker, downloads_directory) {
-        Ok(()) => None,
-        Err(error) if error.kind() == ErrorKind::NotFound => None,
-        Err(error) => Some(format!("{} could not be put back: {error}", downloads_directory.display())),
-    };
-}
-
-/// The line for a marker whose version is gone and whose downloads were left aside.
-fn finish_downloads_line(marker: &RemovalMarker, deadline: Instant) -> String {
-    let Some(downloads) = &marker.downloads_marker else {
-        return format!("mpm-shadow: nothing to remove under {}", marker.version_marker.display());
-    };
-    let bytes: u64 = tree_facts(downloads, deadline).bytes;
-    // What: the archives go on the proof that their version stands at neither name.
-    // Why: their version is gone, and no install writes a marker's name,
-    // so these bytes belong to nobody and their removal loses no copy.
-    return match delete_for_good(&marker.tool, downloads, Proof::OrphanedDownloads(&marker.version_directory), deadline) {
-        None => format!(
-            "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
-            downloads.display(),
-            format_size(bytes)
-        ),
-        Some(failure) => format!("mpm-shadow: kept {}: it is still being removed: {failure}", downloads.display()),
-    };
-}
-
-/// Deletes a directory or a file,
-/// whichever the path is.
-fn remove_dir_or_file(path: &Path) -> Option<String> {
-    let is_directory: bool = fs::symlink_metadata(path).map(|metadata| return metadata.is_dir()).unwrap_or(false);
-    let result: std::io::Result<()> = if is_directory { fs::remove_dir_all(path) } else { fs::remove_file(path) };
-    return match result {
-        Ok(()) => None,
-        Err(error) if error.kind() == ErrorKind::NotFound => None,
-        Err(error) => Some(error.to_string()),
-    };
-}
-
-/// What putting a removal marker's version back ended in.
-enum Restored {
-    /// The version is back under its name.
-    Back,
-    /// The name holds another copy,
-    /// so the marker is deleted instead.
-    NameTaken,
-    /// The name holds an install that has not finished,
-    /// so the marker stays.
-    NameUnfinished,
-    /// Neither worked.
-    Failed(String),
-}
-
-/// What:
-/// Takes away what would make the version at `tree` count as a finished install of `tool`.
-/// Why:
-/// A tree no record proved whole may be one a deletion has begun inside, and the completion marker it still carries
-/// says otherwise to every later reader. The marker is what every release understands (a directory without it is
-/// never finished, never the newest, never why `current` moves, and the next install replaces it), so it is taken
-/// away rather than a new marker invented, which only this release would read.
-/// A `cargo binstall` crate finishes on its own record instead, so that record goes with the marker.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unfinishTree(tool: string, tree: string): string | undefined  // the failure, if any
-/// ```
-fn unfinish_tree(tool: &str, tree: &Path) -> Option<String> {
-    let mut paths: Vec<PathBuf> = vec![tree.join(COMPLETE_MARKER)];
-    if tool.starts_with(CARGO_TOOL_PREFIX) {
-        paths.push(tree.join(CARGO_RECORD_NAME));
-    }
-    for path in paths {
-        if let Err(error) = fs::remove_file(&path)
-            && error.kind() != ErrorKind::NotFound
-        {
-            return Some(format!("{} still says it is finished: {error}", path.display()));
+    match settle(&ToSettle { path: tree, target: tree, judged: &judged, holders, action: Settle::Delete, deadline }) {
+        Settled::Done => {
+            if let Some(record) = record_of_marker(tree) {
+                let _ = fs::remove_file(record);
+            }
+            outcome.lines.push(format!("mpm-shadow: removed {line_when_done}"));
+        }
+        Settled::Kept(reason) => {
+            outcome.unfinished.insert(root.to_path_buf());
+            outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {reason}", tree.display()));
         }
     }
-    return None;
 }
 
-/// Puts a removal marker's version and downloads back under their names,
-/// or deletes them when the name is taken again,
-/// and when no record proved the version whole it goes back as a copy nothing may take for finished.
-fn restore_marker(marker: &RemovalMarker, deadline: Instant, held: bool, proven: bool) -> Restored {
-    // What: the tree loses its completion marker before it goes back.
-    // Why: a copy put back unfinished is never handed out as the version, and the next install replaces it.
-    if !proven
-        && let Some(failure) = unfinish_tree(&marker.tool, &marker.version_marker)
-    {
-        return Restored::Failed(failure);
+/// What:
+/// The archives alone are left aside: their version is still there and they go back, or it is provably gone at both
+/// names and they are orphans that go.
+/// Why:
+/// A permission error is not proof of absence, and archives a version still uses belong to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function finishWithoutAVersion(marker: RemovalMarker, holders: StoreHolders): void
+/// ```
+fn finish_without_a_version(marker: &RemovalMarker, holders: &StoreHolders, deadline: Instant, outcome: &mut FinishOutcome) {
+    let Some(downloads) = &marker.downloads_marker else {
+        outcome.lines.push(format!("mpm-shadow: nothing to remove under {}", marker.version_marker.display()));
+        return;
+    };
+    let version_there: bool = match provably_absent(&marker.version_directory) {
+        Ok(absent) => !absent,
+        Err(problem) => {
+            outcome.unfinished.insert(marker.root.clone());
+            outcome.lines.push(format!("mpm-shadow: kept {}: {problem}", downloads.display()));
+            return;
+        }
+    };
+    if version_there {
+        match put_an_archive_back(marker, holders, deadline) {
+            Ok(()) => outcome.lines.push(format!(
+                "mpm-shadow: kept {}: the version it belongs to is still there, so what a removal moved aside is put back",
+                downloads.display()
+            )),
+            Err(reason) => {
+                outcome.unfinished.insert(marker.root.clone());
+                outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {reason}", downloads.display()));
+            }
+        }
+        return;
     }
-    return match restore_or_delete(
-        &marker.tool,
-        &marker.version_marker,
-        &marker.version_directory,
-        marker.downloads_marker.as_deref(),
-        marker.downloads_directory.as_deref(),
-        deadline,
-        held,
-    ) {
-        PutBack::Back => Restored::Back,
-        PutBack::NameTaken => Restored::NameTaken,
-        PutBack::NameUnfinished => Restored::NameUnfinished,
-        PutBack::Failed(failure) => Restored::Failed(failure),
+    // The version is provably at neither name: what it was downloaded as belongs to nobody.
+    let Some(judged) = judged_of_tree(downloads, deadline) else {
+        outcome.unfinished.insert(marker.root.clone());
+        outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", downloads.display()));
+        return;
+    };
+    match settle(&ToSettle { path: downloads, target: downloads, judged: &judged, holders, action: Settle::Delete, deadline }) {
+        Settled::Done => outcome.lines.push(format!(
+            "mpm-shadow: removed {} and finished a removal an earlier run started",
+            downloads.display()
+        )),
+        Settled::Kept(reason) => {
+            outcome.unfinished.insert(marker.root.clone());
+            outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {reason}", downloads.display()));
+        }
+    }
+}
+
+/// What:
+/// Puts the archives a removal holds back under the version's name,
+/// or deletes them when that name holds newer archives already.
+/// Why:
+/// They belong to a version that is still there, and a copy at the live name is the newer one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putAnArchiveBack(marker: RemovalMarker, holders: StoreHolders): string | undefined
+/// ```
+fn put_an_archive_back(marker: &RemovalMarker, holders: &StoreHolders, deadline: Instant) -> Result<(), String> {
+    let (Some(archive), Some(live)) = (&marker.downloads_marker, &marker.downloads_directory) else {
+        return Ok(());
+    };
+    let Some(judged) = judged_of_tree(archive, deadline) else {
+        return Err("it could not be read in full at this moment".to_string());
+    };
+    if !provably_absent(live)? {
+        // the live name holds archives already, so this copy is the older one and goes
+        return match settle(&ToSettle { path: archive, target: archive, judged: &judged, holders, action: Settle::Delete, deadline }) {
+            Settled::Done => Ok(()),
+            Settled::Kept(reason) => Err(reason),
+        };
+    }
+    return match settle(&ToSettle { path: archive, target: live, judged: &judged, holders, action: Settle::Back, deadline }) {
+        Settled::Done => Ok(()),
+        Settled::Kept(reason) => Err(reason),
     };
 }
 
+/// What:
+/// Puts a version a removal holds back under its name,
+/// or deletes it when a finished copy of that version holds the name and the record proves this copy whole.
+/// Why:
+/// The copy is whole only when the record beside it still describes it; one that changed since, or that has no record,
+/// may hold a person's later work and is never deleted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function restoreTheRemoval(marker: RemovalMarker, locked: string | undefined, holders: StoreHolders): void
+/// ```
+fn restore_the_removal(marker: &RemovalMarker, locked: Option<&str>, holders: &StoreHolders, deadline: Instant, outcome: &mut FinishOutcome) {
+    let Some(judged) = judged_of_tree(&marker.version_marker, deadline) else {
+        outcome.unfinished.insert(marker.root.clone());
+        outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", marker.version_marker.display()));
+        return;
+    };
+    let whole: bool = read_judged(&marker.version_directory).is_some_and(|found| return found.matches(&judged));
+    let reason: String = match locked {
+        Some(lock) => format!("the lock {lock} names it now"),
+        None => {
+            if current_names(&marker.root, &marker.tool, &marker.version) {
+                "the tool's current link names it".to_string()
+            } else {
+                "it is put back under its own name, and a later pass judges it again".to_string()
+            }
+        }
+    };
+    let name_free: bool = match provably_absent(&marker.version_directory) {
+        Ok(absent) => absent,
+        Err(problem) => {
+            outcome.unfinished.insert(marker.root.clone());
+            outcome.lines.push(format!("mpm-shadow: kept {}: {problem}", marker.version_marker.display()));
+            return;
+        }
+    };
+    if !name_free {
+        // What: the name holds something else now.
+        // Why: this copy is deleted only when its record proves it whole and the name holds a finished copy of it.
+        if whole && finished_copy_at(&marker.tool, &marker.version_directory) {
+            match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_marker, judged: &judged, holders, action: Settle::Delete, deadline }) {
+                Settled::Done => {
+                    let _ = fs::remove_file(record_of(&marker.version_directory));
+                    outcome.lines.push(format!(
+                        "mpm-shadow: removed {} ({}) and finished a removal an earlier run started, and a newer copy holds its name",
+                        marker.version_marker.display(),
+                        format_size(judged.facts.bytes)
+                    ));
+                }
+                Settled::Kept(why) => {
+                    outcome.unfinished.insert(marker.root.clone());
+                    outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {why}", marker.version_marker.display()));
+                }
+            }
+            return;
+        }
+        outcome.unfinished.insert(marker.root.clone());
+        outcome.lines.push(format!(
+            "mpm-shadow: kept {}: its name now holds another copy and no record proves this one whole, so nothing is removed",
+            marker.version_marker.display()
+        ));
+        return;
+    }
+    // What: the name is free, so the tree goes back, whole when its record proves it and unfinished otherwise.
+    // Why: a copy nothing proved whole is never presented as a finished install.
+    if !whole
+        && let Some(failure) = unfinish_tree(&marker.tool, &marker.version_marker)
+    {
+        outcome.unfinished.insert(marker.root.clone());
+        outcome.lines.push(format!("mpm-shadow: kept {}: {failure}", marker.version_marker.display()));
+        return;
+    }
+    // What: a tree whose completion marker was just taken away is read once more, because that write changed it.
+    // Why: \`settle\` proves the facts it is given against the facts on the drive, and the marker was one of them.
+    let judged_now: JudgedTree = if whole {
+        judged
+    } else {
+        let Some(after) = judged_of_tree(&marker.version_marker, deadline) else {
+            outcome.unfinished.insert(marker.root.clone());
+            outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", marker.version_marker.display()));
+            return;
+        };
+        after
+    };
+    match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_directory, judged: &judged_now, holders, action: Settle::Back, deadline }) {
+        Settled::Done => {
+            let _ = fs::remove_file(record_of(&marker.version_directory));
+            if marker.downloads_marker.is_some()
+                && let Err(archives_kept) = put_an_archive_back(marker, holders, deadline)
+            {
+                outcome.unfinished.insert(marker.root.clone());
+                outcome.lines.push(format!("mpm-shadow: kept {}: it is still being removed: {archives_kept}", marker.version_marker.display()));
+            }
+            outcome.put_back.insert(marker.version_directory.clone(), reason.clone());
+            if whole {
+                outcome.lines.push(format!(
+                    "mpm-shadow: kept {} ({}): {reason}; the removal an earlier run started is undone",
+                    marker.version_directory.display(),
+                    format_size(judged_now.facts.bytes)
+                ));
+            } else {
+                let link_taken: bool = take_away_the_link(marker);
+                outcome.lines.push(format!(
+                    "mpm-shadow: kept {} ({}): {reason}; the removal an earlier run started is undone, and no record beside it \
+                     proved the copy whole, so it is put back unfinished and the next install of that version replaces it{}",
+                    marker.version_directory.display(),
+                    format_size(judged_now.facts.bytes),
+                    if link_taken { ", and the tool's current link is taken away until then" } else { "" }
+                ));
+            }
+        }
+        Settled::Kept(why) => {
+            outcome.unfinished.insert(marker.root.clone());
+            outcome.lines.push(format!(
+                "mpm-shadow: kept {}: {reason}; it stays out of its name: {why}",
+                marker.version_marker.display()
+            ));
+        }
+    }
+}
+
+/// What:
+/// Takes away the tool's `current` link when it names a copy that was put back unfinished.
+/// Why:
+/// A launcher follows that link without asking whether the version finished, and while the copy was aside the link named
+/// nothing at all, so leaving it would turn an absent tool into a run of a copy nothing proved whole.
+/// This is the one link this module removes, and it is read again first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function takeAwayTheLink(marker: RemovalMarker): void
+/// ```
+fn take_away_the_link(marker: &RemovalMarker) -> bool {
+    let link: PathBuf = marker.root.join(&marker.tool).join(CURRENT_LINK_NAME);
+    let named: Option<String> = match fs::read_link(&link) {
+        Ok(target) => target.file_name().map(|name| return name.to_string_lossy().to_string()),
+        Err(_) => None,
+    };
+    if named.as_deref() == Some(marker.version.as_str()) {
+        return fs::remove_file(&link).is_ok();
+    }
+    return false;
+}
 /// What:
 /// Removes the marker of every root whose store holds no removal in progress.
 /// Why:
@@ -1990,7 +1933,7 @@ pub fn settle_markers(roots: &[PathBuf], unfinished: &BTreeSet<PathBuf>) {
 /// ```ts
 /// export function visibleLocks(ctx: Context): { files: string[]; unreadable?: string }
 /// ```
-fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
+fn visible_locks(ctx: &Context, deadline: Instant) -> (Vec<PathBuf>, Option<String>) {
     let mut files: Vec<PathBuf> = vec![ctx.scope.lock_file.clone()];
     let mut unreadable: Option<String> = None;
     let repository: Option<PathBuf> = match ctx.scope.kind {
@@ -1998,7 +1941,7 @@ fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
         ScopeKind::Global => named_repository_root(ctx.env),
     };
     match repository {
-        Some(root) => match worktree_lock_files(ctx.runner, root.as_path()) {
+        Some(root) => match worktree_lock_files(ctx.runner, root.as_path(), Some(deadline)) {
             Ok(listed) => files.extend(listed),
             Err(error) => unreadable = Some(error.message),
         },
@@ -2062,7 +2005,7 @@ fn protection_of(
     {
         return Some("the tool's current link names it".to_string());
     }
-    if let Some(reason) = owned_hold_reason(holders, &candidate.root, &candidate.tool, &candidate.version, Trees::InPlace)
+    if let Some(reason) = owned_hold_reason(holders, &candidate.root, &candidate.tool, &candidate.version)
     {
         return Some(format!("it is in use: {reason}"));
     }
@@ -2167,7 +2110,7 @@ pub fn trim_after_install_with(ctx: &Context, installed: &[(String, String)], ho
     let finished: FinishOutcome = finish_removals(&run);
     lines.extend(finished.lines);
     unfinished.extend(finished.unfinished);
-    let (lock_files, lock_problem) = visible_locks(ctx);
+    let (lock_files, lock_problem) = visible_locks(ctx, run.deadline());
     let named: NamedVersions = match lock_problem {
         Some(reason) => NamedVersions { by_tool: BTreeMap::new(), unreadable: Some(reason) },
         None => read_named_versions(&lock_files),

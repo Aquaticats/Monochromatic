@@ -30,6 +30,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 /// Imports what this module uses from `std::process`.
 use std::process::{Command, Stdio};
+/// Imports `Duration`, `Instant` from `std::time`.
+use std::time::{Duration, Instant};
 
 /// Imports `manager_native_bin_dirs` from `super::layout`.
 use super::layout::{manager_native_bin_dirs, physical_pnpm_home};
@@ -74,6 +76,10 @@ pub struct RunRequest {
     /// The working directory;
     /// `None` means this process's.
     pub cwd: Option<PathBuf>,
+    /// When the program must be ended,
+    /// `None` for no bound.
+    /// The cleanup hands its own work limit here, so a program it started never holds the pass for good.
+    pub deadline: Option<Instant>,
 }
 
 /// The methods of `RunRequest`.
@@ -85,6 +91,7 @@ impl RunRequest {
             args: texts(args),
             env: None,
             cwd: None,
+            deadline: None,
         };
     }
 
@@ -97,6 +104,12 @@ impl RunRequest {
     /// A copy with the working directory set.
     pub fn with_cwd(mut self, cwd: PathBuf) -> RunRequest {
         self.cwd = Some(cwd);
+        return self;
+    }
+
+    /// A copy that is ended at `deadline`.
+    pub fn with_deadline(mut self, deadline: Instant) -> RunRequest {
+        self.deadline = Some(deadline);
         return self;
     }
 
@@ -168,9 +181,14 @@ pub trait Runner {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProcessRunner;
 
+/// How long the bounded wait sleeps between two reads of the child.
+const WAIT_STEP: Duration = Duration::from_millis(2);
+
 /// Implements `Runner` for `ProcessRunner`.
 impl Runner for ProcessRunner {
-    /// Starts the program with captured output.
+    /// Starts the program with captured output,
+    /// ends it at the request's deadline when it names one,
+    /// and reports that it was ended.
     fn run(&self, request: &RunRequest) -> RunOutcome {
         let mut command: Command = Command::new(&request.command);
         command.args(&request.args);
@@ -181,6 +199,9 @@ impl Runner for ProcessRunner {
         }
         if let Some(directory) = &request.cwd {
             command.current_dir(directory);
+        }
+        if let Some(deadline) = request.deadline {
+            return bounded(command, deadline);
         }
         return match command.output() {
             Ok(output) => RunOutcome {
@@ -198,6 +219,83 @@ impl Runner for ProcessRunner {
 }
 
 /// What:
+/// What:
+/// Starts `command` and waits for it only until `deadline`, then ends it and reaps it.
+/// Why:
+/// The cleanup starts Git, and a Git that never ends held an install for good; the pass's work limit has to bound the
+/// programs the pass starts, not only the work around them.
+/// The two streams are read on threads of their own, so a full pipe cannot block the wait either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function bounded(command: Command, deadline: Instant): RunOutcome
+/// ```
+fn bounded(mut command: Command, deadline: Instant) -> RunOutcome {
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child: std::process::Child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return RunOutcome {
+                stdout: String::new(),
+                stderr: format!("cannot start {}: {error}", command.get_program().to_string_lossy()),
+                code: 1,
+            };
+        }
+    };
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let reading_stdout = std::thread::spawn(move || {
+        let mut text: String = String::new();
+        if let Some(mut pipe) = stdout_pipe {
+            let _ = std::io::Read::read_to_string(&mut pipe, &mut text);
+        }
+        return text;
+    });
+    let reading_stderr = std::thread::spawn(move || {
+        let mut text: String = String::new();
+        if let Some(mut pipe) = stderr_pipe {
+            let _ = std::io::Read::read_to_string(&mut pipe, &mut text);
+        }
+        return text;
+    });
+    let status: std::process::ExitStatus = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {}
+            Err(_) => break child.wait().unwrap_or_else(|_| return killed_status()),
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let stdout: String = reading_stdout.join().unwrap_or_default();
+            let mut stderr: String = reading_stderr.join().unwrap_or_default();
+            if !stderr.ends_with('\n') && !stderr.is_empty() {
+                stderr.push('\n');
+            }
+            stderr.push_str("the program was ended at the cleanup's work limit");
+            return RunOutcome { stdout, stderr, code: 1 };
+        }
+        std::thread::sleep(WAIT_STEP);
+    };
+    let stdout: String = reading_stdout.join().unwrap_or_default();
+    let stderr: String = reading_stderr.join().unwrap_or_default();
+    return RunOutcome { stdout, stderr, code: status.code().unwrap_or(1) };
+}
+
+/// What:
+/// A status for a child whose end cannot be read.
+/// Why:
+/// `RunOutcome` reports a program that could not start or was killed as code 1, and this is the same answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function killedStatus(): ExitStatus
+/// ```
+fn killed_status() -> std::process::ExitStatus {
+    use std::os::unix::process::ExitStatusExt;
+    return std::process::ExitStatus::from_raw(1 << 8);
+}
+
 /// The environment tool installs run with:
 /// the whole given environment,
 /// `HOME` set to the scope's home,

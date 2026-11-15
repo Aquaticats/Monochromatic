@@ -104,6 +104,7 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
         args,
         env: Some(ctx.pnpm_env()),
         cwd: None,
+        deadline: None,
     };
     run_checked(ctx, &request, "pnpm add --global", &tool.declaration.id)?;
     let package: String = package_name(tool);
@@ -210,6 +211,7 @@ pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), Toolch
         args: vec!["install".to_string(), target],
         env: Some(env),
         cwd: None,
+        deadline: None,
     };
     run_checked(ctx, &request, "go install", &tool.declaration.id)?;
     return read_back_installed_go_tool(ctx, tool);

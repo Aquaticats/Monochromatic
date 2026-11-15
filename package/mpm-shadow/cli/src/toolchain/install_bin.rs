@@ -229,6 +229,7 @@ pub fn install_bin_sourced(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
                 args,
                 env: Some(env.clone()),
                 cwd: None,
+                deadline: None,
             };
             let outcome: RunOutcome = ctx.run(&request);
             if outcome.succeeded() {

@@ -18,7 +18,7 @@ use std::fs;
 /// Imports `FileTimes` from `std::fs`.
 use std::fs::FileTimes;
 /// Imports what these tests use from `std::path`.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 /// Imports `Duration`,
 /// `Instant`,
 /// `SystemTime` from `std::time`.
@@ -72,6 +72,7 @@ fn candidate(tool: &str, version: &str, bytes: u64, written_seconds_ago: u64) ->
         version: version.to_string(),
         directory: PathBuf::from(format!("/store/{tool}/{version}")),
         downloads: None,
+        downloads_facts: None,
         bytes,
         tree_bytes: bytes,
         written: SystemTime::now() - Duration::from_secs(written_seconds_ago),
@@ -490,7 +491,13 @@ fn keeps_a_version_another_run_wrote_after_the_scan() {
 
     assert_eq!(outcome.removed, 0);
     assert!(fixture.root.join("node/26.11.0/program").exists());
-    assert!(outcome.lines.iter().any(|line| return line.contains("another run wrote it")));
+    assert!(
+        outcome.lines.iter().any(|line| {
+            return line.contains("another run wrote it") || line.contains("something was written in it after it was judged");
+        }),
+        "{:?}",
+        outcome.lines
+    );
 }
 
 /// A version's downloads go with it,
@@ -949,13 +956,13 @@ fn puts_back_a_held_marker_and_its_downloads() {
 
     assert!(version.join("program").exists(), "the version was not put back: {:?}", finished.lines);
     assert!(
-        downloads.join("node.tar.gz").exists(),
-        "the archives a live process holds were not put back: {:?}",
+        downloads_marker.join("node.tar.gz").exists(),
+        "the archives a live process holds were moved: {:?}",
         finished.lines
     );
-    assert!(!downloads_marker.exists() && !version_marker.exists(), "{:?}", finished.lines);
+    assert!(!version_marker.exists(), "{:?}", finished.lines);
     assert!(
-        finished.lines.iter().any(|line| return line.contains("it is in use") && line.contains("undone")),
+        finished.lines.iter().any(|line| return line.contains("it is in use")),
         "{:?}",
         finished.lines
     );
@@ -1044,9 +1051,6 @@ fn keeps_a_fresh_install_that_lands_between_the_look_and_the_move() {
         .find(|found| return found.version == "26.11.0")
         .expect("the oldest version is scanned")
         .clone();
-    // What: the removal's first half, which is the look that refuses an entry that is not the judged one.
-    // Why: it passes here, because the judged entry is still in place.
-    crate::toolchain::store_trim::judged_entry_still_there(&judged, Instant::now() + Duration::from_secs(60)).expect("the judged entry is there").expect("present");
 
     // What: an install's atomic replace, exactly as `publish_staged` does it: the old copy aside, the new one in.
     // Why: this is what lands between the look and the move.
@@ -1058,7 +1062,9 @@ fn keeps_a_fresh_install_that_lands_between_the_look_and_the_move() {
     fs::rename(&version, fixture.root.join("node/.26.11.0.replaced")).expect("move the old copy aside");
     fs::rename(&fresh, &version).expect("put the fresh copy in place");
 
-    let moved = crate::toolchain::store_trim::move_judged_entry(&judged, Instant::now() + Duration::from_secs(60));
+    // What: the removal's own move, which reads the entry again at the instant it renames it.
+    // Why: the fresh install landed between the plan's look and this call, and the call is what must refuse it.
+    let moved = crate::toolchain::store_trim::move_aside(&judged, &StoreHolders::default(), Instant::now() + Duration::from_secs(60));
 
     assert!(moved.is_err(), "the removal took a copy it did not judge");
     assert_eq!(
@@ -1108,7 +1114,9 @@ fn keeps_a_held_finished_copy_when_the_name_holds_an_unfinished_install() {
     // The store-root marker stays, so a later pass decides once the install in place has finished or failed.
     assert!(has_unfinished_removal(&fixture.root), "the marker was settled while a copy is still aside: {:?}", finished.lines);
     assert!(
-        finished.lines.iter().any(|line| return line.contains("has not finished")),
+        finished.lines.iter().any(|line| {
+            return line.contains("no record proves this one whole") || line.contains("has not finished");
+        }),
         "{:?}",
         finished.lines
     );
@@ -1931,11 +1939,11 @@ fn keeps_a_version_whose_tree_the_pass_could_not_read_in_full() {
 }
 
 /// What:
-/// A copy a removal holds is put back and never deleted when the process table could not be read in full,
+/// A copy a removal holds is neither put back nor deleted when the process table could not be read in full,
 /// and the line names the process.
 /// Why:
-/// A process the kernel refuses to describe may run it; putting it back under its name is what the pass does with a
-/// copy it may not delete, and the line is what a person needs to end the process or decide.
+/// A process the kernel refuses to describe may run it, so the one place that renames or unlinks anything answers kept;
+/// the copy stays where it is, and the line is what a person needs to end the process or decide.
 #[test]
 fn keeps_a_copy_aside_when_the_process_table_could_not_be_read_in_full() {
     let fixture = Fixture::new();
@@ -1948,8 +1956,13 @@ fn keeps_a_copy_aside_when_the_process_table_could_not_be_read_in_full() {
 
     let finished = finish_removals(&TrimRun { bounds: fixture.run().bounds, started: Instant::now(), roots: vec![fixture.root.clone()], holders: Some(holders) });
 
-    assert!(version.join("program").exists(), "a copy a process may run was not put back: {:?}", finished.lines);
-    assert!(finished.lines.iter().any(|line| return line.contains("pid 4242 (fd)")), "the line does not name the process: {:?}", finished.lines);
+    assert!(!version.exists(), "a copy a process may run was put back while the scan could not tell: {:?}", finished.lines);
+    assert!(marker.join("program").exists(), "a copy a process may run was deleted: {:?}", finished.lines);
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("pid 4242 (fd)") && line.contains("stays out of its name")),
+        "the line does not name the process: {:?}",
+        finished.lines
+    );
 }
 
 /// What:
@@ -1983,3 +1996,288 @@ fn removes_nothing_when_a_process_cannot_be_described() {
 }
 
 //endregion what protects a version, and what a read that fails means
+
+
+//region what the one function proves, and what the seventh review found
+
+/// A run of these controls: a store of its own and a scan with nothing in it.
+fn control_run(root: &Path) -> TrimRun {
+    return TrimRun {
+        bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::from_secs(60) },
+        started: Instant::now(),
+        roots: vec![root.to_path_buf()],
+        holders: Some(StoreHolders::default()),
+    };
+}
+
+/// What:
+/// A downloads tree another command put at the judged name after the inventory is not moved or deleted.
+/// Why:
+/// The archives are an object of their own: the plan judged one tree, and a replacement under that name is a different
+/// object whose bytes belong to whoever wrote them.
+#[test]
+fn keeps_a_replacement_download_tree_it_never_judged() {
+    let fixture = Fixture::new();
+    let version = fixture.root.join("node/26.11.0");
+    let downloads = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the judged downloads");
+    fs::write(downloads.join("old-archive"), b"old").expect("write the judged archive");
+    let judged = fixture
+        .candidates()
+        .into_iter()
+        .find(|candidate| return candidate.directory == version)
+        .expect("scan the version");
+    assert!(judged.downloads.is_some(), "the scan did not find the archives");
+
+    // Another command replaces only the archives after the inventory; the version tree is untouched.
+    fs::remove_dir_all(&downloads).expect("remove the judged archives");
+    fs::create_dir_all(&downloads).expect("make the replacement archives");
+    fs::write(downloads.join("fresh-user-data"), b"new data, not judged").expect("write replacement data");
+    let plan = TrimPlan { total_bytes: judged.bytes, over_bound: true, steps: vec![TrimStep::Remove(judged)] };
+
+    let outcome = apply_trim(&plan, &control_run(&fixture.root));
+
+    assert_eq!(outcome.removed, 0, "a replacement archive tree was removed: {:?}", outcome.lines);
+    assert!(
+        downloads.join("fresh-user-data").exists(),
+        "the cleanup deleted a replacement download tree it never judged: {:?}",
+        outcome.lines
+    );
+    assert!(version.join("program").exists(), "the version went with archives it never had: {:?}", outcome.lines);
+}
+
+/// What:
+/// A copy a removal holds that changed after its record is put back unfinished when the version's name holds a
+/// finished copy, and its later file is kept.
+/// Why:
+/// The record no longer proves the held copy whole, so it is not a duplicate of the copy at the name, whatever the name
+/// holds.
+#[test]
+fn keeps_a_changed_copy_when_a_finished_copy_takes_the_name() {
+    let fixture = Fixture::new();
+    let version = fixture.root.join("node/20.0.0");
+    let marker = tombstone_of(&version);
+    make_finished_copy(&version, b"old copy");
+    let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the old copy");
+    fs::rename(&version, &marker).expect("move the old copy aside");
+    write_judged(&version, &judged).expect("record the old copy");
+
+    // This write makes the record stale, exactly as a person's write during a killed removal would.
+    fs::write(marker.join("user-note"), b"do not discard").expect("write later user data");
+    make_finished_copy(&version, b"fresh copy");
+
+    let finished = finish_removals(&control_run(&fixture.root));
+
+    assert!(
+        marker.join("user-note").exists(),
+        "the changed old copy was treated as a duplicate and its later user file was deleted: {:?}",
+        finished.lines
+    );
+    assert!(version.join("bin/node").exists(), "the finished copy at the name was touched: {:?}", finished.lines);
+}
+
+/// What:
+/// A deletion a killed pass left is not finished while a live process works inside the tree.
+/// Why:
+/// The one function asks the scan it was given about the exact path before it renames or unlinks anything.
+#[test]
+fn keeps_a_deletion_tree_a_live_process_works_inside() {
+    let fixture = Fixture::new();
+    let version = fixture.root.join("node/20.0.0");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&version);
+    make_finished_copy(&deleting, b"surviving program");
+    let mut child = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&deleting)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("start a process working inside the deletion tree");
+    let mut run: TrimRun = control_run(&fixture.root);
+    run.holders = Some(StoreHolders {
+        held: vec![crate::toolchain::store_path_holders::HeldPath {
+            path: deleting.clone(),
+            kind: crate::toolchain::store_path_holders::HoldKind::WorksInside,
+            pid: child.id(),
+        }],
+        ..StoreHolders::default()
+    });
+
+    let finished = finish_removals(&run);
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(
+        deleting.join("bin/node").exists(),
+        "the recovery deleted the rest of a tree a live process works inside: {:?}",
+        finished.lines
+    );
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("it is in use")),
+        "the line does not say a process holds it: {:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// A flat leftover download a process has open is kept, because the pass asks about the file's own path.
+/// Why:
+/// A leftover has no version, so a question about the tool's folder is a question about another object.
+#[test]
+fn keeps_an_open_flat_leftover_download() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"2.0.0","route":"archive"}}}"#)
+        .expect("write the lock");
+    let leftovers = scope.toolchain_root.join("downloads");
+    fs::create_dir_all(&leftovers).expect("make the flat downloads directory");
+    let leftover = leftovers.join("node-1.0.0-node-v1.0.0-linux-x64.tar.gz");
+    fs::write(&leftover, b"archive a reader still has open").expect("write the leftover");
+    written_ago(&leftover, 2 * 24 * 3600);
+    let _opened = fs::File::open(&leftover).expect("hold the leftover open");
+    let bounds_env = env.with("MPM_SHADOW_STORE_SIZE_BOUND", "0").with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    let runner = FakeRunner::new();
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", scope.root.display()), 0);
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &bounds_env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+    let holders = StoreHolders {
+        held: vec![crate::toolchain::store_path_holders::HeldPath {
+            path: leftover.clone(),
+            kind: crate::toolchain::store_path_holders::HoldKind::HasOpen,
+            pid: std::process::id(),
+        }],
+        ..StoreHolders::default()
+    };
+
+    trim_after_install_with(&context, &[("node".to_string(), "2.0.0".to_string())], Some(holders));
+
+    assert!(leftover.exists(), "the open flat leftover was deleted because its empty version hid the holder");
+}
+
+/// What:
+/// A partly deleted downloads tree beside a replacement version is finished, never put back as the version's archives.
+/// Why:
+/// A deletion name is a name only the deletion step writes, and what stands under it is condemned whatever the
+/// version's name holds now.
+#[test]
+fn finishes_a_partly_deleted_downloads_tree_instead_of_restoring_it() {
+    let fixture = Fixture::new();
+    let version = fixture.root.join("node/20.0.0");
+    make_finished_copy(&version, b"replacement version");
+    let downloads = fixture.root.join("downloads/node/20.0.0");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&downloads);
+    fs::create_dir_all(&deleting).expect("make the archives deletion tree");
+    fs::write(deleting.join("partial-archive"), b"only the part not yet deleted").expect("write surviving data");
+
+    let finished = finish_removals(&control_run(&fixture.root));
+
+    assert!(
+        !downloads.join("partial-archive").exists(),
+        "a deletion-name downloads tree was restored beside the replacement version: {:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// Archives belonging to a version that cannot be read are kept, because a failed read is not proof of absence.
+/// Why:
+/// Only `NotFound` says a path is absent; a permission or I/O failure says nothing about it.
+#[test]
+fn keeps_archives_while_the_version_cannot_be_statted() {
+    let fixture = Fixture::new();
+    let tool = fixture.root.join("node");
+    let version = tool.join("20.0.0");
+    make_finished_copy(&version, b"version still present");
+    let downloads_marker = fixture.root.join("downloads/node/.mpm-shadow-removing.20.0.0");
+    fs::create_dir_all(&downloads_marker).expect("make the archives removal tree");
+    fs::write(downloads_marker.join("archive"), b"still needed").expect("write the archive");
+    let mut hidden = fs::metadata(&tool).expect("read the tool directory mode").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut hidden, 0o000);
+    fs::set_permissions(&tool, hidden).expect("make the version unreadable");
+
+    let finished = finish_removals(&control_run(&fixture.root));
+
+    let mut restored = fs::metadata(&tool).expect("read the tool directory mode again").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut restored, 0o700);
+    fs::set_permissions(&tool, restored).expect("restore the tool directory mode");
+    assert!(version.join("bin/node").exists(), "the fixture must keep the version itself");
+    assert!(
+        downloads_marker.join("archive").exists(),
+        "permission errors were treated as proof that the version was gone: {:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// The removal order is the newest write inside each tree, which is the age the decision uses.
+/// Why:
+/// A tree whose root is old and whose contents are newer is newer than one written before it, whatever the roots say.
+#[test]
+fn orders_removal_by_the_newest_write_inside_the_tree() {
+    let fixture = Fixture::new();
+    let old_root_newer_contents = node_version(&fixture.root, "20.0.0");
+    let newer_root_older_contents = node_version(&fixture.root, "21.0.0");
+    written_ago(&old_root_newer_contents.join("program"), 5 * 24 * 3600);
+    written_ago(&old_root_newer_contents, 10 * 24 * 3600);
+    written_ago(&newer_root_older_contents.join("program"), 7 * 24 * 3600);
+    written_ago(&newer_root_older_contents, 7 * 24 * 3600);
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    let candidates = candidates_of(
+        std::slice::from_ref(&fixture.root),
+        &tools,
+        Instant::now() + Duration::from_secs(60),
+        Duration::ZERO,
+    )
+    .into_iter()
+    .filter(|candidate| return candidate.version == "20.0.0" || candidate.version == "21.0.0")
+    .collect::<Vec<_>>();
+    let bounds = TrimBounds { size_bound_bytes: candidates[0].bytes, age_floor: Duration::ZERO, work_limit: Duration::from_secs(60) };
+
+    let plan = plan_trim(&candidates, &bounds, SystemTime::now(), &|_candidate| return None);
+
+    assert_eq!(
+        removed_by(&plan),
+        vec!["node-21.0.0"],
+        "the tree last written seven days ago should go before the tree last written five days ago: {candidates:?}"
+    );
+}
+
+/// A runner that records the deadline of every request it is given, and answers as a small Git would.
+struct RecordedGit {
+    deadlines: std::cell::RefCell<Vec<Option<Instant>>>,
+}
+
+impl crate::toolchain::runner::Runner for RecordedGit {
+    fn run(&self, request: &crate::toolchain::runner::RunRequest) -> crate::toolchain::runner::RunOutcome {
+        self.deadlines.borrow_mut().push(request.deadline);
+        return crate::toolchain::runner::RunOutcome { stdout: String::new(), stderr: String::new(), code: 0 };
+    }
+}
+
+/// What:
+/// The Git the cleanup starts is handed the pass's work limit as its deadline.
+/// Why:
+/// A program the pass starts that never ends held an install for good; the limit has to reach the child.
+#[test]
+fn hands_the_cleanup_work_limit_to_the_git_it_starts() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    fs::create_dir_all(&scope.toolchain_root).expect("make the store the cleanup must visit");
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"2.0.0","route":"archive"}}}"#)
+        .expect("write the lock");
+    let limit_env = env.with("MPM_SHADOW_STORE_WORK_LIMIT", "5s");
+    let runner = RecordedGit { deadlines: std::cell::RefCell::new(Vec::new()) };
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &limit_env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+
+    trim_after_install_with(&context, &[("node".to_string(), "2.0.0".to_string())], Some(StoreHolders::default()));
+
+    let deadlines: Vec<Option<Instant>> = runner.deadlines.borrow().clone();
+    assert!(!deadlines.is_empty(), "the cleanup did not start Git at all");
+    assert!(
+        deadlines.iter().all(|deadline| return deadline.is_some()),
+        "Git was started with no bound while the pass had {} of work limit: {deadlines:?}",
+        format_span(Duration::from_secs(5))
+    );
+}
+
+//endregion what the one function proves, and what the seventh review found

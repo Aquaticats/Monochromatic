@@ -371,6 +371,7 @@ pub fn install_android_sdk(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
         args,
         env: Some(env),
         cwd: None,
+        deadline: None,
     };
     run_checked(ctx, &request, "android sdk install", &tool.declaration.id)?;
     return Ok(());

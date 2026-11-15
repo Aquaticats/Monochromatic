@@ -218,6 +218,9 @@ pub struct VersionDirectory {
     /// The directory holding the archives downloaded for this version,
     /// when the store keeps any.
     pub downloads: Option<PathBuf>,
+    /// What the archives were judged to be,
+    /// when the store keeps any and they could be read whole.
+    pub downloads_facts: Option<JudgedTree>,
     /// The size the version and its downloads weigh, in bytes.
     pub bytes: u64,
     /// The size the version's own tree weighs, in bytes, without the archives kept for it.
@@ -378,6 +381,11 @@ pub fn version_directories(
                 Ok(found_downloads) if found_downloads.is_dir() => Some(downloads_directory),
                 _ => None,
             };
+            // What: the archives are judged here, as the object they are.
+            // Why: a removal moves them aside and deletes them too, and a tree replaced under their name after this
+            // read is not the one the pass judged.
+            let downloads_facts: Option<JudgedTree> =
+                downloads.as_ref().and_then(|archives| return judged_of_tree(archives, deadline));
             // What: a version whose directory still has the write time it had when it was measured keeps the
             // recorded size; any other is measured now.
             // Why: measuring the whole store costs seconds, and a version directory's write time changes when an
@@ -419,6 +427,7 @@ pub fn version_directories(
                 version,
                 directory,
                 downloads,
+                downloads_facts,
                 bytes,
                 tree_bytes: facts.bytes,
                 written,
@@ -431,9 +440,7 @@ pub fn version_directories(
     write_size_records(toolchain_root, &measured);
     // Oldest newest write first: the cleanup removes in this order, and a tree a write landed in is not old.
     found.sort_by(|left, right| {
-        let left_newest: SystemTime = if left.newest > left.written { left.newest } else { left.written };
-        let right_newest: SystemTime = if right.newest > right.written { right.newest } else { right.written };
-        let by_write: std::cmp::Ordering = left_newest.cmp(&right_newest);
+        let by_write: std::cmp::Ordering = newest_write(left.written, left.newest).cmp(&newest_write(right.written, right.newest));
         if by_write != std::cmp::Ordering::Equal {
             return by_write;
         }
@@ -585,6 +592,21 @@ pub struct TreeFacts {
     pub newest: SystemTime,
     /// Whether the walk reached the end before its deadline.
     pub complete: bool,
+}
+
+/// What:
+/// The moment a tree was last written:
+/// its root's own write time, or the newest write inside it, whichever is later.
+/// Why:
+/// The rule is size plus last modified time, and a write into a folder that already exists leaves the root alone.
+/// Every place that asks "when was it written" asks here, so the decision, the order and the lines cannot disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function newestWrite(written: SystemTime, newest: SystemTime): SystemTime
+/// ```
+pub fn newest_write(written: SystemTime, newest: SystemTime) -> SystemTime {
+    return if newest > written { newest } else { written };
 }
 
 /// How many entries a walk reads between two reads of the clock.

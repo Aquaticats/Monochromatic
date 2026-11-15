@@ -363,6 +363,7 @@ pub fn run_postinstall_commands(ctx: &Context, tools: &[&LockedTool]) -> Command
             args: step.args.clone(),
             env: Some(env.clone()),
             cwd: Some(ctx.scope.root.clone()),
+            deadline: None,
         };
         let outcome: RunOutcome = ctx.run(&request);
         if outcome.succeeded() {
