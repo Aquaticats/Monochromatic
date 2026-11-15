@@ -1615,6 +1615,70 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock a killed Git left: four ways a kill still strands a lock for good, and the author goes back; the driver's silent tool command answers its review (2026-11-15T12:18:13-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The lock a killed Git left, for a reference lock** (`0fe1e01e9f`),
+  its fourth review,
+  ended 12:12:41,
+  14 of 14 files,
+  four things,
+  three reproduced with a harness and an unlink interposer and one in part.
+  Each ends in a lock nothing clears and a commit that exits 128 on it from then on:
+  - a Git killed after it made the lock and before it made its PID file leaves a lock the tracker skipped,
+    so no binding was written;
+  - a clearance killed between its two unlinks leaves the lock and the binding without the PID file,
+    and the binding's reader needs the PID file;
+  - the bounded runner watches its Git and never records its start,
+    so its bindings prove nothing;
+  - past 32 locks of one child the tracker drops the rest silently
+    (the truncation is reproduced;
+    the later failure is by reading).
+- **Weighed**:
+  all four go back,
+  as one invariant:
+  what the wrapper saw
+  (a watched child took this lock)
+  is the evidence,
+  written whether or not Git got as far as its PID file,
+  and with the proof that the child is gone it alone clears;
+  every watched start is recorded by the one function that starts it;
+  a clearance killed at any instruction is finished by the next command;
+  no count drops a lock silently.
+  The control asked for is a walk that kills after each step of a take and of a clearance.
+  The author's fifth run is queued fifth.
+- **The driver's tool command that says nothing**,
+  its author's second run,
+  ended 12:15:42 at `292331333a`:
+  the review's four scripts fail their assertions against the new tip.
+  A call is told from another by its `toolCallId`;
+  the run ends a silent command only when every call in flight has outlived what it declared;
+  each of the abort,
+  the settling and the message is done,
+  refused or unanswered,
+  and a step that got no answer ends the run as `silent-command-unanswered`,
+  never `idle`;
+  an abort that ended nothing no longer resets the clock.
+  Eight controls,
+  seven failing at the old tip;
+  194 suites pass.
+  Its review is queued ninth
+  (`main...292331333a`,
+  12 code files that are not tests).
+- Read at 12:17:12:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:08;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes;
+  integration pass 54 is one of them.
+
 ##### The driver's brief writer for every kind of code file answers its third review; its review is queued (2026-11-15T12:08:39-05:00)
 
 Not final and not approved:
