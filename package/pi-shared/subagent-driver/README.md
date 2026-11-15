@@ -603,11 +603,25 @@ A file of an unlisted extension that the test rule below claims is read as a tes
 and the brief says the change is to tests.
 
 A range whose change is tests and fixtures alone has no code to judge,
-so the reviewer reads those files instead:
-every changed `_tests.rs` and `.test.ts` file,
-every changed file under a `tests/` folder,
-and every changed fixture the tests use,
-which is a file under `test_support` or named with a `stand-in-` prefix.
+so the reviewer reads those files instead.
+Which names and folders mark a test or a fixture were measured the same way as the extensions,
+from `git ls-files` on 2026-11-14:
+5493 tracked files are tests,
+by a `_tests.rs`, `.test.ts` or `Test.kt` name,
+or by a folder named `tests`, `test`, `androidTest` or `__tests__` at any depth;
+1539 are fixtures the tests read,
+by a folder named `fixture`, `fixtures`, `test-fixture`, `test_support`, `testdata`, `golden`, `snapshots`,
+`__snapshots__`, `expected` or `dictionary`,
+by a `-fixture`, `.fixture.` or `stand-in-` part of a path,
+by a fuzz target's `seed/` corpus,
+or by a `.theirs`, `.ours`, `.base`, `.resolved`, `.status`, `.out`, `.stderr`, `.dict`, `.snap` or `.golden` name.
+A file beside a test that no list names is read with the change too,
+so a test and the recorded answer it reads are never answered as nothing to review:
+a folder rule cannot see whether a test reads a file,
+and reading one a test never opens costs a reviewer a file,
+where leaving out the one it does read costs the whole review.
+A note beside a test is read by no test,
+so a range that holds one is refused and its line names both.
 The brief says in plain words that the change is to tests,
 and asks for the one thing a reviewer can show about a test:
 for each changed test,
@@ -619,8 +633,8 @@ A test that still passes with the break in is a finding.
 
 A change that leaves nothing to read under the source folder,
 which is a change of notes alone,
+of data or a picture alone,
 of a lockfile,
-of pictures alone,
 or of nothing at all,
 writes nothing,
 prints one line,

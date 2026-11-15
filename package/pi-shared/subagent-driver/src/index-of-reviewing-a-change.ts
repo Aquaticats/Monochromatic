@@ -21,9 +21,18 @@ export {
 } from './material-of-a-review.ts';
 export {
   CODE_FILE_EXTENSIONS,
+  FIXTURE_FOLDER_NAMES,
+  FIXTURE_NAME_SUFFIXES,
+  FIXTURE_PATH_PARTS,
   LEFT_OUT_FILE_EXTENSIONS,
+  PROSE_FILE_EXTENSIONS,
+  TEST_FILE_NAME_SUFFIXES,
+  TEST_FOLDER_NAMES,
+  type WhatAChangeToTestsReads,
   type WhatAReviewDoesWithAFile,
   extensionOfAPath,
+  isATestOrAFixture,
+  whatAChangeToTestsReads,
   whatAReviewDoesWithAFile,
 } from './which-files-a-review-reads.ts';
 export {

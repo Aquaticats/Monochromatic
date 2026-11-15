@@ -10,10 +10,13 @@
  review reads. The check kept beside this change's report lists every extension with its count and the kind this module gives it,
  and the report says why each kind is read or left out.
 
- A test or a fixture is not a kind here. Which file is one is the rule in `material-of-a-review.ts` (`_tests.rs` and `.test.ts`
- suffixes, `test_support` and `stand-in-` paths, and a folder named `tests`), because a test is written in the language of the
- code it tests and no extension tells it apart. That rule is asked before this one, so a `.rs` file under `tests/` is a test and
- not the code it looks like.
+ A test or a fixture is not a kind of extension, but it is a rule this module keeps, and it is measured the same way: a test is
+ written in the language of the code it tests, so its extension says `code`, and which names and folders mark it is counted here
+ with the extensions: of the 23847 files the tree held, 5493 are tests and 1539 are fixtures. A file only tests read is material
+ beside them, whatever its extension, so the fixture lists name folders and suffixes rather than extensions, and
+ `whatAChangeToTestsReads` says what a review of a change to tests does with a file whose folder no list names. The two rules cannot be apart: a kind read as code needs its tests known as tests, or a change to tests
+ alone is reviewed as though it were the change. The test rule is asked first, so a `.rs` file under `tests/` is a test and not
+ the code it looks like.
 
  An extension in neither list is a kind this writer does not know. `whatAReviewDoesWithAFile` answers
  `reads-it-as-code-of-an-unlisted-kind` for it, so a review reads it instead of dropping it, and the line the brief writer
@@ -268,4 +271,202 @@ export function whatAReviewDoesWithAFile({ path, }: { readonly path: string },):
   return LEFT_OUT_FILE_EXTENSIONS.has(extension,)
     ? 'leaves-it-out'
     : 'reads-it-as-code-of-an-unlisted-kind';
+}
+
+/**
+ The name suffixes a test's own file name ends with, which mark it whatever folder it sits in: 1791 `_tests.rs` files, 3370
+ `.test.ts` files (3333 of them `.unit.test.ts` and 7 `.expensive.unit.test.ts`), and 143 `Test.kt` files. The other suffixes are
+ the same families in a flavour this repository has none of yet, listed so the first one is a test rather than code.
+
+ A test is marked by the name it carries because a test is written in the language of the code it tests: its extension says
+ `code`, and a review that read it as code would judge a test as the change itself. `.bench.ts` is not here: a benchmark is a
+ program a reviewer judges, and no brief asks for a break to be planted in one.
+ */
+export const TEST_FILE_NAME_SUFFIXES: readonly string[] = [
+  '_tests.rs',
+  '.test.ts',
+  '.test.mts',
+  '.test.cts',
+  '.test.mjs',
+  '.test.cjs',
+  '.test.js',
+  'Test.kt',
+  'Tests.kt',
+];
+
+/**
+ The folder names at any depth whose files are tests whatever their extension: `tests` (178 files, cargo's integration tests
+ among them), `test` (147, the Kotlin and Android `src/test` layout and one browser harness's folder), and `androidTest` (7). A
+ folder's own name marks its files because cargo puts a package's integration tests under `tests/`, beside the crate rather than
+ inside it, so no suffix of such a file tells it from shipped code.
+ */
+export const TEST_FOLDER_NAMES: ReadonlySet<string> = new Set([
+  'tests',
+  'test',
+  'androidTest',
+  '__tests__',
+],);
+
+/**
+ The folder names at any depth whose files are material only tests read: `fixture` (24 files), `fixtures` (27), `test-fixture`
+ (539, whole packages that exist to be parsed or linted by a test), `golden` (83), and `dictionary` (19 fuzz dictionaries).
+ `test_support`, `testdata`, `snapshots`, `__snapshots__` and `expected` name no tracked file today, and are listed so the first
+ one is a fixture rather than data.
+
+ `seed` is not one of these names: two folders carry it, and one of them, `package-paused/webapp-forge/seed`, is a template
+ package whose `src/cli.ts` is a program. The fuzz seed corpora are fixtures by the path part below instead.
+ */
+export const FIXTURE_FOLDER_NAMES: ReadonlySet<string> = new Set([
+  'fixture',
+  'fixtures',
+  'test-fixture',
+  'test_support',
+  'testdata',
+  'golden',
+  'snapshots',
+  '__snapshots__',
+  'expected',
+  'dictionary',
+],);
+
+/**
+ The parts of a path that mark material only tests read: 13 `stand-in-` files, 17 whose name holds `.fixture.`, 1071 holding
+ `-fixture` (the fixture modules of the e2e suites and of the packages that record answers for their tests, which the
+ `test-fixture` folders are already among), and the 139 files of a fuzz target's `seed/` corpus under a `*.fuzz` package.
+
+ A part is matched anywhere in the path because a fixture is named for what it records rather than for where it sits, and a file
+ named `commit-shape-log-fixture.ts` is a fixture in any folder.
+ */
+export const FIXTURE_PATH_PARTS: readonly string[] = [
+  'stand-in-',
+  '.fixture.',
+  '-fixture',
+  '.fuzz/seed/',
+];
+
+/**
+ The name suffixes of material only tests read: the 193 files of the repository's two merge corpora (43 `.theirs`, 43 `.ours`, 43
+ `.base`, 41 `.status`, 21 `.out` and 8 `.resolved`), 19 fuzz dictionaries, and the 9 `.stderr` files a UI test compares against.
+ `.snap` and `.golden` name no tracked file today, and are listed so the first snapshot is a fixture rather than data.
+ */
+export const FIXTURE_NAME_SUFFIXES: readonly string[] = [
+  '.theirs',
+  '.ours',
+  '.base',
+  '.resolved',
+  '.status',
+  '.out',
+  '.stderr',
+  '.dict',
+  '.snap',
+  '.golden',
+];
+
+/**
+ The extensions whose files hold prose a person reads: a note, a page of the site's own text, a diff, a PDF. No test reads one,
+ so a change that holds one beside a test is not a change to tests alone.
+
+ `.txt` is not here. Of the 518 text files this repository tracks, some are licences and notes, but others are what a test
+ compares against (`forbidden-strings/cli/data/builtin-rules.txt`, the `fixtures/*.js.txt` of the browserslist crate), and a
+ `.txt` beside a test is read as material the test may read rather than as prose.
+ */
+export const PROSE_FILE_EXTENSIONS: ReadonlySet<string> = new Set([
+  '.md',
+  '.mdx',
+  '.patch',
+  '.pdf',
+],);
+
+/**
+ The folders a path sits in, which are every segment before its own name.
+
+ @param path - a path from the top of the checkout
+
+ @returns the folder segments
+
+ @example
+ ```ts
+ const folders = foldersOf('package/a/tests/shim.rs',);
+ ```
+ */
+function foldersOf(path: string,): readonly string[] {
+  /**
+   Every segment of the path, of which the last is the file's own name.
+   */
+  const segments = path.split('/',);
+  return segments.slice(
+    0,
+    -1,
+  );
+}
+
+/**
+ Says whether a path is one of the files a review leaves out beside a change: the tests that check it, which a reviewer cannot
+ judge as the change itself, and the fixtures and stand-in programs they use.
+
+ The test lists are asked first, so a `.rs` file under `tests/` is a test and not the code it looks like, and a `.json` under a
+ `fixtures/` folder is material the tests beside it read rather than data a review leaves out.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether the path is a test or a fixture
+
+ @example
+ ```ts
+ const isATest = isATestOrAFixture({ path: 'src/gate_tests.rs', },);
+ ```
+ */
+export function isATestOrAFixture({ path, }: { readonly path: string },): boolean {
+  return TEST_FILE_NAME_SUFFIXES.some(function isATestName(suffix,) {
+    return path.endsWith(suffix,);
+  },)
+    || FIXTURE_NAME_SUFFIXES.some(function isAFixtureName(suffix,) {
+      return path.endsWith(suffix,);
+    },)
+    || FIXTURE_PATH_PARTS.some(function isAFixturePart(part,) {
+      return path.includes(part,);
+    },)
+    || foldersOf(path,)
+      .some(function isATestOrFixtureFolder(folder,) {
+        return TEST_FOLDER_NAMES.has(folder,) || FIXTURE_FOLDER_NAMES.has(folder,);
+      },);
+}
+
+/**
+ What a review of a change to tests reads a file as: a test or a fixture by the measured lists, material a test may read although
+ no list names its folder, or prose no test reads.
+ */
+export type WhatAChangeToTestsReads =
+  | 'a-test-or-a-fixture'
+    | 'material-a-test-may-read'
+    | 'a-note';
+
+/**
+ Says what a review of a change to tests does with a file.
+
+ The first answer is the measured lists. The second is every file beside a test that is neither a test nor a fixture nor prose: a
+ recorded answer, a picture, a lockfile, a file of an extension no list names. The writer cannot read imports to know whether a
+ test reads one, so it reads every such file: a file read that a test never opens costs a reviewer one file, while a recorded
+ answer left out of the change it belongs to got that whole change answered as nothing to review on 2026-11-14, which is the
+ defect this answer exists for.
+
+ The third answer is prose a person reads, which no test reads, so a note beside a test leaves the change not a change to tests
+ alone. `material-of-a-review.ts` refuses that range, with the words its own answer carries.
+
+ @param path - a path from the top of the checkout
+
+ @returns what a review of the change reads the file as
+
+ @example
+ ```ts
+ const readAs = whatAChangeToTestsReads({ path: 'package/a/src/await-run.unit.test.ts', },);
+ ```
+ */
+export function whatAChangeToTestsReads({ path, }: { readonly path: string },): WhatAChangeToTestsReads {
+  if (isATestOrAFixture({ path, },)) {
+    return 'a-test-or-a-fixture';
+  }
+  return PROSE_FILE_EXTENSIONS.has(extensionOfAPath({ path, },),)
+    ? 'a-note'
+    : 'material-a-test-may-read';
 }

@@ -191,6 +191,48 @@ function filesOfAnUnlistedKind(): readonly string[] {
 }
 
 /**
+ The Kotlin test the review's first finding named, which a `src/test` layout and a `Test.kt` name both mark.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aKotlinTestPath();
+ ```
+ */
+function aKotlinTestPath(): string {
+  return 'package/linter/kotlin/src/test/kotlin/dev/monochromatic/detekt/RequireKDocTest.kt';
+}
+
+/**
+ The recorded answer the review's second finding named, which sits in a `fixture` folder beside its test.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const fixture = aRecordedAnswerInAFixtureFolder();
+ ```
+ */
+function aRecordedAnswerInAFixtureFolder(): string {
+  return 'package/crate-release/cli/src/fixture/run-still-going.json';
+}
+
+/**
+ The recorded answer a test reads that sits in a folder no list names, which a change to tests reads anyway.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const answer = aRecordedAnswerInNoNamedFolder();
+ ```
+ */
+function aRecordedAnswerInNoNamedFolder(): string {
+  return `${aSourceFolder()}/recordings/run-still-going.json`;
+}
+
+/**
  The files a review of code gives its reviewer, refusing a material the test did not expect to be about tests or nothing.
 
  @param material - what the reading answered
@@ -743,6 +785,69 @@ await describe({
               commit: aCommit(),
             },);
             expect(testsFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.unit.test.ts`,],);
+          },
+        },),
+        it({
+          name: 'answers a Kotlin test alone as a change to tests, naming it, which a review read as code until a `src/test` layout and a `Test.kt` name were counted',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [aKotlinTestPath(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: 'package/linter/kotlin/src',
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([aKotlinTestPath(),],);
+          },
+        },),
+        it({
+          name: 'answers a test and the recorded answer in its `fixture` folder as a change to tests, naming both, which was answered as nothing to review until the folder was counted',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [aTestFilePath(), aRecordedAnswerInAFixtureFolder(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([aTestFilePath(), aRecordedAnswerInAFixtureFolder(),],);
+          },
+        },),
+        it({
+          name: 'reads a recorded answer beside a test although no folder list names the folder it sits in, so a test and the answer it reads are never answered as nothing to review',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [aTestFilePath(), aRecordedAnswerInNoNamedFolder(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([aTestFilePath(), aRecordedAnswerInNoNamedFolder(),],);
+          },
+        },),
+        it({
+          name: 'answers nothing for a recorded answer alone, because no test in the change reads it and no list names the folder, which is the refusal the writer says why for',
+          fn: async () => {
+            expect((await materialOfAReview({
+              git: gitTouching({ paths: [aRecordedAnswerInNoNamedFolder(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },)).kind,).toBe('nothing-a-review-reads',);
           },
         },),
       ],

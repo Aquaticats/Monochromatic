@@ -9,11 +9,14 @@
 
  A range whose change is tests and fixtures alone leaves no code to judge, and a reviewer given nothing for it would report
  nothing, so those files are read too, as a change to tests: the brief asks the reviewer to plant a break under each changed test
- and say whether it fails.
+ and say whether it fails. A file beside a test that is neither a test nor a fixture nor prose is read with them, because the
+ writer cannot tell whether a test reads it and a test and the recorded answer it reads must never be answered as nothing to
+ review, while a note beside a test leaves the change not a change to tests alone.
 
- Which extension is code and which is left out is `which-files-a-review-reads.ts`'s answer, measured against what this repository
- tracks. A file of an extension in neither of its lists is a kind this writer does not know: a review reads it as code rather than
- drop it, and the material names it, so the line the writer prints says that a kind nobody listed was read.
+ Which file is a test or a fixture, and which extension is code and which is left out, is `which-files-a-review-reads.ts`'s
+ answer, measured against what this repository tracks. A file of an extension in neither list is a kind this writer does not
+ know: a review reads it as code rather than drop it, and the material names it, so the line the writer prints says that a kind
+ nobody listed was read.
 
  @module
  */
@@ -21,7 +24,11 @@
 import { basename, } from 'node:path';
 import { isRecord, } from './read-pi-fields.ts';
 import type { CommandOutput, } from './run-command.ts';
-import { whatAReviewDoesWithAFile, } from './which-files-a-review-reads.ts';
+import {
+  isATestOrAFixture,
+  whatAChangeToTestsReads,
+  whatAReviewDoesWithAFile,
+} from './which-files-a-review-reads.ts';
 
 /**
  How this module asks git a question, which a test replaces with the answers it expects.
@@ -30,31 +37,6 @@ export type GitQuestion = (request: {
   readonly words: readonly string[];
   readonly folder: string;
 }) => Promise<CommandOutput>;
-
-/**
- The file suffixes a review does not read: the tests that check the change, which a reviewer cannot judge as the change itself,
- and which the package's own tests already run.
- */
-const TEST_FILE_SUFFIXES: readonly string[] = [
-  '_tests.rs',
-  '.test.ts',
-];
-
-/**
- The path fragments a review does not read: the fixtures and stand-in programs the tests use, which are not shipped code.
- */
-const TEST_FIXTURE_PATH_PARTS: readonly string[] = [
-  'test_support',
-  'stand-in-',
-];
-
-/**
- The folder names whose files are tests whatever their extension: cargo puts a package's integration tests under `tests/`, and
- such a test is written like the code it tests, so no suffix of its tells it from shipped code.
- */
-const TEST_FOLDER_NAMES: ReadonlySet<string> = new Set<string>([
-  'tests',
-]);
 
 /**
  The names of the files a review reads although no extension of theirs says they are code: the manifests and tool
@@ -468,58 +450,6 @@ function isABuildDecisionAReviewerReads(path: string,): boolean {
 }
 
 /**
- Says whether a path sits in a folder of tests, whose files are tests whatever their extension.
-
- @param path - a path from the top of the checkout
-
- @returns whether a folder above the file is named for tests
-
- @example
- ```ts
- const isATest = isInATestFolder('package/cargo-shadow/cli/tests/shim.rs',);
- ```
- */
-function isInATestFolder(path: string,): boolean {
-  /**
-   Every segment of the path.
-   */
-  const segments = path.split('/',);
-  /**
-   The path's folders, which are every segment before the file's own name.
-   */
-  const folders = segments.slice(
-    0,
-    -1,
-  );
-  return folders.some(function isATestFolder(folder,) {
-    return TEST_FOLDER_NAMES.has(folder,);
-  },);
-}
-
-/**
- Says whether a path is one of the files a review leaves out beside the change: the tests that check it, which a reviewer cannot
- judge as the change itself, and the fixtures and stand-in programs they use.
-
- @param path - a path from the top of the checkout
-
- @returns whether the path is a test or a fixture
-
- @example
- ```ts
- const isATest = isATestOrAFixture('src/gate_tests.rs',);
- ```
- */
-function isATestOrAFixture(path: string,): boolean {
-  return TEST_FILE_SUFFIXES.some(function isATest(extension,) {
-    return path.endsWith(extension,);
-  },)
-    || TEST_FIXTURE_PATH_PARTS.some(function isAFixture(part,) {
-      return path.includes(part,);
-    },)
-    || isInATestFolder(path,);
-}
-
-/**
  Filters the paths a change touched down to the files a reviewer reads: the code, the files of a kind no list names, and the
  manifests and tool configurations that decide how that code is built, checked or run.
 
@@ -535,7 +465,7 @@ function isATestOrAFixture(path: string,): boolean {
 export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
   return paths.filter(function isAFileAReviewerReads(path,) {
     return (isReadAsCodeOfTheChange({ path, },) || isABuildDecisionAReviewerReads(path,))
-      && (!isATestOrAFixture(path,));
+      && (!isATestOrAFixture({ path, },));
   },);
 }
 
@@ -573,7 +503,7 @@ export function filesOfAnUnlistedKindAmong({ paths, }: { readonly paths: readonl
  */
 export function testsAndFixturesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
   return paths.filter(function isATestOrAFixturePath(path,) {
-    return isATestOrAFixture(path,);
+    return isATestOrAFixture({ path, },);
   },);
 }
 
@@ -695,15 +625,26 @@ export async function materialOfAReview({
     };
   }
   /**
-   The tests and fixtures among them, which are read only when they are the whole change: a file a review reads no part of, a note
-   or a lockfile, leaves the change itself unread, and a review of its tests alone would say nothing about it.
+   The tests and fixtures among them, which are what makes the change a change to tests.
    */
   const testsAndFixtures = testsAndFixturesAmong({ paths: readable, },);
-  return ((testsAndFixtures.length > 0) && (testsAndFixtures.length === readable.length))
+  /**
+   The notes among them, which no test reads: a change that holds one is not a change to tests alone, and a review of its tests
+   would say nothing about the note while claiming the change is to them.
+   */
+  const notes = readable.filter(function isANoteAReviewLeavesOut(path,) {
+    return whatAChangeToTestsReads({ path, },) === 'a-note';
+  },);
+  /**
+   Every path the change touched that the reviewed commit holds, which a change to tests reads in full: the tests, the fixtures
+   beside them, and the material a test may read that no list names, so a test and the answer it reads are never answered as
+   nothing to review.
+   */
+  return ((testsAndFixtures.length > 0) && (notes.length === 0))
     ? {
       diff,
       kind: 'tests-and-fixtures',
-      files: testsAndFixtures,
+      files: readable,
     }
     : {
       diff,

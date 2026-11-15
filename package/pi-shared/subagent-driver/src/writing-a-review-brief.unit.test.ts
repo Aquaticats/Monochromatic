@@ -130,6 +130,34 @@ function aFixtureFile(): string {
 }
 
 /**
+ The Kotlin test the review's first finding named, which a `src/test` layout and a `Test.kt` name both mark.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aKotlinTestFile();
+ ```
+ */
+function aKotlinTestFile(): string {
+  return 'package/linter/kotlin/src/test/kotlin/dev/monochromatic/detekt/RequireKDocTest.kt';
+}
+
+/**
+ The recorded answer the review's second finding named, which sits in a `fixture` folder beside its test.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const answer = aRecordedAnswerFile();
+ ```
+ */
+function aRecordedAnswerFile(): string {
+  return 'package/crate-release/cli/src/fixture/run-still-going.json';
+}
+
+/**
  The shim package's own CommonJS source and the type file beside it, which a review reads because both extensions are code: the
  change of `7ec2fd422d` held these, their test and their note, and was answered "nothing to review" before the extensions were
  measured.
@@ -454,6 +482,47 @@ await describe({
             for (const file of filesOfAnUnlistedKind()) {
               expect(brief,).toContain(`- \`${file}\``,);
             }
+          },
+        },),
+        it({
+          name: 'writes the brief of a change to tests for a Kotlin test alone, asking for a break planted under it, which a change under a `src/test` layout was answered as a change of code before the layout and the name were counted',
+          fn: async () => {
+            await using written = await writeAChangeThrough([aKotlinTestFile(),],);
+            expect(written.briefed.written,).toBe(true,);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: written.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            expect(brief,).toContain('a change to the tests under',);
+            expect(brief,).toContain(`- \`${aKotlinTestFile()}\``,);
+            expect(brief,).toContain('plant a break under it',);
+          },
+        },),
+        it({
+          name: 'writes the brief of a change to tests for a test and the recorded answer in its `fixture` folder, naming both, which was answered as nothing to review before the folder was counted',
+          fn: async () => {
+            await using written = await writeAChangeThrough([aTestFile(), aRecordedAnswerFile(),],);
+            expect(written.briefed.written,).toBe(true,);
+            expect(written.briefed.line,).toContain('2 files to read',);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: written.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            expect(brief,).toContain(`- \`${aTestFile()}\``,);
+            expect(brief,).toContain(`- \`${aRecordedAnswerFile()}\``,);
+            expect(brief,).toContain('For a changed fixture, name the tests that use it',);
           },
         },),
       ],

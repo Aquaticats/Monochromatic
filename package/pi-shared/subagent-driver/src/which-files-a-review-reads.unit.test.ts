@@ -4,7 +4,7 @@
 
  The lists are the ones this repository's files were measured against on 2026-11-14. The measurement itself is a check kept beside
  the change that added them, because it runs `git ls-files` and a suite reads no checkout: these tests hold the answers a path gets
- from the lists as they stand.
+ from the lists as they stand, for the extensions and for the names and folders that mark a test or a fixture.
 
  @module
  */
@@ -18,6 +18,8 @@ import {
   CODE_FILE_EXTENSIONS,
   LEFT_OUT_FILE_EXTENSIONS,
   extensionOfAPath,
+  isATestOrAFixture,
+  whatAChangeToTestsReads,
   whatAReviewDoesWithAFile,
 } from '../dist/final/node/index.mjs';
 
@@ -139,6 +141,82 @@ await describe({
             expect(whatAReviewDoesWithAFile({ path: 'package/a/gradle/wrapper/gradle-wrapper.jar', },),).toBe('leaves-it-out',);
             expect(whatAReviewDoesWithAFile({ path: 'package/a/Cargo.lock', },),).toBe('leaves-it-out',);
             expect(whatAReviewDoesWithAFile({ path: 'package/a/README.md', },),).toBe('leaves-it-out',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: isATestOrAFixture.name,
+      children: [
+        it({
+          name: 'knows a Kotlin test by the `src/test` layout and by its `Test.kt` name, which the code command read as code until both were counted',
+          fn: async () => {
+            expect(isATestOrAFixture({ path: 'package/linter/kotlin/src/test/kotlin/dev/monochromatic/detekt/RequireKDocTest.kt', },),)
+              .toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/main/kotlin/a/WidgetTest.kt', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'knows a Rust test, a TypeScript test and a file under a `tests` folder by their names and folder, whatever language they are written in',
+          fn: async () => {
+            expect(isATestOrAFixture({ path: 'package/a/src/gate_tests.rs', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/gate.unit.test.ts', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/tests/shim.rs', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/androidTest/kotlin/a/WidgetTest.kt', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'knows the recorded answer a test reads by the folder it sits in, which is the `fixture` folder of the change that was answered as nothing to review',
+          fn: async () => {
+            expect(isATestOrAFixture({ path: 'package/crate-release/cli/src/fixture/run-still-going.json', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/fixtures/answer.toml', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/golden/campaign.json', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/testdata/table.txt', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'knows a fixture by the name it is given and the suffix a tool records, in any folder: a `-fixture` module, a `stand-in-` program, a merge side, a fuzz dictionary',
+          fn: async () => {
+            expect(isATestOrAFixture({ path: 'package/a/e2e/content-fixture.ts', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/stand-in-git.ts', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/recorded-answer.fixture.json', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/src/native/merge/word_merge_corpus/json1.theirs', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/cli.fuzz/dictionary/arguments.dict', },),).toBe(true,);
+            expect(isATestOrAFixture({ path: 'package/a/cli.fuzz/seed/fuzz_rules_list/seed-duplicate-path', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'leaves shipped code alone: a Kotlin source under `src/main`, the conformance modules of a package, a Slint file under `ui`, and the template package whose folder is named `seed`',
+          fn: async () => {
+            expect(isATestOrAFixture({ path: 'package/linter/kotlin/src/main/kotlin/dev/monochromatic/detekt/RequireKDoc.kt', },),)
+              .toBe(false,);
+            expect(isATestOrAFixture({ path: 'package/toml-edit/core/src/conformance/decode.ts', },),).toBe(false,);
+            expect(isATestOrAFixture({ path: 'package/ide/app/ui/annotation.slint', },),).toBe(false,);
+            expect(isATestOrAFixture({ path: 'package-paused/webapp-forge/seed/src/cli.ts', },),).toBe(false,);
+            expect(isATestOrAFixture({ path: 'package/a/src/data/config.json', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: whatAChangeToTestsReads.name,
+      children: [
+        it({
+          name: 'reads a test and a fixture as the change to tests itself, and the recorded answer beside a test as material the test may read even when no folder list names its folder',
+          fn: async () => {
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/gate.unit.test.ts', },),).toBe('a-test-or-a-fixture',);
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/fixture/answer.json', },),).toBe('a-test-or-a-fixture',);
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/recordings/answer.json', },),).toBe('material-a-test-may-read',);
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/screenshot.png', },),).toBe('material-a-test-may-read',);
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/expected-output.txt', },),).toBe('material-a-test-may-read',);
+          },
+        },),
+        it({
+          name: 'reads a note as prose no test reads, except when a test folder claims it, so a note beside a test leaves the change not a change to tests alone',
+          fn: async () => {
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/README.md', },),).toBe('a-note',);
+            expect(whatAChangeToTestsReads({ path: 'package/a/src/notes.patch', },),).toBe('a-note',);
+            expect(whatAChangeToTestsReads({ path: 'package/a/tests/README.md', },),).toBe('a-test-or-a-fixture',);
           },
         },),
       ],
