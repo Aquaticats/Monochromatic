@@ -738,6 +738,22 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T22:38:58-05:00,
+  from the report of the run on a refused service start
+  (`~/temp/agent/controls-of-a-service-start-refused-agree-with-wrapper-2026-11-14/keep/`,
+  branch tip `2df2853ed6`,
+  in review),
+  neither blocking work:
+  - Before it ends,
+    the wrapper now waits up to 250 ms for its log thread to write what was handed to it
+    (`WAIT_BEFORE_AN_EXIT`,
+    with its measurement beside it:
+    a median of 3,160 µs against 3,052 µs on an exit,
+    inside the spread).
+    Is 250 ms the bound wanted?
+  - A session bus address that nothing answers on gets the same words and remedy as an account with no user services
+    (enable lingering).
+    Are the two to be told apart?
 - Added 2026-11-14T20:53:23-05:00,
   from the landing author's report of its seventh pass
   (`~/temp/agent/landing-never-waits-behind-housekeeping-2026-11-13-scratch/keep/report-of-the-seventh-pass-2026-11-16.md`,
@@ -1329,6 +1345,78 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The wrapper lost its last log line at an exit, which is why three controls of a refused service start failed; the `fault_limits` control turned on a few kilobytes of a build (2026-11-14T22:38:58-05:00)
+
+Not final and not approved:
+what two fresh runs report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The controls of a service start that is refused**,
+  ended 22:33:44 at `2df2853ed6`.
+  By its report the three gate controls failed for one defect of the wrapper:
+  a line handed to the log thread shortly before the process ends was never written.
+  Measured over ten runs each before the fix:
+  no byte on standard error in all ten for four paths of a refused start and in nine of ten for the fifth,
+  against 290 bytes for a start that listens.
+  The fix:
+  the queue records a line being written,
+  and both exits wait,
+  bounded at 250 ms,
+  until what was handed is written.
+  After it:
+  every path writes its line in ten of ten.
+  One control is renamed and now asserts the words for a runtime directory no socket path can carry.
+  All three pass on the host and in an image built from the branch;
+  cost on an exit 1.04 times at the median,
+  inside the spread.
+  It asks two things,
+  now in "Questions kept for the owner's return".
+  Its review is queued second
+  (`main...2df2853ed6`,
+  two code files).
+- **The control of a service that ends before it listens** (`fault_limits`),
+  ended 22:36:13 at `0cced6f253`.
+  By its report the control passes at `main` before pass 45 and fails at pass 45's tip,
+  two trees that differ only in the version string.
+  The cause is measured:
+  the address space one start needs is fixed per build,
+  the control's search rounds it to whole mebibytes,
+  and the two start paths differ by 52 KiB,
+  so which side of a mebibyte a build falls on decides the outcome.
+  The service at that limit did start and land the commit,
+  by its own log.
+  Changed,
+  in the test file alone:
+  the limit is derived from the plan's constants so that no worker fits at any build,
+  and the control proves its premise from the service's log.
+  Three planted breaks,
+  each quoted failing.
+- **Weighed**:
+  it names a sibling control on the same edge and left it,
+  by its brief.
+  That line was this session's and too narrow,
+  so the author is resumed to take the sibling and any other like it before a review reads the branch
+  (`~/temp/agent/pi-runs/control-of-a-service-that-ends-before-it-listens-takes-its-sibling-control-off-the-same-edge-prompt.md`,
+  queued fifth).
+  Its change touches tests alone,
+  and the starter's reviews want a change to code;
+  how it is reviewed is settled when it answers.
+  It also measured,
+  and left,
+  that at `RLIMIT_NOFILE=3` the wrapper answers "This account has no user service manager",
+  which misnames the cause;
+  no run has that.
+- Read at 22:38:10:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  23 runs going.
+  The resumed session is not named by the credential scan.
+  `/var/home` had 493 G free at 72%,
+  by one run's reading.
+  The queue held 70 entries at 22:38:58.
 
 ##### The control of two adds at once fails on a one-millisecond tick and has its fix; the run kept out of the main checkout answers its third review; both go to review (2026-11-14T22:33:22-05:00)
 
