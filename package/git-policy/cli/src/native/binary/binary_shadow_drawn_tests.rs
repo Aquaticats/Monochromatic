@@ -525,3 +525,369 @@ fn a_client_killed_before_its_request_leaves_no_claimed_tree() {
     assert!(!handed.exists(), "and the tree is gone");
     remove_settled(&case.fixture);
 }
+
+/// The one scratch tree a paused commit made,
+/// or a panic naming what is there instead.
+/// Why:
+///  A commit's scratch tree carries the name of the attempt that made it, so a control finds it by its prefix.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scratchTree = (repo) => readdirSync(join(repo, '.git/monochromatic-git-policy-cli-scratch')).filter(n => n.startsWith('monochromatic-git-policy-cli-service-'))
+/// ```
+fn the_scratch_tree_of_the_commit(repo: &Path) -> PathBuf {
+    let folder: PathBuf = repo.join(".git").join("monochromatic-git-policy-cli-scratch");
+    let entries: Vec<PathBuf> = std::fs::read_dir(folder.as_path())
+        .expect("the repository scratch folder")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("monochromatic-git-policy-cli-service-"); }); })
+        .collect();
+    assert_eq!(entries.len(), 1, "one commit attempt has one scratch tree: {entries:?}");
+    return entries.into_iter().next().expect("the tree");
+}
+
+/// What:
+///  The subject and parents of `HEAD`,
+///  as `git log` prints them.
+/// Why:
+///  What a merge became is read off the commit itself: a one-parent commit is a merge that lost its other side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = (repo) => git(repo, ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ')
+/// ```
+fn head_and_its_parents(case: &Case) -> Vec<String> {
+    let line: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-list", "--parents", "-n", "1", "HEAD"]);
+    return line.trim().split_whitespace().map(String::from).skip(1).collect();
+}
+
+/// What:
+///  A merge conclusion prepared in `repo` that loses only its shadow's `MERGE_HEAD` at the build pause
+///  lands with both of its parents.
+/// Why:
+///  Git's commit names its parents from the conclusion state copied into the shadow, so a shadow without
+///  `MERGE_HEAD` makes a one-parent commit that says nothing;
+///  the conclusion cleanup then reads the shadow's absent file as proof that Git concluded the merge and removes
+///  the real merge state.
+///  The commit is held against the parents the command began with (`service_native.rs`, `build_with_git`).
+#[test]
+fn a_merge_whose_shadow_loses_merge_head_lands_with_every_parent() {
+    let case: Case = case("merge-loses-shadow-merge-head");
+    git(&case.fixture, case.repo.as_path(), &["config", "commit.verbose", "false"]);
+    // A side branch whose commit the merge must name as its second parent.
+    git(&case.fixture, case.repo.as_path(), &["checkout", "--quiet", "-b", "side-control"]);
+    std::fs::write(case.repo.join("side.txt"), b"side\n").expect("side");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "side.txt"]);
+    git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=side"]);
+    let side: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "side-control"]).trim().to_string();
+    git(&case.fixture, case.repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::write(case.repo.join("main.txt"), b"main\n").expect("main");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "main.txt"]);
+    git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=main"]);
+    git(&case.fixture, case.repo.as_path(), &["merge", "--no-commit", "--no-ff", "side-control"]);
+    assert!(case.repo.join(".git").join("MERGE_HEAD").is_file(), "the merge is in progress");
+    let scratch: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path());
+    let _ = scratch;
+    let mut command: Command = a_commit_paused_at(&case, "shadow-built", "merge");
+    command.env("XDG_RUNTIME_DIR", &case.service.runtime);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its shadow is built");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let shadow_merge_head: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("shadow").join("MERGE_HEAD");
+    assert!(shadow_merge_head.is_file(), "the shadow holds the conclusion state the merge needs");
+    std::fs::remove_file(shadow_merge_head.as_path()).expect("the shadow's MERGE_HEAD goes");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the merge's commit must land: {words}");
+    let parents: Vec<String> = head_and_its_parents(&case);
+    assert_eq!(parents.len(), 2, "the commit names both of a merge's parents: {parents:?}");
+    assert!(parents.contains(&side), "the side commit is one of them: {parents:?} side={side}");
+    assert!(!case.repo.join(".git").join("MERGE_HEAD").exists(), "and the real merge state went with the conclusion it was kept for");
+    remove_settled(&case.fixture);
+}
+
+/// The command that commits the staged change under a message file Git cannot read as text,
+/// which is what makes Git build the commit in the shadow,
+/// held at `phase`.
+/// Why:
+///  The message file is the one form of the command that the wrapper does not embed,
+///  so the build phase and every file it reads are reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const command = wrappedCommit(fixture, repo, ['commit', '--quiet', '--file=message.txt']); command.env('CLI_GIT_TEST_ONLY_PHASE_SIGNAL', `${phase}:pause:${markers}`)
+/// ```
+fn a_commit_of_a_non_text_message_paused_at(case: &Case, phase: &str) -> Command {
+    std::fs::write(case.repo.join("message.txt"), b"a message Git reads \xe9\n").expect("the message file");
+    let mut command: Command = wrapped_commit(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--file=message.txt"]);
+    command.env("XDG_RUNTIME_DIR", &case.service.runtime);
+    command.env(PHASE_SIGNAL_VARIABLE, format!("{phase}:pause:{}", case.markers.display()));
+    return command;
+}
+
+/// What:
+///  A commit whose private index goes before Git reads it is still the commit that was asked for.
+/// Why:
+///  Git is given the private index as `GIT_INDEX_FILE`,
+///  and an index that is not there reads to Git as an empty one,
+///  so the commit becomes the empty tree and deletes every tracked file from history while the worktree keeps them.
+///  The index this command was given is kept apart from the one Git reads and the commit is held against it
+///  (`service_native.rs`, `build_with_git`).
+#[test]
+fn a_commit_whose_private_index_goes_is_still_the_commit_that_was_asked_for() {
+    let case: Case = case("index-goes-before-the-build");
+    git(&case.fixture, case.repo.as_path(), &["config", "commit.verbose", "false"]);
+    std::fs::write(case.repo.join("base.txt"), b"base\n").expect("base");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt"]);
+    git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(case.repo.join("base.txt"), b"base\nmore\n").expect("the edit");
+    std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt", "added.txt"]);
+    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&case, "shadow-built");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its shadow is built");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let index: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("commit.index");
+    assert!(index.is_file(), "the private index is there before the loss");
+    std::fs::remove_file(index.as_path()).expect("the private index goes");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit must land: {words}");
+    let files: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"]);
+    let listed: Vec<&str> = files.lines().map(str::trim).filter(|line| { return !line.is_empty(); }).collect();
+    assert!(listed.contains(&"base.txt"), "the commit keeps the file the person had tracked: {listed:?}");
+    assert!(listed.contains(&"added.txt"), "and the one this commit added: {listed:?}");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A reftable shadow whose tables go is built in another tree, and the commit lands.
+/// Why:
+///  A reftable shadow keeps its refs in Git's own tables,
+///  and a whole-shadow question that looks at no table answers for a tree Git refuses every transaction in
+///  (`fatal: reftable: transaction prepare: I/O error`);
+///  the list of those tables is what the question asks for (`shadow_create.rs`, `the_shadow_holds_what_a_creation_makes`).
+#[test]
+fn a_reftable_shadow_that_loses_its_tables_is_built_again() {
+    let case: Case = case("reftable-loses-its-tables");
+    let reftable: PathBuf = case.fixture.root.join("reftable");
+    std::fs::create_dir(reftable.as_path()).expect("the repository directory");
+    git(&case.fixture, reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(&case.fixture, reftable.as_path(), &["config", "commit.verbose", "false"]);
+    git(&case.fixture, reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    std::fs::write(reftable.join("a.txt"), b"one\n").expect("a");
+    git(&case.fixture, reftable.as_path(), &["add", "--", "a.txt"]);
+    let base: String = super::commit::git_text(&case.fixture, reftable.as_path(), &["rev-parse", "HEAD"]);
+    let case: Case = Case { repo: reftable, ..case };
+    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&case, "shadow-built");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its reftable shadow is built");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let tables: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("shadow").join("reftable");
+    assert!(tables.is_dir(), "the shadow holds Git's tables before the loss");
+    std::fs::remove_dir_all(tables.as_path()).expect("the tables go");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit must land in another tree: {words}");
+    assert_ne!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch moved");
+    remove_settled(&case.fixture);
+}
+
+/// One row of the loss table:
+/// the entry taken away under the commit's scratch tree,
+/// and what the command did.
+/// Why:
+///  A table is what a reader needs to see that no loss of one file or folder of the scratch tree,
+///  at either pause, ends in a commit the person did not write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LossRow = { entry: string; exit: number | null; files: string[]; rebuilt: string | null };
+/// ```
+#[derive(Debug)]
+struct LossRow {
+    /// The entry's name under the scratch tree.
+    entry: String,
+    /// What the command exited with.
+    exit: Option<i32>,
+    /// The files the commit it made holds,
+    /// or nothing when it made none.
+    files: Vec<String>,
+    /// The stretch its record names when it built again,
+    /// or nothing.
+    rebuilt: Option<String>,
+}
+
+/// What:
+///  Takes one entry of the commit's scratch tree away at `phase` and answers what the command did.
+/// Why:
+///  It is one row of the loss table,
+///  and every row starts from a fixture of its own so no row depends on another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneLoss = async (name, phase, entry) => { ...; unlink(join(scratch, entry)); release(); return row }
+/// ```
+fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
+    let case: Case = case(name);
+    git(&case.fixture, case.repo.as_path(), &["config", "commit.verbose", "false"]);
+    std::fs::write(case.repo.join("base.txt"), b"base\n").expect("base");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt"]);
+    git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(case.repo.join("base.txt"), b"base\nmore\n").expect("the edit");
+    std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt", "added.txt"]);
+    std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&case, phase);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join(format!("{phase}-1.reached"));
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the {phase} pause for the row {entry}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let scratch: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path());
+    let target: PathBuf = scratch.join(entry);
+    let removed: std::io::Result<()> = match std::fs::symlink_metadata(target.as_path()) {
+        Ok(metadata) if metadata.is_dir() => std::fs::remove_dir_all(target.as_path()),
+        Ok(_) => std::fs::remove_file(target.as_path()),
+        Err(error) => Err(error),
+    };
+    assert!(removed.is_ok(), "the row {entry} takes its entry away: {removed:?}");
+    std::fs::write(markers.join(format!("{phase}-1.release")), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let files: Vec<String> = match seen.code {
+        Some(0) => super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+            .lines()
+            .map(str::trim)
+            .filter(|line| { return !line.is_empty(); })
+            .map(String::from)
+            .collect(),
+        _other => Vec::new(),
+    };
+    let rebuilt: Option<String> = std::fs::read_to_string(case.repo.join(".git").join(TIMING_FILE))
+        .ok()
+        .and_then(|text| { return text.lines().filter(|line| { return !line.trim().is_empty(); }).next_back().map(String::from); })
+        .and_then(|line| { return serde_json::from_str::<serde_json::Value>(line.as_str()).ok(); })
+        .and_then(|record| {
+            let parts: serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().cloned().unwrap_or_default();
+            for name in ["shadow went", "commit differed"] {
+                if parts.contains_key(name) {
+                    return Some(String::from(name));
+                }
+            }
+            return None;
+        });
+    remove_settled(&case.fixture);
+    return LossRow { entry: String::from(entry), exit: seen.code, files, rebuilt };
+}
+
+/// What:
+///  Every entry of the commit's scratch tree is taken away in turn at `phase`,
+///  and no row lands a commit the person did not write.
+/// Why:
+///  A commit's scratch tree is files the wrapper made,
+///  and any of them can go at any instant for a cause no sweep explains.
+///  A list of files to look at before Git runs can only be longer,
+///  so what the control holds is the outcome:
+///  a row either lands exactly the commit the command asked for,
+///  or it lands again in another tree,
+///  or it fails with the person's worktree untouched,
+///  and never a commit of other content and never a real merge state removed by a commit that did not conclude it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const entry of ['commit.index', 'captured.index', 'shadow', ...]) { row = oneLoss(phase, entry); expect(row.files == expected || row.rebuilt) }
+/// ```
+fn the_loss_table(name: &str, phase: &str) -> Vec<LossRow> {
+    let probe: Case = case(&format!("{name}-entries"));
+    git(&probe.fixture, probe.repo.as_path(), &["config", "commit.verbose", "false"]);
+    std::fs::write(probe.repo.join("base.txt"), b"base\n").expect("base");
+    git(&probe.fixture, probe.repo.as_path(), &["add", "--", "base.txt"]);
+    git(&probe.fixture, probe.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(probe.repo.join("added.txt"), b"added\n").expect("the addition");
+    git(&probe.fixture, probe.repo.as_path(), &["add", "--", "added.txt"]);
+    std::fs::write(probe.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&probe, phase);
+    let markers: PathBuf = probe.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join(format!("{phase}-1.reached"));
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the {phase} pause of the probe");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let scratch: PathBuf = the_scratch_tree_of_the_commit(probe.repo.as_path());
+    let mut entries: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(scratch.as_path()).expect("the scratch tree").flatten() {
+        entries.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    for entry in std::fs::read_dir(scratch.join("shadow").as_path()).expect("the shadow").flatten() {
+        entries.push(format!("shadow/{}", entry.file_name().to_string_lossy()));
+    }
+    entries.sort();
+    std::fs::write(markers.join(format!("{phase}-1.release")), b"").expect("release the probe");
+    let _seen: Observed = waiting.join().expect("the probe");
+    remove_settled(&probe.fixture);
+    let mut rows: Vec<LossRow> = Vec::new();
+    for entry in entries {
+        rows.push(one_loss(&format!("{name}-{}", entry.replace('/', "-")), phase, entry.as_str()));
+    }
+    return rows;
+}
+
+/// What:
+///  Every entry of a plain commit's scratch tree can go at the build pause,
+///  and no row lands a commit the person did not write.
+#[test]
+fn every_entry_of_the_scratch_tree_can_go_before_git_and_the_commit_is_the_one_asked_for() {
+    let rows: Vec<LossRow> = the_loss_table("loss-table-before-git", "shadow-built");
+    for row in &rows {
+        println!("row={} exit={:?} files={:?} rebuilt={:?}", row.entry, row.exit, row.files, row.rebuilt);
+    }
+    assert!(!rows.is_empty(), "the table has rows");
+    let asked: Vec<String> = vec![String::from("added.txt"), String::from("base.txt")];
+    for row in &rows {
+        if row.exit == Some(0) {
+            assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
+        }
+    }
+}
+
+/// What:
+///  Every entry of a plain commit's scratch tree can go after Git made the commit and before it lands,
+///  and no row lands a commit the person did not write.
+#[test]
+fn every_entry_of_the_scratch_tree_can_go_after_git_and_the_commit_is_the_one_asked_for() {
+    let rows: Vec<LossRow> = the_loss_table("loss-table-after-git", "service-prepared");
+    for row in &rows {
+        println!("row={} exit={:?} files={:?} rebuilt={:?}", row.entry, row.exit, row.files, row.rebuilt);
+    }
+    assert!(!rows.is_empty(), "the table has rows");
+    let asked: Vec<String> = vec![String::from("added.txt"), String::from("base.txt")];
+    for row in &rows {
+        if row.exit == Some(0) {
+            assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
+        }
+    }
+}
