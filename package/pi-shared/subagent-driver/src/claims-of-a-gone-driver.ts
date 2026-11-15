@@ -5,6 +5,10 @@
  A claim says that delivery had begun and never whether Pi took the message, and a note written for an earlier moment may no longer
  apply, so a recovered message is kept and named rather than sent again on a guess.
 
+ Two passes can recover the same claim at once. Every read here answers nothing for a folder that has gone, every removal tolerates
+ a folder another pass took away, and the keep recognises the kept name another pass already made, so either pass finishing the
+ work, or both, leaves one result. `doc/states-of-a-claimed-message.md` writes the states and steps down.
+
  @module
  */
 
@@ -12,23 +16,27 @@ import { readdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   INBOX_CLAIMS_FOLDER,
-  NO_KEPT_NAME,
   claimOwnerIsGone,
   entryOrNothing,
   lastPartOf,
-  noteMessageNotTaken,
   processFolderOf,
   removeClaimOwnerFolder,
   removeFolderIfEmpty,
 } from './claims-of-an-inbox.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  CLAIM_FINISHED,
+  NO_KEPT_NAME,
+  noteMessageNotTaken,
+} from './keeping-a-message-aside.ts';
 import type { WatchRequest, } from './watch-request.ts';
 
 /**
  Keeps one message a driver that is gone had claimed, and says on the feed where it went and why.
 
  A claim says that delivery had begun and never whether Pi took the message, and a note written for an earlier moment may no longer
- apply, so the message is kept and named rather than sent again on a guess.
+ apply, so the message is kept and named rather than sent again on a guess. A claim another pass has already finished is no
+ failure: the message is kept or delivered there, never lost here.
 
  @param watch - watch request
 
@@ -46,7 +54,7 @@ async function keepOrphanedMessage({
   readonly claim: string
 },): Promise<void> {
   /**
-   Where the message was kept, when it could be.
+   Where the message was kept, or which of the two ways this pass did not keep it.
    */
   const kept = await noteMessageNotTaken({
     watch,
@@ -59,9 +67,11 @@ async function keepOrphanedMessage({
   watch.record
     .note({
       kind: 'problem',
-      problem: (kept === NO_KEPT_NAME)
-        ? `the driver that claimed ${name} is gone, so whether Pi took it is unknown; the message could not be kept`
-        : `the driver that claimed ${name} is gone, so whether Pi took it is unknown; the message is kept as ${lastPartOf(kept,)}`,
+      problem: (kept === CLAIM_FINISHED)
+        ? `the claim on ${name} was finished by another pass, so this pass kept nothing from it`
+        : (kept === NO_KEPT_NAME)
+          ? `the driver that claimed ${name} is gone, so whether Pi took it is unknown; the message could not be kept`
+          : `the driver that claimed ${name} is gone, so whether Pi took it is unknown; the message is kept as ${lastPartOf(kept,)}`,
     },);
 }
 
@@ -84,9 +94,9 @@ export type WhereARecoveryPauses =
  Keeps and names every message a driver that is gone had claimed, so a message is either still to be delivered, delivered, or kept
  under a name a person reads with the reason it was not.
 
- The claim's folder names its owner, and the process folder says whether that owner is still there, so a driver that is slow is
- left alone and a driver that is gone has its claims laid down. A driver killed before this runs leaves claims that a later driver,
- or a person reading the inbox, still finds under the message's own name.
+ The claim's folder names its owner, and the process folder says whether that owner can still act, so a driver that is slow is left
+ alone and a driver that is gone, including one the kernel reports dead and has not reaped, has its claims laid down. A driver
+ killed before this runs leaves claims that a later driver, or a person reading the inbox, still finds under the message's own name.
 
  @param watch - watch request
 
@@ -154,9 +164,10 @@ export async function recoverClaimsOfGoneDrivers({
       ownerFolder,
     );
     /**
-     The claims that owner left, each in a folder of its own, or a message the code claimed before it used claim folders.
+     The claims that owner left, each in a folder of its own, or a message the code claimed before it used claim folders, or nothing
+     when another pass took the folder away while this one was judging it.
      */
-    const claimed = await readdir(ownerFolder,);
+    const claimed = await namesInFolder(ownerFolder,);
     for (const claimEntry of claimed) {
       /**
        Where that entry is.
@@ -186,9 +197,10 @@ export async function recoverClaimsOfGoneDrivers({
         path,
       );
       /**
-       The messages that claim folder holds, which is one unless a claim took a message that was itself a folder.
+       The messages that claim folder holds, which is one unless a claim took a message that was itself a folder, or nothing when
+       another pass took the folder away while this one was reading its siblings.
        */
-      const inside = await readdir(path,);
+      const inside = await namesInFolder(path,);
       for (const name of inside) {
         /**
          Where that message is.
@@ -220,6 +232,31 @@ export async function recoverClaimsOfGoneDrivers({
     await removeClaimOwnerFolder(ownerFolder,);
   }
   /* oxlint-enable eslint/no-await-in-loop */
+}
+
+/**
+ Lists a folder's entries, or answers nothing when the folder has gone: a folder another pass took away is that pass's work done,
+ never a failure of this one.
+
+ @param folder - the folder to list
+
+ @returns its entries in order, or nothing when it has gone
+
+ @example
+ ```ts
+ const names = await namesInFolder('/runs/a-1/inbox/.claims/4242-123456',);
+ ```
+ */
+async function namesInFolder(folder: string,): Promise<readonly string[]> {
+  try {
+    return (await readdir(folder,)).toSorted();
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
 }
 
 /**

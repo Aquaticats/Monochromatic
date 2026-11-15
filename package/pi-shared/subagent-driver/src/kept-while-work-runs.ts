@@ -90,7 +90,12 @@ export type WorkAsked =
   /**
    Nothing runs, so nothing stands between the run and its end but the rest it has had.
    */
-    | 'nothing';
+    | 'nothing'
+  /**
+   What the run left running could not be read, so whether it ended is unknown. That is not the same answer as nothing running:
+   work may still run, so the run waits as it waits for work, and the failure is said on the feed and in the summary.
+   */
+    | 'unknown';
 
 /**
  Asks what the run left running, and does what that answer needs.
@@ -219,16 +224,17 @@ export async function askAboutItsWork({
 /**
  Asks what the run left running, and keeps a read that fails beside the end reason rather than in its place.
 
- By the time this is asked the agent has ended its turn and the run is only waiting out its own idle time, so a read that fails
- says nothing about whether the run did its work. The failure goes to the feed and the summary under its own name, and the run
- ends as the run it was. Ending it `driver-failed` instead is what reported eleven runs of this machine as failures on
- 2026-11-13 whose reviews were whole and whose Pi had exited 0.
+ What could not be read was not proved empty. A read that fails is neither "work runs" nor "none runs": it is the third answer,
+ under which the run goes on waiting, and the failure goes to the feed and the summary under its own name. The run is never sent
+ a message to go on while work it started may still run, and it is never ended on a scan it could not read; the bound that waiting
+ already has (its wall clock, its stop file, Pi's exit and its turn cap) is what ends it. Ending it `driver-failed` instead is what
+ reported eleven runs of this machine as failures on 2026-11-13 whose reviews were whole and whose Pi had exited 0.
 
  @param watch - watch request
 
  @param waited - where the driver stands with the work, which this fills and clears
 
- @returns what stands between the run and its end, which is nothing when the work could not be read
+ @returns what stands between the run and its end, which is {@link WorkAsked} `unknown` when the work could not be read
 
  @example
  ```ts
@@ -251,6 +257,17 @@ export async function askAboutItsWorkOrReportAFailure({
   catch (error) {
     watch.record
       .noteWorkProblem(String(error,),);
-    return 'nothing';
+    /**
+     Why the run's own feed is incomplete, when writing it failed.
+     */
+    const feedProblem = watch.record
+      .feedProblem();
+    if (feedProblem.failed) {
+      // The run's own record cannot be read or written, so the scan that reads it can never be: a run nothing can be said about is
+      // the driver's own failure, named by the summary, and is not waited out on a read that will never succeed.
+      throw error;
+    }
+    // The read proved nothing: whether work still runs is unknown, so the run waits rather than being told to go on or ended.
+    return 'unknown';
   }
 }

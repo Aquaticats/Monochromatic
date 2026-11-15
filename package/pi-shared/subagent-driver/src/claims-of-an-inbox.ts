@@ -10,21 +10,19 @@
  A message that is laid down is kept under a name that says why it was not taken: `.failed-<name>` when Pi refused it while it
  rested or never answered, and `.orphaned-<name>` when the driver that claimed it died before it knew whether Pi took it.
 
+ Every state a claimed message can be in, every step between two states, what a kill after each step leaves, and which later
+ pass moves the message on are written once in `doc/states-of-a-claimed-message.md`.
+
  @module
  */
 
 import { randomUUID, } from 'node:crypto';
-import { constants as fileConstants, } from 'node:fs';
 import {
-  copyFile,
-  link as linkOnDisk,
   lstat,
   mkdir,
-  readdir,
   readFile,
   rename,
   rmdir,
-  unlink,
 } from 'node:fs/promises';
 import {
   dirname,
@@ -52,6 +50,16 @@ const START_UNKNOWN = 'unknown';
 const START_TIME_FIELD = 19;
 
 /**
+ The states a process's own record can name that say it cannot act: a zombie the kernel has not reaped, in either spelling, and
+ one already dead. A process in one of these can never finish a delivery, whatever start time its record keeps.
+ */
+const DEAD_PROCESS_STATES: ReadonlySet<string> = new Set([
+  'Z',
+  'X',
+  'x',
+],);
+
+/**
  What a claim folder's name is recognised by when it says nothing of the process that owns it.
  */
 const NOT_AN_OWNER: unique symbol = Symbol('claim folder names no process');
@@ -65,11 +73,6 @@ const PROCESS_IS_MISSING: unique symbol = Symbol('process folder has no entry');
  The process folder has an entry the driver may not read, so whether that driver is gone cannot be told from it.
  */
 const START_UNREADABLE: unique symbol = Symbol('its record cannot be read');
-
-/**
- The absence of a kept name: the message could not be kept aside at all.
- */
-export const NO_KEPT_NAME: unique symbol = Symbol('message could not be kept');
 
 /**
  The absence of a claim owner: this driver cannot read the clock ticks its own process began at, so it cannot name a folder a
@@ -94,9 +97,24 @@ export class ClaimOwnerUnreadableError extends Error {
 const NO_ENTRY: unique symbol = Symbol('nothing is at the path');
 
 /**
- What a process folder says of when one process began.
+ What a process folder says of one process: when it began and the state the kernel reports for it.
  */
-type ProcessStart = string | typeof PROCESS_IS_MISSING | typeof START_UNREADABLE;
+type ProcessRecord = {
+  /**
+   The clock ticks it began at.
+   */
+  readonly start: string;
+
+  /**
+   The state the kernel reports, whose dead states say the process cannot act.
+   */
+  readonly state: string;
+};
+
+/**
+ What a process folder says of one process, or which of the two ways it cannot be read.
+ */
+type ProcessRead = ProcessRecord | typeof PROCESS_IS_MISSING | typeof START_UNREADABLE;
 
 /**
  A claim's owner as its folder names it.
@@ -129,26 +147,26 @@ export type HeldMessage = {
 };
 
 /**
- Reads when one process began, from the process folder's own record of it.
+ Reads one process's own record: when it began and the state the kernel reports for it.
 
  @param processFolder - the folder holding one entry per process, `/proc` here
 
  @param entry - the process's entry in that folder, or `self`
 
- @returns the clock ticks it began at, or which of the two ways that cannot be read
+ @returns what the record says, or which of the two ways it cannot be read
 
  @example
  ```ts
- const start = await startTimeOf({ processFolder: '/proc', entry: 'self', },);
+ const record = await processRecordOf({ processFolder: '/proc', entry: 'self', },);
  ```
  */
-async function startTimeOf({
+async function processRecordOf({
   processFolder,
   entry,
 }: {
   readonly processFolder: string;
   readonly entry: string
-},): Promise<ProcessStart> {
+},): Promise<ProcessRead> {
   try {
     /**
      The process's own record, whose command name may hold spaces or a closing bracket, so the fields after it are read from the
@@ -176,10 +194,25 @@ async function startTimeOf({
       .trim()
       .split(' ',);
     /**
+     The state the kernel reports for it.
+     */
+    const [state,] = after;
+    /**
      The clock ticks the process began at.
      */
     const start = after[START_TIME_FIELD];
-    return ((start !== undefined) && isDigitsOnly(start,)) ? start : START_UNREADABLE;
+    if (
+      (start === undefined)
+        || (!isDigitsOnly(start,))
+        || (state === undefined)
+        || (state === '')
+    ) {
+      return START_UNREADABLE;
+    }
+    return {
+      start,
+      state,
+    };
   }
   catch (error) {
     return (errorCodeOf(error,) === 'ENOENT') ? PROCESS_IS_MISSING : START_UNREADABLE;
@@ -229,9 +262,10 @@ function ownerIn(name: string,): ClaimOwner | typeof NOT_AN_OWNER {
 /**
  Tells whether the driver that claimed a message is gone, rather than merely slow, from the process folder alone.
 
- A claim is left alone while its owner's process entry names the same start time the claim does. An entry that cannot be read, or
- that says nothing usable, is not proof of anything, so its claim is left alone too. An entry with a different start time is a
- process number the operating system has given to something else, and a missing entry is a driver that is gone.
+ A claim is left alone while its owner's process entry names the same start time the claim does and a state that can still act. An
+ entry that cannot be read, or that says nothing usable, is not proof of anything, so its claim is left alone too. An entry with a
+ different start time is a process number the operating system has given to something else, a missing entry is a driver that is
+ gone, and so is an entry whose state says the process is dead and unreaped: that process can never finish a delivery.
 
  @param processFolder - the folder holding one entry per process
 
@@ -262,22 +296,28 @@ export async function claimOwnerIsGone({
   /**
    What the process folder says of that process now.
    */
-  const start = await startTimeOf({
+  const now = await processRecordOf({
     processFolder,
     entry: owner.pid,
   },);
-  if (owner.start === START_UNKNOWN) {
-    // A claim whose own start could not be read is proven gone only by its process number being gone: while the number names a
-    // process, that process may be the owner, and nothing else here proves anything.
-    return start === PROCESS_IS_MISSING;
-  }
-  if (start === PROCESS_IS_MISSING) {
+  if (now === PROCESS_IS_MISSING) {
+    // No entry at that number: no process there can deliver the message.
     return true;
   }
-  if (start === START_UNREADABLE) {
+  if (now === START_UNREADABLE) {
     return false;
   }
-  return start !== owner.start;
+  if (DEAD_PROCESS_STATES.has(now.state,)) {
+    // The kernel reports the process dead and, until its parent reaps it, keeps a record with its original start time. A process
+    // that can never act again cannot finish a delivery, so the claim is the work of a driver that is gone.
+    return true;
+  }
+  if (owner.start === START_UNKNOWN) {
+    // A claim whose own start could not be read is proven gone only by its process number being gone: while the number names a
+    // process that can act, that process may be the owner, and nothing else here proves anything.
+    return false;
+  }
+  return now.start !== owner.start;
 }
 
 /**
@@ -413,14 +453,14 @@ async function ownerFolderNameOf(processFolder: string,): Promise<string | typeo
   /**
    When this driver began, which tells its own claim from one a killed driver left.
    */
-  const start = await startTimeOf({
+  const record = await processRecordOf({
     processFolder,
     entry: 'self',
   },);
-  if ((typeof start) !== 'string') {
+  if ((typeof record) !== 'object') {
     return NO_CLAIM_OWNER;
   }
-  return `${String(process.pid,)}-${start}`;
+  return `${String(process.pid,)}-${record.start}`;
 }
 
 /**
@@ -501,222 +541,4 @@ export async function claimMessage({
     throw error;
   }
   return claimed;
-}
-
-/**
- Publishes a kept message under one name, without ever replacing a file already there: a link fails when its name is taken, so the
- caller tries the next number.
-
- @param claim - where the message now is
-
- @param target - the name this attempt would keep it under
-
- @param link - the hard link a filesystem gives, which a test replaces to make one fail
-
- @returns what this attempt achieved, so the caller knows whether to try another name
- */
-async function publishKept({
-  claim,
-  target,
-  link,
-}: {
-  readonly claim: string;
-  readonly target: string;
-  readonly link: (
-    existing: string,
-    created: string,
-  ) => Promise<void>
-},): Promise<'published' | 'name-taken'> {
-  try {
-    await link(
-      claim,
-      target,
-    );
-    await unlink(claim,);
-    await removeClaimFolderOf(claim,);
-    return 'published';
-  }
-  catch (error) {
-    /**
-     What the operating system said about this name.
-     */
-    const code = errorCodeOf(error,);
-    if (code === 'EEXIST') {
-      return 'name-taken';
-    }
-    if ((code === 'EPERM') || (code === 'EACCES')) {
-      /**
-       What the claim holds, which a copy reproduces only when it is an ordinary file.
-       */
-      const info = await entryOrNothing(claim,);
-      if (((typeof info) === 'symbol') || (!info.isFile())) {
-        // A folder is not a file a copy can hold; the message stays under its claim, where its own name reads it, and is named.
-        throw error;
-      }
-      // A filesystem without hard links still keeps the no-replacement promise: a copy that creates its name exclusively fails
-      // when something already stands there, exactly as the link does.
-      try {
-        await copyFile(
-          claim,
-          target,
-          fileConstants.COPYFILE_EXCL,
-        );
-      }
-      catch (copyError) {
-        if (errorCodeOf(copyError,) === 'EEXIST') {
-          return 'name-taken';
-        }
-        throw copyError;
-      }
-      await unlink(claim,);
-      await removeClaimFolderOf(claim,);
-      return 'published';
-    }
-    throw error;
-  }
-}
-
-/**
- Keeps a message that did not reach Pi, so it stays readable and is never sent again. Publication never replaces an earlier kept
- message: a link fails when its name is taken, so the next number is tried instead.
-
- @param watch - watch request
-
- @param name - message's name
-
- @param claim - where the message now is
-
- @param keptAs - the word the kept name carries, which says why the message was not taken
-
- @param link - the hard link a filesystem gives, which a test replaces to make one fail
-
- @returns the name the message was kept under
-
- @example
- ```ts
- const kept = await keepMessage({ watch, name: 'm', claim, keptAs: 'failed', },);
- ```
- */
-export async function keepMessage({
-  watch,
-  name,
-  claim,
-  keptAs,
-  link = linkOnDisk,
-}: {
-  readonly watch: WatchRequest;
-  readonly name: string;
-  readonly claim: string;
-  readonly keptAs: 'failed' | 'orphaned';
-  readonly link?: (
-    existing: string,
-    created: string,
-  ) => Promise<void>
-},): Promise<string> {
-  /**
-   The most numbered names to try before giving up: there are always fewer kept messages than names in the inbox.
-   */
-  const attempts = (await readdir(watch.inbox,)).length + 2;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    /**
-     The name this attempt would keep the message under.
-     */
-    const target = join(
-      watch.inbox,
-      (attempt === 1) ? `.${keptAs}-${name}` : `.${keptAs}-${name}.${String(attempt,)}`,
-    );
-    /**
-     What this attempt achieved.
-     */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one name after another until one is free, and a kept message must never replace another; see doc/lint/sequential-awaits.md
-    const outcome = await publishKept({
-      claim,
-      target,
-      link,
-    },);
-    if (outcome === 'published') {
-      return target;
-    }
-  }
-  throw new Error(`every name for a kept message of ${name} is taken`,);
-}
-
-/**
- Keeps one message, or answers the sentinel when it cannot be kept at all.
-
- @param watch - watch request
-
- @param held - the message and where its claim is
-
- @param keptAs - the word the kept name carries
-
- @returns where the message was kept, or {@link NO_KEPT_NAME}
- */
-async function keepOrNothing({
-  watch,
-  held,
-  keptAs,
-}: {
-  readonly watch: WatchRequest;
-  readonly held: HeldMessage;
-  readonly keptAs: 'failed' | 'orphaned'
-},): Promise<string | typeof NO_KEPT_NAME> {
-  try {
-    return await keepMessage({
-      watch,
-      name: held.name,
-      claim: held.claim,
-      keptAs,
-    },);
-  }
-  catch (error) {
-    // A claim that is already gone was kept or delivered by another driver, and nothing here is left to keep.
-    if (errorCodeOf(error,) !== 'ENOENT') {
-      watch.record
-        .note({
-          kind: 'problem',
-          problem: `could not keep ${held.name}: ${String(error,)}`,
-        },);
-    }
-    return NO_KEPT_NAME;
-  }
-}
-
-/**
- Keeps a message Pi never took, and names it in the summary. A message whose file cannot be kept is still named: the summary is
- what a reader of the run has, and a message that is neither with Pi nor under its name must not read as delivered.
-
- @param watch - watch request
-
- @param held - the message and where its claim is
-
- @param keptAs - the word the kept name carries, which says why the message was not taken
-
- @returns where the message was kept, or {@link NO_KEPT_NAME}
-
- @example
- ```ts
- await noteMessageNotTaken({ watch, held, keptAs: 'failed', },);
- ```
- */
-export async function noteMessageNotTaken({
-  watch,
-  held,
-  keptAs,
-}: {
-  readonly watch: WatchRequest;
-  readonly held: HeldMessage;
-  readonly keptAs: 'failed' | 'orphaned'
-},): Promise<string | typeof NO_KEPT_NAME> {
-  /**
-   Where the message was kept, or the sentinel that says it could not be kept at all.
-   */
-  const kept = await keepOrNothing({
-    watch,
-    held,
-    keptAs,
-  },);
-  watch.record
-    .noteMessageNotTaken(held.name,);
-  return kept;
 }

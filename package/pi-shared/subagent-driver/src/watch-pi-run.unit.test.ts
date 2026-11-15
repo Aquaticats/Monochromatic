@@ -2095,7 +2095,9 @@ await describe({
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          // One look takes the message and one more is what ends the run once Pi rests, so the deadline leaves room for the second;
+          // a clock that fires on the look after the delivery is what once read a kept message as a run that outlived its clock.
+          deadline: Date.now() + (3 * HOLD_MILLISECONDS),
           workLeftRunning: async () => [],
         },);
         // The message is kept aside and the run goes on as it did before: what is new is that its name is in the summary.
@@ -2490,14 +2492,16 @@ await describe({
           'feed.jsonl',
         ), },);
         /**
-         The first run, which cannot claim the message and runs on to its deadline.
+         The first run, which cannot claim the message and runs until the test ends it once the other driver has the message.
          */
         const firstRun = watchUntilEnded({
           connection: answeringConnection({ sent: [], },),
           record,
           options: optionsOf({ runFolder, },),
           inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          // A deadline far past the delivery, so the ending that puts the run away is the test's own stop file, never a clock
+          // that could fire while the message is still being delivered.
+          deadline: Date.now() + (10 * HOLD_MILLISECONDS),
           processFolder,
           workLeftRunning: async () => [],
         },);
@@ -2521,7 +2525,10 @@ await describe({
             runFolder,
             text: 'cannot read the start time of its own process',
           },);
-          return await deliverReadyMessage({
+          /**
+           What the second driver made of the message.
+           */
+          const delivered = await deliverReadyMessage({
             watch: {
               connection: answeringConnection({ sent: sentBySecond, },),
               record: secondRecord,
@@ -2532,17 +2539,20 @@ await describe({
             },
             name: MESSAGE_NAME,
           },);
+          // The first run is ended only now, so the message is taken and removed before the run puts its inbox away.
+          await writeFile(join(runFolder, 'stop',), '',);
+          return delivered;
         })();
         // Both are awaited together, so a failure in either leaves neither unhandled.
         const [endReason, second,] = await Promise.all([firstRun, secondDelivery,],);
         expect(second,).toEqual({ ending: 'taken', },);
         expect(sentBySecond,).toEqual([MESSAGE_TEXT,],);
-        expect(endReason,).toBe('wall-clock',);
+        expect(endReason,).toBe('stop-file',);
         /**
          What the first run says about the message another driver took.
          */
         const summary = record.summarize({
-          endReason: 'wall-clock',
+          endReason: 'stop-file',
           piExit: {},
           piHasExited: true,
           sessionStats: null,

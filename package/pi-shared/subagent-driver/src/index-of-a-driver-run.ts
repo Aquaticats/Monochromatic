@@ -68,7 +68,7 @@ export {
   type MessageToPi,
 } from './what-pi-did-with-a-message.ts';
 export { recoverClaimsOfGoneDrivers, } from './claims-of-a-gone-driver.ts';
-export { keepMessage, } from './claims-of-an-inbox.ts';
+export { keepMessage, } from './keeping-a-message-aside.ts';
 export { deliverReadyMessage, } from './messages-from-the-inbox.ts';
 export { INBOX_CLAIMS_FOLDER, } from './messages-from-the-inbox.ts';
 export {

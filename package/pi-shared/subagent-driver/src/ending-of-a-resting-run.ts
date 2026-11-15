@@ -44,7 +44,7 @@ export async function endingOfARestingRun({
   readonly waited: WorkWaitedFor;
 },): Promise<RunProgress> {
   /**
-   What the run left running, and what asking about it came to. A read of that work that fails is reported beside the ending.
+   What the run left running, and what asking about it came to. A read of that work that fails proves nothing about the work.
    */
   const asked = await askAboutItsWorkOrReportAFailure({
     watch,
@@ -54,6 +54,11 @@ export async function endingOfARestingRun({
     // Pi would not take the message that sends the agent back to work it left, so the run cannot go on and must not read as one
     // that finished.
     return 'prompt-rejected';
+  }
+  if (asked === 'unknown') {
+    // What could not be read was not proved empty: work the run started may still run. So the run waits as it waits for work, and
+    // the failure is already on the feed and in the summary; the run is neither asked to go on nor ended on a scan it could not read.
+    return 'still-running';
   }
   if (asked !== 'nothing') {
     return 'still-running';

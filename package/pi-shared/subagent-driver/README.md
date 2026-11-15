@@ -1061,6 +1061,12 @@ the launcher that builds the session's environment asks it, once, before it make
   A claim says only that delivery had begun and never whether Pi took the message,
   so it is kept and named rather than sent again on a guess,
   and a person reading the inbox finds it under the message's own name before any driver does.
+  A later driver finds every such state by reading the inbox and the process folder,
+  and every state and step is written once in `doc/states-of-a-claimed-message.md`.
+  Two rules hold at every step:
+  a step another driver can be making at the same time is written so that either one finishing it, or both, leaves one result,
+  and "the driver is gone" asks whether its process can still act,
+  which a process the kernel reports dead and has not reaped cannot.
   A driver that cannot read the start of its own process does not claim at all:
   the message stays in the inbox under its own name,
   a driver that can prove its identity delivers it later,
@@ -1193,6 +1199,15 @@ asked of the manager,
 for work whose number has gone.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
+
+A read that fails is neither "work runs" nor "none runs":
+what could not be read was not proved empty,
+so the run waits as it waits for work,
+and its wall clock, its stop file or Pi's exit is what ends it.
+The feed and the summary name the failure,
+and the agent is never sent a message to go on while work it started may still run.
+A run whose own feed cannot be written is the driver's failure instead:
+nothing can be said about it, so it is not waited out on a read that can never succeed.
 
 An answer that names processes is on the feed twice,
 because the `tool_end` line beside the `processes` line keeps only a preview of it,

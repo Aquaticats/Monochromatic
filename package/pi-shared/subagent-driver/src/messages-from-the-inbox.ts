@@ -24,9 +24,10 @@ import {
   ClaimOwnerUnreadableError,
   claimMessage,
   entryOrNothing,
-  noteMessageNotTaken,
   removeClaimFolderOf,
 } from './claims-of-an-inbox.ts';
+import { noteMessageNotTaken, } from './keeping-a-message-aside.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -164,12 +165,20 @@ async function deliverClaimed({
 }
 
 /**
- Takes a delivered message's claim away, and the owner folder with it when no other claim is left.
+ Takes a delivered message's claim away, and the folders that held it with it when each is empty. A claim that has already gone is
+ another pass's work done, and nothing here fails over it.
 
  @param claim - where the message was
  */
 async function unlinkClaimed(claim: string,): Promise<void> {
-  await unlink(claim,);
+  try {
+    await unlink(claim,);
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== 'ENOENT') {
+      throw error;
+    }
+  }
   await removeClaimFolderOf(claim,);
 }
 
