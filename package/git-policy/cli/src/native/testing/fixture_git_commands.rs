@@ -2,7 +2,7 @@
 //!  The ways the controls start real Git in a fixture:
 //! one that answers its output,
 //! one that requires it to have succeeded,
-//! and one that keeps a bound on the query and says who ended it.
+//! and one that keeps a bound on the query and answers whether that bound ran out and which status the wait returned.
 //! Why:
 //!  Every control that needs a repository,
 //!  a commit or an answer from Git starts it the same way,
@@ -137,8 +137,10 @@ pub(crate) fn disarm_the_ending_seam() -> bool {
 /// What ended one bounded query, as the last status the wait returned showed it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QueryEnding {
-    /// The query ended by itself, and its status and output are its own,
+    /// A wait saw the query's ending before the bound ran out, and its status and output are the query's own,
     /// whatever status that was: a code of 124 or 137 or a signal's death included.
+    ///  A signal another process sent reads the same here:
+    /// a wait says which signal ended a child and nothing about who sent it.
     Itself,
     /// The bound ran out, and the last status the wait returned was the signal this helper sends at the bound
     /// to the process group the query led.
