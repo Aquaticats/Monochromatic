@@ -1490,6 +1490,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper under the gate container's Git has no finding in its code and two in its tests; it goes back for those (2026-11-15T02:39:22-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The wrapper under the Git the gate's container installs** (`0394659183`),
+  its second review,
+  ended 02:34:30.
+  Both production files of the range read in full,
+  no defect found in them;
+  three targeted tests passed against Git 2.56.1,
+  and a probe of 125 wrapped and direct results for spellings of `index.maxPathLen` found no mismatch.
+  Two things reproduced in test files the range changed:
+  `git --version` is run with no bound in `binary/binary_resolution_tests.rs` (line 48) and in `repo_read/git_metadata_tests.rs` (line 63),
+  the second before the test's fixture and its watchdog exist;
+  with a Git that never answers,
+  each test gave no verdict until the review's own deadline ended it.
+- **Weighed**:
+  the reader's change itself stands reviewed with nothing found.
+  The two findings are small and real:
+  the project holds a test to "nothing waits for good" as it holds the program,
+  and the package has bounded helpers for this.
+  So the branch is not sent to a pass with them open;
+  the author is resumed at the head of the queue for them alone,
+  asked to list every process a test of its range starts and to say whether a guard should have refused an unbounded one
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued second).
+  Seven of the gate's standing failures wait on this branch.
+- Read at 02:38:40:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 02:22
+  (counted with `rg --count`;
+  the first form of that check read the status of the wrong command in its pipe and is corrected);
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The resumed session is not named by the credential scan.
+  The queue held 81 entries at 02:39:22.
+
 ##### The controls under an address-space limit and the commit-service fix go back to their authors; the second review read and did not run (2026-11-15T02:30:27-05:00)
 
 Not final and not approved:
