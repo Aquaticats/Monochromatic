@@ -32,6 +32,16 @@ const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 /// and above any reason for a slow check.
 const AT_ONCE: std::time::Duration = std::time::Duration::from_secs(2);
 
+/// What:
+///  Whether this text is waited at by a name rather than by a socket file.
+/// Why:
+///   A control of a long runtime directory depends on which side of the limit each of its spellings is,
+/// and that is what `socket_address_of` asks the kernel's field size:
+/// naming the side in one place keeps every such control saying it before it reads the commit.
+fn is_waited_at_by_a_name(spelled: &Path, instance: &str) -> bool {
+    return matches!(socket_address_of(spelled, instance), Bind::Abstract(_));
+}
+
 /// A manager that records the calls it is asked for and answers the question about a unit's addresses as a control
 ///  sets it to.
 #[derive(Default)]
@@ -149,8 +159,16 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
 ///   These controls are about where the manager made the service listen,
 /// not about the room the address needs,
 /// so their runtime directory is inside the longest by a byte and the address refuses nothing.
+/// The side is the product's own constant rather than a folder's length,
+/// and it is said here because every control below compares one socket file with another.
 fn a_runtime_directory_with_room(tag: &str) -> PathBuf {
-    return runtime_directory_of_length(longest_runtime_directory(INSTANCE) - 1, tag);
+    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) - 1, tag);
+    assert!(
+        !is_waited_at_by_a_name(runtime.as_path(), INSTANCE),
+        "a runtime directory one byte inside the longest keeps the path form, whose socket path is {} bytes",
+        socket_path(runtime.as_path(), INSTANCE).as_os_str().len()
+    );
+    return runtime;
 }
 
 /// What:
@@ -260,16 +278,6 @@ fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
         false => words.get(..name_length).expect("the words are at least as long as the name").to_string(),
     };
     return a_link_beside(runtime, name.as_str());
-}
-
-/// What:
-///  Whether this text is waited at by a name rather than by a socket file.
-/// Why:
-///   A control of a long runtime directory depends on which side of the limit each of its spellings is,
-/// and that is what `socket_address_of` asks the kernel's field size:
-/// naming the side here keeps every such control saying it before it reads the commit.
-fn is_waited_at_by_a_name(spelled: &Path, instance: &str) -> bool {
-    return matches!(socket_address_of(spelled, instance), Bind::Abstract(_));
 }
 
 /// What:
