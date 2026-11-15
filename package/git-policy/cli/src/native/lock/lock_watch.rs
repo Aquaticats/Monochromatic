@@ -124,6 +124,25 @@ const WAIT_STEP_WITHOUT_PIDFD: std::time::Duration = std::time::Duration::from_m
 /// so a Git that writes many files cannot grow a command.
 const MOST_NAMES: usize = 1024;
 
+/// What:
+///  The bit this module sets on an event that says a name stood when a folder was read,
+///  and that no creation of it was seen.
+/// Why:
+///  A watch added to a folder that already exists has missed whatever was made in it before the watch
+///  was added (a review of `6c2272132b`,
+/// finding 3).
+///  The answer for a watch of a tree is to add the watch and then read the folder,
+///  and what the reading finds is a take at an instant this run did not see.
+///  Such a name stands,
+///  and the tracker knows it stands,
+///  and it is never a take of any child:
+///  the PID file beside a found lock can be one an earlier holder left and a later holder inherited,
+///  so a found pair says nothing about which Git made the lock
+///  (`was_found_by_reading`).
+///  The bit is one the kernel's own masks do not use
+///  (`inotify(7)` stops at `IN_ISDIR`).
+pub const FOUND_BY_READING: u32 = 0x8000_0000;
+
 /// The most events one drain reads,
 /// four times the most names a run follows.
 /// Why:
@@ -383,6 +402,9 @@ pub struct Tracker {
     names: std::collections::HashMap<(PathBuf, std::ffi::OsString), Standing>,
     /// Whether something happened that no candidate survives.
     unprovable: bool,
+    /// The names a reading of a folder found standing,
+    ///  which this run saw no creation of.
+    found_by_reading: std::collections::HashSet<(PathBuf, std::ffi::OsString)>,
 }
 
 impl Default for Tracker {
@@ -394,7 +416,7 @@ impl Default for Tracker {
 impl Tracker {
     /// A tracker that has seen nothing.
     pub fn new() -> Self {
-        return Self { sequence: 0, names: std::collections::HashMap::new(), unprovable: false };
+        return Self { sequence: 0, names: std::collections::HashMap::new(), unprovable: false, found_by_reading: std::collections::HashSet::new() };
     }
 
     /// What:
@@ -412,6 +434,22 @@ impl Tracker {
         for event in events {
             if event.mask & (libc::IN_Q_OVERFLOW | libc::IN_IGNORED | libc::IN_UNMOUNT | libc::IN_MOVE_SELF) != 0 {
                 self.unprovable = true;
+                continue;
+            }
+            // What: A name a reading of a folder found is known to stand and is never a take of any child.
+            // Why:  The watch on a folder added after the folder existed saw none of its creations, and a PID file
+            //       beside a found lock may be an earlier holder's that a later holder inherited (a review of
+            //       `6c2272132b`, finding 3). So it stands in the tracker, and `locks_taken` cannot return it.
+            if event.mask & FOUND_BY_READING != 0 {
+                let found: (PathBuf, std::ffi::OsString) = (event.directory.clone(), event.name.clone());
+                if self.names.len() >= MOST_NAMES && !self.names.contains_key(&found) && !self.found_by_reading.contains(&found) {
+                    self.unprovable = true;
+                    continue;
+                }
+                let _known = self.found_by_reading.insert(found.clone());
+                let standing: &mut Standing = self.names.entry(found).or_insert(Standing { created: None, removed: true });
+                standing.created = None;
+                standing.removed = false;
                 continue;
             }
             self.sequence += 1;
@@ -445,6 +483,32 @@ impl Tracker {
     /// ```
     pub fn nothing_more_can_be_recorded(&self) -> bool {
         return self.unprovable;
+    }
+
+    /// What:
+    ///  Whether a reading of a folder found a lock standing there,
+    ///  and this run saw no creation of it.
+    /// Why:
+    ///  The watch reports such a lock so that a command knows it stands,
+    ///  and it cannot bind it:
+    ///  a lock found this way was made at an instant this run did not see,
+    ///  and the PID file beside it may be one an earlier holder left
+    ///  (a review of `6c2272132b`,
+    /// finding 3).
+    ///  This is how a control states that the lock was reported and not bound.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// tracker.wasFoundByReading(`${dir}/refs/heads/new-namespace/topic.lock`) // true, and locksTaken(child) is []
+    /// ```
+    pub fn was_found_by_reading(&self, lock: &Path) -> bool {
+        let Some(folder) = lock.parent() else {
+            return false;
+        };
+        let Some(name) = lock.file_name() else {
+            return false;
+        };
+        return self.found_by_reading.contains(&(folder.to_path_buf(), name.to_os_string()));
     }
 
     /// What:

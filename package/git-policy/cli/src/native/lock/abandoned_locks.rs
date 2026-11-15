@@ -77,6 +77,19 @@ const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
 use crate::git_directories_of_the_repository::LINKED_WORKTREES_FOLDER;
 
 /// What:
+///  The instant the pass has walked the lock directories and has not yet judged or swept anything.
+/// Why:
+///  A control states the interleaving a review reproduced:
+///  a wrapped Git takes a lock in a folder the walk has already passed,
+///  is killed with its wrapper,
+///  and the pass then sweeps the process records a walk that never saw that lock leaves behind
+///  (a review of `6c2272132b`,
+/// finding 1).
+///  Named here so both halves of that promise reach one point,
+/// and inert unless the test variable or a control names it.
+pub const AFTER_THE_WALK: &str = "after-the-walk";
+
+/// What:
 ///  What one pass removed.
 /// Why:
 ///  The caller writes one line per removal,
@@ -292,6 +305,8 @@ fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
 pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
     let searched: Walked = walked(roots);
+    // A control reaches here to act as a wrapped Git that takes a lock in a folder this walk has already passed.
+    crate::service_fault::reach(AFTER_THE_WALK);
     let candidates: Vec<PathBuf> = searched.locks;
     let Some(first) = roots.first() else {
         return outcome;

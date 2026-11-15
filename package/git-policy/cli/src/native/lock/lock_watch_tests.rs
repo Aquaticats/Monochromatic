@@ -1124,3 +1124,78 @@ fn a_reference_namespace_beside_a_reference_named_head_is_watched() {
         assert!(found.contains(&lock), "a reference lock under {} must be reported: {found:?}", lock.display());
     }
 }
+
+/// What:
+///  A lock made in a folder the watch learns of only afterwards is known to stand,
+///  and is never bound to the child:
+///  the reading that finds it cannot say when it was made or whose PID file it inherits.
+/// Why:
+///  Git makes `refs/heads/new-namespace/` and takes its first lock before the watcher has drained the
+///  parent folder's event,
+///  so the watch on the new folder is added after both creations generated no event
+///  (a review of `6c2272132b`,
+/// finding 3).
+///  The watch now adds the watch and reads the folder,
+///  and what it finds is reported as a name that stands with no creation seen:
+///  the command knows the lock is there,
+///  and no record may name a Git for it,
+///  because the PID file beside a found lock may be one an earlier holder left and this one inherited.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// buildFolderAndLockBeforeTheDrain(); const events = watch.readEvents(); tracker.feed(events);
+/// expect(tracker.wasFoundByReading(lock)).toBe(true); expect(tracker.locksTaken(pid)).toEqual([])
+/// ```
+#[test]
+fn a_lock_made_with_its_new_folder_is_known_and_never_bound() {
+    let directory: PathBuf = fixture("watch-lock-with-its-folder");
+    std::fs::create_dir_all(directory.join("refs/heads")).expect("the existing reference folder");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let pid: i64 = i64::from(std::process::id());
+    let lock: PathBuf = directory.join("refs/heads/new-namespace/topic.lock");
+    std::fs::create_dir(lock.parent().expect("the new namespace")).expect("the new namespace");
+    std::fs::write(lock.as_path(), b"the killed update's unfinished reference\n").expect("the lock in the new namespace");
+    std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("its PID file");
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(queued(&mut watch).as_slice());
+    let known: bool = tracker.was_found_by_reading(lock.as_path());
+    let taken: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    assert!(known, "the watch must report the first lock of a folder it learns about");
+    assert!(taken.is_empty(), "a lock found by reading is never bound to a child: {taken:?}");
+}
+
+/// What:
+///  A lock that stands in a folder when the watch opens on it is known to stand,
+///  and is never bound to the child,
+///  for the same reason as a folder learned of later.
+/// Why:
+///  The walk of the tree adds a watch to each folder and only then reads it,
+///  so a lock made in a folder before the walk reached it is seen by the reading and by no event
+///  (a review of `6c2272132b`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePair(refs/heads/standing/topic.lock); const watch = Watch.over([dir]); const tracker = new Tracker();
+/// tracker.feed(watch.readEvents()); expect(tracker.wasFoundByReading(lock)).toBe(true); expect(tracker.locksTaken(pid)).toEqual([])
+/// ```
+#[test]
+fn a_lock_that_stands_when_the_watch_opens_is_known_and_never_bound() {
+    let directory: PathBuf = fixture("watch-lock-standing-at-open");
+    let pid: i64 = i64::from(std::process::id());
+    let lock: PathBuf = directory.join("refs/heads/standing/topic.lock");
+    std::fs::create_dir_all(lock.parent().expect("the reference folder")).expect("the reference folder");
+    std::fs::write(lock.as_path(), b"a reference update an earlier command left\n").expect("the lock");
+    std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("its PID file");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(queued(&mut watch).as_slice());
+    let known: bool = tracker.was_found_by_reading(lock.as_path());
+    let taken: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    assert!(known, "a lock standing in a folder the watch opens on must be known");
+    assert!(taken.is_empty(), "a lock found by reading is never bound to a child: {taken:?}");
+}

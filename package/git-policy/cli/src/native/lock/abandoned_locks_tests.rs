@@ -244,3 +244,124 @@ fn a_dead_holder() -> (i64, String) {
     let _reaped = child.wait();
     return (pid, identity);
 }
+
+/// What:
+///  A process record that a lock's standing binding names survives the pass's sweep,
+///  though the lock appeared in a folder the walk had already passed.
+/// Why:
+///  The pass takes its candidate list once and sweeps the process records of that list;
+///  a wrapped Git that takes a lock after its folder was walked is in neither,
+///  so the sweep saw no number standing beside a lock and removed the record —
+///  and the binding that survives then has no holder left to prove gone
+///  (a review of `6c2272132b`,
+/// finding 1).
+///  A record is evidence for as long as something standing may need it,
+///  and what may need it is asked when the record is removed:
+///  the locks that stand at that moment, and the bindings that name them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(AFTER_THE_WALK, () => plantBoundLock(common, indexLock)); const pass = clearAbandonedLocks([common]);
+/// expect(identitiesRecorded(pid)).toEqual([identity]); expect(clearOne(lock)).toBeDefined()
+/// ```
+#[test]
+fn a_record_a_standing_binding_names_survives_the_sweep_of_a_walk_it_is_not_in() {
+    let common: std::path::PathBuf = crate::test_support::fixture("abandoned-locks-late-binding");
+    let lock: std::path::PathBuf = common.join("index.lock");
+    let (pid, identity) = a_dead_holder();
+    let planted: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    let hook_common: std::path::PathBuf = common.clone();
+    let hook_lock: std::path::PathBuf = lock.clone();
+    let planted_by_the_hook: std::rc::Rc<std::cell::Cell<bool>> = planted.clone();
+    crate::service_fault::hooks::set(
+        super::AFTER_THE_WALK,
+        std::rc::Rc::new(move || {
+            // The wrapped Git takes the lock in a folder the walk has passed, writes its PID file, its command's records
+            //  and the pin, and is killed with its Git.
+            std::fs::write(hook_lock.as_path(), b"the killed Git's unfinished index\n").expect("the late lock");
+            plant_the_two_records_of_a_killed_update(hook_common.as_path(), hook_lock.as_path(), pid, identity.as_str());
+            planted_by_the_hook.set(true);
+        }),
+    );
+    let outcome = super::clear_abandoned_locks(std::slice::from_ref(&common));
+    crate::service_fault::hooks::clear();
+    let records_left: usize = crate::lock_holder_record_reads::identities_recorded(common.as_path(), pid).len();
+    let bindings_left: usize = crate::lock_bindings::bindings_of(common.as_path(), lock.as_path()).len();
+    let clearance = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+        return crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    });
+    let stands: bool = lock.exists();
+    crate::test_support::remove(common.as_path());
+    assert!(planted.get(), "the control reached the instant after the walk");
+    let _took = outcome.cleared.len();
+    assert_eq!(records_left, 1, "the record a standing binding names must survive the sweep");
+    assert_eq!(bindings_left, 1, "the binding stands, so the record it needs must stand");
+    // The pass's own clearance ran before the record could be needed; the next command is this one.
+    let _ = clearance;
+    assert!(!stands, "the next command clears the killed Git's lock by that record");
+}
+
+/// What:
+///  A PID file a new holder inherited is not removed after the lock's name is freed,
+///  and a lock a new holder takes at a freed name keeps a PID file naming that holder.
+/// Why:
+///  The pass used to record the old PID file's metadata, unlink the old lock,
+///  and then unlink that file if it still had the recorded metadata.
+///  A Git that takes the freed name while the PID file still stands writes no PID file of its own,
+///  so the file kept the recorded metadata and was removed:
+///  the new holder was left with no PID file,
+///  no creation of one for the watch to bind,
+///  and a lock that nothing could prove after a kill
+///  (a review of `6c2272132b`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(UNLINKED_THE_LOCK, () => takeTheFreedNameWritingOnlyALock()); expect(pidFileNames(newHolder)).toBe(true)
+/// ```
+#[test]
+fn a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder() {
+    let common: std::path::PathBuf = crate::test_support::fixture("abandoned-locks-inherited-pid-file");
+    let lock: std::path::PathBuf = common.join("index.lock");
+    let (old_pid, old_identity) = a_dead_holder();
+    std::fs::write(lock.as_path(), b"the old Git's unfinished index\n").expect("the old lock");
+    plant_the_two_records_of_a_killed_update(common.as_path(), lock.as_path(), old_pid, old_identity.as_str());
+    // A second, live Git takes the freed name; it writes its own PID file only when none stands, as Git does.
+    let mut new_holder: std::process::Child = std::process::Command::new("sleep")
+        .arg("30")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("the new holder starts");
+    let new_pid: i64 = i64::from(new_holder.id());
+    let new_identity: String = crate::lock_holder_records::identity_of_process(new_pid).expect("the new holder's identity");
+    let hook_lock: std::path::PathBuf = lock.clone();
+    let hook_pid: i64 = new_pid;
+    crate::service_fault::hooks::set(
+        crate::abandoned_lock_proving::UNLINKED_THE_LOCK,
+        std::rc::Rc::new(move || {
+            std::fs::write(hook_lock.as_path(), b"the new Git's unfinished index\n").expect("the new lock");
+            let pid_file: std::path::PathBuf = crate::stale_ref_lock_walk::pid_file_beside(hook_lock.as_path());
+            if !pid_file.exists() {
+                std::fs::write(pid_file.as_path(), format!("pid {hook_pid}\n")).expect("the new Git's own PID file");
+            }
+        }),
+    );
+    let first = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    crate::service_fault::hooks::clear();
+    let named_by_the_pid_file = crate::stopped_git_locks::pid_named_by(crate::stale_ref_lock_walk::pid_file_beside(lock.as_path()).as_path());
+    let _killed = new_holder.kill();
+    let _reaped = new_holder.wait();
+    // The new holder is killed while it holds the lock; its own record and the file it wrote explain it.
+    let holders: std::path::PathBuf = crate::lock_holder_records::folder_of(common.as_path());
+    std::fs::create_dir_all(holders.as_path()).expect("the record folder");
+    std::fs::write(holders.join("a-new-holder-record"), crate::lock_holder_records::record_text(&[("child", new_pid, new_identity)])).expect("the new holder's record");
+    let second = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    let stands: bool = lock.exists();
+    crate::test_support::remove(common.as_path());
+    assert!(matches!(first, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding), "the old binding clears the old lock: {first:?}");
+    assert_eq!(named_by_the_pid_file, i32::try_from(new_pid).ok(), "the new lock keeps a PID file naming its own holder");
+    assert!(second.is_some(), "after the new holder is killed its lock is provable and removable: {second:?}");
+    assert!(!stands, "the new holder's lock is gone after the second clearance");
+}
