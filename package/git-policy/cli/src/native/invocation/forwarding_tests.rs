@@ -530,7 +530,14 @@ fn a_step_with_a_ceiling_names_the_git_it_starts_in_the_record() {
     let text: String = std::fs::read_to_string(record.as_path()).expect("the record the start wrote");
     assert!(text.starts_with("monochromatic-git-policy-cli lock-holder-record v1"), "a record starts with its header: {text:?}");
     assert!(text.contains(format!("{SELF_KIND} {} ", std::process::id()).as_str()), "the record names this process: {text:?}");
-    assert!(text.matches("child ").count() == 1, "the one Git the ceiling ended is named: {text:?}");
+    // What: The Git the ceiling ended is named by the line it wrote itself and by the parent's full identity.
+    // Why:  The child writes its line before it can take a lock, and the parent adds the identity with the boot, the PID
+    //       namespace and the machine beside it; both name one process.
+    assert!(text.matches("child ").count() >= 1, "the Git the ceiling ended is named: {text:?}");
+    assert!(
+        text.lines().any(|line| { return line.starts_with("child ") && line.matches('#').count() == 3; }),
+        "and by the full identity the parent adds: {text:?}"
+    );
     remove(root.as_path());
 }
 
@@ -642,7 +649,12 @@ fn a_wrapper_killed_between_starting_a_git_and_naming_it_leaves_that_git_named()
     std::fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
     let lock: PathBuf = common.join("index.lock");
     let pid_file: PathBuf = common.join("index~pid.lock");
-    let mut arm: std::process::Command = std::process::Command::new(std::env::current_exe().expect("this test binary"));
+    // What: This control runs the test binary again, as the wrapper whose kill it measures.
+    // Why:  The kill must hit a process whose only job is to start that Git; the executable here is the test binary, not a
+    //       copy the wrapper started from its own code (`doc/planning/cli-git-no-self-invocation.md`, "The rule").
+    #[allow(clippy::disallowed_methods, reason = "the control starts this test binary as the wrapper it kills; the wrapper's own code starts no copy of itself")]
+    let arm_binary: PathBuf = std::env::current_exe().expect("this test binary");
+    let mut arm: std::process::Command = std::process::Command::new(arm_binary.as_path());
     arm.args(["--exact", "invocation::forwarding::tests::a_wrapper_killed_between_starting_a_git_and_naming_it_leaves_that_git_named", "--nocapture", "--test-threads=1"])
         .env(KILLED_WRAPPER_FIXTURE_VARIABLE, root.as_os_str())
         .stdin(std::process::Stdio::null())

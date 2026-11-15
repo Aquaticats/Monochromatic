@@ -73,11 +73,11 @@ pub struct OwnLineBeforeBecomingGit {
 #[cfg(unix)]
 pub fn prepare_own_line(folder: &Path, path: &Path) -> Option<OwnLineBeforeBecomingGit> {
     use std::os::unix::ffi::OsStrExt as _;
-    let folder: std::ffi::CString = std::ffi::CString::new(folder.as_os_str().as_bytes()).ok()?;
-    let file: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let folder_text: std::ffi::CString = std::ffi::CString::new(folder.as_os_str().as_bytes()).ok()?;
+    let file_text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
     let mut header: Vec<u8> = RECORD_HEADER.as_bytes().to_vec();
     header.push(b'\n');
-    return Some(OwnLineBeforeBecomingGit { folder, file, header });
+    return Some(OwnLineBeforeBecomingGit { folder: folder_text, file: file_text, header });
 }
 
 /// What:
@@ -219,12 +219,12 @@ impl OwnLineBeforeBecomingGit {
         let Some(line_len) = own_line_bytes(pid, tick, &mut line) else {
             return Err(std::io::Error::other("this process's line did not fit, so no Git ran"));
         };
-        let line: &[u8] = line.get(..line_len).unwrap_or(&[]);
+        let filled_line: &[u8] = line.get(..line_len).unwrap_or(&[]);
         // The file is made once and appended to afterwards, so the header goes only with the creation.
         let created: libc::c_int = unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC, 0o600) };
         if created >= 0 {
             let wrote_header: std::io::Result<()> = write_all(created, self.header.as_slice());
-            let wrote_line: std::io::Result<()> = wrote_header.and_then(|()| { return write_all(created, line); });
+            let wrote_line: std::io::Result<()> = wrote_header.and_then(|()| { return write_all(created, filled_line); });
             close(created);
             return wrote_line;
         }
@@ -236,7 +236,7 @@ impl OwnLineBeforeBecomingGit {
         if appended < 0 {
             return Err(std::io::Error::last_os_error());
         }
-        let wrote: std::io::Result<()> = write_all(appended, line);
+        let wrote: std::io::Result<()> = write_all(appended, filled_line);
         close(appended);
         return wrote;
     }

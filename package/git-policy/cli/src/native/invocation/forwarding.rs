@@ -325,7 +325,7 @@ pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Res
         use std::os::unix::process::CommandExt as _;
         let prepared: Option<crate::own_record_before_becoming_git::OwnLineBeforeBecomingGit> =
             crate::lock_holder_records::remembered_repository().and_then(|common| { return crate::own_record_before_becoming_git::own_line_for(common); });
-        let Some(prepared) = prepared else {
+        let Some(child_line) = prepared else {
             // A command that remembers no repository (or whose names cannot be handed to `open`) keeps the slower shape:
             //  the parent names the child as soon as the start returns.
             return Ok(());
@@ -333,7 +333,7 @@ pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Res
         // SAFETY: the closure runs in the child between `fork` and `exec` and calls only `mkdir`, `open`, `read`,
         //  `write`, `close` and `getpid`, on bytes this value brought with it; it allocates nothing and takes no lock.
         unsafe {
-            command.pre_exec(move || { return prepared.write(); });
+            command.pre_exec(move || { return child_line.write(); });
         }
     }
     return Ok(());
