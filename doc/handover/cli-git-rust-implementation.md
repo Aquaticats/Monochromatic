@@ -1594,6 +1594,66 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The removal guard answers its three findings and waits, unreviewed on purpose, for the landed removal (2026-11-15T06:39:53-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session decided.
+
+- **The removal guard**
+  (a removal refuses a worktree a process works in and logs each ignored file it deletes),
+  its author's tenth run,
+  ended 06:35:14 at `5db8e64c00`,
+  `main` merged.
+  The three findings given to it are answered,
+  each with a control that fails with its fix taken out:
+  the last look is the last thing the wrapper does before the destroy,
+  on every route
+  (the deletion listing and its `begun` line moved before the look;
+  on the forwarded route the look stands after the lifecycle's copy recovery and directly before Git starts);
+  a nested registration that cannot be read keeps the worktree and is named.
+  The author also lists every place in its files where a failed read becomes "none".
+  1,386 tests of the guards and the worktree modules pass;
+  the binary removal modules 44.
+- **Not sent to review now**,
+  on purpose:
+  the two findings held back
+  (an alias goes past it;
+  the target's own hidden edit and detached commit are not asked about)
+  still reproduce at this tip,
+  as the author records,
+  and a review would report them again.
+  They close when this branch merges the landed removal,
+  which carries the one reading of a removal's command.
+  Order unchanged:
+  the landed removal's review
+  (queued fourth),
+  a pass,
+  `main`,
+  then this author merges it and answers the two,
+  then its review.
+- From its report,
+  for the run that owns the checkout migration's control:
+  `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree` passed 3 of 3 on this branch and 2 of 3 on `main`,
+  interleaved,
+  and its message names a lock-holder record the migration refuses to drop.
+- **The service manager** reports `degraded`:
+  43 of its 482 units are failed transient scopes that test runs left
+  (counted 06:33).
+  They are left as they are.
+- **The temperature**,
+  read at 06:39:51:
+  53.5 degrees,
+  budget 32.0 threads,
+  5.5 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:39:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:32;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
 ##### mpm-shadow's install that removes no version is answered a fourth time and goes to review (2026-11-15T06:33:26-05:00)
 
 Not final and not approved:
