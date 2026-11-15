@@ -1135,3 +1135,123 @@ fn a_wake_that_arrives_while_the_lane_waits_for_a_claim_is_served_at_once() {
     remove(round_held.root.as_path());
     remove(woken.root.as_path());
 }
+
+/// The room this control gives the service:
+/// the place the service keeps out of slow work, and the three places of its own work beside it,
+/// which is the room the review of `ff4fc2a1fb` reproduced in: two slow places and one general place left over.
+const THE_ROOMS_OF_THE_SERVICE: usize = crate::blocking_jobs_within_the_budget::PLACES_KEPT_TO_ANSWER_A_CLIENT + 3;
+
+/// How long the control lets the trash behind the held slow places take, which is long enough for its prepare to answer
+/// that no place of slow work came (`PLACE_WAIT_CEILING`) and short enough to fail in a moment.
+const A_LOOK_LONG_ENOUGH_FOR_A_NO_PLACE: Duration = crate::wait_ceilings::PLACE_WAIT_CEILING.saturating_add(Duration::from_secs(3));
+
+/// How long past that look the control waits for the states it reads, which a loaded machine needs.
+const A_MARGIN_PAST_THE_THIRD_LOOK: Duration = Duration::from_secs(3);
+
+/// The two trashes whose waits are dropped at the ceiling, and the trash behind them.
+const THE_FIRST_TRASH_OF_THE_CONTROL: &str = "3333333333333333333333333333333333333333";
+const THE_SECOND_TRASH_OF_THE_CONTROL: &str = "4444444444444444444444444444444444444444";
+const THE_TRASH_OF_THE_THIRD_LOOK: &str = "5555555555555555555555555555555555555555";
+
+/// What:
+///  A trash record whose manifest reads:
+/// it names a directory by a device and inode no fixture has, and no entry.
+/// Why:
+///  The control holds the first slow step of a trash, which is reached before any of those names is used, so the record
+/// has to read and nothing else about it matters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aReadableTrashRecord = (staged, oid) => ({ ...aTrashRecord(staged, oid), parent: '1:2:-:-' })
+/// ```
+fn a_trash_record_that_reads(staged: &Stage, oid: &str) -> WorkItem {
+    return WorkItem { parent: String::from("1:2:-:-"), ..a_trash_record(staged, oid) };
+}
+
+/// What:
+///  Two waits that outlast their ceiling keep the slow places of the jobs they started,
+///  so the trash behind them is left for a later look rather than started beside them.
+/// Why:
+///  The place of slow work counts the jobs that run, not the callers waiting for them: the slow lane leaves a look behind
+///  at `LANE_LOOK_CEILING` and the job it started runs on. When the permit went back with the abandoned caller, the next
+///  look started a replacement beside the running job, and with the service's four places three slow jobs held every
+///  general place, so `claim_all_awaiting` failed, a push waited and a commit's own reads answered no place (the review
+///  of `ff4fc2a1fb`, finding 1).
+///  The control drops the future that waits for each trash exactly as the lane's ceiling does, one frame closer than the
+///  lane, and holds the first slow step of every trash on the code's own hold, so the waits are bounded by the control and
+///  the jobs wait on storage and never for a duration.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdThePrepare(); await within(300, trash1); await within(300, trash2); expect(await within(7s, trash3)).toBe('deferred');
+/// expect(await pushed()).toBe(true); expect(await generalJob()).toBe('ran')
+/// ```
+#[test]
+fn waits_past_their_ceiling_keep_their_slow_places_and_the_work_that_needs_none_goes_on() {
+    let _room: usize = crate::parallel_test_support::room_for(
+        "waits past their ceiling keep their slow places and the work that needs none goes on",
+        THE_ROOMS_OF_THE_SERVICE,
+    );
+    assert_eq!(crate::blocking_jobs_within_the_budget::places_a_round_may_take(), 2, "the room states the review's shape: two slow places");
+    assert_eq!(
+        crate::blocking_jobs_within_the_budget::places_for_the_services_own_work(),
+        3,
+        "and three places of the service's own work, one of which must stay free of the slow work"
+    );
+    let staged: Stage = stage("slow-lane-waits-past-their-ceiling");
+    let git_dir: PathBuf = staged.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let holds: PathBuf = fixture("slow-lane-waits-past-their-ceiling-holds");
+    crate::service_hold_a_step_for_a_control::hold_for_a_control(crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH, holds.as_path());
+    let reached: PathBuf = crate::service_hold_a_step_for_a_control::reached_file(holds.as_path(), crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH);
+    // What the lane drops when its ceiling passes: the future that waits for the trash, while the job it started runs on.
+    let dropped_at_the_ceiling = |oid: &str, reached: &PathBuf| -> bool {
+        let item: WorkItem = a_trash_record_that_reads(&staged, oid);
+        let _ = std::fs::remove_file(reached.as_path());
+        let answered: bool = crate::merge_second_pass::tests::await_it(async move {
+            return tokio::time::timeout(A_LOOK_A_CONTROL_WAITS_OUT, crate::worktree_trash_dispose_awaiting::empty_trash_awaiting(&item)).await.is_err();
+        });
+        return answered && reached.exists();
+    };
+    assert!(
+        dropped_at_the_ceiling(THE_FIRST_TRASH_OF_THE_CONTROL, &reached),
+        "the first wait did not reach the slow step this control holds"
+    );
+    assert!(
+        dropped_at_the_ceiling(THE_SECOND_TRASH_OF_THE_CONTROL, &reached),
+        "the second wait did not reach the slow step this control holds: the first slow place came back to it"
+    );
+    // The trash behind them is told that no slow place came, and it is left for a later look.
+    let _ = std::fs::remove_file(reached.as_path());
+    let behind: WorkItem = a_trash_record_that_reads(&staged, THE_TRASH_OF_THE_THIRD_LOOK);
+    let answered: Option<crate::service_work_handlers_replanning_and_acceptance::Verdict> = crate::merge_second_pass::tests::await_it(async move {
+        return tokio::time::timeout(A_LOOK_LONG_ENOUGH_FOR_A_NO_PLACE, crate::worktree_trash_dispose_awaiting::empty_trash_awaiting(&behind)).await.ok();
+    });
+    assert!(
+        !reached.exists(),
+        "a third slow job started although the two places of slow work are held by the jobs the earlier waits left behind"
+    );
+    assert!(
+        matches!(answered, Some(crate::service_work_handlers_replanning_and_acceptance::Verdict::Deferred(_))),
+        "the trash behind two held slow places was not left for a later look: {answered:?}"
+    );
+    // A push needs no place of slow work, and it still lands: the round claims it, which is a job of the process's bound.
+    let (wake, running): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) = start_the_loop(&staged);
+    enqueue(work.as_path(), &a_push_record(&staged)).expect("the push is written");
+    wake.send((git_dir.clone(), None)).expect("the push's wake");
+    assert!(wait_until(&|| { return remote_tip(&staged) == staged.landed; }), "the push landed while every slow place was held");
+    // And a job of the client's path still answers, which is the place the slow work must never take.
+    let answered: bool = crate::merge_second_pass::tests::await_it(async {
+        return matches!(
+            crate::blocking_jobs_within_the_budget::run_a_job_awaited_no_longer_than(Duration::from_secs(5), (), |_| ()).await,
+            crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::Ran(())
+        );
+    });
+    assert!(answered, "a job of the client's path answered that no place came while two slow jobs held their places");
+    // The held jobs are let go so the service ends, and the loop with it.
+    std::fs::write(crate::service_hold_a_step_for_a_control::let_go_file(holds.as_path(), crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH).as_path(), b"").expect("the let-go file");
+    drop(wake);
+    assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
+    remove(staged.root.as_path());
+    remove(holds.as_path());
+}

@@ -36,6 +36,8 @@ use std::time::{Duration, Instant};
 /// The steps a control may hold,
 /// named as the call sites pass them.
 pub const INSIDE_A_TRASH: &str = "inside-a-trash";
+/// One trash being opened and checked, which is the first slow step of that kind a round takes.
+pub const PREPARING_A_TRASH: &str = "preparing-a-trash";
 /// A trash's one entry being removed,
 /// which is the step of that kind that holds a place of the pool.
 pub const REMOVING_A_TRASH_ENTRY: &str = "removing-a-trash-entry";

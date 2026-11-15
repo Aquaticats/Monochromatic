@@ -312,6 +312,10 @@ struct ATrashToOpen {
 /// function prepareTrashRemoval({ repository, gitDir, manifest }): HeldTrash | undefined;
 /// ```
 fn prepare_trash_removal(ATrashToOpen { repository, git_dir, manifest }: ATrashToOpen) -> Result<Option<HeldTrash>, String> {
+    // A control holds the first slow step of a trash here, on the job's own thread, which is the state a look that runs
+    //  out at its ceiling leaves behind: a job holding its places with nobody waiting for it. Inert unless a control names
+    //  the step.
+    crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH);
     let root: File = match open_root(repository.as_path()) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),

@@ -514,3 +514,70 @@ fn a_deadline_around_a_refused_thread_can_end_it_because_the_work_never_runs_on_
         "a thread the system refused is no place now, and the caller looks again later"
     );
 }
+
+/// The room that leaves slow work one place:
+/// the places the process keeps out of slow work, and the one place slow work may take beside them.
+const THE_ROOM_OF_ONE_SLOW_PLACE: usize = SLOW_WORK_RESERVE + PLACES_KEPT_TO_ANSWER_A_CLIENT;
+
+/// The longest the control of a dropped waiter lets the second ask take:
+/// the ceiling a place is granted, and the room a loaded machine needs on top of it.
+const A_WAIT_LONGER_THAN_A_PLACE: Duration = crate::wait_ceilings::PLACE_WAIT_CEILING.saturating_add(Duration::from_secs(5));
+
+/// What:
+///  A slow job whose waiter was dropped keeps the place of slow work it took, so no replacement starts beside it.
+/// Why:
+///  The place of slow work is the limit on the slow *jobs* that run, and a caller that gives up on waiting gives up its
+///  wait and nothing else: the slow lane leaves a look behind at its ceiling and the job that look started runs on
+///  (`landing/service_work_slow_lane.rs`). When the permit went back with the dropped caller, the lane's next look
+///  started a replacement beside the abandoned job, and with the service's four places three slow jobs ran under a limit
+///  of two and held every general place, so a push and a commit's own reads answered no place (the review of
+///  `ff4fc2a1fb`, finding 1).
+/// The control blocks the first job on a gate of its own, drops the task that waits for it, and asks for a second slow
+/// job: it must not start while the first still runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = spawn(slowJob(gated)); await started; first.abort(); const second = spawn(slowJob(() => reached = true));
+/// expect(reached).toBe(false); expect(await second).toBe('noPlace')
+/// ```
+#[test]
+fn a_slow_job_whose_waiter_was_dropped_keeps_the_place_of_slow_work() {
+    // The room leaves slow work one place: the places kept out of slow work, and the one it may take beside them.
+    let _room: usize = crate::parallel_test_support::room_for("a slow job whose waiter was dropped keeps the place of slow work", THE_ROOM_OF_ONE_SLOW_PLACE);
+    assert_eq!(places_a_round_may_take(), 1, "this control needs the one place slow work has at this room");
+    let (told, took) = std::sync::mpsc::channel::<()>();
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held_until_released: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(held));
+    let first: tokio::task::JoinHandle<Result<(), BlockingJobError>> = crate::lazy_runtime::spawn_on_runtime(async move {
+        return run_a_slow_job_within_the_budget(move || {
+            let _said = told.send(());
+            let _ = held_until_released.lock().expect("the control's release").recv();
+        })
+        .await;
+    })
+    .expect("a worker for the first slow job");
+    assert!(took.recv_timeout(PATIENCE).is_ok(), "the first slow job never took the place slow work has");
+    // The waiter is dropped, as the lane's look is dropped at its ceiling, and the job it started runs on.
+    first.abort();
+    let started: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let told_started: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&started);
+    let second: tokio::task::JoinHandle<Result<(), BlockingJobError>> = crate::lazy_runtime::spawn_on_runtime(async move {
+        return run_a_slow_job_within_the_budget(move || {
+            told_started.store(true, Ordering::SeqCst);
+        })
+        .await;
+    })
+    .expect("a worker for the second slow job");
+    let answer: Result<Result<Result<(), BlockingJobError>, tokio::task::JoinError>, tokio::time::error::Elapsed> =
+        run_on_runtime(async move { return tokio::time::timeout(A_WAIT_LONGER_THAN_A_PLACE, second).await; }).expect("the runtime");
+    let took_the_place_a_running_job_holds: bool = started.load(Ordering::SeqCst);
+    let _let_the_first_job_go = release.send(());
+    assert!(
+        !took_the_place_a_running_job_holds,
+        "a second slow job started beside the first, whose waiter was dropped: the place of slow work went back with the waiter"
+    );
+    assert!(
+        matches!(answer, Ok(Ok(Err(BlockingJobError::NoPlaceWithinTheCeiling)))),
+        "the second ask did not answer that no place of slow work came: {answer:?}"
+    );
+}
