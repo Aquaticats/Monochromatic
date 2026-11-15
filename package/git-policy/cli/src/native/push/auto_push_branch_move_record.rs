@@ -262,9 +262,9 @@ pub const REPAIR_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// How long a waiting command pauses between two looks at the repair's owner record.
 /// Why:
-///   The place is one file and its end is one removal, so a turn this short sees it free at once, and
-/// twenty of them fit in `REPAIR_WAIT` without a busy loop.
-pub const REPAIR_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+///   One look costs the sweep's own Git starts (a few milliseconds), so a pause this long fits twenty attempts
+/// inside `REPAIR_WAIT` and each of them is a real question rather than a busy loop.
+pub const REPAIR_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Suffix of the name of the one record that says which command is repairing this worktree's checkout.
 /// Why:
