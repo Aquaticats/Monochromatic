@@ -642,3 +642,92 @@ fn a_beat_note_read_that_stopped_on_storage_keeps_the_one_thread_of_its_kind() {
     );
     assert!(a_look_ran, "a look of the other kind did not run beside the note that stopped on storage");
 }
+
+/// The longest this control watches for the commit whose first look found no place:
+/// one pause of the retry and the ceiling of an ask, with room for a loaded machine.
+const A_WATCH_FOR_THE_RETRY: Duration = crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE.saturating_add(THE_LOOKS_CEILING.saturating_mul(3));
+
+/// What:
+///  A commit whose look found no place is asked again as soon as a place of the look's kind is free,
+///  even while another look is still alive.
+/// Why:
+///  The kind has two places, and a look that never answers holds one of them.
+/// A retry that waits for *no* look of the kind to be alive refuses to use the other place, so a stuck look suppresses
+/// every retry for the whole patience and ordinary contention at the last ask ends the commit as `unavailable`
+/// (the review of `7a6504e5b6`, finding 4: "a retry waits for a place, not for silence").
+/// The control holds one look in its read and a second one, which is let go once the third commit's first ask has found
+/// no place: from then on a place is free while a look is alive, and the third commit must be routed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hold(a); hold(d); send(c); await near(); release(d); expect(await routed(c, oneRetryPause)).toBe(true)
+/// ```
+#[test]
+fn a_routing_retry_uses_a_free_place_while_another_look_is_alive() {
+    let _room: usize = crate::parallel_test_support::room_for("a routing retry uses a free place while another look is alive", THE_ROOM);
+    crate::wait_ceilings::hold_the_routing_look_to(THE_LOOKS_CEILING);
+    let (mut shared, _journal, mut jobs) = shared_in_a_control("connection-retry-beside-a-live-look");
+    // The requests name a Git directory this instance was named for, so each look reads it and says it is this instance's.
+    let own: PathBuf = crate::test_support::fixture("connection-retry-beside-a-live-look-own");
+    shared.instance = Some(crate::service_instance::instance_of(own.as_path()));
+    // The first look is held in its read and never answers; the second is let go after the third commit's first ask.
+    let (reached_first, let_go_first) = hooks::hold_the_point(IN_THE_INSTANCE_READ);
+    let (routed_at_all, routed_the_third): (usize, bool) = crate::lazy_runtime::run_on_runtime(async move {
+        // Each connection is made and written inside the runtime, where the reactor it belongs to runs, and served before
+        //  the next one is made so the looks take their places in the order this control reads.
+        let mut serving: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+        let (first_service, first_end) = UnixStream::pair().expect("a first connected pair");
+        let first_line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("a-look-that-never-answers", own.as_path()))));
+        {
+            let (_read_half, mut write_half) = first_end.into_split();
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{first_line}\n").as_bytes()).await.expect("the first request line is sent");
+        }
+        serving.push(crate::lazy_runtime::spawn_on_runtime(handle_connection(first_service, shared.clone())).expect("a worker for the first connection"));
+        let first_is_held: bool = tokio::time::timeout(A_BOUND, reached_first).await.is_ok_and(|heard| { return heard.is_ok(); });
+        assert!(first_is_held, "the first look never reached the read this control holds");
+        // The second look takes the other place and is held by this control's second hold.
+        let (reached_second, let_go_second) = hooks::hold_the_point(IN_THE_INSTANCE_READ);
+        let (second_service, second_end) = UnixStream::pair().expect("a second connected pair");
+        let second_line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("the-second-look", own.as_path()))));
+        {
+            let (_read_half, mut write_half) = second_end.into_split();
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{second_line}\n").as_bytes()).await.expect("the second request line is sent");
+        }
+        serving.push(crate::lazy_runtime::spawn_on_runtime(handle_connection(second_service, shared.clone())).expect("a worker for the second connection"));
+        let second_is_held: bool = tokio::time::timeout(A_BOUND, reached_second).await.is_ok_and(|heard| { return heard.is_ok(); });
+        assert!(second_is_held, "the second look never reached the read this control holds");
+        // The third commit's first ask finds both places taken and answers `NotRun`; then one place is freed.
+        let (third_service, third_end) = UnixStream::pair().expect("a third connected pair");
+        let third_line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("the-third-commit", own.as_path()))));
+        {
+            let (_read_half, mut write_half) = third_end.into_split();
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{third_line}\n").as_bytes()).await.expect("the third request line is sent");
+        }
+        serving.push(crate::lazy_runtime::spawn_on_runtime(handle_connection(third_service, shared)).expect("a worker for the third connection"));
+        // The third commit's first ask must have found no place, which its own ceiling decides: the wait is that ceiling,
+        //  and not a duration this control chose.
+        tokio::time::sleep(THE_LOOKS_CEILING.saturating_mul(2)).await;
+        let _let_the_second_go = let_go_second.send(());
+        // What the landing queue received: the second look's commit, and the third one's if the retry used the free place.
+        let mut routed: Vec<String> = Vec::new();
+        let deadline: tokio::time::Instant = tokio::time::Instant::now() + A_WATCH_FOR_THE_RETRY;
+        while tokio::time::Instant::now() < deadline {
+            if let Ok(Some(Job::Commit(request, _reply, _arrival))) = tokio::time::timeout(deadline.saturating_duration_since(tokio::time::Instant::now()), jobs.recv()).await {
+                routed.push(request.id.clone());
+            }
+            if routed.iter().any(|id| { return id == "the-third-commit"; }) {
+                break;
+            }
+        }
+        for holder in serving {
+            holder.abort();
+        }
+        let _let_the_first_go = let_go_first.send(());
+        return (routed.len(), routed.iter().any(|id| { return id == "the-third-commit"; }));
+    })
+    .expect("the runtime");
+    assert!(
+        routed_the_third,
+        "the commit whose first look found no place was not asked again while a place was free and another look alive: {routed_at_all} requests reached the landing"
+    );
+}

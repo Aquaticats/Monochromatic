@@ -162,17 +162,78 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
 /// ```ts
 /// afterASilentOrFailedService(failure, placed);
 /// ```
+/// What:
+///  Whether the commit may have landed after this failure,
+///  so the journal and the branch are read before the command ends,
+///  and whether a commit the service held behind a reference lock may be the truth of it.
+/// Why:
+///  A lost answer is no proof that the service never took the request:
+/// the service may have landed the commit while every answer was lost, and the journal names the commit the request made.
+///  The kinds are listed once, in a match with no catch-all,
+///  so a new failure kind cannot be forgotten by the two places that read them
+///  (the review of `7a6504e5b6`, finding 2: `ServiceGoneUnconfirmed` was in neither).
+///  Every other kind says what was learned: the request was refused, it never started, the service answered, or the person
+///  interrupted it, and none of those leaves a commit that may be on the branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const itMayHaveLanded = (failure) => ['ServiceSilent', 'MayNotHaveLanded', 'ServiceGoneUnconfirmed'].includes(failure.kind)
+/// ```
+fn it_may_have_landed(failure: &ClientFailure) -> bool {
+    return match failure {
+        // An answer that was lost after the request was written: the service went silent, it answered nothing that decided
+        // the request, or it stopped answering and did not confirm the withdrawal either.
+        ClientFailure::ServiceSilent { .. } | ClientFailure::MayNotHaveLanded { .. } | ClientFailure::ServiceGoneUnconfirmed { .. } => true,
+        // Every other kind says what became of the request, and none of them leaves a commit that may be on the branch.
+        ClientFailure::DidNotStart { .. }
+        | ClientFailure::NothingAnswered { .. }
+        | ClientFailure::NoActivation { .. }
+        | ClientFailure::ManagerDidNotAnswer { .. }
+        | ClientFailure::OtherAccount { .. }
+        | ClientFailure::NoCommonVersion { .. }
+        | ClientFailure::OtherRelease { .. }
+        | ClientFailure::RepositoryFull { .. }
+        | ClientFailure::RepositoryReadOnly { .. }
+        | ClientFailure::PermissionDenied { .. }
+        | ClientFailure::RepositoryFrozen { .. }
+        | ClientFailure::BranchKeepsChanging { .. }
+        | ClientFailure::BranchMoved { .. }
+        | ClientFailure::ConclusionStateChanged { .. }
+        | ClientFailure::BranchMovedMessageSaved { .. }
+        | ClientFailure::BranchSwitched { .. }
+        | ClientFailure::ServiceNotReading { .. }
+        | ClientFailure::ServiceSilentAfterPreparing { .. }
+        | ClientFailure::StillWithService { .. }
+        | ClientFailure::WithdrawalUnconfirmed { .. }
+        | ClientFailure::Interrupted { .. }
+        | ClientFailure::InterruptedNotKnown { .. }
+        | ClientFailure::StepTooSlow { .. }
+        | ClientFailure::Refused { .. }
+        | ClientFailure::IndexInUse { .. }
+        | ClientFailure::ReferenceLocked { .. }
+        | ClientFailure::Unavailable { .. }
+        | ClientFailure::ProgramMissing { .. }
+        | ClientFailure::CouldNotStart { .. }
+        | ClientFailure::SocketPathTooLong { .. }
+        | ClientFailure::ServiceElsewhere { .. }
+        | ClientFailure::UnitInTheWay { .. }
+        | ClientFailure::WorkNotHandedOver { .. }
+        | ClientFailure::ContentPruned { .. }
+        | ClientFailure::ServiceGoneNotLanded { .. } => false,
+    };
+}
+
 pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: LandedAftermath<'_>) -> Result<ServiceCommit, TransactionStop> {
     // The failures a lost answer leaves: the service went silent, or it broke the connection after the request was written.
-    let found: Option<String> = match failure {
-        ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded => looking_for_what_landed(LookForWhatLanded {
+    let found: Option<String> = match it_may_have_landed(&failure) {
+        true => looking_for_what_landed(LookForWhatLanded {
             context: placed.invocation.context,
             cwd: placed.invocation.cwd,
             journal: placed.journal,
             id: placed.request_id,
             wait: crate::wait_ceilings::LOOKING_FOR_A_LANDED_COMMIT,
         }),
-        _ => None,
+        false => None,
     };
     if let Some(commit) = found {
         // The commit is made: the command reports the landing and succeeds, whatever the answer said.
@@ -183,7 +244,7 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
     // The service made the commit and held it behind a reference lock, and only its answer was lost: the branch cannot show
     //  the commit while the lock stands, so the look above finds nothing, and the record of the hold is what says it was made.
     //  A received `held` answer exits 0, so this one does too (`held_commit_record.rs`, "Commits should never fail.").
-    if matches!(failure, ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded)
+    if it_may_have_landed(&failure)
         && let Some(journal) = placed.journal
         && let Some(held) = a_held_batch_of(journal, placed.native_inputs.capture.layout.git_dir.as_path(), placed.request_id)
     {

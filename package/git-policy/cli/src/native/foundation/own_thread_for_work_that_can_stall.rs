@@ -109,17 +109,20 @@ pub fn alive_now(kind: WorkThatCanStall) -> usize {
 }
 
 /// What:
-///  Whether every thread of this kind has ended.
+///  Whether one more thread of this kind may start now:
+///  fewer are alive than the kind allows.
 /// Why:
-///  A caller that retried while one of its own kind was still alive would add a thread beside it,
-/// and a look that stopped on storage would fill the kind's count one retry at a time.
+///  The count is the bound on threads of this kind, and a place that is free is a thread that may start.
+/// A caller that asked again only when *no* thread of its kind was alive would refuse a free place because another
+/// thread of the kind is busy, and a look that stopped on storage would suppress every retry for as long as it lived
+/// (the review of `7a6504e5b6`, finding 4).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noneAlive = (kind) => aliveNow(kind) === 0;
+/// const aThreadMayStart = (kind) => aliveNow(kind) < kind.aliveAtOnce();
 /// ```
-pub fn none_alive(kind: WorkThatCanStall) -> bool {
-    return alive_now(kind) == 0;
+pub fn a_thread_may_start(kind: WorkThatCanStall) -> bool {
+    return alive_now(kind) < kind.alive_at_once();
 }
 
 /// What:

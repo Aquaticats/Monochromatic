@@ -318,17 +318,24 @@ pub(crate) fn stop_the_group_of(leader_id: u32) {
 }
 
 impl Drop for OwnedChild {
-    /// A live child ends with the whole group it leads, and is reaped,
-    /// so the caller's cleanup never runs beside a child that is still writing and no helper of it outlives the value
-    /// that owned it.
-    /// Why the group and not the leader alone:
+    /// What:
+    ///  A live child ends with every process it started, and is reaped,
+    ///  so the caller's cleanup never runs beside a child that is still writing and no helper of it outlives the value
+    ///  that owned it.
+    /// Why the tree and not the leader alone:
     ///  a future can be dropped anywhere, and the drop is the only end some paths reach; a leader killed alone leaves
-    ///  what it started running against the same files (the review of `fc620ef950`, F2).
-    /// The signal is only sent while this value still owns the child: a child that was reaped or handed over has no
-    /// number this process may signal, because the kernel may have given it to another process since.
+    ///  what it started running against the same files (the reviews of `fc620ef950`, F2, and `7a6504e5b6`, finding 3).
+    /// Why the tree and not the group:
+    ///  a group signal names a group only when the child was started as its leader, and an ordinary Git child — a plain
+    ///  `Command`, as the forwarding and transaction starts are — leads none, so `kill(-child_pid)` answers `ESRCH` and
+    ///  every helper survived; a Git that detaches its maintenance helper on purpose (`maintenance.autodetach`) puts it in
+    ///  no group of the child's either, so the tree read before the leader is signalled is the only end that covers it.
+    /// The tree is read only while this value still owns the child: a child that was reaped or handed over has no number
+    /// this process may signal or read, because the kernel may have given it to another process since.
     fn drop(&mut self) {
         if self.child.is_some() {
-            stop_the_group_of(self.id());
+            let _left_running: bool = self.end_with_the_processes_it_started();
+            return;
         }
         self.end_and_reap();
     }

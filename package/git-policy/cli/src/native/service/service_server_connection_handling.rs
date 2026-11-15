@@ -493,11 +493,14 @@ async fn queue_a_commit(request: Box<crate::service_protocol::CommitRequest>, wr
                 None if began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE => {
                     asked += 1;
                     // What:
-                    //  A retry waits until no look of this kind is alive, so it never adds a thread beside one still running.
+                    //  A retry waits until a place of the look's kind is free, so it never adds a thread beyond the kind's
+                    //  count, and it never waits for a look that is merely busy.
                     // Why:
-                    //  The look has threads of its own, and only looks hold them, so this is the exact question
-                    //  (the review of `e1a615aab0`, F4: a count of free places cannot tell the earlier look from any other).
-                    while !crate::own_thread_for_work_that_can_stall::none_alive(crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook)
+                    //  The kind's count is the bound on these threads and only looks hold them, so a free place is the
+                    //  exact question (the reviews of `e1a615aab0`, F4, and `7a6504e5b6`, finding 4: a count of general
+                    //  places could not tell the earlier look from any other, and waiting for none alive refuses a free
+                    //  place because a look that stopped on storage is still alive).
+                    while !crate::own_thread_for_work_that_can_stall::a_thread_may_start(crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook)
                         && began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE
                     {
                         tokio::time::sleep(crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE).await;

@@ -346,6 +346,36 @@ fn give_back_the_staged_state(staging: &Path) {
 }
 
 /// What:
+///  Whether the state a prewarm record says the add staged for `to` is one this wrapper made there.
+/// Why:
+///   The work directory is written by other commands, and a record is their text:
+/// a name that parses as a maker's name is no proof that the wrapper made what stands there.
+/// What a filling may clean and publish is derived from what the wrapper computed for this destination:
+/// `staging_of(to)`, beside `to`, then a maker and its instant (`a_staging_name_of_this_runs_own`).
+/// A record that names anything else is refused, so a record can never point a removal at a folder of somebody
+/// else's (the review of `7a6504e5b6`, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stagedStateIsOurs = (to, staged) => staged.dirname === stagingOf(to).dirname && basename(staged).startsWith(`${basename(stagingOf(to))}.`) && makerAtTheEndOf(staged) !== undefined
+/// ```
+fn staged_state_is_ours(to: &Path, staged: &Path) -> bool {
+    let usual: PathBuf = staging_of(to);
+    if staged.parent() != usual.parent() {
+        return false;
+    }
+    let (Some(name), Some(ours)) = (staged.file_name(), usual.file_name()) else { return false };
+    use std::os::unix::ffi::OsStrExt;
+    if !name.as_bytes().starts_with(ours.as_bytes()) {
+        return false;
+    }
+    if name.as_bytes().get(ours.as_bytes().len()) != Some(&b'.') {
+        return false;
+    }
+    return the_maker_at_the_end_of(name).is_some();
+}
+
+/// What:
 ///  Remove a directory this job made when a step failed or a build got there first.
 /// Why:
 ///   The names belong to this job alone,
@@ -522,6 +552,21 @@ pub(crate) enum Filled {
 /// async function fillOne({ fill, entry }): Promise<Filled>;
 /// ```
 async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
+    // What:
+    //  A record that names staged state the wrapper did not make for this destination is refused,
+    //  before either branch reads, cleans, publishes or removes it.
+    // Why:
+    //  Nothing may be removed or published on the strength of a name a record asserts:
+    //  the path must be the one this wrapper computed for this destination (the review of `7a6504e5b6`, finding 1).
+    if let Some(staged) = entry.staged_in.as_ref()
+        && !staged_state_is_ours(entry.to.as_path(), staged.as_path())
+    {
+        return Err(format!(
+            "the prewarm record names {} as the state the add staged, and this wrapper stages nothing there for {}; nothing was read, published or removed",
+            staged.display(),
+            entry.to.display()
+        ));
+    }
     // A destination that exists is a build that got there first: the worktree keeps everything it made. A filling of this
     //  workspace that was killed after it published left its own name and an empty staging copy beside that directory, and
     //  a name whose maker is gone is nobody's: this filling gives those names back.

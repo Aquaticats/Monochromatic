@@ -1054,3 +1054,38 @@ fn a_cleanup_with_nothing_to_clean_leaves_no_proof_and_a_later_cleanup_removes_n
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A prewarm record that names, as the state it staged, a folder the wrapper never made there
+///  has that folder refused and left exactly as it is.
+/// Why:
+///  The work directory is written by other commands, and the record is their text:
+/// a name that parses as a maker's name is not proof that the wrapper made what stands there.
+/// What may be removed is derived from what the wrapper computed for the destination it fills
+/// (`staging_of(to)`), and a record that says otherwise is refused (the review of `7a6504e5b6`, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const victim = `${root}/someones-data${STAGING_SUFFIX}.1~linux:1~.1`; mkdir(victim); expect(fillOne({ to: existing, stagedIn: victim })).toBe('refused'); expect(read(victim)).toBe('a person\'s data')
+/// ```
+#[test]
+fn a_record_that_names_a_folder_the_wrapper_did_not_stage_is_refused_and_nothing_is_removed() {
+    let root: PathBuf = fixture("prewarm-record-names-a-victim");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    // The worktree already has its build directory, which is the branch that gives the staged state back.
+    std::fs::create_dir_all(entry.to.as_path()).expect("the build directory a build made");
+    // A folder that belongs to nobody's filling, named as a maker's staging name.
+    let victim: PathBuf = PathBuf::from(format!("{}/someones-data{}.1~linux:1~.1", root.display(), STAGING_SUFFIX));
+    std::fs::create_dir_all(victim.join("inside")).expect("the folder a person made");
+    let theirs: PathBuf = victim.join("inside/a-file");
+    std::fs::write(theirs.as_path(), b"a person's data").expect("the person's file");
+    let recorded: PrewarmEntry = PrewarmEntry { staged_in: Some(victim.clone()), from: None, ..entry.clone() };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &recorded);
+    assert!(filled.is_err(), "a record that names a folder the wrapper did not stage is refused: {filled:?}");
+    assert_eq!(
+        std::fs::read(theirs.as_path()).expect("the person's file is still there"),
+        b"a person's data",
+        "a record removed a folder the wrapper never staged"
+    );
+    remove(root.as_path());
+}
