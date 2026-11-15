@@ -92,9 +92,7 @@ fn bound() -> Bound {
 /// the recovery sees the member.
 #[test]
 fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let root = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n", planned.record()));
@@ -133,9 +131,7 @@ fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() 
 /// absent scope as ended.
 #[test]
 fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
     let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
     let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
@@ -165,9 +161,7 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
 /// this one removes it.
 #[test]
 fn a_settled_run_whose_scope_was_collected_is_read_as_ended_without_any_launcher_record() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
     let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
     let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
@@ -612,9 +606,7 @@ fn the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member() {
     use_identity_for_test(None);
     assert_eq!(live_lock(other.path()), "unchecked output of the killed run", "an incomplete listing was recovered over: {listing:?}");
 
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let contradiction = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let scoped: PathBuf = journal_with_records(contradiction.path(), &format!("{}\n", planned.record()));
@@ -647,9 +639,7 @@ fn the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member() {
 /// and the return is not a wait without end.
 #[test]
 fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
     let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
     let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
@@ -693,8 +683,8 @@ fn a_record_that_cannot_be_written_or_made_durable_starts_no_program() {
             let plain = scratch();
             if weaker {
                 crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
-            } else if delegated_route().is_none() {
-                return;
+            } else {
+                crate::cgroup_test_support::this_test_needs_a_delegated_scope();
             }
             let root = repository();
             let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
@@ -880,9 +870,8 @@ fn a_record_that_is_written_only_in_part_or_cannot_be_written_or_synced_starts_n
             let plain = scratch();
             if weaker {
                 crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
-            } else if delegated_route().is_none() {
-                crate::bounded_run::use_route_settings_for_test(None);
-                return;
+            } else {
+                crate::cgroup_test_support::this_test_needs_a_delegated_scope();
             }
             let root = repository();
             let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
