@@ -761,7 +761,7 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
 ///  That is what the integration pass of 2026-11-14 measured at its tip (`b7af79961f`):
 ///  "a service under 117 MiB cannot run, so no commit can have landed through it" at a tree where the same path first
 ///  landed at 117 MiB or lower, with the wrapper right in both runs.
-///  This control sets the limit `mebibytes_below_the_one_that_greets` below the size the search answers,
+///  This control sets the limit `mebibytes_of_the_search_step_and_one_thread_pair` below the size the search answers,
 ///  which is below the size at which any worker fits whatever the build's mapped size is,
 ///  and it reads the service's own log to prove the state it asserts on instead of trusting a search's step.
 ///  What it no longer proves is where the boundary is:
@@ -771,12 +771,12 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const startsAt = await smallestServiceLimit('address-space', 65536);
-/// await expectEndedBeforeAcceptingAndRecovery({ serviceAddressSpaceMib: startsAt - mebibytesBelowTheOneThatGreets() });
+/// await expectEndedBeforeAcceptingAndRecovery({ serviceAddressSpaceMib: startsAt - mebibytesOfTheSearchStepAndOneThreadPair() });
 /// ```
 #[test]
 fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
-    let below: u64 = starts_at.saturating_sub(mebibytes_below_the_one_that_greets());
+    let below: u64 = starts_at.saturating_sub(mebibytes_of_the_search_step_and_one_thread_pair());
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(below);
     let case: Case = run_case("as-service-below-start", service.as_slice(), wrapper.as_slice(), true, true);
     assert!(
@@ -793,21 +793,23 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
 const ENDED_BEFORE_ACCEPTING: &str = "cannot start the acceptor of connections";
 
 /// What:
-///  How far below the smallest address space at which the service greets a client this control sets the limit,
-///  in mebibytes.
+///  The room one step of the search and one worker with its blocking-pool partner take, in mebibytes.
 /// Why:
-///  The search answers a whole mebibyte, so its answer is at most one mebibyte above the size at which the plan first leaves
-///  a worker,
+///  A search here answers a whole mebibyte (`MEBIBYTE`), so its answer is at most one mebibyte above the size at which the
+///  runtime plan first leaves a worker,
 ///  and one worker and its blocking-pool partner take `THREAD_VIRTUAL_BYTES` twice
 ///  (`runtime_plan::workers_by_address_space`).
-///  Subtracting both puts the limit below the size at which any worker fits whatever the build's mapped size is,
-///  because the build moves the search's answer and this limit together.
+///  A limit this far below an answer fits no worker, and one this far above a landing leaves two,
+///  whatever the build's own mapped size is,
+///  because the build moves the search's answer and the limit together.
+///  So a control that needs one of those states sets its limit by this much and never by the search's step alone,
+///  which is a few kilobytes of a build away from the threshold on a build of any size.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const below = Math.ceil((MiB + 2 * THREAD_VIRTUAL_BYTES) / MiB);
+/// const room = Math.ceil((MiB + 2 * THREAD_VIRTUAL_BYTES) / MiB);
 /// ```
-fn mebibytes_below_the_one_that_greets() -> u64 {
+pub(super) fn mebibytes_of_the_search_step_and_one_thread_pair() -> u64 {
     return (MEBIBYTE + 2 * git_policy_cli::runtime_plan::THREAD_VIRTUAL_BYTES).div_ceil(MEBIBYTE);
 }
 
@@ -828,10 +830,22 @@ const BAND_STARTS: usize = 100;
 ///  connection as starting began the sweep below the working limits on a loaded host,
 /// and the fixture then waited a minute
 ///  for each service that had already ended.
+///  The limit is `mebibytes_of_the_search_step_and_one_thread_pair` below the size the search answers and not one
+///  mebibyte below it:
+///  one mebibyte below an answer is inside the search's own rounding, a few kilobytes of the build away from the
+///  threshold.
+///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`, by halving over one mebibyte:
+///  the search answered 118 MiB while the probe's own path first greeted a client at 117 MiB + 76 KiB,
+///  so one mebibyte below the answer stood 76 KiB under the threshold,
+///  and a start whose mapped size was 76 KiB lighter would have greeted and failed this control with the wrapper right.
+///  Below this control's limit the plan fits no worker whatever the build's mapped size is, and the socket is still
+///  bound, because the bind comes before the plan is read.
+///  What it no longer proves is that the one mebibyte the search subtracts is itself in this state: that was the
+///  search's step, not a fact about what the service can do.
 #[test]
 fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
-    let below: u64 = (starts_at - 1) * MEBIBYTE;
+    let below: u64 = starts_at.saturating_sub(mebibytes_of_the_search_step_and_one_thread_pair()) * MEBIBYTE;
     let probes: Fixture = fixture("limit-band");
     let outcomes: Vec<StartOutcome> = std::thread::scope(|scope| {
         return scope
