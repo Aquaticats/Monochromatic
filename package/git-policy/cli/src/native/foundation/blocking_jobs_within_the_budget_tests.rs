@@ -677,3 +677,71 @@ fn take_and_hold_a_place((took, held): (std::sync::mpsc::Sender<()>, Arc<Mutex<s
     let _ = held.lock().expect("the control's release").recv();
     return 1;
 }
+
+/// What:
+///  A job that outlasted its caller's ceiling keeps the place of slow work it took,
+///  so a second slow job cannot start beside it.
+/// Why:
+///  A call into storage cannot be taken back:
+/// a trash's listing that stopped on the disk runs on after its caller's ceiling passes,
+/// and a place of slow work given back on the caller's frame let the next round start a second listing beside the first.
+/// The trash retries piece by piece, so the abandoned listings added up until they held every place of the bound and
+///  commit routing could not start (the review of `e1a615aab0`, F6, reproduced with `reproductions/slow_permit`).
+///  The place now travels into the job and goes back when its work ends.
+///  The control holds the first job open on a gate of its own,
+///  so it never waits for a duration to pass:
+///  the second ask must answer `NotRun` while the first job still runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = await run(slowJob(gated)); expect(first).toBe('noAnswer'); const second = await run(slowJob(() => started = true)); expect(second).toBe('notRun')
+/// ```
+#[test]
+fn a_slow_job_that_outlasted_its_caller_keeps_the_place_of_slow_work() {
+    // The room leaves slow work one place: the places kept out of slow work, and the one it may take beside them.
+    let _room: usize = crate::parallel_test_support::room_for("a_slow_job_that_outlasted_its_caller_keeps_the_place_of_slow_work", THE_ROOM);
+    assert_eq!(places_a_round_may_take(), 1, "this control needs the one place slow work has at this room");
+    let (told, took) = std::sync::mpsc::channel::<()>();
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held_until_released: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(held));
+    let first: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async move {
+        return run_a_slow_job_once_awaited_no_longer_than(SLOW_JOB_PATIENCE, (told, held_until_released), |(told, held): (std::sync::mpsc::Sender<()>, Arc<Mutex<std::sync::mpsc::Receiver<()>>>)| {
+            let _said = told.send(());
+            let _ = held.lock().expect("the control's release").recv();
+            return 7;
+        })
+        .await;
+    })
+    .expect("the runtime");
+    assert!(matches!(first, TheAnswerOfAJobAwaited::NoAnswer), "the caller gave up while its job still ran: {first:?}");
+    assert!(took.recv_timeout(PATIENCE).is_ok(), "the first slow job never took the place slow work has");
+    // The first job is still inside its work, so the one place slow work has is not free.
+    let started: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let told_started: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&started);
+    let second: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async move {
+        return run_a_slow_job_once_awaited_no_longer_than(SLOW_JOB_PATIENCE, told_started, note_that_a_slow_job_started).await;
+    })
+    .expect("the runtime");
+    let took_the_place_a_running_job_holds: bool = started.load(Ordering::SeqCst);
+    let _let_the_first_job_go = release.send(());
+    assert!(
+        matches!(second, TheAnswerOfAJobAwaited::NotRun),
+        "a second slow job was given the place the first, still running, holds: {second:?}"
+    );
+    assert!(!took_the_place_a_running_job_holds, "a second slow job started beside the first under the one place slow work has");
+}
+
+/// What a second slow job does: record that it started, and answer a value of its own.
+/// Why:
+///  The runner takes a function and the state it reads,
+///  never a closure,
+///  so what the job must report travels as its state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noteItStarted = (started) => { started.value = true; return 8 }
+/// ```
+fn note_that_a_slow_job_started(started: Arc<std::sync::atomic::AtomicBool>) -> u8 {
+    started.store(true, Ordering::SeqCst);
+    return 8;
+}
