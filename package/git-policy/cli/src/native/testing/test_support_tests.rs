@@ -51,6 +51,61 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
     settle_fixture(root.as_path(), false);
 }
 
+/// How long a control gives the removal to return inside while a thread this process started is held.
+/// Why:
+///   A removal that waits at all cannot return before that thread is let go, however slowly the host runs;
+/// a removal that does not wait returns in microseconds.
+/// Four of the looks its wait makes is far above the microseconds and far below a second (`WAIT_LOOK_EVERY`).
+const WHILE_A_WRITER_IS_HELD: std::time::Duration = std::time::Duration::from_millis(200);
+
+/// How long a control waits for its own pieces to settle once it has let them go.
+const SETTLING: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What:
+///  A fixture is removed only after the threads this process started have ended.
+/// Why:
+///   A job `spawn_named` starts belongs to no caller:
+///  the service starts the pool fill, the repository scratch collection and the draw beside a landing and returns
+///  (`service_server_land_group.rs`),
+///  and the draw makes `monochromatic-git-policy-cli-shadow-drawn` under the repository's Git directory
+///  after that caller returned.
+///  It is what left
+///  `a_landed_commit_holds_its_push_where_no_round_runs_it` panicking at
+///  `remove only the fixture: Os { code: 39, kind: DirectoryNotEmpty }` in the gate of 2026-11-14.
+///  The writer here is held, so "while a thread this process started runs" is a state and not a duration.
+#[test]
+fn a_fixture_is_removed_after_the_threads_this_process_started_have_ended() {
+    let root: PathBuf = fixture("guard-writer");
+    std::fs::write(root.join("before"), "content").expect("a file the removal is about");
+    let (reached_sent, reached): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
+    let (let_go, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
+    let (wrote_sent, wrote): (std::sync::mpsc::Sender<bool>, std::sync::mpsc::Receiver<bool>) = std::sync::mpsc::channel::<bool>();
+    let written: PathBuf = root.join("after");
+    let writer = crate::scoped_start::spawn_named("guard-writer", move || {
+        let _said = reached_sent.send(());
+        // Held until the control lets it go, so the tree stays whole until the removal has had its chance to run.
+        let _held = held.recv();
+        // What the writer found: a tree the removal waited for is whole, and one removed under it is gone (`ENOENT`).
+        let _told = wrote_sent.send(std::fs::write(written.as_path(), b"content").is_ok());
+    })
+    .expect("a thread for the writer");
+    reached.recv().expect("the writer has started and waits for the control");
+    let (removed_sent, removed): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
+    let removing: PathBuf = root.clone();
+    let remover = std::thread::spawn(move || {
+        remove(removing.as_path());
+        let _told = removed_sent.send(());
+    });
+    let returned_while_writing: bool = removed.recv_timeout(WHILE_A_WRITER_IS_HELD).is_ok();
+    let _let_go = let_go.send(());
+    let the_write_found_its_fixture: bool = wrote.recv_timeout(SETTLING).unwrap_or(false);
+    remover.join().expect("the removal ends");
+    writer.join().expect("the writer ends");
+    assert!(!returned_while_writing, "the fixture was removed while a thread this process started was still writing into it");
+    assert!(the_write_found_its_fixture, "the writer wrote into a tree the removal had already taken");
+    assert!(!root.exists(), "the removal did not remove the fixture");
+}
+
 /// Fixtures are created beside the build output,
 /// never in the system temporary directory,
 /// unless the person moved the

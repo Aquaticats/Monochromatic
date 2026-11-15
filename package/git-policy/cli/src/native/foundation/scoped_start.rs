@@ -168,6 +168,10 @@ where
 ///   `std::thread::spawn` panics where `Builder::spawn` returns the refusal;
 /// the callers of this have no way to do the work in turn
 ///  and say so in a message instead.
+///  A test build counts the thread while it runs,
+/// so a fixture removal waits for every writer this process started
+///  (`testing/test_support.rs`,
+///  `remove`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -179,7 +183,15 @@ where
     T: Send + 'static,
 {
     starts()?;
-    return std::thread::Builder::new().name(String::from(name)).spawn(work);
+    #[cfg(test)]
+    let counted: started_threads::StartedThread = started_threads::begun();
+    return std::thread::Builder::new().name(String::from(name)).spawn(move || {
+        // The count ends after the job's last write, so a fixture removal that has seen it reach zero meets no writer;
+        // a start the system refuses drops the value here, so a refusal leaves no count behind.
+        #[cfg(test)]
+        let _ended = counted;
+        return work();
+    });
 }
 
 /// Whether a thread may start now:
@@ -220,6 +232,13 @@ pub fn refused_thread_sentence(what: &str, error: &std::io::Error) -> String {
          command again"
     );
 }
+
+/// The threads this process started through `spawn_named` and have not ended,
+///  which a fixture removal waits on before it removes a tree they write into;
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "scoped_start_started_threads_test_support.rs"]
+pub(crate) mod started_threads;
 
 /// Scoped start controls stay out of the release executable.
 #[cfg(test)]

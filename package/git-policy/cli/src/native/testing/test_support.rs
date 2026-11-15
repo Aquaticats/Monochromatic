@@ -354,9 +354,26 @@ pub(crate) fn age(path: &Path) {
 }
 
 /// Remove only the fixture directory a test created,
-/// giving this user back the permission on any directory of it that a test closed.
+/// giving this user back the permission on any directory of it that a test closed,
+/// and waiting for every thread this process started to end first.
 pub(crate) fn remove(root: &Path) {
     restore_owner_access(root);
+    // What: the threads this process started through `spawn_named` have ended before the tree goes.
+    // Why:  A job started that way belongs to no caller, and the service starts three of them beside a landing (the pool
+    //       fill, the repository scratch collection and the draw). The draw makes a folder under the repository's Git
+    //       directory after the call that started it returned, so a control that removed its fixture at once met
+    //       `DirectoryNotEmpty` (`Directory not empty`) with that folder left in it: 1 of 20 removals on this host on
+    //       2026-11-15, and the control that failed in the gate of 2026-11-14
+    //       (`landing::service_land::owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it`).
+    //       The wait is a control's own (it ends when the run shows nothing, `wait_until`), so it fails a removal a
+    //       writer never lets go rather than hanging the suite.
+    let writers_ended: bool = wait_until(&|| { return crate::scoped_start::started_threads::running() == 0; });
+    assert!(
+        writers_ended,
+        "the threads this process started still work in {}: a fixture is removed only once they have ended, because a job that writes into it after the removal is called leaves the directory it writes in non-empty ({} entries)",
+        root.display(),
+        crate::scoped_start::started_threads::running()
+    );
     std::fs::remove_dir_all(root).expect("remove only the fixture");
 }
 
