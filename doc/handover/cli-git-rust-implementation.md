@@ -1619,7 +1619,9 @@ what the release's steps printed and what the coordinating session queued.
   the three refused-start controls
   (`service_mode::` twice and the provisioning control,
   which this release renames).
-  The fuzz sidecar's type check was started beside it.
+  The fuzz sidecar's type check on `main` with pass 50 in
+  (at `619e92b5af`)
+  ended 06:59:52 with exit 0.
 - **Two more fresh runs** for test problems no run owned:
   - `bin/native-gate-main-tip.unit.test.ts` builds its throwaway checkout through the installed wrapper,
     so it fails with the session bus address unset and leaves units in the user's manager with it set
