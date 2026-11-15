@@ -77,9 +77,37 @@ const FLOOR_BELOW_AN_HONEST_PUSH: u64 = 512;
 /// what a hook that says nothing at all must not be cut by.
 const FLOOR_NOTHING_REACHES: u64 = 10_000_000;
 
-/// How much longer than its window and the stop grace a control lets a stop take on a loaded host,
-/// before it fails the run.
-const STOP_SLACK: Duration = Duration::from_secs(30);
+/// What:
+///  The most a stop of a push may take on a loaded host before a control fails the run:
+/// the connected window the push is stopped at,
+///  the whole bound a stop has,
+/// and what a fixture does around its push.
+/// Why:
+///   A control that waits longer than the bound the code states passes a stop that is outside that bound,
+/// and one that waits less
+///  fails a stop that is inside it:
+/// the stop of a push spent its ceiling and then a grace of its own,
+/// and this figure and
+///  `STOP_CEILING` disagreed by that grace
+/// (`/home/user/temp/agent/after-commit-work-settles-push-fail-pnpm-fail-2026-11-14/keep/report-2-push-minimum-rate.md`).
+const STOP_SLACK: Duration = Duration::from_secs(WINDOW_SECONDS)
+    .saturating_add(git_policy_cli::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING)
+    .saturating_add(FIXTURE_ALLOWANCE);
+
+/// What:
+///  What a fixture of these controls does around the push it measures,
+/// as the allowance above `STOP_SLACK` adds.
+/// Why:
+///   A fixture lands its commit,
+/// reads the notice of the stopped push,
+/// and judges what the stop left,
+/// and none of that is the stop
+///  itself.
+/// Measured on 2026-11-16 on this machine: each of these three controls ran in 14.7 to 18.6 s,
+/// with two pushes of
+///  about 7.1 s and no stop longer than a tenth of a second
+/// (`push-stop-at-a-connected-window-2026-11-16/keep/the-runs-at-the-two-trees`).
+const FIXTURE_ALLOWANCE: Duration = Duration::from_secs(5);
 
 /// The pause the fixture's service is told to wait before it tries a stopped push again:
 /// long enough that a control sees only the push it started.
@@ -737,7 +765,7 @@ fn a_server_whose_hook_never_answers_is_ended_at_the_connected_window() {
     let elapsed: Duration = began.elapsed();
     assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
     assert!(
-        elapsed < Duration::from_secs(WINDOW_SECONDS) + STOP_SLACK,
+        elapsed < STOP_SLACK,
         "the push ended at its window and not later: {elapsed:?}"
     );
     drop(relay);

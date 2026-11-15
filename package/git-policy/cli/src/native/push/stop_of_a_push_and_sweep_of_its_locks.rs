@@ -30,7 +30,7 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 /// for the task that sweeps after the child ends.
 use crate::lazy_runtime::spawn_on_runtime;
 /// When a stop that asked its tree to end may force the end.
-use crate::stop_waits_while_a_member_cannot_be_interrupted::{STOP_CEILING, escalation_waits};
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{STOP_CEILING, bound_left, escalation_waits};
 /// The processes a push started,
 /// and the calls that look at and end them.
 use crate::process_tree::{TreeMember, descendants_of, member_of, still_running};
@@ -310,6 +310,13 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 ///  wait the grace,
 ///  then kill and collect it,
 ///  and judge the reference locks it may have left.
+/// The whole stop is bounded by the ceiling of a stop,
+/// measured from the moment it asks:
+///  a wait that would start past it does not start,
+///  and what is left of it is what the kill's own wait and the tree's are given.
+/// A process the kernel does
+///  not release is handed to a task before the bound passes,
+/// so the person and the service wait the bound and no more.
 /// Why:
 ///   Git's own signal handling ends the helpers it started and removes its lock files,
 ///  and a push that ignores the request cannot outlive the kill.
@@ -317,11 +324,6 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 /// which fail every later Git command on the same refs,
 /// so once the push and
 ///  what it started are gone the locks they hold are swept.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep();
-/// ```
 pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger) {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
     let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
@@ -344,12 +346,13 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     if !ended {
         // The child is being abandoned; its exit is not reported, only the cause.
         let _killed = child.kill();
-        // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
-        //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
-        //  left to be collected by a task of its own, instead of holding the service's push for as long as the stall.
-        if grace_remains(Duration::ZERO, grace) {
+        // A killed process that sits in an uninterruptible call (a stalled disk, a file system writing back) cannot be
+        //  collected until the kernel releases it. Whatever is left of the stop's bound is what that wait gets: a stop whose
+        //  first wait spent the bound hands the child to the task that collects it instead of waiting a second time.
+        let left: Duration = bound_left(asked.elapsed());
+        if !left.is_zero() {
             // Whether it ended in time shows below: a collected child has nothing left to hand over.
-            let _ended_in_time = tokio::time::timeout(grace, child.wait()).await;
+            let _ended_in_time = tokio::time::timeout(left, child.wait()).await;
         }
     }
     // What the push started outlives it: its transport helper holds the connection and its hook may never exit
@@ -361,7 +364,8 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     kill_members(below.as_slice());
     // A child that was collected is gone; one that was not goes on to the task that waits for it.
     let remaining: Option<Child> = child.into_std_when_unreaped();
-    let _sweeper = settle_locks(remaining, tree, claimed_ledger, grace).await;
+    let left: Duration = bound_left(asked.elapsed());
+    let _sweeper = settle_locks(remaining, tree, claimed_ledger, left).await;
 }
 
 /// What:
@@ -377,6 +381,10 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
 ///  the whole tree and then sweeps.
 /// `child` is the stopped push when it was not collected,
 /// and nothing when it was.
+/// `left` is what is left of the stop's bound,
+/// and the whole of what this wait for the tree may take:
+///  a tree the stop has already spent its bound on is handed to the task at once,
+/// because the bound is what a person waits.
 /// Returns the
 ///  task,
 /// if one was started.
@@ -385,9 +393,9 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
 /// ```ts
 /// if (child === undefined && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
 /// ```
-pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<tokio::task::JoinHandle<()>> {
+pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger, left: Duration) -> Option<tokio::task::JoinHandle<()>> {
     let Some(uncollected) = child else {
-        wait_for_tree(tree.as_slice(), grace).await;
+        wait_for_tree(tree.as_slice(), left).await;
         if !tree.iter().any(still_running) {
             // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
             if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {

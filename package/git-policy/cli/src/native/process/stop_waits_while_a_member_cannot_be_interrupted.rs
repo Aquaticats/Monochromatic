@@ -38,10 +38,14 @@
 use crate::process_tree::{TreeMember, in_uninterruptible_sleep};
 use std::time::Duration;
 
-/// The longest a stop waits after its request for a member that cannot be interrupted,
-/// before it forces the end:
+/// The longest a stop of a Git the wrapper started may take in all,
+/// measured from the moment it asks the tree to end:
 /// the owner's multiple
 ///  of the longest delay measured.
+///  Every wait of a stop is taken out of this one bound,
+/// because the bound is what a person waits,
+/// and a bound that
+///  each wait reads on its own is spent as many times as the stop has waits.
 pub const STOP_CEILING: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
 
 /// What a control may change on its own thread:
@@ -80,15 +84,44 @@ impl Drop for RulesGuard {
     }
 }
 
-/// The ceiling in force:
-/// the real one,
-/// or a control's.
+/// What:
+///  The bound of one stop:
+/// the longest it may take in all,
+/// measured from the moment it asks its tree to end.
+/// Why:
+///   A stop that reads the ceiling afresh in each of its waits waits the ceiling once per wait,
+/// so the person waits more than the bound the code
+///  states.
+/// `push/stop_of_a_push_and_sweep_of_its_locks.rs` takes the remaining part of this bound before each wait it makes.
+///  The value is the real one,
+/// or a control's where a control runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// controlCeiling ?? STOP_CEILING
+/// ```
 fn ceiling_in_force() -> Duration {
     #[cfg(test)]
     if let Some(ceiling) = CONTROL_RULES.with(|slot| { return slot.borrow().as_ref().map(|rules| { return rules.ceiling; }); }) {
         return ceiling;
     }
     return STOP_CEILING;
+}
+
+/// What:
+///  The part of the stop's bound that is still left,
+/// `asked` after the stop asked its tree to end.
+/// Why:
+///   Every wait of a stop is taken out of the same bound,
+/// so a stop whose first wait spent it forces the end and hands the rest of the
+///  work to a task instead of waiting again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// remaining = max(0, stopBound() - asked.elapsed())
+/// ```
+pub(crate) fn bound_left(asked: Duration) -> Duration {
+    return ceiling_in_force().saturating_sub(asked);
 }
 
 /// Whether `member` counts as uninterruptible:
