@@ -739,6 +739,33 @@ fn a_prefix_names_the_entry_git_writes_from_the_worktree_root() {
         names.iter().all(|name| return !name.starts_with("sub/sub/")),
         "an index path was rooted twice: {names:?}"
     );
+    // What:
+    //  A prefix spelled `./out/` names the same directory Git writes into, and the listing prints `out/…`.
+    // Why:
+    //  The seventh review ran `git checkout-index -f --prefix=./out/ -a` over an untracked `out/a.txt`:
+    //  Git wrote it, and the reading named `./out/a.txt`, so the untracked file was never found
+    //  (reproduced here).
+    let mut dotted: GitFacts = facts_in(repository.as_path());
+    let spelled: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        &mut dotted,
+        &WrittenPaths::IndexUnderPrefix {
+            pathspecs: vec![OsString::from("tracked.txt")],
+            prefix: OsString::from("./out/"),
+        },
+        repository.as_path(),
+    );
+    assert_eq!(spelled, Ok(vec![b"out/tracked.txt".to_vec()]), "a `./` prefix is the listing's own path");
+    // A prefix that steps above the worktree writes no entry of it.
+    let mut outside: GitFacts = facts_in(repository.as_path());
+    let leaving: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        &mut outside,
+        &WrittenPaths::IndexUnderPrefix {
+            pathspecs: vec![OsString::from("tracked.txt")],
+            prefix: OsString::from("../outside/"),
+        },
+        repository.as_path(),
+    );
+    assert_eq!(leaving, Ok(Vec::<Vec<u8>>::new()), "a path that leaves the worktree is no entry of it");
     // The index alone, for a restore with no source: `--full-name` answers are the root's own.
     let mut plain: GitFacts = git_facts(
         Path::new(REAL_GIT),
@@ -777,6 +804,13 @@ fn a_source_with_a_trailing_separator_is_read_as_its_name() {
         (vec!["tracked.txt/"], "renamed.txt", vec!["renamed.txt"]),
         (vec!["tracked.txt//"], "renamed.txt", vec!["renamed.txt"]),
         (vec!["./tracked.txt/"], "renamed.txt", vec!["renamed.txt"]),
+        // What:
+        //  A destination spelled `./renamed.txt` is the file Git writes and the listing prints as `renamed.txt`.
+        // Why:
+        //  The seventh review ran `git mv -f a.txt ./b.txt` over an untracked `b.txt`:
+        //  Git wrote it, and the reading named `./b.txt`, which no listing prints, so the entry in the way was
+        //  never found (reproduced here).
+        (vec!["tracked.txt"], "./renamed.txt", vec!["renamed.txt"]),
         // Git refuses a source with a component below a file, and writes nothing.
         (vec!["tracked.txt/."], "renamed.txt", Vec::new()),
     ] {

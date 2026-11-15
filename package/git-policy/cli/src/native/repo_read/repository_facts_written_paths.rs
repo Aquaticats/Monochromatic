@@ -176,7 +176,10 @@ fn move_paths(
                     // Git refuses to write over a directory of that name (`Cannot overwrite`), and writes nothing.
                     Named::Directory => return Ok(Vec::<Vec<u8>>::new()),
                     Named::Missing | Named::Other => {
-                        written.push(rooted_at_the_run_directory(facts, run_in, target.as_slice())?);
+                        // A path that leaves the worktree is no entry of it, and Git refuses that destination itself.
+                        if let Some(spelled) = rooted_at_the_run_directory(facts, run_in, target.as_slice())? {
+                            written.push(spelled);
+                        }
                     }
                 }
             }
@@ -187,8 +190,8 @@ fn move_paths(
             let refused: bool = destination.as_encoded_bytes().ends_with(b"/")
                 || sources.len() > 1
                 || (matches!(reached, Named::Other) && sources_are_directories.first() == Some(&true));
-            if !refused {
-                written.push(rooted_at_the_run_directory(facts, run_in, destination.as_encoded_bytes())?);
+            if !refused && let Some(spelled) = rooted_at_the_run_directory(facts, run_in, destination.as_encoded_bytes())? {
+                written.push(spelled);
             }
         }
     }
@@ -299,30 +302,92 @@ fn source_name(source: &OsStr) -> Vec<u8> {
 }
 
 /// What:
-///  One path a form writes as the worktree root spells it:
-///  below the directory the command runs in.
-///  `&Path` borrows that directory, `&[u8]` the path the form's own words name.
+///  One path a form writes,
+///  as the worktree root and Git's own listings spell it:
+///  the run directory's own prefix followed by the path the form's words name,
+///  with no `.` or `..` component,
+///  no doubled separator and no trailing one,
+///  and nothing at all when the path leaves the worktree.
+///  `&Path` borrows the directory the command runs in, `&[u8]` the path the form's words name.
 /// Why:
-///  The entries in the way are named from the worktree root,
-///  and a form run from a directory below it names its own paths from there,
+///  The entries in the way are the ones Git's own listings print,
+///  and those are always this one spelling:
+///  `mv -f a.txt ./b.txt` and `checkout-index -f --prefix=./out/ -a` wrote over an untracked
+///  `b.txt` and `out/a.txt` while the reading named `./b.txt` and `./out/a.txt` and found nothing
+///  (the seventh review, reproduced here).
+///  A path with a `..` component above the worktree is one Git writes outside it,
+///  where this reading names no entry of the worktree.
+///  A form run from a directory below the root names its own paths from there,
 ///  which is not the caller's directory when Git runs the shell of a `!` alias at the top:
-///  a `git mv` inside an alias that stood below the top wrote a file the guard looked for
-///  one directory down.
+///  a `git mv` inside an alias that stood below the top wrote a file the guard looked for one
+///  directory down.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const rooted = (facts, runIn, 'b/a.txt') => Buffer.concat([runPrefix(facts, runIn), 'b/a.txt']);
+/// const rooted = (facts, runIn, './b.txt') => asListed(runPrefix(facts, runIn), './b.txt'); // 'b.txt'
 /// ```
-fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8]) -> Result<Vec<u8>, String> {
+fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8]) -> Result<Option<Vec<u8>>, String> {
     let location: crate::repository_location::RepositoryLocation = facts.location()?;
     let prefix: Vec<u8> = match worktree_root(&location.identity) {
         Some(root) => crate::command_run_directory::run_directory_prefix(root, run_in, location.prefix.as_slice()),
         // A repository with no worktree of its own has no directory a name is read from.
         None => location.prefix.clone(),
     };
-    let mut rooted: Vec<u8> = prefix;
-    rooted.extend_from_slice(path);
-    return Ok(rooted);
+    return Ok(as_the_worktree_listing_spells_it(prefix.as_slice(), path));
+}
+
+/// What:
+///  One path as the worktree root and Git's own listings spell it,
+///  from the prefix the form's words are read below and the path they name.
+///  `&[u8]` borrows both,
+///  `Option<Vec<u8>>` is the path or nothing when it leaves the worktree.
+/// Why:
+///  Git prints a path of the worktree one way only:
+///  relative to the worktree root,
+///  no `.` component,
+///  no `..` component,
+///  no doubled or trailing separator.
+///  The entries this reading compares with are those printed paths,
+///  so a word that names one of them in another spelling is the same entry and must be written the
+///  same way, or the comparison misses a file the command would overwrite.
+///  A leading separator is refused here:
+///  an absolute path is a different question, asked by the caller that can resolve it against the
+///  worktree root (`below_the_worktree_root` for a `--prefix`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// asTheWorktreeListingSpellsIt('sub/', '../a.txt') === undefined;
+/// asTheWorktreeListingSpellsIt('', './a//b.txt') === 'a/b.txt';
+/// ```
+pub(super) fn as_the_worktree_listing_spells_it(prefix: &[u8], path: &[u8]) -> Option<Vec<u8>> {
+    if path.starts_with(b"/") {
+        return None;
+    }
+    let mut names: Vec<&[u8]> = Vec::<&[u8]>::new();
+    for piece in [prefix, path] {
+        for component in piece.split(|byte| return *byte == b'/') {
+            match component {
+                b"" | b"." => continue,
+                // A parent component steps up one component already read, and one that steps above the worktree
+                //  names nothing the worktree holds.
+                b".." => {
+                    names.pop()?;
+                }
+                name => names.push(name),
+            }
+        }
+    }
+    if names.is_empty() {
+        return None;
+    }
+    let mut spelled: Vec<u8> = Vec::<u8>::with_capacity(names.iter().map(|name| return name.len() + 1).sum());
+    for (index, name) in names.iter().enumerate() {
+        if index > 0 {
+            spelled.push(b'/');
+        }
+        spelled.extend_from_slice(name);
+    }
+    return Some(spelled);
 }
 
 /// What:
@@ -758,7 +823,9 @@ fn listed_paths_of(
     //  worktree root, so that directory's own prefix is written before each of them.
     let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
     for path in paths.drain(..) {
-        rooted.push(rooted_at_the_run_directory(facts, run_in, path.as_slice())?);
+        if let Some(spelled) = rooted_at_the_run_directory(facts, run_in, path.as_slice())? {
+            rooted.push(spelled);
+        }
     }
     return Ok(Some(rooted));
 }
@@ -1007,7 +1074,10 @@ fn read_tree_paths(
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for revision in revisions {
         for path in tree_paths(facts, Some(revision.as_os_str()), &[], false, run_in)? {
-            paths.push(under_the_prefix(path, prefix));
+            // A path the prefix carries outside the worktree is no entry of it.
+            if let Some(shifted) = under_the_prefix(path, prefix) {
+                paths.push(shifted);
+            }
         }
     }
     return Ok(paths);
@@ -1025,13 +1095,13 @@ fn read_tree_paths(
 /// ```ts
 /// const underThePrefix = (path, prefix) => prefix ? Buffer.concat([prefix, path]) : path;
 /// ```
-fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Vec<u8> {
+fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Option<Vec<u8>> {
     let Some(named) = prefix else {
-        return path;
+        // With no prefix the tree's own path is the worktree's path, and it is still written as the listing
+        //  spells it: a tree path never holds `.` or `..`, so this is the same bytes.
+        return as_the_worktree_listing_spells_it(&[], path.as_slice());
     };
-    let mut shifted: Vec<u8> = named.as_encoded_bytes().to_vec();
-    shifted.extend(path);
-    return shifted;
+    return as_the_worktree_listing_spells_it(named.as_encoded_bytes(), path.as_slice());
 }
 
 /// What:
@@ -1087,13 +1157,13 @@ fn index_under_prefix_paths(
         joined.extend_from_slice(prefix_bytes);
         joined.extend(path);
         // An entry outside the worktree is not one it holds, so nothing there is lost.
-        match root.as_ref() {
-            Some(found) => {
-                if let Some(below) = below_the_worktree_root(found.as_path(), joined.as_slice()) {
-                    shifted.push(below);
-                }
-            }
-            None => shifted.push(joined),
+        let spelled: Option<Vec<u8>> = match root.as_ref() {
+            Some(found) => below_the_worktree_root(found.as_path(), joined.as_slice())
+                .and_then(|below| return as_the_worktree_listing_spells_it(&[], below.as_slice())),
+            None => as_the_worktree_listing_spells_it(&[], joined.as_slice()),
+        };
+        if let Some(found) = spelled {
+            shifted.push(found);
         }
     }
     return Ok(shifted);
