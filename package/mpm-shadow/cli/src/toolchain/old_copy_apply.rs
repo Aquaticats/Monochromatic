@@ -253,9 +253,11 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
 }
 
 /// What:
-/// `apply_loser`, for the tests that pin the order of the link and the copies.
+/// `apply_loser`,
+/// for the tests that pin the order of the link and the copies.
 /// Why:
-/// The step is private, and the order is the whole rule:
+/// The step is private,
+/// and the order is the whole rule:
 /// a test that cannot reach it cannot show that a link which was not settled keeps its version.
 #[cfg(test)]
 pub(crate) fn apply_loser_for_a_test(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {

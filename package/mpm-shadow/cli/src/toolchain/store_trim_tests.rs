@@ -37,7 +37,8 @@ use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
 
-/// A deadline no test reaches, for an inventory a test asks for in full.
+/// A deadline no test reaches,
+/// for an inventory a test asks for in full.
 fn far_deadline() -> Instant {
     return Instant::now() + Duration::from_secs(600);
 }
@@ -948,13 +949,18 @@ fn the_install_pass_removes_the_archives_of_a_version_that_is_gone() {
 //region what a claim under a root keeps, and what the inventory's deadline does
 
 /// What:
-/// The recovery marker stays while any claim is under the root, alive or dead,
+/// The recovery marker stays while any claim is under the root,
+/// alive or dead,
 /// and goes once the last claim is given back.
 /// Why:
 /// The review of this change ran a second sync while a live removal owned a hidden claim:
-/// the pass left the claim (its owner was alive), did not mark the root unfinished, and `settle_markers` deleted the
+/// the pass left the claim (its owner was alive),
+/// did not mark the root unfinished,
+/// and `settle_markers` deleted the
 /// marker because no tombstone was left.
-/// The owner was then killed, and every later sync that installed nothing returned early, so the version stayed hidden
+/// The owner was then killed,
+/// and every later sync that installed nothing returned early,
+/// so the version stayed hidden
 /// under its claimed name for good.
 #[test]
 fn the_recovery_marker_stays_while_a_claim_is_under_the_root() {
@@ -986,7 +992,8 @@ fn the_recovery_marker_stays_while_a_claim_is_under_the_root() {
 }
 
 /// What:
-/// An inventory whose deadline has passed is not the whole store, and it says so.
+/// An inventory whose deadline has passed is not the whole store,
+/// and it says so.
 /// Why:
 /// The review of this change found the cleanup's work limit does not bound its filesystem work:
 /// the inventory walked every version and measured every tree with no deadline,

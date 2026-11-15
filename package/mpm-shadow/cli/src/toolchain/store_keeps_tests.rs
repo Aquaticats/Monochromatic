@@ -27,7 +27,8 @@ use super::store_keeps::{InstallKeeps, tool_directory_name};
 /// The id of the tool the fixtures install.
 pub(super) const FIXTURE_ID: &str = "store-keeps-fixture";
 
-/// The store directory of that tool, which is what a lock row for it becomes.
+/// The store directory of that tool,
+/// which is what a lock row for it becomes.
 const FIXTURE_DIRECTORY: &str = "store-keeps-fixture";
 
 /// The program the fixtures install.
@@ -90,14 +91,16 @@ impl StandIn {
         return self.child.id();
     }
 
-    /// Stops the program and waits for it, so nothing of this test outlives it.
+    /// Stops the program and waits for it,
+    /// so nothing of this test outlives it.
     pub(super) fn stop(mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
 }
 
-/// Stops the program when the guard drops, for a test that ends early.
+/// Stops the program when the guard drops,
+/// for a test that ends early.
 impl Drop for StandIn {
     /// Kills and reaps the program.
     fn drop(&mut self) {
@@ -111,7 +114,8 @@ pub(super) fn version_directory(rig: &Rig, version: &str) -> PathBuf {
     return rig.scope.toolchain_root.join(FIXTURE_DIRECTORY).join(version);
 }
 
-/// Makes git list both trees, so the other tree's lock is one an install can see.
+/// Makes git list both trees,
+/// so the other tree's lock is one an install can see.
 pub(super) fn list_both_trees(rig: &Rig, other: &Path) {
     let text: String = format!("worktree {}\nHEAD 0000\n\nworktree {}\nHEAD 0000\n\n", rig.scope.root.display(), other.display());
     rig.runner.answer("git -C", &text, 0);
@@ -214,11 +218,14 @@ fn a_route_that_keeps_no_version_directory_has_no_directory_name() {
 
 /// What:
 /// A process scan that ran out of its time keeps the version:
-/// "the scan did not finish" is carried to the removal as its own answer, never as "nothing runs it".
+/// "the scan did not finish" is carried to the removal as its own answer,
+/// never as "nothing runs it".
 /// Why:
 /// The review of this change ran an install with `MPM_SHADOW_STORE_WORK_LIMIT=0` while an older version of the tool was
-/// running, and the install deleted that running version:
-/// `holders_of` answered `incomplete`, and the answer was dropped on the way to the decision.
+/// running,
+/// and the install deleted that running version:
+/// `holders_of` answered `incomplete`,
+/// and the answer was dropped on the way to the decision.
 /// The module's own rule says a process table that cannot be read keeps every version.
 #[test]
 fn a_process_scan_that_could_not_finish_keeps_the_version() {

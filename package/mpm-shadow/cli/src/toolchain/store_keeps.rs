@@ -110,7 +110,8 @@ impl InstallKeeps {
     /// Why:
     /// An install-time removal runs inside the install,
     /// so it reads the keeps itself rather than wait for the cleanup at the end:
-    /// the version has to be kept before the newer one is installed, not after.
+    /// the version has to be kept before the newer one is installed,
+    /// not after.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

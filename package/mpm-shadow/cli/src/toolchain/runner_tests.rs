@@ -143,7 +143,9 @@ fn a_program_that_outlives_its_bound_is_stopped_and_named() {
 /// the process it started does not go on writing after `run` returned a failure.
 /// Why:
 /// The review of this change ran a program whose child started a grandchild and then waited:
-/// the bound expired, `run` returned, and the grandchild wrote its marker afterwards,
+/// the bound expired,
+/// `run` returned,
+/// and the grandchild wrote its marker afterwards,
 /// beside whatever retry the caller started.
 #[test]
 fn a_stopped_programs_descendant_does_not_go_on_writing() {

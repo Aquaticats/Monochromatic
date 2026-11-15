@@ -96,21 +96,30 @@ const STOPPED_OUTPUT_GRACE: Duration = Duration::from_millis(500);
 /// a program still there after this is left to the kernel rather than waited for.
 const REAP_GRACE: Duration = Duration::from_secs(2);
 
-/// How long the process table is read for, to find what a stopped program started: 500 ms.
+/// How long the process table is read for,
+/// to find what a stopped program started:
+/// 500 ms.
 /// Why:
 /// A process that left the program's own process group is reached through its parent and by nothing else,
 /// so the tree is recorded before the group is signalled;
 /// this machine's table holds about a thousand processes and reading it costs about 0.18 s
-/// (`doc/toolchain-version-cleanup.md`), so half a second covers it with room.
-/// A tree this does not reach is not stopped, and the caller is told so.
+/// (`doc/toolchain-version-cleanup.md`),
+/// so half a second covers it with room.
+/// A tree this does not reach is not stopped,
+/// and the caller is told so.
 const DESCENDANT_SCAN_DEADLINE: Duration = Duration::from_millis(500);
 
-/// How long the runner waits for the shell that signals a stopped program's group: 2 s.
+/// How long the runner waits for the shell that signals a stopped program's group:
+/// 2 s.
 const SIGNAL_HELPER_BOUND: Duration = Duration::from_secs(2);
 
-/// How long the runner waits, after signalling, for the processes it signalled to be gone: 1 s.
+/// How long the runner waits,
+/// after signalling,
+/// for the processes it signalled to be gone:
+/// 1 s.
 /// Why:
-/// A signalled process leaves the table at once, unless it is a zombie waiting for the parent it was given,
+/// A signalled process leaves the table at once,
+/// unless it is a zombie waiting for the parent it was given,
 /// and the wait must not hold a command that has already given up.
 const STOP_SETTLE_GRACE: Duration = Duration::from_secs(1);
 
@@ -312,8 +321,10 @@ fn wait_for_exit(child: &mut std::process::Child, bound: Duration) -> Option<std
 /// The standard library can signal only a child it started itself,
 /// so the group is signalled through the shell's own `kill`,
 /// whose negative number names the group;
-/// the group's number is the leader's, because the program is started in a group of its own.
-/// A signal that cannot be sent costs the stop and not the command: the caller is told what is left running.
+/// the group's number is the leader's,
+/// because the program is started in a group of its own.
+/// A signal that cannot be sent costs the stop and not the command:
+/// the caller is told what is left running.
 #[cfg(unix)]
 fn signal_dead(leader: u32, more: &[u32]) -> bool {
     let mut line: String = format!("kill -s KILL -- -{leader}");
@@ -372,7 +383,8 @@ fn is_running(pid: u32) -> bool {
 }
 
 /// What:
-/// Every process whose parent chain leads to `root`, as the table shows it now.
+/// Every process whose parent chain leads to `root`,
+/// as the table shows it now.
 /// Why:
 /// A process that called `setsid` or `setpgid` itself is no longer in the group a stop signals,
 /// and its parent is the only thing that still names it;
@@ -409,13 +421,17 @@ fn descendants_of(root: u32, deadline: Instant) -> Vec<u32> {
 
 /// What:
 /// Stops a program whole:
-/// the program, the process group it leads, and every process it started,
+/// the program,
+/// the process group it leads,
+/// and every process it started,
 /// and answers with what is still running when that is not nothing.
 /// Why:
 /// A program the runner stops at its bound is stopped so that no part of its work goes on beside the next command;
 /// a descendant still writing into an install would meet the retry.
-/// The group is signalled, which is one step for everything still in it;
-/// the tree recorded before the signal is signalled too, for a process that left the group;
+/// The group is signalled,
+/// which is one step for everything still in it;
+/// the tree recorded before the signal is signalled too,
+/// for a process that left the group;
 /// and a process that left both (a double fork that reparented before the tree was read) is beyond reach,
 /// which is why the caller is told what is still running rather than promised silence.
 fn stop(child: &mut std::process::Child) -> Option<String> {

@@ -6,7 +6,9 @@
 //! and the removal markers a cut-short removal leaves.
 //! Why:
 //! The cleanup removes whatever this scan lists and nothing else,
-//! so a directory it must never list (a staging directory, a `current` link, a version of a tool no lock names)
+//! so a directory it must never list (a staging directory,
+//! a `current` link,
+//! a version of a tool no lock names)
 //! and one it must list (an old version nobody pins) are each a test.
 
 /// Imports `BTreeSet` from `std::collections`.
@@ -29,7 +31,8 @@ use crate::toolchain::store_versions::{
 use crate::toolchain::model::Route;
 use crate::test_scratch::scratch;
 
-/// A deadline no test reaches, for the inventory a test asks for in full.
+/// A deadline no test reaches,
+/// for the inventory a test asks for in full.
 fn far_deadline() -> std::time::Instant {
     return std::time::Instant::now() + std::time::Duration::from_secs(600);
 }
@@ -108,7 +111,8 @@ fn never_lists_a_tool_it_was_not_asked_about() {
     assert_eq!(versions_of(&root, &["node"]), vec!["node-26.12.0"]);
 }
 
-/// The listing is ordered by write time, oldest first,
+/// The listing is ordered by write time,
+/// oldest first,
 /// because the rule removes in that order.
 #[test]
 fn orders_versions_by_write_time_oldest_first() {
