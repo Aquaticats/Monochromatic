@@ -738,6 +738,17 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T01:15:56-05:00,
+  from the fresh run on mpm-shadow's removal of old versions
+  (branch tip `58db281dc5`,
+  in review),
+  not blocking work:
+  a copy of a version that no record proves whole is put back under its version's name as unfinished,
+  and a `current` link that names it is taken away,
+  since the launcher already reports a missing program there.
+  Keep taking that link away,
+  or teach the launcher to refuse an unfinished version so that the link can stay?
+
 - Added 2026-11-15T00:51:24-05:00,
   from the eighth review of the guard on discarding commands,
   not blocking work:
@@ -1435,6 +1446,65 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### mpm-shadow's removal of old versions is finished by its fresh run and goes to review; level 17 holds its first quarter of an hour (2026-11-15T01:15:56-05:00)
+
+Not final and not approved:
+what one fresh run reports,
+and what the coordinating session queued and read.
+
+- **mpm-shadow's removal of old versions**,
+  the fresh run from `e6f4a7467f`,
+  ended 01:11:20 at `58db281dc5`.
+  By the part of its report read here:
+  - a defect the earlier agent's controls hid:
+    every caller passed the removal's name where the record's name was wanted,
+    so records were written under a doubled name and never read,
+    and every removed tree went back as unfinished;
+    three controls that asserted a record's deletion passed with the deletion taken out,
+    which is how the run found it;
+  - the state model in the docs and the code disagreed at four places and were made to agree;
+  - of six red controls,
+    one was a code defect and five were fixtures,
+    each decided singly;
+  - fifteen fixes taken out one at a time,
+    each failing its control,
+    none by a sleep;
+    eight controls added;
+  - cost over five interleaved rounds of nine arms:
+    the record rule adds 5 to 7 ms,
+    inside one arm's own spread;
+    the deletion bounded by a deadline,
+    which the fifth review asked for,
+    costs about 118 ms for a version of 3,001 files over `remove_dir_all`
+    (656 ms against 527 ms);
+  - 854 tests pass,
+    Clippy exit 0;
+    `main` merged,
+    244 commits,
+    no conflict;
+  - the uncommitted test change the earlier agent left was not taken,
+    with the reason given.
+  The install's download was not exercised:
+  it says this machine's firewall refuses a built program any outside host.
+  It asks one question,
+  kept for the owner.
+  Its review is queued second
+  (`main...58db281dc5`,
+  six code files that are not tests).
+- **Level 17 so far**:
+  fourteen readings from 01:01:46 to 01:15:16,
+  one slow
+  (the home drive 29,005 ms at 01:02:46),
+  the rest 1 to 93 ms;
+  19 and then 18 agents going;
+  the snapshot cleanup still running at 01:15.
+- Read at 01:15:36:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going.
+  The queue held 77 entries at 01:15:56.
 
 ##### The home drive stalls for 109 seconds and the cap steps to 17; two commits wait on their service across the stall; the lock-holders folder goes to review (2026-11-15T01:02:30-05:00)
 
