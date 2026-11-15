@@ -71,6 +71,11 @@ mod support_observation;
 #[path = "binary_support_btrfs_controls.rs"]
 mod support_btrfs_controls;
 
+/// The clock ticks one process used, summed over every thread of it,
+/// and the two moments a listing and its reading are.
+#[path = "binary_support_process_cpu_counters.rs"]
+mod support_process_cpu_counters;
+
 /// The hang guard:
 /// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]
@@ -111,6 +116,11 @@ mod wrapper_store_guard;
 /// Where fixtures live and that they go away however their test ends.
 #[path = "binary_fixture_tests.rs"]
 mod fixture_guard;
+
+/// The reader of one process's processor time:
+/// a thread that ends between the listing and its own read is no process that ended.
+#[path = "binary_support_process_cpu_counters_tests.rs"]
+mod process_cpu_counters_guard;
 
 /// Exact forwarding of arguments,
 ///  streams,
