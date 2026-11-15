@@ -10004,7 +10004,17 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
 `src/native/lock/lock_bindings.rs`):
 
 - a watch on the Git directory and the common Git directory is opened **before** the child starts,
-  so no lock it takes is created outside it;
+  and on **every folder below them** at the depth the lock pass reads,
+  so a lock Git takes one folder down (`refs/heads/main.lock`, `refs/tags/x.lock`, the reftable's
+  table list) is reported like one at the root;
+  a folder made while the watch runs (a branch name with a slash in it, a reftable that appears) is
+  watched in its turn,
+  and a folder the count bound leaves unwatched reports nothing, so a lock there keeps the bounded
+  wait instead of a record (a review of `fee5557595`, finding 1);
+  an event that says the kernel dropped events or ended a watch (`IN_Q_OVERFLOW`,
+  `IN_IGNORED`, `IN_UNMOUNT`, `IN_MOVE_SELF`) is delivered whatever watch descriptor it carries, and
+  it makes that run's record say nothing, because an incomplete event sequence must never be read as a
+  complete one (a review of `fee5557595`, finding 2);
 - the kernel's own events are read as they arrive,
   and a lock counts only when its name still refers to the file that was created,
   when the PID file beside it was created **after** it,

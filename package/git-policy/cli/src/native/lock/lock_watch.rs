@@ -21,9 +21,19 @@
 //!  because a kill that takes the command and its Git together leaves no second chance:
 //!  a record written after the child ends would never be written for a group kill.
 //!  A queue the kernel dropped (`IN_Q_OVERFLOW`),
-//!  a watch that ended,
+//!  a watch that ended (`IN_IGNORED`),
+//!  a folder's file system that was unmounted (`IN_UNMOUNT`),
+//!  a watched folder that was moved or deleted (`IN_MOVE_SELF`),
 //!  more names than one run follows,
-//!  and a platform without a watch leave the lock to the bounded wait and report it has today.
+//!  and a platform without a watch leave the lock to the bounded wait and report it has today,
+//!  and each of them makes that run's record say nothing:
+//!  the reader delivers every event that says events were lost or a watch ended,
+//!  whatever watch descriptor it carries,
+//!  and the tracker holds the whole run unprovable from it
+//!  (`Tracker::feed`).
+//!  A folder made after the watch began is watched in its turn,
+//!  and a folder the watch's bound leaves unwatched reports nothing:
+//!  a lock taken there gets no record, and a lock with no record is kept.
 //!  What a kill at each step of a run leaves,
 //!  and who removes it:
 //!
@@ -90,6 +100,32 @@ const WAIT_STEP_WITHOUT_PIDFD: std::time::Duration = std::time::Duration::from_m
 /// The most distinct names one run follows,
 /// so a Git that writes many files cannot grow a command.
 const MOST_NAMES: usize = 1024;
+
+/// The most folders one watch opens,
+/// so a repository with a vast tree cannot exhaust the machine's inotify budget.
+/// A folder this bound leaves unwatched costs only what an unwatched folder cost before the watch
+/// learned to descend:
+/// a lock taken there gets no record, and is then cleared only by a proof that does not need one.
+const MOST_WATCHED_FOLDERS: usize = 1024;
+
+/// How deep below a root the watch descends,
+/// the depth the pass that judges locks reads to.
+const MOST_WATCH_DEPTH: usize = 8;
+
+/// What one watch asks the kernel for:
+/// the creations and removals of names in a folder,
+/// and a folder that is made into one.
+/// Why:
+///   A lock is a name created in a folder and renamed away from it,
+///  and a folder made after the watch began has to be watched in its turn,
+///  which is why the kernel's own "this is a directory" bit matters here.
+const WATCHED_EVENTS: u32 = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_ONLYDIR;
+
+/// The folders below a Git directory that hold no lock of the worktree's state,
+/// which the pass skips too:
+/// the object store, whose `*.lock` files are a pack writer's own,
+/// and the logs.
+const UNWATCHED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
 /// The most locks one run writes a record for.
 const MOST_LOCKS: usize = 32;
@@ -487,45 +523,114 @@ pub struct Watch {
     child: Option<i32>,
     /// The directory each watch descriptor is about.
     directories: Vec<(i32, PathBuf)>,
+    /// The roots the watch was opened for,
+    ///  which an event that names no folder is reported against.
+    roots: Vec<PathBuf>,
 }
 
 impl Watch {
     /// What:
-    ///  Watch `roots`,
+    ///  Watch `roots` and every folder below them,
     ///  or nothing when the platform offers no watch or refuses one.
     /// Why:
+    ///  A watch on a folder does not cover its subfolders,
+    ///  and Git takes reference locks in `refs/heads`, `refs/tags`, the reftable's folder and others:
+    ///  a merge or a rebase updates a branch through such a lock,
+    ///  so a watch of the roots alone would leave a killed Git's reference lock with no record
+    ///  (a review of `fee5557595`,
+    /// finding 1).
+    ///  So the folders of the roots are watched at the depth the lock pass reads,
+    ///  the same two skipped folders that hold no lock of the worktree's state are skipped,
+    ///  and the count is bounded.
+    ///  A folder the bound leaves unwatched costs no safety:
+    ///  a lock taken there gets no record, which is the state every lock was in before this watch
+    ///  existed.
     ///  A run that cannot watch starts its Git exactly as it did before this watch existed;
     ///  the command is never delayed or refused for it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// Watch.over([gitDir, commonDir]) // undefined when inotify is unavailable
+    /// Watch.over([gitDir, commonDir]) // the two roots and every folder below them
     /// ```
     pub fn over(roots: &[PathBuf]) -> Option<Watch> {
-        use std::os::unix::ffi::OsStrExt;
         // SAFETY: a plain system call whose only argument could not be misread; the descriptor is closed by `Drop`.
         let descriptor: i32 = unsafe { libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK) };
         if descriptor < 0 {
             return None;
         }
-        let mask: u32 = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_ONLYDIR;
-        let mut directories: Vec<(i32, PathBuf)> = Vec::new();
+        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), roots: roots.to_vec() };
         for root in roots {
-            let Ok(path) = std::ffi::CString::new(root.as_os_str().as_bytes()) else {
-                continue;
-            };
-            // SAFETY: `path` is a valid NUL-terminated name for the call.
-            let watched: i32 = unsafe { libc::inotify_add_watch(descriptor, path.as_ptr(), mask) };
-            if watched >= 0 {
-                directories.push((watched, root.clone()));
-            }
+            watch.watch_folder_and_below(root.as_path());
         }
-        if directories.is_empty() {
-            // SAFETY: the descriptor belongs to this value, which no other holder has.
-            unsafe { libc::close(descriptor) };
+        if watch.directories.is_empty() {
             return None;
         }
-        return Some(Watch { descriptor, child: None, directories });
+        return Some(watch);
+    }
+
+    /// What:
+    ///  Open a watch on `directory`,
+    ///  and on every folder below it that the bounds leave room for.
+    /// Why:
+    ///  One walk covers the folders that are there when the watch opens,
+    ///  and the events the walk's own watches report cover the folders made later.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watchFolderAndBelow(gitDir) // gitDir, refs, refs/heads, …, bounded
+    /// ```
+    fn watch_folder_and_below(&mut self, directory: &Path) {
+        let mut pending: Vec<(PathBuf, usize)> = vec![(directory.to_path_buf(), 0)];
+        while let Some((folder, depth)) = pending.pop() {
+            if self.watch_one(folder.as_path()) && depth < MOST_WATCH_DEPTH {
+                let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
+                    continue;
+                };
+                for entry in entries.flatten() {
+                    if self.directories.len() >= MOST_WATCHED_FOLDERS {
+                        return;
+                    }
+                    let Ok(kind) = entry.file_type() else {
+                        continue;
+                    };
+                    let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
+                    if kind.is_dir() && !UNWATCHED_FOLDERS.contains(&name.as_ref()) {
+                        pending.push((entry.path(), depth + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    /// What:
+    ///  Open a watch on one folder,
+    ///  and say whether it is watched now.
+    /// Why:
+    ///  A folder the bound or the platform refuses is not watched,
+    ///  and the caller then reads nothing below it;
+    ///  a folder this watch already has is not opened twice.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watchOne(folder) // true when it is watched
+    /// ```
+    fn watch_one(&mut self, folder: &Path) -> bool {
+        use std::os::unix::ffi::OsStrExt as _;
+        if self.directories.len() >= MOST_WATCHED_FOLDERS {
+            return false;
+        }
+        let Ok(path) = std::ffi::CString::new(folder.as_os_str().as_bytes()) else {
+            return false;
+        };
+        // SAFETY: `path` is a valid NUL-terminated name for the call.
+        let watched: i32 = unsafe { libc::inotify_add_watch(self.descriptor, path.as_ptr(), WATCHED_EVENTS) };
+        if watched < 0 {
+            return false;
+        }
+        if !self.directories.iter().any(|(descriptor, _)| { return *descriptor == watched; }) {
+            self.directories.push((watched, folder.to_path_buf()));
+        }
+        return true;
     }
 
     /// What:
@@ -599,10 +704,7 @@ impl Watch {
         // What: A control's made-up events are delivered first, as if the kernel had reported them before the queue.
         // Why:  A shape this machine cannot produce still has to reach the tracker in a control.
         for (watched, mask, name) in take_made_up_events() {
-            let Some(directory) = self.directories.iter().find(|(descriptor, _)| { return *descriptor == watched; }).map(|(_, root)| { return root.clone(); }) else {
-                continue;
-            };
-            events.push(Event { directory, mask, name });
+            self.deliver(watched, mask, name.as_encoded_bytes(), &mut events);
         }
         let mut buffer: [u8; 8192] = [0; 8192];
         loop {
@@ -615,18 +717,58 @@ impl Watch {
                 return events;
             }
             for (watched, mask, name) in events_in(&buffer[..count]) {
-                let found: Option<PathBuf> = self
-                    .directories
-                    .iter()
-                    .find(|(descriptor, _)| { return *descriptor == watched; })
-                    .map(|(_, root)| { return root.clone(); });
-                let Some(directory) = found else {
-                    continue;
-                };
-                use std::os::unix::ffi::OsStringExt as _;
-                events.push(Event { directory, mask, name: std::ffi::OsString::from_vec(name.to_vec()) });
+                self.deliver(watched, mask, name, &mut events);
             }
         }
+    }
+
+    /// What:
+    ///  Deliver one event of the kernel's,
+    ///  or the one a control stated,
+    ///  to `events`.
+    /// Why:
+    ///  One mapping serves the kernel's events and a control's made-up ones,
+    ///  so a shape a control states is read exactly as the kernel's would be read:
+    ///  an event that names a watched folder is about that folder,
+    ///  an event that says events were lost or a watch ended is about the whole run whatever
+    ///  descriptor it carries,
+    ///  and a folder made into a watched one is watched in its turn.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// deliver(wd, mask, name) // push an Event, or watch a new folder
+    /// ```
+    fn deliver(&mut self, watched: i32, mask: u32, name: &[u8], events: &mut Vec<Event>) {
+        use std::os::unix::ffi::OsStringExt as _;
+        let found: Option<PathBuf> = self.directories.iter().find(|(descriptor, _)| { return *descriptor == watched; }).map(|(_, root)| { return root.clone(); });
+        let Some(directory) = found else {
+                    // What: An event that names no watched folder is delivered as the whole run's event when it says the
+                    //       kernel dropped events or ended a watch: the kernel reports an overflow with a watch
+                    //       descriptor of -1 (`inotify(7)`), and the tracker must hear it.
+                    // Why:  With events lost, a replacement lock another live command took can be taken for the first
+                    //       child's and recorded under that child, and later cleared while the other command works with
+                    //       no descriptor open (a review of `fee5557595`, finding 2).
+            if mask & (libc::IN_Q_OVERFLOW | libc::IN_IGNORED | libc::IN_UNMOUNT | libc::IN_MOVE_SELF) != 0 {
+                let somewhere: PathBuf = self.roots.first().cloned().unwrap_or_default();
+                events.push(Event { directory: somewhere, mask, name: std::ffi::OsString::new() });
+            }
+            return;
+        };
+        if mask & libc::IN_ISDIR != 0 {
+                    // What: A folder was made or moved into a watched one: it is watched in its turn, and the folder
+                    //       itself is no name a lock is recorded from.
+                    // Why:  Git makes `refs/heads/feature/` for a branch whose name has a slash in it, and a reftable
+                    //       repository has no `reftable` folder until the first write; a watch that knew only the
+                    //       folders of its first look would miss the locks taken in those.
+                    //       A lock made in such a folder before this watch was opened on it is missed, and a lock with no
+                    //       record is one the pass keeps: the safe side.
+            if mask & (libc::IN_CREATE | libc::IN_MOVED_TO) != 0 {
+                let made: PathBuf = directory.join(std::ffi::OsString::from_vec(name.to_vec()));
+                self.watch_folder_and_below(made.as_path());
+            }
+            return;
+        }
+        events.push(Event { directory, mask, name: std::ffi::OsString::from_vec(name.to_vec()) });
     }
 }
 
