@@ -1504,6 +1504,73 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing's review read and did not run, so passes 29 and 34 still wait; the journal branch's answer goes to review (2026-11-15T03:01:09-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The landing that never waits** (`fc620ef950`),
+  its review,
+  ended 02:55:29,
+  34 of 34 files and the diff.
+  It says it built and ran nothing,
+  so it clears nothing,
+  and its four findings are claims:
+  two fillings of one workspace still remove each other's staging folder,
+  because the owner flag covers one file and the error arm removes the whole shared folder;
+  the slow lane's two-minute deadline drops a package tool's future and kills the group's leader alone,
+  leaving descendants beside a retry;
+  a wait for a place that times out is matched as a closed semaphore and reported as cancelled,
+  so work that never began uses up a try;
+  when no thread can be started the storage call runs on the runtime's own task,
+  where the lane's deadline cannot fire.
+  All four name lines and a sequence and are cheap to show or refute at the code's seams,
+  so the author is resumed:
+  a control for each claim first
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-review-of-2026-11-15-prompt.md`,
+  queued third,
+  its second run).
+  Integration passes 29 and 34 go on waiting,
+  and with them the next reading of the commit-time lines.
+  The answer is reviewed again,
+  and that review must run.
+- **A service a test starts writes no line into the machine's user journal**,
+  its author's third run,
+  ended 02:57:06 at `2d001c892e`.
+  The four findings answered:
+  a service's entry goes through the service's own sink and the sender refuses inside the service;
+  a root's words are kept until its fixture is made fresh;
+  the early-exit panic quotes the service's log;
+  the guard's reader finds a start by its chain
+  (31 counted entries holding 54 starts).
+  Each control quoted failing with its fix out.
+  Its own window in the journal:
+  no line says a service started.
+  Clippy 0;
+  the changed binary modules 252 of 255,
+  the three failures those already red on `main`.
+  It says one control the review suggested does not ship,
+  because two drives of it never reached the state,
+  and says what stands in its place.
+  It noticed 2,459 runtime folders
+  (528 KiB)
+  that test runs of every session leave in the shared scratch;
+  no run owns that yet.
+  Its review is queued fourth
+  (`main...2d001c892e`,
+  eight code files that are not tests).
+- Read at 03:00:02:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 02:52;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The resumed session is not named by the credential scan.
+  The queue held 81 entries at 03:01:09.
+
 ##### The driver's empty last answer and the review brief's template go back to their authors; a review that read fewer than all its files is taken as not covering (2026-11-15T02:53:28-05:00)
 
 Not final and not approved:
