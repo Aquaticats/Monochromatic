@@ -1640,6 +1640,71 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit that does not wait behind the service's writes: its review finds the slow work arrived on the runtime's only worker, and a withdrawal one service cannot see; the author goes back (2026-11-15T12:51:15-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The commit that does not wait behind the service's writes** (`c024c12583`),
+  its second review,
+  ended 12:43:18,
+  of the whole range against `main`:
+  11 of 11 files and the whole diff,
+  three things,
+  two reproduced by building the branch in a disposable copy and running a control,
+  one by reading.
+  - A second live service of one journal answers `Withdrawn` for a request the first is landing,
+    because the decision that a service holds a request moved from a file in the journal into that service's memory
+    (reproduced).
+  - The wait for the restored journal now stands on the runtime's only worker,
+    so a client that connects meanwhile gets no greeting
+    (reproduced);
+    with the 60-second ceiling that outlasts the client's five seconds of silence
+    (by reading).
+  - The write of the watch note stands on the same worker with no bound
+    (by reading).
+- **Read on `main`**:
+  `service_server.rs` calls `restored_within` at line 350 and `started_watch.remember` at line 356,
+  on the serving thread by the review's account;
+  the branch moved them into a task of the runtime.
+  All three are the branch's own.
+- **The records that bear on it**
+  (searched in `doc/decision/` and `doc/planning/` before the brief was written):
+  `doc/planning/git-policy-cli-full-tokio.md`,
+  lines 885 to 897
+  (blocking calls run on the blocking pool,
+  "never on a worker",
+  bounded by a watcher);
+  `doc/planning/cli-git-resident-service.md`,
+  lines 348 to 357 and 718 to 724
+  (production runs one service per journal;
+  a development run and the binary controls give several services one journal,
+  which the journal is built to carry).
+- **Weighed**:
+  all three go back.
+  Two are one thing,
+  no call that can block stands on a runtime worker,
+  asked for as one door and a source guard;
+  for the first the author chooses between a decision every service of the journal can read
+  (an exclusive create,
+  no lock)
+  and an answer that is true when a service cannot know,
+  and shows the cost against last round's measurement.
+  Its third run is queued seventh.
+  The release that was to carry this branch's faster start waits on it
+  (the slow start of `0.6.1-alpha.41`).
+- Read at 12:49:56:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:42;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The driver's launcher that ends with its run: eight reproduced findings, three its own and five the queue's, which a second branch also carries; each goes to one run (2026-11-15T12:44:42-05:00)
 
 Not final and not approved:
