@@ -250,8 +250,9 @@ pub fn roots_of_command(command: &Command) -> Vec<PathBuf> {
     };
     // Only what the command sets: a removal carries no value and names nothing.
     let mut environment: Vec<(OsString, OsString)> = Vec::new();
-    for (name, value) in command.get_envs() {
-        let Some(value) = value else {
+    for (name, set_to) in command.get_envs() {
+        // A removal of a variable carries no value and names nothing.
+        let Some(value) = set_to else {
             continue;
         };
         environment.push((name.to_os_string(), value.to_os_string()));
