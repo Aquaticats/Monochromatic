@@ -436,3 +436,35 @@ fn the_leaving_a_found_leftover_earns_names_the_place_and_says_it_was_found() {
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume");
     remove(place.root.as_path());
 }
+
+/// What:
+///  A plain directory at a leaving name is never queued for a delete and is named once,
+///  because a rename of this program moves a subvolume and nothing else.
+/// Why:
+///  A person's own directory can carry the name,
+///  and a delete that acted on a name would take its files
+/// (`the_subvolume_of_the_open_entry` asks the descriptor what it is).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('scan-plain-directory');
+/// mkdir(`${place.place}/cli-git-deleting-${nameOfTheId(0)}`); write('kept.txt', b'a person's bytes\n');
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(false); expect(answer.said.length).toBe(1);
+/// ```
+#[test]
+fn a_plain_directory_at_a_leaving_name_is_left_as_it_is_and_named_once() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-plain-directory") else { return };
+    let plain: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(0)));
+    std::fs::create_dir(plain.as_path()).expect("a person's directory at a leaving name");
+    let kept: PathBuf = plain.join("kept.txt");
+    std::fs::write(kept.as_path(), b"a person's bytes\n").expect("a file of the person's");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!answer.queued, "a plain directory is no leaving of this program's");
+    assert_eq!(answer.said.len(), 1, "the person reads one line about it: {:?}", answer.said);
+    assert!(answer.said[0].contains(plain.display().to_string().as_str()), "the line names the directory: {}", answer.said[0]);
+    assert_eq!(std::fs::read(kept.as_path()).expect("the person's file is still there"), b"a person's bytes\n", "and its content is untouched");
+    let again: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(again.said.is_empty(), "the same line is not said again: {:?}", again.said);
+    remove(place.root.as_path());
+}
