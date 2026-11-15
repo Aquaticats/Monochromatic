@@ -837,12 +837,12 @@ fn the_guards_read_rust_s_tokens_and_judge_a_setter_by_what_it_is_given() {
     assert_eq!(lines_holding(after_raw, INHERITED_STREAMS).len(), 1, "a raw string's `//` hides nothing after it");
     // A setter split over lines is one chain, and a stream given is no isolation.
     let split: &str = "fn f() { let mut c = Command::new(SERVICE_PROGRAM);\n    c.args(SERVICE_WORDS)\n        .stderr(Stdio::inherit())\n        .spawn();\n}\n";
-    let names: starts_reader::Names = starts_reader::read_names(&[String::from(split)]);
-    let found: Vec<Start> = starts_reader::starts_following(split, &names);
-    assert_eq!(found.len(), 1, "the split chain is one start: {found:?}");
-    assert_eq!(found[0].standard_error, StandardError::Inherited, "a setter given the parent's stream is no isolation: {found:?}");
+    let split_names: starts_reader::Names = starts_reader::read_names(&[String::from(split)]);
+    let split_starts: Vec<Start> = starts_reader::starts_following(split, &split_names);
+    assert_eq!(split_starts.len(), 1, "the split chain is one start: {split_starts:?}");
+    assert_eq!(split_starts[0].standard_error, StandardError::Inherited, "a setter given the parent's stream is no isolation: {split_starts:?}");
     // A setter given a stream of the fixture's own is isolation, and the same line with it is no finding.
     let configured: &str = "fn f() { let mut c = Command::new(\"x\"); c.arg(\"https://example.invalid\").stderr(Stdio::null()).spawn(); }\n";
-    let names: starts_reader::Names = starts_reader::read_names(&[String::from(configured)]);
-    assert_eq!(starts_reader::starts_following(configured, &names)[0].standard_error, StandardError::Given);
+    let configured_names: starts_reader::Names = starts_reader::read_names(&[String::from(configured)]);
+    assert_eq!(starts_reader::starts_following(configured, &configured_names)[0].standard_error, StandardError::Given);
 }

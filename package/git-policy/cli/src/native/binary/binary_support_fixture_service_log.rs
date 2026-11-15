@@ -536,9 +536,9 @@ pub fn service_log(root: &Path) -> String {
     let kept_bytes: Vec<u8> = if in_memory.is_empty() { bytes_of_the_file(root) } else { in_memory };
     let said: String = String::from_utf8_lossy(kept_bytes.as_slice()).into_owned();
     let opening: String = match (failure, unfinished) {
-        (Some(reason), Some(unfinished)) => format!("the fixture's service log file holds nothing ({reason}), and {unfinished}; what its services said is kept here ({} bytes kept)", kept_bytes.len()),
+        (Some(reason), Some(copy)) => format!("the fixture's service log file holds nothing ({reason}), and {copy}; what its services said is kept here ({} bytes kept)", kept_bytes.len()),
         (Some(reason), None) => format!("the fixture's service log file holds nothing ({reason}); what its services said is kept here ({} bytes kept)", kept_bytes.len()),
-        (None, Some(unfinished)) => format!("{unfinished}; what its services said so far is here ({} bytes kept)", kept_bytes.len()),
+        (None, Some(copy)) => format!("{copy}; what its services said so far is here ({} bytes kept)", kept_bytes.len()),
         (None, None) => format!("the service logged ({} bytes kept)", kept_bytes.len()),
     };
     return format!("{opening}:\n{}", quoted(said.as_str()));

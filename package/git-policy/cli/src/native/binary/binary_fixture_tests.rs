@@ -6,7 +6,7 @@ use super::support::{
     FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, NOBODY_JOURNAL_ADDRESS, QUOTED_MARK, SERVICE_LOG_END_BOUND, SERVICE_LOG_FILE, ServiceLaunch, fixture, kept_stderr_pipe,
     log_file_failure_note,
     missing_fixture_root_report, give_service_environment, names_the_stream, remove, remove_patiently, repository, service_command, service_log, service_runtime, service_is_serving,
-    CopySeam, hold_the_copy, quoted, settle_fixture, spawn_owned, start_fixture_service, wait_for_the_copies,
+    CopySeam, hold_the_copy, quoted, settle_fixture, settle_the_service_log, spawn_owned, start_fixture_service, wait_for_the_copies,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -799,5 +799,62 @@ fn a_read_that_races_the_copy_waits_for_it_and_says_the_bound() {
     let kept: String = service_log(created.root.as_path());
     assert!(kept.contains("the-seam-said-why"), "the service's words are kept once the copy ended: {kept}");
     drop(services);
+    remove(&created);
+}
+
+/// What:
+///  A control that fails on purpose,
+///  so a run whose own output is this machine's journal can show what a failing control's quotation looks like there.
+/// Why:
+///   The edge this support keeps is that a failure quotes its fixture's service words,
+/// and that quotation must be tellable from a line a service wrote.
+///  It is `#[ignore]`,
+/// so a suite run never reddens on it;
+/// a run that wants to see the quotation asks for it by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(() => deliberateFailure()).toThrow(/\[fixture service log\] /)
+/// ```
+#[test]
+#[ignore = "fails on purpose: it prints a fixture's service words as a quotation, and is run by name to see that in the journal"]
+fn a_deliberate_failure_quotes_a_fixture_s_service_words() {
+    let created: Fixture = fixture("service-log-deliberate-failure");
+    let root: PathBuf = created.root.clone();
+    let (writer, when_the_copy_ends) = kept_stderr_pipe(root.as_path()).expect("a pipe for a service's words");
+    let mut file = std::fs::File::from(writer);
+    std::io::Write::write_all(&mut file, b"the-deliberate-failure-line\n").expect("the words enter the pipe");
+    drop(file);
+    let mut copies: Vec<std::sync::mpsc::Receiver<()>> = vec![when_the_copy_ends];
+    let _settled: bool = wait_for_the_copies(&mut copies, root.as_path(), SERVICE_LOG_END_BOUND);
+    panic!(
+        "a control that fails on purpose; what its fixture's service said was:\n{}",
+        quoted(service_log(root.as_path()).as_str())
+    );
+}
+
+/// What:
+///  The fixture's own wait answers for a service the control keeps on the fixture:
+///  it ends the services, waits for the copies of their streams, and says they ended.
+/// Why:
+///   A control that keeps its service on the fixture,
+/// as `binary_long_runtime_directory_tests` does,
+/// reads the log through the free `settle_the_service_log`,
+/// and that is the same wait the fixture's own failure uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fixture.service = startFixtureService(fixture); serve(); stopAll(); expect(settleTheServiceLog(fixture, 10_000)).toBe(true)
+/// ```
+#[test]
+fn the_fixture_s_own_wait_answers_for_a_service_kept_on_the_fixture() {
+    let created: Fixture = fixture("service-log-fixture-settles");
+    let git_dir: PathBuf = created.root.join("repo/.git");
+    std::fs::create_dir_all(&git_dir).expect("a Git directory to serve");
+    let services: FixtureService = start_fixture_service(&created);
+    services.serve(&created, git_dir.as_path());
+    services.stop_all();
+    *created.service.lock().expect("the fixture's service lock") = Some(services);
+    assert!(settle_the_service_log(&created, SERVICE_LOG_END_BOUND), "the copies of the services this fixture started ended within their bound");
     remove(&created);
 }
