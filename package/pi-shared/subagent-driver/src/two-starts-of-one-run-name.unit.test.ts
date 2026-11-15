@@ -278,7 +278,7 @@ async function fixtureIn(folder: string, withARealRepository: boolean,): Promise
   await writeProgram({
     folder: fixture.launcherBin,
     name: 'mise',
-    body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${fixture.sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 0\n`,
+    body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${fixture.sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nrmdir '${folder}/unit-names/'"$unit" 2>/dev/null || true\nexit 0\n`,
   },);
   // The manager the launcher asks about a unit's state, and about the units of a run's name. It holds no unit, because a unit of a
   // real name cannot be made from a test without a manager; the unit stand-in below is what holds a name to one start.
@@ -292,7 +292,7 @@ async function fixtureIn(folder: string, withARealRepository: boolean,): Promise
   await writeProgram({
     folder: fixture.launcherBin,
     name: 'systemd-run',
-    body: `for word in "$@"; do\n  case "$word" in\n    --unit=*) unit="\${word#--unit=}" ;;\n    --run-folder=*) runFolder="\${word#--run-folder=}" ;;\n    --working-folder=*) workingFolder="\${word#--working-folder=}" ;;\n  esac\ndone\nprintf '%s\\t%s\\t%s\\n' "$PI_START_ID" "$unit" "$runFolder" >> '${fixture.units}'\nmkdir -p '${folder}/unit-names'\nif ! mkdir '${folder}/unit-names/'"$unit" 2>/dev/null; then\n  printf 'Unit %s was already loaded or has a fragment file.\\n' "$unit" >&2\n  exit 1\nfi\nbranch=$(git -C "$workingFolder" branch --show-current 2>/dev/null || true)\nstatus=$(git -C "$workingFolder" status --porcelain 2>/dev/null || true)\nprintf '%s\\n' '{"endReason":"pi-exited","startId":"'"$PI_START_ID"'","branch":"'"$branch"'","statusLines":"'"$(printf '%s' "$status" | tr '\\n' ';')"'"}' > "$runFolder/${SUMMARY_FILE_NAME}"\nexit 0\n`,
+    body: `for word in "$@"; do\n  case "$word" in\n    --unit=*) unit="\${word#--unit=}" ;;\n    --run-folder=*) runFolder="\${word#--run-folder=}" ;;\n    --working-folder=*) workingFolder="\${word#--working-folder=}" ;;\n  esac\ndone\nprintf '%s\\t%s\\t%s\\n' "$PI_START_ID" "$unit" "$runFolder" >> '${fixture.units}'\nmkdir -p '${folder}/unit-names'\nif ! mkdir '${folder}/unit-names/'"$unit" 2>/dev/null; then\n  printf 'Unit %s was already loaded or has a fragment file.\\n' "$unit" >&2\n  exit 1\nfi\nwaited=0\nwhile [ "$(wc -l < '${fixture.units}')" -lt 2 ] && [ "$waited" -lt 100 ]; do\n  sleep 0.02\n  waited=$((waited + 1))\ndone\nbranch=$(git -C "$workingFolder" branch --show-current 2>/dev/null || true)\nstatus=$(git -C "$workingFolder" status --porcelain 2>/dev/null || true)\nprintf '%s\\n' '{"endReason":"pi-exited","startId":"'"$PI_START_ID"'","branch":"'"$branch"'","statusLines":"'"$(printf '%s' "$status" | tr '\\n' ';')"'"}' > "$runFolder/${SUMMARY_FILE_NAME}"\nexit 0\n`,
   },);
   // The session's own git, which answers the policy namespace help as the wrapper does.
   await writeProgram({
