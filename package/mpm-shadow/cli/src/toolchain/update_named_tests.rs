@@ -373,5 +373,5 @@ fn the_fixture_registry_urls_are_the_ones_the_resolvers_ask_for() {
     serve_registries(&http, "10.5.0", "4.156.0", "0.9.0", "2026-10-30");
     run_update(&scope, &env, &FakeRunner::new(), &http, &linux(), false).expect("updated");
     let requests = http.requests();
-    assert!(requests.contains(&NPM_URL.to_string()) && requests.contains(&CRATES_URL.to_string()), "{requests:?}");
+    assert!(requests.iter().any(|url| return url == NPM_URL) && requests.iter().any(|url| return url == CRATES_URL), "{requests:?}");
 }

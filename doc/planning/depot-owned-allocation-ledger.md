@@ -56,7 +56,7 @@ Unknowns remain null.
 
 ## Retained source and follow-ons
 
-The [source archive](../audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz)
+The source archive (`../audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz`)
 contains original UTF8 input bodies,
 owned metadata,
 immutable workflow bytes,
@@ -68,6 +68,8 @@ Functional coverage remains qualified by each owning receipt.
 Actions API `head_sha` stays distinct from actual checkout identity.
 Six retained PR consumer observations supply actual merge SHAs and corresponding immutable workflow lookups;
 other unobserved GitHub checkout SHAs remain null.
+`depot-owned-allocation-ledger-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The coordinator will append its coherent graph `39135886118` after measurement.
 Later coverage/platform follow-ons require separate measured appends.

@@ -151,9 +151,7 @@ fn a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step() {
     use crate::cargo_run::{CargoRunner, RealCargo};
     // The scope route is the one where the launcher starts the program from its own process; on the process-group route a directly
     // spawned child inherits the descriptor, and starting by descriptor would also pass, so this test needs the scope.
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
     let chosen: PathBuf = directory.path().join("cargo");
     fs::copy("/usr/bin/echo", &chosen).expect("a compiled stand-in for the real cargo");

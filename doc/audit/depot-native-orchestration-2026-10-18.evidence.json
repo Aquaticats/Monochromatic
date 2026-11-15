@@ -2987,7 +2987,19 @@
     "path": "depot-native-orchestration-2026-10-18.archives.json.gz",
     "bytes": 16062,
     "sha256": "afab7c02d27a17c0e8ac5466fa10a6a12a270a15e77148a3bc7a1e066f99eca4",
-    "originalZipCount": 15
+    "originalZipCount": 15,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show afd2f8efac0b53e563aeb19e5de31b81877f435b:doc/audit/depot-native-orchestration-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "fullRerunAdmission": {
     "run": "w9jdpj5f1l",

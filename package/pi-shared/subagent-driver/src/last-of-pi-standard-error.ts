@@ -77,6 +77,9 @@ export type PiStandardErrorTail = {
 
  @param bytes - how many bytes of its end to read
 
+ @param fromBytes - where the part wanted begins, so a run whose Pi was started more than once reads the lines of the start it is
+ asking about rather than the ones before them
+
  @returns its text, or empty text when the file is not there
 
  @throws Error when the file is there and cannot be read for another reason, which would hide what it holds
@@ -89,9 +92,11 @@ export type PiStandardErrorTail = {
 async function endOfFile({
   file,
   bytes,
+  fromBytes = 0,
 }: {
   readonly file: string;
   readonly bytes: number;
+  readonly fromBytes?: number;
 }): Promise<string> {
   try {
     /**
@@ -107,11 +112,14 @@ async function endOfFile({
      */
     const { size, } = await handle.stat();
     /**
-     Where reading starts, which is the whole file when it is shorter than the tail.
+     Where reading starts: the whole file when it is shorter than the tail, and never before what the caller asked for.
      */
-    const from = Math.max(
-      0,
-      size - bytes,
+    const from = Math.min(
+      size,
+      Math.max(
+        fromBytes,
+        size - bytes,
+      ),
     );
     /**
      The bytes of the end, in a buffer of their own.
@@ -136,9 +144,42 @@ async function endOfFile({
 }
 
 /**
+ How large the file Pi's standard error is kept in is now, which is where the lines of a later start begin.
+
+ @param file - the file Pi's standard error was kept in
+
+ @returns its size in bytes, and zero when there is no such file
+
+ @throws Error when the file is there and cannot be read for another reason, which would hide what it holds
+
+ @example
+ ```ts
+ const before = await bytesInPiStandardError({ file: '/runs/a-1/stderr.log', });
+ ```
+ */
+export async function bytesInPiStandardError({ file, }: { readonly file: string },): Promise<number> {
+  try {
+    /**
+     What the file system says about the file.
+     */
+    const { size, } = await stat(file,);
+    return size;
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
+      throw error;
+    }
+    return 0;
+  }
+}
+
+/**
  Reads the last lines of Pi's standard error, and the reason among them.
 
  @param file - the file Pi's standard error was kept in
+
+ @param fromBytes - where the lines wanted begin, which a run whose Pi was started more than once sets to where the last start's
+ output began
 
  @returns the last lines, and why Pi would not go on
 
@@ -147,13 +188,20 @@ async function endOfFile({
  const { lines, reason } = await lastOfPiStandardError({ file: '/runs/a-1/stderr.log', });
  ```
  */
-export async function lastOfPiStandardError({ file, }: { readonly file: string },): Promise<PiStandardErrorTail> {
+export async function lastOfPiStandardError({
+  file,
+  fromBytes = 0,
+}: {
+  readonly file: string;
+  readonly fromBytes?: number;
+},): Promise<PiStandardErrorTail> {
   /**
    The end of the file, of which only the last lines are wanted.
    */
   const text = await endOfFile({
     file,
     bytes: PI_STANDARD_ERROR_TAIL_BYTES,
+    fromBytes,
   },);
   /**
    The lines it holds, without the empty ones a file ends with.

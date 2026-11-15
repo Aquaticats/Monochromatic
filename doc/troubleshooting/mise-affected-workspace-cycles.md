@@ -104,7 +104,7 @@ It does not claim that the synthetic cycle is an application build-order require
 The installed-version observation is also reproduced with actual Mise `2026.10.9`,
 the locked version used by the frozen CI research.
 The [locked-version receipt](../audit/depot-mise-locked-affected-2026-10-18.evidence.json)
-and [retained sources](../audit/depot-mise-locked-affected-2026-10-18.sources.json.gz)
+and retained sources (`../audit/depot-mise-locked-affected-2026-10-18.sources.json.gz`)
 preserve the exact arguments,
 stdout,
 stderr,
@@ -115,6 +115,8 @@ The official `v2026.10.9` Linux x64 executable has SHA-256
 `6ab6646b52b83f6bbd51c9d0d3ae54264ffa90efd1ac6d7c0ec5a86bbc6a0030`.
 It reports `2026.10.9 linux-x64 (2026-10-13)`.
 No shared tool installation or global upgrade was performed.
+`depot-mise-locked-affected-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The source checkout is `jdx/mise` commit `ac91d06fa6100935b7a07b08bebf03dd6dd9a0dd`.
 It was read from the trusted research directory without entering,

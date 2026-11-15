@@ -53,8 +53,11 @@ value options,
 every wrapper control and hatch,
 and near-misses of their spellings,
 a `<command> <valueless options> -- <tokens>` list whose `--` is certainly Git's separator,
-and the same tokens behind a first byte that selects a linked worktree or no repository
-and the answers to the repository questions.
+and the same tokens behind the first `MODE_BYTES` bytes,
+little endian,
+which choose a linked worktree or no repository
+and the eleven other answers to the repository questions,
+one bit each.
 Removal must leave its input unchanged and be repeatable,
 delete only whole tokens that spell a control or the commit hatch,
 record exactly the effects the deleted tokens asked for,
@@ -70,6 +73,14 @@ or a `git add` in a worktree while that policy is on
 so that policy cannot read them).
 A worktree creation or possible alias run from a linked worktree is forwarded:
 the executable settles the worktree copy around it.
+An abort or skip form is judged by the operation its own word ends:
+the fixed answers say whether that operation waits,
+and whether the person's own work or an ignored or untracked file the restored tree tracks stands where its reset
+writes,
+so every answer its guard can give is reached.
+A write of the settings every worktree shares is refused in a linked worktree,
+naming the main checkout the fixed location puts beside it,
+and left to Git where no other checkout shares them.
 The dry-run options are restated from Git's documentation instead of read from the subject's tables.
 
 ### `batch_reply`
@@ -468,6 +479,28 @@ So a stale lock and a subject change that moved a public type
 both fail CI before a campaign would have hit them;
 the failure was measured in `doc/planning/catching-a-stale-fuzz-sidecar-lockfile.md`,
 and the local path stays the root `lint` and this package's `lint`.
+
+## Seeds, the dictionary and the corpus
+
+A seed is an input the fuzzer starts from,
+and each one spends its first `MODE_BYTES` bytes on the repository answers of the frontier view
+and the rest on the argument list that view reads.
+`src/seeds.rs` holds every seed as the answers it asks for and the arguments it spells,
+and `Seed::bytes` writes the answers little endian in the width of `Mode` and separates the arguments with NUL,
+so a seed's bytes are decided in one place
+and a wider mode re-encodes every seed instead of leaving a byte count to a person.
+`mise run //package/git-policy/cli.fuzz:seed:write` writes `seed/wrapper_controls/` from that table
+and prints what each seed asks for and spells.
+`controls::tests::every_seed_spells_its_scenario` reads the files back,
+fails while one disagrees with its entry,
+and prints, with `--nocapture`, what every seed spells in both frontier views:
+the raw bytes as arguments,
+and the bytes as the tokens the generator maps them to.
+
+`dictionary/controls.dict` holds the spellings the raw-bytes view is mutated towards,
+so a command word or a wrapper control is reachable without the generator's byte table,
+and `seed/wrapper_controls/` holds one named scenario per file,
+which is why a seed's name is the scenario it must spell.
 
 ## Campaigns
 

@@ -5,7 +5,10 @@
  @module
  */
 
-import { stdout, } from 'node:process';
+import {
+  exit,
+  stdout,
+} from 'node:process';
 import {
   FEED_PREVIEW_CHARACTERS,
   type PiRecord,
@@ -50,6 +53,21 @@ export const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests
  (`docs/settings.md`). A scenario writes them so the driver meets what a real Pi's retry leaves behind.
  */
 export const PI_AUTOMATIC_RETRIES = 3;
+
+/**
+ The error Pi printed when an extension could not be loaded, word for word as `stderr.log` held it in the runs of 2026-11-11
+ (`pi-runs/qwen-review-tests-that-fail-only-on-this-host-review-findings-1/stderr.log`). A stand-in that will not start writes it
+ before it exits, so the tests read the shape a real failing start leaves.
+ */
+export const START_FAILURE_TEXT: string = 'Error: Failed to load extension '
+  + '"/stand-in/package/pi-plugin/agent-settled-notification/dist/final/node/index.mjs": '
+  + "Failed to load extension: Cannot find module '@monochromatic-dev/async-time-core/ts'";
+
+/**
+ The advice line Pi prints after that error. It is never the reason a run did not start, so a summary that presented it as one
+ would send a reader to the wrong place.
+ */
+export const START_FAILURE_ADVICE = 'Hint: Start without extensions using "pi -ne".';
 
 /**
  The text the standard-error scenario writes, so a test can see the copy reach its file.
@@ -167,6 +185,36 @@ export function assistantFailure(error: string,): PiRecord {
       },
     },
   };
+}
+
+/**
+ Answers a command and ends the stand-in once the answer has left, so a test reads a Pi that took the prompt and then exited rather
+ than one that died while its answer was being written.
+
+ @param id - command's identifier
+
+ @param status - status to exit with
+
+ @example
+ ```ts
+ answerAndExit({ id: 'c1', status: 3, },);
+ ```
+ */
+export function answerAndExit({
+  id,
+  status,
+}: {
+  readonly id: unknown;
+  readonly status: number
+},): void {
+  answer({ id, },);
+  // The callback runs once every write before it has left, which a process that exited at once could cut short.
+  stdout.write(
+    '',
+    function leaveAfterTheAnswer() {
+      exit(status,);
+    },
+  );
 }
 
 /**

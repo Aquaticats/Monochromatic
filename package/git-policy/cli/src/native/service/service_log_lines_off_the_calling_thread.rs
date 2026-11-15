@@ -74,6 +74,13 @@ struct Queue {
 }
 
 /// The one queue of this process and the condition its thread waits on.
+/// Lock kept:
+///  the lines waiting for the service's own log stream, and how many found no room,
+///  because a caller hands a line and goes on while one thread takes lines and waits on the stream,
+///  so the hand and the take are the two ends of one queue and neither may see the other's half.
+///  Under it one line is pushed or popped and the writer is handed out or given back;
+///  the write itself, which may wait for the reader as long as the reader takes, runs outside it,
+///  and no Git process, no file and no other lock runs under it.
 static QUEUE: OnceLock<&'static (Mutex<Queue>, Condvar)> = OnceLock::new();
 
 /// The queue,

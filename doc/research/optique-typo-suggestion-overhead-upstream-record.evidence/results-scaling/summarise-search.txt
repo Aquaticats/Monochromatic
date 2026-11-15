@@ -1,0 +1,4 @@
+one search (50 names x 20 chars): 0.0607 ms = 3.04 ns per edit-distance cell
+margin against the note's "less than 1ms": 16.47x
+one failing parse with a mistyped option: 3.359 ms (=55.3 searches), succeeding parse: 0.0104 ms
+1000-path parse on 0.7.0: probes=50000, accepted=1000, wall=8695.9 ms

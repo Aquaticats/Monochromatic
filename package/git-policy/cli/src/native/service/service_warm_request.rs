@@ -43,9 +43,10 @@
 //! if (serviceRunsWithin(WARM_SCAN_CEILING, instanceOf(gitDir))) { connectWithinFor(Bind.Path(socketFor(runtime, gitDir)), WARM_REQUEST_CONNECT_CEILING).write(encode({ type: 'warm', gitDir, repository })); }
 //! ```
 
+use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
 use crate::service_client_connect_within_a_bound::connect_within_for;
 use crate::service_route::non_empty_path_variable;
-use crate::service_instance::{instance_of, socket_for};
+use crate::service_instance::instance_of;
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
 use crate::service_server::Bind;
@@ -197,15 +198,18 @@ pub mod the_controls_window;
 /// ```
 pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
     let Some(runtime) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
-    let socket: PathBuf = socket_for(runtime.as_path(), git_dir);
-    if !socket.exists() || !service_process_runs(instance_of(git_dir).as_str(), Path::new("/proc")) {
+    let instance: String = instance_of(git_dir);
+    // What the service listens at: a socket file, or an abstract name where the runtime directory's path leaves no room for one
+    // (`service_address_of_a_worktree.rs`).
+    let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
+    if !the_address_is_there(&address) || !service_process_runs(instance.as_str(), Path::new("/proc")) {
         return false;
     }
-    return ask_the_service_at(socket.as_path(), git_dir, repository);
+    return ask_the_service_at(&address, git_dir, repository);
 }
 
 /// What:
-///  Writes the one warm line into the service at `socket`,
+///  Writes the one warm line into the service at `address`,
 ///  and says whether it was written.
 /// Why:
 ///   A connect waits in the kernel while the listening socket's queue of unaccepted connections is full,
@@ -222,10 +226,10 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// askTheServiceAt(socket, gitDir, repository) // boolean
+/// askTheServiceAt(address, gitDir, repository) // boolean
 /// ```
-fn ask_the_service_at(socket: &Path, git_dir: &Path, repository: &Path) -> bool {
-    let Ok(mut connection) = connect_within_for(&Bind::Path(socket.to_path_buf()), WARM_REQUEST_CONNECT_CEILING) else { return false };
+fn ask_the_service_at(address: &Bind, git_dir: &Path, repository: &Path) -> bool {
+    let Ok(mut connection) = connect_within_for(address, WARM_REQUEST_CONNECT_CEILING) else { return false };
     let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();

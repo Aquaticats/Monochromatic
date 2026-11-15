@@ -14,7 +14,7 @@
 //! const reader = await reachCurrent(config, notices, announced, trace, serviceSeen);
 //! ```
 
-use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
+use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
 use crate::commit_timing::ReachTrace;
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
 use crate::service_protocol::{
@@ -73,8 +73,9 @@ pub(crate) fn reach(
     let mut connected: bool = false;
     loop {
         trace.tries += 1;
-        match connect(&config.address) {
-            Ok(stream) => {
+        // The account-aware call of this file's own name for its wait loop: nothing else asks who took the connection.
+        match crate::service_client_listen_and_ask_to_retire::reach(&config.address) {
+            Reached::Ours(stream) => {
                 connected = true;
                 let patience: Duration = match (&config.start_watch, service_seen) {
                     (_, true) => config.heartbeat_silence,
@@ -101,7 +102,12 @@ pub(crate) fn reach(
                     }
                 }
             }
-            Err(_) => match config.activation {
+            // What: A connection another account's process took ends the wait at once.
+            // Why:  A service is this account's own, and an address no directory protects (an abstract name,
+            //       `service_address_of_a_worktree.rs`) is held to the kernel's word about who took the connection. Waiting
+            //       out the start would send this commit's request to that process or tell the person nothing.
+            Reached::OtherAccount => return Err(ClientFailure::OtherAccount),
+            Reached::Nothing => match config.activation {
                 Activation::Unsupported(platform) => return Err(ClientFailure::NoActivation(platform)),
                 Activation::Managed => {
                     trace.refused += 1;

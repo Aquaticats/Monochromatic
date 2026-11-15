@@ -6,18 +6,54 @@
   "candidateArchive": {
     "path": "doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
     "bytes": 3341685,
-    "sha256": "11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204"
+    "sha256": "11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "runtimeReceipts": [
     {
       "path": "doc/audit/depot-material-owner-primary-2026-10-18.evidence.json",
       "bytes": 321053,
-      "sha256": "52bd4b8d38d2bf7c2703cac88e890402d20237cdd37a3e1683d3135c0b1d4839"
+      "sha256": "52bd4b8d38d2bf7c2703cac88e890402d20237cdd37a3e1683d3135c0b1d4839",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 321481,
+          "sha256": "63809ce63dd059525e49042397a5b38f15971df61730a26ce7e4afd2d754afb6",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-gnu-design-terminal-2026-10-18.evidence.json",
       "bytes": 507896,
-      "sha256": "4b1c3a252e80b7593f2a1b6c9792a1ee91fa1f6613f69a5e3638cd3b9f63c774"
+      "sha256": "4b1c3a252e80b7593f2a1b6c9792a1ee91fa1f6613f69a5e3638cd3b9f63c774",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 508321,
+          "sha256": "ba6a90786cd914fb086579280838b358e49f438ac9aee6a0f0e2d6fa0fbc4e46",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     }
   ],
   "frozenPathVerification": {

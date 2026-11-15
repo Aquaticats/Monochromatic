@@ -104,7 +104,7 @@ retained OCI graphs support offline image inspection.
 Build the job-container image with the exercised Git and runtime packages through the existing image owner.
 The derived image provides Git `2.39.5` and the measured `libatomic1` package.
 The exact tested recipes are retained in the
-[BuildKit source archive](../audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz):
+BuildKit source archive (`../audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz`):
 select `.sources[]` by commit and its `.files[]` by path,
 then read `.body`.
 The first Git-capable recipe is commit `0b471538cd549cb2181088803c1e0a6d542d791e`,
@@ -115,6 +115,9 @@ path `ci-node26-context/Dockerfile`,
 SHA256 `f282c0f6bb0ae4c13f80a715ecdfa6526b0f22da68f05562b431c46c4a0191d3`.
 Its existing Bake target is `ci-node26`.
 The measured package-install delta executes inside that derived image's Node build layer:
+`depot-buildkit-platform-campaign-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+Its cited records are in `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ```javascript
 // .depot/probe/platform-buildkit/ci-node26-context/Dockerfile, Node RUN program excerpt

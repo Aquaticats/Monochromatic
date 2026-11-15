@@ -56,6 +56,117 @@ pub(crate) fn connect(address: &Bind) -> std::io::Result<UnixStream> {
     return connect_within(address);
 }
 
+/// What:
+///  Opens a client's connection to the service at `address`,
+///  and says what the process on the other end is.
+/// Why:
+///  This is the one place a client asks who took its connection,
+/// so the question is asked once,
+///  and the package's own controls reach a fixture's service through the same code the wrapper uses (rule `XPT`).
+/// The connect itself is bounded (`connect`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reached = reach(address); // { kind: 'ours', stream } | { kind: 'nothing' } | { kind: 'other-account' }
+/// ```
+pub fn reach(address: &Bind) -> Reached {
+    return match connect(address) {
+        Ok(accepted) if connection_is_this_account(&accepted) => Reached::Ours(accepted),
+        Ok(_another_account) => Reached::OtherAccount,
+        Err(_nothing) => Reached::Nothing,
+    };
+}
+
+/// What a connection to a service's address came to.
+pub enum Reached {
+    /// A process of this account accepted it.
+    Ours(UnixStream),
+    /// Nothing listens at the address.
+    Nothing,
+    /// A process of another account took it,
+    /// which no service of this command can be.
+    OtherAccount,
+}
+
+/// What:
+///  Whether the process on the other end of a connection is this account's.
+/// Why:
+///   A socket file is protected by the directory it stands in,
+/// whose mode keeps another account out,
+/// and an abstract name has no file and no permission bits
+/// (`service_address_of_a_worktree.rs`).
+/// What both ends read instead is the kernel's own word about the other
+/// (`SO_PEERCRED`):
+/// a connection taken by another account is no service of this command,
+/// and one whose peer cannot be read is not proven to be one.
+/// The service asks the same question of every client before it reads a byte
+///  (`service_server_connection_handling.rs`).
+/// On a system with no abstract namespace every address is a socket file in a directory only this account may enter,
+///  so the directory's own mode is the protection and there is nothing more to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// connectionIsThisAccount(stream) // getsockopt(SO_PEERCRED).uid === process.geteuid()
+/// ```
+#[cfg(target_os = "linux")]
+pub(crate) fn connection_is_this_account(stream: &UnixStream) -> bool {
+    return a_connection_of_the_account(the_users_id_on_the_other_end(stream), own_users_id());
+}
+
+/// The user id of this process.
+#[cfg(target_os = "linux")]
+fn own_users_id() -> u32 {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    return unsafe { libc::geteuid() };
+}
+
+/// What:
+///  The user id the kernel reports for the process on the other end of a connection,
+///  or nothing when the kernel would not say.
+/// Why:
+///   `SO_PEERCRED` is the kernel's own answer about the peer,
+/// which a process cannot claim otherwise,
+///  and it is the fact that stands in for the directory's mode on an address that has none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const uid = getsockopt(stream, SOL_SOCKET, SO_PEERCRED).uid; // undefined when the call fails
+/// ```
+#[cfg(target_os = "linux")]
+fn the_users_id_on_the_other_end(stream: &UnixStream) -> Option<u32> {
+    use std::os::fd::AsRawFd;
+    let mut credentials: libc::ucred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut length: libc::socklen_t = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    // SAFETY: the descriptor is the live connection this call holds, `credentials` is a `ucred` of the size it is given, and
+    //  `length` is written with the bytes the kernel filled in, which is at most that size.
+    let read: libc::c_int = unsafe { libc::getsockopt(stream.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, std::ptr::from_mut(&mut credentials).cast(), &mut length) };
+    if read != 0 {
+        return None;
+    }
+    return Some(credentials.uid);
+}
+
+/// What:
+///  Whether the user id the kernel reported is the one this process runs as.
+/// Why:
+///   A connection another account's process took is no service of this command,
+/// and a connection the kernel would not speak about is not proven to be one,
+///  so both answer no.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aConnectionOfTheAccount(1001, 1000) // false
+/// ```
+fn a_connection_of_the_account(their_user: Option<u32>, our_user: u32) -> bool {
+    return their_user == Some(our_user);
+}
+
+/// `connection_is_this_account` where the account is the directory's to keep out,
+/// so there is no second question to ask.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn connection_is_this_account(_stream: &UnixStream) -> bool {
+    return true;}
+
 pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
     return match listen(reader) {
         Heard::Message(message) => Some(message),
@@ -307,7 +418,7 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 }
 
 /// What:
-///  Asks the service listening at `socket` to finish its batch and exit,
+///  Asks the service at `address` to finish its batch and exit,
 /// when one answers;
 /// nothing else is waited for.
 /// Why:
@@ -317,18 +428,23 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 ///  protocol version it announced,
 /// so that a batch it is landing is finished;
 /// the manager then stops its units.
-/// A socket
-///  nobody listens on,
+/// An address
+///  nobody listens at,
 /// or a service that does not greet,
 /// is no one to ask.
+/// The address is the one the service holds, and a service holds either a socket file or an abstract name
+/// (`service_address_of_a_worktree.rs`):
+/// it took a path here once,
+/// and under an abstract name the ask was delivered to a file that cannot exist,
+/// so the unload never retired the service and spent its whole wait on a batch that was not landing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await askToRetire(socket)
+/// await askToRetire(address) // { path } or { abstractName }
 /// ```
-pub fn ask_to_retire(socket: &std::path::Path) {
+pub fn ask_to_retire(address: &Bind) {
     // A connect that waits in the kernel for a queue nothing empties is no one to ask, and the wait has an end.
-    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(&Bind::Path(socket.to_path_buf())) else { return };
+    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(address) else { return };
     let _timeout = stream.set_read_timeout(Some(START_WAIT));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream);
     let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader) else { return };
@@ -338,7 +454,7 @@ pub fn ask_to_retire(socket: &std::path::Path) {
     let _sent = write_within(reader.get_ref(), retire.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
 }
 
-/// Controls of the two bounds of one exchange stay out of the release executable.
+/// Controls of the bounds of one exchange and of the account on the other end stay out of the release executable.
 #[cfg(test)]
 #[path = "service_client_listen_and_ask_to_retire_tests.rs"]
 mod tests;

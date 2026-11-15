@@ -17,6 +17,9 @@ import { pipeline, } from 'node:stream/promises';
 
  @param onProblem - where to report a failure
 
+ @param append - whether the copy is added to what the file holds, which a run whose Pi is started again needs so no start's
+ lines replace another's
+
  @example
  ```ts
  const kept = keepStandardError({ source: child.stderr, file: 'stderr.log', onProblem: report, },);
@@ -27,16 +30,21 @@ export async function keepStandardError(
     source,
     file,
     onProblem,
+    append = false,
   }: {
     readonly source: Readable;
     readonly file: string;
     readonly onProblem: (problem: string,) => void;
+    readonly append?: boolean;
   },
 ): Promise<void> {
   try {
     await pipeline(
       source,
-      createWriteStream(file,),
+      createWriteStream(
+        file,
+        { flags: append ? 'a' : 'w', },
+      ),
     );
   }
   catch (error) {
