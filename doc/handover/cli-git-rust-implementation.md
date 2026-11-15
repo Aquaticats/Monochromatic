@@ -1641,6 +1641,181 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The backlog of the two hours, routed: ten reviews read, eight authors sent back, sixteen answers queued for review or held for the pass, and what waits on what (2026-11-15T16:28:15-05:00)
+
+Not final and not approved:
+what ten reviews and sixteen authors report,
+how the coordinating session weighed each,
+what it queued,
+and what it deferred with the reason.
+
+###### The ten reviews
+
+- **The landing that never waits** (`dbee36149c`),
+  47 of 47 files,
+  the executable built,
+  the three controls run,
+  and the fourth claim driven through a real client and service behind a proxy that drops answers:
+  that drive passed
+  (exit 0 with the commit).
+  Three things:
+  a landed commit exits 1 when seventeen more land before it gives up,
+  because the look for what landed reads the newest sixteen finished records
+  (reproduced;
+  the constant stands in `main` too,
+  at `service_commit_looking_for_what_landed.rs:57`,
+  which is read and not run there);
+  a refused signal to a descendant is thrown away and the step says "was ended"
+  (by reading);
+  a helper that detached itself is outside the drop's reach while the doc says otherwise
+  (by reading).
+  Author's sixth run queued second.
+  **Passes 29 and 34 go on waiting.**
+- **The landed removal** (`d351b65746`),
+  22 of 22 files,
+  built and probed:
+  nothing against the round's subject;
+  one thing in the reading of the command line,
+  reproduced with a control beside it:
+  `git worktree remove <path> --no-force`,
+  an option after the operand,
+  is taken for no removal and forwarded,
+  and a hidden edit is deleted.
+  `main` has no such typed reading at all
+  (no `RemovalShape::NotARemoval` in its `worktree/`).
+  Author's seventeenth run queued fourth.
+- **The lock-holders folder** (`551084db3c`),
+  17 files read,
+  built,
+  three things reproduced:
+  a record path that cannot be used fails a good commit before Git starts;
+  a link at `.git/worktrees` lets a wrapped `git status` delete a file outside the repository;
+  `--git-dir` naming an ordinary folder lets the same command delete a file there.
+  `main`'s `git_directory_roots.rs` has no `read_dir`,
+  which is all that was looked at;
+  the author is asked to run the three scripts against `main`.
+  Author's seventh run queued third.
+- **The three gate controls** (`8182b750e7`),
+  3 of 3 files,
+  five things,
+  all in the two readers of test support
+  (a named pipe in the queue waits for good;
+  a fill that settles during the scan is reported as nowhere;
+  an older record of the same path decides;
+  the per-thread CPU sum can go down;
+  a zombie counts as alive).
+  Test code:
+  **cleared for the next pass at `8182b750e7`**;
+  author's third run queued for the five.
+- **The stop of a stopped push** (`944eacedc7`),
+  9 of 9 files,
+  one blocker,
+  reproduced:
+  the warning moved out of the stop is said by each caller afterwards through the same blocking write,
+  so the caller waits for good instead.
+  That is the wider subject another run owns
+  (a write to a pipe its caller does not drain);
+  a note with the review's place went to that run's inbox,
+  and **this branch waits for that run's door** and gets no run of its own until then.
+- **The checkout migration** (`cd7206407c`),
+  14 of 14 files,
+  four things,
+  three reproduced as tests:
+  a destination written in place during the copy is overwritten
+  (identity is device and inode alone);
+  a source path replaced during the copy is deleted with the old tree;
+  a second run does not read the list of entries left out and deletes the only copy;
+  and the stated window between comparison and rename.
+  Author's third run queued fifth.
+- **The commit service the wrapper starts itself** (`567ae37198`),
+  61 files read where the queue line counted 78,
+  and **nothing built or run**:
+  it clears nothing.
+  Five claims by reading
+  (a sweep of a stopped worktree deleting a new service's journal;
+  two writers of the real-Git record leaving a mixed path;
+  the manager fallback killing another command's service;
+  a number reused between the identity check and `kill`;
+  a two-second hand-over bound applied after the ten-second start).
+  **Deferred, and why**:
+  the author's twelfth run is going;
+  the five go to it as claims,
+  a control first for each,
+  when that run has ended,
+  with the seventeen files the review's list left out named.
+- **The review brief's coverage** (`22f715b325`),
+  21 of 21 files,
+  four things reproduced,
+  each a way the command says "covered" or exits 0 with a change unreviewed
+  (the merge log asked of the moving name;
+  an existing folder answered as nothing to review;
+  a path with a line break dropped;
+  completion lines quoted in a code fence taken for the review's own).
+  Author's sixth run queued.
+- **mpm-shadow's install that removes no version** (`acc855a2f3`),
+  27 of 27 files,
+  built,
+  four things reproduced
+  (recovery deletes before it honours a lock it could not read;
+  recovery follows a link at a tool's folder out of the store;
+  the recovery marker's write empties a file through a link;
+  a stale claim's clearing unlinks a live one).
+  Author's sixth run queued.
+- **mpm-shadow's removal of old versions** (`eb8eb4f3c0`),
+  15 files,
+  four things,
+  three reproduced
+  (a Cargo package id with `..` deletes outside the store;
+  a current lock that went leaves a loaded pin unprotected;
+  output cut at the ceiling returned as success;
+  and `current` repointed between the last look and the deletion,
+  by reading).
+  Author's fifth run queued.
+
+###### The sixteen authors
+
+- Thirteen answers have their review queued at the tip Git names now:
+  the drawn shadow tree `7cf716d791`
+  (the fix for the commit with the empty tree;
+  first after the pass's repair),
+  the masking `feb531cd46`,
+  the push of a branch that is not checked out `7aef6368e7`,
+  the commit behind the service's writes `4aaaa51c56`,
+  the killed-Git lock `412fb03192`,
+  the discarding guard `f2b308d075`,
+  the add that never skips `e0064f633d`,
+  the renamed subvolume `2e6fe78702`,
+  the brief writer for tests `58c53b167b`
+  (it built "one folder, one maker, no takeover"),
+  the brief writer for every kind `0b12de46fc`,
+  the silent tool command `79ef7325d6`,
+  the empty last answer `d525bcf531`,
+  and mpm-shadow's stale launchers `0b83194a4a`.
+- **Deferred until pass 54 is in `main`, and why**:
+  four branches the pass carries have follow-up commits of doc sentences or test code after the tip it merged
+  (the Git-version author `b8ad219841`,
+  the file holder `12942c99dd`,
+  the long runtime directory `ac8e10f27a`,
+  the address-space controls `aee5c756a2`).
+  Against `main` today each range is the whole branch;
+  once the pass is merged each is its follow-up alone,
+  and their reviews are queued then.
+- **Deferred to the discarding guard's author after its review**:
+  the owner's answer on the folder of saved copies
+  (a trigger for the sweep),
+  as a thing of its own.
+- **Pass 55**,
+  queued when pass 54 is merged:
+  the shared wait of the binary controls at `e12b36fd81`
+  (the owner's "Merge now, fix after")
+  and the three gate controls at `8182b750e7`.
+  Both change the binary suite's own support,
+  so the whole binary suite decides.
+- Read at 16:28:
+  the review of pass 54's repair is going
+  (its folder holds `logs/`);
+  the queue holds 78 entries.
+
 ##### Two hours with a question open: the owner's two answers, pass 54 reported fit and its repair in review, a run ended inside a named pipe, and another run's edits found in the main checkout (2026-11-15T16:22:30-05:00)
 
 Not final and not approved:
