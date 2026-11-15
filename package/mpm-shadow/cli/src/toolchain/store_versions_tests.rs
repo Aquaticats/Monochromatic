@@ -114,7 +114,7 @@ fn never_lists_a_tool_it_was_not_asked_about() {
     assert_eq!(versions_of(&root, &["node"]), vec!["node-26.12.0"]);
 }
 
-/// The listing is ordered by write time, oldest first,
+/// The listing is ordered by the newest write inside each tree, oldest first,
 /// because the rule removes in that order.
 #[test]
 fn orders_versions_by_write_time_oldest_first() {
@@ -122,7 +122,9 @@ fn orders_versions_by_write_time_oldest_first() {
     let root: PathBuf = directory.path().join("toolchain");
     let recent: PathBuf = make_version(&root, "node", "26.13.1", 10);
     let old: PathBuf = make_version(&root, "node", "26.12.0", 10);
+    written_ago(&recent.join("program"), 60);
     written_ago(&recent, 60);
+    written_ago(&old.join("program"), 60 * 60 * 24);
     written_ago(&old, 60 * 60 * 24);
 
     assert_eq!(versions_of(&root, &["node"]), vec!["node-26.12.0", "node-26.13.1"]);
