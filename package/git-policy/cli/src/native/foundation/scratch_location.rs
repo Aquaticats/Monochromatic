@@ -355,6 +355,28 @@ pub fn prepare_commit_scratch(
 pub const THE_TREES_A_COMMAND_MAKES_AT_MOST: usize = 3;
 
 /// What:
+///  The path the next attempt of one command may build in,
+///  emptied for it.
+/// Why:
+///  A rebuild needs the first attempt's shadow and conclusion copies gone before it writes into those names,
+///  and a removal of them that has not finished keeps its thread and its claim
+///  (`scratch_entry_removal.rs`,
+///  `remove_within`;
+///  `tree_held_by_a_live_process.rs`).
+///  The pre-fix behaviour, moved here so a control can reach it: the removal is asked for,
+///  its answer is not read,
+///  and the path is handed back while a removal of it may still be running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = thePathTheNextAttemptMayUse(tree, ceiling); // the pre-fix behaviour: the removal is not waited for
+/// ```
+pub fn the_path_the_next_attempt_may_use(tree: PathBuf, ceiling: Duration) -> PathBuf {
+    let _gone: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(tree.as_path(), ceiling);
+    return tree;
+}
+
+/// What:
 ///  Makes one commit scratch tree and answers where it is.
 /// Why:
 ///   It is the making on its own,

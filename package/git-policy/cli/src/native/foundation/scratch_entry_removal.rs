@@ -181,6 +181,11 @@ pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     // What the thread ended with; a thread that outlives the ceiling sends into a channel nobody reads, which is no error.
     let (ended, waited) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let started = std::thread::Builder::new().name(String::from("scratch-removal")).spawn(move || {
+        // What: A control may hold this thread before it deletes anything (`scratch_entry_removal_control_test_support.rs`).
+        // Why:  What happens to a tree after its caller stopped waiting has to be observed from one known instant.
+        //       Nothing arms this seam in a run.
+        #[cfg(test)]
+        test_hold::wait_before_the_deletion();
         // The place belongs to the removal's own work, so a removal its caller stopped waiting for keeps it until that work ends.
         let outcome: std::io::Result<()> = remove_entry(&target);
         // It goes back before the answer is sent, so a caller told a removal finished finds its place free: a sweep that
@@ -221,6 +226,11 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
     };
     return if metadata.is_dir() { remove_tree(path) } else { std::fs::remove_file(path) };
 }
+
+/// The instant before a removal's thread deletes, for the control that holds it there.
+#[cfg(test)]
+#[path = "scratch_entry_removal_control_test_support.rs"]
+pub(crate) mod test_hold;
 
 /// The removal is controlled in the test module.
 #[cfg(test)]

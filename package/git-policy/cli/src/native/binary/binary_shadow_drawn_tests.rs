@@ -1115,3 +1115,110 @@ fn no_instant_of_a_build_hands_back_a_commit_the_command_did_not_ask_for() {
         }
     }
 }
+
+/// What:
+///  A reftable shadow that loses one table its `tables.list` names is not a whole store, and the commit is built again.
+/// Why:
+///  A removal killed between entries leaves `tables.list` naming a table that is gone,
+///  and Git's ref transaction then fails with `fatal: reftable: transaction prepare: file does not exist`
+///  (measured with Git 2.56.0, the eighth review's script).
+///  The question "is this shadow whole" is asked of the store as Git reads it, so a store with a table missing is one the
+///  commit is built in again rather than one it fails in (`shadow_create.rs`, `the_shadow_holds_what_a_build_needs`).
+#[test]
+fn a_reftable_shadow_that_loses_one_table_is_built_again() {
+    let mut case: Case = case("reftable-loses-one-table");
+    let reftable: PathBuf = case.fixture.root.join("reftable-one-table");
+    std::fs::create_dir(reftable.as_path()).expect("the repository directory");
+    git(&case.fixture, reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(&case.fixture, reftable.as_path(), &["config", "commit.verbose", "false"]);
+    git(&case.fixture, reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    std::fs::write(reftable.join("a.txt"), b"one\n").expect("a");
+    git(&case.fixture, reftable.as_path(), &["add", "--", "a.txt"]);
+    let base: String = super::commit::git_text(&case.fixture, reftable.as_path(), &["rev-parse", "HEAD"]);
+    case.service.serve(&case.fixture, reftable.join(".git").as_path());
+    case.repo = reftable;
+    // The build that answers the loss reaches the pause again, and this control holds only the first attempt.
+    arm_the_later_arrivals(case.markers.as_path(), "shadow-built");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=two", "--", "a.txt"]);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its reftable shadow is built");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let tables: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("shadow").join("reftable");
+    let list: PathBuf = tables.join("tables.list");
+    let named: Vec<String> = std::fs::read_to_string(list.as_path())
+        .expect("the shadow's table list")
+        .lines()
+        .map(str::trim)
+        .filter(|line| { return !line.is_empty(); })
+        .map(String::from)
+        .collect();
+    assert!(!named.is_empty(), "the shadow's table list names a table before the loss: {named:?}");
+    std::fs::remove_file(tables.join(named[0].as_str())).expect("one table it names goes, and the list stays");
+    assert!(list.is_file(), "the list itself is still there, as a removal killed between entries leaves it");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit must land in another tree: {words}");
+    let landed: Vec<String> = super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+        .lines()
+        .map(str::trim)
+        .filter(|line| { return !line.is_empty(); })
+        .map(String::from)
+        .collect();
+    assert_eq!(landed, vec![String::from("a.txt")], "and lands the commit that was asked for");
+    assert_ne!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch moved");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A `--fixup=amend:` commit whose private index goes before Git reads it is still the commit that was asked for.
+/// Why:
+///  An ordinary `--fixup=amend:<commit>` carries the staged tree: measured with Git 2.56.0, its tree is the index's tree
+///  and only its message is prefixed (the eighth review's script).
+///  So the commit must be held against the kept index's tree like every other form that carries it;
+///  with the private index gone, Git builds the empty tree and exits 0, and a form that asked for no tree of its own
+///  would land it.
+#[test]
+fn a_fixup_amend_whose_private_index_goes_is_still_the_commit_that_was_asked_for() {
+    let case: Case = case("fixup-amend-index-goes");
+    std::fs::write(case.repo.join("a.txt"), b"base\nstaged\n").expect("the staged edit");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt"]);
+    let base: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]);
+    arm_the_later_arrivals(case.markers.as_path(), "shadow-built");
+    // The form is reachable with a pathspec: the pathless one is refused by the wrapper's own commit-only policy, which
+    //  tells the person that a pathless `--only` commit would leave the staged changes staged (measured, 2026-11-15).
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--fixup=amend:HEAD", "--", "a.txt"]);
+    command.env("GIT_EDITOR", "true");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its shadow is built");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let index: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path()).join("commit.index");
+    assert!(index.is_file(), "the private index is there before the loss");
+    std::fs::remove_file(index.as_path()).expect("the private index goes");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "the commit must land, in another tree if its own went: {words}");
+    let landed: Vec<String> = super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+        .lines()
+        .map(str::trim)
+        .filter(|line| { return !line.is_empty(); })
+        .map(String::from)
+        .collect();
+    assert_eq!(landed, vec![String::from("a.txt")], "the landed commit carries the files the person kept");
+    let staged: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]);
+    assert_eq!(staged, "base\nstaged\n", "and the staged edit among them");
+    let parents: Vec<String> = head_and_its_parents(&case);
+    assert_eq!(parents, vec![base], "and the captured base is its only parent");
+    remove_settled(&case.fixture);
+}

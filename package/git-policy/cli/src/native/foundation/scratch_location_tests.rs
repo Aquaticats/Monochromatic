@@ -907,3 +907,38 @@ fn a_tree_a_sweep_is_taking_is_never_handed_out_for_use() {
     drop(claim);
     remove(root.as_path());
 }
+
+/// What:
+///  A path a removal has not finished emptying is never handed to the next attempt.
+/// Why:
+///  `remove_within` stops waiting at its ceiling while its thread goes on deleting,
+///  so a retry that was given the same path would write into a tree the old removal is still emptying:
+///  its shadow, or its conclusion copies, would go under its build and the commit would fail for the wrapper's own cleanup
+///  (`landing/service_native.rs`,
+///  `build_with_git`;
+///  the eighth review's fourth finding).
+#[test]
+fn a_path_whose_removal_has_not_finished_is_never_handed_to_the_next_attempt() {
+    let root: PathBuf = fixture("scratch-path-of-the-next-attempt");
+    let tree: PathBuf = root.join("shadow");
+    std::fs::create_dir_all(tree.as_path()).expect("the first attempt's tree");
+    std::fs::write(tree.join("HEAD"), b"the first attempt's ref store").expect("a file of the first attempt");
+    // The removal's thread waits before it deletes until this control releases it.
+    let release: std::sync::mpsc::Sender<()> = crate::scratch_entry_removal::test_hold::hold_the_next_removal_for_a_control();
+    let freed: PathBuf = the_path_the_next_attempt_may_use(tree.clone(), SCRATCH_REMOVAL_CEILING);
+    // The next attempt writes into the path it was given, as the build does.
+    std::fs::create_dir_all(freed.as_path()).expect("the next attempt's tree");
+    std::fs::write(freed.join("HEAD"), b"the next attempt's ref store").expect("its own file");
+    drop(release);
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < std::time::Duration::from_millis(300) {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(freed.join("HEAD").is_file(), "the next attempt's tree is still there once the old removal has ended");
+    assert_eq!(
+        std::fs::read(freed.join("HEAD")).expect("its bytes are its own"),
+        b"the next attempt's ref store",
+        "and it holds what the next attempt wrote"
+    );
+    remove(root.as_path());
+}

@@ -374,3 +374,28 @@ fn a_stock_that_is_already_held_leaves_the_pool_alone() {
     assert!([first.as_path(), second.as_path()].iter().any(|path| { return path.exists(); }), "the member the draw left is a pool member");
     remove(root.as_path());
 }
+
+/// What:
+///  A stocked tree whose absence cannot be asked about is kept, and the landing thread is not held by the question.
+/// Why:
+///  The stock's cleanup runs on the landing thread after the batch's work and before its outcomes go out,
+///  and a `symlink_metadata` on a mount that stopped answering never returns:
+///  the batch's answer and every landing behind it would wait with it
+///  (`doc/planning/cli-git-no-unbounded-waits.md`).
+///  The question goes through `work_awaited_within_a_ceiling.rs`,
+///  and a tree nobody could ask about is kept rather than counted gone.
+#[test]
+fn a_stocked_tree_whose_absence_cannot_be_asked_is_kept() {
+    let root: PathBuf = fixture("shadow-draw-stock-unaskable");
+    let stocked: PathBuf = a_tree(root.as_path(), "a-stocked-tree");
+    let drawn = DrawnShadows::none_yet();
+    drawn.note_ready(stocked.clone());
+    // The tree goes while the stock holds it, and the question about it can no longer be put.
+    remove(stocked.as_path());
+    let refused: crate::work_awaited_within_a_ceiling::ThreadsRefusedForTheControl = crate::work_awaited_within_a_ceiling::a_control_refuses_every_thread();
+    let dropped: usize = drawn.drop_what_is_gone();
+    drop(refused);
+    assert_eq!(dropped, 0, "a tree whose absence could not be asked is kept, and the landing thread was not held by the question");
+    assert_eq!(drawn.ready(), 1, "and the stock still counts it");
+    remove(root.as_path());
+}

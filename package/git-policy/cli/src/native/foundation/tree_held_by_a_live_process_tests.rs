@@ -67,3 +67,66 @@ fn a_claim_one_descriptor_holds_is_given_to_no_second() {
     drop(first);
     remove(root.as_path());
 }
+
+/// What:
+///  A tree whose removal has not finished is still the removal's, and no maker may claim it.
+/// Why:
+///  `remove_within` stops waiting at its ceiling while its thread goes on deleting the tree,
+///  so a claim released at the ceiling would let a commit build in a tree that is being emptied under it
+///  (`remove_as_a_sweep`, `scratch_entry_removal.rs`).
+///  The claim lives as long as the thread that deletes, not as long as the wait for it.
+#[test]
+fn a_tree_whose_removal_has_not_finished_is_still_claimed() {
+    let root: PathBuf = fixture("tree-claim-unfinished-removal");
+    let tree: PathBuf = root.join("a-tree");
+    std::fs::create_dir(tree.as_path()).expect("a tree");
+    std::fs::write(tree.join("refs"), b"a file of the tree").expect("a file in the tree");
+    // The removal's thread waits before it deletes until this control releases it.
+    let release: std::sync::mpsc::Sender<()> = crate::scratch_entry_removal::test_hold::hold_the_next_removal_for_a_control();
+    let swept: SweptRemoval = remove_as_a_sweep(tree.as_path(), |path: &Path| {
+        return crate::scratch_entry_removal::remove_within(path, std::time::Duration::from_micros(1));
+    });
+    assert!(
+        matches!(swept, SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Unfinished)),
+        "the removal is still going when its ceiling passes: {swept:?}"
+    );
+    // The claim went with the removal, not with the wait for it.
+    let offered: Result<ClaimOnAMadeTree, TreeIsGoing> = claim_a_made_tree(tree.clone());
+    assert!(offered.is_err(), "a tree a removal has not finished is no maker's: {}", offered.is_ok());
+    drop(release);
+    // Once the removal ends the path is nobody's: it is gone, so no maker can build in it either.
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let answer: Result<ClaimOnAMadeTree, TreeIsGoing> = claim_a_made_tree(tree.clone());
+        if !matches!(answer, Ok(ClaimOnAMadeTree::Claimed(_))) {
+            break;
+        }
+        assert!(began.elapsed() < std::time::Duration::from_secs(30), "the removal ends and the path is nobody's");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The claim is asked on a thread with a ceiling, so a file system that never answers cannot hold the caller.
+/// Why:
+///  `open` and `flock` of a tree are synchronous kernel calls,
+///  and a directory on a mount whose server stopped answering never returns them;
+///  `O_NONBLOCK` and `LOCK_NB` limit neither.
+///  The package draws that line once, in `work_awaited_within_a_ceiling.rs`,
+///  and the claim goes through it: a system that refuses the thread takes no claim and says the volume cannot be asked.
+#[test]
+fn the_claim_is_asked_within_a_ceiling() {
+    let root: PathBuf = fixture("tree-claim-within-a-ceiling");
+    let tree: PathBuf = root.join("a-tree");
+    std::fs::create_dir(tree.as_path()).expect("a tree");
+    let refused: crate::work_awaited_within_a_ceiling::ThreadsRefusedForTheControl = crate::work_awaited_within_a_ceiling::a_control_refuses_every_thread();
+    let answer: Result<ClaimOnAMadeTree, TreeIsGoing> = claim_a_made_tree(tree.clone());
+    drop(refused);
+    assert!(
+        matches!(answer, Ok(ClaimOnAMadeTree::TheVolumeCannotSay(_))),
+        "a claim that cannot be asked is not taken: {}",
+        answer.is_ok()
+    );
+    remove(root.as_path());
+}
