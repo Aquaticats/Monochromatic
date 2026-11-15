@@ -111,6 +111,22 @@ const WAIT_STEP_WITHOUT_PIDFD: std::time::Duration = std::time::Duration::from_m
 /// so a Git that writes many files cannot grow a command.
 const MOST_NAMES: usize = 1024;
 
+/// The most events one drain reads,
+/// four times the most names a run follows.
+/// Why:
+///  A drain is the last thing a wait does before it looks at its child,
+///  and it reads until the kernel has nothing more.
+///  A program that makes names at least as fast as they are read then keeps it reading:
+///  the forwarded command waits after its Git has ended,
+///  and the events it collects grow without end.
+///  So a drain stops at this many events,
+///  and what it did not read is reported as a watch that may have missed something,
+///  which leaves every lock it might have described to the bounded wait and the report,
+///  and never to a record.
+///  The number is what a run can still have use for before its tracker has met more names than it
+///  keeps (`MOST_NAMES`): a drain past it cannot describe a lock this run would record.
+pub const MOST_DRAINED_EVENTS: usize = 4 * MOST_NAMES;
+
 /// The most folders one watch opens,
 /// so a repository with a vast tree cannot exhaust the machine's inotify budget.
 /// A folder this bound leaves unwatched costs only what an unwatched folder cost before the watch

@@ -725,3 +725,332 @@ fn queued(watch: &mut Watch) -> Vec<Event> {
 fn pid_file_of(lock: &Path) -> PathBuf {
     return crate::stale_ref_lock_walk::pid_file_beside(lock);
 }
+
+/// What:
+///  A helper program that takes a lock in the directory its last argument names,
+///  writes the PID file beside it,
+///  and kills itself,
+///  so a runner is judged by what a kill of its Git leaves.
+/// Why:
+///   The bounded and the asynchronous runners are judged by the binding their child's lock gets,
+///  and a child that exits by itself takes its lock away.
+///  The program is a script of its own rather than `sh -c`, because a runner builds its Git command
+///  with `-c` settings in front of the arguments, which `sh -c` would read as its own command string.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fakeGit = writeScript(`for a in "$@"; do last="$a"; done; cd "$last"; : > index.lock; printf 'pid %s\n' $$ > index~pid.lock; kill -9 $$`)
+/// ```
+fn a_fake_git_that_takes_a_lock_and_is_killed(directory: &Path, name: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let program: PathBuf = directory.join(name);
+    std::fs::write(
+        program.as_path(),
+        b"#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; done\ncd \"$last\" || exit 1\n: > index.lock\nprintf 'pid %s\\n' \"$$\" > index~pid.lock\nkill -9 \"$$\"\n",
+    )
+    .expect("the fake Git");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the fake Git runs");
+    return program;
+}
+
+/// What:
+///  The arguments one call of a fake Git takes:
+///  the program reads the directory to work in from its last argument.
+/// Why:
+///   A runner's command carries settings in front of the arguments,
+///  and the program ignores them all but the last.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const args = [directory]
+/// ```
+fn pointed_at(directory: &Path) -> Vec<std::ffi::OsString> {
+    return vec![directory.as_os_str().to_owned()];
+}
+
+/// What:
+///  A lock in a folder this watch no longer has is never bound to this process's Git,
+///  though the events of the folder that moved away arrive under the path the watch remembers.
+/// Why:
+///  This is the gravest state any review of this work has reported:
+///  a watched folder is renamed away and made again,
+///  the events of the folder that moved arrive under the remembered pathname,
+///  and the tracker joins them with the new folder's PID file,
+///  so another Git's lock is bound to this process's Git.
+///  The bound Git is killed, a later command finds the record, and the lock of a writer that still
+///  runs is deleted: two writers then proceed under one name, which loses work.
+///  What a watch knows of a folder is the folder it opened the watch on,
+///  and a path is something this module remembers,
+///  so a binding is written only while the folder at that path is still that one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watch(refs/heads); rename(refs/heads, refs/heads-moved); mkdir(refs/heads); writePair(refs/heads/index.lock, watchedPid);
+/// writePair(refs/heads-moved/index.lock, watchedPid); await until(bindingsOf(refs/heads/index.lock).length)
+/// kill(watchedGit); expect(bindingsOf(refs/heads/index.lock)).toEqual([]); expect(clearOne(...)).toBeUndefined()
+/// ```
+#[test]
+fn a_lock_in_a_folder_this_watch_lost_is_never_bound_to_this_git() {
+    let common: PathBuf = a_watched_git_directory("watch-moved-folder");
+    let heads: PathBuf = common.join("refs/heads");
+    std::fs::create_dir_all(heads.as_path()).expect("the reference folder");
+    // The watched Git waits for its own end, so its identity can be read while it runs and the control's kill is the only
+    //  end it has.
+    let mut watched_git: Child = Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("the watched Git");
+    crate::lock_holder_records::note_child_started(watched_git.id());
+    let watched_pid: i64 = i64::from(watched_git.id());
+    let (watch, about): (Watch, Watched) = watch_before_starting().expect("the watch the plan remembered");
+    let binder = crate::lock_watch::bind_while_the_caller_waits(Some((watch, about)), watched_git.id()).expect("the production binder");
+    // Another Git holds a lock in the folder that takes this path afterwards, with no descriptor open on it.
+    let mut replacement_writer: Child = Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("the replacement writer");
+    // The watched folder is renamed away and the path is made again.
+    let moved: PathBuf = common.join("refs/heads-moved");
+    std::fs::rename(heads.as_path(), moved.as_path()).expect("the watched folder moves away");
+    std::fs::create_dir(heads.as_path()).expect("a folder at the same path again");
+    // The new folder's lock is another Git's, and the PID file beside it names the watched Git, as one it left would.
+    let replacement_lock: PathBuf = heads.join("index.lock");
+    std::fs::write(pid_file_of(replacement_lock.as_path()).as_path(), format!("pid {watched_pid}\n")).expect("the PID file the new folder already had");
+    std::fs::write(replacement_lock.as_path(), b"another Git's lock\n").expect("another Git's lock");
+    // The lock and the PID file the watched Git's own Git took, in the folder that moved away: the kernel reports their
+    //  creations under the path the watch remembers, which is the new folder's path.
+    let moved_lock: PathBuf = moved.join("index.lock");
+    std::fs::write(moved_lock.as_path(), b"the watched Git's lock\n").expect("the watched Git's lock");
+    std::fs::write(pid_file_of(moved_lock.as_path()).as_path(), format!("pid {watched_pid}\n")).expect("its PID file");
+    // The watcher is given a bounded moment to read those events and write whatever it makes of them: before the fix it
+    //  writes one at once, and after it, it never does.
+    let they_were_read: bool = bound_within(Duration::from_secs(2), common.as_path(), replacement_lock.as_path());
+    let bound: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), replacement_lock.as_path());
+    let _killed = watched_git.kill();
+    let _reaped = watched_git.wait();
+    binder.finish();
+    // The watched Git is gone and a child record names it; only a record can licence this removal, which is the state the
+    //  review reproduced.
+    let clearance = crate::abandoned_lock_proving::clear_one(replacement_lock.as_path(), common.as_path());
+    let replacement_writer_alive: bool = crate::lock_holder_records::identity_of_process(i64::from(replacement_writer.id())).is_some();
+    let _killed = replacement_writer.kill();
+    let _reaped = replacement_writer.wait();
+    let stands: bool = replacement_lock.exists();
+    remove(common.as_path());
+    assert!(replacement_writer_alive, "the replacement writer ran through the judgement, as a live writer does");
+    let _read = they_were_read;
+    assert!(bound.is_empty(), "no record may name a lock in a folder this watch lost: {bound:?}");
+    assert!(clearance.is_none(), "nothing may license the removal of a lock this run never saw created: {clearance:?}");
+    assert!(stands, "the other writer's lock must still stand");
+}
+
+/// What:
+///  A drain that reaches its bound says this watch may have missed something,
+///  and a run whose watch may have missed something records nothing.
+/// Why:
+///  The drain reads until the kernel has nothing more,
+///  and a program that makes names at least as fast as they are read keeps it reading for good:
+///  the forwarded command then waits after its Git has ended,
+///  and the events it collects grow without end.
+///  So one drain reads at most its bound and reports what a lost queue reports,
+///  which leaves the lock to the wait and the report it always had and never to a wrong record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watch(dir); writePair(dir/index.lock, me); for (i < bound + 100) write(dir/made-i, '');
+/// const events = watch.readEvents(); expect(events.length).toBeLessThanOrEqual(bound); expect(tracker.locksTaken(me)).toEqual([])
+/// ```
+#[test]
+fn a_drain_that_reaches_its_bound_records_nothing() {
+    let directory: PathBuf = fixture("watch-drain-bound");
+    std::fs::create_dir_all(directory.as_path()).expect("the fixture directory");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let pid: i64 = i64::from(std::process::id());
+    let lock: PathBuf = directory.join("index.lock");
+    std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
+    std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("the PID file");
+    let made: usize = crate::lock_watch::MOST_DRAINED_EVENTS + 100;
+    for index in 0..made {
+        std::fs::write(directory.join(format!("made-{index}")), b"").expect("a name in the watched folder");
+    }
+    let events: Vec<Event> = watch.read_events();
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(events.as_slice());
+    let taken: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    assert!(
+        events.len() <= crate::lock_watch::MOST_DRAINED_EVENTS,
+        "one drain reads at most its bound, and this one read {} events",
+        events.len()
+    );
+    assert!(taken.is_empty(), "a watch that may have missed something records nothing: {taken:?}");
+}
+
+/// What:
+///  A Git started by the wrapper's bounded runner binds the lock it took,
+///  as one started by the watched runner does.
+/// Why:
+///  The wrapper's own ladder starts Git with a ceiling (`run_real_git_until`),
+///  and a checkout held by a filter is one of those:
+///  its Git takes `index.lock`, the ceiling kills it, and the lock stands.
+///  A start that opened no watch leaves the lock with no record,
+///  so the next command cannot prove it and keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// remember({commonDir, roots}); runRealGitUntil(fakeGit, [dir], 30s); expect(bindingsOf(dir/index.lock)).not.toEqual([])
+/// ```
+#[test]
+fn a_git_the_bounded_runner_started_binds_the_lock_it_took() {
+    let common: PathBuf = a_watched_git_directory("watch-bounded-start");
+    let directory: PathBuf = common.join("bounded");
+    std::fs::create_dir(directory.as_path()).expect("the bounded step's directory");
+    let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_is_killed(common.as_path(), "fake-git-bounded");
+    let outcome = crate::forwarding::run_real_git_until(
+        fake_git.as_path(),
+        pointed_at(directory.as_path()).as_slice(),
+        &[],
+        Duration::from_secs(30),
+        crate::hooks_off::StartOwner::Wrapper,
+    )
+    .expect("the bounded runner starts and collects its Git");
+    let lock: PathBuf = directory.join("index.lock");
+    let bound: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+    assert!(
+        matches!(outcome, crate::forwarding::ChildOutcome::Signaled(9)),
+        "the control's own Git must die by the kill the control sends: {outcome:?}"
+    );
+    assert!(!bound.is_empty(), "a Git the bounded runner started must bind the lock it took");
+    // The child record is the other half of the clearance, and this control plants the one a start of this kind writes.
+    let recorded: &Binding = bound.first().expect("the record the assertion above demands");
+    plant_a_child_record(common.as_path(), recorded.pid, recorded.identity.as_str());
+    let clearance = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    let stands: bool = lock.exists();
+    remove(common.as_path());
+    assert!(
+        matches!(clearance, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding),
+        "the pass clears it by that record: {clearance:?}"
+    );
+    assert!(!stands, "the lock it took is gone after the pass");
+}
+
+/// What:
+///  A Git started by the runner that awaits on the runtime binds the lock it took,
+///  as one started by the synchronous runner does.
+/// Why:
+///  The transaction's asynchronous face and the merge recovery's `update-ref` start Git there,
+///  and a runner that opened no watch leaves a reference lock with no record:
+///  on a file system that gives the lock and its PID file one birth stamp, the PID file proves
+///  nothing, so the next command keeps the lock and fails on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// remember({commonDir, roots}); await onTheRuntime(runAwaiting(fakeGit, [dir])); expect(bindingsOf(dir/index.lock)).not.toEqual([])
+/// ```
+#[test]
+fn a_git_the_awaiting_runner_started_binds_the_lock_it_took() {
+    let common: PathBuf = a_watched_git_directory("watch-awaiting-start");
+    let directory: PathBuf = common.join("awaiting");
+    std::fs::create_dir(directory.as_path()).expect("the awaiting step's directory");
+    let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_is_killed(common.as_path(), "fake-git-awaiting");
+    let mut command: Command = Command::new(fake_git.as_path());
+    command.args(pointed_at(directory.as_path())).stdin(Stdio::null());
+    let ran = crate::lazy_runtime::run_on_runtime(async {
+        return crate::child_watch_output_watched_on_the_runtime::output_watched_within_for_a_stop_awaiting(
+            &mut command,
+            "a Git the awaiting runner started",
+            "a Git the awaiting runner started",
+            crate::child_watch::WatchTerms::for_class(crate::child_class::ChildClass::Object),
+            false,
+            crate::child_watch_step_bounds_and_errors::StepBound::Unbounded,
+            false,
+        )
+        .await;
+    })
+    .expect("the runtime runs the step");
+    let lock: PathBuf = directory.join("index.lock");
+    let bound: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+    remove(common.as_path());
+    assert!(ran.is_ok(), "the step's own Git ends as the control's kill ends it: {ran:?}");
+    assert!(!bound.is_empty(), "a Git the awaiting runner started must bind the lock it took");
+}
+
+/// What:
+///  A reference in a namespace Git accepts named `objects` or `logs` is watched,
+///  as one in any other namespace is.
+/// Why:
+///  Git accepts `refs/heads/objects/topic` and `refs/heads/logs/topic`,
+///  and their locks stand in folders those names give.
+///  A walk that skipped a name at every depth skipped exactly those folders:
+///  the skip is right for the object store and the reflog folders of a Git directory,
+///  which hold no lock of the worktree's state,
+///  and wrong for a reference namespace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watch(gitDir); writePair(refs/heads/objects/topic.lock); writePair(refs/heads/logs/topic.lock);
+/// expect(tracker.locksTaken(me)).toContain(each)
+/// ```
+#[test]
+fn a_reference_in_a_namespace_named_objects_is_reported() {
+    let directory: PathBuf = fixture("watch-objects-namespace");
+    for namespace in ["ordinary", "objects", "logs"] {
+        std::fs::create_dir_all(directory.join("refs/heads").join(namespace)).expect("the reference namespace");
+    }
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let pid: i64 = i64::from(std::process::id());
+    let mut locks: Vec<PathBuf> = Vec::new();
+    for namespace in ["ordinary", "objects", "logs"] {
+        let lock: PathBuf = directory.join("refs/heads").join(namespace).join("topic.lock");
+        std::fs::write(lock.as_path(), b"a reference update\n").expect("the reference lock");
+        std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("the reference PID file");
+        locks.push(lock);
+    }
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(queued(&mut watch).as_slice());
+    let found: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    for lock in locks {
+        assert!(found.contains(&lock), "a reference lock under {} must be reported: {found:?}", lock.display());
+    }
+}
+
+/// What:
+///  Whether a record for `lock` is written within `within`,
+///  asked until it is or the bound comes.
+/// Why:
+///   The watcher reads the kernel's queue a moment after the names are made,
+///  and a control that means to see the record a defect writes waits for it instead of guessing a sleep,
+///  while a control of the fixed code waits out the same bound once and then says it was never written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await untilWithin(2_000, () => bindingsOf(common, lock).length > 0)
+/// ```
+fn bound_within(within: Duration, common: &Path, lock: &Path) -> bool {
+    let began: Instant = Instant::now();
+    while began.elapsed() < within {
+        if !lock_bindings::bindings_of(common, lock).is_empty() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    return false;
+}
+
+/// What:
+///  Write the record a start of a Git writes about the child it started,
+///  for a control whose child is gone before the pass meets its lock.
+/// Why:
+///   The pass clears a lock on two facts of this repository:
+///  the record pinning the lock,
+///  and the record of the child's start,
+///  which says the number and the birth are a process this boot had and no longer has.
+///  A runner writes the second as it starts its Git;
+///  a control whose child died for the control's own reason writes it here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(holderFolder, 'a-child-record'), recordText([['child', pid, identity]]))
+/// ```
+fn plant_a_child_record(common: &Path, pid: i64, identity: &str) {
+    let folder: PathBuf = crate::lock_holder_records::folder_of(common);
+    std::fs::create_dir_all(folder.as_path()).expect("the record folder");
+    std::fs::write(folder.join("a-child-record"), crate::lock_holder_records::record_text(&[("child", pid, identity.to_owned())])).expect("the child record");
+}
