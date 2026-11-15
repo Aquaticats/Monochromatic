@@ -522,10 +522,18 @@ pub(crate) fn the_worker_answers() -> WorkerAnswers {
     let _built: &Result<BuiltRuntime, String> = RUNTIME.get_or_init(build_for_this_process);
     // The one cell that can change under this call, read once: an arrival is seen by both answers or by neither.
     let arrived_late: bool = the_late_runtime().is_some();
-    let flavor: Option<BuiltFlavor> = built_flavor();
-    let a_build_is_coming: bool = !arrived_late && flavor == Some(BuiltFlavor::CurrentThreadAfterDeadline);
+    // What:
+    //  Whether a task of this process runs on a worker thread of its own,
+    //  which is a fact about the runtime the process really has.
+    // Why:
+    //  A control stands in for a build that missed its deadline in `built_flavor`, which is what a caller is told;
+    // a control that stood in here too would report no worker for a process whose workers run,
+    // and every watcher of a wait would be refused in the very state the control exists to measure.
+    let can_run: bool = arrived_late || matches!(the_flavor_of_the_runtime_this_process_built(), Some(BuiltFlavor::MultiThread { .. }));
+    // The flavor a caller is told, which a control may stand in for.
+    let a_build_is_coming: bool = !arrived_late && built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline);
     #[cfg(test)] if REFUSED.load(std::sync::atomic::Ordering::SeqCst) { return WorkerAnswers { can_run: false, a_build_is_coming }; }
-    return WorkerAnswers { can_run: arrived_late || matches!(flavor, Some(BuiltFlavor::MultiThread { .. })), a_build_is_coming };
+    return WorkerAnswers { can_run, a_build_is_coming };
 }
 
 /// What:
@@ -781,7 +789,27 @@ pub fn built_flavor() -> Option<BuiltFlavor> {
     if THE_BUILD_WAS_LATE.load(std::sync::atomic::Ordering::SeqCst) {
         return Some(BuiltFlavor::CurrentThreadAfterDeadline);
     }
+    return the_flavor_of_the_runtime_this_process_built();
+}
+
+/// What:
+///  How the runtime this process really built came out,
+///  or nothing before anything asked for it,
+///  and never a control's stand-in.
+/// Why:
+///   `built_flavor` answers what a caller is told,
+/// where a control stands in for a build that missed its deadline;
+/// whether a task can run now is a question about the runtime the process has,
+/// so it is asked here and not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const flavorTheProcessHas = built?.ok ? built.value.flavor : undefined;
+/// ```
+fn the_flavor_of_the_runtime_this_process_built() -> Option<BuiltFlavor> {
+    // `?` answers nothing before the first need, and `ok` turns a build the system refused into nothing as well.
     let built: &BuiltRuntime = RUNTIME.get()?.as_ref().ok()?;
+    // `Some` carries the flavor out.
     return Some(built.flavor);
 }
 
