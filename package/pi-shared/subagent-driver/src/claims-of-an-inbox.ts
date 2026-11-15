@@ -97,6 +97,21 @@ export class ClaimOwnerUnreadableError extends Error {
 const NO_ENTRY: unique symbol = Symbol('nothing is at the path');
 
 /**
+ What tells one file from another: the device it lives on and its inode, both read as exact 64-bit values.
+ */
+export type FileIdentity = {
+  /**
+   The device the file lives on, exactly.
+   */
+  readonly dev: bigint;
+
+  /**
+   The file's inode number on that device, exactly.
+   */
+  readonly ino: bigint;
+};
+
+/**
  What a process folder says of one process: when it began and the state the kernel reports for it.
  */
 type ProcessRecord = {
@@ -412,6 +427,43 @@ export async function removeClaimFolderOf(claim: string,): Promise<void> {
 export async function entryOrNothing(path: string,): Promise<Awaited<ReturnType<typeof lstat>> | typeof NO_ENTRY> {
   try {
     return await lstat(path,);
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === 'ENOENT') {
+      return NO_ENTRY;
+    }
+    throw error;
+  }
+}
+
+/**
+ Reads the identity of the file at a path, or answers the sentinel that says nothing is there.
+
+ The device and inode are read as bigints because a JavaScript number cannot hold every inode a filesystem may give: two inodes
+ that differ only above 2^53 become one number, and two different files would then be taken for one.
+
+ @param path - the path to read
+
+ @returns its device and inode, exactly, or {@link NO_ENTRY}
+
+ @example
+ ```ts
+ const identity = await identityOf('/runs/a-1/inbox/.failed-m.txt',);
+ ```
+ */
+export async function identityOf(path: string,): Promise<FileIdentity | typeof NO_ENTRY> {
+  try {
+    /**
+     What the filesystem reports for that path, with both numbers exact.
+     */
+    const stats = await lstat(
+      path,
+      { bigint: true, },
+    );
+    return {
+      dev: stats.dev,
+      ino: stats.ino,
+    };
   }
   catch (error) {
     if (errorCodeOf(error,) === 'ENOENT') {

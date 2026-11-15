@@ -1035,6 +1035,12 @@ the launcher that builds the session's environment asks it, once, before it make
   and the numbered `.failed-<name>.<n>` two bytes less for a one-digit number and one more for each digit after it;
   a longer message stays under its claim, where its own name reads it, and is named in the summary.
   A message that is a folder cannot be linked or copied as a file, and stays under its claim the same way.
+  A kept name is this message's own publication when both names are one file,
+  which the driver asks with the exact device and inode, read as 64-bit numbers:
+  a JavaScript number holds only integers up to 2^53, and two inode numbers one apart above that are one number.
+  A publication under either word is the same publication,
+  so a message a killed driver kept as `.failed-<name>` is finished rather than kept again as `.orphaned-<name>`,
+  and one message is never left under two kept names.
   A message Pi refuses because it has begun a turn is not a refusal of the message:
   it is held under its claim and goes again once Pi rests,
   ahead of the inbox,

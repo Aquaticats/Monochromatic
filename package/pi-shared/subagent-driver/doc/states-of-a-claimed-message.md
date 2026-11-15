@@ -6,7 +6,7 @@ Five reviews each found the next place in the life of a claim,
 so this file writes that life down once,
 and the code in `src/claims-of-an-inbox.ts` and `src/claims-of-a-gone-driver.ts` follows it.
 
-## Two rules that hold at every step
+## Rules that hold at every step
 
 - **A step a second caller can be making too is written so that either one finishing it, or both, leaves one result.**
   The link from a claim to a kept name is recognised as already made,
@@ -16,6 +16,10 @@ and the code in `src/claims-of-an-inbox.ts` and `src/claims-of-a-gone-driver.ts`
   not a failure.
 - **"The owner is gone" is a question about whether that process can still act.**
   A process the kernel reports as dead and not yet reaped cannot.
+- **Two names are one file only when their device and inode are equal exactly**, read as 64-bit values.
+  A JavaScript number holds only integers up to 2^53, and two inode numbers one apart above that are one number:
+  a comparison that rounds them takes one message for another's publication and removes it.
+  Every file-identity comparison in the driver reads both numbers as bigints.
 
 ## The states
 
@@ -114,6 +118,44 @@ Pi refuses a message because it has begun a turn.
 That is no answer about the message, so the owner keeps the claim and sends the same claim again once Pi rests,
 before any newer message, within the run's deadline.
 No second claim is made, and no keep happens while the owner is still going to send it.
+
+## The states of a publication
+
+A publication is kept under `.failed-<name>[.<n>]` or `.orphaned-<name>[.<n>]`,
+and a name in the inbox is a publication of a claim when it is that claim's own file,
+which is to say the same device and inode, exactly.
+The rows below are the kinds of publication and the states one can be in, with what a later driver does in each;
+each row names the control that holds it.
+
+- **A link, before the link.** The message is claimed and no kept name is its file.
+  A later driver keeps it, under whichever kind its own reason names.
+  Control: `keeps a message whose driver is gone under its own name, and names it once in the summary`.
+- **A link, linked and not yet unlinked.** The claim and a kept name are one file, under either kind.
+  A later driver finds every kept name that is this file, under either kind and whichever number,
+  settles on the first of them, and removes the claim: no second name is made.
+  Controls: `a kill between publishing a kept message and removing its claim publishes it once` (one kind),
+  and `a publication a killed pass made under the other kind of kept name is finished, not made twice` (both kinds).
+- **A link, unlinked.** Only the kept name is left.
+  A later driver keeps the message and has nothing of the claim to do;
+  empty folders of the claim are taken away.
+  Control: `takes the empty folders a keep left and keeps the kept message, naming nothing`.
+- **A copy, before the copy.** The message is claimed, on a filesystem that refuses hard links.
+  A later driver publishes a copy under a kept name of its own.
+  Control: `a keep on a filesystem without hard links publishes a claimed message by a copy of its own`.
+- **A copy, copied and not yet unlinked.** The claim and a copy of it both stand, and the copy is a file of its own.
+  A later driver cannot prove the copy is this claim's file, so it copies again:
+  the message then stands under two kept names, each holding the whole of it, and nothing is lost.
+  This is the one state where two names are accepted, and it exists only where hard links are refused.
+  Control: `a copy a killed pass left under the other kind of kept name cannot be told from this message,
+  so it is published again`.
+- **A copy, unlinked.** Only the kept name is left, holding a copy.
+  A later driver has nothing of the claim to do, and takes the empty folders away.
+  Control: the same one as a link that is unlinked.
+- **No publication.** A message that cannot be kept as a file (a folder, or a name with no room for the kept prefix)
+  stays claimed, under its own name, and the run's summary names it.
+  A later driver of a live owner leaves it, and a recovery of a gone owner names it and keeps nothing.
+  Controls: `an inbox entry that cannot be read stays under its claim, and the summary names it` (drive),
+  and `a message whose name is too long to keep stays under its claim, and the summary names it` (drive).
 
 ## Which later pass moves a message on, and how it knows it may
 

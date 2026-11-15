@@ -12,11 +12,7 @@
  @module
  */
 
-import {
-  type BigIntStats,
-  constants as fileConstants,
-  type Stats,
-} from 'node:fs';
+import { constants as fileConstants, } from 'node:fs';
 import {
   copyFile,
   link as linkOnDisk,
@@ -25,8 +21,10 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
+  type FileIdentity,
   type HeldMessage,
   entryOrNothing,
+  identityOf,
   removeClaimFolderOf,
 } from './claims-of-an-inbox.ts';
 import { errorCodeOf, } from './error-code-of.ts';
@@ -44,6 +42,11 @@ export const NO_KEPT_NAME: unique symbol = Symbol('message could not be kept');
 export const CLAIM_FINISHED: unique symbol = Symbol('another pass finished the claim');
 
 /**
+ The absence of a publication: no kept name in the inbox is this message's file.
+ */
+const NO_PUBLICATION: unique symbol = Symbol('NO_PUBLICATION sentinel: the inbox holds no kept name of this message');
+
+/**
  A keep whose claim has gone before it could publish: another pass finished the claim first. It is an error for the keep,
  because this pass keeps nothing, and a fact for its caller, which names the message rather than losing it.
  */
@@ -56,13 +59,40 @@ export class ClaimFinishedError extends Error {
 
 
 /**
- What is at a path, as the filesystem reports it: the ordinary and the big-integer report both say when two names are one file.
+ The words a kept name can carry, which say why the message was not taken.
  */
-type WhatIsAtAPath = Stats | BigIntStats;
+export type KeptAs = 'failed' | 'orphaned';
 
 /**
- Tells whether two names stand for one file, which is how a publication another pass already made is told from a kept message of
- some other name.
+ Both kinds of kept name, so a publication can be found under either one.
+ */
+const KINDS_OF_KEPT_NAME: readonly KeptAs[] = [
+  'failed',
+  'orphaned',
+];
+
+/**
+ The prefix a kept name carries for one kind.
+
+ @param kind - the word the kept name carries
+
+ @returns the prefix, with its dot and its dash
+
+ @example
+ ```ts
+ const prefix = keptPrefixOf('failed',);
+ ```
+ */
+function keptPrefixOf(kind: KeptAs,): string {
+  return `.${kind}-`;
+}
+
+/**
+ Tells whether two identities name one file, which is how a publication another pass already made is told from a kept message
+ of some other name.
+
+ Both numbers are exact bigints: two inodes that differ only above 2^53 are two files, and reading them as JavaScript numbers
+ would make those two files one, so one message could be taken for another's publication and removed.
 
  @param one - what one path is
 
@@ -72,15 +102,15 @@ type WhatIsAtAPath = Stats | BigIntStats;
 
  @example
  ```ts
- const same = oneFile({ one: infoOfKept, another: infoOfClaim, },);
+ const same = oneFile({ one: identityOfKept, another: identityOfClaim, },);
  ```
  */
 function oneFile({
   one,
   another,
 }: {
-  readonly one: WhatIsAtAPath;
-  readonly another: WhatIsAtAPath
+  readonly one: FileIdentity;
+  readonly another: FileIdentity
 },): boolean {
   return (one.dev === another.dev) && (one.ino === another.ino);
 }
@@ -105,13 +135,173 @@ async function removeClaimName(claim: string,): Promise<void> {
 }
 
 /**
- Publishes a kept message under one name, without ever replacing a file already there: a link fails when its name is taken, so the
- caller tries the next number. A kept name that is one file with the claim is this message's own publication, made by a pass that
- was killed or that is still going: it is finished here and never made twice.
+ Takes one kept name away again, so one message is not published under two names. A name another pass removed first is that pass's
+ work done: nothing here fails over it.
+
+ @param name - the kept name to take away
+ */
+async function removeKeptName(name: string,): Promise<void> {
+  try {
+    await unlink(name,);
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
+
+/**
+ Finds every kept name that is this claim's own file, under whichever kind of kept name and whichever number, and leaves exactly
+ one of them: the first in order. A name of this file is this message's bytes, so taking a later name away loses nothing, and a
+ pass that finds one has found the publication already made.
+
+ A process killed after its link leaves the claim and its kept name both standing; two passes can also link one claim at the same
+ moment, one under each kind of name. Settling on the first name makes one result whichever of them is seen, and removes the
+ other names the same way for every pass.
+
+ @param inbox - the inbox to search
+
+ @param claimIdentity - what the claimed message is, exactly
+
+ @returns the one kept name this message stands under, or {@link NO_PUBLICATION}
+
+ @example
+ ```ts
+ const published = await settleKeptNames({ inbox, claimIdentity, },);
+ ```
+ */
+async function settleKeptNames({
+  inbox,
+  claimIdentity,
+}: {
+  readonly inbox: string;
+  readonly claimIdentity: FileIdentity
+},): Promise<string | typeof NO_PUBLICATION> {
+  /**
+   Every name in the inbox.
+   */
+  const entries = await readdir(inbox,);
+  /**
+   The prefixes a kept name carries, one for each kind.
+   */
+  const prefixes = KINDS_OF_KEPT_NAME.map(keptPrefixOf,);
+  /**
+   The kept names, which are the only ones that can be a publication of this message.
+   */
+  const keptNames = entries.filter(function isKept(entry,) {
+    return prefixes.some(function startsWithIt(prefix,) {
+      return entry.startsWith(prefix,);
+    },);
+  },)
+    .toSorted();
+  /**
+   What each kept name is, read at once.
+   */
+  const read = await Promise.all(keptNames.map(async function identityAt(entry,): Promise<{
+    readonly name: string;
+    readonly identity: Awaited<ReturnType<typeof identityOf>>
+  }> {
+    return {
+      name: entry,
+      identity: await identityOf(join(
+        inbox,
+        entry,
+      ),),
+    };
+  },),);
+  /**
+   The kept names that are this claim's own file, in order, so the first is the publication every pass settles on.
+   */
+  const published = read.filter(function isThisClaim({ identity, },) {
+    return ((typeof identity) !== 'symbol') && oneFile({
+      one: identity,
+      another: claimIdentity,
+    },);
+  },)
+    .map(function pathOf(entry,) {
+      return join(
+        inbox,
+        entry.name,
+      );
+    },);
+  /**
+   What this pass takes away: every name of this message after the first, which is the publication itself.
+   */
+  const later = published.slice(1,);
+  await Promise.all(later.map(removeKeptName,),);
+  return published[0] ?? NO_PUBLICATION;
+}
+
+/**
+ Finishes a publication this pass has found already made, or has just made itself: every kept name of this claim is settled to the
+ one it stands under, and the claim is removed.
+
+ @param inbox - the inbox the kept name is in
 
  @param claim - where the message now is
 
- @param claimInfo - what the claim is
+ @param claimIdentity - what the claim is, exactly
+
+ @param fallback - the name to answer when the settlement finds nothing, which only a pass whose own link has just gone sees
+
+ @returns the publication, under the name the settlement answered
+ */
+async function finishPublication({
+  inbox,
+  claim,
+  claimIdentity,
+  fallback,
+}: {
+  readonly inbox: string;
+  readonly claim: string;
+  readonly claimIdentity: FileIdentity;
+  readonly fallback: string
+},): Promise<Publication> {
+  /**
+   The one kept name this message stands under once every later name of it is taken away.
+   */
+  const publication = await settleKeptNames({
+    inbox,
+    claimIdentity,
+  },);
+  await removeClaimName(claim,);
+  return {
+    ending: 'published',
+    name: (publication === NO_PUBLICATION) ? fallback : publication,
+  };
+}
+
+/**
+ What one attempt to publish a claimed message came to: the kept name it is published under, that the name is another message's,
+ or that the claim has gone.
+ */
+type Publication =
+  | {
+    readonly ending: 'published';
+
+    /**
+     The kept name the message stands under, which is the first name its file was published under.
+     */
+    readonly name: string
+  }
+    | {
+      readonly ending: 'name-taken'
+    }
+    | {
+      readonly ending: 'claim-finished'
+    };
+
+/**
+ Publishes a kept message under one name, without ever replacing a file already there: a link fails when its name is taken, so the
+ caller tries the next number. A kept name that is one file with the claim is this message's own publication, made by a pass that
+ was killed or that is still going, under whichever kind of kept name it was made: it is finished here and never made twice.
+
+ @param inbox - the inbox the kept name is in
+
+ @param claim - where the message now is
+
+ @param claimIdentity - what the claim is, exactly
 
  @param target - the name this attempt would keep it under
 
@@ -120,42 +310,46 @@ async function removeClaimName(claim: string,): Promise<void> {
  @returns what this attempt achieved, so the caller knows whether to try another name
  */
 async function publishKept({
+  inbox,
   claim,
-  claimInfo,
+  claimIdentity,
   target,
   link,
 }: {
+  readonly inbox: string;
   readonly claim: string;
-  readonly claimInfo: WhatIsAtAPath;
+  readonly claimIdentity: FileIdentity;
   readonly target: string;
   readonly link: (
     existing: string,
     created: string,
   ) => Promise<void>
-},): Promise<'published' | 'name-taken' | 'claim-finished'> {
+},): Promise<Publication> {
   /**
    What already stands at the kept name, if anything does.
    */
-  const standing = await entryOrNothing(target,);
+  const standing = await identityOf(target,);
   if ((typeof standing) !== 'symbol') {
     if (oneFile({
       one: standing,
-      another: claimInfo,
+      another: claimIdentity,
     },)) {
       // The kept name and the claim are one file, so an earlier pass published this message and was killed before it removed the
       // claim, or is still going: finishing the removal makes one result, and no second copy is made.
-      await removeClaimName(claim,);
-      return 'published';
+      return finishPublication({
+        inbox,
+        claim,
+        claimIdentity,
+        fallback: target,
+      },);
     }
-    return 'name-taken';
+    return { ending: 'name-taken', };
   }
   try {
     await link(
       claim,
       target,
     );
-    await removeClaimName(claim,);
-    return 'published';
   }
   catch (error) {
     /**
@@ -168,22 +362,26 @@ async function publishKept({
       /**
        What stands at the kept name now.
        */
-      const takenBy = await entryOrNothing(target,);
+      const takenBy = await identityOf(target,);
       if (
         ((typeof takenBy) !== 'symbol')
           && oneFile({
             one: takenBy,
-            another: claimInfo,
+            another: claimIdentity,
           },)
       ) {
-        await removeClaimName(claim,);
-        return 'published';
+        return await finishPublication({
+          inbox,
+          claim,
+          claimIdentity,
+          fallback: target,
+        },);
       }
-      return 'name-taken';
+      return { ending: 'name-taken', };
     }
     if (code === 'ENOENT') {
       // The claim went between the read above and the link: another pass finished it.
-      return 'claim-finished';
+      return { ending: 'claim-finished', };
     }
     if ((code === 'EPERM') || (code === 'EACCES')) {
       /**
@@ -191,7 +389,7 @@ async function publishKept({
        */
       const info = await entryOrNothing(claim,);
       if ((typeof info) === 'symbol') {
-        return 'claim-finished';
+        return { ending: 'claim-finished', };
       }
       if (!info.isFile()) {
         // A folder is not a file a copy can hold; the message stays under its claim, where its own name reads it, and is named.
@@ -214,20 +412,32 @@ async function publishKept({
          What the claim is now, since a copy is a file of its own and cannot be told from the claim by which file it is.
          */
         const afterCopy = await entryOrNothing(claim,);
-        return ((typeof afterCopy) === 'symbol') ? 'claim-finished' : 'name-taken';
+        return ((typeof afterCopy) === 'symbol') ? { ending: 'claim-finished', } : { ending: 'name-taken', };
       }
       await removeClaimName(claim,);
-      return 'published';
+      return {
+        ending: 'published',
+        name: target,
+      };
     }
     throw error;
   }
+  // The link is made, so this pass has published the message, unless another pass published it at the same moment: the settle
+  // leaves the first kept name of this file, which every pass answers.
+  return finishPublication({
+    inbox,
+    claim,
+    claimIdentity,
+    fallback: target,
+  },);
 }
+
 
 /**
  Keeps a message that did not reach Pi, so it stays readable and is never sent again. Publication never replaces an earlier kept
  message: a link fails when its name is taken, so the next number is tried instead. A kept name that is one file with the claim is
- this message's own publication, made by a pass that was killed or is still going: it is finished here, not made twice, and the
- name it was made under is the one answered.
+ this message's own publication, made by a pass that was killed or is still going, under either kind of kept name: it is finished
+ here, not made twice, and the name it was made under is the one answered.
 
  @param watch - watch request
 
@@ -258,18 +468,30 @@ export async function keepMessage({
   readonly watch: WatchRequest;
   readonly name: string;
   readonly claim: string;
-  readonly keptAs: 'failed' | 'orphaned';
+  readonly keptAs: KeptAs;
   readonly link?: (
     existing: string,
     created: string,
   ) => Promise<void>
 },): Promise<string> {
   /**
-   What the claim is, which tells a kept name this message already stands under from one another message holds.
+   What the claim is, exactly, which tells a kept name this message already stands under from one another message holds.
    */
-  const claimInfo = await entryOrNothing(claim,);
-  if ((typeof claimInfo) === 'symbol') {
+  const claimIdentity = await identityOf(claim,);
+  if ((typeof claimIdentity) === 'symbol') {
     throw new ClaimFinishedError(`the claim on ${name} has gone: another pass finished it`,);
+  }
+  /**
+   The kept name this claim already stands under, under either kind of kept name, which a pass killed after its link left: this
+   pass finishes that publication rather than making a second name for one message.
+   */
+  const published = await settleKeptNames({
+    inbox: watch.inbox,
+    claimIdentity,
+  },);
+  if (published !== NO_PUBLICATION) {
+    await removeClaimName(claim,);
+    return published;
   }
   /**
    The most numbered names to try before giving up: there are always fewer kept messages than names in the inbox.
@@ -288,15 +510,16 @@ export async function keepMessage({
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one name after another until one is free, and a kept message must never replace another; see doc/lint/sequential-awaits.md
     const outcome = await publishKept({
+      inbox: watch.inbox,
       claim,
-      claimInfo,
+      claimIdentity,
       target,
       link,
     },);
-    if (outcome === 'published') {
-      return target;
+    if (outcome.ending === 'published') {
+      return outcome.name;
     }
-    if (outcome === 'claim-finished') {
+    if (outcome.ending === 'claim-finished') {
       throw new ClaimFinishedError(`the claim on ${name} went while it was being kept: another pass finished it`,);
     }
   }
@@ -322,7 +545,7 @@ async function keepOrNothing({
 }: {
   readonly watch: WatchRequest;
   readonly held: HeldMessage;
-  readonly keptAs: 'failed' | 'orphaned'
+  readonly keptAs: KeptAs
 },): Promise<string | typeof CLAIM_FINISHED | typeof NO_KEPT_NAME> {
   try {
     return await keepMessage({
@@ -374,7 +597,7 @@ export async function noteMessageNotTaken({
 }: {
   readonly watch: WatchRequest;
   readonly held: HeldMessage;
-  readonly keptAs: 'failed' | 'orphaned'
+  readonly keptAs: KeptAs
 },): Promise<string | typeof CLAIM_FINISHED | typeof NO_KEPT_NAME> {
   /**
    Where the message was kept, or the sentinel that says it could not be kept at all.
