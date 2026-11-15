@@ -1358,6 +1358,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The run kept out of the main checkout goes back: its dependencies are linked before the unit that confines it exists; one finding is again the project's own decision (2026-11-14T23:08:11-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **A Pi run cannot write into the main checkout** (`49afd371a4`),
+  its fourth review,
+  ended 23:03:14,
+  fourteen of fourteen files,
+  four things.
+- **Worth their fix,
+  three**:
+  `pnpm install` runs in the fresh worktree before the confining unit exists,
+  with the launcher's own access,
+  and a `postinstall` of the base wrote a file in the main checkout
+  (reproduced for the install step);
+  a checkout made with `git init --separate-git-dir` is taken for a linked worktree,
+  and the unit is given a parent of the checkout to write
+  (reproduced through the branch's functions);
+  and the 30 s bound on a read starts after the open and the `stat`,
+  either of which can hang on a filesystem whose server no longer answers
+  (by reading).
+  The first is the branch's own sentence not yet true.
+- **Dismissed,
+  one**:
+  the cleanup of a finished run removes its worktree with a file Git ignores still in it.
+  That is "Delete ignored,
+  spare busy"
+  (this file's section dated 2026-11-12T11:58:45-05:00),
+  which the driver's removal reaches through the wrapper.
+  It is the second review of this evening to report that decision as a defect;
+  the queued run for the review brief's template has the first as a sighting.
+- The author is resumed,
+  its last report whole
+  (`~/temp/agent/pi-runs/pi-run-cannot-write-into-the-main-checkout-answers-its-fourth-review-of-2026-11-14-prompt.md`,
+  queued fifth),
+  asked to list every step of a start,
+  a resume and an end that runs a branch's code and to move each inside the unit,
+  and to ask Git where a repository's directories are.
+- **What this says of the driver in `main` today**,
+  read in `main`'s own `start-pi-run-in-a-worktree.ts` at 23:09:
+  the same install stands there at line 258,
+  before the unit is spawned at line 318,
+  and the file names no `ReadOnlyPaths` at all,
+  the confinement being this branch's and not merged.
+  So every Pi run on this machine today can write into the main checkout,
+  by its install's scripts and by the run itself;
+  that is the state this branch exists to end,
+  and the finding shows the branch would leave the install's half of it standing.
+- Read at 23:07:26:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  24 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 69 entries at 23:08:11.
+
 ##### mpm-shadow's reworked removal still removes what it did not judge, five ways; the driver's claims can write over a message; both go back (2026-11-14T23:03:25-05:00)
 
 Not final and not approved:
