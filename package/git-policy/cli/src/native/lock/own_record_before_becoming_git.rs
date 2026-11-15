@@ -211,13 +211,15 @@ impl OwnLineBeforeBecomingGit {
         let mut stat: [u8; 1024] = [0; 1024];
         let read: usize = read_bounded(c"/proc/self/stat".as_ptr(), &mut stat)?;
         let Some(tick) = start_tick_of(stat.get(..read).unwrap_or(&[])) else {
-            return Err(std::io::Error::other("this process's start tick could not be read, so no Git ran"));
+            // A raw number and no heap: an allocating error in a forked child can wait on an inherited allocator lock.
+            return Err(std::io::Error::from_raw_os_error(libc::EIO));
         };
         let mut line: [u8; 64] = [0; 64];
         // SAFETY: `getpid` takes nothing and returns this process's number.
         let pid: u32 = unsafe { libc::getpid() }.cast_unsigned();
         let Some(line_len) = own_line_bytes(pid, tick, &mut line) else {
-            return Err(std::io::Error::other("this process's line did not fit, so no Git ran"));
+            // A raw number and no heap, for the reason above.
+            return Err(std::io::Error::from_raw_os_error(libc::EIO));
         };
         let filled_line: &[u8] = line.get(..line_len).unwrap_or(&[]);
         // The file is made once and appended to afterwards, so the header goes only with the creation.
@@ -232,9 +234,20 @@ impl OwnLineBeforeBecomingGit {
         if error.kind() != std::io::ErrorKind::AlreadyExists {
             return Err(error);
         }
-        let appended: libc::c_int = unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_APPEND | libc::O_CLOEXEC) };
+        // What: The record file is opened with the one set of flags every plain-file open uses: no link is followed, a pipe
+        //       cannot wait, and the opened thing is checked before a byte is written.
+        // Why:  This open once followed a link and waited on a named pipe, so the child appended a record line to a person's
+        //       file and a Git start hung before `exec`
+        //       (a review of `58cd4d9f7c`,
+        // findings 3 and 4).
+        let appended: libc::c_int =
+            unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_APPEND | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC) };
         if appended < 0 {
-            return Err(std::io::Error::last_os_error());
+            return Err(std::io::Error::from_raw_os_error(errno()));
+        }
+        if !is_a_plain_file(appended) {
+            close(appended);
+            return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
         }
         let wrote: std::io::Result<()> = write_all(appended, filled_line);
         close(appended);
@@ -302,7 +315,7 @@ fn write_all(descriptor: libc::c_int, bytes: &[u8]) -> std::io::Result<()> {
             continue;
         }
         if count == 0 {
-            return Err(std::io::Error::other("the record took no bytes"));
+            return Err(std::io::Error::from_raw_os_error(libc::EIO));
         }
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.kind() != std::io::ErrorKind::Interrupted {
@@ -344,4 +357,46 @@ pub fn own_line_for(common_dir: &Path) -> Option<OwnLineBeforeBecomingGit> {
     let folder: PathBuf = crate::lock_holder_records::folder_of(common_dir);
     let path: PathBuf = crate::lock_holder_records::this_process_record_path(common_dir)?;
     return prepare_own_line(folder.as_path(), path.as_path());
+}
+
+/// What:
+///  The number of the last failure,
+///  without building an error of it.
+/// Why:
+///   The child may not allocate,
+///  and `std::io::Error::last_os_error` is an enum of a number that allocates nothing,
+///  but a message built for it would;
+///  this names the number plainly for the one place that reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const errno = () => libc.errno()
+/// ```
+#[cfg(unix)]
+fn errno() -> libc::c_int {
+    // SAFETY: `__errno_location` returns this thread's own errno cell and reads no memory of its caller.
+    return unsafe { *libc::__errno_location() };
+}
+
+/// What:
+///  Whether an open descriptor is a plain file,
+///  read from the descriptor and never from the name.
+/// Why:
+///   A name swapped for a pipe or a device between the open and the write cannot redirect the write once the type of
+///  what was opened decides,
+///  and the check allocates nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stat = fstatSync(fd); return stat.isFile()
+/// ```
+#[cfg(unix)]
+fn is_a_plain_file(descriptor: libc::c_int) -> bool {
+    // SAFETY: `fstat` writes into this stack value, which is exactly one `libc::stat`, and reads the descriptor's own record.
+    let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+    let asked: libc::c_int = unsafe { libc::fstat(descriptor, &raw mut metadata) };
+    if asked != 0 {
+        return false;
+    }
+    return metadata.st_mode & libc::S_IFMT == libc::S_IFREG;
 }

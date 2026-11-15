@@ -31,6 +31,9 @@ use std::path::Path;
 /// Why:
 ///   A monochromatic-git-policy-cli executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
 use crate::started_as_git::{StartMode, mark_real_git_start};
+/// Tag used for diagnostics from this module.
+const TAG: &str = "monochromatic-git-policy-cli";
+
 /// Starts that ride out a short shortage of processes.
 #[cfg(unix)]
 use crate::start_retry::exec_retrying;
@@ -281,14 +284,26 @@ impl ChildStarted for NoChildRecorded {
 /// ```ts
 /// try { noteChildStarted(child.pid) } catch (error) { stopAndReap(child); throw error }
 /// ```
-pub fn name_the_child(child: &mut std::process::Child) -> std::io::Result<()> {
+pub fn name_the_child(child: &mut std::process::Child) {
+    // What: A record that cannot be written after the child has become Git is a warning, and Git goes on.
+    // Why:  A successful `spawn` means the child passed `exec`, so Git may already have acted:
+    //       it can finish a commit and move the branch before this process runs again.
+    //       Stopping it then, or returning an error of the wrapper's, tells the caller a commit failed that landed, and a
+    //       retry lands a second one
+    //       (a review of `58cd4d9f7c`,
+    // finding 2).
+    //       The child wrote its own line before it could take a lock, which is what that line is for, so the fuller
+    //       identity this call adds is an improvement and never a condition of the command.
     if let Err(error) = crate::lock_holder_records::note_child_started(child.id()) {
-        let _ended: StopOutcome = stop_git(child);
-        return Err(std::io::Error::other(
-            format!("this Git was stopped before it could take a lock, because the record that would explain a lock it left could not be written: {error}").as_str(),
-        ));
+        crate::diagnostic_log::warn(
+            TAG,
+            format!(
+                "this Git (PID {}) could not be named in the record with its boot, namespace and machine, so a lock it leaves may keep the bounded wait instead of being cleared at once: {error}",
+                child.id()
+            )
+            .as_str(),
+        );
     }
-    return Ok(());
 }
 
 /// What:
@@ -353,7 +368,7 @@ pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Res
 pub fn spawn_naming_its_child(command: &mut Command) -> std::io::Result<std::process::Child> {
     record_the_git_this_command_starts(command)?;
     let mut child: std::process::Child = command.spawn_retrying()?;
-    name_the_child(&mut child)?;
+    name_the_child(&mut child);
     return Ok(child);
 }
 

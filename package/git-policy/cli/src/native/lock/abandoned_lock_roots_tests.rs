@@ -252,3 +252,34 @@ fn a_pass_in_the_main_worktree_clears_a_linked_worktrees_index_lock() {
 fn locked_index_of(git_dir: &Path) -> PathBuf {
     return git_dir.join("index").with_extension("lock");
 }
+
+/// What:
+///  A `refs` that is a link is no root of this repository,
+///  and the pass judges nothing in the folder it points at.
+/// Why:
+///  A walk names `refs` as a root and the walk's `read_dir` follows a link at the root itself,
+///  so a link planted there let the pass read a folder outside every repository and unlink a person's
+///  `important.lock`
+///  (a review of `58cd4d9f7c`,
+/// finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(outside, join(common, 'refs')); plantLock(join(outside, 'important.lock'), deadPid);
+/// meetTheLocks(repository); expect(readFileSync(join(outside, 'important.lock'))).toEqual(bytes);
+/// ```
+#[test]
+fn a_linked_refs_root_is_not_walked() {
+    let (root, repository, gone, _record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository("lock-roots-a-linked-refs");
+    let common: PathBuf = repository.common_dir.clone().expect("the common directory");
+    let outside: PathBuf = root.join("outside-every-repository");
+    std::fs::create_dir_all(outside.as_path()).expect("the folder the link points at");
+    std::os::unix::fs::symlink(outside.as_path(), common.join("refs").as_path()).expect("the link at refs");
+    let persons_file: PathBuf = outside.join("important.lock");
+    let persons_bytes: &[u8] = b"a person's data outside every repository\n";
+    std::fs::write(persons_file.as_path(), persons_bytes).expect("the person's file");
+    make_pid_file_after_the_lock(persons_file.as_path(), gone);
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "a root that is a link is not searched");
+    remove(root.as_path());
+}

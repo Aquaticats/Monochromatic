@@ -21,6 +21,36 @@ use std::time::Duration;
 thread_local! {
     /// How long this thread waits before it reads the identity of a process it is naming.
     static HOLD: Cell<Option<Duration>> = const { Cell::new(None) };
+    /// Whether the next naming of a child fails.
+    static FAIL_THE_NEXT_CHILD_NAMING: Cell<bool> = const { Cell::new(false) };
+}
+
+/// What:
+///  Whether a control has made the naming of the next child fail,
+///  and it is taken once.
+/// Why:
+///   A record that cannot be written after a child has become Git is the shape a commit was once reported as failed for;
+///  a control arms this to place that failure without a machine that fails on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// failTheNextChildNaming(); noteChildStarted(child.pid) // throws
+/// ```
+pub(crate) fn take_fail_the_next_child_naming() -> bool {
+    return FAIL_THE_NEXT_CHILD_NAMING.with(|cell| { return cell.replace(false); });
+}
+
+/// What:
+///  Make the naming of the next child fail, once.
+/// Why:
+///   The failure is the record write a control cannot otherwise place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// failTheNextChildNaming()
+/// ```
+pub(crate) fn fail_the_next_child_naming() {
+    FAIL_THE_NEXT_CHILD_NAMING.with(|cell| { cell.set(true); });
 }
 
 /// What:

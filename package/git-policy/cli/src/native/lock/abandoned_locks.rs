@@ -198,6 +198,9 @@ use crate::git_directory_roots::CommandRepository;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
+/// Tag used for diagnostics from this module.
+const TAG: &str = "monochromatic-git-policy-cli";
+
 /// How deep below a Git directory the walk looks,
 /// which reaches every reference and every linked worktree's own directory.
 const MOST_DEPTH: usize = 8;
@@ -337,6 +340,26 @@ pub fn walked(candidates: &[LockCandidate]) -> Walked {
                 }
             }
             LockCandidate::DirectlyBelow(folder) | LockCandidate::AnywhereBelow(folder) => {
+                // What: A root is opened as the folder it is named as, never through a link in its own last name.
+                // Why:  `read_dir` follows a link at the path it is given, and the checks of an entry's kind say nothing about
+                //       the root: with `refs` a link, the walk read a folder outside every repository and unlinked a
+                //       person's `important.lock` there (a review of `58cd4d9f7c`, finding 1).
+                //       A root that is not a real folder holds no lock of this repository, and the pass says so.
+                match std::fs::symlink_metadata(folder.as_path()).map(|metadata| { return metadata.file_type(); }) {
+                    Ok(kind) if kind.is_dir() => {}
+                    Ok(_not_a_folder) => {
+                        crate::diagnostic_log::debug(
+                            TAG,
+                            format!("{} is no folder of this repository, so the pass did not search it", folder.display()).as_str(),
+                        );
+                        continue;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(_unreadable) => {
+                        complete = false;
+                        continue;
+                    }
+                }
                 let downward: usize = if matches!(candidate, LockCandidate::AnywhereBelow(_)) { MOST_DEPTH } else { 0 };
                 let mut pending: Vec<(PathBuf, usize)> = vec![(folder.clone(), 0)];
                 while let Some((directory, depth)) = pending.pop() {

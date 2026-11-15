@@ -686,3 +686,111 @@ fn a_wrapper_killed_between_starting_a_git_and_naming_it_leaves_that_git_named()
     assert!(!lock.exists(), "the lock is gone");
     remove(root.as_path());
 }
+
+/// What:
+///  A child that has become Git is not stopped and does not fail the command when its fuller identity cannot be
+///  written:
+///  the command ends with Git's own status.
+/// Why:
+///  A successful `spawn` means the child passed `exec`,
+///  so Git may already have finished a commit and moved the branch;
+///  stopping it then or returning the wrapper's error tells the caller that a landed commit failed,
+///  and a retry lands a second one
+///  (a review of `58cd4d9f7c`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// failTheNextChildNaming(); const child = spawnNamingItsChild(command); expect(await child.wait()).toBe(0);
+/// expect(existsSync(marker)).toBe(true)
+/// ```
+#[test]
+fn a_record_that_cannot_name_a_git_that_already_became_it_does_not_fail_the_command() {
+    let root: PathBuf = fixture("forward-name-failure-after-exec");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.join("objects").as_path()).expect("the object directory");
+    std::fs::create_dir_all(common.join("refs/heads").as_path()).expect("the references");
+    std::fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+    remember_repository(common.as_path());
+    let marker: PathBuf = root.join("the-git-ran");
+    let program: PathBuf = root.join("quick-git");
+    let script: String = format!("#!/bin/sh\n: > '{0}'\nexit 0\n", marker.display());
+    executable(program.as_path(), script.as_bytes());
+    crate::lock_holder_records::hold_before_reading_a_childs_identity_test_support::fail_the_next_child_naming();
+    let ended: std::io::Result<ChildOutcome> = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(20), StartOwner::Wrapper);
+    assert!(marker.exists(), "the Git ran and did its work");
+    assert!(matches!(ended, Ok(ChildOutcome::Exited(0))), "the command ends with Git's own status, not the wrapper's error: {ended:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe at this process's record path fails the start before any Git runs,
+///  instead of holding the command inside `spawn`.
+/// Why:
+///  The the parent's own note once answered success for whatever stood at the path,
+///  and the child's append then waited on the pipe with no reader,
+///  so a Git command waited forever before Git started
+///  (a review of `58cd4d9f7c`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(thisProcessRecordPath(common)); const began = Date.now();
+/// awaitReject(spawnNamingItsChild(command)); expect(Date.now() - began).toBeLessThan(5000); expect(existsSync(marker)).toBe(false)
+/// ```
+#[test]
+fn a_named_pipe_at_the_record_path_fails_the_start_before_a_git_runs() {
+    let root: PathBuf = fixture("forward-record-pipe");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(crate::lock_holder_records::folder_of(common.as_path()).as_path()).expect("the record folder");
+    remember_repository(common.as_path());
+    let record: PathBuf = this_process_record_path(common.as_path()).expect("this process's record path");
+    let made = std::process::Command::new("mkfifo").arg(record.as_path()).status().expect("mkfifo runs");
+    assert!(made.success(), "the control made a named pipe at the record's path");
+    let marker: PathBuf = root.join("the-git-ran");
+    let program: PathBuf = root.join("quick-git");
+    let script: String = format!("#!/bin/sh\n: > '{0}'\nexit 0\n", marker.display());
+    executable(program.as_path(), script.as_bytes());
+    let began: std::time::Instant = std::time::Instant::now();
+    let started = crate::forwarding::spawn_naming_its_child(&mut git_command(program.as_path(), &[], &[], StartOwner::Wrapper));
+    assert!(began.elapsed() < std::time::Duration::from_secs(5), "the start answers at once instead of waiting for a reader: {began:?}");
+    assert!(started.is_err(), "a record path that holds a pipe fails the start: {started:?}");
+    assert!(!marker.exists(), "no Git ran");
+    remove(root.as_path());
+}
+
+/// What:
+///  A link at this process's record path fails the start,
+///  and the file it names is not written to.
+/// Why:
+///  The the child's append open had no `O_NOFOLLOW`,
+///  so the record line was added to whatever the link named
+///  (a review of `58cd4d9f7c`,
+/// finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(personsFile, thisProcessRecordPath(common)); awaitReject(spawnNamingItsChild(command));
+/// expect(readFileSync(personsFile)).toEqual(original)
+/// ```
+#[test]
+fn a_link_at_the_record_path_fails_the_start_and_leaves_the_persons_file_alone() {
+    let root: PathBuf = fixture("forward-record-link");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(crate::lock_holder_records::folder_of(common.as_path()).as_path()).expect("the record folder");
+    remember_repository(common.as_path());
+    let persons_file: PathBuf = root.join("a-person's-file");
+    let persons_bytes: &[u8] = b"a line of a person's own\n";
+    std::fs::write(persons_file.as_path(), persons_bytes).expect("the person's file");
+    let record: PathBuf = this_process_record_path(common.as_path()).expect("this process's record path");
+    std::os::unix::fs::symlink(persons_file.as_path(), record.as_path()).expect("the link at the record's path");
+    let marker: PathBuf = root.join("the-git-ran");
+    let program: PathBuf = root.join("quick-git");
+    let script: String = format!("#!/bin/sh\n: > '{0}'\nexit 0\n", marker.display());
+    executable(program.as_path(), script.as_bytes());
+    let started = crate::forwarding::spawn_naming_its_child(&mut git_command(program.as_path(), &[], &[], StartOwner::Wrapper));
+    assert!(started.is_err(), "a record path that is a link fails the start: {started:?}");
+    assert!(!marker.exists(), "no Git ran");
+    assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "the person's file is not written to");
+    remove(root.as_path());
+}

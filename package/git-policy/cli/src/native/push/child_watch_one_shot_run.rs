@@ -184,7 +184,7 @@ pub fn output_watched_within_for_a_stop(
     if pipes.is_some() {
         release_write_ends(command);
     }
-    crate::forwarding::name_the_child(&mut child)?;
+    crate::forwarding::name_the_child(&mut child);
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);

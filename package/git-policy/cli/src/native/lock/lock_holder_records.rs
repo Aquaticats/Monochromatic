@@ -139,6 +139,10 @@ pub fn remembers_a_repository() -> bool {
 /// noteChildStarted(child.pid) // throws when the line could not be written
 /// ```
 pub fn note_child_started(pid: u32) -> std::io::Result<()> {
+    #[cfg(test)]
+    if self::hold_before_reading_a_childs_identity_test_support::take_fail_the_next_child_naming() {
+        return Err(std::io::Error::from_raw_os_error(libc::EIO));
+    }
     let Some(common_dir) = REPOSITORY.get() else {
         return Ok(());
     };
@@ -493,11 +497,22 @@ pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, p
         Ok(file) => file,
         // Another thread of this process made it, or it is this process's own record already: the append below is enough.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            // The writer's own line is already the file's, so asking for it again writes nothing.
-            if kind == SELF_KIND {
-                return Ok(());
-            }
+            // What: Every open of an existing record is the plain-file open, the writer's own line included.
+            // Why:  The `self` branch once answered success for whatever stood at the path without opening it, so a link or a
+            //       named pipe there was accepted here and the child then followed it or waited on it
+            //       (a review of `58cd4d9f7c`,
+            // findings 3 and 4).
             let mut existing: std::fs::File = crate::plain_file::open_plain_file_to_append(path)?;
+            if kind == SELF_KIND {
+                // The writer's own line is written once: it is skipped only when the file that was read names this process.
+                let named: Vec<u8> = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT)?;
+                let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(named.as_slice());
+                let own_line: String = format!("{SELF_KIND} {} ", own.0);
+                if text.lines().any(|line| { return line.starts_with(own_line.as_str()); }) {
+                    return Ok(());
+                }
+                return existing.write_all(record_line(SELF_KIND, own.0, own.1.as_str()).as_bytes());
+            }
             return existing.write_all(record_line(kind, i64::from(pid), identity).as_bytes());
         }
         Err(error) => return Err(error),
