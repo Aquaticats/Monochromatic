@@ -20590,7 +20590,15 @@ and changes nothing.
 A write that lands after the last comparison and before Git starts cannot be seen from outside Git.
 A file that another program changes while the save runs is the user's risk.
 
-The folder is bounded after each save that wrote at least one copy,
+No command of this release writes a copy, so no pass of this release bounds the folder:
+the trigger was a save that had just written one,
+and the copies an earlier release left stay until a person removes them.
+`git monochromatic-git-policy-cli doctor` names the folder, its copies and the limits a person set,
+and `discarded_prune::prune` still does what the rest of this section describes if something calls it,
+so whether the sweep should keep running for those copies is the owner's decision and not this
+branch's.
+With that said, the pass this section describes bounds the folder after each save that wrote at least
+one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),
 with nothing waiting on it.
 The folder is opened once without following a link at `monochromatic-git-policy-cli` or `discarded`
