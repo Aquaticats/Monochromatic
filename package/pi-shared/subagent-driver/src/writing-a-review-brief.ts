@@ -11,10 +11,10 @@
  of code, which names what was removed or renamed and asks what depended on it, even when the files the commit still holds at the
  touched paths are tests alone.
 
- A review's folder is taken by the start that writes its inputs, by creating an owner file only one of them can create, and only
- once the change is known to leave something to read. A second start with the same change name learns from that file whose the
- folder is and is refused with both branches named, while a folder whose owner has ended is taken again: a start killed between
- taking a folder and writing its brief blocks nobody for good.
+ A review's folder is made by the start that writes its inputs, by an exclusive create and only once the change is known to leave
+ something to read, and it belongs to that start for good. A start that finds the change's name taken takes the next free name
+ beside it, `<change>-2`, `<change>-3`, so a second start never writes over the first, and a folder a killed start left is left as a
+ leftover with its record.
 
  @module
  */
@@ -23,13 +23,7 @@ import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
-import { randomUUID, } from 'node:crypto';
 import { dirname, } from 'node:path';
-import {
-  type ReviewFolderOwner,
-  takeReviewFolder,
-} from './claiming-a-review-folder.ts';
-import { processIdentityOfThisProcess, } from './liveness-of-a-process.ts';
 import type { BriefOfOneReview } from './reviews-of-finished-branches.ts';
 import {
   type GitQuestion,
@@ -43,17 +37,13 @@ import {
 import {
   briefFileOfAReview,
   diffFileOfAReview,
-  ownerFileOfAReview,
   readingFileOfAReview,
+  recordFileOfAReview,
   reproductionsFolderOfAReview,
-  reviewFolderOf,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
-import {
-  type RunCommand,
-  runCommandWithChildProcess,
-} from './run-command.ts';
-import { unitNameOfGiven, } from './running-pi-units.ts';
+import { takeTheNextReviewFolder, } from './the-folder-of-a-review.ts';
+import { recordTextOf, } from './the-record-of-a-review-folder.ts';
 
 /**
  Writes the diff, the brief and the reproductions folder of one review.
@@ -70,8 +60,8 @@ import { unitNameOfGiven, } from './running-pi-units.ts';
 
  @param source - the folder whose changes are reviewed
 
- @param branch - the branch whose change the review reads, when the caller names one; a second branch of one change name is refused
- with both named
+ @param branch - the branch whose change the review reads, when the caller names one; a second start of one change name takes a
+ name of its own beside the first
 
  @param focus - what the reviewer looks hardest at
 
@@ -81,9 +71,7 @@ import { unitNameOfGiven, } from './running-pi-units.ts';
 
  @param rulesFile - the rules file's path, which the brief names first
 
- @param manager - how the user's manager is asked whether a review of this folder still runs, which a test hands in
-
- @returns whether the brief was written, and the line to print
+ @returns whether the brief was written, the review name its folder carries, and the line to print
 
  @throws ReviewGitError when git did not answer with a success
 
@@ -104,7 +92,6 @@ export async function writeReviewBrief({
   reviewsFolder,
   runsFolder,
   rulesFile,
-  manager = runCommandWithChildProcess,
 }: {
   readonly git: GitQuestion;
   readonly checkoutFolder: string;
@@ -117,7 +104,6 @@ export async function writeReviewBrief({
   readonly reviewsFolder: string;
   readonly runsFolder: string;
   readonly rulesFile: string;
-  readonly manager?: RunCommand;
 }): Promise<BriefOfOneReview> {
   /**
    The diff and the files a reviewer is given.
@@ -136,57 +122,49 @@ export async function writeReviewBrief({
     };
   }
   /**
-   The review's own folder.
+   The review's own folder, whose name carries the generation this start took, and the record that says what the folder is for.
    */
-  const reviewFolder = reviewFolderOf({
+  const taken = await takeTheNextReviewFolder({
     reviewsFolder,
     review,
   },);
-  // The folder is taken only now: a change that leaves nothing to read writes nothing and holds no folder, so a branch with
-  // nothing to review never stands in the way of one with something to review under the same change name.
   /**
-   The unit this review runs as, whose life the folder's claim follows.
+   The review name this start's folder carries, which its run, branch and unit also carry.
    */
-  const unit = unitNameOfGiven({ name: runNameOfAReview({ review, },), },);
-  await takeReviewFolder({
-    reviewFolder,
-    ownerFile: ownerFileOfAReview({
+  const chosen = taken.review;
+  await writeFile(
+    recordFileOfAReview({
       reviewsFolder,
-      review,
+      review: chosen,
     },),
-    ...((branch === undefined) ? {} : { branch, }),
-    unit,
-    manager,
-    owner: {
+    recordTextOf({
       ...((branch === undefined) ? {} : { branch, }),
       commit,
       ranges,
       source,
       claimedAt: new Date()
         .toISOString(),
-      unit,
-      claim: randomUUID(),
-      process: await processIdentityOfThisProcess(),
-    },
-  },);
+    },),
+    'utf8',
+  );
   /**
    The file the diff is written to.
    */
   const diffFile = diffFileOfAReview({
     reviewsFolder,
-    review,
+    review: chosen,
   },);
   /**
    The file the brief is written to.
    */
   const briefFile = briefFileOfAReview({
     reviewsFolder,
-    review,
+    review: chosen,
   },);
   await mkdir(
     reproductionsFolderOfAReview({
       reviewsFolder,
-      review,
+      review: chosen,
     },),
     { recursive: true, },
   );
@@ -203,7 +181,7 @@ export async function writeReviewBrief({
     briefFile,
     (material.kind === 'tests-and-fixtures')
       ? briefOfAChangeToTests({
-        review,
+        review: chosen,
         commit,
         source,
         files: material.files,
@@ -214,7 +192,7 @@ export async function writeReviewBrief({
         rulesFile,
       },)
       : briefOfAReview({
-        review,
+        review: chosen,
         commit,
         source,
         files: material.files,
@@ -231,11 +209,11 @@ export async function writeReviewBrief({
   await writeFile(
     readingFileOfAReview({
       reviewsFolder,
-      review,
+      review: chosen,
     },),
     `${JSON.stringify(
       {
-        review,
+        review: chosen,
         commit,
         ranges,
         source,
@@ -247,8 +225,9 @@ export async function writeReviewBrief({
   );
   return {
     written: true,
-    line: `${runNameOfAReview({ review, },)}: ${String(material.files
+    review: chosen,
+    line: `${runNameOfAReview({ review: chosen, },)}: ${String(material.files
       .length,)} files to read, brief at ${briefFile}; `
-      + `its worktree starts at ${commit}. Its folder is ${reviewFolder}`,
+      + `its worktree starts at ${commit}. Its folder is ${taken.folder}`,
   };
 }

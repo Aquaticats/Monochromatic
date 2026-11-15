@@ -10,14 +10,12 @@
  @module
  */
 
-import { access, } from 'node:fs/promises';
 import {
   argv,
   env,
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
-import { errorCodeOf, } from './error-code-of.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import {
   keepFailedOutput,
@@ -32,12 +30,12 @@ import {
 import { FOCUS_OF_A_CHANGE_REVIEW, } from './review-brief.ts';
 import {
   briefFileOfAReview,
-  reviewFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
 import { startReviews, } from './reviews-of-finished-branches.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
 import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
+import { theReviewOfABranch, } from './the-folder-of-a-review.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import {
   retryingStartEntry,
@@ -56,11 +54,6 @@ if (usageWasAsked({
   process.exitCode = 0;
   process.exit(0,);
 }
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The top of the checkout this command runs in, which every git question and worktree is about.
@@ -86,35 +79,6 @@ const git = gitRunnerOf(runCommandWithChildProcess,);
 const retryingStart = await retryingStartEntry();
 
 /**
- Says whether a review already wrote its review file.
-
- @param review - the change the review reads
-
- @returns whether the file is there
-
- @example
- ```ts
- const written = await reviewIsWritten({ review: 'a', },);
- ```
- */
-async function reviewIsWritten({ review, }: { readonly review: string },): Promise<boolean> {
-  try {
-    await access(reviewFileOfAReview({
-      reviewsFolder: options.reviewsFolder,
-      review,
-    },),);
-    return true;
-  }
-  catch (error) {
-    // A review file that is not there is exactly what this asks about.
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/**
  Starts one review per branch and answers every line it printed.
  */
 const started = await startReviews({
@@ -135,7 +99,16 @@ const started = await startReviews({
       process.stdout
         .write(`${line}\n`,);
     },
-    reviewIsWritten,
+    reviewOfAChange: async function reviewOfAChange({
+      review,
+      branch,
+    },) {
+      return await theReviewOfABranch({
+        reviewsFolder: options.reviewsFolder,
+        review,
+        branch,
+      },);
+    },
     branchTip: async function branchTip({ branch, },) {
       return (await outputOfGit({
         git,

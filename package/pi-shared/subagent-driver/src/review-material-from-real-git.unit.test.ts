@@ -50,17 +50,6 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
- A manager that says no review of any unit runs, which a test that starts no unit hands the writer.
- */
-async function anIdleManager() {
-  return {
-    status: 3,
-    stdout: 'inactive\n',
-    stderr: '',
-  };
-}
-
-/**
  A backslash, which a lone one cannot stand in a raw template, so one is taken from two.
  */
 const BACKSLASH = String.raw`\\`.slice(
@@ -710,7 +699,6 @@ await describe({
               reviewsFolder,
               runsFolder: join(folder.path, 'runs',),
               rulesFile: aRulesFile(),
-              manager: anIdleManager,
             },);
             /**
              The brief the writer wrote.
@@ -799,7 +787,6 @@ await describe({
               reviewsFolder,
               runsFolder: join(folder.path, 'runs',),
               rulesFile: aRulesFile(),
-              manager: anIdleManager,
             },);
             /**
              The brief the writer wrote.
@@ -945,7 +932,6 @@ await describe({
               reviewsFolder,
               runsFolder: join(folder.path, 'runs',),
               rulesFile: aRulesFile(),
-              manager: anIdleManager,
             },);
             /**
              The brief the writer wrote.

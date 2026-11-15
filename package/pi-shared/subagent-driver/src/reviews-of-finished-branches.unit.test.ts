@@ -22,6 +22,7 @@ import {
   REVIEW_WALL_SECONDS,
   TURN_CAP_MARGIN,
   type BriefOfOneReview,
+  NO_REVIEWED_FOLDER,
   entryLineOf,
   type ReviewStartingSeams,
   type StartOfOneReview,
@@ -167,6 +168,20 @@ type Asked = {
 };
 
 /**
+ What a test's brief seam answers: a brief and the line, and the review name its folder carries when the test names one.
+ */
+type ABriefForATest =
+  | {
+    readonly written: false;
+    readonly line: string;
+  }
+    | {
+      readonly written: true;
+      readonly line: string;
+      readonly review?: string;
+    };
+
+/**
  Builds the seams a test answers, recording what they were asked.
 
  @param answers - what the brief, the start and the save answer, by change name
@@ -187,8 +202,8 @@ function seamsAnswering({
   merges,
   refusals = new Map(),
 }: {
-  readonly briefs: ReadonlyMap<string, BriefOfOneReview>;
-  readonly briefsByBranch?: ReadonlyMap<string, BriefOfOneReview>;
+  readonly briefs: ReadonlyMap<string, ABriefForATest>;
+  readonly briefsByBranch?: ReadonlyMap<string, ABriefForATest>;
   readonly starts: ReadonlyMap<string, StartOfOneReview>;
   readonly saves: ReadonlyMap<string, { readonly line: string }>;
   readonly written: readonly string[];
@@ -217,8 +232,10 @@ function seamsAnswering({
       report: function report(line,) {
         asked.shown.push(line,);
       },
-      reviewIsWritten: async function reviewIsWritten({ review, },) {
-        return written.includes(review,);
+      reviewOfAChange: async function reviewOfAChange({ review, },) {
+        return written.includes(review,)
+          ? review
+          : NO_REVIEWED_FOLDER;
       },
       branchTip: async function branchTip({ branch, },) {
         return aTip({ change: changeOfBranch({ branch, },), },);
@@ -239,12 +256,18 @@ function seamsAnswering({
         if (refusal !== undefined) {
           throw new Error(refusal,);
         }
-        return briefsByBranch.get(branch,)
+        /**
+         What this brief answered, or the answer for a brief no test named.
+         */
+        const answered = briefsByBranch.get(branch,)
           ?? briefs.get(review,)
           ?? {
             written: false,
             line: `${runNameOfAReview({ review, },)}: no answer for this brief`,
           };
+        return answered.written
+          ? { ...answered, review: answered.review ?? changeOfBranch({ branch, },), }
+          : answered;
       },
       start: async function start({ review, words, },) {
         asked.starts.push({
@@ -506,7 +529,7 @@ await describe({
           },
         },),
         it({
-          name: 'briefs a second branch of one change name after a branch whose brief leaves nothing to review, because a branch that writes no brief takes no review folder',
+          name: 'gives the second branch of one change name a folder of its own, so both are reviewed under their own names',
           fn: async () => {
             /**
              The two distinct branches whose names derive one change name.
@@ -524,7 +547,11 @@ await describe({
               briefs: new Map(),
               briefsByBranch: new Map([
                 [firstBranch, { written: false, line: 'nothing to review in the first branch', },],
-                [secondBranch, { written: true, line: 'a reviewable brief for the second branch', },],
+                [secondBranch, {
+                  written: true,
+                  review: `${sharedChange}-2`,
+                  line: 'a reviewable brief for the second branch',
+                },],
               ],),
               starts: new Map(),
               saves: new Map(),
@@ -542,14 +569,14 @@ await describe({
             expect(started.lines,).toEqual([
               'nothing to review in the first branch',
               'a reviewable brief for the second branch',
-              `${runNameOfAReview({ review: sharedChange, },)}: started`,
-              `${runNameOfAReview({ review: sharedChange, },)}: has its review.md`,
+              `${runNameOfAReview({ review: `${sharedChange}-2`, },)}: started`,
+              `${runNameOfAReview({ review: `${sharedChange}-2`, },)}: has its review.md`,
               'reviews ended with statuses 0',
             ],);
             expect(asked.briefs,).toHaveLength(2,);
             expect(asked.starts.map(function reviewOf(start,) {
               return start.review;
-            },),).toEqual([sharedChange,],);
+            },),).toEqual([`${sharedChange}-2`,],);
             expect(started.statuses,).toEqual(['0',],);
           },
         },),

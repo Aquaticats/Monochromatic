@@ -548,27 +548,18 @@ which the brief lists among the folders a reviewer must not read;
 and `--rules-file`,
 which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
 
-It takes the review's folder before anything is written:
-an owner file only one start can create records the branch,
+It makes the review's folder before anything is written:
+a folder is created exclusively and belongs to the start that made it for good,
+and a record in it names the branch,
 the commit,
-the review's unit,
-and the process that took it.
-The unit is what keeps the folder:
-a review outlives the command that wrote its brief and started it,
-so a folder whose command has ended but whose review unit still runs is kept,
-and a taker must have the manager's own answer that the unit is gone.
-A manager that does not answer is unknown,
-and unknown keeps the folder.
-A record that names a unit which was never started,
-because the command ended between writing the record and starting the unit,
-has no review to keep the folder,
-so the folder is taken.
-A second start with the same change name is refused with both branches named,
-and a folder whose owner has ended is taken again by exactly one taker:
-the taker makes a ticket named after the record's own claim,
-reads the record again,
-and removes it only when it still carries that claim,
-so it never removes a record another start linked after its look.
+the ranges and the source folder.
+A start that finds the change's name taken does not judge the start that took it:
+it takes the next free name beside it,
+`<change>-2`, `<change>-3` and so on,
+so a second start never writes over the first,
+and a folder a killed start left is left as a leftover with its record.
+The generation is part of the review's name,
+so its run, its branch, its unit and its worktree all carry it.
 It then writes the diff of the ranges under the source folder,
 the brief that names the files the reviewer reads,
 an empty `reproductions/` folder,
@@ -727,20 +718,17 @@ said in its line with the reason,
 with status `none` in that branch's place.
 Two branches whose names derive the same change name,
 such as `fix/shared-change` and `feat/shared-change`,
-cannot both be reviewed:
-they would share one review folder,
-one brief and one run name,
-so the start that writes a review's folder takes it with an owner file only one start can create,
-and a second start finds it held.
-The refusal is one line naming both branches,
-with status `none`,
-while the first goes on,
-and it holds between two separate starters as well as inside one batch.
+are reviewed under names of their own:
+the first start makes `shared-change`,
+the second makes `shared-change-2`,
+and each line names the folder it took.
 A branch whose change leaves nothing to review takes no folder at all.
-A folder whose owner has ended is taken again by exactly one taker,
-because a takeover removes the record it read and only that record,
-so a start killed between taking a folder and writing its brief blocks nobody for good,
-and two starts taking one dead owner's place cannot both believe they own it.
+A folder a killed start left is never taken over or removed by a start:
+it stays as a leftover with its record,
+and the next start of that branch takes the next name.
+The starter finds a branch's review by the branch its folder's record names,
+through the generations,
+so a leftover of another change whose name matches a generation does not hide it.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,

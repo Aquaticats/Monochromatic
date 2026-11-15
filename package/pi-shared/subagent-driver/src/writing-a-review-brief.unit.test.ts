@@ -10,7 +10,6 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
 import { existsSync, } from 'node:fs';
 import {
   mkdir,
@@ -33,23 +32,11 @@ import {
   type BriefOfOneReview,
   type CommandOutput,
   FOCUS_OF_A_CHANGE_REVIEW,
-  ReviewFolderTakenError,
   briefFileOfAReview,
-  ownerFileOfAReview,
   readingFileOfAReview,
+  recordFileOfAReview,
   writeReviewBrief,
 } from '../dist/final/node/index.mjs';
-
-/**
- A manager that says no review of any unit runs, which a test that starts no unit hands the writer.
- */
-async function anIdleManager(): Promise<CommandOutput> {
-  return {
-    status: 3,
-    stdout: 'inactive\n',
-    stderr: '',
-  };
-}
 
 /**
  The change a review reads.
@@ -430,117 +417,50 @@ function aBranch(): string {
 }
 
 /**
- One start's identity, read the way the writer reads it.
-
- @returns this process's number, boot and start time
-
- @example
- ```ts
- const identity = await thisProcessIdentity();
- ```
- */
-async function thisProcessIdentity(): Promise<{
-  readonly pid: number;
-  readonly bootId: string;
-  readonly startTicks: string;
-}> {
-  /**
-   What the kernel says of this process.
-   */
-  const stat = await readFile('/proc/self/stat', 'utf8',);
-  /**
-   Where the program's name, which may hold spaces, ends.
-   */
-  const close = stat.lastIndexOf(')',);
-  /**
-   The fields after the name, the state first.
-   */
-  const fields = stat.slice(close + 1,)
-    .trim()
-    .split(' ',);
-  return {
-    pid: process.pid,
-    bootId: (await readFile('/proc/sys/kernel/random/boot_id', 'utf8',)).trim(),
-    startTicks: fields[19] ?? '',
-  };
-}
-
-/**
- Writes an owner record into a review folder, as a start that once took it left it.
+ Writes a record into a review folder, as a start that died left it: the folder exists, it names the branch, and it holds no brief.
 
  @param reviewsFolder - folder that holds one folder per review
 
  @param branch - the branch the record names
 
- @param process - the identity the record names
-
- @returns the owner file's path
+ @returns the record file's path
 
  @example
  ```ts
- const ownerFile = await writeOwnerRecord({ reviewsFolder, branch: aBranch(), process: aDeadStart },);
+ const recordFile = await writeLeftoverRecord({ reviewsFolder, branch: aBranch(), },);
  ```
  */
-async function writeOwnerRecord({
+async function writeLeftoverRecord({
   reviewsFolder,
   branch,
-  process: identity,
 }: {
   readonly reviewsFolder: string;
   readonly branch: string;
-  readonly process: {
-    readonly pid: number;
-    readonly bootId: string;
-    readonly startTicks: string;
-  };
 },): Promise<string> {
   /**
    The file the record is kept in.
    */
-  const ownerFile = ownerFileOfAReview({
+  const recordFile = recordFileOfAReview({
     reviewsFolder,
     review: aReview(),
   },);
   await mkdir(
-    dirname(ownerFile,),
+    dirname(recordFile,),
     { recursive: true, },
   );
   await writeFile(
-    ownerFile,
+    recordFile,
     `${JSON.stringify({
       branch,
       commit: aCommit(),
       ranges: [aRange(),],
       source: aSourceFolder(),
       claimedAt: '2026-11-14T00:00:00.000Z',
-      process: identity,
     },)}
 `,
     'utf8',
   );
-  return ownerFile;
-}
-
-/**
- The identity of a start that ended, which no kernel entry answers for.
-
- @returns the identity
-
- @example
- ```ts
- const dead = aStartThatEnded();
- ```
- */
-function aStartThatEnded(): {
-  readonly pid: number;
-  readonly bootId: string;
-  readonly startTicks: string;
-} {
-  return {
-    pid: 999_999,
-    bootId: 'a-boot-this-machine-is-not-on',
-    startTicks: '0',
-  };
+  return recordFile;
 }
 
 /**
@@ -608,7 +528,6 @@ async function writeAChangeThrough(changed: readonly ChangedInATest[],): Promise
     reviewsFolder,
     runsFolder: join(folder.path, 'runs',),
     rulesFile: aRulesFile(),
-    manager: anIdleManager,
   },);
   return {
     briefed,
@@ -660,7 +579,6 @@ async function writeAChangeOfBranch({
     reviewsFolder: join(folder, 'reviews',),
     runsFolder: join(folder, 'runs',),
     rulesFile: aRulesFile(),
-    manager: anIdleManager,
   },);
 }
 
@@ -885,297 +803,6 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a second branch of one change name before it writes over the first, naming both branches, when both starters run at once',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The two distinct branches whose names derive one change name.
-             */
-            const firstBranch = 'fix/shared-change';
-            const secondBranch = 'feat/shared-change';
-            /**
-             What each concurrent start answered.
-             */
-            const answers = await Promise.allSettled([
-              writeAChangeOfBranch({
-                changed: [aModifiedFile(aCodeFile(),),],
-                folder: folder.path,
-                branch: firstBranch,
-              },),
-              writeAChangeOfBranch({
-                changed: [aModifiedFile(aTestFile(),),],
-                folder: folder.path,
-                branch: secondBranch,
-              },),
-            ],);
-            /**
-             The starts that wrote their brief.
-             */
-            const wrote = answers.filter(function wroteItsBrief(answer,) {
-              return answer.status === 'fulfilled';
-            },);
-            /**
-             The starts that were refused.
-             */
-            const refused = answers.filter(function wasRefused(answer,) {
-              return answer.status === 'rejected';
-            },);
-            expect(wrote,).toHaveLength(1,);
-            expect(refused,).toHaveLength(1,);
-            /**
-             What the refused start threw.
-             */
-            const reason: unknown = (refused[0]?.status === 'rejected') ? refused[0].reason : undefined;
-            expect(reason,).toBeInstanceOf(ReviewFolderTakenError,);
-            expect(String(reason,),).toContain(firstBranch,);
-            expect(String(reason,),).toContain(secondBranch,);
-            /**
-             What the folder records of the start that took it.
-             */
-            const owner = JSON.parse(await readFile(
-              ownerFileOfAReview({
-                reviewsFolder: join(folder.path, 'reviews',),
-                review: aReview(),
-              },),
-              'utf8',
-            ),) as { readonly branch?: unknown };
-            expect(owner.branch,).toBe(((answers[0]?.status === 'fulfilled') ? firstBranch : secondBranch));
-          },
-        },),
-        it({
-          name: 'takes a review folder a start that ended held for the same branch, so a start killed between taking a folder and writing its brief blocks nobody for good',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The reviews folder the dead start wrote into.
-             */
-            const reviewsFolder = join(folder.path, 'reviews',);
-            /**
-             The owner file the dead start left.
-             */
-            const ownerFile = await writeOwnerRecord({
-              reviewsFolder,
-              branch: aBranch(),
-              process: aStartThatEnded(),
-            },);
-            /**
-             What this start answered.
-             */
-            const briefed = await writeAChangeOfBranch({
-              changed: [aModifiedFile(aCodeFile(),),],
-              folder: folder.path,
-            },);
-            expect(briefed.written,).toBe(true,);
-            /**
-             What the folder now records.
-             */
-            const owner = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
-              readonly branch?: unknown;
-              readonly process?: { readonly pid?: unknown };
-            };
-            expect(owner.branch,).toBe(aBranch(),);
-            expect(owner.process?.pid,).toBe(process.pid,);
-            /**
-             The brief the writer wrote.
-             */
-            const briefFile = join(reviewsFolder, aReview(), 'brief.md',);
-            expect(existsSync(briefFile,),).toBe(true,);
-          },
-        },),
-        it({
-          name: 'takes a review folder a starter left when it was killed after taking it, so a killed starter blocks nobody for good',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The reviews folder the killed start wrote into.
-             */
-            const reviewsFolder = join(folder.path, 'reviews',);
-            /**
-             The owner file the killed start leaves.
-             */
-            const ownerFile = ownerFileOfAReview({ reviewsFolder, review: aReview(), },);
-            /**
-             The start that takes the folder and waits to be killed, writing the record of the process it is.
-             */
-            const childFile = join(folder.path, 'a-start-that-takes-the-folder.ts',);
-            await writeFile(childFile, `
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
-/**
- The kernel's answer about this process, whose fields after the name begin at its state.
- */
-const stat = readFileSync('/proc/self/stat', 'utf8',);
-const fields = stat.slice(stat.lastIndexOf(')') + 2,).split(' ',);
-/**
- The moment this process began, which tells it from a later process of the same number.
- */
-const startTicks = fields[19];
-/**
- The boot this process runs on.
- */
-const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8',).trim();
-mkdirSync(dirname(process.argv[3],), { recursive: true, },);
-writeFileSync(process.argv[3], JSON.stringify({
-  branch: process.argv[2],
-  commit: 'abc1234',
-  ranges: ['main...feat/one-change'],
-  source: 'package/a-package',
-  claimedAt: new Date().toISOString(),
-  process: { pid: process.pid, bootId, startTicks },
-}, null, 2,) + '\\n',);
-process.stdout.write('took the folder\\n',);
-setInterval(() => {}, 1000,);
-`,);
-            /**
-             The start that took the folder, killed when this test ends, however it ends.
-             */
-            using started = {
-              child: spawn(process.execPath, [childFile, aBranch(), ownerFile,], {
-                stdio: ['ignore', 'pipe', 'pipe',],
-              },),
-              [Symbol.dispose]: function endTheStart() {
-                this.child.kill('SIGKILL',);
-              },
-            };
-            /**
-             The start the test watches.
-             */
-            const { child, } = started;
-            /**
-             What the start said on its error stream, for a start that ends before it takes the folder.
-             */
-            let childErrors = '';
-            child.stderr.setEncoding('utf8',);
-            child.stderr.on('data', function saidOnTheErrorStream(chunk: string,) {
-              childErrors += chunk;
-            },);
-            await new Promise<void>(function waitForTheFolder(resolve, reject,) {
-              child.stdout.setEncoding('utf8',);
-              child.stdout.once('data', function tookTheFolder(chunk: string,) {
-                if (chunk.includes('took the folder',)) {
-                  resolve();
-                }
-              },);
-              child.once('exit', function endedBeforeTaking(code,) {
-                reject(new Error(`the start ended before it took the folder, with ${String(code,)}: ${childErrors}`,),);
-              },);
-            },);
-            /**
-             The number of the start that took the folder.
-             */
-            const killed = child.pid;
-            expect(typeof killed,).toBe('number',);
-            child.kill('SIGKILL',);
-            await new Promise<void>(function waitForTheEnd(resolve,) {
-              child.once('exit', function ended() {
-                resolve();
-              },);
-            },);
-            /**
-             What the folder held before this start wrote its brief.
-             */
-            const before = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
-              readonly process?: { readonly pid?: unknown };
-            };
-            expect(before.process?.pid,).toBe(killed,);
-            /**
-             What this start answered.
-             */
-            const briefed = await writeAChangeOfBranch({
-              changed: [aModifiedFile(aCodeFile(),),],
-              folder: folder.path,
-            },);
-            expect(briefed.written,).toBe(true,);
-            /**
-             What the folder now records.
-             */
-            const owner = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
-              readonly branch?: unknown;
-              readonly process?: { readonly pid?: unknown };
-            };
-            expect(owner.branch,).toBe(aBranch(),);
-            expect(owner.process?.pid,).toBe(process.pid,);
-            /**
-             The brief the writer wrote.
-             */
-            const briefFile = join(reviewsFolder, aReview(), 'brief.md',);
-            expect(existsSync(briefFile,),).toBe(true,);
-          },
-        },),
-        it({
-          name: 'refuses a review folder a start that ended held for another branch, naming both branches, because it is another change\'s brief',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The branch the dead start wrote for.
-             */
-            const otherBranch = 'fix/another-change';
-            /**
-             The owner file the dead start left.
-             */
-            const ownerFile = await writeOwnerRecord({
-              reviewsFolder: join(folder.path, 'reviews',),
-              branch: otherBranch,
-              process: aStartThatEnded(),
-            },);
-            /**
-             What this start answered.
-             */
-            let caught: unknown;
-            try {
-              await writeAChangeOfBranch({
-                changed: [aModifiedFile(aCodeFile(),),],
-                folder: folder.path,
-              },);
-            }
-            catch (error) {
-              caught = error;
-            }
-            expect(caught,).toBeInstanceOf(ReviewFolderTakenError,);
-            expect(String(caught,),).toContain(otherBranch,);
-            expect(String(caught,),).toContain(aBranch(),);
-            /**
-             The brief the other change keeps in the folder.
-             */
-            const briefFile = join(dirname(ownerFile,), 'brief.md',);
-            expect(existsSync(briefFile,),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'refuses a review folder a start that still runs holds, even when it is the same branch, so two starts never write one folder',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The owner file a start of this very process left.
-             */
-            const ownerFile = await writeOwnerRecord({
-              reviewsFolder: join(folder.path, 'reviews',),
-              branch: aBranch(),
-              process: await thisProcessIdentity(),
-            },);
-            /**
-             What this start answered.
-             */
-            let caught: unknown;
-            try {
-              await writeAChangeOfBranch({
-                changed: [aModifiedFile(aCodeFile(),),],
-                folder: folder.path,
-              },);
-            }
-            catch (error) {
-              caught = error;
-            }
-            expect(caught,).toBeInstanceOf(ReviewFolderTakenError,);
-            expect(String(caught,),).toContain('still running',);
-            /**
-             The brief the running start keeps in the folder.
-             */
-            const briefFile = join(dirname(ownerFile,), 'brief.md',);
-            expect(existsSync(briefFile,),).toBe(false,);
-          },
-        },),
-        it({
           name: 'writes a review folder of its own beside a folder a live start made, instead of refusing or taking it over',
           fn: async () => {
             await using folder = await makeFolder();
@@ -1207,7 +834,9 @@ setInterval(() => {}, 1000,);
              The folder the second start took for itself.
              */
             const secondFolder = join(reviewsFolder, `${aReview()}-2`,);
-            expect(existsSync(join(secondFolder, 'brief.md',)),).toBe(true,);
+            expect(
+              existsSync(join(secondFolder, 'brief.md',)),
+            ).toBe(true,);
             expect(await readFile(firstBrief, 'utf8',),).toBe(firstBriefText,);
             expect(await readFile(firstDiff, 'utf8',),).toBe(firstDiffText,);
             expect(second.line,).toContain(`${aReview()}-2`,);
@@ -1224,12 +853,11 @@ setInterval(() => {}, 1000,);
             /**
              The folder and record a dead start left.
              */
-            const ownerFile = await writeOwnerRecord({
+            const recordFile = await writeLeftoverRecord({
               reviewsFolder,
               branch: aBranch(),
-              process: aStartThatEnded(),
             },);
-            const leftoverText = await readFile(ownerFile, 'utf8',);
+            const leftoverText = await readFile(recordFile, 'utf8',);
             /**
              What this start answered.
              */
@@ -1238,9 +866,13 @@ setInterval(() => {}, 1000,);
               folder: folder.path,
             },);
             expect(briefed.written,).toBe(true,);
-            expect(await readFile(ownerFile, 'utf8',),).toBe(leftoverText,);
-            expect(existsSync(join(dirname(ownerFile,), 'brief.md',)),).toBe(false,);
-            expect(existsSync(join(reviewsFolder, `${aReview()}-2`, 'brief.md',)),).toBe(true,);
+            expect(await readFile(recordFile, 'utf8',),).toBe(leftoverText,);
+            expect(
+              existsSync(join(dirname(recordFile,), 'brief.md',)),
+            ).toBe(false,);
+            expect(
+              existsSync(join(reviewsFolder, `${aReview()}-2`, 'brief.md',)),
+            ).toBe(true,);
           },
         },),
         it({

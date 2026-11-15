@@ -81,10 +81,11 @@ export const REVIEW_FILE_NAME = 'review.md';
 export const REVIEW_READING_FILE_NAME = 'what-the-review-read.json';
 
 /**
- The file that records which start took a review's folder and for which branch, so a second branch learns at once whose the folder
- is and a folder left by a start that was killed can be taken again.
+ The file that records what a review's folder is for: the branch, the commit, the ranges, the reviewed source folder and the moment
+ the folder was made. A folder is owned for good by the start that made it, so the record is what a person reading a leftover and the
+ starter finding a branch's review among one change's folders read.
  */
-export const REVIEW_OWNER_FILE_NAME = 'the-owner-of-this-review.json';
+export const REVIEW_RECORD_FILE_NAME = 'the-record-of-this-review.json';
 
 /**
  Reads the change name a branch is reviewed as: the branch without the type that says what kind of work it is.
@@ -288,7 +289,7 @@ export function readingFileOfAReview({
 }
 
 /**
- Reads the file that records which start took one review's folder.
+ Reads the file that records what one review's folder is for.
 
  @param reviewsFolder - folder that holds one folder per review
 
@@ -298,10 +299,10 @@ export function readingFileOfAReview({
 
  @example
  ```ts
- const file = ownerFileOfAReview({ reviewsFolder: '/reviews', review: 'a', },);
+ const file = recordFileOfAReview({ reviewsFolder: '/reviews', review: 'a', },);
  ```
  */
-export function ownerFileOfAReview({
+export function recordFileOfAReview({
   reviewsFolder,
   review,
 }: {
@@ -313,7 +314,7 @@ export function ownerFileOfAReview({
       reviewsFolder,
       review,
     },),
-    REVIEW_OWNER_FILE_NAME,
+    REVIEW_RECORD_FILE_NAME,
   );
 }
 

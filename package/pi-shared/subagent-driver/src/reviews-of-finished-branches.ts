@@ -9,10 +9,9 @@
  A branch whose brief cannot be written is a failure of that branch: it is said in one line with the reason, its status is `none`,
  and the rest of the batch go on, so the command that ran the batch ends with a failure even when nothing was started.
 
- Two branches whose names derive one change name cannot both be reviewed: they would share one review folder, one brief and one run
- name, so the second is refused in one line naming both branches, with status `none`, while the first goes on. The refusal comes
- from the start that took the review's folder, so it holds between two batches as well as within one, and a branch whose change
- leaves nothing to review takes no folder and stands in no one's way.
+ Two branches whose names derive one change name are not one review: each start that writes its folder takes a name of its own,
+ the second taking `<change>-2`, and says which folder it took. A branch whose change leaves nothing to review takes no folder and
+ stands in no one's way.
 
  @module
  */
@@ -35,6 +34,7 @@ import {
   REVIEWING_PROVIDER,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
+import { NO_REVIEWED_FOLDER, } from './the-folder-of-a-review.ts';
 import { TURN_CAP_MARGIN, } from './turn-cap-of-finished-runs.ts';
 
 /**
@@ -96,19 +96,37 @@ export type StartedReviews = {
 };
 
 /**
- What writing one review's brief answered.
+ What writing one review's brief answered: no brief and the line that says why, or the brief, the review name its folder carries,
+ and the line to print.
  */
-export type BriefOfOneReview = {
-  /**
-   Whether the brief was written, which is false when the change leaves nothing to review.
-   */
-  readonly written: boolean;
+export type BriefOfOneReview =
+  | {
+    /**
+     No brief was written, because the change leaves nothing to review.
+     */
+    readonly written: false;
 
-  /**
-   The line to print either way.
-   */
-  readonly line: string;
-};
+    /**
+     The line to print.
+     */
+    readonly line: string;
+  }
+    | {
+      /**
+       The brief was written.
+       */
+      readonly written: true;
+
+      /**
+       The review name the folder carries, which its run, branch and unit carry too.
+       */
+      readonly review: string;
+
+      /**
+       The line to print.
+       */
+      readonly line: string;
+    };
 
 /**
  What starting one review's run answered: the retrying start's status, or why it could not be started, and where the whole of what
@@ -126,9 +144,12 @@ export type StartOfOneReview = StartedEntry & {
  */
 export type ReviewStartingSeams = {
   /**
-   Whether a review of that change already wrote its review file.
+   The review name that already wrote its review file for this branch, among the folders of this change name, when one did.
    */
-  readonly reviewIsWritten: (request: { readonly review: string }) => Promise<boolean>;
+  readonly reviewOfAChange: (request: {
+    readonly review: string;
+    readonly branch: string;
+  }) => Promise<string | typeof NO_REVIEWED_FOLDER>;
 
   /**
    The branch's tip commit, which the review's worktree starts at.
@@ -372,8 +393,15 @@ export async function startReviews({
      The run that reads it.
      */
     const run = runNameOfAReview({ review, },);
-    if (await seams.reviewIsWritten({ review, },)) {
-      note(`${run}: already reviewed`,);
+    /**
+     The review name whose folder already wrote this branch's review, when one did.
+     */
+    const reviewed = await seams.reviewOfAChange({
+      review,
+      branch,
+    },);
+    if (reviewed !== NO_REVIEWED_FOLDER) {
+      note(`${runNameOfAReview({ review: reviewed, },)}: already reviewed`,);
       continue;
     }
     /**
@@ -415,16 +443,20 @@ export async function startReviews({
     if (!wrote.written) {
       continue;
     }
-    note(`${runNameOfAReview({ review, },)}: started`,);
+    /**
+     The review name the writer's folder carries, which this start's run is named after.
+     */
+    const startedReview = wrote.review;
+    note(`${runNameOfAReview({ review: startedReview, },)}: started`,);
     starts.push({
       at,
-      review,
+      review: startedReview,
       start: seams.start({
-        review,
+        review: startedReview,
         words: retryWordsOfAReview({
-          review,
+          review: startedReview,
           commit,
-          briefFile: briefFileOf({ review, },),
+          briefFile: briefFileOf({ review: startedReview, },),
           runsFolder,
           checkoutFolder,
         },),

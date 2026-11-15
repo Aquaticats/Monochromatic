@@ -30,14 +30,14 @@ export {
   REVIEW_BRANCH_PREFIX,
   REVIEW_BRIEF_FILE_NAME,
   REVIEW_FILE_NAME,
-  REVIEW_OWNER_FILE_NAME,
+  REVIEW_RECORD_FILE_NAME,
   REVIEW_READING_FILE_NAME,
   REVIEW_RUN_PREFIX,
   branchOfAReview,
   briefFileOfAReview,
   changeNameOfBranch,
   diffFileOfAReview,
-  ownerFileOfAReview,
+  recordFileOfAReview,
   reproductionsFolderOfAReview,
   readingFileOfAReview,
   reviewFileOfAReview,
@@ -90,12 +90,19 @@ export {
   startReviews,
 } from './reviews-of-finished-branches.ts';
 export {
-  type ReviewFolderClaimSeams,
-  type ReviewFolderOwner,
-  ReviewFolderTakenError,
-  takeReviewFolder,
-} from './claiming-a-review-folder.ts';
-export { processIdentityOfThisProcess, } from './liveness-of-a-process.ts';
+  NOT_A_GENERATION,
+  NO_REVIEWED_FOLDER,
+  generationInAName,
+  reviewNameOf,
+  takeTheNextReviewFolder,
+  theReviewOfABranch,
+} from './the-folder-of-a-review.ts';
+export {
+  NO_RECORD,
+  type ReviewFolderRecord,
+  recordIn,
+  recordTextOf,
+} from './the-record-of-a-review-folder.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
   keepFailedOutput,
