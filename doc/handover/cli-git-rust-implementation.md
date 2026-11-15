@@ -1670,6 +1670,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The shared wait of the binary controls answers its review: one ending by the command's own start, and no signal to a bare number (2026-11-15T17:17:52-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The shared wait of the binary controls**,
+  its author's second run,
+  ended 17:13:06 at `b193af3bdf`,
+  five commits after the `e12b36fd81` that pass 55 takes.
+  Its account:
+  the first finding reproduced as the review stated it.
+  The wait's deadline is now the command's own start plus the bound;
+  the waiter learns of the exit without reaping,
+  so the child still holds its number when the wait decides;
+  the two signal calls go through a pinned handle and to a group its unreaped leader still pins.
+  It first made the wait the only timer on the command,
+  measured that five controls then failed
+  (the wrapper read the harness process as a launcher continuing its chain),
+  and took that shape out.
+  Four new controls;
+  four of ten failed against the old wait;
+  each fix taken out and put back with its failing output.
+  Its suite:
+  1,221 of 1,224 passed,
+  the three being the two `cli-git-lock-holders` controls and `subvolume::the_command_migrates_…` in the suite alone.
+  It left three things and says so:
+  one clock tick of early ending,
+  a `SIGKILL` at the instant of the bound read as the bound's,
+  and how `native_git_output` reads a status.
+- Its review is queued tenth,
+  `main...b193af3bdf`,
+  the two support files with their tests.
+  Pass 55 goes on at `e12b36fd81` as decided;
+  these five commits follow when their review finds nothing.
+- Read at 17:17:30:
+  six changed files in the main checkout;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  20 runs going,
+  none silent for twenty minutes.
+
 ##### The gate's failing control of a runtime kept when the caller gave up was the control's own; the fuzz check holds with pass 54 in; pass 55 goes (2026-11-15T17:12:03-05:00)
 
 Not final and not approved:
