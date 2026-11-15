@@ -330,11 +330,19 @@ pub fn name_the_child(child: &mut std::process::Child) {
 /// ```ts
 /// recordThisProcessBeforeAGitStarts(); command.preExec(() => preparedChildLine.write())
 /// ```
-pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Result<()> {
-    // What: The writer's own line first, so the record names its writer before any child appends to it.
-    // Why:  A file that names no writer may not be removed by another command, and the child's line alone would leave
-    //       exactly that when the parent is killed.
-    crate::lock_holder_records::record_this_process_before_a_git_starts()?;
+pub fn record_the_git_this_command_starts(command: &mut Command) {
+    // What: A record the wrapper cannot write is said once in a warning, and the command the person typed goes on.
+    // Why:  The record is the wrapper's own bookkeeping: where its folder cannot be made or written, the command must run
+    //       as it would with no record
+    //       (a review of `551084db3c`,
+    // finding 1).
+    //       What the missing record costs later is that a lock of this Git, if it is killed, keeps the bounded wait
+    //       instead of being cleared at once, and may have to be removed by hand.
+    //       Whatever stands at the folder's path is no record of this wrapper's: it is taken for a person's file or for
+    //       something a program left, and it is never removed, replaced or written through.
+    if let Err(error) = crate::lock_holder_records::record_this_process_before_a_git_starts() {
+        warn_once_that_no_record_is_written(error.to_string().as_str());
+    }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt as _;
@@ -343,15 +351,43 @@ pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Res
         let Some(child_line) = prepared else {
             // A command that remembers no repository (or whose names cannot be handed to `open`) keeps the slower shape:
             //  the parent names the child as soon as the start returns.
-            return Ok(());
+            return;
         };
         // SAFETY: the closure runs in the child between `fork` and `exec` and calls only `mkdir`, `open`, `read`,
         //  `write`, `close` and `getpid`, on bytes this value brought with it; it allocates nothing and takes no lock.
         unsafe {
-            command.pre_exec(move || { return child_line.write(); });
+            command.pre_exec(move || {
+                child_line.write_without_failing();
+                return Ok(());
+            });
         }
     }
-    return Ok(());
+}
+
+/// What:
+///  Say once per process that this command runs with no lock-holder record,
+///  and what that costs;
+///  later starts of the same process say nothing.
+/// Why:
+///  A warning per Git start would bury the command's own words,
+///  and the fact does not change while the same folder stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!said) { said = true; warn(`no record: ${reason}`) }
+/// ```
+fn warn_once_that_no_record_is_written(reason: &str) {
+    static SAID: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    if SAID.set(()).is_err() {
+        return;
+    }
+    crate::diagnostic_log::warn(
+        TAG,
+        format!(
+            "this command runs with no lock-holder record, because the record folder cannot be written ({reason}); a lock a Git it starts leaves after a kill then keeps the bounded wait instead of being cleared at once, and may have to be removed by hand"
+        )
+        .as_str(),
+    );
 }
 
 /// What:
@@ -366,7 +402,7 @@ pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Res
 /// recordTheGitThisCommandStarts(command); const child = command.spawnRetrying(); nameTheChild(child); return child;
 /// ```
 pub fn spawn_naming_its_child(command: &mut Command) -> std::io::Result<std::process::Child> {
-    record_the_git_this_command_starts(command)?;
+    record_the_git_this_command_starts(command);
     let mut child: std::process::Child = command.spawn_retrying()?;
     name_the_child(&mut child);
     return Ok(child);

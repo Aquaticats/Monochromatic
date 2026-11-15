@@ -185,15 +185,37 @@ fn write_decimal(value: u64, out: &mut [u8]) -> Option<usize> {
 impl OwnLineBeforeBecomingGit {
     /// What:
     ///  Write this process's own line,
+    ///  and let the child become Git whatever comes of it.
+    /// Why:
+    ///   A record that cannot be written must never fail the command:
+    ///  the folder's path may hold a person's file,
+    ///  and an error handed back here stopped the child before `exec`,
+    ///  so a wrapped commit failed with `File exists` while plain Git committed the same change
+    ///  (a review of `551084db3c`,
+    /// finding 1).
+    ///   The parent names the child as soon as the start returns,
+    ///  which is the shape a command with no record keeps,
+    ///  and what the missing line costs is said once by the parent's warning.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// void write(); // a failure leaves the record without this line, and Git runs
+    /// ```
+    pub fn write_without_failing(&self) {
+        let _dropped: std::io::Result<()> = self.write();
+    }
+
+    /// What:
+    ///  Write this process's own line,
     ///  making the folder and the file first when they are not there.
-    ///  `std::io::Result<()>` is the error that stops the child from becoming Git.
+    ///  `std::io::Result<()>` is what stopped the child from becoming Git before this change;
+    ///  the one caller now drops it.
     /// Why:
     ///   This runs in the child between `fork` and `exec`,
     ///  so it calls only `mkdir`, `open`, `read`, `write`, `close` and `getpid`,
     ///  and it touches no memory it did not bring with it.
-    ///  An error here is the child's own answer to the parent,
-    ///  which then starts nothing:
-    ///  a Git that cannot be recorded does not run.
+    ///  An error here is dropped by `write_without_failing`,
+    ///  so a Git that cannot be recorded still runs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

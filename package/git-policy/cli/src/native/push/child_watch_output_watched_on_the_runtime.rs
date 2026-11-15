@@ -206,7 +206,7 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     // What: This command's record is in place before the Git it starts can take a lock.
     // Why:  A child recorded after its start can take `index.lock` and die in the window
     //       (a review of `3ac1254a73`, finding 3).
-    crate::forwarding::record_the_git_this_command_starts(command)?;
+    crate::forwarding::record_the_git_this_command_starts(command);
     let mut child: Child = spawn_retrying_without_blocking(command).await?;
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {

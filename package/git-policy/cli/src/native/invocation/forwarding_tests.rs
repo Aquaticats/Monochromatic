@@ -796,3 +796,53 @@ fn a_link_at_the_record_path_fails_the_start_and_leaves_the_persons_file_alone()
     assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "the person's file is not written to");
     remove(root.as_path());
 }
+
+/// What:
+///  A file standing where the record folder would be never fails the command:
+///  the Git starts,
+///  ends with its own status,
+///  and the file is left exactly as it was.
+/// Why:
+///  The record is the wrapper's own bookkeeping,
+///  and making its folder was done with `?` before the start,
+///  so a wrapped commit failed with `File exists (os error 17)` and started no Git at all,
+///  while plain Git committed the same change
+///  (a review of `551084db3c`,
+/// finding 1).
+///  What stands at the folder's path is no record of this wrapper's:
+///  it is taken for a person's file or for what another program left,
+///  and it is never removed,
+///  replaced or written through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(common, 'cli-git-lock-holders'), bytes); rememberRepository(common);
+/// const ended = runRealGitUntil(standInThatTouchesItsMarker, [], [], 5s, StartWrapper);
+/// expect(ended).toEqual({ exited: 0 }); expect(readFileSync(folder)).toEqual(bytes);
+/// ```
+#[test]
+fn a_record_folder_that_cannot_be_written_never_fails_the_command() {
+    let root: PathBuf = fixture("forward-record-path-is-a-file");
+    let common: PathBuf = root.join(".git");
+    crate::test_support::make_it_a_git_directory(common.as_path());
+    remember_repository(common.as_path());
+    // What: A regular file with a person's bytes stands at the folder's own path.
+    // Why:  This is the state the review reproduced: `create_dir_all` answers `File exists` before any Git starts.
+    let folder: PathBuf = crate::lock_holder_records::folder_of(common.as_path());
+    let blocking: &[u8] = b"a person's file where the record folder would be\n";
+    std::fs::write(folder.as_path(), blocking).expect("the file at the record folder's path");
+    // The record attempt is the one the start makes, and it says its warning without failing anything.
+    let mut command: Command = Command::new("/usr/bin/git");
+    super::record_the_git_this_command_starts(&mut command);
+    assert_eq!(std::fs::read(folder.as_path()).expect("the file is still there"), blocking, "the file at the folder's path is neither removed nor written");
+    // The command itself still runs, and its own status is the wrapper's.
+    let marker: PathBuf = root.join("the-git-ran");
+    let program: PathBuf = root.join("stand-in-git");
+    let script: String = format!("#!/bin/sh\n: > '{}'\nexit 0\n", marker.display());
+    executable(program.as_path(), script.as_bytes());
+    let ended = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(10), StartOwner::Wrapper);
+    assert!(matches!(ended, Ok(ChildOutcome::Exited(0))), "the command runs as it would with no record: {ended:?}");
+    assert!(marker.exists(), "the Git the person asked for really ran");
+    assert_eq!(std::fs::read(folder.as_path()).expect("the file is still there"), blocking, "and the file at the folder's path is still exactly as it was");
+    remove(root.as_path());
+}
