@@ -402,7 +402,7 @@ fn finishes_a_removal_cut_short() {
     let judged = crate::toolchain::store_versions::judged_of_tree(&version, Instant::now() + Duration::from_secs(60))
         .expect("judge the whole version before it is moved aside");
     fs::rename(&version, &marker).expect("move the version aside");
-    crate::toolchain::store_versions::write_judged(&marker, &judged).expect("write the removal's record");
+    crate::toolchain::store_versions::write_judged(&version, &judged).expect("write the removal's record");
     let files_before: usize = fs::read_dir(&marker).expect("list the marker").count();
     assert_eq!(files_before, 1);
     let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
@@ -527,7 +527,7 @@ fn finishes_a_removal_cut_short_even_when_the_worktrees_cannot_be_listed() {
             Instant::now() + Duration::from_secs(60),
         )
         .expect("judge the whole tree under its removal name");
-        crate::toolchain::store_versions::write_judged(&version_marker, &judged).expect("write the removal's record");
+        crate::toolchain::store_versions::write_judged(&tool.join("1.0.0"), &judged).expect("write the removal's record");
     }
     fs::write(unfinished_marker(&store), b"").expect("write the unfinished-removal marker");
     // The fault this control exists for: the listing of worktrees fails, so no lock name is known.
@@ -921,7 +921,7 @@ fn puts_back_a_held_marker_and_its_downloads() {
     let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the version");
     fs::rename(&downloads, &downloads_marker).expect("move the downloads aside");
     fs::rename(&version, &version_marker).expect("move the version aside");
-    write_judged(&version_marker, &judged).expect("write the removal's record");
+    write_judged(&version, &judged).expect("write the removal's record");
     fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
     let mut child = holder_of(&downloads_marker.join("node.tar.gz"));
 
@@ -990,7 +990,7 @@ fn puts_back_a_marker_whose_version_current_names() {
     // The state a killed removal leaves after it recorded what it held.
     let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the version");
     fs::rename(&version, &marker).expect("move the version aside");
-    write_judged(&marker, &judged).expect("write the removal's record");
+    write_judged(&version, &judged).expect("write the removal's record");
     fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
     point_current(&fixture.root, "node", "26.11.0");
 
@@ -1070,7 +1070,7 @@ fn keeps_a_held_finished_copy_when_the_name_holds_an_unfinished_install() {
     let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the copy");
     let marker: PathBuf = tombstone_of(&version);
     fs::rename(&version, &marker).expect("move the old copy aside"); // a removal an earlier run cut short
-    write_judged(&marker, &judged).expect("write the removal's record");
+    write_judged(&version, &judged).expect("write the removal's record");
     // An install in place has taken the name and has not finished: no crate record yet.
     fs::create_dir_all(&version).expect("start the install in place");
     fs::write(version.join("partial"), b"half-written").expect("write the half-written file");
@@ -1308,7 +1308,7 @@ fn recovers_a_tombstone_when_nothing_was_installed_and_the_marker_is_gone() {
     fs::create_dir_all(&marker).expect("make the tombstone");
     fs::write(marker.join("program"), b"a whole copy").expect("write its payload");
     let judged = judged_of_tree(&marker, Instant::now() + Duration::from_secs(60)).expect("judge the whole copy");
-    write_judged(&marker, &judged).expect("write the removal's record");
+    write_judged(&store.join("node/26.11.0"), &judged).expect("write the removal's record");
     assert!(!has_unfinished_removal(&store), "this case is about a store root whose marker is gone");
     let runner = FakeRunner::new();
     let host = Host::current();
@@ -1393,11 +1393,14 @@ fn puts_back_a_partly_deleted_copy_as_unfinished_and_deletes_nothing() {
 #[test]
 fn puts_back_a_tree_a_write_landed_in_after_its_record_as_unfinished() {
     let fixture = Fixture::new();
-    let version: PathBuf = fixture.root.join("node/26.11.0");
+    // A version the fixture does not hold, so "the version's name is free" is the fixture's own state too.
+    let version: PathBuf = fixture.root.join("node/20.0.0");
     let marker: PathBuf = tombstone_of(&version);
+    make_finished_copy(&version, b"a whole copy");
     let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the version");
+    assert!(is_finished(&version, "node"), "the fixture must prove the copy carries what a finished one carries");
     fs::rename(&version, &marker).expect("move the version aside");
-    write_judged(&marker, &judged).expect("write the removal's record");
+    write_judged(&version, &judged).expect("write the removal's record");
     fs::write(marker.join("landed-after"), b"a person's work").expect("write into the tree after its record");
 
     let finished = finish_removals(&fixture.run());
@@ -1452,7 +1455,7 @@ fn deletes_the_record_of_a_judgement_when_the_copy_goes_back() {
     let marker: PathBuf = tombstone_of(&version);
     let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the version");
     fs::rename(&version, &marker).expect("move the version aside");
-    write_judged(&marker, &judged).expect("write the removal's record");
+    write_judged(&version, &judged).expect("write the removal's record");
 
     let finished = finish_removals(&fixture.run());
 
@@ -1495,7 +1498,7 @@ fn deletes_a_copy_no_record_proved_whole_when_a_finished_copy_took_the_name() {
     let marker: PathBuf = tombstone_of(&version);
     make_finished_copy(&marker, b"old copy");
     let older = judged_of_tree(&marker, Instant::now() + Duration::from_secs(60)).expect("judge the whole copy");
-    write_judged(&marker, &older).expect("write the removal's record");
+    write_judged(&version, &older).expect("write the removal's record");
     // A later removal of the same version, killed before it replaced the older record.
     make_finished_copy(&version, b"fresh copy");
 

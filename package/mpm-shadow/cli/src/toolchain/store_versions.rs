@@ -733,35 +733,38 @@ pub fn judged_of_tree(path: &Path, deadline: Instant) -> Option<JudgedTree> {
 }
 
 /// What:
-/// The judgement recorded for the tree at `version_tree`,
+/// The judgement recorded for the version whose own directory is `version_directory`,
 /// or `None` when no record stands beside it or it cannot be read.
 /// Why:
 /// A record that is missing, unreadable or written by something else proves nothing about the tree.
+/// The path named here is the version's own name, never its removal name:
+/// the record sits beside the removal name, and a path that is already a removal name would name a second one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function readJudged(versionTree: string): JudgedTree | undefined
+/// export function readJudged(versionDirectory: string): JudgedTree | undefined
 /// ```
-pub fn read_judged(version_tree: &Path) -> Option<JudgedTree> {
-    let text: String = fs::read_to_string(record_of(version_tree)).ok()?;
+pub fn read_judged(version_directory: &Path) -> Option<JudgedTree> {
+    let text: String = fs::read_to_string(record_of(version_directory)).ok()?;
     return JudgedTree::parse(&text);
 }
 
 /// What:
-/// Records `judged` as what the removal of `version_tree` holds,
-/// writing it beside the removal name.
+/// Records `judged` as what the removal of the version at `version_directory` holds,
+/// writing it beside that version's removal name.
 /// Why:
 /// A later pass that finds the tree under a removal name needs this record to put it back as the finished copy it
 /// was instead of as a copy nothing may take for finished;
 /// a record that cannot be written leaves that later pass with the safe answer, so the failure is reported and not
 /// fatal.
+/// The path named here is the version's own name, never its removal name, for the reason `read_judged` gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function writeJudged(versionTree: string, judged: JudgedTree): void  // throws
+/// export function writeJudged(versionDirectory: string, judged: JudgedTree): void  // throws
 /// ```
-pub fn write_judged(version_tree: &Path, judged: &JudgedTree) -> std::io::Result<()> {
-    return fs::write(record_of(version_tree), judged.text());
+pub fn write_judged(version_directory: &Path, judged: &JudgedTree) -> std::io::Result<()> {
+    return fs::write(record_of(version_directory), judged.text());
 }
 
 /// What:

@@ -1057,7 +1057,7 @@ pub(crate) fn move_judged_entry(candidate: &TrimCandidate, deadline: Instant) ->
         written: held.modified().unwrap_or(candidate.written),
         facts: held_facts,
     };
-    let _ = write_judged(&version_marker, &judged);
+    let _ = write_judged(&candidate.directory, &judged);
     return Ok(Some(MovedAside { version_marker, downloads_marker }));
 }
 
@@ -1648,7 +1648,7 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
         // it is judges it again.
         // The record beside it decides only one thing: whether it goes back as the finished copy it was, or as a copy
         // nothing may take for finished.
-        let (proven, tree_bytes): (bool, u64) = proven_whole(&marker.version_marker, run.deadline());
+        let (proven, tree_bytes): (bool, u64) = proven_whole(&marker.version_marker, &marker.version_directory, run.deadline());
         let bytes: u64 = removal_marker_size(tree_bytes, &marker, run.deadline());
         let reason: Option<String> = match &holders.incomplete {
             Some(failed) => Some(format!("the process table could not be read: {failed}")),
@@ -1737,15 +1737,17 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
 /// removal of the same version can be killed before it writes a record of its own.
 /// Pairing that older record with a tree it never described is what would let this pass delete a copy, so the
 /// identity and the facts in the record are compared, and any difference is read as "no record".
+/// The record is named by the version's own directory, because it sits beside that version's removal name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenWhole(marker: string, deadline: Instant): { proven: boolean; bytes: number }
+/// function provenWhole(versionMarker: string, versionDirectory: string, deadline: Instant):
+///   { proven: boolean; bytes: number }
 /// ```
-fn proven_whole(marker: &Path, deadline: Instant) -> (bool, u64) {
-    let now: Option<JudgedTree> = judged_of_tree(marker, deadline);
+fn proven_whole(version_marker: &Path, version_directory: &Path, deadline: Instant) -> (bool, u64) {
+    let now: Option<JudgedTree> = judged_of_tree(version_marker, deadline);
     let bytes: u64 = now.map(|found| return found.facts.bytes).unwrap_or(0);
-    let proven: bool = match (now, read_judged(marker)) {
+    let proven: bool = match (now, read_judged(version_directory)) {
         (Some(here), Some(judged)) => judged.matches(&here),
         _ => false,
     };
