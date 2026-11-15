@@ -27,6 +27,8 @@ use std::path::Path;
 use std::process::{Command, Output, Stdio};
 /// `process_group` gives the query a process group of its own, which the bound ends as a whole.
 use std::os::unix::process::CommandExt as _;
+/// `signal` reads which signal ended the query, which is how the ending is known.
+use std::os::unix::process::ExitStatusExt as _;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
@@ -197,13 +199,15 @@ fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::syn
 /// it starts the query in a process group of its own,
 /// watches the clock itself,
 /// and at the bound ends that group and reaps the query;
-/// `QueryEnding::AtTheBound` is true exactly when it did that,
+/// `QueryEnding::AtTheBound` is true exactly when the status the wait returns shows that signal,
+/// never when a signal could merely be sent,
 /// and a query that ended by itself comes back with its own status and output.
-/// Nothing waits without a bound, the input included:
+/// Nothing waits without a bound, and no answer the query gave becomes a panic:
 /// the write of the input runs on a thread of its own,
 /// so a query that keeps its standard input open and reads none of it fills the pipe and is ended at the bound
 /// like any other,
-/// and the write the ending broke is part of that ending rather than a failure.
+/// a write the ending broke is part of that ending rather than a failure,
+/// and an input a descendant of the query still holds is said in `input_held`, as a held pipe is in `held_open`.
 /// The caller answers each ending with its own sentence,
 /// because only it knows which query it made and what the query is for.
 ///
@@ -264,30 +268,46 @@ pub(crate) fn real_git_within(
             // A control about the ending places the query's own exit here, before the signal.
             the_ending_seam(group);
             // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours.
-            let killed: i32 = unsafe { libc::kill(-group, libc::SIGKILL) };
-            let status: std::process::ExitStatus = child.wait().expect("the bounded query's ending");
-            // The helper's own act decides this and never the status the query came back with;
-            // a group that was already gone was ended by itself, not by this call.
-            break (status, if killed == 0 { QueryEnding::AtTheBound } else { QueryEnding::Itself });
+            let _killed = unsafe { libc::kill(-group, libc::SIGKILL) };
+            // The killed query is reaped within its own window, so nothing waits without a bound here either.
+            let reaping: std::time::Instant = std::time::Instant::now() + REAPING;
+            let status: std::process::ExitStatus = loop {
+                if let Some(status) = child.try_wait().expect("the killed query's state") {
+                    break status;
+                }
+                if std::time::Instant::now() >= reaping {
+                    panic!("the query {program:?} was killed at its bound of {bound:?} and not reaped within {REAPING:?}");
+                }
+                std::thread::sleep(LOOK_EVERY);
+            };
+            // The status the wait returns says who ended the query: the signal this helper sent at its bound,
+            // or the query's own ending, which it reached first and which is not this helper's.
+            // Whether a signal could be sent says nothing about that, so it is not read here.
+            break (status, if status.signal() == Some(libc::SIGKILL) { QueryEnding::AtTheBound } else { QueryEnding::Itself });
         }
         std::thread::sleep(LOOK_EVERY);
     };
+    // One grace for the three pipes, and never a wait past it.
+    let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
     // The write ends with the query, and the ending is what judges it:
     // a write the query's death broke is part of that ending and no failure,
-    // and any other failure of it is said.
+    // any other failure of it is said,
+    // and a write a descendant of the query still holds is said in the answer, as a held pipe is.
+    let mut input_held: bool = false;
     if let Some(writer) = input_writer {
-        let written: std::io::Result<()> = input_receiver
-            .recv_timeout(REAPING)
-            .unwrap_or_else(|_| panic!("the input of the query {program:?} was still being written {REAPING:?} after the query was gone"));
-        let _writer_joined = writer.join();
+        let written: Option<std::io::Result<()>> = input_receiver.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).ok();
         match written {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {}
-            Err(error) => panic!("the input of the query {program:?} could not be written: {error}"),
+            // A descendant of the query kept the read end open and reads none of it: the write is left to that process.
+            None => input_held = true,
+            Some(Ok(())) => {}
+            Some(Err(error)) if error.kind() == std::io::ErrorKind::BrokenPipe => {}
+            Some(Err(error)) => panic!("the input of the query {program:?} could not be written: {error}"),
+        }
+        if !input_held {
+            let _writer_joined = writer.join();
         }
     }
-    // What the pipes gave, under one grace for both, and never a wait past it.
-    let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
+    // What the pipes gave, under the same grace, and never a wait past it.
     let output_ended: bool = output_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
     let error_ended: bool = error_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
     let stdout: Vec<u8> = standard_output.lock().expect("the query's standard output").clone();
@@ -296,7 +316,7 @@ pub(crate) fn real_git_within(
         output: Output { status, stdout, stderr },
         ending,
         held_open: !(output_ended && error_ended),
-        input_held: false,
+        input_held,
     };
 }
 
