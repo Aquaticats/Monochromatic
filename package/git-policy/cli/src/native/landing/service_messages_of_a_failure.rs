@@ -39,7 +39,7 @@ use crate::service_messages::ClientFailure;
 /// ```
 pub fn failure_code(failure: &ClientFailure) -> &'static str {
     return match failure {
-        ClientFailure::DidNotStart => "did-not-start",
+        ClientFailure::DidNotStart { .. } => "did-not-start",
         ClientFailure::NothingAnswered { .. } => "nothing-answered",
         ClientFailure::NoActivation(_) => "no-activation",
         ClientFailure::ManagerDidNotAnswer { .. } => "manager-did-not-answer",

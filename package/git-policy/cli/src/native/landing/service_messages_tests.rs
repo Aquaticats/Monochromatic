@@ -11,7 +11,10 @@ use std::collections::BTreeSet;
 /// so a new variant cannot go unrendered.
 fn samples() -> Vec<ClientFailure> {
     let mut all: Vec<ClientFailure> = vec![
-        ClientFailure::DidNotStart,
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::State(String::from("failed")), asked: RequestedStart::ResetAndStart },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::NotHeld, asked: RequestedStart::Start },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::State(String::from("activating")), asked: RequestedStart::Nothing },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Restart },
         ClientFailure::NothingAnswered { address: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"), waited: Duration::from_secs(10) },
         ClientFailure::OtherAccount,
         ClientFailure::MayNotHaveLanded,
@@ -330,7 +333,7 @@ fn every_message_gives_an_action() {
 #[test]
 fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
-    assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
+    assert!(render(&ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing }).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
     // What: The failure that a program other than this release answers names the link whose pointing decides it.
