@@ -167,7 +167,8 @@ pub(crate) fn own_bookkeeping_of(tree: &Path, relative: &Path) -> Option<OwnBook
 /// const decision = marked(path) ? (mark === 'record-header' ? 'left-out' : 'carried-over') : undefined;
 /// ```
 fn decision(path: &Path, mark: Mark) -> Option<OwnBookkeeping> {
-    if std::fs::symlink_metadata(path).map(|found| found.is_dir()).unwrap_or(false) {
+    let is_a_folder: bool = std::fs::symlink_metadata(path).map(|found| return found.is_dir()).unwrap_or(false);
+    if is_a_folder {
         return Some(OwnBookkeeping::CarriedOver);
     }
     let first_line: String = first_line_of(path)?;

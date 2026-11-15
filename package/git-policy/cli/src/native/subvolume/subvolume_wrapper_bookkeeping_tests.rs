@@ -132,10 +132,10 @@ fn remove_old_arguments() -> MigrateArguments {
 /// watchEntries((examined) => { if (dir(examined) === folder && !written) write(path, text); });
 /// ```
 fn write_a_second_wrappers_record_when_the_copy_lists(folder: &Path, path: PathBuf, text: String) {
-    let folder: PathBuf = folder.to_path_buf();
+    let records: PathBuf = folder.to_path_buf();
     let written: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     watch_entries(Some(Box::new(move |examined: &Path| {
-        if examined.parent() != Some(folder.as_path()) || written.swap(true, Ordering::SeqCst) {
+        if examined.parent() != Some(records.as_path()) || written.swap(true, Ordering::SeqCst) {
             return;
         }
         std::fs::write(path.as_path(), text.as_bytes()).expect("the second wrapper's record");
@@ -171,9 +171,9 @@ fn a_lock_holders_record_the_destination_lacks_is_left_out_and_a_persons_file_be
     assert_eq!(stats.holder_records_left_out, vec![records_below_the_git_directory().join(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE))], "{stats:#?}");
     assert_eq!(stats.left_out, vec![records_below_the_git_directory().join("notes-from-me.txt")], "a person's file is a person's entry: {stats:#?}");
     assert!(stats.notices_carried.is_empty(), "{stats:#?}");
-    let destination: PathBuf = destination.join(".git");
-    assert!(!destination.join(folder_below_the_common_git_directory()).join(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE)).exists(), "the record is not carried");
-    assert!(!destination.join(folder_below_the_common_git_directory()).join("notes-from-me.txt").exists(), "the person's file is not carried either");
+    let in_destination: PathBuf = destination.join(".git").join(folder_below_the_common_git_directory());
+    assert!(!in_destination.join(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE)).exists(), "the record is not carried");
+    assert!(!in_destination.join("notes-from-me.txt").exists(), "the person's file is not carried either");
     remove(parent.as_path());
 }
 
@@ -281,10 +281,10 @@ fn the_old_trees_record_of_this_programs_own_process_does_not_stop_the_deletion(
     crate::lock_holder_record_reads::sweep(root.join(".git").as_path(), &[]);
     assert!(!checkout_records.join(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE)).exists(), "the sweep removed the record the checkout held");
     assert!(!checkout_records.join(record_name(ANOTHER_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE)).exists(), "and the one the catch-up carried there");
-    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
-    assert_eq!(code, DONE, "{said}");
+    let (removal_code, removal_said) = run(&platform, &remove_old_arguments(), root.as_path());
+    assert_eq!(removal_code, DONE, "{removal_said}");
     assert!(!layout.old_path.exists(), "the old tree is deleted");
-    assert!(said.contains("record(s) of this program's own lock holders stayed in the source"), "the pass says what it did with the record: {said}");
+    assert!(removal_said.contains("record(s) of this program's own lock holders stayed in the source"), "the pass says what it did with the record: {removal_said}");
     remove(parent.as_path());
 }
 
@@ -303,17 +303,17 @@ fn a_persons_file_the_checkout_lost_still_stops_the_deletion() {
     let beside_a_record: PathBuf = records.join(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE));
     let written: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     {
-        let git_directory: PathBuf = git_directory.clone();
-        let note: PathBuf = note.clone();
-        let beside_a_record: PathBuf = beside_a_record.clone();
+        let written_git_directory: PathBuf = git_directory.clone();
+        let written_note: PathBuf = note.clone();
+        let written_beside_a_record: PathBuf = beside_a_record.clone();
         watch_entries(Some(Box::new(move |examined: &Path| {
-            if examined.parent() != Some(git_directory.as_path()) || written.swap(true, Ordering::SeqCst) {
+            if examined.parent() != Some(written_git_directory.as_path()) || written.swap(true, Ordering::SeqCst) {
                 return;
             }
-            std::fs::write(note.as_path(), b"a note I put there while the copy ran\n").expect("a person's note");
-            set_mtime(note.as_path(), BEFORE_EVERY_CUTOFF);
-            std::fs::write(beside_a_record.as_path(), b"my own file at a name the wrapper uses\n").expect("a person's file");
-            set_mtime(beside_a_record.as_path(), BEFORE_EVERY_CUTOFF);
+            std::fs::write(written_note.as_path(), b"a note I put there while the copy ran\n").expect("a person's note");
+            set_mtime(written_note.as_path(), BEFORE_EVERY_CUTOFF);
+            std::fs::write(written_beside_a_record.as_path(), b"my own file at a name the wrapper uses\n").expect("a person's file");
+            set_mtime(written_beside_a_record.as_path(), BEFORE_EVERY_CUTOFF);
         })));
     }
     let (code, said) = run(&platform, &migrate_arguments(), root.as_path());
@@ -323,11 +323,11 @@ fn a_persons_file_the_checkout_lost_still_stops_the_deletion() {
     // The person deleted them from the checkout on purpose, which is the entry the cut-off exists for.
     std::fs::remove_file(note.as_path()).expect("the person's deletion");
     std::fs::remove_file(beside_a_record.as_path()).expect("the person's deletion");
-    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
-    assert_eq!(code, REFUSED, "{said}");
+    let (removal_code, removal_said) = run(&platform, &remove_old_arguments(), root.as_path());
+    assert_eq!(removal_code, REFUSED, "{removal_said}");
     let layout = layout_of(root.as_path()).expect("layout");
     assert!(layout.old_path.exists(), "nothing was deleted");
-    assert!(said.contains("2 entr(ies) absent") && said.contains("person-notes.txt"), "{said}");
-    assert!(said.contains(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE).as_str()), "a person's file at a name this program keeps is named too: {said}");
+    assert!(removal_said.contains("2 entr(ies) absent") && removal_said.contains("person-notes.txt"), "{removal_said}");
+    assert!(removal_said.contains(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE).as_str()), "a person's file at a name this program keeps is named too: {removal_said}");
     remove(parent.as_path());
 }
