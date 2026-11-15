@@ -18,7 +18,8 @@
 //! a writer that cannot read the boot ID of its host leaves that part out,
 //! a boot copied as the kernel prints it carries dashes,
 //! and a machine part with nothing in it names no machine;
-//! read as a part of this reader's own, each would name a boot that has ended,
+//! read as a part of this reader's own,
+//! each would name a boot that has ended,
 //! and the lock of a holder that runs would go.
 //! The module is split from `service_index_marker.rs`,
 //! which re-exports the public items here under their old names.
