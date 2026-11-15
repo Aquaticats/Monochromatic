@@ -11,6 +11,11 @@
  of code, which names what was removed or renamed and asks what depended on it, even when the files the commit still holds at the
  touched paths are tests alone.
 
+ A review's folder is taken by the start that writes its inputs, by creating an owner file only one of them can create, and only
+ once the change is known to leave something to read. A second start with the same change name learns from that file whose the
+ folder is and is refused with both branches named, while a folder whose owner has ended is taken again: a start killed between
+ taking a folder and writing its brief blocks nobody for good.
+
  @module
  */
 
@@ -19,6 +24,11 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, } from 'node:path';
+import {
+  type ReviewFolderOwner,
+  takeReviewFolder,
+} from './claiming-a-review-folder.ts';
+import { processIdentityOfThisProcess, } from './liveness-of-a-process.ts';
 import type { BriefOfOneReview } from './reviews-of-finished-branches.ts';
 import {
   type GitQuestion,
@@ -32,6 +42,7 @@ import {
 import {
   briefFileOfAReview,
   diffFileOfAReview,
+  ownerFileOfAReview,
   readingFileOfAReview,
   reproductionsFolderOfAReview,
   reviewFolderOf,
@@ -52,6 +63,9 @@ import {
  @param ranges - what changed, each as `git diff` takes one
 
  @param source - the folder whose changes are reviewed
+
+ @param branch - the branch whose change the review reads, when the caller names one; a second branch of one change name is refused
+ with both named
 
  @param focus - what the reviewer looks hardest at
 
@@ -77,6 +91,7 @@ export async function writeReviewBrief({
   commit,
   ranges,
   source,
+  branch,
   focus,
   reviewsFolder,
   runsFolder,
@@ -88,6 +103,7 @@ export async function writeReviewBrief({
   readonly commit: string;
   readonly ranges: readonly string[];
   readonly source: string;
+  readonly branch?: string;
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -115,6 +131,25 @@ export async function writeReviewBrief({
   const reviewFolder = reviewFolderOf({
     reviewsFolder,
     review,
+  },);
+  // The folder is taken only now: a change that leaves nothing to read writes nothing and holds no folder, so a branch with
+  // nothing to review never stands in the way of one with something to review under the same change name.
+  await takeReviewFolder({
+    reviewFolder,
+    ownerFile: ownerFileOfAReview({
+      reviewsFolder,
+      review,
+    },),
+    ...((branch === undefined) ? {} : { branch, }),
+    owner: {
+      ...((branch === undefined) ? {} : { branch, }),
+      commit,
+      ranges,
+      source,
+      claimedAt: new Date()
+        .toISOString(),
+      process: await processIdentityOfThisProcess(),
+    },
   },);
   /**
    The file the diff is written to.

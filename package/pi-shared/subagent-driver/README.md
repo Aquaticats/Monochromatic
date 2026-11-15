@@ -548,7 +548,12 @@ which the brief lists among the folders a reviewer must not read;
 and `--rules-file`,
 which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
 
-It writes the diff of the ranges under the source folder,
+It takes the review's folder before anything is written:
+an owner file only one start can create records the branch,
+the commit and the process that took it,
+so a second start with the same change name is refused with both branches named,
+and a folder whose owner has ended is taken again.
+It then writes the diff of the ranges under the source folder,
 the brief that names the files the reviewer reads,
 an empty `reproductions/` folder,
 and `what-the-review-read.json`,
@@ -706,12 +711,18 @@ said in its line with the reason,
 with status `none` in that branch's place.
 Two branches whose names derive the same change name,
 such as `fix/shared-change` and `feat/shared-change`,
-cannot both be reviewed in one batch:
+cannot both be reviewed:
 they would share one review folder,
 one brief and one run name,
-so the second is refused in one line naming both branches,
+so the start that writes a review's folder takes it with an owner file only one start can create,
+and a second start finds it held.
+The refusal is one line naming both branches,
 with status `none`,
-while the first goes on.
+while the first goes on,
+and it holds between two separate starters as well as inside one batch.
+A branch whose change leaves nothing to review takes no folder at all.
+A folder whose owner has ended is taken again,
+so a start killed between taking a folder and writing its brief blocks nobody for good.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,

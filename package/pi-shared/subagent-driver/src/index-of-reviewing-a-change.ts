@@ -30,12 +30,14 @@ export {
   REVIEW_BRANCH_PREFIX,
   REVIEW_BRIEF_FILE_NAME,
   REVIEW_FILE_NAME,
+  REVIEW_OWNER_FILE_NAME,
   REVIEW_READING_FILE_NAME,
   REVIEW_RUN_PREFIX,
   branchOfAReview,
   briefFileOfAReview,
   changeNameOfBranch,
   diffFileOfAReview,
+  ownerFileOfAReview,
   reproductionsFolderOfAReview,
   readingFileOfAReview,
   reviewFileOfAReview,
@@ -87,6 +89,10 @@ export {
   retryWordsOfAReview,
   startReviews,
 } from './reviews-of-finished-branches.ts';
+export {
+  type ReviewFolderOwner,
+  ReviewFolderTakenError,
+} from './claiming-a-review-folder.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
   keepFailedOutput,

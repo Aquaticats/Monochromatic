@@ -164,6 +164,7 @@ const started = await startReviews({
     },
     brief: async function brief({
       review,
+      branch,
       commit,
       range,
     },) {
@@ -174,6 +175,7 @@ const started = await startReviews({
         commit,
         ranges: [range,],
         source: options.source,
+        branch,
         focus: FOCUS_OF_A_CHANGE_REVIEW,
         reviewsFolder: options.reviewsFolder,
         runsFolder: options.runsFolder,

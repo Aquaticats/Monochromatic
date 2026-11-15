@@ -180,6 +180,7 @@ type Asked = {
  */
 function seamsAnswering({
   briefs,
+  briefsByBranch = new Map(),
   starts,
   saves,
   written,
@@ -187,6 +188,7 @@ function seamsAnswering({
   refusals = new Map(),
 }: {
   readonly briefs: ReadonlyMap<string, BriefOfOneReview>;
+  readonly briefsByBranch?: ReadonlyMap<string, BriefOfOneReview>;
   readonly starts: ReadonlyMap<string, StartOfOneReview>;
   readonly saves: ReadonlyMap<string, { readonly line: string }>;
   readonly written: readonly string[];
@@ -224,7 +226,7 @@ function seamsAnswering({
       integrationMerges: async function integrationMerges() {
         return merges;
       },
-      brief: async function brief({ review, commit, range, },) {
+      brief: async function brief({ review, branch, commit, range, },) {
         asked.briefs.push({
           review,
           commit,
@@ -237,7 +239,8 @@ function seamsAnswering({
         if (refusal !== undefined) {
           throw new Error(refusal,);
         }
-        return briefs.get(review,)
+        return briefsByBranch.get(branch,)
+          ?? briefs.get(review,)
           ?? {
             written: false,
             line: `${runNameOfAReview({ review, },)}: no answer for this brief`,
@@ -503,7 +506,7 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a second branch reviewed as the same change as one already asked for, naming both, so one review folder and one run name never stand for two branches',
+          name: 'briefs a second branch of one change name after a branch whose brief leaves nothing to review, because a branch that writes no brief takes no review folder',
           fn: async () => {
             /**
              The two distinct branches whose names derive one change name.
@@ -511,10 +514,18 @@ await describe({
             const firstBranch = 'fix/shared-change';
             const secondBranch = 'feat/shared-change';
             /**
-             The seams, with the first branch's brief written and started.
+             The change name both branches derive.
+             */
+            const sharedChange = changeOfBranch({ branch: firstBranch, },);
+            /**
+             The seams, with the first branch's change leaving nothing to review and the second's leaving code.
              */
             const { seams, asked } = seamsAnswering({
-              briefs: new Map([[changeOfBranch({ branch: firstBranch, },), { written: true, line: 'a shared brief', },],],),
+              briefs: new Map(),
+              briefsByBranch: new Map([
+                [firstBranch, { written: false, line: 'nothing to review in the first branch', },],
+                [secondBranch, { written: true, line: 'a reviewable brief for the second branch', },],
+              ],),
               starts: new Map(),
               saves: new Map(),
               written: [],
@@ -524,24 +535,22 @@ await describe({
              What the starter answered.
              */
             const started = await startReviews(aStartRequest({
-              changes: [changeOfBranch({ branch: firstBranch, },), changeOfBranch({ branch: secondBranch, },),],
+              changes: [sharedChange, sharedChange,],
               branches: [firstBranch, secondBranch,],
               seams,
             },),);
             expect(started.lines,).toEqual([
-              'a shared brief',
-              `${runNameOfAReview({ review: changeOfBranch({ branch: firstBranch, },), },)}: started`,
-              `${runNameOfAReview({ review: changeOfBranch({ branch: firstBranch, },), },)}: ${secondBranch} is not reviewed: `
-                + `another branch in this batch, ${firstBranch}, is reviewed as the same change, so both would share one review `
-                + 'folder and one run name; ask for this branch in a batch of its own',
-              `${runNameOfAReview({ review: changeOfBranch({ branch: firstBranch, },), },)}: has its review.md`,
-              'reviews ended with statuses 0 none',
+              'nothing to review in the first branch',
+              'a reviewable brief for the second branch',
+              `${runNameOfAReview({ review: sharedChange, },)}: started`,
+              `${runNameOfAReview({ review: sharedChange, },)}: has its review.md`,
+              'reviews ended with statuses 0',
             ],);
-            expect(asked.briefs.map(function reviewOf(brief,) {
-              return brief.review;
-            },),).toEqual([changeOfBranch({ branch: firstBranch, },),],);
-            expect(asked.starts,).toHaveLength(1,);
-            expect(started.statuses,).toEqual(['0', 'none',],);
+            expect(asked.briefs,).toHaveLength(2,);
+            expect(asked.starts.map(function reviewOf(start,) {
+              return start.review;
+            },),).toEqual([sharedChange,],);
+            expect(started.statuses,).toEqual(['0',],);
           },
         },),
         it({

@@ -9,8 +9,10 @@
  A branch whose brief cannot be written is a failure of that branch: it is said in one line with the reason, its status is `none`,
  and the rest of the batch go on, so the command that ran the batch ends with a failure even when nothing was started.
 
- Two branches whose names derive one change name cannot both be reviewed in one batch: they would share one review folder, one
- brief and one run name, so the second is refused in one line naming both branches, with status `none`, while the first goes on.
+ Two branches whose names derive one change name cannot both be reviewed: they would share one review folder, one brief and one run
+ name, so the second is refused in one line naming both branches, with status `none`, while the first goes on. The refusal comes
+ from the start that took the review's folder, so it holds between two batches as well as within one, and a branch whose change
+ leaves nothing to review takes no folder and stands in no one's way.
 
  @module
  */
@@ -87,9 +89,8 @@ export type StartedReviews = {
 
   /**
    The status of every branch that has one, in the order the branches were asked for: the status its start ended with, or `none`
-   for a branch that was not reviewed because its brief could not be written or because another branch in the batch is reviewed as
-   the same change. A branch already reviewed, and one whose change leaves nothing to review, is a deliberate skip and has no
-   status.
+   for a branch that was not reviewed because its brief could not be written, including a review folder held for another branch.
+   A branch already reviewed, and one whose change leaves nothing to review, is a deliberate skip and has no status.
    */
   readonly statuses: readonly string[];
 };
@@ -146,11 +147,13 @@ export type ReviewStartingSeams = {
   readonly report?: (line: string) => void;
 
   /**
-   Writes one review's brief and the diff it reads. A writer that cannot write the brief throws, which the starter says in one
-   line while the rest of the batch go on.
+   Writes one review's brief and the diff it reads, for the branch the review is of. A writer that cannot write the brief, because
+   another start holds the review's folder or for any other reason, throws, which the starter says in one line while the rest of
+   the batch go on.
    */
   readonly brief: (request: {
     readonly review: string;
+    readonly branch: string;
     readonly commit: string;
     readonly range: string;
   }) => Promise<BriefOfOneReview>;
@@ -270,11 +273,13 @@ type BriefAnswer =
 async function briefOfOneReview({
   seams,
   review,
+  branch,
   commit,
   range,
 }: {
   readonly seams: ReviewStartingSeams;
   readonly review: string;
+  readonly branch: string;
   readonly commit: string;
   readonly range: string;
 },): Promise<BriefAnswer> {
@@ -282,6 +287,7 @@ async function briefOfOneReview({
     return {
       wrote: await seams.brief({
         review,
+        branch,
         commit,
         range,
       },),
@@ -348,11 +354,6 @@ export async function startReviews({
    */
   const statusOfBranch = new Map<number, string>();
   /**
-   The branch each review name was first asked for by, so a second branch that would be reviewed as the same change is refused
-   rather than sharing its folder, its brief and its run name.
-   */
-  const firstBranchForReview = new Map<string, string>();
-  /**
    One start per branch, each resolving when its run has ended, kept beside the branch it reads and its place in the request.
    */
   const starts: {
@@ -371,23 +372,6 @@ export async function startReviews({
      The run that reads it.
      */
     const run = runNameOfAReview({ review, },);
-    /**
-     The branch this review name was first asked for by, when another one already took it.
-     */
-    const firstBranch = firstBranchForReview.get(review,);
-    if (firstBranch !== undefined) {
-      note(`${run}: ${branch} is not reviewed: another branch in this batch, ${firstBranch}, is reviewed as the same change, so `
-        + 'both would share one review folder and one run name; ask for this branch in a batch of its own',);
-      statusOfBranch.set(
-        at,
-        'none',
-      );
-      continue;
-    }
-    firstBranchForReview.set(
-      review,
-      branch,
-    );
     if (await seams.reviewIsWritten({ review, },)) {
       note(`${run}: already reviewed`,);
       continue;
@@ -411,6 +395,7 @@ export async function startReviews({
     const answer = await briefOfOneReview({
       seams,
       review,
+      branch,
       commit,
       range,
     },);

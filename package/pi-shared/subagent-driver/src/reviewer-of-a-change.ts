@@ -81,6 +81,12 @@ export const REVIEW_FILE_NAME = 'review.md';
 export const REVIEW_READING_FILE_NAME = 'what-the-review-read.json';
 
 /**
+ The file that records which start took a review's folder and for which branch, so a second branch learns at once whose the folder
+ is and a folder left by a start that was killed can be taken again.
+ */
+export const REVIEW_OWNER_FILE_NAME = 'the-owner-of-this-review.json';
+
+/**
  Reads the change name a branch is reviewed as: the branch without the type that says what kind of work it is.
 
  @param branch - the branch, as `fix/rewrite-the-gate` or `feat/a-batch-in-a-unit`
@@ -278,6 +284,36 @@ export function readingFileOfAReview({
       review,
     },),
     REVIEW_READING_FILE_NAME,
+  );
+}
+
+/**
+ Reads the file that records which start took one review's folder.
+
+ @param reviewsFolder - folder that holds one folder per review
+
+ @param review - the change the review reads
+
+ @returns the file's path
+
+ @example
+ ```ts
+ const file = ownerFileOfAReview({ reviewsFolder: '/reviews', review: 'a', },);
+ ```
+ */
+export function ownerFileOfAReview({
+  reviewsFolder,
+  review,
+}: {
+  readonly reviewsFolder: string;
+  readonly review: string;
+}): string {
+  return join(
+    reviewFolderOf({
+      reviewsFolder,
+      review,
+    },),
+    REVIEW_OWNER_FILE_NAME,
   );
 }
 
