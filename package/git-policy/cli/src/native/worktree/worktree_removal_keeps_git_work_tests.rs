@@ -12,7 +12,7 @@
 //! gitWorkARemovalWouldStrand(context, common, worktree, admin) // ['its detached HEAD names the commit ...']
 //! ```
 
-use super::{detached_head, git_work_a_removal_would_strand};
+use super::{NAMING_RECORD_FILES, NAMING_RECORDS, detached_head, git_work_a_removal_would_strand};
 use crate::test_support::{fixture, git, git_context, git_text, repository};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -220,4 +220,119 @@ fn a_head_that_names_neither_a_branch_nor_a_commit_is_the_reason_nothing_is_remo
             Ok(empty) => panic!("a removal of a worktree whose HEAD cannot be read must keep it, but it answered {empty:?} for {torn:?}"),
         }
     }
+}
+
+/// What:
+///  A commit made on a detached `HEAD` and then reset away is stranded,
+///  named by the worktree's `HEAD` reflog.
+/// Why:
+///  The reflog is the only thing left that names it once `HEAD` names a commit that survives,
+///  and the removal deletes that reflog with the worktree's own Git directory,
+///  so `git gc --prune=now` takes the commit afterwards
+///  (a review of `e615fb599b`, finding 1, reproduced through the built wrapper as well).
+#[test]
+fn a_commit_only_the_head_reflog_names_is_stranded() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-reflog");
+    let commit: String = fixture.detach_and_commit();
+    git(fixture.worktree.as_path(), &["reset", "--hard", "main"]);
+    let said: Vec<String> = fixture.stranded().expect("the logs and references can be read");
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].contains("its HEAD reflog"), "{}", said[0]);
+    assert!(said[0].contains(&commit[..12]), "{}", said[0]);
+    assert!(said[0].contains("git gc --prune=now"), "{}", said[0]);
+}
+
+/// What:
+///  A commit an amend took off the worktree's branch is not stranded:
+///  the branch's own reflog, in the common Git directory, still names it.
+/// Why:
+///  That reflog outlives the worktree,
+///  so nothing dies that names the commit,
+///  and a question that asked only the references would keep a worktree nothing stands in the way of
+///  (a review of `e615fb599b`, finding 1, states this as the ordinary case of work on a branch).
+#[test]
+fn a_commit_a_surviving_reflog_names_is_not_stranded() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-reflog-amend");
+    fixture.commit("work.txt");
+    let amended_away: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(fixture.worktree.join("more.txt"), b"more\n").expect("a file in the worktree");
+    git(fixture.worktree.as_path(), &["add", "--", "more.txt"]);
+    git(fixture.worktree.as_path(), &["commit", "--quiet", "--amend", "--no-edit"]);
+    assert_ne!(git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]), amended_away, "the amend made another commit");
+    assert_eq!(fixture.stranded(), Ok(Vec::new()), "the branch reflog names what the amend took off it");
+}
+
+/// What:
+///  Every record of an operation that stopped is read for the commit it holds,
+///  and the sentence names that record.
+/// Why:
+///  A rebase, an `am`, a bisect, a cherry-pick and a merge each leave a record in the worktree's own Git
+///  directory,
+///  and the removal deletes them with it:
+///  a commit named only there would go with them
+///  (a review of `e615fb599b`, finding 1, for the records beside the reflog).
+#[test]
+fn a_record_of_an_operation_that_stopped_names_the_commit_it_holds() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-records");
+    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    let mut records: Vec<(String, String)> = Vec::new();
+    for name in NAMING_RECORDS {
+        records.push((name.to_owned(), name.to_owned()));
+    }
+    for (directory, name) in NAMING_RECORD_FILES {
+        records.push((format!("{directory}/{name}"), format!("{directory}/{name}")));
+    }
+    for (where_it_stands, holder) in records {
+        let commit: String = git_text(
+            fixture.worktree.as_path(),
+            &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a record names"],
+        );
+        let path: PathBuf = fixture.admin.join(where_it_stands.as_str());
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("the record's directory");
+        std::fs::write(path.as_path(), format!("{commit}\n")).expect("the record");
+        let said: Vec<String> = fixture.stranded().expect("the records can be read");
+        assert!(
+            said.iter().any(|one| return one.contains(&commit[..12]) && one.contains(holder.as_str())),
+            "the record `{where_it_stands}` names {commit}, but the question said {said:?}"
+        );
+        std::fs::remove_file(path.as_path()).expect("the record goes");
+    }
+}
+
+/// What:
+///  A commit only `FETCH_HEAD` names is not stranded,
+///  and the module's own words say why.
+/// Why:
+///  `FETCH_HEAD` names an object Git fetched from somewhere else,
+///  which is still there where it came from and comes back with the same fetch,
+///  so it is no commit a person made and no work a removal can lose.
+///  Measured on this repository, 2026-11-14: 4 of its 179 linked worktrees hold such a commit, and refusing them
+///  would keep four worktrees standing over an object the far side still has.
+#[test]
+fn a_commit_only_fetch_head_names_is_not_stranded() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-fetch-head");
+    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = git_text(
+        fixture.worktree.as_path(),
+        &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a fetch names"],
+    );
+    std::fs::write(fixture.admin.join("FETCH_HEAD").as_path(), format!("{commit}\t\tbranch 'main' of somewhere\n")).expect("a fetch record");
+    assert_eq!(fixture.stranded(), Ok(Vec::new()), "a fetched object is not work a removal can lose");
+}
+
+/// What:
+///  A line of a log this program cannot read is the reason nothing is removed.
+/// Why:
+///  Such a line may name a commit this program cannot see,
+///  and answering "no commit" there would delete the only thing that names it
+///  (the same rule the `HEAD` record already follows).
+#[test]
+fn a_log_line_this_program_cannot_read_is_the_reason_nothing_is_removed() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-torn-log");
+    std::fs::write(fixture.admin.join("logs/HEAD").as_path(), b"a line a killed writer left behind\n").expect("a torn log");
+    let said: Result<Vec<String>, String> = fixture.stranded();
+    assert!(said.is_err(), "a log this program cannot read is no log that proves a worktree clear");
+    let reason: String = said.expect_err("a reason");
+    assert!(reason.contains("its HEAD reflog"), "the reason names the log: {reason}");
+    assert!(reason.contains("a line a killed writer left behind"), "and quotes the line: {reason}");
 }

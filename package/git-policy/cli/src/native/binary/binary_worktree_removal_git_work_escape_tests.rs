@@ -822,3 +822,48 @@ fn a_case_differing_name_behind_a_dot_or_a_link_is_guarded_where_git_resolves_it
         remove(&clean.fixture);
     }
 }
+
+/// What:
+///  A commit made on a detached `HEAD` and then reset away is refused,
+///  the reflog that names it survives the refusal,
+///  and `git gc --prune=now` leaves the object readable.
+/// Why:
+///  The reflog is the last thing that names such a commit,
+///  and `git worktree remove` deletes it with the worktree's own Git directory:
+///  the removal then ends 0, the object becomes unreachable, and a collection takes it
+///  (a review of `e615fb599b`, finding 1, whose own script this control follows:
+///  `keep/review-reflog-only-detached-commit-at-2596b5d164.log` of this run shows the loss at the tip before it).
+///  The collection is run on purpose:
+///  a refusal that keeps the worktree but leaves the commit unreachable would pass a control that only looked at
+///  the worktree.
+///  Every route by which a typed removal goes asks this question, so the plain forward this one takes speaks for the
+///  copy route too, whose own control is `a_removal_that_skips_the_copy_is_refused_for_a_stranded_commit_too`.
+#[test]
+fn a_commit_only_the_head_reflog_names_is_refused_and_survives_a_collection() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-reflog-only-detached-commit");
+    let task: String = scene.task.display().to_string();
+    run_direct(&scene.fixture, scene.task.as_path(), &["checkout", "--quiet", "--detach"]);
+    std::fs::write(scene.task.join("only-in-this-commit.txt"), "made here\n").expect("a file in the worktree");
+    run_direct(&scene.fixture, scene.task.as_path(), &["add", "only-in-this-commit.txt"]);
+    run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    let named: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+    // `HEAD` back on a commit that survives, so the reflog is the only thing that names the one above.
+    run_direct(&scene.fixture, scene.task.as_path(), &["reset", "--hard", "main"]);
+    let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the removal is refused: {said}");
+    assert!(said.contains("its HEAD reflog"), "the refusal names the reflog: {said}");
+    assert!(said.contains(&commit[..12]), "and the commit it names: {said}");
+    assert!(scene.task.exists(), "and the worktree stays");
+    // The collection a lost commit would go with, run on the repository the worktree is still registered in.
+    run_direct(&scene.fixture, scene.repo.as_path(), &["gc", "--prune=now"]);
+    let readable: Observed = run_direct(&scene.fixture, scene.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+    assert_eq!(readable.code, Some(0), "and the commit is still readable after a collection: {}", stderr_of(&readable));
+    // The opt-out the refusal printed still runs the removal as real Git runs it, which is where the person decides.
+    let printed: String = scene.printed_command(&said);
+    let ran: Observed = scene.run_through_a_shell(printed.as_str());
+    assert_eq!(ran.code, Some(0), "the printed opt-out runs: {}", stderr_of(&ran));
+    assert!(!scene.task.exists(), "and the worktree is gone");
+    remove(&scene.fixture);
+}
