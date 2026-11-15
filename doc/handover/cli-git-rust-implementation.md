@@ -1656,9 +1656,33 @@ and what the coordinating session queued.
   one start of the filling unit failed at 05:25:50 with `spawnSync systemctl ETIMEDOUT`,
   and the manager's journal shows a burst of units started in one second at 05:26:43.
   It followed the end of the wall-clock run's unit at 05:23:04 by a minute.
-  The cause is not found.
   `systemctl --user list-units --all` took 19 ms at 05:27:30,
   and three starts have succeeded since.
+  Looked into at 05:36,
+  and the cause is still not found:
+  - the manager's own journal lines stop at 05:23:38 and begin again at 05:26:43,
+    three minutes and five seconds,
+    with six units started in that one second,
+    so it took no request in between;
+  - both drives were fast in those minutes
+    (the probe's writes took 1 ms and 6 ms at 05:24:10 and 05:25:30),
+    so it was not a drive stall;
+  - no reload of the manager is logged;
+  - the CPU watcher logged CPU pressure of 58.1 at 05:23:49 and its clearing at 05:24:19,
+    two and a half minutes before the manager answered again;
+  - the manager is one thread and has used 23,040 s of CPU in 44.6 hours.
+  What would show a repeat:
+  a reading of the drive probe with its count of units at -1.
+  There are two since level 17 began,
+  both in this incident.
+- **The repository's drive stalls singly**,
+  seen while reading the probe:
+  since the snapshot cleanup ended,
+  16 of 229 readings at level 17 took a second or more,
+  15 of them on the repository's drive,
+  the longest 14.8 s at 04:04:17 and 13.8 s at 05:34:57;
+  none twice in a row,
+  so the level stands.
 - **The landed removal** (`dfd6fab13e`),
   its eighth review,
   ended 05:20:35,
