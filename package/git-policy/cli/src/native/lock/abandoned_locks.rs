@@ -147,14 +147,15 @@
 //!    (`repository.c`,
 //! line 192 with the worktree's Git directory);
 //!    candidates:
-//!    that worktree's `HEAD.lock`,
-//!    `ORIG_HEAD.lock`,
-//!    `MERGE_RR.lock`,
-//!    `gc.pid.lock`,
-//!    `gc.log.lock`,
-//!    `info/sparse-checkout.lock`,
-//!    its `index.lock` and its three sequencer folders,
-//!    found by listing the entries of `<common-dir>/worktrees`.
+//!    `<common-dir>/worktrees`, read whole,
+//!    because every folder below it is a Git directory of a linked worktree and every `.lock` in one is a lock.
+//!    Reading it whole is also what keeps a link out of it:
+//!    the walk opens `worktrees` and every folder below it as the folder each is named as,
+//!    so an entry that is a link is no worktree
+//!    (a review of `3ac1254a73`,
+//! finding 1;
+//! a review of `551084db3c`,
+//! finding 2).
 //!
 //! A lock no candidate names is a lock this pass can never clear:
 //!  the per-user and system config files,
@@ -183,10 +184,10 @@ use crate::abandoned_lock_proving as proving;
 use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 /// The names a lock and its PID file have.
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
-/// The common Git directory that holds the records of the processes started here.
-use crate::git_directory_roots::common_dir_for;
 /// One place a lock can stand, and how the walk finds it.
-use crate::git_directory_roots::LockCandidate;
+use crate::git_directory_roots::{LockCandidate, ProvenFolder};
+/// The proof that a folder is a Git directory of the command, with no link in its path.
+use crate::git_directory_proof::{ProvenGitDirectory, prove_git_directory};
 /// The records themselves:
 /// the repository this command works in,
 /// which every Git it starts is noted in.
@@ -282,8 +283,8 @@ impl Outcome {
 /// ```ts
 /// function lockCandidates(roots: string[]): string[];
 /// ```
-pub fn lock_candidates(candidates: &[LockCandidate]) -> Vec<PathBuf> {
-    return walked(candidates).locks;
+pub fn lock_candidates(candidates: &[LockCandidate], proven: &ProvenGitDirectory) -> Vec<PathBuf> {
+    return walked(candidates, proven).locks;
 }
 
 /// What:
@@ -323,45 +324,40 @@ pub struct Walked {
 /// ```ts
 /// function walked(roots: string[]): Walked;
 /// ```
-pub fn walked(candidates: &[LockCandidate]) -> Walked {
+pub fn walked(candidates: &[LockCandidate], proven: &ProvenGitDirectory) -> Walked {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut complete: bool = true;
-    let mut seen: usize = 0;
     for candidate in candidates {
         match candidate {
-            // What: A name Git locks exactly, so the pass looks at that one name and nothing beside it.
+            // What: A name the person's settings placed is judged as that one name, and its own last name is read as a
+            //       file rather than followed.
             // Why:  A folder Git shares with a person holds the person's files: taking every name with `.lock` there
             //       unlinked a data file that was not a lock (a review of `429503238b`, finding 3).
-            LockCandidate::Exactly(path) => {
+            LockCandidate::BesideASettingsNamedFile(path) => {
                 if is_a_lock_name(path.file_name().unwrap_or_default().to_string_lossy().as_ref())
                     && matches!(std::fs::symlink_metadata(path).map(|metadata| { return metadata.file_type(); }), Ok(kind) if kind.is_file())
                 {
                     found.push(path.clone());
                 }
             }
-            LockCandidate::DirectlyBelow(folder) | LockCandidate::AnywhereBelow(folder) => {
-                // What: A root is opened as the folder it is named as, never through a link in its own last name.
-                // Why:  `read_dir` follows a link at the path it is given, and the checks of an entry's kind say nothing about
-                //       the root: with `refs` a link, the walk read a folder outside every repository and unlinked a
-                //       person's `important.lock` there (a review of `58cd4d9f7c`, finding 1).
-                //       A root that is not a real folder holds no lock of this repository, and the pass says so.
-                match std::fs::symlink_metadata(folder.as_path()).map(|metadata| { return metadata.file_type(); }) {
-                    Ok(kind) if kind.is_dir() => {}
-                    Ok(_not_a_folder) => {
-                        crate::diagnostic_log::debug(
-                            TAG,
-                            format!("{} is no folder of this repository, so the pass did not search it", folder.display()).as_str(),
-                        );
-                        continue;
-                    }
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                    Err(_unreadable) => {
-                        complete = false;
-                        continue;
-                    }
+            LockCandidate::ExactNameBelowProven { base, components, name } => {
+                let Some(folder) = folder_below_proven(proven, *base, components, &mut complete) else {
+                    continue;
+                };
+                let path: PathBuf = folder.join(name);
+                if is_a_lock_name(name.to_string_lossy().as_ref())
+                    && matches!(std::fs::symlink_metadata(path.as_path()).map(|metadata| { return metadata.file_type(); }), Ok(kind) if kind.is_file())
+                {
+                    found.push(path);
                 }
-                let downward: usize = if matches!(candidate, LockCandidate::AnywhereBelow(_)) { MOST_DEPTH } else { 0 };
-                let mut pending: Vec<(PathBuf, usize)> = vec![(folder.clone(), 0)];
+            }
+            LockCandidate::EveryLockBelowProven { base, components, recursive } => {
+                let Some(folder) = folder_below_proven(proven, *base, components, &mut complete) else {
+                    continue;
+                };
+                let downward: usize = if *recursive { MOST_DEPTH } else { 0 };
+                let mut pending: Vec<(PathBuf, usize)> = vec![(folder, 0)];
+                let mut seen: usize = 0;
                 while let Some((directory, depth)) = pending.pop() {
                     let entries: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
                         Ok(listed) => listed,
@@ -406,6 +402,54 @@ pub fn walked(candidates: &[LockCandidate]) -> Walked {
     found.sort();
     found.dedup();
     return Walked { locks: found, complete };
+}
+
+/// What:
+///  The folder these components name below the proof,
+///  or nothing when any component is a link,
+///  is absent,
+///  or is no folder.
+/// Why:
+///  This is the one place a root is reached from a proven Git directory,
+///  so every root of the pass refuses a link at every component by construction:
+///  `read_dir` follows a link at the path it is given and `symlink_metadata` follows a link in every component but
+///  the last,
+///  so a link at `refs` or at `worktrees` sent the walk outside the repository and unlinked a person's file there
+///  (a review of `58cd4d9f7c`,
+/// finding 1;
+/// a review of `551084db3c`,
+/// finding 2).
+///  A component that is absent proves nothing missed;
+///  one that exists and cannot be read makes the walk incomplete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const folder = folderBelowProven(proven, base, components); // lstat each component; refuse a link; undefined when absent
+/// ```
+fn folder_below_proven(proven: &ProvenGitDirectory, base: ProvenFolder, components: &[std::ffi::OsString], complete: &mut bool) -> Option<PathBuf> {
+    let mut resolved: PathBuf = match base {
+        ProvenFolder::GitDirectory => proven.path().to_path_buf(),
+        ProvenFolder::CommonDirectory => proven.common().to_path_buf(),
+    };
+    for component in components {
+        resolved = resolved.join(component);
+        match std::fs::symlink_metadata(resolved.as_path()) {
+            Ok(kind) if kind.file_type().is_dir() => {}
+            Ok(_not_a_folder) => {
+                crate::diagnostic_log::debug(
+                    TAG,
+                    format!("{} is no folder of this repository, so the pass did not search it", resolved.display()).as_str(),
+                );
+                return None;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+            Err(_unreadable) => {
+                *complete = false;
+                return None;
+            }
+        }
+    }
+    return Some(resolved);
 }
 
 /// What:
@@ -464,22 +508,22 @@ fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
 /// ```ts
 /// function clearAbandonedLocks(roots: LockRoot[], gitDir: string, commonDir: string): Outcome; // read the records, walk, clear, remove litter
 /// ```
-pub fn clear_abandoned_locks(candidates: &[LockCandidate], git_dir: &Path, common_dir: &Path) -> Outcome {
+pub fn clear_abandoned_locks(proven: &ProvenGitDirectory, candidates: &[LockCandidate]) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
     if candidates.is_empty() {
         return outcome;
     }
-    // What: The record folder is the one the one answer names, never one guessed from a root: with `GIT_COMMON_DIR` the
-    //       records live in the common directory while a lock of the worktree's state lives in the Git directory.
-    // Why:  A pass that read the records out of the Git directory wrote them in the common one and could not explain the
-    //       lock it was meant to clear (a review of `4e9b9fff1d`, finding 1).
-    let record_folder_of: PathBuf = common_dir.to_path_buf();
+    // What: The record folder and the Git directory are the proof's own, and the walk is made from the proof.
+    // Why:  The records live in the common directory while a lock of the worktree's state lives in the Git directory,
+    //       and a pass handed paths that no proof backs deleted a person's file from a folder that is not a repository
+    //       (a review of `551084db3c`, findings 2 and 3).
+    let record_folder_of: PathBuf = proven.common().to_path_buf();
     // What: The records are read first, so the walk below is the sight of the locks a removal is decided on.
     // Why:  A record removed on a walk older than its reading loses the proof of a lock made in between.
     let records: Vec<Record> = every_record(record_folder_of.as_path());
     #[cfg(test)]
     crate::abandoned_lock_pass_fault_hooks_test_support::after_the_records_are_read();
-    let searched: Walked = walked(candidates);
+    let searched: Walked = walked(candidates, proven);
     let found: Vec<PathBuf> = searched.locks;
     for lock in &found {
         match proving::clear_one(lock.as_path(), record_folder_of.as_path()) {
@@ -489,7 +533,7 @@ pub fn clear_abandoned_locks(candidates: &[LockCandidate], git_dir: &Path, commo
                 //  it cannot release itself, and nothing here may remove it.
                 //  Words stay where the person is: a lock of another linked worktree's own state is that worktree's,
                 //  and a command of this one neither waits for it nor reports it.
-                if stands_in_the_way(lock.as_path(), git_dir, record_folder_of.as_path())
+                if stands_in_the_way(lock.as_path(), proven.path(), record_folder_of.as_path())
                     && let Some(line) = standing_lock_line(lock.as_path(), record_folder_of.as_path())
                 {
                     outcome.unexplained.push(line);
@@ -518,8 +562,8 @@ pub fn clear_abandoned_locks(candidates: &[LockCandidate], git_dir: &Path, commo
 /// ```ts
 /// function clearAbandonedLocksTelling(roots, stderr): number;
 /// ```
-pub fn clear_abandoned_locks_telling(candidates: &[LockCandidate], git_dir: &Path, common_dir: &Path, out: &mut dyn std::io::Write) -> usize {
-    let outcome: Outcome = clear_abandoned_locks(candidates, git_dir, common_dir);
+pub fn clear_abandoned_locks_telling(proven: &ProvenGitDirectory, candidates: &[LockCandidate], out: &mut dyn std::io::Write) -> usize {
+    let outcome: Outcome = clear_abandoned_locks(proven, candidates);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
         let written: std::io::Result<()> = out.write_all(notice.as_bytes());
@@ -551,19 +595,23 @@ pub fn clear_abandoned_locks_telling(candidates: &[LockCandidate], git_dir: &Pat
 /// ```ts
 /// removeMyRecordAfterTheCommand(roots) // nothing when this process wrote no record, or the walk was not whole
 /// ```
-pub fn sweep_the_records_the_command_left(candidates: &[LockCandidate], common: &Path) {
+pub fn sweep_the_records_the_command_left(repository: &CommandRepository) {
+    let Some(proven) = repository.proven_git_directory() else {
+        return;
+    };
+    let candidates: Vec<LockCandidate> = repository.lock_candidates_in(&proven);
     if candidates.is_empty() {
         return;
     }
     // A command that started no Git wrote no record, and the walk below would have nothing to decide.
-    if !crate::lock_holder_records::this_process_has_a_record(common) {
+    if !crate::lock_holder_records::this_process_has_a_record(proven.common()) {
         return;
     }
-    let searched: Walked = walked(candidates);
+    let searched: Walked = walked(candidates.as_slice(), &proven);
     if !searched.complete {
         return;
     }
-    remove_this_process_record_if_no_lock_needs_it(common, pids_named_by_standing_locks(searched.locks.as_slice()).as_slice());
+    remove_this_process_record_if_no_lock_needs_it(proven.common(), pids_named_by_standing_locks(searched.locks.as_slice()).as_slice());
 }
 
 /// What:
@@ -605,17 +653,18 @@ fn proving_pid_file(lock: &Path) -> PathBuf {
 /// ```ts
 /// function rootsOfGitDirectory(gitDir: string): string[]; // [gitDir, commonDir] when they differ
 /// ```
-pub fn candidates_of_git_directory(git_dir: &Path) -> Vec<LockCandidate> {
-    let common: PathBuf = common_dir_for(git_dir);
+pub fn candidates_of_git_directory(git_dir: &Path, common_dir: &Path) -> Option<(ProvenGitDirectory, Vec<LockCandidate>)> {
+    let proven: ProvenGitDirectory = prove_git_directory(git_dir, common_dir)?;
     let repository: CommandRepository = CommandRepository {
-        start: git_dir.to_path_buf(),
-        git_dir: Some(git_dir.to_path_buf()),
-        common_dir: Some(common),
-        index_file: Some(git_dir.join("index")),
-        shallow_file: Some(git_dir.join("shallow")),
-        object_dir: Some(common_dir_for(git_dir).join("objects")),
+        start: proven.path().to_path_buf(),
+        git_dir: Some(proven.path().to_path_buf()),
+        common_dir: Some(proven.common().to_path_buf()),
+        index_file: Some(proven.path().join("index")),
+        shallow_file: Some(proven.path().join("shallow")),
+        object_dir: Some(proven.common().join("objects")),
     };
-    return repository.lock_candidates();
+    let candidates: Vec<LockCandidate> = repository.lock_candidates_in(&proven);
+    return Some((proven, candidates));
 }
 
 /// What:
@@ -643,14 +692,15 @@ pub fn candidates_of_git_directory(git_dir: &Path) -> Vec<LockCandidate> {
 /// meetTheLocks(repository) // the -C chain, --git-dir or GIT_DIR, and GIT_COMMON_DIR, resolved once
 /// ```
 pub fn meet_the_locks_of_the_repository_the_command_works_on(repository: &CommandRepository) {
-    let Some(common) = repository.common_dir.as_ref() else {
+    // What: The Git directory is proved before anything is judged: a folder no option or walk has shown to be a
+    //       repository is no place this pass may open or unlink, and no place a record is written.
+    // Why:  `--git-dir` naming an ordinary folder was believed, and a wrapped command deleted a person's file from it
+    //       before Git refused the folder as no repository (a review of `551084db3c`, finding 3).
+    let Some(proven) = repository.proven_git_directory() else {
         return;
     };
-    let Some(git_dir) = repository.git_dir.as_ref() else {
-        return;
-    };
-    remember_repository(common.as_path());
-    clear_abandoned_locks_telling(repository.lock_candidates().as_slice(), git_dir.as_path(), common.as_path(), &mut std::io::stderr());
+    remember_repository(proven.common());
+    clear_abandoned_locks_telling(&proven, repository.lock_candidates_in(&proven).as_slice(), &mut std::io::stderr());
 }
 
 /// Controls of the answer that decides which locks are named stay out of the release executable.

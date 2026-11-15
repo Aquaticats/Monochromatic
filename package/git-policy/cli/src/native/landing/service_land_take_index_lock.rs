@@ -63,12 +63,12 @@ pub(crate) fn take_index_lock(
     // Why:  A restarted service meets the lock of the service that was killed holding it. The service's own reclaimer removes a
     //       marked lock whose holder is gone, and the wrapper's record proves a Git the wrapper started is gone, so the commit
     //       lands at once instead of the wait reaching its ceiling and withdrawing the change.
-    let _cleared: usize = crate::abandoned_locks::clear_abandoned_locks_telling(
-        crate::abandoned_locks::candidates_of_git_directory(first.index.parent().unwrap_or(repository)).as_slice(),
-        first.index.parent().unwrap_or(repository),
-        crate::git_directory_roots::common_dir_for(first.index.parent().unwrap_or(repository)).as_path(),
-        &mut std::io::stderr(),
-    );
+    let git_dir: &std::path::Path = first.index.parent().unwrap_or(repository);
+    let _cleared: usize = match crate::abandoned_locks::candidates_of_git_directory(git_dir, crate::git_directory_roots::common_dir_for(git_dir).as_path()) {
+        Some((proven, candidates)) => crate::abandoned_locks::clear_abandoned_locks_telling(&proven, candidates.as_slice(), &mut std::io::stderr()),
+        // A folder that is no repository is no place this pass may open or unlink.
+        None => 0,
+    };
     let waiting_since: Instant = Instant::now();
     let mut notes: WaitNotes = WaitNotes::default();
     let taken = acquire_noting_wait_within(first.index.as_path(), seq, lock_ceiling, announce, &mut notes);

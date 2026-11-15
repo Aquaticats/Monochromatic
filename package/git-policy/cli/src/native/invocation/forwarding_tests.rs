@@ -595,7 +595,8 @@ fn a_git_that_dies_before_its_identity_is_read_is_still_named_and_its_lock_is_cl
     assert!(lock.exists() && pid_file.exists(), "the lock and its PID file are the ones the stand-in left");
     // The PID file names the shell that made it, and the record names the same process: the proof is the one a later
     //  command has, and it is enough.
-    let outcome = clear_abandoned_locks(candidates_of_git_directory(common.as_path()).as_slice(), common.as_path(), common.as_path());
+    let (proven, candidates) = candidates_of_git_directory(common.as_path(), common.as_path()).expect("the fixture is a Git directory");
+    let outcome = clear_abandoned_locks(&proven, candidates.as_slice());
     assert_eq!(outcome.cleared.len(), 1, "the next pass clears the lock on the record the start wrote");
     assert!(!lock.exists(), "the lock the dead Git left is gone");
     remove(root.as_path());
@@ -681,7 +682,8 @@ fn a_wrapper_killed_between_starting_a_git_and_naming_it_leaves_that_git_named()
     }
     assert!(names_the_git, "the Git the killed wrapper started is named in the record it wrote itself");
     assert!(lock.exists(), "the lock the killed Git left stands");
-    let outcome = crate::abandoned_locks::clear_abandoned_locks(candidates_of_git_directory(common.as_path()).as_slice(), common.as_path(), common.as_path());
+    let (proven, candidates) = candidates_of_git_directory(common.as_path(), common.as_path()).expect("the fixture is a Git directory");
+    let outcome = crate::abandoned_locks::clear_abandoned_locks(&proven, candidates.as_slice());
     assert_eq!(outcome.cleared.len(), 1, "the next pass clears the lock on the record the Git wrote");
     assert!(!lock.exists(), "the lock is gone");
     remove(root.as_path());

@@ -25,6 +25,8 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 /// The command whose repository is wanted.
 use std::process::Command;
+/// The proof that a folder is the Git directory of the command, and that no component of its path is a link.
+use crate::git_directory_proof::{ProvenGitDirectory, prove_git_directory};
 /// The one walk of the global options that answers the directory a `-C` chain ends in and the Git directory a
 ///  `--git-dir` names, so neither is resolved twice.
 use crate::repository_link_paths::{GIT_COMMON_DIRECTORY_VARIABLE, GIT_DIRECTORY_VARIABLE, chain_directory, last_git_dir_option, last_option_value};
@@ -168,12 +170,50 @@ pub struct CommandRepository {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LockCandidate {
-    /// The one file Git locks under that name.
-    Exactly(PathBuf),
-    /// Every `*.lock` directly below this folder.
-    DirectlyBelow(PathBuf),
-    /// Every `*.lock` anywhere below this folder.
-    AnywhereBelow(PathBuf),
+    /// The one name Git locks beside a file the person's settings named,
+    ///  such as an index Git was told to use.
+    ///  Its own last name is checked as a file, never followed.
+    BesideASettingsNamedFile(PathBuf),
+    /// The one name Git locks below components of a proven Git directory,
+    ///  the last of which names a folder that must be a folder.
+    ExactNameBelowProven {
+        /// Which of the proof's two folders the components start at.
+        base: ProvenFolder,
+        /// The components from there,
+        ///  each opened as the folder it is named as.
+        components: Vec<std::ffi::OsString>,
+        /// The name Git locks in that last folder.
+        name: std::ffi::OsString,
+    },
+    /// Every `*.lock` below components of a proven Git directory.
+    EveryLockBelowProven {
+        /// Which of the proof's two folders the components start at.
+        base: ProvenFolder,
+        /// The components from there,
+        ///  each opened as the folder it is named as.
+        components: Vec<std::ffi::OsString>,
+        /// Whether the walk goes below the last component.
+        recursive: bool,
+    },
+}
+
+/// What:
+///  Which folder of a proven Git directory a candidate's components start at.
+/// Why:
+///   The worktree's own state lives in the Git directory and the shared references in the common one,
+///  and both are the proof's,
+///  so a candidate names its base rather than a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProvenFolder = 'git-directory' | 'common-directory';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProvenFolder {
+    /// The Git directory of the command.
+    GitDirectory,
+    /// The common Git directory its references and records live in.
+    CommonDirectory,
 }
 
 /// What:
@@ -222,28 +262,51 @@ impl CommandRepository {
     }
 
     /// What:
+    ///  The proof that this command's Git directory is a repository,
+    ///  taken from the one answer this invocation resolved,
+    ///  or nothing when it is not one.
+    /// Why:
+    ///  Every pass, every record write and every root starts from this proof,
+    ///  so a command whose `--git-dir` names a folder Git would refuse has no pass at all
+    ///  (a review of `551084db3c`,
+    /// finding 3).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// repository.provenGitDirectory() // { gitDir, commonDir } | undefined
+    /// ```
+    pub fn proven_git_directory(&self) -> Option<ProvenGitDirectory> {
+        let git_dir: &Path = self.git_dir.as_deref()?;
+        let common_dir: &Path = self.common_dir.as_deref().unwrap_or(git_dir);
+        return prove_git_directory(git_dir, common_dir);
+    }
+
+    /// What:
     ///  Every lock this command's repository can hold,
-    ///  each named where Git names it.
+    ///  each named where Git names it,
+    ///  and each reached through a folder of the proof and never through a link.
     /// Why:
     ///  Git locks a file beside it,
     ///  and which files it locks is fixed by its own layout while where they lie follows the settings this answer
     ///  read.
     ///  The names below are the ones Git's source writes (see the table in `abandoned_locks.rs`),
-    ///  and the two folders that are read whole hold nothing but Git's own state.
-    ///  One answer for all of them is what keeps the writer of a record,
-    ///  the walk that looks for locks and the removal of records from disagreeing,
-    ///  and what keeps the pass from opening a file of a person's that only looks like a lock.
+    ///  and each is named below a folder of the proof:
+    ///  the references,
+    ///  the sequencer's three folders,
+    ///  and the linked worktrees,
+    ///  every one of them reached by opening each component as the folder it is named as
+    ///  (`abandoned_locks.rs`,
+    /// `folder_below_proven`).
+    ///  So a link at a root itself, or at any component below it, is no root.
+    ///  The index and the shallow file are the two names the person's settings place anywhere,
+    ///  and beside them only the one name Git locks there is judged.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// repository.lockCandidates() // [{kind: 'exactly', path: '/repo/.git/index.lock'}, {kind: 'anywhereBelow', folder: '/repo/.git/refs'}]
+    /// repository.lockCandidatesIn(proven) // [{kind: 'exactNameBelowProven', base: 'git-directory', components: [], name: 'HEAD.lock'}, {kind: 'everyLockBelowProven', base: 'common-directory', components: ['refs'], recursive: true}]
     /// ```
-    pub fn lock_candidates(&self) -> Vec<LockCandidate> {
-        let Some(git_dir) = self.git_dir.as_ref() else {
-            return Vec::new();
-        };
-        let common: &PathBuf = self.common_dir.as_ref().unwrap_or(git_dir);
-        let objects: PathBuf = self.object_dir.clone().unwrap_or_else(|| { return common.join("objects"); });
+    pub fn lock_candidates_in(&self, proven: &ProvenGitDirectory) -> Vec<LockCandidate> {
+        let common: &Path = proven.common();
         let mut candidates: Vec<LockCandidate> = Vec::new();
         let mut add = |candidate: LockCandidate| {
             if candidates.contains(&candidate) {
@@ -251,94 +314,61 @@ impl CommandRepository {
             }
             candidates.push(candidate);
         };
+        // A name Git locks in a folder of the proof, added the one way every candidate is added.
+        macro_rules! named {
+            ($base:expr, [$($component:expr),*], $name:expr) => {
+                add(LockCandidate::ExactNameBelowProven {
+                    base: $base,
+                    components: vec![$(std::ffi::OsString::from($component)),*],
+                    name: std::ffi::OsString::from($name),
+                })
+            };
+        }
         // The index and the shallow file are the two Git locks whose place the person's settings move.
         if let Some(index) = self.index_file.as_ref() {
-            add(LockCandidate::Exactly(locked_name(index.as_path())));
+            add(LockCandidate::BesideASettingsNamedFile(locked_name(index.as_path())));
         }
         if let Some(shallow) = self.shallow_file.as_ref() {
-            add(LockCandidate::Exactly(locked_name(shallow.as_path())));
+            add(LockCandidate::BesideASettingsNamedFile(locked_name(shallow.as_path())));
         }
-        add_git_directory_candidates(git_dir, &mut add);
-        if common != git_dir {
-            add_git_directory_candidates(common, &mut add);
+        for name in ["HEAD.lock", "ORIG_HEAD.lock", "MERGE_RR.lock", "gc.pid.lock", "gc.log.lock"] {
+            named!(ProvenFolder::GitDirectory, [], name);
         }
-        add(LockCandidate::Exactly(common.join("packed-refs.lock")));
-        add(LockCandidate::Exactly(common.join("config.lock")));
-        add(LockCandidate::Exactly(common.join("reftable/tables.list.lock")));
+        named!(ProvenFolder::GitDirectory, ["info"], "sparse-checkout.lock");
+        for name in ["packed-refs.lock", "config.lock"] {
+            named!(ProvenFolder::CommonDirectory, [], name);
+        }
+        named!(ProvenFolder::CommonDirectory, ["reftable"], "tables.list.lock");
         // Every reference Git locks lies under `refs`, and a reference name cannot end in `.lock`, so a `.lock` file
         //  there is a lock and only a lock.
-        add(LockCandidate::AnywhereBelow(common.join("refs")));
-        // The object store's own locks, each by the name Git writes.
-        for name in [
-            "maintenance.lock",
-            "schedule.lock",
-            "loose-object-idx.lock",
-            "info/alternates.lock",
-            "info/commit-graph.lock",
-            "pack/multi-pack-index.lock",
-            "pack/multi-pack-index-chain.lock",
-        ] {
-            add(LockCandidate::Exactly(objects.join(name)));
+        add(LockCandidate::EveryLockBelowProven { base: ProvenFolder::CommonDirectory, components: vec![std::ffi::OsString::from("refs")], recursive: true });
+        for folder in ["sequencer", "rebase-merge", "rebase-apply"] {
+            add(LockCandidate::EveryLockBelowProven { base: ProvenFolder::GitDirectory, components: vec![std::ffi::OsString::from(folder)], recursive: false });
         }
-        // What: A linked worktree's own state is the entries of `<common>/worktrees` that are really folders there.
-        // Why:  `Path::is_dir` follows a symbolic link, so a link planted at that name sent the candidates into the folder
-        //       it pointed at, and a wrapped command deleted a person's `HEAD.lock` outside every repository
-        //       (a review of `3ac1254a73`,
-        // finding 1).
-        //       So the entry's own type decides, and the folder it names is resolved once and shown to lie under the
-        //       common directory's `worktrees` before a single candidate is built from it.
-        //       Every candidate is then `<that folder>/<name>` with a name Git writes there, so nothing outside it is
-        //       reachable.
-        let linked_root: PathBuf = common.join("worktrees");
-        if let Ok(listed) = std::fs::read_dir(linked_root.as_path()) {
-            let resolved_root: Option<PathBuf> = std::fs::canonicalize(linked_root.as_path()).ok();
-            let mut linked: Vec<PathBuf> = listed
-                .flatten()
-                .filter(|entry| { return matches!(entry.file_type(), Ok(kind) if kind.is_dir()); })
-                .map(|entry| { return entry.path(); })
-                .collect();
-            linked.sort();
-            for directory in linked {
-                let Ok(resolved) = std::fs::canonicalize(directory.as_path()) else {
-                    continue;
-                };
-                if resolved_root.as_ref().is_none_or(|root| { return !resolved.starts_with(root); }) {
-                    continue;
-                }
-                // The index and the shallow file of a linked worktree lie in its own Git directory, and only the
-                //  worktree that runs there names them; the walk of any other worktree holds them all the same, so a
-                //  record they need is never called unused
-                //  (a review of `3ac1254a73`,
-                // finding 2).
-                add(LockCandidate::Exactly(locked_name(directory.join("index").as_path())));
-                add(LockCandidate::Exactly(locked_name(directory.join("shallow").as_path())));
-                add_git_directory_candidates(directory.as_path(), &mut add);
+        // A linked worktree's Git directory holds the same names as this one, and the folder of each is reached below
+        //  `worktrees`, which is opened as the folder it is named as.
+        //  A link at `worktrees`, or at an entry below it, is no folder of this repository
+        //  (a review of `551084db3c`,
+        // finding 2).
+        add(LockCandidate::EveryLockBelowProven { base: ProvenFolder::CommonDirectory, components: vec![std::ffi::OsString::from("worktrees")], recursive: true });
+        // The object store's own locks, each by the name Git writes, reached below `objects` when the settings leave it
+        //  where Git puts it.
+        let default_objects: PathBuf = common.join("objects");
+        let objects_are_git_s: bool = self.object_dir.as_ref().is_none_or(|object_dir| { return object_dir == &default_objects; });
+        if objects_are_git_s {
+            named!(ProvenFolder::CommonDirectory, ["objects"], "maintenance.lock");
+            named!(ProvenFolder::CommonDirectory, ["objects"], "schedule.lock");
+            named!(ProvenFolder::CommonDirectory, ["objects"], "loose-object-idx.lock");
+            named!(ProvenFolder::CommonDirectory, ["objects", "info"], "alternates.lock");
+            named!(ProvenFolder::CommonDirectory, ["objects", "info"], "commit-graph.lock");
+            named!(ProvenFolder::CommonDirectory, ["objects", "pack"], "multi-pack-index.lock");
+            named!(ProvenFolder::CommonDirectory, ["objects", "pack"], "multi-pack-index-chain.lock");
+        } else if let Some(object_dir) = self.object_dir.as_ref() {
+            for name in ["maintenance.lock", "schedule.lock", "loose-object-idx.lock", "info/alternates.lock", "info/commit-graph.lock", "pack/multi-pack-index.lock", "pack/multi-pack-index-chain.lock"] {
+                add(LockCandidate::BesideASettingsNamedFile(object_dir.join(name)));
             }
         }
         return candidates;
-    }
-}
-
-/// What:
-///  The locks a Git directory of this layout can hold,
-///  added to `add`:
-///  the names Git writes at its top,
-///  and the folders that hold its own state whole.
-/// Why:
-///   A Git directory's top holds the person's repository state and Git's own files,
-///  so a lock there is named exactly,
-///  while `sequencer`, `rebase-merge` and `rebase-apply` hold Git's transient state and nothing else.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const name of ['HEAD.lock', 'ORIG_HEAD.lock', 'MERGE_RR.lock', 'gc.pid.lock', 'gc.log.lock', 'info/sparse-checkout.lock']) add({kind: 'exactly', path: join(gitDir, name)});
-/// ```
-fn add_git_directory_candidates(git_dir: &Path, add: &mut impl FnMut(LockCandidate)) {
-    for name in ["HEAD.lock", "ORIG_HEAD.lock", "MERGE_RR.lock", "gc.pid.lock", "gc.log.lock", "info/sparse-checkout.lock"] {
-        add(LockCandidate::Exactly(git_dir.join(name)));
-    }
-    for folder in ["sequencer", "rebase-merge", "rebase-apply"] {
-        add(LockCandidate::DirectlyBelow(git_dir.join(folder)));
     }
 }
 

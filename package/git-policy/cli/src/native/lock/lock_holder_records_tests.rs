@@ -350,6 +350,7 @@ fn a_record_a_locks_number_names_is_found_past_the_bound_a_sweep_reads() {
     std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock a killed Git left");
     make_pid_file_after_the_lock(lock.as_path(), gone);
     // The pass over one plain repository: its Git directory is its common directory, and the index lies in it.
+    crate::test_support::make_it_a_git_directory(root.as_path());
     let repository: CommandRepository = CommandRepository {
         start: root.clone(),
         git_dir: Some(root.clone()),
@@ -396,6 +397,7 @@ fn a_renamed_record_of_the_same_number_keeps_the_lock_its_usual_record_would_cle
     std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
     make_pid_file_after_the_lock(lock.as_path(), gone);
     assert!(proved_gone_writer(root.as_path(), gone).is_none(), "the proof answers unknown while a record of another namespace names the number");
+    crate::test_support::make_it_a_git_directory(root.as_path());
     let repository: CommandRepository = CommandRepository {
         start: root.clone(),
         git_dir: Some(root.clone()),
@@ -501,6 +503,7 @@ fn a_folder_past_the_bound_answers_unknown_and_keeps_the_lock() {
     let record: PathBuf = folder.join(format!("{gone}.record"));
     std::fs::write(record.as_path(), record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity)]).as_bytes()).expect("the record the lock names");
     assert!(proved_gone_writer(root.as_path(), gone).is_none(), "the proof answers unknown when the folder is past the bound it reads");
+    crate::test_support::make_it_a_git_directory(root.as_path());
     let lock: PathBuf = root.join("index.lock");
     std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
     make_pid_file_after_the_lock(lock.as_path(), gone);

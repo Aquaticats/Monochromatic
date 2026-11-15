@@ -42,6 +42,8 @@ fn git_directory_with_a_record(control: &str) -> (PathBuf, PathBuf, (i64, String
     let root: PathBuf = fixture(control);
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("the Git directory");
+    // The Git directory is one by Git's own test, so the pass proves it and the state under test is reached.
+    crate::test_support::make_it_a_git_directory(common.as_path());
     let folder: PathBuf = folder_of(common.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the record folder");
     let (gone, identity): (i64, String) = a_dead_process();
@@ -92,8 +94,9 @@ fn a_lock_made_after_the_records_are_read_is_cleared_and_its_record_is_used() {
     let record: PathBuf = folder.join("record-of-the-gone-holder");
     let at_the_seam: PathBuf = common.clone();
     place_after_the_records_are_read(Box::new(move || { return make_the_lock(at_the_seam.as_path(), gone); }));
-    let roots: [LockCandidate; 1] = [LockCandidate::AnywhereBelow(common.clone())];
-    let outcome = clear_abandoned_locks(roots.as_slice(), common.as_path(), common.as_path());
+    let roots: [LockCandidate; 1] = [LockCandidate::EveryLockBelowProven { base: crate::git_directory_roots::ProvenFolder::CommonDirectory, components: Vec::new(), recursive: false }];
+    let proven = crate::git_directory_proof::prove_git_directory(common.as_path(), common.as_path()).expect("the fixture is a Git directory");
+    let outcome = clear_abandoned_locks(&proven, roots.as_slice());
     assert_eq!(outcome.cleared.len(), 1, "the pass cleared the lock the record it read explains: {:?}", outcome.cleared.iter().map(clearance_line).collect::<Vec<String>>());
     assert!(!lock.exists(), "the lock that was made after the reading is gone");
     assert!(!record.exists(), "and the record goes with the lock it explained, because nothing needs it any more");

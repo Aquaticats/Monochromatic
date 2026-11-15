@@ -22,10 +22,10 @@
 //! ```
 
 use crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on;
-use crate::git_directory_roots::CommandRepository;
+use crate::git_directory_roots::{CommandRepository, ProvenFolder};
 use crate::lock_holder_records::{CHILD_KIND, SELF_KIND, folder_of, record_text};
 use crate::record_proof_test_support::{a_dead_process, make_pid_file_after_the_lock};
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, make_it_a_git_directory, remove};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -48,6 +48,12 @@ fn split_repository(control: &str) -> (PathBuf, CommandRepository, i64, PathBuf)
     let common: PathBuf = root.join("common-git-dir");
     std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
     std::fs::create_dir_all(common.as_path()).expect("the common Git directory");
+    // What: Both folders are Git directories by Git's own test, so the proof the pass takes is a proof of a repository.
+    // Why:  The pass now answers nothing for a folder Git would refuse, and a fixture without `HEAD` would make every
+    //       control here pass because no pass was made at all
+    //       (a review of `551084db3c`, finding 3).
+    make_it_a_git_directory(git_dir.as_path());
+    make_it_a_git_directory(common.as_path());
     let (gone, identity): (i64, String) = a_dead_process();
     let folder: PathBuf = folder_of(common.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the record folder");
@@ -274,6 +280,13 @@ fn a_linked_refs_root_is_not_walked() {
     let common: PathBuf = repository.common_dir.clone().expect("the common directory");
     let outside: PathBuf = root.join("outside-every-repository");
     std::fs::create_dir_all(outside.as_path()).expect("the folder the link points at");
+    // What: The real `refs` folder goes and the link takes its place, so the repository is still one Git accepts while
+    //       the walk meets a link at its first component.
+    // Why:  The proof answers whether Git accepts the folder, and Git follows a link at `refs`;
+    //       the refusal under test is the walk's
+    //       (a review of `551084db3c`,
+    // finding 2).
+    std::fs::remove_dir(common.join("refs")).expect("the real reference folder");
     std::os::unix::fs::symlink(outside.as_path(), common.join("refs").as_path()).expect("the link at refs");
     let persons_file: PathBuf = outside.join("important.lock");
     let persons_bytes: &[u8] = b"a person's data outside every repository\n";
@@ -281,5 +294,224 @@ fn a_linked_refs_root_is_not_walked() {
     make_pid_file_after_the_lock(persons_file.as_path(), gone);
     meet_the_locks_of_the_repository_the_command_works_on(&repository);
     assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "a root that is a link is not searched");
+    remove(root.as_path());
+}
+
+/// What:
+///  One folder of a proven Git directory the pass searches,
+///  and the lock Git leaves in it.
+/// Why:
+///  Every one of these folders is reached from the proof by the same walk,
+///  so each needs the same two controls:
+///  the folder real, where its lock is cleared,
+///  and a link at every component in turn, where nothing beyond the link is touched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RootCase = { control: string; base: 'git-directory' | 'common-directory'; components: string[]; lock: string; everyLock: boolean };
+/// ```
+struct RootCase {
+    /// The name this row's fixtures are filed under.
+    control: &'static str,
+    /// Which of the proof's two folders the components start at.
+    base: ProvenFolder,
+    /// The components from there,
+    ///  each of which the walk opens as the folder it is named as.
+    components: &'static [&'static str],
+    /// The lock Git leaves there,
+    ///  as a path below the last component.
+    lock: &'static str,
+    /// Whether the folder is read whole,
+    ///  in which case every `*.lock` in it is a lock.
+    every_lock: bool,
+}
+
+/// What:
+///  Every folder the pass searches,
+///  with the lock Git's own source writes in it.
+/// Why:
+///  A row here that no candidate names would be a folder nothing proves,
+///  and a row whose lock the pass never clears would make its link arm pass for the wrong reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rows = [{ base: 'common-directory', components: ['refs'], lock: 'heads/main.lock', everyLock: true }, …];
+/// ```
+fn root_cases() -> Vec<RootCase> {
+    return vec![
+        RootCase { control: "refs", base: ProvenFolder::CommonDirectory, components: &["refs"], lock: "heads/main.lock", every_lock: true },
+        RootCase { control: "worktrees", base: ProvenFolder::CommonDirectory, components: &["worktrees"], lock: "linked/index.lock", every_lock: true },
+        RootCase { control: "sequencer", base: ProvenFolder::GitDirectory, components: &["sequencer"], lock: "todo.lock", every_lock: true },
+        RootCase { control: "rebase-merge", base: ProvenFolder::GitDirectory, components: &["rebase-merge"], lock: "interactive.lock", every_lock: true },
+        RootCase { control: "rebase-apply", base: ProvenFolder::GitDirectory, components: &["rebase-apply"], lock: "applying.lock", every_lock: true },
+        RootCase { control: "info", base: ProvenFolder::GitDirectory, components: &["info"], lock: "sparse-checkout.lock", every_lock: false },
+        RootCase { control: "reftable", base: ProvenFolder::CommonDirectory, components: &["reftable"], lock: "tables.list.lock", every_lock: false },
+        RootCase { control: "objects", base: ProvenFolder::CommonDirectory, components: &["objects"], lock: "maintenance.lock", every_lock: false },
+        RootCase { control: "objects-info", base: ProvenFolder::CommonDirectory, components: &["objects", "info"], lock: "alternates.lock", every_lock: false },
+        RootCase { control: "objects-pack", base: ProvenFolder::CommonDirectory, components: &["objects", "pack"], lock: "multi-pack-index.lock", every_lock: false },
+    ];
+}
+
+/// What:
+///  The folder a row's components name below the repository's Git directory or its common one.
+/// Why:
+///   The fixtures place their files by the same names the candidate table uses,
+///  so a row cannot plant a lock the pass was never told to look for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const folder = join(case.base === 'git-directory' ? gitDir : commonDir, ...case.components);
+/// ```
+fn folder_of_a_root(repository: &CommandRepository, case: &RootCase) -> PathBuf {
+    let start: &Path = match case.base {
+        ProvenFolder::GitDirectory => repository.git_dir.as_deref().expect("the Git directory"),
+        ProvenFolder::CommonDirectory => repository.common_dir.as_deref().expect("the common directory"),
+    };
+    let mut folder: PathBuf = start.to_path_buf();
+    for component in case.components {
+        folder = folder.join(component);
+    }
+    return folder;
+}
+
+/// What:
+///  Plant the lock Git leaves, its PID file naming a recorded process that is gone,
+///  and a person's files beside it.
+/// Why:
+///   The lock must be one the pass would clear if it reached the folder,
+///  so the link arm below proves the walk refused the link rather than that the lock looked held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(folder, lock), 'half-written\n'); makePidFileAfterTheLock(join(folder, lock), gone);
+/// writeFileSync(join(folder, 'important.lock'), 'a person's data\n'); makePidFileAfterTheLock(join(folder, 'important.lock'), gone);
+/// writeFileSync(join(folder, 'notes.txt'), 'a person's notes\n');
+/// ```
+fn plant_the_lock_and_a_persons_files(folder: &Path, lock: &str, gone: i64) {
+    let lock_path: PathBuf = folder.join(lock);
+    std::fs::create_dir_all(lock_path.parent().unwrap_or(folder)).expect("the folder the lock lies in");
+    std::fs::write(lock_path.as_path(), b"half-written\n").expect("the lock a killed Git left");
+    make_pid_file_after_the_lock(lock_path.as_path(), gone);
+    let persons_lock: PathBuf = folder.join("important.lock");
+    std::fs::write(persons_lock.as_path(), b"a person's data\n").expect("the person's file");
+    make_pid_file_after_the_lock(persons_lock.as_path(), gone);
+    std::fs::write(folder.join("notes.txt"), b"a person's notes\n").expect("the person's notes");
+}
+
+/// What:
+///  Each folder the pass searches is cleared when it is really there,
+///  and nothing beyond it is touched when a link stands at any of its components.
+/// Why:
+///  `read_dir` follows a link at the path it is given and `symlink_metadata` follows a link in every component but the
+///  last,
+///  so a link at `worktrees`, at `refs`, or at any folder below them sent the pass outside the repository:
+///  a wrapped `git status` deleted a person's `HEAD.lock` from `<outside>/user-owned-directory`
+///  (a review of `551084db3c`,
+/// finding 2),
+///  and the same sentence held for every other root one folder to the side.
+///  Each row's real arm is the positive control of its link arms:
+///  the same lock, the same PID file, cleared when no link is in the way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const row of rows) {
+///   const real = splitRepository(`real-${row.control}`); plantTheLockAndAPersonsFiles(folderOfARoot(real, row), row.lock, real.gone);
+///   meetTheLocks(real.repository); expect(existsSync(realLock)).toBe(false);
+///   for (let prefix = 1; prefix <= row.components.length; prefix += 1) { /* link at that component, outside folder holds the same files */ expect(outsideStillThere).toBe(true) }
+/// }
+/// ```
+#[test]
+fn a_root_is_cleared_when_it_is_really_there_and_never_reached_through_a_link() {
+    for case in root_cases() {
+        // What: The folder real, with Git's lock in it and a person's files beside it.
+        // Why:  This arm is the positive control of the link arms: it shows the plant is one the pass clears.
+        a_root_with_no_link_in_the_way(&case);
+        // What: A link at each component in turn, and the same lock and person's files beyond it.
+        // Why:  Any of these components could be the link that sends the walk outside the repository.
+        for prefix in 1..=case.components.len() {
+            a_root_reached_through_a_link(&case, prefix);
+        }
+    }
+}
+
+/// What:
+///  The row's folder really there,
+///  with Git's lock and a person's files in it:
+///  the lock goes and the person's files stay.
+/// Why:
+///   This is the positive control of the row's link arms:
+///  the same lock,
+///  with the same PID file naming the same gone process,
+///  is cleared when no link stands in the way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { root, repository, gone } = splitRepository(`real-${row.control}`); plantTheLockAndAPersonsFiles(folderOfARoot(repository, row), row.lock, gone);
+/// meetTheLocks(repository); expect(existsSync(realLock)).toBe(false); expect(existsSync(notes)).toBe(true);
+/// ```
+fn a_root_with_no_link_in_the_way(case: &RootCase) {
+    let control: String = format!("root-real-{}", case.control);
+    let (root, repository, gone, _record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository(control.as_str());
+    let folder: PathBuf = folder_of_a_root(&repository, case);
+    std::fs::create_dir_all(folder.as_path()).expect("the folder the row names");
+    plant_the_lock_and_a_persons_files(folder.as_path(), case.lock, gone);
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(!folder.join(case.lock).exists(), "the lock Git left in `{}`, reached with no link in the way, is cleared", case.control);
+    assert!(folder.join("notes.txt").exists(), "a person's file in `{}` is not a lock and is left alone", case.control);
+    assert_eq!(
+        folder.join("important.lock").exists(),
+        !case.every_lock,
+        "in `{}` a `.lock` file is a lock only where the folder is read whole",
+        case.control
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A link at the `prefix`th component of the row,
+///  with the row's lock and a person's files in the folder it points at:
+///  none of them is touched,
+///  because the folder beyond a link is no folder of this repository.
+/// Why:
+///   `read_dir` follows a link at the path it is given and `symlink_metadata` follows a link in every component but the
+///  last,
+///  so a link at `worktrees` or at `refs` sent the pass outside the repository and it deleted a person's file there
+///  (a review of `551084db3c`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { root, repository, gone } = splitRepository(`linked-${row.control}-at-${prefix}`);
+/// symlink(outside, join(base, ...row.components.slice(0, prefix))); plantTheLockAndAPersonsFiles(join(outside, ...row.components.slice(prefix)), row.lock, gone);
+/// meetTheLocks(repository); expect(existsSync(join(outside, ...rest, row.lock))).toBe(true);
+/// ```
+fn a_root_reached_through_a_link(case: &RootCase, prefix: usize) {
+    let control: String = format!("root-linked-{}-at-{}", case.control, case.components[prefix - 1]);
+    let (root, repository, gone, _record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository(control.as_str());
+    // The components before the link are real folders, as they are in a repository.
+    let mut reached: PathBuf = match case.base {
+        ProvenFolder::GitDirectory => repository.git_dir.clone().expect("the Git directory"),
+        ProvenFolder::CommonDirectory => repository.common_dir.clone().expect("the common directory"),
+    };
+    for component in &case.components[..prefix - 1] {
+        reached = reached.join(component);
+        std::fs::create_dir_all(reached.as_path()).expect("the component before the link");
+    }
+    let linked: PathBuf = reached.join(case.components[prefix - 1]);
+    if linked.exists() {
+        std::fs::remove_dir_all(linked.as_path()).expect("the real folder gives way to the link");
+    }
+    let outside: PathBuf = root.join(format!("outside-every-repository-{prefix}"));
+    std::fs::create_dir_all(outside.as_path()).expect("the folder the link points at");
+    let mut beyond: PathBuf = outside.clone();
+    for component in &case.components[prefix..] {
+        beyond = beyond.join(component);
+    }
+    plant_the_lock_and_a_persons_files(beyond.as_path(), case.lock, gone);
+    std::os::unix::fs::symlink(outside.as_path(), linked.as_path()).expect("the link");
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(beyond.join(case.lock).exists(), "a link at `{}` is no folder of this repository, so the lock beyond it is untouched", linked.display());
+    assert!(beyond.join("important.lock").exists(), "and a person's file beyond `{}` is untouched", linked.display());
+    assert!(beyond.join("notes.txt").exists(), "and so are the person's notes beyond `{}`", linked.display());
     remove(root.as_path());
 }

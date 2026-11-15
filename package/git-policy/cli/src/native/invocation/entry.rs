@@ -362,9 +362,7 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     // Why:  A command that changed nothing else then leaves the Git directory exactly as it found it. A command that
     //       became Git never reaches this line, and its record is what proves its own lock's holder gone, so it stays
     //       until the next command's pass sweeps it.
-    if let Some(common) = repository.common_dir.as_deref() {
-        crate::abandoned_locks::sweep_the_records_the_command_left(repository.lock_candidates().as_slice(), common);
-    }
+    crate::abandoned_locks::sweep_the_records_the_command_left(&repository);
     return code;
 }
 

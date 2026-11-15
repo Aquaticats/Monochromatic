@@ -15,6 +15,26 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+/// What:
+///  Make `directory` a Git directory by Git's own test:
+///  a `HEAD` that names a reference,
+///  an object store and a reference folder.
+/// Why:
+///  The lock pass and the record folder now require a proof that a folder is a repository
+///  (`repo_read/git_directory_proof.rs`),
+///  so a fixture that only makes a directory would have no pass and no record,
+///  and a control would pass for the wrong reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(join(dir, 'objects'), { recursive: true }); mkdirSync(join(dir, 'refs')); writeFileSync(join(dir, 'HEAD'), 'ref: refs/heads/main\n');
+/// ```
+pub(crate) fn make_it_a_git_directory(directory: &Path) {
+    std::fs::create_dir_all(directory.join("objects")).expect("the object store");
+    std::fs::create_dir_all(directory.join("refs")).expect("the reference folder");
+    std::fs::write(directory.join("HEAD"), b"ref: refs/heads/main\n").expect("the HEAD of the fixture");
+}
+
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 
