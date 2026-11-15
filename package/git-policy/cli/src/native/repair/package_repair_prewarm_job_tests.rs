@@ -972,3 +972,42 @@ fn a_second_filling_of_one_workspace_leaves_the_first_ones_staging_alone() {
     drop(first);
     remove(root.as_path());
 }
+
+/// What:
+///  A cleanup that found nothing to clean leaves no proof behind,
+///  and a later cleanup therefore never removes a directory no filling of this job made.
+/// Why:
+///  A worktree that already has its build directory goes straight to the cleanup of what a killed filling left. With no
+///  proof at the names, the first cleanup made one and returned without removing anything, and the second read that
+///  proof as its own: it removed the other command's staging directory and its target (the review of `a7a6958f9d`, F1).
+/// The two cleanups are placed in that order, and the control reads what the second one did to the other command's work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = fillOne(); expect(first).toBe(kept); const second = fillOne();
+/// expect(read(otherCommandsFile)).toBe('someone else\'s work')
+/// ```
+#[test]
+fn a_cleanup_with_nothing_to_clean_leaves_no_proof_and_a_later_cleanup_removes_nothing_of_anothers() {
+    let root: PathBuf = fixture("prewarm-cleanup-with-nothing-to-clean");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    // The worktree already has its build directory, so the filling takes its early branch.
+    std::fs::create_dir_all(entry.to.as_path()).expect("the build directory a build made");
+    // The usual staging name holds another command's directory, and nothing proves anything about it.
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(usual.join("keep-me")).expect("another command's directory");
+    let theirs: PathBuf = usual.join("keep-me/a-file");
+    std::fs::write(theirs.as_path(), b"someone else's work").expect("the other command's file");
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
+    let first: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    assert_eq!(first, Ok(Filled::Kept), "a worktree that already has its build directory is kept");
+    assert_eq!(std::fs::read(theirs.as_path()).expect("the other command's file after the first cleanup"), b"someone else's work");
+    let second: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    assert_eq!(second, Ok(Filled::Kept), "a worktree that already has its build directory is kept");
+    assert_eq!(
+        std::fs::read(theirs.as_path()).expect("the other command's file after the second cleanup"),
+        b"someone else's work",
+        "a later cleanup removed a directory that no filling of this job made"
+    );
+    remove(root.as_path());
+}
