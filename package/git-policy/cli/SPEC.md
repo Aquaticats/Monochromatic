@@ -19197,6 +19197,22 @@ the command is forwarded,
 and Git's own sentence answers the person.
 An answer that was not read stops the clean with the reason,
 and `-i` is outside that condition in Git and outside it here.
+The reading also looks again after every save.
+The dry run and the walk that name the repositories to save run before the clean does,
+so a repository made between them was deleted with the folder:
+the seventh review delayed the first save rename by ten seconds, made a second repository in the
+ignored directory, and the wrapped `git clean -ffXd` exited 0 with that repository gone and only the
+first one saved.
+So the dry run and the walk are asked again after each save and whatever they name that no earlier
+look saved is saved too
+(`LOOKS_BEFORE_REFUSING` is three looks).
+A repository that keeps appearing refuses the clean, with every move this reading made put back where
+it was, because a program writing into that directory all the time would otherwise hold the command
+with no end.
+What a repository made in the last instant meets is Git itself:
+the wrapper forwards the clean and cannot see an entry made after its last look,
+and the window is now the time between that look and Git's first `rmdir`, not the whole save and its
+notices.
 Every one of those dry runs is started in the directory the clean runs in
 (`CleanDryRun` in `src/native/command/command_clean.rs`,
 whose directory comes from `command_run_directory` in `src/native/policy/command_run_directory.rs`
@@ -19289,6 +19305,11 @@ the clean then runs as typed,
 the person is told where each one is before Git starts,
 and the audit line carries `outcome` `saved-nested-repository` with one `copies` entry per repository,
 written `<path> => <place>`.
+A move that was given up on at its ceiling is not known to have failed.
+The save keeps that move, so the rollback tries to return it and finds a rename that went through late,
+and a rejection after such a move names the repository as possibly at its own place or below the saved
+copies rather than saying nothing was changed
+(the seventh review, found by reading; `MoveAside` is the seam its control stalls).
 The folder of saved copies and the directory each copy goes in are made on threads the save waits for only
 until the same ceiling,
 and a creation that gives no answer stops the save naming the place and the repository,
@@ -19401,6 +19422,31 @@ and a form that answers the question itself keeps the mark out of it:
 so Git writes that file by the person's own instruction and the guard does not refuse it,
 and `git rm --cached` removes the index entry and leaves the worktree file, so it asks the plain
 question.
+An edit a mark hides is compared by its bytes, never by its stat.
+Equal size, nanosecond modification time and mode do not make equal content:
+the seventh review replaced `base\n` with `evil\n`, put the time back, saw an empty status, and a
+wrapped `git reset --hard` replaced the edit with no refusal
+(`differs_from_the_index` answered "no edit" on the stat alone, measured on this host with native Git
+2.56.0, 2026-11-15).
+The module now lists the marked paths with `ls-files -v --stage -z` (the `--debug` stat block is gone,
+because nothing decides on it), and every marked file that is a regular file is hashed and compared
+with the object the index holds, in batches of one `hash-object` call per `HASH_BATCH_BYTES` of names
+run from the worktree root, where each name's own clean filter applies
+(`hash-object -- f.txt` and `hash-object --path=f.txt -- f.txt` print the same object, measured in the
+same place).
+The stat still answers what kind of entry stands there: a file is compared, a link or a directory is
+an edit whatever its bytes, and a path that is gone is no edit of the person's because Git writes it
+back.
+What that costs, measured on this host, 2026-11-15:
+one `hash-object` call hashes 100 marked paths in 2.4 ms, 1,000 in 8.5 ms and 5,000 in 36 ms,
+while one call per entry costs 181 ms, 1,787 ms and 9,258 ms;
+and a guarded `reset --hard` in a worktree of 20,000 files with 1,000 marked edits takes 169 ms
+against 3,592 ms with a call per entry.
+The repositories on this machine hold no marked entry at all
+(24,007 tracked paths in `Monochromatic` and its 180 worktrees, none marked),
+so the comparison here costs one listing and no hash.
+No shortcut on equal metadata is kept: any stat-based shortcut can miss a same-length edit whose time
+was put back, and that is what this reading exists to find.
 An `assume-unchanged` edit is read in every forced form's question,
 because Git writes that file whatever the mark says
 (`rm -f`, `reset --hard`, `checkout -- <path>`, `checkout -f`, `checkout-index -f -a` and
@@ -19543,6 +19589,32 @@ two remotes carrying the branch are an ambiguity Git refuses
 unless `checkout.defaultRemote` names one,
 and a remote whose own name holds a slash is guessed from, which is why the remotes are read from
 Git rather than split out of the refname.
+An option written twice is the last spelling, negation included, and the reading follows that rule
+for every option it consults (`command_discard::long_option_state`):
+`git checkout --no-guess --guess --force topic` guesses and checks out the guessed branch,
+so the reading must read that tree, and a scan that stopped at the first `--no-guess` read no tree at
+all and let the checkout write over the person's untracked file
+(the seventh review, measured on this host with native Git 2.56.0, 2026-11-15).
+The options the written-path reading consults, each with Git's rule and the reading's:
+`--guess`/`--no-guess` (last wins; last wins),
+`-f`/`--force` and `--no-force` for `rm`, `mv` and `checkout-index` (last wins, `OPTION_COUNTUP`
+reset included; last wins),
+`--sparse`/`--no-sparse` and `--cached`/`--no-cached` for `rm` (last wins; last wins),
+`--all`/`--no-all` for `checkout-index` (last wins; last wins, and a form with neither `--all` nor a
+path reads no write because Git checks out nothing there),
+`--prefix` for `checkout-index` and `read-tree` (last wins; last wins),
+`--stage` for `checkout-index` (last wins; the value is consumed and read as no path),
+`--pathspec-from-file` and `--pathspec-file-nul` (last wins; last wins),
+`--source`/`-s` for `restore` (last wins; last wins),
+the reset modes (last wins; last wins),
+`read-tree`'s `-u`, `-m`, `--reset` and `--prefix` (each boolean is last-wins; the reading uses the
+last occurrence of each),
+and a clean's `-f` count (`--no-force` resets it to zero; the reading resets it too).
+`--merge`/`--no-merge`, `--overlay`/`--no-overlay`, `--detach` and `--orphan` are not read:
+they decide which tracked files a form removes or how `HEAD` moves,
+and an edit to a tracked file is the dirty question's, not this reading's.
+`command_repeated_options_tests.rs` holds one row per option above that changes the written set,
+each checked against real Git in both orders.
 A tree Git knows and cannot list (a removed object, a name that is a blob) is a refusal saying
 what could not be read,
 never an empty answer:

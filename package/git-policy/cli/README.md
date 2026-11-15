@@ -2655,6 +2655,15 @@ The rule is:
   nothing is moved for it, Git prints `clean.requireForce is true and -f not given: refusing to clean`
   as it would without this wrapper,
   and your repository is where you left it.
+  A clean looks again after every repository it saves, so a repository made while the first one was
+  being moved is saved too, and one that keeps appearing stops the clean and puts back everything it
+  moved.
+  An edit hidden by an `assume-unchanged` or `skip-worktree` mark is compared by its bytes, not by its
+  size and time, so a same-length edit with its time put back is still found and refused.
+  An option given twice is read as Git reads it, the last spelling: `git checkout --no-guess --guess
+  --force topic` guesses, and the guard reads the guessed tree it writes over.
+  A save whose move did not answer within its ceiling says so and names where the repository may be,
+  instead of claiming nothing changed.
   An interactive clean whose menu would offer a bare repository is stopped at any force count,
   naming the repository and the two ways to run that clean with it in hand:
   without `-i`, so it is saved first, or with `--no-enforce-worktree`, so the menu and your choice
