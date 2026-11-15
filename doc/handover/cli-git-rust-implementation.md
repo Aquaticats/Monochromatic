@@ -1661,6 +1661,24 @@ a measurement by the coordinating session and one deletion.
     so they stay.
   - The record-of-another-boot scratch belongs to a run that is queued or going.
   A measurement with `btrfs filesystem du` of what these folders hold alone and what they share was started at 03:40 as its own unit at disk weight 1.
+- **That measurement, ended 03:45:05** (`btrfs filesystem du --summarize`;
+  "exclusive" is what no other file shares,
+  counted before compression):
+  - `pkgrepair-repair-off-the-path`: 63,408 MiB in all,
+    13,372 exclusive;
+  - `sonnet-audits`: 38,889 in all,
+    1,929 exclusive;
+  - `kimi-trials`: 15,641 in all,
+    15,626 exclusive;
+  - `change-reviews` after the deletion: 27,445 in all,
+    25,991 exclusive.
+  So these four folders hold about 57 GiB that a deletion could give back,
+  against 1,996 GiB free:
+  nothing here presses on the drive,
+  and nothing more is deleted for space.
+  The tool could not read one file,
+  a fixture a review made unreadable on purpose
+  (`change-reviews/pnpm-override-lock-shim-takes-over-a-lock-whose-holder-is-gone/home/fixture-a-read-error-takeover-2/.auth.json.lock`).
 
 ##### The long-runtime-directory controls go back to their author: one still fails by the width of a process number, and two let a one-byte change through (2026-11-15T03:30:00-05:00)
 
