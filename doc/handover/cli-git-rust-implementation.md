@@ -738,6 +738,52 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T11:07:00-05:00,
+  from the author of the push of a branch that is not checked out
+  (branch tip `777c491325`,
+  review queued),
+  not blocking work,
+  in the author's words and not yet read into by the coordinating session:
+  after a push moves a branch that another worktree shows,
+  a command in that worktree waits up to five seconds for the showing checkout to be brought to the new tip;
+  when the wait runs out the command is let through,
+  the record is kept,
+  and the paths that still hold the old tip are named.
+  The rule that clears the record is "no path holds what the branch moved from",
+  not "agrees with `HEAD`",
+  because a person's own edit can never agree with `HEAD` without being discarded,
+  so the stricter rule would block every command in that worktree for good.
+  If the stricter rule is wanted,
+  the expiry has to fail the command instead.
+  Which gives?
+  Its report:
+  `~/temp/agent/push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-scratch/keep/report-seventh-review-answers.md`.
+
+- Added 2026-11-15T10:20:50-05:00,
+  from integration pass 53,
+  not blocking work:
+  the automatic push of a branch that has never been pushed met no upstream.
+  Does the push queue set an upstream for such a branch,
+  or is a new branch pushed once by hand?
+
+- Added 2026-11-15T07:55:03-05:00,
+  about the credentials shown to model providers,
+  not blocking work:
+  the masking has had two reviews,
+  twelve findings and then ten,
+  none of the second among the first.
+  Masking finds a value after it is already inside the run and has to close every road out;
+  the reviews keep finding roads.
+  The owner's answer of 2026-11-14 was one rotation after the masking is merged and shown to hold,
+  and the owner confirmed it on 2026-11-15 at about 10:48
+  ("Keep waiting for masking"),
+  told of the three reviews.
+  Still open:
+  whether a run should be started without the values in its reach at all
+  (an environment and a home that do not hold them),
+  with masking as the second line.
+  That is a new piece of work nobody has been given.
+
 - Added 2026-11-15T07:17:57-05:00,
   from the author of the stop of a stopped push
   (branch tip `2da23e4478`,
@@ -783,17 +829,6 @@ Questions kept for the owner's return:
   have the pass leave out processes that provably cannot use a tool's version
   (by which proof);
   or give the pass a way to read them?
-
-- Added 2026-11-15T04:25:14-05:00,
-  from the third review of the Git-version branch
-  (`253b4238cc`),
-  not blocking work:
-  a branch goes to an integration pass only after a review with no finding.
-  This branch's change to the program has stood through three reviews with nothing found,
-  while each review found something in its tests,
-  so seven gate failures still wait.
-  Keep the rule as it is,
-  or let a branch whose only open findings are in test code go to a pass while its author answers them on the same branch?
 
 - Added 2026-11-15T04:21:09-05:00,
   from the third review of the journal branch
@@ -917,36 +952,11 @@ Questions kept for the owner's return:
   since the rule is about what the typed command would destroy when it is asked.
   Is a stated limit right there,
   or is that window to be closed?
-  And from the same branch:
-  its `git clean` moves a nested repository it would delete to a saved copy and then runs,
-  where the rule of 2026-11-12 says the wrapper refuses with an opt-out and moves nothing aside,
-  and the answer of 2026-11-10 says a clean of ignored files deletes them and logs the command.
-  No record was found that decides the save.
-  Does a clean that would delete a nested repository save it aside as the branch does,
-  refuse with the opt-out,
-  or delete and log?
-  The branch keeps its save until an answer.
-- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24 and 01:02:30,
-  not blocking work:
-  the cap on agents went from 24 to 20 at 00:32:16,
-  from 20 to 18 at 00:50:55 and from 18 to 17 at 01:00:44,
-  by the rule,
-  when the home drive stalled twice in a row during the nightly snapshot cleanup,
-  at each level
-  (`doc/handover/agents-at-once-on-this-machine.md`).
-  None of those levels was tested at its own number:
-  19 to 23 agents were going at every failing reading,
-  since no run is stopped.
-  The longest stall was 109 seconds.
-  Beside it,
-  read once each:
-  the cleanup deleted twenty snapshots of root at 00:23:27 and the stalls began four minutes later;
-  quota groups are on for the home filesystem and off for the repository's;
-  the kernel logged no drive error.
-  Does the cap go back to 24 once the cleanup has ended,
-  or stay where the rule left it until the new drive is in?
-  Until an answer it stays where the rule left it,
-  and never under 16.
+  (The second half of this item,
+  the clean's save of a nested repository,
+  was answered on 2026-11-15:
+  "Delete and log",
+  under "Answers on waking, third round".)
 - Added 2026-11-14T23:58:21-05:00,
   from two authors' reports of that hour,
   none blocking work:
@@ -1604,6 +1614,2371 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The landed removal has the owner's two decisions built and goes on to the two tag findings; the file holder's words get two more wordings (2026-11-15T11:42:31-05:00)
+
+Not final and not approved:
+what one author and one review report,
+and what the coordinating session queued.
+
+- **The landed removal**,
+  its author's fifteenth run,
+  ended 11:36:51 at `177112aac1`:
+  both decisions of 10:59 are built.
+  Every `!` alias is forwarded with no judgement,
+  no refusal and no opt-out asked;
+  a plain alias
+  (a word list Git expands)
+  is still judged,
+  as the decision's words leave it.
+  The look for a repository inside an ignored folder is out with its bounds;
+  the deletion is logged by the line the automatic route already printed,
+  which names each ignored directory and each repository with its branch tips.
+  The SPEC states that a shell alias that removes a worktree is not looked at,
+  and why.
+  An ordinary removal costs 35.0 ms,
+  2.8 ms less than at `5ca2149aea` and 17.2 ms more than `main`'s 17.8 ms,
+  which is the guard's own work.
+  Clippy clean;
+  882 `worktree::` tests and 39 binary removal controls pass.
+  Named and left:
+  a removal a person types prints no log line,
+  before and after;
+  only the automatic route does.
+- **Its sixteenth run** is queued third,
+  for the two findings of the review of `5ca2149aea` that stand in code it kept:
+  an annotated tag named only by a per-worktree reference,
+  or only by a per-worktree reflog,
+  is lost on removal.
+  The brief asks for the guard's question to be of objects of any kind and not of commits,
+  with a walk of every kind of name that dies with a worktree through every kind of object it can hold.
+- **The review of what the file holder added after `3c43b9142a`**,
+  ended 11:36:55,
+  two of two files read,
+  the module's tests run
+  (17 of 17),
+  no message a test depends on.
+  Two wordings:
+  the control of the unreadable descriptor table names the wrong miss
+  (a process that changes into the worktree is found there;
+  the miss is one that opens a file in it);
+  and the summaries of the age rule leave out two cases that keep the worktree
+  (an unreadable worktree age,
+  and equal ages).
+  Both are doc lines and messages,
+  so by the owner's rule they do not hold the branch,
+  which is in pass 54;
+  the author's fourth run is queued for them.
+- Read at 11:41:31:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:33;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### The driver's brief writer for a change to tests alone answers its seventh review; its review is queued (2026-11-15T11:34:05-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The brief writer that takes a change touching tests alone**,
+  its author's eighth run,
+  ended 11:29:25 at `baed9b0a1b`:
+  the review's two findings held and are answered.
+  A dead owner's review folder is taken by one start alone
+  (the record is re-read under a ticket and moved aside by a rename only one start can do;
+  with the fix out both starts took it).
+  The owner record now names the review's unit,
+  and a takeover asks the service manager:
+  a unit that is active,
+  starting,
+  reloading or stopping keeps the folder;
+  one that is inactive,
+  failed or not there lets it be taken;
+  any other answer,
+  no answer among them,
+  keeps it.
+  198 suites pass and the linter is clean.
+  Left alone and named:
+  the queue can still start a unit after a takeover in one window,
+  which needs the launcher to read the claim.
+  Its review is queued eighth
+  (`main...baed9b0a1b`,
+  18 code files that are not tests).
+- **Three branches now meet in the review brief**:
+  this one
+  (a claim on the folder),
+  the coverage branch
+  (the folder written whole,
+  back with its author)
+  and the writer for every kind of code file
+  (the plan and the brief's text,
+  back with its author).
+  The coverage author's queued brief is told of this branch's owner record and to build no claim of its own.
+  Whichever reaches `main` second merges the first.
+- Read at 11:33:41:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### The review brief's coverage branch goes back with two findings: a reference that moves between two Git questions, and a folder written in parts (2026-11-15T11:28:14-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The driver's review brief that says what the change is** (`6e7021c03e`),
+  its fourth review,
+  ended 11:22:57,
+  17 of 17 files,
+  two things,
+  both reproduced by driving `writeReviewBrief`:
+  the writer pins the branch's tip and leaves `main` as a name,
+  so a merge that lands between its two Git questions makes a real change "nothing to review";
+  and a second write into a folder that already holds a review overwrites the diff and the record and can then fail at the brief,
+  leaving an old brief beside a new diff.
+- **Weighed**:
+  both go back.
+  This machine merges into `main` many times an hour and its runs are killed at any instruction,
+  so neither is a rare case here,
+  and both are cheap to close for good:
+  every name turned into a commit once and every later question asked of those commits;
+  a review folder written whole or not at all.
+  The author's fifth run is queued seventh
+  (`~/temp/agent/pi-runs/review-brief-coverage-answers-its-fourth-review-of-2026-11-15-prompt.md`).
+  The starter's stopgap stays until this branch is in `main`.
+- Read at 11:27:20:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### The released wrapper can land a commit with the empty tree when a file of its scratch goes: shown on `main`, fixed on a branch whose review is now second in line; the checkout migration's review finds two ways a person's file is lost (2026-11-15T11:18:47-05:00)
+
+Not final and not approved:
+what one author and two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The drawn shadow tree**,
+  its author's seventh run,
+  ended 11:13:14 at `5db0fbc6e9`.
+  Asked first whether `main` has the sixth review's first two findings:
+  - **The second, yes.**
+    The review's script against a wrapper built from `main`:
+    with the commit's private index gone from its scratch at a pause,
+    the commit landed with the empty tree,
+    exit 0,
+    and the tracked file left history.
+    That is in the release installed here.
+  - The first
+    (a merge's commit with one parent)
+    was not shown on `main`:
+    `main` has no pause at that place to hold,
+    and the author read the removal rule there and tried no unattended reproduction.
+  - On the branch,
+    before its change,
+    all three reproduced.
+  **The fix**:
+  the tree and the parents a commit is asked for are captured before Git builds,
+  and the built commit is held against them before the request is made and before the real repository's merge state is touched;
+  a difference is not landed,
+  one more build is made from the captures,
+  and a second difference is reported plainly.
+  Every entry of the scratch can go at any instant without changing what lands.
+  The sweep now takes a tree's claim whole before removing it,
+  and the maker claims it as it is made.
+  Not covered,
+  said in the code:
+  an amend's parents,
+  and `--fixup=reword:` and `--fixup=amend:`,
+  whose commit carries the base's tree by design.
+  Cost inside the machine's spread
+  (an ordinary commit 69.0 to 64.4 ms,
+  ratio's median 0.925).
+  Its review is queued second
+  (`main...5db0fbc6e9`,
+  17 code files that are not tests).
+- **Measured again for the empty tree**:
+  of the 145 commits on any ref since 08:20 today,
+  each with a tree of its own,
+  none has the empty tree;
+  with the morning's count,
+  none of the commits since 2026-11-01 has it.
+  What takes a file out of a live commit's scratch on `main` is the sweep for age or something outside the wrapper;
+  how often that can meet a commit is not measured.
+- **The checkout migration** (`311a65f852`),
+  its review,
+  ended 11:15:19,
+  seven of seven files,
+  three controls added to a copy of its tests,
+  all three failing:
+  a record replaced by a directory between the listing and the decision has its contents counted as vanished,
+  and the old tree is deleted with a person's file in neither tree;
+  an old notice now carried over is renamed over a file another command made at the destination during the copy;
+  and a notice in the spelling of an earlier release
+  (`cli-git push notice 1`)
+  is not known as the wrapper's own,
+  so the deletion is refused for it.
+  **Weighed**:
+  all three go back.
+  The first two are one thing,
+  a look and a later act on something that can have changed,
+  and the brief asks for the deciding look and the act to be of one opened thing,
+  for a publish that never replaces,
+  and for a table of every such place in the pass.
+  The author's second run is queued fourth.
+- **The landed removal's review** of `5ca2149aea`,
+  ended 11:16:22,
+  22 of 22 files,
+  six things,
+  all reproduced through the built wrapper.
+  Four are in the look for a repository inside an ignored folder
+  (a root with a byte that is not UTF-8;
+  a bare repository;
+  a query that climbs to the outer repository;
+  a FIFO at a nested `.git` that blocks without a bound),
+  and fall away with that look,
+  which the owner's answer of 10:59 takes out.
+  **Two stand**:
+  a per-worktree reference that names an annotated tag loses the tag object,
+  since only the peeled commit is kept among the objects the guard protects;
+  and an annotated tag held only by a per-worktree reflog loses the tag and its commit,
+  since every reflog name is taken for a commit.
+  The author's fifteenth run had started before the review ended;
+  the two go to it in a sixteenth,
+  when the fifteenth has ended.
+- Read at 11:17:25:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:10;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes.
+
+##### A warning written to a pipe nobody drains holds a stopped push for good: the stop's author goes back, and the wider thing gets a run of its own; the discarding guard and the unheld branch's push answer (2026-11-15T11:12:43-05:00)
+
+Not final and not approved:
+what one review and two authors report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The stop of a stopped push** (`67c565e1f4`),
+  its third review,
+  ended 11:06:05,
+  five of five files read:
+  no loss of data,
+  no doubled commit or merge and no overwritten lock found;
+  one thing,
+  reproduced at the boundary of `settle_locks`.
+  A stop that cannot sweep its locks says so through `warn`,
+  which writes to standard error with no bound;
+  with the caller's standard error a full pipe the write never returned,
+  the stop never returned,
+  and later pushes of the repository stay behind it.
+  The review could not run a named test under a disposable home
+  (`mise` answered `failed to decrypt sops file`),
+  the gap the review brief's own run has.
+- **Weighed**:
+  it goes back,
+  and it is one instance of something `main` has everywhere.
+  `warn` is called from 77 files of the package that are not tests
+  (counted on `main` at `522e865c9d`),
+  all through one function,
+  `foundation/diagnostic_log.rs` `write_line`.
+  A process that blocks on a full pipe is ordinary;
+  the harm is a blocked process that holds what another command waits for.
+  The record `doc/planning/cli-git-no-unbounded-waits.md` lists every kind of wait and no write to the wrapper's own standard error.
+  So two runs:
+  the stop's author,
+  fourth run,
+  queued fourth,
+  for the stop's own path
+  (nothing on it writes to a caller's pipe until the stop has given back what others wait on);
+  and a fresh run,
+  queued ninth,
+  for the wider thing
+  (a survey of every such write with what is held,
+  two reproductions,
+  one shape at the door,
+  a source guard):
+  `~/temp/agent/pi-runs/wrapper-write-to-a-pipe-its-caller-does-not-drain-never-holds-up-another-command-prompt.md`.
+- **The discarding guard**,
+  a fresh run,
+  ended 11:00:13 at `2f3e2785ed`:
+  one reading of a command line,
+  one spelling of a path,
+  one answer for edits a mark hides,
+  a pathspec file read once,
+  `HEAD` read as Git reads it;
+  the two windows stated as limits in the SPEC;
+  no measurable cost on 20,000 files;
+  221 and 143 named tests pass.
+  It left the save and its refusal of a shell alias alone,
+  and the owner decided both at 11:07
+  ("Answers on waking, third round"):
+  its second run is queued for them,
+  and the review of `2f3e2785ed` is queued
+  (42 code files).
+- **The push of a branch that is not checked out**,
+  ninth run,
+  ended 11:00:23 at `777c491325`:
+  the review's four reproductions failed as reported at the old tip;
+  the record of a moved branch now ends by handing itself on,
+  is deleted only on a proof read at that moment,
+  and a command that waits for it waits at most five seconds;
+  a kept record costs one file read where it cost a `worktree list`
+  (16.4 to 5.8 ms,
+  faster in 60 of 60 pairs).
+  Its question on which rule clears a record is kept for the owner.
+  Review queued
+  (21 code files).
+- Read at 11:10:36:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:04;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### Three more answers of the owner are acted on; the commit that does not wait behind the service's writes answers its review and has the slow start reproduced (2026-11-15T11:00:48-05:00)
+
+Not final and not approved:
+what the owner answered,
+what one author reports,
+and what the coordinating session queued.
+
+- **The owner's three answers of 10:59** are under "Owner decisions in force",
+  "Answers on waking, second round".
+  A shell alias is forwarded unguarded and an ignored repository is deleted as ignored:
+  both go the other way from the landed removal's tip `5ca2149aea`.
+  Its author's fifteenth run is queued second,
+  to take the refusals and the look out and to state the hole in `SPEC.md`
+  (`~/temp/agent/pi-runs/landed-removal-two-decisions-of-2026-11-15-shell-aliases-forwarded-and-ignored-repositories-deleted-prompt.md`).
+  A review of `5ca2149aea` had started before the answers and goes on;
+  what it finds in the parts that come out falls away with them.
+  The briefing rule in `AGENTS.md` names both folders since `73ee82f26d`.
+- **The commit that does not wait behind the service's writes**,
+  its author's second run,
+  ended 10:54:00 at `c024c12583`:
+  the review's three claims shown and answered
+  (a commit held 6,156 ms against a bound of 5,000 at the old tip and 46 ms at the new;
+  a taken request told it was not taken;
+  a wait's words naming the landing's own write).
+  **The slow start of `0.6.1-alpha.41` is reproduced and has its cause**:
+  with the removal of old finished batches' records held where the service's loop stands,
+  the first commit took 6,081 ms;
+  moved beside the loop,
+  226 ms.
+  The start's steps that must stay now name themselves in the journal and to the client when they pass one second.
+  Two arms interleaved:
+  a median ratio of 1.011.
+  Its review is queued fifth
+  (`main...c024c12583`,
+  11 code files that are not tests).
+- **Queued since the section before this one**:
+  the reviews of what the file holder and the address-space controls added after their reviewed commits,
+  each written by hand and told to run the controls
+  (fourth and fifth at 10:57);
+  the sighting of the gate's first-time failure is in the brief of the fresh run for the controls that fail only inside a suite.
+- Read at 10:57:32:
+  the main checkout shows its six changed files;
+  no failed start and no brief refused since the cap went to 20;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes;
+  Tctl 75.1 degrees.
+
+##### The owner is back: the limits are lifted, the cap is 20, pass 54 is queued under the new rule; the gate on `0.6.1-alpha.42` failed 16; the masking's third review finds eight more (2026-11-15T10:53:13-05:00)
+
+Not final and not approved:
+what the owner said,
+what the gate,
+three reviews and seven authors report,
+and what the coordinating session did.
+
+- **The owner's word and four answers** are under "Owner decisions in force",
+  "Answers on waking":
+  the temperature limits are lifted and stay lifted;
+  the cap steps to 20 under the probe;
+  the rotation keeps waiting for the masking;
+  a wrapper branch goes into a pass while its only open findings are in doc comments or test code.
+- **The container gate on `522e865c9d`** (`0.6.1-alpha.42`) ended 10:47:27:
+  16 of 9,128 failed.
+  `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` **passes in the gate's image**,
+  which is what pass 53 could not show.
+  Against the four gates before it
+  (`~/temp/agent/gate/keep/failing-tests-of-the-gate-on-522e865c9d-against-the-four-gates-before-it.txt`,
+  panics beside it):
+  - one fails for the first time,
+    `package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
+    (`left: 0`, `right: 1` at `binary_package_repair_tests.rs:311`);
+    the fresh run queued for the package-repair controls that fail only in a suite owns it,
+    and this sighting goes into its brief;
+  - three of `service_provision_refusals_before_the_wait` are back
+    (they failed in three of the four gates before and not in the last):
+    "the tag … does not fit 7 bytes, and a digest of it needs eight",
+    which depends on how long the gate run's own folder name is;
+    the long runtime directory's author answers them on its branch;
+  - `owed_push` did not fail this time;
+  - the rest are the standing ones:
+    seven of the Git version,
+    two of the long runtime directory,
+    the file holder,
+    and three the lock-holders folder and the no-manager branch answer.
+- **Integration pass 54** is queued first,
+  under the owner's answer,
+  with three branches at fixed commits:
+  the wrapper under the gate container's Git at `7ff40e4876`
+  (open: three doc sentences in the tests' helper),
+  the process that holds a file open at `5c004e8d95`
+  (open: the review of what was added after `3c43b9142a`),
+  and the address-space controls at `d2ff69077b`
+  (open: the review of one assertion's message).
+  Brief:
+  `~/temp/agent/pi-runs/integration-pass-54-with-the-wrapper-under-the-gates-git-the-file-holder-and-the-address-space-controls-prompt.md`.
+  Eight of the gate's sixteen failures are the subject of two of its branches
+  (seven of the Git version and the file holder);
+  whether they pass in the gate's image is for the gate after the release to show.
+  Queued after it at 10:58:
+  the masking author's fourth run
+  (second in the queue)
+  and the Git-version author's run for the three sentences.
+  Measured for the masking's `\uXXXX` finding,
+  counts only:
+  of the 41 string tokens in Pi's two credential files none is written otherwise than `JSON.stringify` writes it,
+  so it meets nothing on this machine today.
+- **The review of the Git-version branch's two rewritten sentences**
+  (ended 10:48:15,
+  by reading)
+  finds three more sentences:
+  `Itself` is also answered after the bound ran out,
+  when the query ended by its own doing between the bound and the helper's signal;
+  so the overview's "answers whether that bound ran out" is more than the answer holds;
+  and `QueryAnswer::output` holds what the pipes gave up to the end of the grace after the ending,
+  not "before it went".
+  They go back to the author as wording,
+  after the pass has taken the branch.
+- **The address-space author**,
+  sixth run,
+  ended 10:47:59 at `d2ff69077b`:
+  the message now names the wrapper's ending and its standard error.
+  With the room planted below the boundary the wrapper ended on **signal 11** (`SIGSEGV`) at 44 MiB after the service had landed the commit,
+  and the repository recovered.
+  How a wrapper ends when its address space runs out is what the control is about;
+  a segmentation fault there has no owner and no record yet.
+- **The file-holder author**,
+  third run,
+  ended 10:50:27 at `5c004e8d95`:
+  one doc line and three assertion messages,
+  no assertion changed;
+  839 of 839 `worktree::` tests.
+- **The lock-holders author**,
+  fifth run,
+  ended 10:46:08 at `58cd4d9f7c`:
+  the three findings answered;
+  the Git a wrapper starts now writes a line naming itself between `fork` and `exec`,
+  so a wrapper killed between starting a Git and naming it leaves that Git named;
+  a start whose child cannot write its line fails.
+  The cost is inside the machine's spread
+  (medians 58.5 and 60.5 ms,
+  the same binary twice agreeing to the millisecond).
+  Its review is queued third,
+  with a paragraph that holds the change against `doc/planning/cli-git-no-self-invocation.md`
+  (the child's step and one allowed use of `current_exe`)
+  and asks what the step between `fork` and `exec` may wait on.
+- **The add that never skips the cargo repair**,
+  tenth run,
+  ended 10:40:34 at `edaabb664f`:
+  the ninth review's four findings answered;
+  it reports its own probe that wrote into the main checkout and `/tmp` at about 09:25,
+  and that it removed what was left.
+  Review queued seventh
+  (13 code files).
+- **The long runtime directory's controls**,
+  third run,
+  ended 10:43:13 at `394ae7444a`:
+  the controls ask a chooser for a folder with room;
+  five gate controls pass in the gate's newest image with its sources.
+  Review queued eighth
+  (6 code files that are not tests).
+  **It counted what tests have left at the top of `~/temp/agent`**:
+  5,530 entries,
+  of which 1,675 are `<prefix><digits>` folders and 3,255 `rt-` or `rn-` folders of the tests' helpers,
+  none removed.
+  Its branch makes such folders inside an owned folder from now on;
+  the ones that are there have no owner yet.
+- **The journal branch**,
+  fifth run,
+  ended 10:37:16 at `ce1b113d79`:
+  three findings answered;
+  it reports that one of its commands measured `~/temp/agent` as a whole,
+  which its brief forbids.
+  Review queued fifth
+  (8 code files).
+- **The credential masking's third review**
+  (ended 10:39:52,
+  31 of 31 files,
+  made-up values only):
+  **eight more**,
+  seven reproduced and one part by reading:
+  an append between the last check and the rename is lost
+  (the second time this is found);
+  a `;` after an exported value arms the wrong text;
+  a `\uXXXX` spelling in a credential file is not masked;
+  an unreadable store and an unreadable age identity are taken for absent and the run starts;
+  a session named through a free-form Pi argument is not masked before the start;
+  missing session statistics skip the last masking and the run ends `idle`;
+  an error of the kept standard error's file is unhandled.
+  Five of the eight are classes the author's last report had as closed.
+  **Not merged;
+  the rotation waits,
+  by the owner's answer.**
+  The author's fourth run is being written with the advisor's shape:
+  no flat list,
+  one function that tells absent from could-not with a walk of every source through absent,
+  unreadable and readable,
+  and the question whether values can come from the interpreter that produces them.
+- Read at 10:53:13:
+  17 Pi units going;
+  Tctl 71.6 degrees with no gate running.
+
+##### The landing that never waits and the lock a killed Git left both answer their third reviews; both reviews are queued (2026-11-15T10:33:06-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+- **The landing never waits**,
+  its author's fourth run,
+  ended 10:29:20 at `7a6504e5b6`:
+  the review's program printed `REPRODUCED` at the old tip
+  (dropping a slow job's waiter gave back its place of slow work while the job kept its general place).
+  The place of slow work now travels with the job that runs,
+  in the same object as the general place,
+  and goes back when the job's work ends;
+  a caller that gives up gives up its wait and nothing else.
+  A look that finds no place after the ceiling leaves the trash for a later look,
+  with words naming which operation holds the places and for how long,
+  and asks again after five seconds;
+  pushes and upkeep go on.
+  Left with its reason:
+  the answering place is still taken on the frame.
+  Two controls,
+  committed first and failing at the old tip;
+  a landing's cost inside each arm's own spread
+  (medians 92.05 against 89.6 ms);
+  Clippy clean,
+  both guard modules by name,
+  the twelve changed modules with no failed run.
+  The file name of its report carries tomorrow's date;
+  the commits' times are today's.
+  Its review is queued third
+  (`main...7a6504e5b6`,
+  47 code files that are not tests).
+  **Passes 29 and 34 wait on that review.**
+- **The lock a killed Git left, for a reference lock**,
+  its author's fourth run,
+  ended 10:28:11 at `0fe1e01e9f`:
+  the review's three controls failed at the old tip as the review reports,
+  run from a copy with the runner's own 120-second bound raised to 900
+  (the build did not fit under the temperature limit).
+  A record is now removed only when every number in it is gone and no walking lock and no standing pin names one,
+  asked inside the sweep at the removal;
+  a PID file is removed by a clearance before the lock's name is freed,
+  never after;
+  a folder a watch meets late is watched and then read,
+  and what stands there is reported and never bound,
+  which is the stated limit.
+  A table in `SPEC.md` lists every place in the range where one step reads and a later step acts.
+  Costs inside one arm's spread;
+  `lock::` 420 of 420,
+  the binary controls 18 of 18.
+  Its review is queued fourth
+  (`main...0fe1e01e9f`,
+  14 code files that are not tests).
+- **The fuzz sidecar's type check** on `main` with pass 53 in ended 10:29:02 with exit 0,
+  and its output shows it checked the wrapper at `0.6.1-alpha.42` and the sidecar.
+- **The temperature**,
+  read at 10:32:36,
+  with the container gate running:
+  56.9 degrees,
+  budget 32.0 threads,
+  15.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:32:39:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### `0.6.1-alpha.42` is installed and its sample commit took 1,123 ms; the gate on it is started; the stale launchers answer their eighth review (2026-11-15T10:28:31-05:00)
+
+Not final and not approved:
+what the release and one author report,
+and what the coordinating session started.
+
+- **`0.6.1-alpha.42`** was published 10:27:29 and installed on this machine at 10:28:16
+  (lock commit `522e865c9d`).
+  The sample commit took **1,123 ms**;
+  its timing line reads 1,085 ms in all,
+  721 ms to submit,
+  131 ms to reach the service and 590 ms waiting for the answer,
+  `outcome` landed.
+  The sample under `0.6.1-alpha.41` had taken 5,612 ms,
+  of which 3,628 ms passed in a new service's start-up.
+  This sample also met a new service,
+  read in the user journal:
+  started 10:28:15.909,
+  ready 2 ms later,
+  rules warmed in 10 ms,
+  "removed the records of 24 old finished batches" 31 ms after the start,
+  answered `outcome=landed` at 10:28:16.502.
+  So the same start-up steps took about 31 ms here,
+  with more records to prune than the 10 of the slow start;
+  the slow start is one sighting,
+  not reproduced by this one,
+  and its cause is still not known.
+  The author's run that carries the sighting is still queued.
+- **The container gate** on `522e865c9d` was started 10:28:31
+  (unit `gpc-gate-wrapper-next-alpha-on-522e865c9d-20261115T102831-0500.service`);
+  its verdict is waited for.
+  It answers what pass 53 could not:
+  whether `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` passes in the gate's image.
+  The fuzz sidecar's type check on `main` is running.
+- **mpm-shadow's stale launchers**,
+  a fresh run's second,
+  ended 10:23:03 at `d6f52428e3`:
+  one claim now orders every maker of a launcher against its retirement.
+  Seven controls,
+  each failing with its fix out,
+  pass together;
+  835 of 835 tests pass and Clippy is clean.
+  Measured with both binaries on the fixtures' own file system,
+  seven rounds,
+  ranges disjoint:
+  an install with nothing to do takes 0.55 times the base's time
+  (58.58 to 32.35 ms),
+  one that retires a launcher 0.77 times
+  (104.35 to 80.03 ms).
+  A first round with the tip's binary on another file system had read 2.19 times,
+  because a launcher cannot be hard-linked across file systems and is copied;
+  both logs are kept.
+  The stated limit:
+  a process that already holds a descriptor can write through it after the last look,
+  which no order of steps closes;
+  a write before the last judgement is seen and the entry put back.
+  Its review is queued seventh
+  (`main...d6f52428e3`,
+  13 code files that are not tests).
+- **The temperature**,
+  read at 10:27:44:
+  54.3 degrees,
+  budget 32.0 threads,
+  3.4 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:27:47:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:19;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### Integration pass 53 is in `main` and `0.6.1-alpha.42` is dispatched; the brief writer for every kind of code file goes back with two findings (2026-11-15T10:20:50-05:00)
+
+Not final and not approved:
+what one pass,
+one review and one author report,
+and what the coordinating session did.
+
+- **Integration pass 53** ended 10:14:53 at `d76695df29`,
+  which holds `main` as it stood,
+  and reports fit:
+  build,
+  both test compiles,
+  Clippy with warnings denied,
+  both guard modules
+  (26 of 26),
+  the review's four controls
+  (4 of 4);
+  in both whole suites only four failures,
+  each known at `main` on this machine
+  (three on the gate's list;
+  the checkout migration's control,
+  whose fix is in review);
+  the two known TypeScript failures and no other.
+  What it could not show and says so:
+  that `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` passes in the gate's image,
+  which the release's gate answers.
+  **Merged** as `9e3862b4f8` (10:19:45),
+  after checking that `main` held nothing in the wrapper that the tip lacked.
+  **Release `0.6.1-alpha.42` dispatched** at 10:19:55
+  (run 43729271505);
+  the install,
+  the sample commit,
+  the gate and the fuzz sidecar's type check follow.
+- **What the pass left as questions**:
+  whether the push queue sets an upstream for a branch it has never pushed
+  (kept for the owner);
+  who owns the two gate-list failures on the lock-holders folder and the migration control
+  (the lock-holders branch,
+  with its author,
+  and the migration branch,
+  in review);
+  and that `held_push_holder_and_verdict` still compares a boot and a birth as text
+  (the fresh run queued at 07:17 owns it).
+  The pass's agent ran `printenv CARGO_TARGET_DIR`
+  (one name,
+  empty);
+  the next pass's brief says where to read a build folder from.
+- **The driver's brief writer for every kind of code file** (`89c1554737`),
+  its review,
+  ended 10:14:58,
+  11 of 11 files,
+  two things,
+  both reproduced by driving `writeReviewBrief`:
+  material a test may read is listed to be read in full and,
+  lines later,
+  said to be left out;
+  and code of an unlisted kind beside a test is reviewed as a change to tests alone,
+  with no requirements for code and no notice.
+  **Weighed**:
+  both go back.
+  The author is asked for one function that answers everything a brief and a status line say for a row of its table,
+  and for the walk of all 64 rows to check the brief's own text.
+  Its fourth run is queued ninth.
+- **The process that holds a file open in a worktree**,
+  its author's second run,
+  ended 10:16:18 at `2bfd8be2b2`:
+  the rule's doc now says what it is and what it misses,
+  49 lines added and 29 removed in one file,
+  comment lines only.
+  The author found the same "cannot" in three lines of the tests' file
+  (a control's doc and two assertion messages)
+  and left them,
+  because its brief forbade a change to a test.
+  Its third run is queued first,
+  for those three lines alone;
+  one review then reads everything added after `3c43b9142a`.
+- **The temperature**,
+  read at 10:19:19:
+  56.1 degrees,
+  budget 32.0 threads,
+  10.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:19:22:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:12;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
+
+##### The wrapper under the gate container's Git: the review of the words finds two sentences left that still say who ended a query (2026-11-15T10:13:11-05:00)
+
+Not final and not approved:
+what one review reports and what the coordinating session queued.
+
+- **The review** of the words added after `d73a209b3e`,
+  ended 10:08:05,
+  two of two files read whole,
+  by reading
+  (which its brief allowed for a change of comments alone):
+  what the author changed is true of the code.
+  Two sentences the author did not change still promise what the stated limits take back:
+  the module's overview says the helper "says who ended" the query;
+  and the doc of `QueryEnding::Itself` says the query "ended by itself",
+  while the code answers `Itself` for every status a wait saw before the bound ran out,
+  a signal from another process among them.
+  No other defect in the two files.
+- **Weighed**:
+  both are what the brief asked the review to look for,
+  and both go back,
+  as two sentences and nothing else.
+  The author's eighth run is queued first
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-two-sentences-that-still-say-who-ended-the-query-prompt.md`),
+  asked also to read both files once more for the same promise and to list what it finds.
+  The review after it reads what is added after `aeae08fa24`.
+- **The temperature**,
+  read at 10:12:27:
+  59.8 degrees,
+  budget 32.0 threads,
+  17.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:12:30:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:06;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+##### The credential masking answers its second review and goes to a third, with made-up values only; the address-space assertion's message goes back (2026-11-15T10:08:02-05:00)
+
+Not final and not approved:
+what one author and one review report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The credential masking**,
+  its author's third run,
+  ended 10:05:58 at `03efc1467b`:
+  all ten reproductions of the second review ran against the old tip,
+  and the three shapes asked for are built.
+  The mask is applied to data
+  (the value serialised once as Pi does,
+  masked,
+  parsed back,
+  its shape compared),
+  and where it fails nothing of the original is handed on,
+  with `details` set explicitly because Pi reads an omitted one as unchanged.
+  One matcher for every stream holds back the longest tail that may still become an armed value.
+  Every source and every kept place answers covered,
+  not there,
+  or could not,
+  and "could not" stops the run before Pi starts or ends it as `session-unmasked`.
+  A table of every road from an armed value to a provider or a kept file is in the troubleshooting doc,
+  with how more were looked for in Pi's installed source;
+  two writes are named and not covered
+  (Pi's crash log;
+  bash messages that the RPC mode never makes).
+  Ten controls fail with their fix out.
+  37 values are armed here before and after,
+  the shortest of ten characters.
+  The cost on a transcript of 400 messages went from 0.181 to 0.517 ms.
+  198 suites pass.
+  The author states that no credential's value reached its tool results.
+- **Its third review** is queued second,
+  on Kimi,
+  with the brief written by the package's writer
+  (31 files to read)
+  and extended by the same three paragraphs as the second
+  (the range;
+  made-up secrets in a disposable home only,
+  no real Pi and no provider;
+  what the change must hold).
+  **The masking is still not merged,
+  the canary is not run,
+  and the owner's rotation still waits.**
+- **The assertion added to the address-space control** (`2616009887`),
+  its review,
+  ended 10:01:55,
+  the one file read in full,
+  the control run unchanged
+  (it passed)
+  and with the room planted below the boundary
+  (the assertion fired),
+  the totals found right,
+  one thing,
+  reproduced:
+  the new message says "the commit there did not" land,
+  while the service's log quoted in the same failure says `outcome=landed`.
+  The field it asserts is the wrapper's own exit,
+  not whether the service made the commit.
+- **Weighed**:
+  it goes back,
+  as words and one field:
+  a failing control says what happened,
+  and what happened is that the wrapper did not return success.
+  The author's sixth run is queued first
+  (`~/temp/agent/pi-runs/controls-of-a-service-under-an-address-space-limit-make-the-new-assertions-message-true-prompt.md`);
+  the review after it reads what is added after `2616009887`.
+  What the planted case showed is worth its own line:
+  at a room below the boundary the service landed the commit and the wrapper did not return success.
+  How the wrapper ended there is what the message does not say,
+  and so is not known from this run.
+  The assertion before it,
+  that the repository recovered,
+  had passed.
+- **The temperature**,
+  read at 10:06:35:
+  58.6 degrees,
+  budget 32.0 threads,
+  20.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:06:39:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:52;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+##### The wrapper under the gate container's Git: the helper's words now state its two limits; the review of that delta is queued first (2026-11-15T09:53:05-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session checked and queued.
+
+- **The author's seventh run**,
+  ended 09:47:53 at `aeae08fa24`:
+  sentences only,
+  no code and no test.
+  `QueryEnding::AtTheBound` now means that the bound ran out and the last status the wait returned was the signal the helper sends,
+  with the sentence that a query killed by that signal from elsewhere in that instant reads the same;
+  and what is bounded is the answer,
+  not every thread that served it.
+  The author found two sentences that were false and not only strong
+  (`QueryAnswer::ending` said "never by the query's status";
+  the tests' module doc said no status is read as the bound's doing),
+  both contradicting the code since the round before,
+  and corrected them in the same change.
+  Clippy exit 0;
+  32 of 32 named tests pass.
+- **Checked here**:
+  the delta from `d73a209b3e` to `aeae08fa24` under `package/` touches two files,
+  the helper and its tests,
+  and all 46 changed lines are comment lines.
+- **Its review** is written by hand,
+  for that delta alone and with the two limits stated in its brief
+  (`~/temp/agent/change-reviews/git-policy-cli-wrapper-under-the-gate-containers-git-the-words-added-after-its-sixth-review/`),
+  and queued first,
+  on Kimi.
+  Its brief says a result by reading counts for this change,
+  since no code changed;
+  that is an exception to the reading that a review which ran nothing clears nothing,
+  adopted for a delta of comments alone and open to veto.
+  A clean review sends the branch to a pass,
+  and seven of the gate's standing failures with it.
+- **The temperature**,
+  read at 09:52:10:
+  53.9 degrees,
+  budget 32.0 threads,
+  5.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:52:11:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:45;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### The landed removal answers: an alias the wrapper cannot read is refused; a suggestion of the coordinating session collided with a recorded rule; the checkout migration answers (2026-11-15T09:46:57-05:00)
+
+Not final and not approved:
+what two authors report,
+what the coordinating session got wrong and measured,
+and what it queued.
+
+- **The landed removal**,
+  its author's fourteenth run,
+  ended 09:43:59 at `5ca2149aea`:
+  the review's three scripts reproduced at the old tip and do not at the new.
+  - **The brief's suggestion collided with the project's record.**
+    The coordinating session had suggested that the Git a shell alias reaches be the wrapper.
+    The author built it,
+    then read `doc/planning/cli-git-no-self-invocation.md`
+    (the wrapper never starts its own executable,
+    whether as a child,
+    a hook command or a shim it writes,
+    and never writes shell text),
+    and took every line of it out.
+    The brief should have named that record:
+    the records under `doc/planning/` were not searched before the suggestion was written,
+    only what the session remembered of `doc/decision/`.
+  - What stands in its place:
+    an alias whose command is one plain Git command line is judged as that command
+    (an inner `-C`, `--git-dir`, `--work-tree`, `--namespace` or `--attr-source` is refused as naming another repository);
+    **every other `!` alias is refused**,
+    with its text and the opt-out,
+    `!echo hello` among them.
+    The stated limit:
+    a plain alias whose value runs a program by an absolute path.
+  - A repository inside an ignored folder is refused when it names a commit the removing repository does not;
+    an ignored folder with no repository,
+    and a repository with no commit,
+    are deleted as decided.
+    The look is bounded at 50,000 entries or ten seconds and costs 25.6 ms on 20,000 ignored files.
+  - An ordinary removal costs 2.8 ms more
+    (41.6 against 39.6 ms);
+    884 `worktree::` tests pass.
+  - The author's own mistake,
+    reported by it:
+    a cost arm built from an uncommitted tree was restored over its edits,
+    which it applied again from its session.
+  Its review is queued third
+  (`main...5ca2149aea`,
+  22 code files that are not tests).
+- **Measured for the refusal of shell aliases**:
+  the Git configuration this checkout reads holds no alias at all,
+  so on this machine today the refusal stops nothing.
+  **Adopted,
+  open to veto,
+  and kept as a question**:
+  the refusal stands for the review and the pass.
+- **The checkout migration**,
+  a fresh run,
+  ended 09:41:19 at `311a65f852`:
+  the migration refused its own repository because a record the wrapper itself wrote during the copy was missing at the destination.
+  The comparison now holds a migration to what a person or Git put there;
+  the wrapper's own records are named once,
+  by the names the code that writes them uses,
+  and a file counts as the wrapper's only when it carries the writer's own mark.
+  Kinds with no mark still count and can still refuse,
+  which the module states.
+  Controls fail with the fix out;
+  354 library tests and the five binary controls pass.
+  Its review is queued eighth
+  (`main...311a65f852`,
+  seven code files that are not tests).
+- **A note to the lock-holders author**,
+  whose fifth run had started with a suggestion of the same session in its brief
+  (the process about to be Git writes its own record between `fork` and `exec`):
+  the record on self-invocation is named to it,
+  with the session's reading that code in the forked child starts no second copy of the wrapper,
+  and that the record stands over the suggestion if the author reads it otherwise.
+- **The temperature**,
+  read at 09:45:49:
+  53.6 degrees,
+  budget 32.0 threads,
+  5.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:45:50:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:39;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### The address-space controls answer their one finding by a measurement; a review of the one added commit is written by hand and queued (2026-11-15T09:40:57-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The controls of a service under an address-space limit**,
+  their author's fifth run,
+  ended 09:35:21 at `dfa97b5998`
+  (the change is commit `2616009887`,
+  thirteen lines added to one test file;
+  the rest is a merge of `main`).
+  Which of the two was true:
+  the case above the boundary lands.
+  Measured with the control's own machinery in a scope of four CPUs:
+  the search answered 50 MiB,
+  and a commit landed at the answer and at seven sizes from one to ten mebibytes above it,
+  three rounds each,
+  24 of 24.
+  So the doc keeps its sentence and the control now asserts it,
+  with a message that names the room and carries the service's words.
+  With the room taken down to a size the search refuses,
+  the control fails in 3.1 s with that message;
+  unchanged it passes.
+  16 of 16 `fault_limits::` controls pass.
+- **Its review** reads that one commit and nothing before it,
+  by the scope adopted at 09:22:40,
+  since the range before was read whole at `f24d1b9ebd`.
+  The package's writer takes no change to tests alone,
+  so the folder is written by hand
+  (`~/temp/agent/change-reviews/git-policy-cli-controls-of-a-service-under-an-address-space-limit-the-assertion-added-after-their-third-review/`,
+  a diff of 32 lines),
+  and the review is queued third,
+  on Kimi,
+  at the commit itself.
+  A clean review sends the branch to a pass.
+- **The temperature**,
+  read at 09:39:57:
+  55.3 degrees,
+  budget 32.0 threads,
+  9.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:40:00:
+  the main checkout shows its six changed files and no more;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:34;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### A going run wrote into the main checkout's root; the stop of a stopped push answers, and the doubled bound it fixes is in `main` (2026-11-15T09:35:46-05:00)
+
+Not final and not approved:
+what the round's check found,
+what one author reports,
+and what the coordinating session did.
+
+- **Two untracked entries appeared at the main checkout's root**,
+  seen at 09:34:18 because the count of changed files there was eight where it is six:
+  a folder `rt-a/` holding one file of two bytes,
+  and a link `rt-b` to a name that does not exist,
+  both made at 09:25:33.
+  Among the feeds written in the forty minutes before,
+  one names the link's target:
+  the going run `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-10`
+  (not named by the credential scan).
+  Its command probed `renameSync` onto a dangling link in three places,
+  `/tmp`,
+  a folder under the scratch root,
+  and the main checkout,
+  ran `rm -rf rt-a rt-b` in each before making them,
+  and afterwards removed only the two in `/tmp`.
+  Nothing in the main checkout had those names before,
+  so nothing of a person's was removed.
+- **Done**:
+  the coordinating session removed `rt-a/` and `rt-b` at 09:35:46,
+  after reading what they were;
+  the count is six again.
+  The run got a note in its inbox
+  (`~/temp/agent/notes-to-send/your-probe-of-rename-wrote-into-the-main-checkout-and-into-tmp-2026-11-15T0940.md`)
+  with both rules and their reasons.
+  The note states the removal's time as 09:41 and its own as 09:40;
+  both were written before the clock was read and are wrong by about five minutes.
+- **What it shows**:
+  one more sighting that a Pi run can write into the main checkout,
+  this time by a plain `cd` there,
+  and that `/tmp` is still used.
+  The branch that keeps a run out of the main checkout is with its author.
+  Each round's count of the main checkout's changed files is what caught this,
+  nine minutes after it happened.
+- **The stop of a stopped push**,
+  its author's third run,
+  ended 09:29:56 at `67c565e1f4`:
+  the helper that runs a job "no longer than" a duration now holds one instant for both of its waits.
+  **The helper is `main`'s**,
+  not the branch's:
+  every caller in released code gave it a ceiling and could wait twice that
+  (the stop's sweep up to twice 18.1 s;
+  the after-commit state up to twice 60 s;
+  six steps of the landing and four of the service's work loop,
+  120 s where 60 s was meant).
+  Each caller is listed with its bound before and after.
+  Two controls fail with the fix out
+  (1.40 s against a ceiling of 1 s)
+  and pass with it.
+  Its review is queued fifth
+  (`main...67c565e1f4`,
+  five code files that are not tests).
+  For whoever reads the release that carries it:
+  ten steps of the service now give up at half the time they did,
+  which is what their ceilings always said.
+- **The temperature**,
+  read at 09:34:17:
+  55.4 degrees,
+  budget 32.0 threads,
+  8.5 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:34:20:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:25;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### The process that holds a file open in a worktree: its review reproduces the miss the owner's open question is about; the doc goes back, the code stays (2026-11-15T09:26:29-05:00)
+
+Not final and not approved:
+what one review reports,
+what the coordinating session read to weigh it,
+and what was queued.
+
+- **The review** of `3c43b9142a`,
+  ended 09:20:57,
+  read the one code file of the range in full
+  (the queue line of 08:42 also counted one),
+  found nothing against the control or against the hole the author closed,
+  and reports one thing,
+  reproduced with a stand-in process table:
+  a process of this account older than the worktree,
+  whose working folder is elsewhere and whose table of open files cannot be read,
+  is answered "outside",
+  though it may have opened a file there after the worktree was made.
+- **Read**:
+  that is the rule,
+  and the rule is the question kept for the owner at 03:06:17
+  (a hidden process younger than the worktree keeps it;
+  an older one is the named miss;
+  the other answer refuses every removal on this desktop).
+  `main` already applies the same age rule to a working folder it cannot read
+  (`started_before` in `worktree/worktree_process_inside.rs`),
+  and before this branch it answered "holds nothing" for every process whose table it could not read.
+  The branch narrows a hole `main` has.
+- **Weighed**:
+  the code stays until the owner answers.
+  Two sentences go back,
+  for saying more than the code can keep:
+  the doc of `started_before` says a process older than the worktree "is outside it",
+  which is a bet and not a proof,
+  and the comment on an unreadable table does not say what the rule leaves.
+  The author's second run changes those words alone
+  (`~/temp/agent/pi-runs/process-holding-a-file-open-in-a-worktree-states-the-miss-its-age-rule-leaves-prompt.md`,
+  queued second at 09:26:29);
+  the review after it reads the delta with the limit stated,
+  as adopted at 09:22:40.
+- **For the owner's question of 03:06:17**,
+  one more fact:
+  a review has now reproduced the miss for open files as well as for a working folder,
+  and the sentence in released code that calls an older process "outside" is on `main` too.
+- **The temperature**,
+  read at 09:25:24:
+  56.0 degrees,
+  budget 32.0 threads,
+  13.4 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:25:27:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+##### The wrapper under the gate container's Git: a sixth review finds two more things in the test helper; both are limits, and the doc is what goes back (2026-11-15T09:22:40-05:00)
+
+Not final and not approved:
+what one review reports,
+what the coordinating session read and measured to weigh it,
+what the advisor said,
+and what was queued.
+
+- **The review** of `d73a209b3e`,
+  ended 09:12:56,
+  read three files in full and found no defect in what the branch is for.
+  Two things in the tests' bounded helper,
+  both reproduced:
+  a query killed by a `SIGKILL` of its own or from outside,
+  after the bound's last look and before the helper's signal,
+  is reported as ended at the bound;
+  and after an answer that says a descendant still holds a pipe,
+  the helper's reader and writer threads stay blocked while the descendant holds it.
+- **Read and measured**:
+  - `waitid(2)` fills in the child's number,
+    the child's user,
+    the signal and how the child ended,
+    and nothing about who sent the signal
+    (the manual on this machine),
+    so no code can tell the two deaths apart;
+  - the helper has four callers outside its own tests,
+    all queries of real Git
+    (`--version` and reads of configuration),
+    all asserting that the query ended by itself inside its bound and that nothing holds its output;
+    in the first case the bound has run out and such a test fails with either answer,
+    and none of them leaves a descendant on its pipes;
+  - the package's tests run under `cargo nextest run`,
+    which starts a process for each test
+    ([nextest's own account][nextest-process-per-test]),
+    so a blocked thread ends with its test;
+  - the queue line of 08:42 said the range changes four code files and the review listed three.
+    The fourth is `testing/test_support.rs`,
+    one line that re-exports the helper's names,
+    so the review's reading stands.
+- **Weighed**,
+  after the advisor was asked:
+  neither earns code,
+  and the branch is still not sent to a pass on a dismissal.
+  Both are sentences of the helper's doc that promise more than code can keep,
+  which is why six rounds on this helper have not converged.
+  The author's seventh run changes those sentences into stated limits and nothing else
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-states-two-limits-of-its-test-helper-prompt.md`,
+  queued first at 09:22:40).
+- **Adopted,
+  open to veto**:
+  the review after that run reads the commits added after `d73a209b3e` and nothing before them,
+  with the two limits stated in its brief,
+  since the whole range was read at that commit.
+  A clean review of that delta sends the branch to a pass.
+  The question kept for the owner,
+  whether a branch whose only open findings are in tests may go to a pass,
+  is not answered by this and stays.
+- **A check added to every round**:
+  before a review clears a branch,
+  the count of code files the queue line gave for its range is held against the count the review says it read,
+  and a file the review did not list is named and looked at.
+  For pass 53 the two agree
+  (five and five).
+- **The temperature**,
+  read at 09:17:32:
+  55.3 degrees,
+  budget 32.0 threads,
+  8.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:17:34:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:59;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+[nextest-process-per-test]: https://nexte.st/docs/design/why-process-per-test/#:~:text=nextest%20runs%20each%20test%20in%20a%20separate%20process
+
+##### Three reviews with findings (the lock-holders folder, the empty last answer, the silent tool command); the review brief answers; level 17 held its eight hours (2026-11-15T09:02:15-05:00)
+
+Not final and not approved:
+what three reviews and one author report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The lock-holders folder** (`3ac1254a73`),
+  its fifth review,
+  ended 08:56:34,
+  16 of 16 files,
+  three things,
+  each reproduced against the built wrapper,
+  none a repeat:
+  - a symbolic link among `.git/worktrees` is followed,
+    and a `HEAD.lock` in a folder outside the repository was unlinked;
+  - a pass in the main worktree removes the record a linked worktree's `index.lock` needs and leaves the lock,
+    and a commit there then fails on it;
+  - a wrapper killed between starting Git and recording it leaves a lock no record explains,
+    and a commit then fails on it.
+- **Weighed**:
+  all three go back.
+  For the third,
+  a suggestion marked as one:
+  the process about to be Git writes its own record between `fork` and `exec`,
+  since a parent that writes after the start always has a window and a child held for its parent deadlocks.
+  The author is asked whether `main` has the second and third.
+  It is also told of the process its last run left.
+  Its fifth run is queued second
+  (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-fifth-review-of-2026-11-15-prompt.md`).
+- **The driver's run whose last answer is empty** (`f50acb1bf3`),
+  its seventh review,
+  ended 08:55:30,
+  20 of 20 files,
+  two things,
+  both reproduced,
+  both in how a message is kept aside,
+  nothing in what such a run is asked to do:
+  two files whose inode numbers differ above 2^53 are taken for one and the claimed message is removed
+  (`lstat` without exact numbers);
+  a publication cut short and then an orphan's recovery give one message two kept names.
+  **Weighed**:
+  both go back,
+  both small.
+  The first is far from this machine's numbers:
+  files written within the hour before 09:05 on the btrfs that holds both the run folders and the repository carry inode numbers of 742,143,321 and 20,758,558,
+  against 2^53 at 9,007,199,254,740,992.
+  Its fix is one option of one call.
+  The author's eighth run is queued twelfth.
+- **The driver's silent tool command** (`6b86edc7f6`),
+  its first review,
+  ended 08:55:49,
+  9 of 9 files,
+  four things,
+  each reproduced against stand-ins that speak Pi's protocol:
+  a recovery prompt nobody answers lets the run end `idle`;
+  ends that come out of order take the wrong call out of the tally,
+  because calls are matched by the tool's name and not by their identity;
+  ending one command that is due ends a peer whose longer bound has not run out,
+  because the abort is of the whole operation;
+  an abort nobody answers is recorded as an ending.
+  **Weighed**:
+  all four go back.
+  The author's second run is queued seventh.
+  Until this branch is in `main` the round's own check for silent runs stays.
+- **The review brief that says what the change under review is**,
+  its author's fourth run,
+  ended 08:58:33 at `6e7021c03e`:
+  four findings answered with controls that fail with their fix out
+  (a review file is put in place by a link that only one writer wins;
+  a range is of the tip and not of the branch's name;
+  spans are compared byte for byte);
+  the fifth stays the owner's question of 05:45:58.
+  199 suites pass.
+  The line the starter prints for an unfinished review now names the review and says that none was started.
+  Its review is queued ninth
+  (`main...6e7021c03e`,
+  seventeen code files that are not tests).
+  **Adopted,
+  open to veto**,
+  for the author's second open question:
+  a dot name a killed writer left in a review's folder stays,
+  since nothing reads it and removing a live writer's would be worse.
+- **The drive probe at level 17** ended at about 09:00 after its eight hours without two slow readings in a row,
+  so the level stands.
+  Since the snapshot cleanup ended at 01:45:02:
+  434 readings,
+  27 of them a second or more,
+  one on the home drive
+  (1,361 ms)
+  and 26 on the repository's drive
+  (longest 14,842 ms).
+  The next probe at level 17 was started at 09:02 for another eight hours
+  (background task `ba4wnljg6`).
+- **The temperature**,
+  read at 08:59:55:
+  53.5 degrees,
+  budget 32.0 threads,
+  8.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:59:56:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:46;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  None of the three resumed sessions is named by the credential scan.
+  The queue held 86 entries at 09:02:15.
+
+##### mpm-shadow: an install that removes no version goes back with four findings and one stated limit; the removal of old versions answers and goes to review (2026-11-15T08:47:49-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+what it read on `main`,
+and what it queued.
+
+- **An install removes no version** (`3f4ac7efdf`),
+  its fifth review,
+  ended 08:43:46,
+  25 of 25 files,
+  five things,
+  each reproduced in a disposable copy through the package's own test task,
+  none a repeat:
+  - a lock row whose `packageId` is `../../outside` makes the cleanup read and delete a folder outside the store;
+  - a removal killed before it claims the version leaves its downloads under a removing name,
+    and the recovery deletes them though the version is still there;
+  - a child stopped at its bound can leave a descendant in a session of its own that writes after `run` returns;
+  - a killed child nobody has collected counts as a live owner,
+    so later installs and removals of that version wait out its claim;
+  - a version held by a process that cannot be described is taken for unused.
+- **Weighed**:
+  four go back.
+  The third is taken as a limit and gets a sentence in the runner's doc:
+  reaching a descendant that left its parent's group and parentage takes a control group around each child,
+  and ending everything in one would also end helpers meant to outlive the command.
+  For the last,
+  the branch is asked to answer as the removal of old versions already does
+  (keep what such a process may hold),
+  which keeps the two branches alike until the owner answers the question kept at 05:22:17.
+  The author's fifth run is queued tenth
+  (`~/temp/agent/pi-runs/mpm-shadow-install-removes-no-version-answers-its-fifth-review-of-2026-11-15-prompt.md`).
+- **Read on `main`**,
+  because the first deletes outside the store:
+  `main` holds neither `toolchain/store_trim.rs` nor `toolchain/store_versions.rs`.
+  The cleanup the finding is in exists on the branch alone,
+  so the installed `mpm-shadow` does not have it.
+- **The removal of old versions**,
+  its author's third run,
+  ended 08:42:14 at `45c0b46705`:
+  the eighth review's eight tests all failed at the old tip and seven pass now;
+  the eighth is written against the old shape and its two halves have controls of their own.
+  Thirteen places that removed or renamed,
+  five of them with nothing proving the object,
+  are now one function that reads the facts again at the instant it acts and answers "kept" for anything it could not read whole.
+  Nine controls each fail with their fix out.
+  Counted here,
+  read-only:
+  109 versions,
+  49.6 GiB;
+  the decision before would remove 27 versions,
+  25.3 GiB,
+  and all 27 are kept by the rule for the fifteen processes that cannot be described,
+  as the question kept at 05:22:17 says.
+  872 tests and 89 controls pass.
+  Its review is queued eleventh
+  (`main...45c0b46705`,
+  fifteen code files that are not tests).
+- **The temperature**,
+  read at 08:46:30:
+  53.9 degrees,
+  budget 32.0 threads,
+  6.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:46:30:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:41;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:47:49.
+
+##### Two authors answer and go to review: the wrapper under the gate container's Git, and the process that holds a file open in a worktree (2026-11-15T08:42:01-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+- **The wrapper under the gate container's Git**,
+  its author's sixth run,
+  ended 08:38:37 at `d73a209b3e`:
+  both findings of its fifth review answered in the tests' bounded helper.
+  The helper owns its wait
+  (`try_wait` each millisecond,
+  no second thread that collects the query),
+  signals the group it leads at the bound,
+  and takes the ending from the status the wait returns,
+  never from whether the signal could be sent;
+  that also closes one of the two findings weighed as a limit at 07:35,
+  without more code.
+  An input a descendant still holds is said in the answer
+  (`input_held`)
+  and no longer ends in a panic.
+  Both controls fail with the fix out,
+  the first at a seam
+  (`waitid(WNOWAIT)`)
+  and not by a count of attempts.
+  The typed-value sweep takes 31.5 s where it took 24.9 s with the blocked wait,
+  which the author reports as the cost.
+  47 of 47 named tests pass at four CPUs with `main` at `0.6.1-alpha.41` merged.
+  Its review is queued third
+  (`main...d73a209b3e`,
+  four code files that are not tests).
+  Seven of the gate's standing failures wait on this branch.
+- **The process that holds a file open in a worktree**,
+  a fresh run,
+  ended 08:37:09 at `3c43b9142a`.
+  The gate's failure
+  (`worktree_process_inside`,
+  in two gates)
+  was the control's:
+  the walk of the process table ran before the helper `tee` held its file,
+  which takes a third of a millisecond here.
+  The control now waits for the helper's own word,
+  and a second control makes both orders happen.
+  The author also found a hole in the reading itself:
+  a process whose working folder is readable and whose table of open files is refused
+  (`EACCES`)
+  was answered "holds nothing".
+  It is now "may hold one",
+  bounded by the same age rule a hidden folder gets;
+  unbounded it kept every worktree on this machine,
+  because one long-lived program of the desktop refuses that table.
+  No cost to a removal is measurable
+  (ratios 0.93 to 1.01 over five interleaved rounds).
+  Left alone and named:
+  a process table that cannot be listed still answers "nothing inside".
+  Its review is queued seventh
+  (`main...3c43b9142a`,
+  one code file that is not a test).
+  The change to the reading meets the question kept for the owner at 03:06:17
+  (the removal guard and hidden processes);
+  this branch uses the rule that question is about
+  (a hidden process younger than the worktree keeps it),
+  so the owner's answer there decides this one too;
+  the question is still open.
+- **The temperature**,
+  read at 08:41:30:
+  56.3 degrees,
+  budget 32.0 threads,
+  15.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:41:32:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:35;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 86 entries at 08:42:01.
+
+##### The driver's brief writer for tests: nothing found in what it does with a change to tests; two findings about who owns a review's folder (2026-11-15T08:36:37-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The brief writer that takes a change to tests alone** (`b51b230eb2`),
+  its seventh review,
+  ended 08:31:20,
+  16 of 16 files,
+  two things,
+  both in the claim of a review's folder:
+  - reproduced:
+    two starts each take over a dead owner's folder,
+    because the taker removes the owner's path after its look and without asking whether it is still the record it read;
+    both return as owner and both write the folder's files;
+  - by reading:
+    the owner recorded is the command that writes the brief,
+    and the review's unit outlives that command;
+    with the command killed after the unit started,
+    the next start of that branch takes the folder and starts a second review beside the first.
+- **Weighed**:
+  both go back.
+  The first is the lock-free rule not yet met
+  (one atomic step that only one taker wins).
+  The second is a claim,
+  to be shown by a control with a stand-in unit first;
+  if it holds,
+  the folder's owner is the review's unit and a taker must see that unit gone by the manager's own answer.
+  The author's eighth run is queued ninth
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-seventh-review-of-2026-11-15-prompt.md`).
+  Until this branch is in `main`,
+  a review of a change to tests alone is still written by hand.
+- **The temperature**,
+  read at 08:35:34:
+  61.5 degrees,
+  budget 32.0 threads,
+  24.6 in use
+  (17 runs going where 14 were going six minutes before,
+  pass 53's unit among them),
+  no event at or over the limit since 05:06:20.
+- Read at 08:35:37:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:29;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:36:37.
+
+##### The record of another boot is clean and goes to pass 53; the push stop and the killed-Git lock go back; two gate controls have their cause; the launcher goes to review (2026-11-15T08:32:03-05:00)
+
+Not final and not approved:
+what three reviews and two authors report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The record of another boot** (`5879fd0613`),
+  its review,
+  ended 08:26:06,
+  five of five files,
+  four controls run by name,
+  **no defect found**.
+  It goes to **integration pass 53**,
+  queued first
+  (`~/temp/agent/pi-runs/integration-pass-53-with-a-holders-identity-spelled-another-way-never-taken-for-gone-prompt.md`).
+  One of the gate's standing failures is this branch's.
+- **The stop of a stopped push** (`2da23e4478`),
+  its second review,
+  ended 08:26:00,
+  four of four files,
+  one thing,
+  reproduced:
+  the helper that runs a job "no longer than" a duration applies the whole duration to the wait for a permit and again to the wait for the job,
+  so a stop with a ceiling of one second answered after 1.35 s,
+  and can take almost twice its ceiling.
+  **Weighed**:
+  it goes back;
+  the branch's name is that a stop ends within its bound.
+  The author is asked to fix the helper with one deadline and to list its other callers.
+  Its third run is queued sixth.
+- **The lock a killed Git left, for a reference lock** (`6c2272132b`),
+  its third review,
+  ended 08:25:04,
+  13 of 13 files,
+  three things,
+  each reproduced with the production functions,
+  none a repeat,
+  and nothing against the limit the SPEC states for the bounded runner:
+  a sweep at the same time removes the process record a new lock's binding needs;
+  clearing an old lock removes the PID file a new lock at that name inherited;
+  a lock made together with its folder is not in the watch
+  (the code's own comment says it is missed).
+  In each the lock stays and the next commit fails on it.
+  **Weighed**:
+  all three go back,
+  as one shape,
+  with the table of looked-then-acted places asked for first.
+  Its author's fourth run is queued eighth.
+- **The three gate controls that failed for the first time**,
+  a fresh run,
+  ended 08:24:49 at `760ed393d2`.
+  Two have their cause,
+  in the test both times,
+  shown by arms in both gate images:
+  the reader of a process's CPU counters lost a thread between listing it and reading its file;
+  the stand-in journal read nothing until the commit returned,
+  so on a slow machine its socket filled and one entry fell back to standard error
+  (the image before pass 51 fails the same way at a quarter of a CPU,
+  so pass 51 is not the cause).
+  Both fixed in the tests,
+  with a guard for the first.
+  The third,
+  `real_cargo_leaves_a_stale_lockfile_as_checked_out`,
+  did not fail in eleven arms;
+  the gate's lines say the fill's first clean was ended by a signal 9 from outside the runner.
+  All three passed in the two gates since.
+  The author's second run is queued thirteenth,
+  to settle the third by the run it named and to make that control's failure say the fill's own reason;
+  its review follows.
+  That author ran `printenv CARGO_TARGET_DIR`
+  (one name,
+  no credential)
+  and `du` of the whole scratch root once
+  (223 GiB),
+  and says so;
+  its next brief names both.
+- **The driver's launcher ends when its run has ended**,
+  its author's second run,
+  ended 08:26:58 at `090e416990`.
+  Its review is queued fourteenth
+  (`main...090e416990`,
+  35 code files that are not tests).
+  Two things it noticed and left:
+  a `putEndedReviewsBack` test can fail when a summary and its bound fall in one millisecond
+  (added as a sighting to the queued brief on the driver's suites);
+  and a wrapper process whose folder is a run's worktree counts as that run's own work,
+  which is how three launchers waited six hours,
+  now bounded at thirty minutes.
+- **Two processes an ended review left**,
+  named by that author and stopped by the coordinating session at 08:30:26:
+  scopes `run-p1152543-i34590644.scope` and `run-p3806427-i41497819.scope`,
+  each one `node` holding a lock of the pnpm override lock shim's review with a timer that never ends,
+  23 and 19 hours old,
+  working in that review's folder,
+  with no going run of that review.
+  Both are gone.
+- **The temperature**,
+  read at 08:29:09:
+  52.1 degrees,
+  budget 32.0 threads,
+  3.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:29:13:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:23;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  14 runs going,
+  none silent for twenty minutes.
+  None of the three resumed sessions is named by the credential scan.
+  The queue held 87 entries at 08:32:03.
+
+##### The drawn shadow tree: a file lost from a commit's scratch can end in a commit nobody wrote; the address-space controls have one small finding left (2026-11-15T08:25:36-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+what it measured,
+and what it queued.
+
+- **The drawn shadow tree** (`2c9848ce0a`),
+  its sixth review,
+  ended 08:18:41,
+  15 of 15 files,
+  the wrapper built,
+  four things,
+  three reproduced through the built wrapper at the branch's own pause after the shadow is built,
+  none a repeat:
+  - with `MERGE_HEAD` deleted from the shadow,
+    a merge's commit exits 0 with one parent,
+    and the real `MERGE_HEAD` is removed;
+  - with the private `commit.index` deleted,
+    the commit exits 0 with the empty tree,
+    every tracked file gone from history;
+  - with the shadow's `reftable` deleted,
+    the commit fails with Git's I/O error and is not built again;
+  - by reading:
+    the sweep lists a tree as stale and removes it later without asking again,
+    which needs a step of the wall clock inside a window of microseconds.
+- **Weighed**:
+  all four go back.
+  The first two are the gravest outcome a commit has,
+  whoever removes the file.
+  The author is asked to hold the commit that Git made against what was captured
+  (its parents;
+  its tree,
+  or at least never the empty tree where the captured index held entries)
+  before the branch moves and before the real merge state is touched,
+  as a suggestion marked as one,
+  and to say why its shape covers every file and every instant.
+  It is asked first whether `main` has the first two,
+  by a run against the wrapper built from `main`.
+  Its seventh run is queued second
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-sixth-review-of-2026-11-15-prompt.md`).
+- **Measured here**,
+  because the second could have happened already:
+  of 15,161 commits on every ref of this repository since 2026-11-01,
+  none has Git's empty tree.
+  That says no commit here ended that way;
+  it does not say `main` cannot do it,
+  which the author's run decides.
+- **The controls of a service under an address-space limit** (`f24d1b9ebd`),
+  their third review,
+  ended 08:19:53,
+  six of six files,
+  the binary tests compiled and four controls run by name,
+  one thing,
+  by reading,
+  and no other defect:
+  the case above the boundary may be refused without the control failing,
+  because any landing of the sweep satisfies the count.
+  Read here as well:
+  the control's doc says that case "carries the landing",
+  and the assertions do not hold it to that.
+  **Weighed**:
+  small,
+  and still worth its fix,
+  so by the reading adopted at 05:45 it counts as open.
+  Its author's fifth run is queued fifth,
+  asked to find which is true
+  (the case always lands,
+  or the doc says too much)
+  and to write that.
+  It is the last thing between this branch and a pass.
+- **The temperature**,
+  read at 08:23:21:
+  56.3 degrees,
+  budget 32.0 threads,
+  15.5 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:23:22:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused in either filling unit since 08:13;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
+  The queue held 86 entries at 08:25:36.
+
+##### The gate on `0.6.1-alpha.41` fails 13 of 9,125: pass 52's three library tests pass; the filling unit is restarted (2026-11-15T08:17:41-05:00)
+
+Not final and not approved:
+what the gate printed and what the coordinating session read from it.
+
+- **The gate** on `d28b29240c` ended 08:17:21:
+  9,125 run,
+  9,112 passed,
+  13 failed,
+  28 skipped,
+  751 s,
+  under the CPU budget and the power-saver profile as the two gates before it
+  (`~/temp/agent/gate/keep/failing-tests-of-the-gate-on-d28b29240c-against-the-four-gates-before-it.txt`;
+  panics in `panics-of-the-failing-tests-of-the-gate-on-d28b29240c-2026-11-15T075908.txt`).
+  All owed steps of this release are done.
+- **Against the gate on `0.6.1-alpha.40`**
+  (18 failed):
+  - the three library tests of pass 52 pass
+    (`a_lane_that_panics…`,
+    `a_step_left_running_on_the_runtime…`,
+    `a_server_that_takes_the_connection…`);
+  - three of the five controls of the long runtime directory pass,
+    with nothing changed in them
+    (`service_provision_refusals_before_the_wait::tests::` three times).
+    In the gate before,
+    each of them stopped on a tag that "does not fit 7 bytes",
+    in threads numbered 106734 and up;
+    in this gate the tests near them carry five-digit numbers.
+    That fits the review of that branch,
+    which found the room these controls leave depends on the width of the process number;
+    this gate did not show it by itself.
+    The branch is with its author;
+  - `owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it` fails,
+    as in two of the four gates before,
+    on its fixture's removal
+    (`DirectoryNotEmpty`);
+    it has a run that owns it.
+- **What stands**,
+  12 that failed in each of the four gates before:
+  seven of the Git version
+  (with its author for its test helper),
+  two of the long runtime directory
+  (with its author),
+  one of the record of another boot
+  (review queued),
+  and two that the lock-holders branch answers
+  (review queued).
+- **The unit that fills free places** was restarted between two of its rounds at 08:15:31,
+  at level 17,
+  as `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T081531`
+  for another eight hours;
+  the unit before it had been due to end at about 09:00.
+
+##### The lock-holders folder answers its four findings and goes to review; the push of a branch that is not checked out goes back with four races (2026-11-15T08:15:00-05:00)
+
+Not final and not approved:
+what one author and one review report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The lock-holders folder**,
+  its author's fourth run,
+  ended 08:09:23 at `3ac1254a73`:
+  the four findings answered,
+  each control failing with its fix out
+  (the fourth hangs until an outer bound of 90 s without its fix and answers in 48 ms with it).
+  A Git child whose record cannot be written is stopped and reaped before it can take a lock;
+  a child that already died is still named,
+  from `/proc/<pid>/stat`,
+  which keeps its start tick until its parent reaps it;
+  this holds at every place the wrapper starts a Git that may take a lock.
+  The walk goes over exact lock names;
+  every record is opened as a plain file;
+  above 4,096 records the proof answers "unknown".
+  The author first built the other shape
+  (the child held in `pre_exec` until the record is written)
+  and found that it deadlocks every start,
+  because `Command::spawn` waits for the child to reach `execve`.
+  No cost is measurable
+  (ratio 0.98 over eight interleaved rounds).
+  The author confirms by its own run that `main` still has the first finding's window.
+  639 library tests and 38 binary tests pass at four CPUs.
+  Its review is queued fourth
+  (`main...3ac1254a73`,
+  nineteen code files that are not tests).
+- **That run's summary carries a work problem**,
+  `ESRCH: no such process, read '/proc/1111152/comm'`:
+  one more sighting of the driver's scan of leftover work reading a process that ended meanwhile,
+  which has an author.
+- **That run left one process**,
+  found by the round's check and stopped by the coordinating session at 08:14:19:
+  scope `run-p1632651-i89661822.scope`,
+  started 06:33:55,
+  one task,
+  the branch's own test binary run with `--exact` for its new control
+  `a_git_that_dies_before_its_identity_is_read_is_still_named_and_its_lock_is_cleared`,
+  3 min 30 s of CPU,
+  asleep since.
+  It is the deadlock the author describes,
+  left from the shape it gave up.
+  The author's own check for leftovers filtered `ps` by the names of its tools and did not see a test binary.
+- **The push of a branch that is not checked out** (`4ca7aebcdb`),
+  its seventh review,
+  ended 08:08:56,
+  19 of 19 files,
+  four things,
+  each reproduced against the production functions at the branch's own test windows,
+  none a repeat:
+  an edit staged between the list of stale paths and their write is overwritten in the index and the file;
+  a record whose writer is alive is skipped and the commit that follows records the old tip's tree as a child of the merge;
+  an `update-ref` whose answer comes after its deadline leaves the record naming the resident service for its whole life;
+  a checkout that publishes its `HEAD` after the listing of holders loses its only record.
+- **Weighed**:
+  all four go back;
+  each loses a person's edit or makes a commit that reverses a merge.
+  All four are one shape,
+  looked and then acted,
+  as the findings of the six reviews before were.
+  The author is asked for a table of every such place in the range and which kind each now is,
+  before the code;
+  what a command does when another owner's repair outlasts its bound is left to it,
+  to come back as a question for the owner where the project's sentences cannot all hold.
+  Its ninth run is queued seventh
+  (`~/temp/agent/pi-runs/push-of-a-branch-that-is-not-checked-out-answers-its-seventh-review-of-2026-11-15-prompt.md`).
+- **The temperature**,
+  read at 08:13:21:
+  56.6 degrees,
+  budget 32.0 threads,
+  15.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:13:24:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:09;
+  no launcher had outlived a run;
+  16 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:15:00.
+
+##### The landing that never waits has one finding left; the driver's brief writer for every kind of code file answers and goes to review (2026-11-15T08:10:33-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The landing that never waits** (`ff4fc2a1fb`),
+  its review,
+  ended 08:07:34,
+  45 of 45 files and the diff to its last line,
+  **one thing**,
+  reproduced at the blocking budget's own interface,
+  the service's sequence around it by reading:
+  a look of the slow lane that runs out at its 120 s gives back its slow-work permits,
+  while the jobs it started keep their general places until they really end.
+  Replacement work then takes the freed permits and the last general place:
+  three slow jobs under a limit of two,
+  every general place held,
+  and each later round of pushes and upkeep refused for as long as the first storage operations stay stuck
+  (`general places free=0`,
+  a job of the client's path `NotRun`,
+  and `Ran` once the sleepers were let go).
+- **Weighed**:
+  it goes back.
+  It needs storage operations stuck past two minutes,
+  which this machine's home drive has come near
+  (stalls of up to 109 s on 2026-11-15),
+  and it breaks the branch's own sentence,
+  that slow work never takes the places the rest needs.
+  The author is asked to tie the permit to the job and not to the waiter,
+  and to list every other permit or place tied to a waiter whose work outlives it.
+  Its fourth run is queued fifth
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-third-review-of-2026-11-15-prompt.md`).
+  Passes 29 and 34 still wait on this branch.
+- **The driver's brief writer reads every kind of code file**,
+  its author's third run,
+  ended 08:04:26 at `89c1554737`:
+  the three findings answered.
+  What a change is
+  (tests,
+  code,
+  or nothing a review reads)
+  is one table of 64 rows,
+  generated from the rule and walked by a test;
+  a file a review cannot judge is left out by name with the reason;
+  Git's listings are asked with `-z` and read byte for byte,
+  so a name Git would quote is the name the brief shows
+  (seven hard names by `core.quotePath` on and off,
+  14 of 14).
+  Three controls fail with their fix out.
+  199 suites pass on the second whole run;
+  two timing-sensitive driver tests failed in the first and passed alone,
+  the subject of the run queued at 06:57.
+  It touched `review-brief.ts` and the brief template,
+  which the review brief's coverage branch also changes;
+  whichever goes into `main` second merges the other.
+  Its review is queued twelfth
+  (`main...89c1554737`,
+  eleven code files that are not tests).
+- **The temperature**,
+  read at 08:09:00:
+  52.4 degrees,
+  budget 32.0 threads,
+  5.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:09:01:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:03;
+  one launcher had outlived its finished run and was stopped
+  (the long runtime directory's review);
+  no process worked inside a worktree whose run was not going;
+  15 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:10:33.
+
+##### Three reviews, each with reproduced findings: the landed removal, the journal branch, the long runtime directory's controls (2026-11-15T08:06:19-05:00)
+
+Not final and not approved:
+what three reviews report,
+how the coordinating session weighed each finding,
+and what it queued.
+
+- **The landed removal** (`746040080c`),
+  its ninth review,
+  ended 07:58:56,
+  22 of 22 files,
+  three things,
+  each reproduced through the built wrapper,
+  none a repeat:
+  - a shell alias with an inner `-C` is checked in the command's repository and removes in another,
+    where the direct removal had been refused;
+  - an alias whose shell builds the words
+    (`!action=remove; git worktree $action`)
+    passes the check of its text and deletes a worktree with its hidden edit;
+  - an independent repository inside an ignored folder of the worktree is in none of the checks,
+    and the unforced removal deleted it with the only name of its commit.
+- **Weighed**:
+  all three go back.
+  The first two are one thing:
+  nine reviews have each found an alias its text's reader does not cover,
+  and a text a shell will run cannot be read to the end.
+  The author is asked to say why its shape leaves no such spelling,
+  with a suggestion,
+  marked as one,
+  that the guard stand where the removal is asked for
+  (the Git a shell alias reaches being the wrapper).
+  The third meets the owner's "Delete ignored, spare busy" of 2026-11-12,
+  which was asked and answered about files Git ignores.
+  **Adopted,
+  open to veto,
+  and kept as a question**:
+  a Git directory holding a commit no other repository names is Git work and not an ignored file,
+  so the removal refuses,
+  names it,
+  and has the opt-out;
+  an ignored folder with no repository in it is deleted and logged as decided.
+  The author is also asked for the cost of that look on a worktree with a large ignored tree,
+  with a bound.
+  Its fourteenth run is queued third
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-ninth-review-of-2026-11-15-prompt.md`).
+  The removal guard stays held behind it.
+- **The service a test starts and the user journal** (`d6219a98ee`),
+  its fourth review,
+  ended 08:00:12,
+  8 of 8 files,
+  three things,
+  each reproduced at a seam,
+  none in what the service does:
+  the panic for a service that left early can quote nothing because it does not wait for the copy;
+  letting the copy seam go sends 64 permits and leaves a sixty-fifth copier waiting;
+  the source guard's mask does not read an escaped character literal,
+  so `'\"'` hides a start with inherited streams from both layers of the guard.
+  **Weighed**:
+  all three go back,
+  each small;
+  the third is a guard that a legal spelling walks past.
+  Its fifth run is queued tenth.
+- **The long runtime directory's controls** (`0bcc1fc7fc`,
+  a change to tests,
+  their support and the image),
+  its second review,
+  ended 08:02:09,
+  8 of 8 files,
+  built into an image and run over homes of three lengths and process numbers of two widths,
+  four things,
+  all reproduced:
+  - **dismissed**:
+    the boundary controls take their lengths from the code's own constants,
+    so a planted one-byte error leaves them passing.
+    Both planted errors did fail a control in the same run,
+    one of them the control that binds against the kernel,
+    and the project's rule for tests is that values come from the named constant;
+  - the helper that picks a parent leaves a directory wherever it picks,
+    this machine's `~/temp/agent` among the places;
+  - the control for a runtime directory that cannot be made leaves its file and link,
+    and the next run with the same process number fails on them;
+  - two binary controls still pass or fail by the length of `HOME`.
+  Its third run is queued sixth.
+  The author is asked to count,
+  and not remove,
+  what earlier runs of these controls left directly under `~/temp/agent`.
+  Five of the gate's standing failures wait on this branch.
+- **The temperature**,
+  read at 08:03:08:
+  53.8 degrees,
+  budget 32.0 threads,
+  7.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:03:11:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:53;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  None of the three resumed sessions is named by the credential scan.
+  The queue held 86 entries at 08:06:19.
+
+##### `0.6.1-alpha.41` is installed; its sample commit took 5.6 s behind the new service's start-up reads of its state directory (2026-11-15T08:00:08-05:00)
+
+Not final and not approved:
+what the release's steps printed,
+what the coordinating session measured,
+and where it sent the measurement.
+
+- **Release `0.6.1-alpha.41`**
+  (pass 52):
+  published 07:57:03,
+  installed 07:58:14
+  (`git --version` names it),
+  lock commit `d28b29240c`.
+  The container gate started 07:59:08 on `d28b29240c`
+  (log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-d28b29240c-20261115T075908-0500.log`;
+  its verdict is waited for in the background).
+  The fuzz sidecar's type check on `main` exited 0 at 07:59:48.
+- **The sample commit took 5,612 ms**
+  (5,577 ms in its timing line,
+  4,706 of them waiting for the service's answer),
+  where the five installs before took 1,366 to 2,452 ms.
+  It landed.
+  It is over the five seconds of the commit-time rule.
+- **Where the time went**,
+  from the `at_ms` of the service's own lines:
+  the new service was ready at 07:58:09.566 and warmed its rules by 09.575;
+  its line "removed the records of 10 old finished batches" came at 13.203,
+  3,628 ms later;
+  the batch was formed at 14.428.
+  The same span in the two starts before was 106 ms (47 records) and 40 ms (13 records).
+- **Read on `main`**
+  (`service/service_server.rs`, the lines before that log line):
+  on the landing thread,
+  before it reads the queue,
+  the service restores its plan and watch,
+  settles open batches,
+  removes old finished records,
+  and reads what landed,
+  all in its state directory on the home drive;
+  a request that arrives meanwhile waits,
+  as the comment there says.
+  Which of those steps took the 3.6 s is not known,
+  no line says it.
+  The drive probe,
+  once a minute,
+  read the home drive at 23 ms and 2 ms on either side,
+  which neither shows nor rules out a stall of a few seconds.
+  Pass 52 changed no code on this path
+  (three test files and `foundation/lazy_runtime.rs`).
+- **Sent to** the author of the commit that does not wait behind the service's writes to another drive,
+  whose second run was still queued:
+  the sighting is added to its brief as one more place of its own sentence,
+  with the rule that nothing lands before the recovery is over left standing.
+
+##### The credential masking is not ready: its second review finds ten more roads; the twelve-hour commit has its cause, on its branch alone (2026-11-15T07:55:03-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The credential masking** (`0f8b0387a9`),
+  its second review,
+  ended 07:48:39,
+  27 of 27 files,
+  ten things,
+  each reproduced with made-up values,
+  a stand-in Pi and Pi's own installed functions;
+  no real Pi,
+  provider or credential file was used.
+  A value still reaches a provider or a kept file:
+  a resumed session's old messages in a compaction request;
+  standard error cut at the hold-back boundary;
+  a value as an object's key;
+  a `toJSON` method the mask keeps;
+  the details of a tool result that was withheld.
+  A run starts or ends as clean although something was not covered:
+  an age identity that cannot be read;
+  a shell assignment the reader cannot give;
+  a session rewrite that fails after the feed is closed.
+  Somebody else's data is lost:
+  an entry appended while the session is replaced;
+  a file in the output folder that Pi never made.
+  **So the masking is not merged,
+  the canary is not run,
+  and the owner's rotation still waits.**
+- **Weighed**:
+  all ten are worth their fix.
+  Two reviews found twenty-two roads between them and the second found none of the first's again:
+  each fix held,
+  and the list of roads was complete neither time.
+  The author is resumed,
+  its third run,
+  and asked for three shapes in place of ten answers:
+  the mask works on what will be serialised and hands back plain data;
+  one matcher for every stream holds back whatever may still become a match;
+  every source and every kept place has three answers,
+  and "could not" stops the run or makes its end not clean
+  (`~/temp/agent/pi-runs/value-of-the-secret-environment-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued fourth).
+- **The commit service started by the wrapper itself**,
+  its author's tenth run,
+  ended 07:51:49 at `d26f339e8e`.
+  The commit that ran twelve hours has its cause,
+  shown by a bounded rerun
+  (99,475 `connect` calls in about seven seconds):
+  the loop that reaches the service took one arm,
+  `StartAttempt::Greeted => continue`,
+  past its bound and its pause,
+  and a look's patience fell to one millisecond while the answer was read for a second.
+  Fixed,
+  with a control that fails at its own ten seconds without the fix.
+  **That arm is not in `main`**:
+  a search of `main` finds no `StartAttempt::Greeted` and no `start_seamed`;
+  both are in files the branch adds.
+  The review's five scripts no longer reproduce,
+  and its six findings are answered.
+  The branch stands 431 commits behind `main` and a merge stops at fifteen conflicts,
+  among them `landing/service_messages.rs`,
+  which pass 51 also rewrote.
+  The author is resumed,
+  its eleventh run,
+  for that merge and the whole round after it
+  (`~/temp/agent/pi-runs/commit-service-started-by-the-wrapper-takes-main-as-it-stands-prompt.md`,
+  queued thirteenth);
+  its review follows.
+- **The temperature**,
+  read at 07:53:20:
+  54.3 degrees,
+  budget 32.0 threads,
+  8.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:53:20:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:47;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
+  The queue held 86 entries at 07:55:03.
+
+##### Integration pass 52 is in `main` and `0.6.1-alpha.41` is dispatched; the driver's notice of a silent tool command is built and goes to review (2026-11-15T07:48:14-05:00)
+
+Not final and not approved:
+what one pass and one author report and what the coordinating session did.
+
+- **Integration pass 52** ended 07:46:28 at `070536cef5`,
+  which holds `main` as it stood
+  (`9bfdd11f91`,
+  with passes 50 and 51 in it),
+  and reports fit:
+  the whole library suite with no failure,
+  the tests the branch exists for passing by name inside it;
+  two failures in the binary suite,
+  both on the gate's known list;
+  the two known TypeScript failures and no other.
+  One thing it names before a release:
+  `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`
+  failed once in a whole-suite run and passed alone,
+  on no gate list;
+  that control has a run that owns it.
+  **Merged** as `ce4cba8bb6` (07:47:50),
+  after checking that `main` held nothing the tip lacked.
+  **Release `0.6.1-alpha.41` dispatched** at 07:48:00
+  (run 43715673005);
+  the install,
+  the sample commit,
+  the gate and the fuzz sidecar's type check follow.
+  Three of the gate's eighteen standing failures are this branch's.
+- **The driver notices a tool command that says nothing**,
+  a fresh run,
+  ended 07:43:11 at `6b86edc7f6`.
+  "Said nothing" is no record of any kind from Pi,
+  which is the record's own activity clock.
+  After 600 s a `silence` line is written to the feed and into the summary,
+  naming the command;
+  after 3,600 s the command is ended the way the wall clock ends one,
+  and the agent is told what was ended and why.
+  Both values are options of the driver and come from a measurement of 2,346 feeds.
+  A long honest command is not told from a hang:
+  the ending sits above every honest silence measured,
+  and an agent that knows a command will run long gives it the tool's own `timeout`,
+  which the driver waits out and sixty seconds more.
+  Controls fail with the fix removed,
+  among them a descendant that holds the pipe.
+  193 suites pass in the last whole run;
+  four different existing tests failed in four earlier whole runs and pass alone,
+  which is the subject of the run queued at 06:57.
+  The launchers do not pass the new options yet,
+  so the defaults hold for every run once this is in `main`.
+  Its review is queued tenth
+  (`main...6b86edc7f6`,
+  twelve code files that are not tests).
+  One commit's body does not name `README.md` although it changed it;
+  the author says so and did not amend.
+- **The temperature**,
+  read at 07:47:23:
+  52.1 degrees,
+  budget 32.0 threads,
+  2.7 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:47:26:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:34;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 86 entries at 07:48:14.
 
 ##### The wrapper under the gate container's Git: a fifth review of its test helper; two findings go back, two are weighed as a limit by a measurement (2026-11-15T07:35:49-05:00)
 
@@ -34520,6 +36895,97 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Answers on waking (2026-11-15, written here at 10:53:13-05:00)
+
+The owner wrote "I've finished sleeping now and you can lift the CPU temp limits.",
+and then answered four questions through the question tool,
+between 10:46:27 and 10:48.
+
+- **The CPU temperature**:
+  "Leave lifted".
+  Nothing holds it.
+  It read 95.2 degrees a minute after the lift with a container gate going,
+  and 71.6 at 10:53:13 after the gate.
+  The night's record is in `doc/handover/claude-cpu-cap-and-thermal-watch.md`.
+- **The cap on agents**:
+  "Step to 20 with the probe (Recommended)".
+  Raised from 17 to 20 at 10:50:46,
+  with the eight-hour drive probe at that level;
+  two slow readings in a row drop it back by the recorded rule
+  (`doc/handover/agents-at-once-on-this-machine.md`).
+- **The rotation of the credentials shown to model providers**:
+  "Keep waiting for masking".
+  The answer of 2026-11-14 stands:
+  one rotation,
+  after the masking is merged and shown to hold.
+  The owner was told that three reviews reproduced 12,
+  then 10,
+  then 8 ways a value still gets through.
+- **A branch with findings still open**:
+  "Yes, tests too".
+  A branch of the wrapper goes into an integration pass while the only findings its reviews left open are in doc comments or in test code;
+  those are finished and reviewed afterwards,
+  in commits of their own.
+  Read narrowly by the coordinating session:
+  the code that is not a test has had a review that found no defect in it,
+  and new code that is not a test still has its review before a pass.
+  Asked about the wrapper only;
+  the driver,
+  mpm and cargo keep the earlier rule.
+
+### Answers on waking, second round (2026-11-15, written here at 11:00:01-05:00)
+
+Three more questions through the question tool,
+answered between 10:57:32 and 10:59.
+Two of them reverse what the coordinating session had adopted meanwhile and what the landed removal's branch builds at `5ca2149aea`.
+
+- **A shell alias and the guard on a worktree's removal**:
+  "Forward them unguarded".
+  Every `!` alias is passed to real Git as it is;
+  all aliases keep working with no opt-out;
+  a `git <alias>` that ends in a worktree removal is not guarded,
+  and the SPEC states that hole.
+  The option not taken was the branch's refusal of every `!` alias the wrapper cannot read.
+- **An ignored folder that is itself a repository with commits of its own**:
+  "Delete as ignored".
+  The decision of 2026-11-12
+  ("Delete ignored, spare busy")
+  stays literal:
+  the nested repository goes with the worktree and the deletion is logged.
+  The owner was told that a review had deleted the only copy of a commit this way.
+  The reading adopted at 08:06:19
+  (refuse with the opt-out)
+  is withdrawn.
+- **The briefing rule in `AGENTS.md`**:
+  "Name both folders (Recommended)".
+  Applied in `73ee82f26d`:
+  the rule now says to grep `doc/decision/` and `doc/planning/`,
+  and `CLAUDE.md` is regenerated by file-enforcer.
+
+### Answers on waking, third round (2026-11-15, written here at 11:07:00-05:00)
+
+Two questions through the question tool,
+about the guard on discarding commands
+(`checkout`,
+`reset --hard`,
+`clean`,
+`restore`),
+whose author had ended at 11:00:13 with `2f3e2785ed`.
+
+- **A shell alias in the discarding guard**:
+  "Same answer: forward (Recommended)".
+  This guard also passes every `!` alias to real Git as it is,
+  and the SPEC states the hole once for both guards.
+- **A forced `git clean` that would delete a nested repository**:
+  "Delete and log (Recommended)".
+  The clean deletes it as real Git does and the wrapper logs the command and what went;
+  no saved copy.
+  The owner was shown the three records that disagreed
+  (the answer of 2026-11-10 on a clean of ignored files,
+  the rule of 2026-11-12 that the wrapper moves nothing aside,
+  and the morning's answer on the worktree removal)
+  and the branch's save.
 
 ### Answers after the restart (2026-11-04)
 
