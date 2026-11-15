@@ -170,6 +170,8 @@ fn the_same_start_with_the_real_git_listens() {
     //  the fixture's own services put their sockets in.
     let runtime: PathBuf = short_runtime_directory(&fixture);
     let socket: PathBuf = runtime.join("real.sock");
+    let (kept_log, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+        kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log");
     let mut command = service_command();
     hermetic(&mut command, &fixture, std::ffi::OsStr::new("/usr/bin:/bin"));
     let mut child: Child = spawn_owned(
@@ -181,12 +183,17 @@ fn the_same_start_with_the_real_git_listens() {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             // The service says why it ended only on its own error stream, which a panic would lose with the fixture.
-            .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log"))),
+            .stderr(Stdio::from(kept_log)),
     )
     .expect("the service mode starts");
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
         let ended: Option<std::process::ExitStatus> = child.try_wait().expect("state");
+        if ended.is_some() {
+            // The service's own end closed its stream, so the copy of it ends; the message waits for that instead of
+            //  racing the thread that carries what it said.
+            let _waited: Result<(), std::sync::mpsc::RecvTimeoutError> = when_the_copy_ends.recv_timeout(super::support::SERVICE_LOG_END_BOUND);
+        }
         assert!(
             ended.is_none(),
             "the service ended ({ended:?}) before it listened at {}; {}",

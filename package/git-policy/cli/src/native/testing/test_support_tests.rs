@@ -395,3 +395,149 @@ fn restoring_the_owner_access_keeps_group_and_other_bits_and_leaves_a_link_s_tar
     assert_eq!(std::fs::metadata(&inside).expect("inside").permissions().mode() & 0o7777, 0o740, "only this user's read, write and search were added");
     assert_eq!(std::fs::metadata(&outside).expect("outside").permissions().mode() & 0o7777, 0o500, "a directory outside the tree a link names keeps its mode");
 }
+
+/// What:
+///  The folder a runtime directory stands in is the longest place this account offers that stays inside the room a
+///  control asks for:
+/// a limit of exactly its own length keeps that very place,
+/// byte for byte,
+/// and a limit one byte under it moves the folder to a shorter place.
+/// Why:
+///   A runtime directory of a fixed length leaves whatever is past its folder for its name,
+/// and how much that is depends on this account and this process:
+/// the gate's container leaves seven bytes under `$HOME/temp/agent` where eight were needed,
+/// so the control that failed there passed here.
+/// A folder chosen once and never shortened is that difference,
+/// so the shortening is what this holds,
+/// and the place that fits its limit to the byte is the half a `>` where `>=` belongs would refuse.
+#[test]
+fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is_there() {
+    let prefix: &str = "zc";
+    let longest_place: PathBuf = runtime_directory_parent(prefix, usize::MAX);
+    assert!(longest_place.is_dir(), "the longest place is made: {}", longest_place.display());
+    let room_it_takes: usize = longest_place.as_os_str().len();
+    let exact: PathBuf = runtime_directory_parent(prefix, room_it_takes);
+    assert_eq!(
+        exact.as_os_str(),
+        longest_place.as_os_str(),
+        "a limit of {room_it_takes} bytes keeps {}, the folder that fills it to the byte",
+        longest_place.display()
+    );
+    let shorter: PathBuf = runtime_directory_parent(prefix, room_it_takes - 1);
+    assert!(shorter.is_dir(), "the shorter place is made: {}", shorter.display());
+    assert!(
+        shorter.as_os_str().len() < room_it_takes,
+        "one byte less of room than {} has moves the runtime directory to {}, which is not shorter",
+        longest_place.display(),
+        shorter.display()
+    );
+    for place in [&longest_place, &shorter] {
+        std::fs::remove_dir(place.as_path()).expect("the place this control made");
+    }
+}
+
+/// What:
+///  A runtime directory is named for its tag where the room holds the tag and for a digest of it where it does not,
+///  and it stands in the folder it was given.
+/// Why:
+///   The name is what the fixed length is spent on,
+/// and a name shorter or longer than the room would put the directory off the boundary the controls are about:
+/// a control of the longest runtime directory a socket path carries would pass a byte early or fail a byte late.
+/// The two sides are read by the bytes each name is made of,
+/// never by a length the two can share:
+/// a tag that fills the room exactly is the tag's own bytes,
+/// and one byte less of room is the leading bytes of its digest.
+#[test]
+fn a_runtime_directory_is_named_for_its_tag_or_for_a_digest_of_it() {
+    let parent: PathBuf = runtime_directory_parent("zd", usize::MAX);
+    // A tag longer than a digest, so the room can be the tag's own length and, one byte under it, the digest's.
+    let tag: &str = "at-the-longest";
+    for (room, the_room_holds_the_tag) in [
+        (tag.len(), true),
+        (tag.len() - 1, false),
+        (room_a_runtime_name_needs(tag), false),
+    ] {
+        let length: usize = parent.as_os_str().len() + 1 + room;
+        let runtime: PathBuf = runtime_directory_under(parent.as_path(), length, tag);
+        assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
+        assert_eq!(runtime.parent(), Some(parent.as_path()), "the directory stands in the folder it was given");
+        let name: &OsStr = runtime.file_name().expect("a runtime directory has a name");
+        assert_eq!(name.len(), room, "the name fills the room the folder was asked for: {}", runtime.display());
+        if the_room_holds_the_tag {
+            assert_eq!(name, OsStr::new(tag), "a room of {room} bytes holds the tag, so the name is the tag's own bytes");
+        } else {
+            let digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
+            assert_eq!(
+                name.to_string_lossy().into_owned(),
+                String::from(digest.get(..room).expect("the digest is longer than the room")),
+                "a room of {room} bytes does not hold the tag, so the name is the leading bytes of its digest"
+            );
+            assert_ne!(name, OsStr::new(tag), "a room that does not hold the tag does not name the directory for it");
+        }
+    }
+    std::fs::remove_dir_all(parent.as_path()).expect("the folder this control made");
+}
+
+/// What:
+///  A runtime directory whose name has less room than the name needs is refused,
+/// naming the folder and the room.
+/// Why:
+///   The alternative is a control that builds a name the length cannot hold,
+/// which is what a truncated digest or a padded tag would be:
+/// a directory off the boundary proves nothing about the boundary,
+/// so the refusal has to be the answer rather than a name of the wrong length.
+#[test]
+#[should_panic(expected = "too little to name a control")]
+fn a_runtime_directory_with_no_room_for_its_name_is_refused() {
+    let parent: PathBuf = runtime_directory_parent("ze", usize::MAX);
+    let tag: &str = "longest";
+    let room: usize = room_a_runtime_name_needs(tag) - 1;
+    let _runtime: PathBuf = runtime_directory_under(parent.as_path(), parent.as_os_str().len() + 1 + room, tag);
+}
+
+/// What:
+///  A room no place this account offers can give is refused,
+/// naming how much room was needed and every place tried.
+/// Why:
+///   The refusal is what a person reads when a control cannot run where they are,
+/// and it has to say what to change rather than fail as a name that does not fit its own length.
+#[test]
+#[should_panic(expected = "no folder this account offers leaves room for a runtime directory's name")]
+fn a_folder_with_room_for_no_runtime_directory_name_is_refused_naming_every_place() {
+    // The shortest path a folder could have is the root, so nothing this account offers is this short.
+    let no_place_is_this_short: usize = Path::new("/").as_os_str().len();
+    let _parent: PathBuf = runtime_directory_parent("zn", no_place_is_this_short);
+}
+
+/// What:
+///  The folder a runtime directory was to stand in goes away when the test thread that made it ends,
+///  in the longest place this account offers and in the shorter one a tighter room moves it to.
+/// Why:
+///   The helper picks the folder from places this machine shares with other tests and with people,
+/// and the room a name needs decides which of them it picks:
+/// with a home directory of two hundred bytes the shortest is the session's runtime directory.
+/// Before this control,
+/// nineteen passing controls left `/r/temp/agent/ze1000007`,
+/// `pr1000028` and `sa1000013`
+/// behind,
+/// and the same under `$HOME/temp` and under `$XDG_RUNTIME_DIR`,
+/// so a passing control littered a place it shares and a later run could meet what it left.
+/// The folder is the owner of everything the helper puts in it,
+/// which is why the thread that made it is what this control holds to.
+#[test]
+fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<PathBuf>>();
+    std::thread::spawn(move || {
+        let mut made: Vec<PathBuf> = Vec::new();
+        let longest: PathBuf = runtime_directory_parent("zg", usize::MAX);
+        made.push(longest.clone());
+        // One byte less of room than the longest place takes moves the folder to the next place this account offers.
+        made.push(runtime_directory_parent("zg", longest.as_os_str().len() - 1));
+        sender.send(made).expect("the folders this thread made");
+    })
+    .join()
+    .expect("the thread ends");
+    for folder in receiver.try_iter().flatten() {
+        assert!(!folder.exists(), "{} was left behind in a place this machine shares", folder.display());
+    }
+}
