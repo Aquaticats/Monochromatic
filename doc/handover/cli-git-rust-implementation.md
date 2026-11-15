@@ -1594,6 +1594,43 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Tests that fail inside a suite and pass alone, which no run owned, get two fresh runs (2026-11-15T06:57:30-05:00)
+
+Not final and not approved:
+what the coordinating session queued,
+and why.
+
+- Four tests were named this night by passes and authors as failing inside a whole suite and passing alone,
+  with no run that owned them.
+  By the project's rule such a test is a contention or ordering defect until measured otherwise.
+  Two fresh runs from `main` are queued,
+  one thing each:
+  - the wrapper's two binary controls:
+    `child_bound::a_git_step_past_its_bound_fails_the_commit_and_names_the_class`
+    (pass 51:
+    failed in the suite after 27.0 s with the commit succeeding although steps were stopped,
+    passed alone in 7.5 s)
+    and `package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
+    (pass 50's second round:
+    the stand-in pnpm left no record,
+    passed alone).
+    The first may be the program's defect and not the test's,
+    which the run is asked to decide by a run
+    (`~/temp/agent/pi-runs/two-binary-controls-that-fail-inside-their-suite-and-pass-alone-have-their-cause-removed-prompt.md`,
+    queued fifteenth).
+  - the driver's two suites:
+    `drive-pi-subagent` and `watch-pi-run`,
+    each failing once at the default width with the machine busy
+    (`~/temp/agent/pi-runs/driver-suites-that-fail-inside-a-loaded-run-and-pass-alone-have-their-cause-removed-prompt.md`,
+    queued sixteenth).
+  Both are told to make a slow machine by cutting the CPU share of the test's own container or scope,
+  and by nothing else.
+- Still with no run of its own:
+  `bin/native-gate-main-tip.unit.test.ts`,
+  which builds a throwaway checkout through the installed wrapper and so fails with the session bus address unset;
+  cargo-shadow's two flaky tests.
+- The queue held 83 entries at 06:57:30.
+
 ##### The review brief writer for a change to tests alone is answered a sixth time and goes to review (2026-11-15T06:55:46-05:00)
 
 Not final and not approved:
