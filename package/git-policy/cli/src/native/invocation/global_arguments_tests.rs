@@ -10,7 +10,9 @@
 
 /// Import the actual parser and native argument/process types.
 use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout};
+use crate::git_version::{MINIMUM_GIT_VERSION, parse_git_version};
 use crate::global_arguments_pathspec_modes::without_pathspec_mode_options;
+use crate::test_support::REAL_GIT;
 use std::ffi::OsString;
 use std::process::Command;
 
@@ -143,21 +145,26 @@ fn unsupported_globals_do_not_gain_a_wrapper_interpretation() {
 }
 
 /// The selected native Git executable confirms representative query and error forms.
+///  The name records the release the boundary was measured against;
+/// the control states no release of its own:
+///  it reads the line the Git under test prints and asks whether that release is one the wrapper is tested with,
+/// so a newer Git in the gate's image passes here or says the wrapper has fallen behind it.
 #[test]
 fn native_git_256_controls_confirm_the_option_boundary() {
-    let version = Command::new("/usr/bin/git")
+    let version = Command::new(REAL_GIT)
         .arg("--version")
         .output()
         .expect("Git fixture");
     assert!(version.status.success());
-    assert_eq!(version.stdout, b"git version 2.56.0\n");
-    let query = Command::new("/usr/bin/git")
+    let release = parse_git_version(&version.stdout).expect("the Git under test names its release");
+    assert!(release >= MINIMUM_GIT_VERSION, "{:?}", String::from_utf8_lossy(&version.stdout));
+    let query = Command::new(REAL_GIT)
         .arg("--exec-path-extra")
         .output()
         .expect("native prefix query");
     assert!(query.status.success());
     for flag in ["-C/fixture", "--super-prefix", "--shallow-file=unused"] {
-        let rejected = Command::new("/usr/bin/git")
+        let rejected = Command::new(REAL_GIT)
             .args([flag, "status"])
             .output()
             .expect("native option error");

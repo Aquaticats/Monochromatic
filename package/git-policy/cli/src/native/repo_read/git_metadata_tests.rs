@@ -56,8 +56,11 @@ fn path_bytes_round_trip_without_decoding() {
 /// A successful query returns exact stdout bytes;
 ///  a failed one is an answer,
 ///  not an error.
+///  The version bytes expected here are the ones the Git under test printed when this control asked it directly,
+/// so no release is stated and a newer Git moves both sides together.
 #[test]
 fn queries_capture_output_and_exit_state() {
+    let asked_directly: std::process::Output = std::process::Command::new(REAL_GIT).arg("--version").output().expect("Git starts");
     let version: MetadataOutput =
         run_metadata_git(Path::new(REAL_GIT), &[OsString::from("--version")], &[])
             .expect("Git starts");
@@ -66,7 +69,7 @@ fn queries_capture_output_and_exit_state() {
         MetadataOutput {
             success: true,
             code: Some(0),
-            stdout: b"git version 2.56.0\n".to_vec(),
+            stdout: asked_directly.stdout,
             stderr: Vec::<u8>::new(),
         }
     );

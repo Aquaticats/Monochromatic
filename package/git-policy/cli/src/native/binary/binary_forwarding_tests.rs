@@ -58,9 +58,12 @@ fn text_arguments(values: &[&str]) -> Vec<OsString> {
     return result;
 }
 
-/// `git --version` through a `git`-named link prints real Git 2.56.0's line,
+/// `git --version` through a `git`-named link prints the line the Git under test prints,
 ///  then exactly one banner line naming the wrapper,
 /// its version and the Git it shadows.
+///  The control states no release:
+/// the expected bytes are the ones `direct` got from that Git in this run,
+/// so a newer Git in the gate's image moves both sides together.
 #[test]
 fn version_is_gits_line_followed_by_the_banner() {
     let fixture: Fixture = fixture("version");
@@ -70,7 +73,12 @@ fn version_is_gits_line_followed_by_the_banner() {
         text_arguments(&["--version"]).as_slice(),
         b"",
     );
-    assert_eq!(through_git.stdout, b"git version 2.56.0\n");
+    // The direct run is a Git's version line and nothing else, or the comparison below would pass on anything.
+    assert!(
+        through_git.stdout.starts_with(b"git version ") && through_git.stdout.ends_with(b"\n"),
+        "{:?}",
+        String::from_utf8_lossy(&through_git.stdout)
+    );
     assert_eq!(through_git.code, Some(0));
     let mut expected: Vec<u8> = through_git.stdout.clone();
     expected.extend_from_slice(

@@ -13,12 +13,12 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(run(join(fixture, 'bin/git'), ['--version'], { PATH: wrappersThenGit }).stdout).toBe('git version 2.56.0\n');
+//! // expect(run(join(fixture, 'bin/git'), ['--version'], { PATH: wrappersThenGit }).stdout).toBe(gitVersionLine() + banner);
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{
-    Fixture, Observed, TIMED_OUT_SIGNAL, bounded, bounded_for, copy_executable, direct, executable,
+    Fixture, Observed, REAL_GIT, TIMED_OUT_SIGNAL, bounded, bounded_for, copy_executable, direct, executable,
     fixture, link_real_git, observe, remove,
 };
 use std::ffi::OsString;
@@ -42,11 +42,19 @@ fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
     return path;
 }
 
-/// Assert that standard output is Git 2.56.0's version line followed by exactly one banner line.
+/// The line the Git under test prints for `--version`, which is the first line the wrapper passes on.
+fn git_version_line() -> String {
+    let output: std::process::Output = Command::new(REAL_GIT).arg("--version").output().expect("Git starts");
+    assert!(output.status.success(), "{REAL_GIT} --version answered nothing");
+    return String::from_utf8(output.stdout).expect("Git's version line is text");
+}
+
+/// Assert that standard output is the Git under test's own version line followed by exactly one banner line.
 fn assert_banner_follows_git_line(stdout: &[u8]) {
     let text: String = String::from_utf8_lossy(stdout).into_owned();
+    let version: String = git_version_line();
     let banner: &str = text
-        .strip_prefix("git version 2.56.0\n")
+        .strip_prefix(version.as_str())
         .expect("Git's version line comes first");
     assert!(
         banner.starts_with(concat!("monochromatic-git-policy-cli ", env!("CARGO_PKG_VERSION"), ", shadowing git at /")),
