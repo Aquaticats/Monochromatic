@@ -1455,6 +1455,79 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal's guard and the landing that never waits answer and go to review; a control that fails only inside the suite gets a run of its own (2026-11-15T01:39:06-05:00)
+
+Not final and not approved:
+what two runs report,
+by the part of each report read here,
+and what the coordinating session queued.
+
+- **The landed removal's guard**,
+  its author's eleventh run,
+  ended 01:33:40 at `8858f843ee`.
+  The review's three findings answered:
+  a reference is peeled through every tag,
+  with a tree,
+  blob or unpeeled tag kept and said so;
+  only a missing record is no record,
+  and any other failure to read one stops the removal naming it;
+  an unreadable registration fails closed for a removal.
+  It states the rule it now holds on the whole of the guard's path
+  (a read succeeds,
+  or `NotFound` alone says the thing is not there,
+  or the removal stops)
+  and names the two lenient reads it kept,
+  with why neither can change a decision.
+  The three review scripts reproduce again with the fixes planted out;
+  19 of 19 controls pass at four CPUs.
+  Cost:
+  +1.3 ms paired against a spread of 1.7 ms;
+  the common-log read is skipped when the references answer,
+  996 ms against 35 ms on a fixture with a 27.6 MB `logs` tree.
+  Its review is queued second
+  (`main...8858f843ee`,
+  twenty code files that are not tests).
+  Integration pass 41 waits on it.
+- **The landing that never waits**,
+  the fresh run from `de9bb8c909`,
+  ended 01:33:45 at `fc620ef950`.
+  A control for each finding,
+  each quoted failing;
+  it reports that the earlier agent's fix for the first finding did not fix it,
+  and that the earlier control for the fifth passed with the fix out and was rewritten.
+  The guard on blocking code was red on one thread start and got an allowed entry with its removal condition;
+  it counts 67 allowed entries,
+  19 of which name what removes them.
+  `main` merged at `5729029e19`
+  (the tree of `0.6.1-alpha.36`),
+  two conflicts resolved and described.
+  Cost against the tip it started from:
+  ratios 1.00 and 0.98 over two interleaved blocks.
+  Its review is queued third
+  (`main...fc620ef950`,
+  34 code files that are not tests).
+  Integration passes 29 and 34 wait on it;
+  its tree is two passes behind `main`
+  (48 changed the slow lane,
+  49 the lock words),
+  which the pass that carries it merges.
+- **A control that fails only inside the suite**:
+  the landing's run met `a_snapshot_made_before_the_record_is_not_proved`
+  (`worktree_copying/worktree_copy_stage_snapshot_origin_tests.rs`)
+  failing in the whole suite and passing alone three times,
+  the second agent to report it,
+  and no run had it.
+  A fresh run is queued for its measured cause
+  (`~/temp/agent/pi-runs/snapshot-origin-control-that-fails-only-inside-the-suite-has-its-cause-found-prompt.md`).
+- Read at 01:37:55:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 78 entries at 01:39:06.
+  The release workflow of `0.6.1-alpha.38` had not answered yet.
+
 ##### Integration pass 49 is in `main` and `0.6.1-alpha.38` is dispatched: a command names only the locks its own worktree meets (2026-11-15T01:30:55-05:00)
 
 Not final and not approved:
