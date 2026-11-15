@@ -1113,12 +1113,21 @@ before deleting anything,
 so a run killed halfway leaves a marker the next install finishes,
 and it removes for at most two seconds per pass,
 so an install never waits on a long deletion.
+The cleanup's work limit is looked at between the versions of the inventory and between the steps of a removal;
+the
+two calls it cannot cut are one version's size walk and one directory's delete,
+and the doc says what each leaves.
 Before it moves a version aside it compares what it moved with the version it judged,
 so a version another command publishes at that name while the pass runs is put back and kept;
 the name it moves the version to carries that version and the process that took it,
 number and start time,
 so a run killed there is given the version back by the next pass
 and a process that got the dead run's number cannot hold it.
+A version's downloads directory has an owner while an install writes into it:
+the install creates its owner file with an exclusive create before its first byte,
+a removal takes its own claim the same way before it judges anything,
+and each looks for the other's name afterwards,
+so one of the two always backs off and no archive of an install in progress is taken.
 An install that is downloading or unpacking a version's archives keeps them:
 a file written inside the hour before is an install's own,
 and the archives of a version this root no longer has are removed once nothing has touched them for that long.

@@ -11,7 +11,8 @@
 //! and the remover takes the right to remove before it judges anything:
 //! the install creates its owner file with `create_new` and then looks for the remover's claim,
 //! and the remover creates its claim with `create_new` and then looks for a live owner.
-//! Two creates are ordered in real time, so at least one of the two sees the other and backs off,
+//! Two creates are ordered in real time,
+//! so at least one of the two sees the other and backs off,
 //! and neither writes or deletes under the other.
 //!
 //! In TS you'd write (pseudocode):
@@ -49,7 +50,8 @@ const OWNER_PREFIX: &str = ".mpm-shadow-downloading.";
 /// which sits beside the version's directory so it can be created before the directory is looked at.
 const REMOVAL_SUFFIX: &str = ".download-removal";
 
-/// How long an install waits for a removal claim to go before it gives up: two seconds.
+/// How long an install waits for a removal claim to go before it gives up:
+/// two seconds.
 /// Why:
 /// A removal of one downloads directory takes milliseconds,
 /// so a claim that is still there after two seconds belongs to a command that is not finishing;
@@ -82,7 +84,9 @@ impl DownloadsOwner {
     /// The owner file says which process is writing there,
     /// and a remover that takes its claim first sees it and leaves the directory alone.
     /// A removal claim that is already there means another command is removing these archives:
-    /// the install waits for it, up to `OWNERSHIP_WAIT`, and then refuses rather than writing under it.
+    /// the install waits for it,
+    /// up to `OWNERSHIP_WAIT`,
+    /// and then refuses rather than writing under it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -125,8 +129,13 @@ impl DownloadsOwner {
     }
 }
 
-/// Drops this install's ownership: the owner file goes, and a removal may take the directory.
+/// Drops this install's ownership:
+/// the owner file goes,
+/// and a removal may take the directory.
 impl Drop for DownloadsOwner {
+    /// Gives this install's ownership up:
+    /// the owner file goes,
+    /// and a removal may take the directory from the next moment.
     fn drop(&mut self) {
         // Best effort: an owner file that cannot be removed names a process that has ended, and a remover ignores it.
         let _ = fs::remove_file(&self.owner);
@@ -136,8 +145,12 @@ impl Drop for DownloadsOwner {
 /// What a removal found when it asked for the right to remove one version's downloads.
 #[derive(Debug)]
 pub enum RemovalRight {
-    /// This call holds the right, until the value is dropped.
-    Held(RemovalClaim),
+    /// This call holds the right until the value is dropped.
+    Held {
+        /// The claim that holds it:
+        /// dropping the claim is what gives the right up.
+        claim: RemovalClaim,
+    },
     /// Another command holds the right.
     Taken,
     /// There is no downloads directory at that name.
@@ -153,12 +166,16 @@ pub enum RemovalRight {
 #[derive(Debug)]
 pub struct RemovalClaim {
     /// The claim file this call wrote;
-    /// removed when the value is dropped.
+    /// removed when the value is dropped,
+    /// which is what lets an install take the directory again.
     path: PathBuf,
 }
 
-/// Drops the removal claim: an install may take the directory again.
+/// Drops the removal claim:
+/// an install may take the directory again.
 impl Drop for RemovalClaim {
+    /// Gives the right to remove up:
+    /// an install that was waiting for it may take the directory from the next moment.
     fn drop(&mut self) {
         // Best effort: a claim that stays keeps installs out of one directory until the next pass looks at it.
         let _ = fs::remove_file(&self.path);
@@ -194,7 +211,7 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
     match OpenOptions::new().write(true).create_new(true).open(&claim) {
         Ok(file) => {
             drop(file);
-            return Ok(RemovalRight::Held(RemovalClaim { path: claim }));
+            return Ok(RemovalRight::Held { claim: RemovalClaim { path: claim } });
         }
         Err(error) if error.kind() == ErrorKind::AlreadyExists => return Ok(RemovalRight::Taken),
         Err(error) => {
@@ -210,7 +227,8 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
 /// The remover has the right to remove by the time it asks,
 /// so an owner file it finds is one whose install started before that right was taken;
 /// a live one means the install is still using the archives,
-/// and a dead one is what a killed install leaves, which keeps nothing.
+/// and a dead one is what a killed install leaves,
+/// which keeps nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

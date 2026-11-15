@@ -262,7 +262,7 @@ pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Resul
         RemovalRight::Absent => return Ok(()),
         // Another command holds the right: it is removing these archives, and this one has nothing to add.
         RemovalRight::Taken => return Ok(()),
-        RemovalRight::Held(claim) => claim,
+        RemovalRight::Held { claim } => claim,
     };
     if live_owner(&directory).is_some() {
         // What: an install that wrote its owner file before this claim is using the archives, so they stay.

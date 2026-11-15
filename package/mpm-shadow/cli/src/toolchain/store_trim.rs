@@ -689,14 +689,17 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
 /// Why:
 /// A pass that ran out of its time is not a version that was kept for a reason about the version,
 /// and the report has to tell them apart:
-/// one is work for the next install, the other says what about the version keeps it.
+/// one is work for the next install,
+/// the other says what about the version keeps it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Removal {
-    /// The version went, and gave back this many bytes.
+    /// The version went,
+    /// and gave back this many bytes.
     Removed(u64),
     /// Nothing stood at its name any more.
     Gone,
-    /// The version stayed, for this reason.
+    /// The version stayed,
+    /// for this reason.
     Kept(String),
     /// The pass's time ran out with the version still in place.
     Deferred,
@@ -781,7 +784,7 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
             Ok(RemovalRight::Taken) => {
                 return Removal::Kept("another command is removing its archives right now".to_string());
             }
-            Ok(RemovalRight::Held(claim)) => {
+            Ok(RemovalRight::Held { claim }) => {
                 if live_owner(downloads).is_some() {
                     return Removal::Kept("an install owns its downloads and is unpacking them".to_string());
                 }
@@ -1193,10 +1196,13 @@ pub fn settle_markers(roots: &[PathBuf], tools: &BTreeSet<String>, unfinished: &
 }
 
 /// What:
-/// Whether any claim of a removal sits under this root, whatever its maker is doing.
+/// Whether any claim of a removal sits under this root,
+/// whatever its maker is doing.
 /// Why:
-/// A claim is a version taken out of its name, and until it is given back or deleted the work it belongs to is not
-/// done; the marker is what makes a later sync look.
+/// A claim is a version taken out of its name,
+/// and until it is given back or deleted the work it belongs to is not
+/// done;
+/// the marker is what makes a later sync look.
 fn has_claimed_versions(root: &Path, tools: &BTreeSet<String>) -> bool {
     for tool in tools {
         let Ok(entries) = fs::read_dir(root.join(tool)) else {

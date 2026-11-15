@@ -193,6 +193,11 @@ which no scan lists as a version,
 and a `.mpm-shadow-removal-unfinished` file in the store root.
 The next install runs the pass because of that file and finishes the deletion,
 printing one line saying it did.
+That marker goes only when nothing under the root is a removal in progress,
+alive or dead:
+a claim under it names work that is not done,
+and a second sync that cleared the marker while a live removal held a claim would leave the version hidden for good,
+because a later sync that installs nothing has nothing to run for.
 The claimed name exists so that only a copy this run has compared is ever at a name the recovery deletes.
 
 ## What it says
@@ -226,13 +231,26 @@ Each is set in the environment and has the shipped default when unset.
   `90m`
   and `3600` all read as seconds.
 - `MPM_SHADOW_STORE_WORK_LIMIT`:
-  how long one pass may spend removing,
+  how long one pass may spend on the store,
   two seconds.
   Sized from the deletion measurement:
   at 30 microseconds per file it removes about 66 000 files,
   more than any single version the stores hold,
   so an install never waits on a long deletion and later installs finish the rest.
   `5s` and `500ms` both read.
+  What it bounds in fact:
+  the inventory looks at the deadline between one tool and the next and between one version and the next,
+  and a removal looks at it before each step that moves something,
+  restoring what it moved when the deadline passes;
+  a pass that runs out says so and leaves the rest for the next install.
+  Two calls cannot be cut in the middle and are outside it:
+  one version's size walk,
+  because a size half counted is a number the bound would be compared with wrongly,
+  and one directory's recursive delete,
+  because a delete cut in half leaves half a version.
+  The first leaves nothing behind;
+  the second leaves its `.mpm-shadow-removing.*` tombstone and the root's marker,
+  which the next pass finishes (`finish_removals`).
 
 ## The other removals an install makes
 
@@ -265,6 +283,10 @@ so a version in use is not taken away by one rule and kept by another.
   A root that keeps a version because a process runs it ends with its `current` link naming that version,
   never one this run removed,
   and only a root that keeps no finished version forwards its link to the other root.
+  The link is settled before any version goes,
+  and a link this run could not settle keeps every copy it names:
+  the copies are what it points into,
+  so a link left naming a deleted version is a link that resolves to nothing.
 - `prune --toolchain` deletes the versions no known lock names (see the package README).
   It keeps a version a running process of this user uses,
   and a process table it cannot read refuses the command instead of deleting anything.
@@ -289,6 +311,39 @@ Any other failure is still reported,
 with the directory named and,
 for a recursive removal,
 that part of it may be gone.
+
+## Who owns an install's downloads
+
+An install downloads an archive into a version's `downloads` directory and then unpacks it,
+and a removal that looked at that directory and then deleted it could take the archive from an install that started in
+between:
+a check and then a delete cannot be made to hold,
+because the answer changes between the two steps.
+So the directory has an owner,
+and both sides take their right with an exclusive create:
+
+- the install writes `.mpm-shadow-downloading.<process id>.<process start time>` inside the directory with
+  `create_new` before its first byte,
+  and then looks for the removal's claim;
+- a remover writes `.<version>.download-removal` beside the directory with `create_new` before it judges anything,
+  and
+  then looks for a live owner.
+
+Two creates are ordered in real time,
+so one of the two always sees the other and backs off:
+an install that finds a claim waits for the removal,
+up to two seconds,
+and then refuses rather than writing under it,
+and a remover that finds a live owner leaves the directory and names it.
+An owner file whose process has ended is what a killed install leaves and keeps nothing.
+The owner file goes when the install has finished unpacking,
+so the archive is the store's again from then on.
+
+The age floor above still decides for an install of a release from before this rule,
+which writes no owner file:
+that is why a directory whose files are all young is kept whoever owns it.
+The check and the delete are still two steps for such a release,
+which is the one case this package cannot close.
 
 ## The archives of versions that are gone
 
@@ -334,11 +389,17 @@ and running out of one is said rather than hidden.
   a program still running at its bound is stopped and the command reports that it was,
   naming the program,
   the bound and what it had printed.
-  The stop reaches the program the runner started,
-  not the children that program started itself:
-  a program that leaves a background child behind keeps it,
-  and the runner stops waiting on the child's output half a second after the program is gone,
-  which is what keeps such a program from holding the install.
+  The stop is whole:
+  the program is started in a process group of its own,
+  the runner records the program's tree from `/proc` before it signals,
+  and then kills the group and every process of that tree,
+  so a child that started its own children does not go on writing into the install beside the retry.
+  A descendant that left both the group and its parent chain before the stop (a double fork that was reparented) is
+  beyond reach,
+  and the failure names what is still running rather than promising silence.
+  The wait for the captured output ends half a second after the program is gone,
+  so a pipe another process holds does
+  not hold the command.
   What an install loses when one of its own install steps is stopped is the version directory that step was writing:
   this pass keeps it because it is recent,
   and the next install replaces it.

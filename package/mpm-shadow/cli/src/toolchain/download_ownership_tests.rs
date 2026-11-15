@@ -12,17 +12,20 @@ use super::download_ownership::{DownloadsOwner, RemovalRight, live_owner, take_r
 /// Imports `downloads_of` from `super::store_versions`,
 /// which names the directory these rights are about.
 use super::store_versions::downloads_of;
-/// Imports the archive removal, which is the removal that used to take a directory an install was writing in.
+/// Imports the archive removal,
+/// which is the removal that used to take a directory an install was writing in.
 use super::published_archive::remove_downloads;
 use crate::test_scratch::scratch;
 
 /// What:
 /// An install that owns a version's downloads keeps them from the removal that would delete them,
-/// and the archive is still readable afterwards, which is what the install does next.
+/// and the archive is still readable afterwards,
+/// which is what the install does next.
 /// Why:
 /// The review of this change found the in-use check and the recursive delete were a check and then a delete:
 /// an install that wrote its archive after the check lost it and failed.
-/// The ownership is taken before the install's first byte and seen by the removal, so there is no instant between a
+/// The ownership is taken before the install's first byte and seen by the removal,
+/// so there is no instant between a
 /// check and a delete in which an install can start.
 #[test]
 fn an_install_that_owns_its_downloads_keeps_them() {
@@ -52,7 +55,8 @@ fn an_install_that_owns_its_downloads_keeps_them() {
 
 /// What:
 /// An install that starts while a removal holds the right to its downloads does not write under it:
-/// it waits for the removal, and if the right is still held when its wait ends it refuses and writes nothing.
+/// it waits for the removal,
+/// and if the right is still held when its wait ends it refuses and writes nothing.
 /// Why:
 /// The other half of the same rule:
 /// a removal takes the right before it judges the directory,
@@ -66,7 +70,7 @@ fn an_install_does_not_write_under_a_removal_that_holds_the_right() {
     fs::create_dir_all(&downloads).expect("make the downloads directory");
     fs::write(downloads.join("old-archive.tar.gz"), b"old").expect("write an old archive");
     let right: RemovalRight = take_removal_right(&root, "bin", "0.29.4").expect("ask for the right");
-    let RemovalRight::Held(claim) = right else {
+    let RemovalRight::Held { claim } = right else {
         panic!("the removal did not get the right to a directory nobody else holds");
     };
 
