@@ -1032,7 +1032,7 @@ the launcher that builds the session's environment asks it, once, before it make
   A name the file system cannot hold with a prefix is not kept as a file:
   a component may be 255 bytes, so `.failed-<name>` carries names up to 247 bytes,
   `.orphaned-<name>` up to 245,
-  and the numbered `.failed-<name>.<n>` one byte less for each digit of the number;
+  and the numbered `.failed-<name>.<n>` two bytes less for a one-digit number and one more for each digit after it;
   a longer message stays under its claim, where its own name reads it, and is named in the summary.
   A message that is a folder cannot be linked or copied as a file, and stays under its claim the same way.
   A message Pi refuses because it has begun a turn is not a refusal of the message:
