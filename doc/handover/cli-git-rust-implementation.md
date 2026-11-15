@@ -1490,6 +1490,72 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### This session's queue stood still for nine minutes on one entry and is moving again; the drive's stalls ended with the snapshot cleanup (2026-11-15T02:23:19-05:00)
+
+Not final and not approved:
+an error of this session's tooling,
+what was done about it,
+and what the probe shows.
+
+- **The queue stood still from 02:12:19 to 02:21:55.**
+  The entry at its head was the review of the long-runtime-directory branch
+  (`main...a7f7bfd1df`).
+  The package's command that writes a review's brief answered "nothing to review under package/git-policy/cli/src/native",
+  since it reads that range's one file there as a test;
+  this session's queueing script had counted that file as code and let the entry in.
+  The starter threw,
+  left the entry at the head,
+  and failed the same way every round:
+  four rounds by the unit's journal
+  (02:12:19,
+  02:14:53,
+  02:17:27,
+  02:20:02).
+  Nothing started in that time and the count of runs fell from 17 to 12.
+  It was found at 02:21 when this session looked at why the count was under the cap,
+  not by any check.
+- **Done**:
+  the entry was taken out at 02:21:55 and runs started again
+  (14 going at 02:23:19).
+  The starter now takes an entry whose brief cannot be written out of the queue,
+  keeps it whole with the command's words in
+  `keep/entries-taken-out-of-the-queue-because-their-brief-could-not-be-written.jsonl`,
+  and ends with status 0,
+  the reason written at the line;
+  the edited script was checked to parse and its new branch has not run yet.
+  The branch's review is written by hand,
+  as for the other change with no code file that is not a test
+  (`~/temp/agent/change-reviews/git-policy-cli-long-runtime-directory-controls-in-the-gate-container-a-change-to-test-support-and-the-image/brief.md`,
+  queued second).
+  Each round's checks now include whether the filling unit wrote "a start failed" since the round before.
+- **Two scripts of this session disagree on what a test is**,
+  the queueing check and the package's writer,
+  and a third,
+  the brief writer for every kind of code file,
+  is in review to settle it in the package.
+  Until that is in `main`,
+  the starter's new branch keeps a disagreement from stopping the queue.
+- **The stalls ended with the snapshot cleanup**,
+  as on the night before.
+  `snapper-cleanup.service` ended at 01:45:02.
+  At level 17 before that,
+  from 01:00:46:
+  43 readings,
+  ten a second or more on either drive.
+  After it,
+  to 02:23:05:
+  39 readings,
+  none a second or more,
+  the slowest 116 ms,
+  with 12 to 17 agents,
+  a container gate and the daily update running.
+  The cap stays at 17;
+  whether it goes back up is the question already kept for the owner,
+  and this is evidence for it
+  (`doc/handover/agents-at-once-on-this-machine.md`,
+  "The stalls end with the snapshot cleanup, again").
+- The queue held 84 entries at 02:23:19.
+
 ##### The gate on `main` after the daily update fails 22, none of them new; the landed removal's guard and the lock-holders folder go back to their authors (2026-11-15T02:18:48-05:00)
 
 Not final and not approved:
