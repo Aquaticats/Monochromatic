@@ -1475,6 +1475,101 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `main` after the daily update fails 22, none of them new; the landed removal's guard and the lock-holders folder go back to their authors (2026-11-15T02:18:48-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read,
+weighed and queued.
+
+- **The gate on `7edb782568`**,
+  `main` with the daily update's toolchain and dependency locks,
+  started 02:00:13,
+  log written until 02:17:23:
+  `9113 tests run: 9091 passed (6 slow), 22 failed, 28 skipped`,
+  690 s.
+  Its log shows `Compiling zbus v6.3.0`;
+  which compiler the image used was not read from the log.
+  The 22 are the 21 that failed in each of the four gates before,
+  and `owed_push`.
+  `worktree::worktree_process_inside::…a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table`,
+  which failed in the gate on `0.6.1-alpha.38`,
+  passed here.
+  So one gate shows no failure that the update brought,
+  and Clippy of the three packages is clean on that tree.
+- **The landed removal's guard** (`8858f843ee`),
+  its seventh review,
+  ended 02:12:47,
+  twenty of twenty files,
+  four things reproduced against a build of the tip,
+  each beside a control:
+  a `!git worktree remove` alias goes past the guard of a typed removal and deletes a hidden edit;
+  a hidden edit in a nested worktree is never asked about,
+  on both routes;
+  a detached `HEAD` in capital hexadecimal is dropped from the stranded commits and its object is collected;
+  a relative `-C` makes the guard's own query fail,
+  so a removal real Git performs is refused.
+  All weighed as worth their fix;
+  none is in what the last round changed.
+  Two rules are asked for,
+  each with every place checked against it:
+  the guard judges the command Git will run,
+  in the directory it runs in;
+  and every question the guard asks is asked of everything the removal takes.
+  The author is resumed,
+  its twelfth run
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-seventh-review-of-2026-11-15-prompt.md`,
+  queued sixth).
+  Integration pass 41 still waits on it.
+- **The lock-holders folder** (`4e9b9fff1d`),
+  its second review,
+  ended 02:14:45,
+  ten of ten files,
+  four things,
+  three by a script with a control beside it:
+  with `GIT_COMMON_DIR` set the record is written under one Git directory and read under another;
+  an index lock outside the Git directory
+  (`GIT_INDEX_FILE`)
+  is not walked and its record is thrown away as unused;
+  a record at place 513 of the folder is not read,
+  and the lock it proves stands.
+  The fourth by reading:
+  a Git the wrapper runs under a ceiling is never recorded,
+  so the lock it leaves when killed has no proof.
+  All weighed as worth their fix:
+  each ends in a commit that fails with `File exists`.
+  The author is resumed and asked for one answer to where a Git writes its locks,
+  taken from the same environment Git reads,
+  that the writer,
+  the walk and the removal of records all use
+  (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued seventh).
+  Its merge with pass 49,
+  which changed two of the same files,
+  is asked to be described.
+- **The review-brief writer for a change to tests alone**,
+  its author's sixth run,
+  ended 02:16:22 at `a81284aa26`.
+  Both findings answered:
+  a status is kept per branch asked for,
+  and two branches of one change name in one batch are refused;
+  a brief's code span is closed by more backticks than the path holds,
+  proved over every byte through real Git and `bash`.
+  It notes that two branches of one change name in separate batches still share a folder.
+  197 unit tests pass.
+  Its review is queued second
+  (`main...a81284aa26`,
+  twelve code files that are not tests).
+- Read at 02:17:02:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  12 runs going,
+  five under the cap of 17
+  (the filling unit starts about one run a round).
+  Neither resumed session is named by the credential scan.
+  The queue held 86 entries at 02:18:48.
+
 ##### Three branches answer and go to review: the driver's empty last answer, the controls of a refused service start, and the review brief's template; Clippy is clean on `main` after the daily update (2026-11-15T02:12:39-05:00)
 
 Not final and not approved:
