@@ -97,6 +97,10 @@ pub fn clearance_line(clearance: &Clearance) -> String {
 ///  what is known about the holder,
 ///  and the one action that clears it.
 ///  A lock whose record proves its writer gone is cleared and never reaches this line.
+///  The caller asks about the locks of the worktree its command runs in and of the shared common directory,
+///  because another linked worktree's administrative directory is that worktree's own state:
+///  its own commands meet that lock,
+///  and a command of a different worktree neither waits for it nor names it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
