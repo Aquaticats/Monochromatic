@@ -31,6 +31,12 @@ use std::path::Path;
 /// Why:
 ///   The note is the only record of which process served it,
 /// and the birth identity is what keeps a reused number from being read as it.
+/// A note that is not there is the same answer:
+/// a service claims the instance before it binds,
+/// removes its note only as it ends,
+/// and a killed service's note stays and names no process,
+/// so a missing note names no process that can still write the journal this answer guards
+/// (the sixth review of issue 6293, finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

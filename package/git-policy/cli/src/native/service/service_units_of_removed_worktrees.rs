@@ -525,15 +525,23 @@ fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
     return journal.display().to_string();
 }
 
-/// Removes the socket file and the note of one instance this process serves,
-/// after the pushes it kept for a repository that is gone have ended.
+/// What:
+///  Removes the socket file of one instance this process serves,
+///  and keeps its note until this process has ended.
+/// Why:
+///   The note is the one fact a sweep can read to know a service is still a writer:
+///   it names this process, and a process cannot remove its own note after it can no longer write.
+///   Removing the note here, while the serving function had not returned and its after-commit task could still write a watch,
+///   a retry plan or a record, made the sweep read the instance as stopped and delete its journal under it
+///   (the sixth review of issue 6293, finding 2).
+///   The address stops answering, which is what a service of a gone worktree owes;
+///   the note goes with this process's own end (`service_main.rs`, `OwnFiles::remove`, by identity),
+///   and a killed service's note outlives it and names no process, which is the answer `service_is_gone_after_a_stop.rs` acts on.
 fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
-    let directory: PathBuf = folders.runtime_dir.join(SOCKET_DIRECTORY);
     // The address is a socket file or an abstract name; a name has no file to remove and goes with the process that held it.
     if let Bind::Path(socket) = socket_address_of(folders.runtime_dir, instance) {
         let _removed = std::fs::remove_file(socket);
     }
-    remove_pid_note(pid_note_path(directory.as_path(), instance).as_path());
 }
 
 /// What:
@@ -550,9 +558,8 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
 /// so the service asks itself:
 /// when it starts,
 /// and while it serves (`service_server.rs`).
-/// It removes its own socket file and its own note,
-/// which is what it can do from inside itself,
-/// and the sweep removes the journal after this process has ended.
+/// It removes its own socket file and keeps its note while it can still write,
+/// and the sweep removes the journal and the note after this process has ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
