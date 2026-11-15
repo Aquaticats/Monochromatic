@@ -1958,13 +1958,60 @@ records no fan speed),
 and dropping fan
 columns (loses the link between a temperature change and a fan speed change).
 
-### CPU held under 80 degrees while the owner sleeps (asked 2026-11-15T04:51-05:00, open until the owner says they are awake)
+### CPU held under 80 degrees while the owner sleeps (asked 2026-11-15T04:51-05:00, ended 2026-11-15T10:45:27-05:00 on the owner's word)
 
 Not final and not approved:
 an instruction of the owner's,
 what the coordinating session of the cli-git work did for it,
 and what it measured.
-It is a stopgap for one night and changes no decision recorded under "User decisions".
+It was a stopgap for one night and changes no decision recorded under "User decisions".
+
+- **Ended**:
+  the owner wrote "I've finished sleeping now and you can lift the CPU temp limits."
+  Both levers are undone.
+  The controller's unit was stopped at 10:45:15 and answers `inactive`;
+  read back at 10:45:16,
+  `cpu.max` of `app.slice`,
+  `background.slice` and every other top-level group reads `max`,
+  and `piwork3285273.slice` reads its own `200000 100000`.
+  The power profile read `power-saver`,
+  was set to `balanced`,
+  and reads `balanced` at 10:45:27.
+- **The night in numbers**,
+  from the 5,257 samples of 04:54:27 to 10:45:13:
+  the highest reading of all is 84.0 degrees at 05:04:54,
+  one of four samples at or over 80,
+  all before the power profile was switched.
+  From 05:06:20 to the end,
+  5,078 samples:
+  the highest is 66.0 degrees at 05:10:54,
+  none at or over 70.
+  Four container gates
+  (the last still going at the end)
+  and four releases' installs ran in that time.
+- **What this says for another night**:
+  the profile did the holding,
+  and the budget alone had not.
+  After the switch the budget stood at its full 32 threads in 4,645 of the 5,078 samples,
+  the last one under it at 05:35:11,
+  and the work's use came within a twentieth of the budget in 12 samples.
+- **After the end**:
+  one reading of `sensors` at 10:46:08,
+  41 seconds after the profile went back to `balanced`,
+  with 17 agent runs and a container gate going:
+  Tctl 94.8,
+  Tccd1 91.2,
+  Tccd2 86.1.
+  The reading before the night's limit,
+  at 04:51,
+  was Tctl 85.9.
+  Nothing holds the temperature now,
+  as the owner asked.
+- **What was kept**:
+  the samples,
+  `~/temp/agent/cpu-temperature-kept-under-80-degrees-while-the-owner-sleeps-2026-11-15/keep/samples-of-the-temperature-and-the-budget.csv`.
+  The controller's and the watcher's scripts were deleted with their folder's other entries;
+  what the controller did is described in this section.
 
 - **The owner's words**:
   "I need to go to sleep for a few hours.
