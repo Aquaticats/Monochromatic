@@ -25,7 +25,7 @@ use std::time::Duration;
 
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
 
-use crate::contain_counterexample_tests::wait_for_file;
+use crate::contain_counterexample_tests::{read_pid, wait_for_file};
 use crate::constants::INSTALL_FAILED_EXIT_CODE;
 use crate::control_group::{StartOf, missing_entry_verdict};
 use crate::crates::LockSnapshot;
@@ -194,8 +194,13 @@ fn wrapper_held_between_launcher_spawn_and_record_fixture() {
     };
     let root: PathBuf = PathBuf::from(root_text);
     let announce: PathBuf = root.join("launcher-pid");
+    let whole: PathBuf = root.join("launcher-pid.part");
     crate::bounded_run::after_launch_for_test(Some(Rc::new(move |pid: u32| {
-        fs::write(&announce, pid.to_string()).expect("announce the launcher");
+        // Written whole under another name and renamed, so a reader that sees the file sees the pid and never a file that was created
+        // and not yet written: the hook runs while the parent waits for the announcement and then kills this process, so a reader of a
+        // half-written file, or of a file whose writer was killed before it wrote, would read nothing where the pid belongs.
+        fs::write(&whole, pid.to_string()).expect("announce the launcher");
+        fs::rename(&whole, &announce).expect("publish the launcher's pid");
         std::thread::sleep(Duration::from_secs(300));
     })));
     let home: PathBuf = root.join(CRATE_DIR);
@@ -226,8 +231,9 @@ fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conse
         .env(FIXTURE_ROOT, root.path())
         .spawn()
         .expect("the wrapper helper");
-    wait_for_file(&root.path().join("launcher-pid"));
-    let launcher: i32 = fs::read_to_string(root.path().join("launcher-pid")).expect("the launcher's pid").trim().parse().expect("a pid");
+    // The announcement itself is the event, and the pid is read from it before the wrapper is killed: killing the writer first could
+    // take the pid away forever, and a reader that waits only for the file could parse a file its writer has not filled yet.
+    let launcher: i32 = read_pid(&root.path().join("launcher-pid"));
     wrapper.kill().expect("kill the wrapper inside the pending-launcher window");
     let _ = wrapper.wait();
     // The launcher is not left running: it is killed here, and the recovery is asked only after it is gone, so the refusal cannot
