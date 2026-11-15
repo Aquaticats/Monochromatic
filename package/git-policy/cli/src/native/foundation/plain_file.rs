@@ -259,6 +259,67 @@ fn opened_for_writing(path: &Path) -> std::io::Result<std::fs::File> {
 }
 
 /// What:
+///  The plain file at `path` opened to append to it,
+/// created when it is not there,
+/// without blocking,
+/// without following a link,
+///  and refused when the name holds anything but a plain file.
+/// Why:
+///   A record is appended to while a command runs,
+///  and the folder it lives in is one a person may write:
+///  a named pipe at that name held a Git start for good before this open existed,
+///  because opening a pipe for writing waits for a reader
+///  (a review of `429503238b`,
+/// finding 4).
+///  `O_NONBLOCK` makes a pipe answer `ENXIO` at once and `O_NOFOLLOW` refuses a link,
+///  so the type of what was opened, not the name, decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openSync(path, 'a', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); if (!fstatSync(file).isFile()) refuse();
+/// ```
+pub fn open_plain_file_to_append(path: &Path) -> std::io::Result<std::fs::File> {
+    let file: std::fs::File = match std::fs::OpenOptions::new().append(true).create(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW).open(path) {
+        Ok(opened) => opened,
+        // A named pipe opened for writing without a reader answers this at once, and the caller's message says what the name
+        //  holds rather than what the kernel calls it.
+        Err(error) if error.raw_os_error() == Some(libc::ENXIO) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE)),
+        Err(error) => return Err(error),
+    };
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+    }
+    return Ok(file);
+}
+
+/// What:
+///  The plain file at `path` made for the first time,
+/// refusing a name that already holds anything,
+/// a link,
+/// a pipe or a device,
+/// and without blocking.
+/// Why:
+///   A record's first line creates its file,
+///  and a name that is already taken is another process's record or a person's file,
+///  which this call must not truncate or follow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openSync(path, 'wx', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); if (!fstatSync(file).isFile()) refuse();
+/// ```
+pub fn create_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
+    let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW).open(path) {
+        Ok(opened) => opened,
+        Err(error) if error.raw_os_error() == Some(libc::ENXIO) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE)),
+        Err(error) => return Err(error),
+    };
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+    }
+    return Ok(file);
+}
+
+/// What:
 ///  Write `bytes` to the plain file at `path`,
 /// created when it is not there,
 /// opened without blocking and without following a link,

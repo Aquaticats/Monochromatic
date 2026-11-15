@@ -140,3 +140,40 @@ fn a_lock_beside_an_index_outside_the_git_directory_is_found_and_cleared() {
     assert!(!record.exists(), "and the record goes with the lock it explained, rather than being called unused");
     remove(root.as_path());
 }
+
+/// What:
+///  A file of a person's named `important.lock` beside an alternate index is neither opened nor unlinked,
+///  while the lock of that index itself is:
+///  the pass touches the exact names Git locks and nothing else with the suffix.
+/// Why:
+///  The walk once took every `*.lock` in the directory of a selected index,
+///  and deleted a file that held a person's data, because the name looked like a lock
+///  (a review of `429503238b`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(alternate, 'important.lock'), 'user data that is not an index');
+/// plantLock(join(alternate, 'index.lock'), deadPid); meetTheLocks(repository);
+/// expect(readFileSync(join(alternate, 'important.lock'))).toEqual('user data that is not an index'); expect(existsSync(join(alternate, 'index.lock'))).toBe(false);
+/// ```
+#[test]
+fn a_persons_file_named_like_a_lock_beside_an_alternate_index_is_left_untouched() {
+    let (root, mut repository, gone, _record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository("lock-roots-a-person-file");
+    let alternate: PathBuf = root.join("alternate-index");
+    std::fs::create_dir_all(alternate.as_path()).expect("the directory of the alternate index");
+    repository.index_file = Some(alternate.join("index"));
+    let persons_file: PathBuf = alternate.join("important.lock");
+    let persons_bytes: &[u8] = b"user data that is not an index\n";
+    std::fs::write(persons_file.as_path(), persons_bytes).expect("the person's file");
+    // A PID companion naming a dead recorded process makes it look like an abandoned lock to a walk that took any name
+    //  with the suffix.
+    make_pid_file_after_the_lock(persons_file.as_path(), gone);
+    // The lock the selected index itself can leave is the one the pass may take.
+    let index_lock: PathBuf = alternate.join("index.lock");
+    plant_the_lock(index_lock.as_path(), gone);
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "the person's file is read and unchanged");
+    assert!(!index_lock.exists(), "the lock of the index Git was told to use is cleared on the record");
+    remove(root.as_path());
+}

@@ -260,6 +260,55 @@ impl ChildStarted for NoChildRecorded {
 }
 
 /// What:
+///  Name the child the wrapper just started in the repository's record,
+///  and stop and reap it when that record cannot be written.
+///  `std::io::Result<()>` is nothing when the record is there, or the reason the child was stopped.
+/// Why:
+///   A child may take a lock in the instruction after its start,
+///  and a lock nothing can explain makes a later commit fail with `File exists`.
+///  So the record is written before the child is waited for,
+///  and its identity is read whatever state the child is in by then:
+///  a Git that took a lock and died at once is still in the process table as a zombie,
+///  and its birth is readable there
+///  (a review of `429503238b`,
+/// finding 1).
+///  When even that record cannot be written, the child is stopped and reaped rather than left to take a lock nothing
+///  could prove gone,
+///  and the error is returned to the caller:
+///  a step that cannot be accounted for does not run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { noteChildStarted(child.pid) } catch (error) { stopAndReap(child); throw error }
+/// ```
+pub fn name_the_child(child: &mut std::process::Child) -> std::io::Result<()> {
+    if let Err(error) = crate::lock_holder_records::note_child_started(child.id()) {
+        let _ended: StopOutcome = stop_git(child);
+        return Err(std::io::Error::other(
+            format!("this Git was stopped before it could take a lock, because the record that would explain a lock it left could not be written: {error}").as_str(),
+        ));
+    }
+    return Ok(());
+}
+
+/// What:
+///  Start the child `command` builds and name it in the repository's record,
+///  stopping and reaping it when the record cannot be written.
+/// Why:
+///   This is the one call every start of a Git that may take a lock uses,
+///  so no caller has to remember the order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = command.spawnRetrying(); nameTheChild(child); return child;
+/// ```
+pub fn spawn_naming_its_child(command: &mut Command) -> std::io::Result<std::process::Child> {
+    let mut child: std::process::Child = command.spawn_retrying()?;
+    name_the_child(&mut child)?;
+    return Ok(child);
+}
+
+/// What:
 ///  `run_real_git`,
 /// reporting the child's process number as soon as it has one.
 /// Why:
@@ -293,10 +342,8 @@ pub fn run_real_git_naming(
     // ```ts
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
-    let mut child: std::process::Child = git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
+    let mut child: std::process::Child = spawn_naming_its_child(&mut git_command(real_git, arguments, overlay, owner))?;
     on_started.started(child.id());
-    // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
-    crate::lock_holder_records::note_child_started(child.id());
     let status: std::process::ExitStatus = child.wait()?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
@@ -420,12 +467,7 @@ pub fn run_real_git_until(
     owner: StartOwner,
 ) -> std::io::Result<ChildOutcome> {
     let mut command: Command = git_command(real_git, arguments, overlay, owner);
-    let mut child: std::process::Child = command.spawn_retrying()?;
-    // What: This Git is named in the repository's record the moment it exists, as every other start of one is.
-    // Why:  A step with a ceiling is killed when the ceiling ends it, and the lock it was holding stands afterwards;
-    //       the record is the only proof a later command can use to clear that lock, and a start that wrote none left a
-    //       lock nothing could explain (a review of `4e9b9fff1d`, finding 4).
-    crate::lock_holder_records::note_child_started(child.id());
+    let mut child: std::process::Child = spawn_naming_its_child(&mut command)?;
     let began: std::time::Instant = std::time::Instant::now();
     loop {
         match child.try_wait() {

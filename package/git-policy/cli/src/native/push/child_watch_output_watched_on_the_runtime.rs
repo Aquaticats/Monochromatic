@@ -200,14 +200,15 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     };
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
-    let spawned: std::io::Result<Child> = spawn_retrying_without_blocking(command).await;
+    // What: The child is held before it can run, its record is written, and only then is it let go.
+    // Why:  A step that takes a lock in its first instruction would otherwise be one no record could name
+    //       (a review of `429503238b`, finding 1).
+    let mut child: Child = spawn_retrying_without_blocking(command).await?;
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {
         release_write_ends(command);
     }
-    let child: Child = spawned?;
-    // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
-    crate::lock_holder_records::note_child_started(child.id());
+    crate::forwarding::name_the_child(&mut child)?;
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);

@@ -201,6 +201,67 @@ pub fn linux_identity_from_stat(stat: &str) -> Result<Option<String>, MalformedS
 }
 
 /// What:
+///  The birth identity in one `/proc/<pid>/stat` text,
+///  read whatever state the process is in,
+///  or nothing when the record names no start tick.
+/// Why:
+///  The kernel keeps a process's record until its parent reaps it,
+///  and the start tick in it is the birth the process had:
+///  a child that took a lock and died within the same instant can still be named,
+///  which is what a record of a Git the wrapper started needs.
+///  The judgement of a holder is not this reading: a zombie is a holder that is gone,
+///  and `linux_identity_from_stat` answers that for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function linuxBirthFromStat(stat: string): string | undefined; // the start tick, whatever the state
+/// ```
+pub fn linux_birth_from_stat(stat: &str) -> Option<String> {
+    let command_end: usize = stat.rfind(')')?;
+    let after: &str = stat.get(command_end + 2..).unwrap_or("");
+    let fields: Vec<&str> = trim_javascript(after).split(' ').collect();
+    return match fields.get(LINUX_START_FIELD_INDEX) {
+        Some(tick) if !tick.is_empty() => Some(format!("linux:{tick}")),
+        Some(_) | None => None,
+    };
+}
+
+/// What:
+///  The birth identity a process had,
+///  even when it has already ended and waits to be reaped,
+///  or nothing when no such process is in the table.
+/// Why:
+///   A Git the wrapper starts can take a lock and end in the instruction before the wrapper reads its
+///  identity;
+///  while the wrapper has not reaped it, its record is still in `/proc` and names its birth,
+///  so the record that explains the lock can still be written
+///  (a review of `429503238b`,
+/// finding 1).
+///  A process this call cannot read as present (`ENOENT`, `ESRCH`) is gone,
+///  and any other failure is an error rather than a birth.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// birthOfAProcessThatMayHaveEnded(pid) // 'linux:16474396', undefined when nothing has that pid
+/// ```
+pub fn birth_identity_of_a_process_that_may_have_ended(pid: i64) -> Result<Option<String>, ProcessIdentityError> {
+    #[cfg(target_os = "linux")]
+    {
+        let bytes: Vec<u8> = match std::fs::read(std::path::PathBuf::from(format!("/proc/{pid}/stat"))) {
+            Ok(read) => read,
+            Err(error) if record_is_gone(&error) => return Ok(None),
+            Err(error) => return Err(ProcessIdentityError::Io { pid, error }),
+        };
+        let stat: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
+        return Ok(linux_birth_from_stat(stat.as_ref()));
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        return process_birth_identity(pid);
+    }
+}
+
+/// What:
 ///  The identity a platform inspector printed,
 ///  as `<prefix>:<trimmed output>`,
 ///  or nothing

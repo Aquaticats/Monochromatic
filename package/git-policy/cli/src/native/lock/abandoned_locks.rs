@@ -166,8 +166,8 @@ use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
 use crate::git_directory_roots::common_dir_for;
-/// One directory a lock can lie in, and whether the walk goes below it.
-use crate::git_directory_roots::LockRoot;
+/// One place a lock can stand, and how the walk finds it.
+use crate::git_directory_roots::LockCandidate;
 /// The records themselves:
 /// the repository this command works in,
 /// which every Git it starts is noted in.
@@ -260,8 +260,8 @@ impl Outcome {
 /// ```ts
 /// function lockCandidates(roots: string[]): string[];
 /// ```
-pub fn lock_candidates(roots: &[LockRoot]) -> Vec<PathBuf> {
-    return walked(roots).locks;
+pub fn lock_candidates(candidates: &[LockCandidate]) -> Vec<PathBuf> {
+    return walked(candidates).locks;
 }
 
 /// What:
@@ -301,51 +301,62 @@ pub struct Walked {
 /// ```ts
 /// function walked(roots: string[]): Walked;
 /// ```
-pub fn walked(roots: &[LockRoot]) -> Walked {
+pub fn walked(candidates: &[LockCandidate]) -> Walked {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut complete: bool = true;
     let mut seen: usize = 0;
-    for root in roots {
-        // A root without descent is listed and nothing below it is: Git locks a file beside it, and the object
-        //  store's subdirectories hold loose objects by the hundred thousand and no lock.
-        let downward: usize = if root.below { MOST_DEPTH } else { 0 };
-        let mut pending: Vec<(PathBuf, usize)> = vec![(root.path.clone(), 0)];
-        while let Some((directory, depth)) = pending.pop() {
-            let entries: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
-                Ok(listed) => listed,
-                // A directory that is not there holds no lock of this repository, and its absence proves nothing missed.
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                // A directory this account may not read may hold a lock.
-                Err(_unreadable) => {
-                    complete = false;
-                    continue;
+    for candidate in candidates {
+        match candidate {
+            // What: A name Git locks exactly, so the pass looks at that one name and nothing beside it.
+            // Why:  A folder Git shares with a person holds the person's files: taking every name with `.lock` there
+            //       unlinked a data file that was not a lock (a review of `429503238b`, finding 3).
+            LockCandidate::Exactly(path) => {
+                if is_a_lock_name(path.file_name().unwrap_or_default().to_string_lossy().as_ref())
+                    && matches!(std::fs::symlink_metadata(path).map(|metadata| { return metadata.file_type(); }), Ok(kind) if kind.is_file())
+                {
+                    found.push(path.clone());
                 }
-            };
-            for entry in entries.flatten() {
-                seen += 1;
-                if seen > MOST_ENTRIES {
-                    complete = false;
-                    break;
-                }
-                let Ok(kind) = entry.file_type() else {
-                    complete = false;
-                    continue;
-                };
-                if kind.is_dir() {
-                    if SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
-                        continue;
+            }
+            LockCandidate::DirectlyBelow(folder) | LockCandidate::AnywhereBelow(folder) => {
+                let downward: usize = if matches!(candidate, LockCandidate::AnywhereBelow(_)) { MOST_DEPTH } else { 0 };
+                let mut pending: Vec<(PathBuf, usize)> = vec![(folder.clone(), 0)];
+                while let Some((directory, depth)) = pending.pop() {
+                    let entries: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
+                        Ok(listed) => listed,
+                        // A directory that is not there holds no lock of this repository, and its absence proves nothing missed.
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                        // A directory this account may not read may hold a lock.
+                        Err(_unreadable) => {
+                            complete = false;
+                            continue;
+                        }
+                    };
+                    for entry in entries.flatten() {
+                        seen += 1;
+                        if seen > MOST_ENTRIES {
+                            complete = false;
+                            break;
+                        }
+                        let Ok(kind) = entry.file_type() else {
+                            complete = false;
+                            continue;
+                        };
+                        if kind.is_dir() {
+                            if SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
+                                continue;
+                            }
+                            if depth < downward {
+                                pending.push((entry.path(), depth + 1));
+                            } else if downward > 0 {
+                                // Deeper than this walk goes: what it holds is a lock no sweep may call litter.
+                                complete = false;
+                            }
+                            continue;
+                        }
+                        if kind.is_file() && is_a_lock_name(entry.file_name().to_string_lossy().as_ref()) {
+                            found.push(entry.path());
+                        }
                     }
-                    if depth < downward {
-                        pending.push((entry.path(), depth + 1));
-                    } else if root.below {
-                        // Deeper than this walk goes: what it holds is a lock no sweep may call litter.
-                        complete = false;
-                    }
-                    // A root without descent names a directory whose subdirectories Git never locks in, so nothing is missed.
-                    continue;
-                }
-                if kind.is_file() && is_a_lock_name(entry.file_name().to_string_lossy().as_ref()) {
-                    found.push(entry.path());
                 }
             }
         }
@@ -411,9 +422,9 @@ fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
 /// ```ts
 /// function clearAbandonedLocks(roots: LockRoot[], gitDir: string, commonDir: string): Outcome; // read the records, walk, clear, remove litter
 /// ```
-pub fn clear_abandoned_locks(roots: &[LockRoot], git_dir: &Path, common_dir: &Path) -> Outcome {
+pub fn clear_abandoned_locks(candidates: &[LockCandidate], git_dir: &Path, common_dir: &Path) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
-    if roots.is_empty() {
+    if candidates.is_empty() {
         return outcome;
     }
     // What: The record folder is the one the one answer names, never one guessed from a root: with `GIT_COMMON_DIR` the
@@ -426,9 +437,9 @@ pub fn clear_abandoned_locks(roots: &[LockRoot], git_dir: &Path, common_dir: &Pa
     let records: Vec<Record> = every_record(record_folder_of.as_path());
     #[cfg(test)]
     crate::abandoned_lock_pass_fault_hooks_test_support::after_the_records_are_read();
-    let searched: Walked = walked(roots);
-    let candidates: Vec<PathBuf> = searched.locks;
-    for lock in &candidates {
+    let searched: Walked = walked(candidates);
+    let found: Vec<PathBuf> = searched.locks;
+    for lock in &found {
         match proving::clear_one(lock.as_path(), record_folder_of.as_path()) {
             Some(clearance) => outcome.cleared.push(clearance),
             None => {
@@ -465,8 +476,8 @@ pub fn clear_abandoned_locks(roots: &[LockRoot], git_dir: &Path, common_dir: &Pa
 /// ```ts
 /// function clearAbandonedLocksTelling(roots, stderr): number;
 /// ```
-pub fn clear_abandoned_locks_telling(roots: &[LockRoot], git_dir: &Path, common_dir: &Path, out: &mut dyn std::io::Write) -> usize {
-    let outcome: Outcome = clear_abandoned_locks(roots, git_dir, common_dir);
+pub fn clear_abandoned_locks_telling(candidates: &[LockCandidate], git_dir: &Path, common_dir: &Path, out: &mut dyn std::io::Write) -> usize {
+    let outcome: Outcome = clear_abandoned_locks(candidates, git_dir, common_dir);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
         let written: std::io::Result<()> = out.write_all(notice.as_bytes());
@@ -498,15 +509,15 @@ pub fn clear_abandoned_locks_telling(roots: &[LockRoot], git_dir: &Path, common_
 /// ```ts
 /// removeMyRecordAfterTheCommand(roots) // nothing when this process wrote no record, or the walk was not whole
 /// ```
-pub fn sweep_the_records_the_command_left(roots: &[LockRoot], common: &Path) {
-    if roots.is_empty() {
+pub fn sweep_the_records_the_command_left(candidates: &[LockCandidate], common: &Path) {
+    if candidates.is_empty() {
         return;
     }
     // A command that started no Git wrote no record, and the walk below would have nothing to decide.
     if !crate::lock_holder_records::this_process_has_a_record(common) {
         return;
     }
-    let searched: Walked = walked(roots);
+    let searched: Walked = walked(candidates);
     if !searched.complete {
         return;
     }
@@ -552,13 +563,17 @@ fn proving_pid_file(lock: &Path) -> PathBuf {
 /// ```ts
 /// function rootsOfGitDirectory(gitDir: string): string[]; // [gitDir, commonDir] when they differ
 /// ```
-pub fn roots_of_git_directory(git_dir: &Path) -> Vec<LockRoot> {
+pub fn candidates_of_git_directory(git_dir: &Path) -> Vec<LockCandidate> {
     let common: PathBuf = common_dir_for(git_dir);
-    let mut roots: Vec<LockRoot> = vec![LockRoot { path: git_dir.to_path_buf(), below: true }];
-    if common != git_dir {
-        roots.push(LockRoot { path: common, below: true });
-    }
-    return roots;
+    let repository: CommandRepository = CommandRepository {
+        start: git_dir.to_path_buf(),
+        git_dir: Some(git_dir.to_path_buf()),
+        common_dir: Some(common),
+        index_file: Some(git_dir.join("index")),
+        shallow_file: Some(git_dir.join("shallow")),
+        object_dir: Some(common_dir_for(git_dir).join("objects")),
+    };
+    return repository.lock_candidates();
 }
 
 /// What:
@@ -593,7 +608,7 @@ pub fn meet_the_locks_of_the_repository_the_command_works_on(repository: &Comman
         return;
     };
     remember_repository(common.as_path());
-    clear_abandoned_locks_telling(repository.lock_roots().as_slice(), git_dir.as_path(), common.as_path(), &mut std::io::stderr());
+    clear_abandoned_locks_telling(repository.lock_candidates().as_slice(), git_dir.as_path(), common.as_path(), &mut std::io::stderr());
 }
 
 /// Controls of the answer that decides which locks are named stay out of the release executable.

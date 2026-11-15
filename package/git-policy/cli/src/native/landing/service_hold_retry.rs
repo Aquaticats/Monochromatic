@@ -32,7 +32,6 @@ use crate::scratch_location::scratch_file;
 use crate::service_index_wait::{Waited, foreign_holds, wait_for_service_hold_within};
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
 use crate::wait_progress::Cadence;
-use crate::start_retry::RetryStart;
 use crate::worktree_copy_forward::ForwardedRun;
 use std::ffi::OsString;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -110,9 +109,10 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
     let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
-    let mut child: std::process::Child = command.spawn_retrying()?;
-    // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
-    crate::lock_holder_records::note_child_started(child.id());
+    // What: The child is held before it can run and named in the record before it is let go.
+    // Why:  An index writer takes the index lock at once, and a record written after it started can be too late to name it
+    //       (a review of `429503238b`, finding 1).
+    let mut child: std::process::Child = crate::forwarding::spawn_naming_its_child(&mut command)?;
     let status: std::process::ExitStatus = child.wait()?;
     return Ok(outcome_of(status));
 }

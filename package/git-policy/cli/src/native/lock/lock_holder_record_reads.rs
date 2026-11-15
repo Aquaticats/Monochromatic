@@ -33,12 +33,17 @@
 //!  abandoned into a commit that fails.
 //!
 //! A record is named after the process that wrote it, `<pid>.<digest of its identity>`,
-//!  so the record a lock's PID file asks about is found by that number and not by whatever sorts first:
-//!  a bound on how many records a sweep reads may never turn "there is a record" into "there is none"
-//!  (a review of `4e9b9fff1d`,
-//! finding 3).
+//!  but a person may rename one,
+//!  and every record that can speak about a process number takes part in the verdict whatever its name:
+//!  reading only the names that begin with the number let one renamed record contradict the proof unseen,
+//!  and the lock was unlinked on an incomplete reading
+//!  (a review of `429503238b`,
+//! finding 2).
+//!  So the proof reads every record of the repository when the folder fits in `MOST_RECORDS`,
+//!  and answers unknown when it does not,
+//!  which keeps the lock: a proof the reader could not finish proves nothing.
 //!  A sweep reads at most `MOST_RECORDS` files and says in the log when it stopped at that bound;
-//!  a removal is never decided on a list the bound cut.
+//!  a removal is only ever decided on records it read.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -60,11 +65,6 @@ use std::path::{Path, PathBuf};
 /// so a folder a broken command filled cannot hold a command.
 /// It bounds reading, not finding: a record a lock names is looked for by its own name.
 const MOST_RECORDS: usize = 512;
-
-/// How many records one number may have before the proof answers unknown.
-/// Two are ordinary (a number used again after a reuse); a folder that holds more records for one number is one a
-///  person filled, and the proof then keeps the lock instead of guessing.
-const MOST_RECORDS_FOR_ONE_NUMBER: usize = 16;
 
 /// The longest record one read takes.
 const RECORD_LIMIT: u64 = SMALL_FILE_LIMIT;
@@ -206,57 +206,38 @@ fn record_names(common_dir: &Path) -> Vec<std::ffi::OsString> {
 }
 
 /// What:
-///  The records that can name `pid`, read by the name a record of that process has.
-///  `Option<Vec<Record>>` is those records, or nothing when the folder holds more of them than the proof accepts.
+///  Every record of the repository that can name `pid`,
+///  or nothing when the reader could not show it saw them all.
 /// Why:
-///   A record is named `<pid>.<digest of the writer's identity>`,
-///  so every record that can name a process number is one whose name starts with that number and a dot.
-///  Reading them by that name answers the proof whatever else the folder holds and in whatever order,
-///  which a bounded listing of the whole folder cannot
-///  (a review of `4e9b9fff1d`,
-/// finding 3).
-///  A folder that holds more records for one number than `MOST_RECORDS_FOR_ONE_NUMBER` is one a person filled,
-///  and the answer is then nothing,
-///  which keeps the lock rather than guessing.
+///   A record's name begins with the number of the process that wrote it,
+///  but a person may rename one,
+///  and a renamed record can name any number in its own lines.
+///  So the verdict reads every record of the repository,
+///  whatever its name,
+///  and the only honest answer for a folder that holds more records than `MOST_RECORDS` is unknown:
+///  reading only the names that begin with the number let one renamed record contradict the proof unseen, and the lock
+///  was unlinked
+///  (a review of `429503238b`,
+/// finding 2).
+///  A reader that stops at the bound says so in the log,
+///  and the caller keeps the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordsOfNumber(commonDir, 4242) // every record named '4242.*', or undefined when there are too many
+/// recordsThatCanName(commonDir, 4242) // every record of the folder, or undefined when there are more than the bound
 /// ```
-fn records_of_number(common_dir: &Path, pid: i64) -> Option<Vec<Record>> {
+fn records_that_can_name(common_dir: &Path, _pid: i64) -> Option<Vec<Record>> {
     let names: Vec<std::ffi::OsString> = record_names(common_dir);
-    let folder: PathBuf = folder_of(common_dir);
-    let prefix: String = format!("{pid}.");
-    let mut named: Vec<std::ffi::OsString> = names
-        .iter()
-        .filter(|name| { return name.to_string_lossy().starts_with(prefix.as_str()); })
-        .cloned()
-        .collect();
-    if named.len() > MOST_RECORDS_FOR_ONE_NUMBER {
+    if names.len() > MOST_RECORDS {
         crate::diagnostic_log::debug(
             TAG,
-            format!("{} records name PID {pid}, more than the {MOST_RECORDS_FOR_ONE_NUMBER} a proof reads, so the lock is kept", named.len()).as_str(),
+            format!("{} record files are more than the {MOST_RECORDS} a proof reads, so a lock is kept rather than cleared on part of them", names.len()).as_str(),
         );
         return None;
     }
-    // What: A record whose name is not the number it names is read too, as long as the folder fits in one sweep.
-    // Why:  The name is the writer's own spelling, and a record a person renamed, or one a control planted, still names the
-    //       holder by its content; the proof must not lose a lock to a file name.
-    //       When the folder is larger than one sweep and no record is named after the number, the bound has hidden the
-    //       answer, and a bound that hides an answer keeps the lock rather than clearing it.
-    if named.is_empty() {
-        if names.len() > MOST_RECORDS {
-            crate::diagnostic_log::debug(
-                TAG,
-                format!("{} record files are more than the {MOST_RECORDS} a proof reads and none is named for PID {pid}, so the lock is kept", names.len()).as_str(),
-            );
-            return None;
-        }
-        named = names;
-    }
-    named.sort();
+    let folder: PathBuf = folder_of(common_dir);
     let mut records: Vec<Record> = Vec::new();
-    for name in named {
+    for name in names {
         let path: PathBuf = folder.join(name);
         if let Some(record) = record_at(path.as_path()) {
             records.push(record);
@@ -318,7 +299,7 @@ fn record_at(path: &Path) -> Option<Record> {
 /// const identities = recordedIdentities(commonDir, pid); // ['linux:1234#…', …]
 /// ```
 pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
-    let Some(records) = records_of_number(common_dir, pid) else {
+    let Some(records) = records_that_can_name(common_dir, pid) else {
         return Vec::new();
     };
     let mut found: Vec<String> = Vec::new();
@@ -371,7 +352,7 @@ pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
     // What: The records are read by the number the lock names, never out of a bounded listing of the folder.
     // Why:  A lookup that stopped at a bound would answer "no record" for a lock whose record is there, and the lock would
     //       stand although the repository holds the proof that its holder is gone (a review of `4e9b9fff1d`, finding 3).
-    records_of_number(common_dir, pid)?;
+    records_that_can_name(common_dir, pid)?;
     let identities: Vec<String> = identities_recorded(common_dir, pid);
     if identities.is_empty() {
         return None;

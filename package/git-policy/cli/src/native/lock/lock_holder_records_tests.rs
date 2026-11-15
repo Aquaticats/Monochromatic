@@ -177,7 +177,7 @@ fn a_line_a_writer_appends_after_another_command_read_its_record_is_not_lost() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("a live child starts");
-    record_a_child_started(root.as_path(), live.id());
+    record_a_child_started(root.as_path(), live.id()).expect("the child's line is written");
     remove_records_no_one_needs(root.as_path(), read.as_slice(), &[]);
     let kept: String = std::fs::read_to_string(record.as_path()).expect("a record that names no writer is left where it is");
     assert!(kept.contains(format!("child {} ", live.id()).as_str()), "the line appended after the reading is still there: {kept:?}");
@@ -210,7 +210,7 @@ fn a_record_a_child_note_makes_names_its_writer() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("a live child starts");
-    record_a_child_started(root.as_path(), live.id());
+    record_a_child_started(root.as_path(), live.id()).expect("the child's line is written");
     let record: PathBuf = this_process_record_path(root.as_path()).expect("this process's record path");
     let text: String = std::fs::read_to_string(record.as_path()).expect("the record a child note made");
     assert!(text.starts_with(RECORD_HEADER), "a record starts with its header: {text:?}");
@@ -357,5 +357,111 @@ fn a_record_a_locks_number_names_is_found_past_the_bound_a_sweep_reads() {
     };
     crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(&repository);
     assert!(!lock.exists(), "the lock is cleared on the record the number names, past the bound a sweep reads");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record a lock's number names at the usual place does not hide another record of the same number that contradicts
+///  it:
+///  every record of the folder takes part in the verdict,
+///  and a lock whose holder may be alive in another PID namespace is kept.
+/// Why:
+///  The proof once read only the names that begin with the number when one of them existed,
+///  so a renamed record naming another namespace was never read,
+///  and the lock was unlinked on an incomplete proof
+///  (a review of `429503238b`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeRecord(folder, `${pid}.record`, deadLocalIdentity); writeRecord(folder, 'renamed', identityOfAnotherNamespace(pid));
+/// plantLock(indexLock, pid); expect(provedGoneWriter(common, pid)).toBeUndefined(); expect(clearAbandonedLocks(...).cleared).toBe(0);
+/// ```
+#[test]
+fn a_renamed_record_of_the_same_number_keeps_the_lock_its_usual_record_would_clear() {
+    let root: PathBuf = fixture("record-renamed-contradiction");
+    let folder: PathBuf = folder_of(root.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the folder");
+    let (gone, identity): (i64, String) = a_dead_process();
+    std::fs::write(folder.join(format!("{gone}.record")), record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity)]).as_bytes())
+        .expect("the usual record of a dead local process");
+    // The same number, named by a record whose identity is a PID namespace this reader does not know: it may be a live
+    //  Git of that namespace, so the proof must answer unknown.
+    let unknown: String = another_namespaces_identity(gone);
+    std::fs::write(folder.join("renamed-record"), record_text(&[(SELF_KIND, gone, unknown.clone())]).as_bytes()).expect("a renamed record of the same number");
+    let lock: PathBuf = root.join("index.lock");
+    std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
+    make_pid_file_after_the_lock(lock.as_path(), gone);
+    assert!(proved_gone_writer(root.as_path(), gone).is_none(), "the proof answers unknown while a record of another namespace names the number");
+    let repository: CommandRepository = CommandRepository {
+        start: root.clone(),
+        git_dir: Some(root.clone()),
+        common_dir: Some(root.clone()),
+        index_file: Some(root.join("index")),
+        shallow_file: Some(root.join("shallow")),
+        object_dir: Some(root.join("objects")),
+    };
+    crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(lock.exists(), "the lock is kept, because its holder may live in the namespace that record names");
+    remove(root.as_path());
+}
+
+/// What:
+///  An identity naming `pid` in a PID namespace this reader is not in,
+///  built from the parts a real identity has.
+/// Why:
+///   The judgement answers unknown for another namespace,
+///  which is what keeps a lock a Git of that namespace may hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${birth}#${boot}#12345#${machine}` // a namespace number this reader never has
+/// ```
+fn another_namespaces_identity(pid: i64) -> String {
+    let real: String = identity_of_process(pid).unwrap_or_else(|| { return identity_of_birth("linux:1"); });
+    let mut parts = real.split('#');
+    let birth: &str = parts.next().unwrap_or("linux:1");
+    let boot: &str = parts.next().unwrap_or("boot");
+    let _scope: Option<&str> = parts.next();
+    let machine: &str = parts.next().unwrap_or("machine");
+    return format!("{birth}#{boot}#4026531999#{machine}");
+}
+
+/// What:
+///  A named pipe at this process's record path fails the recording at once instead of holding the command,
+///  and leaves the pipe where it was.
+/// Why:
+///  Opening a pipe for writing waits for a reader that never comes,
+///  and the open happened before the ceiling of the command the child serves had begun,
+///  so a Git start could wait for good
+///  (a review of `429503238b`,
+/// finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(thisProcessRecordPath(common)); expect(() => recordAChildStarted(common, pid)).toThrow(); expect(isFifo(record)).toBe(true);
+/// ```
+#[test]
+fn a_named_pipe_at_the_records_path_fails_the_recording_and_is_left_alone() {
+    let root: PathBuf = fixture("record-named-pipe");
+    std::fs::create_dir_all(folder_of(root.as_path()).as_path()).expect("the folder");
+    let record: PathBuf = this_process_record_path(root.as_path()).expect("this process's record path");
+    let made = std::process::Command::new("mkfifo").arg(record.as_path()).status().expect("mkfifo runs");
+    assert!(made.success(), "the control made a named pipe at the record's path");
+    let mut live: std::process::Child = std::process::Command::new("sleep")
+        .arg("60")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("a live child starts");
+    let began: std::time::Instant = std::time::Instant::now();
+    let failed: std::io::Error = record_a_child_started(root.as_path(), live.id()).expect_err("a pipe at the record's path cannot be written");
+    let _killed = live.kill();
+    let _waited = live.wait();
+    assert!(began.elapsed() < std::time::Duration::from_secs(5), "the recording answers at once instead of waiting for a reader: {began:?}");
+    assert_eq!(failed.kind(), std::io::ErrorKind::InvalidInput, "the failure says the name holds no plain file: {failed}");
+    use std::os::unix::fs::FileTypeExt as _;
+    assert!(std::fs::symlink_metadata(record.as_path()).is_ok_and(|metadata| { return metadata.file_type().is_fifo(); }), "the pipe is still where the person put it");
     remove(root.as_path());
 }

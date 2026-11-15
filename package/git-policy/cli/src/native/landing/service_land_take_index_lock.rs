@@ -64,7 +64,7 @@ pub(crate) fn take_index_lock(
     //       marked lock whose holder is gone, and the wrapper's record proves a Git the wrapper started is gone, so the commit
     //       lands at once instead of the wait reaching its ceiling and withdrawing the change.
     let _cleared: usize = crate::abandoned_locks::clear_abandoned_locks_telling(
-        crate::abandoned_locks::roots_of_git_directory(first.index.parent().unwrap_or(repository)).as_slice(),
+        crate::abandoned_locks::candidates_of_git_directory(first.index.parent().unwrap_or(repository)).as_slice(),
         first.index.parent().unwrap_or(repository),
         crate::git_directory_roots::common_dir_for(first.index.parent().unwrap_or(repository)).as_path(),
         &mut std::io::stderr(),

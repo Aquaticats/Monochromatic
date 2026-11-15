@@ -363,7 +363,7 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     //       became Git never reaches this line, and its record is what proves its own lock's holder gone, so it stays
     //       until the next command's pass sweeps it.
     if let Some(common) = repository.common_dir.as_deref() {
-        crate::abandoned_locks::sweep_the_records_the_command_left(repository.lock_roots().as_slice(), common);
+        crate::abandoned_locks::sweep_the_records_the_command_left(repository.lock_candidates().as_slice(), common);
     }
     return code;
 }

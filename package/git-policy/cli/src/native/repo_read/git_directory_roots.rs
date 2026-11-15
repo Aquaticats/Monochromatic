@@ -149,27 +149,49 @@ pub struct CommandRepository {
 }
 
 /// What:
-///  One directory the pass searches,
-///  and whether a lock may lie below it or only inside it.
+///  One place a lock of this command can stand,
+///  and how the pass finds it.
 /// Why:
-///  Git locks a file beside it,
-///  so a lock lies in the file's own directory;
-///  the Git directory and the common one hold locked files in subdirectories (`refs/`, `reftable/`,
-///  `worktrees/<id>/`),
-///  while the index and shallow files lie in a directory whose subdirectories Git never locks
-///  and the object directory's subdirectories hold loose objects by the hundred thousand and no lock.
-///  A walk that descended into those would spend its entry bound on files that cannot be a lock.
+///  A pass may open and unlink only what Git itself can have locked,
+///  and a file of a person's named `something.lock` in a folder Git happens to share is not one of them:
+///  taking every name with a suffix in the directory of a selected index deleted a person's data
+///  (a review of `429503238b`,
+/// finding 3).
+///  So a lock is named exactly where Git names it,
+///  and a whole folder is read only where every `*.lock` inside it can only be Git's:
+///  the references, whose names Git forbids to end in `.lock`,
+///  and the sequencer's own folders, which hold Git's state and nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LockRoot = { path: string; below: boolean };
+/// type LockCandidate = { kind: 'exactly'; path: string } | { kind: 'directlyBelow'; folder: string } | { kind: 'anywhereBelow'; folder: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LockRoot {
-    /// The directory to list.
-    pub path: PathBuf,
-    /// Whether the walk goes below it.
-    pub below: bool,
+pub enum LockCandidate {
+    /// The one file Git locks under that name.
+    Exactly(PathBuf),
+    /// Every `*.lock` directly below this folder.
+    DirectlyBelow(PathBuf),
+    /// Every `*.lock` anywhere below this folder.
+    AnywhereBelow(PathBuf),
+}
+
+/// What:
+///  The lock file beside the file Git locks,
+///  which is the name Git gives it (`lockfile.c`,
+/// lines 99 to 110).
+/// Why:
+///  Every candidate of this answer is written the way Git writes it,
+///  so no candidate can name a file Git would not have made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lockedName('/repo/.git/index') // '/repo/.git/index.lock'
+/// ```
+fn locked_name(file: &Path) -> PathBuf {
+    let mut name: std::ffi::OsString = file.as_os_str().to_os_string();
+    name.push(".lock");
+    return PathBuf::from(name);
 }
 
 impl CommandRepository {
@@ -200,58 +222,100 @@ impl CommandRepository {
     }
 
     /// What:
-    ///  Every directory a lock of this command's repository can lie in,
-    ///  each with whether the walk goes below it.
+    ///  Every lock this command's repository can hold,
+    ///  each named where Git names it.
     /// Why:
     ///  Git locks a file beside it,
     ///  and which files it locks is fixed by its own layout while where they lie follows the settings this answer
-    ///  read:
-    ///  the index beside `GIT_INDEX_FILE` or the Git directory,
-    ///  the shallow file beside `GIT_SHALLOW_FILE` or the Git directory,
-    ///  the references and the repository's config under the common directory,
-    ///  and the object store's own locks at the top of the object directory and under its `info` and `pack`.
-    ///  The table of every locked file, and which root covers it, is in `abandoned_locks.rs`.
+    ///  read.
+    ///  The names below are the ones Git's source writes (see the table in `abandoned_locks.rs`),
+    ///  and the two folders that are read whole hold nothing but Git's own state.
     ///  One answer for all of them is what keeps the writer of a record,
-    ///  the walk that looks for locks and the removal of records from disagreeing
-    ///  (a review of `4e9b9fff1d`,
-    /// findings 1 and 2).
+    ///  the walk that looks for locks and the removal of records from disagreeing,
+    ///  and what keeps the pass from opening a file of a person's that only looks like a lock.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// repository.lockRoots() // [{path: '/repo/.git', below: true}, {path: '/alt', below: false}, ...]
+    /// repository.lockCandidates() // [{kind: 'exactly', path: '/repo/.git/index.lock'}, {kind: 'anywhereBelow', folder: '/repo/.git/refs'}]
     /// ```
-    pub fn lock_roots(&self) -> Vec<LockRoot> {
+    pub fn lock_candidates(&self) -> Vec<LockCandidate> {
         let Some(git_dir) = self.git_dir.as_ref() else {
             return Vec::new();
         };
-        let mut roots: Vec<LockRoot> = vec![LockRoot { path: git_dir.clone(), below: true }];
-        // A directory already searched below covers one named again without descent, and the wider search wins.
-        let mut add = |path: &PathBuf, below: bool| {
-            if let Some(named) = roots.iter_mut().find(|root| { return root.path == *path; }) {
-                named.below = named.below || below;
+        let common: &PathBuf = self.common_dir.as_ref().unwrap_or(git_dir);
+        let objects: PathBuf = self.object_dir.clone().unwrap_or_else(|| { return common.join("objects"); });
+        let mut candidates: Vec<LockCandidate> = Vec::new();
+        let mut add = |candidate: LockCandidate| {
+            if candidates.contains(&candidate) {
                 return;
             }
-            roots.push(LockRoot { path: path.clone(), below });
+            candidates.push(candidate);
         };
-        if let Some(common) = self.common_dir.as_ref() {
-            add(common, true);
+        // The index and the shallow file are the two Git locks whose place the person's settings move.
+        if let Some(index) = self.index_file.as_ref() {
+            add(LockCandidate::Exactly(locked_name(index.as_path())));
         }
-        if let Some(index) = self.index_file.as_ref()
-            && let Some(directory) = index.parent()
-        {
-            add(&directory.to_path_buf(), false);
+        if let Some(shallow) = self.shallow_file.as_ref() {
+            add(LockCandidate::Exactly(locked_name(shallow.as_path())));
         }
-        if let Some(shallow) = self.shallow_file.as_ref()
-            && let Some(directory) = shallow.parent()
-        {
-            add(&directory.to_path_buf(), false);
+        add_git_directory_candidates(git_dir, &mut add);
+        if common != git_dir {
+            add_git_directory_candidates(common, &mut add);
         }
-        if let Some(objects) = self.object_dir.as_ref() {
-            add(objects, false);
-            add(&objects.join("info"), false);
-            add(&objects.join("pack"), false);
+        add(LockCandidate::Exactly(common.join("packed-refs.lock")));
+        add(LockCandidate::Exactly(common.join("config.lock")));
+        add(LockCandidate::Exactly(common.join("reftable/tables.list.lock")));
+        // Every reference Git locks lies under `refs`, and a reference name cannot end in `.lock`, so a `.lock` file
+        //  there is a lock and only a lock.
+        add(LockCandidate::AnywhereBelow(common.join("refs")));
+        // The object store's own locks, each by the name Git writes.
+        for name in [
+            "maintenance.lock",
+            "schedule.lock",
+            "loose-object-idx.lock",
+            "info/alternates.lock",
+            "info/commit-graph.lock",
+            "pack/multi-pack-index.lock",
+            "pack/multi-pack-index-chain.lock",
+        ] {
+            add(LockCandidate::Exactly(objects.join(name)));
         }
-        return roots;
+        // A linked worktree's own administrative directory holds its index, HEAD, shallow file, rerere record and
+        //  sequencer state, and its own commands meet them; the wrapper clears them on the same proof.
+        if let Ok(listed) = std::fs::read_dir(common.join("worktrees")) {
+            let mut linked: Vec<PathBuf> = listed.flatten().map(|entry| { return entry.path(); }).collect();
+            linked.sort();
+            for directory in linked {
+                if !directory.is_dir() {
+                    continue;
+                }
+                add_git_directory_candidates(directory.as_path(), &mut add);
+            }
+        }
+        return candidates;
+    }
+}
+
+/// What:
+///  The locks a Git directory of this layout can hold,
+///  added to `add`:
+///  the names Git writes at its top,
+///  and the folders that hold its own state whole.
+/// Why:
+///   A Git directory's top holds the person's repository state and Git's own files,
+///  so a lock there is named exactly,
+///  while `sequencer`, `rebase-merge` and `rebase-apply` hold Git's transient state and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of ['HEAD.lock', 'ORIG_HEAD.lock', 'MERGE_RR.lock', 'gc.pid.lock', 'gc.log.lock', 'info/sparse-checkout.lock']) add({kind: 'exactly', path: join(gitDir, name)});
+/// ```
+fn add_git_directory_candidates(git_dir: &Path, add: &mut impl FnMut(LockCandidate)) {
+    for name in ["HEAD.lock", "ORIG_HEAD.lock", "MERGE_RR.lock", "gc.pid.lock", "gc.log.lock", "info/sparse-checkout.lock"] {
+        add(LockCandidate::Exactly(git_dir.join(name)));
+    }
+    for folder in ["sequencer", "rebase-merge", "rebase-apply"] {
+        add(LockCandidate::DirectlyBelow(git_dir.join(folder)));
     }
 }
 

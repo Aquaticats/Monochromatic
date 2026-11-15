@@ -40,7 +40,7 @@
 /// the PID namespace and the machine.
 use crate::claim_time::{current_boot_id, current_machine_id, is_machine_id};
 /// The birth identity the platform reports for a process.
-use crate::process_identity::process_birth_identity;
+use crate::process_identity::{birth_identity_of_a_process_that_may_have_ended, process_birth_identity};
 /// The one identity spelling the commit service's marker uses,
 /// so one reader judges both.
 use crate::service_index_identity::{BOOT_SEPARATOR, current_pid_scope, own_identity};
@@ -52,6 +52,9 @@ pub(crate) const HOLDER_FOLDER: &str = "cli-git-lock-holders";
 
 /// The first line of every record.
 pub const RECORD_HEADER: &str = "monochromatic-git-policy-cli lock-holder-record v1";
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What a line naming the writing process is called.
 pub(crate) const SELF_KIND: &str = "self";
@@ -99,20 +102,31 @@ pub fn remembers_a_repository() -> bool {
 }
 
 /// What:
-///  Add the line for `pid` to the remembered repository's record of what this process started.
+///  Add the line for `pid` to the remembered repository's record of what this process started,
+///  and say whether it was written.
+///  `Ok(())` also when this process remembers no repository, which is the commit service's case: it writes no records,
+///  and its locks carry its own marker.
 /// Why:
 ///   Called where a Git child is started and nowhere else,
 ///  so the account names every process that can take a lock of this repository.
+///  A record that was not written leaves a lock no proof can explain,
+///  so the caller decides what to do about it:
+///  a child is stopped before it can take a lock
+///  (`forwarding.rs`,
+/// `spawn_naming_its_child`),
+///  and an error is never dropped
+///  (a review of `429503238b`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// noteChildStarted(child.pid)
+/// noteChildStarted(child.pid) // throws when the line could not be written
 /// ```
-pub fn note_child_started(pid: u32) {
+pub fn note_child_started(pid: u32) -> std::io::Result<()> {
     let Some(common_dir) = REPOSITORY.get() else {
-        return;
+        return Ok(());
     };
-    record_a_child_started(common_dir.as_path(), pid);
+    return record_a_child_started(common_dir.as_path(), pid);
 }
 
 /// What:
@@ -312,7 +326,15 @@ pub fn record_this_process_before_it_becomes_git() {
         // The commit service works in the repositories it is told about and remembers none: its locks carry its own marker.
         return;
     };
-    record_this_process(common_dir.as_path());
+    // What: A record that could not be written is said, and the command the person typed goes on.
+    // Why:  The lock this process is about to become Git for may then be one nothing can explain, which costs a later
+    //       command a bounded wait; refusing the person's own command over the wrapper's bookkeeping would cost more.
+    if let Err(error) = record_this_process(common_dir.as_path()) {
+        crate::diagnostic_log::debug(
+            TAG,
+            format!("this process's lock-holder record could not be written, so a lock it leaves may have no proof: {error}").as_str(),
+        );
+    }
 }
 
 /// What:
@@ -328,9 +350,9 @@ pub fn record_this_process_before_it_becomes_git() {
 /// ```ts
 /// recordProcess(commonDir) // creates <folder>/<pid>.<digest> with `self <pid> <identity>`
 /// ```
-pub fn record_this_process(common_dir: &Path) {
+pub fn record_this_process(common_dir: &Path) -> std::io::Result<()> {
     let folder: PathBuf = folder_of(common_dir);
-    let _noted = note(folder.as_path(), SELF_KIND, std::process::id());
+    return note(folder.as_path(), SELF_KIND, std::process::id());
 }
 
 /// What:
@@ -343,9 +365,9 @@ pub fn record_this_process(common_dir: &Path) {
 /// ```ts
 /// recordChild(commonDir, child.pid) // appends `child <pid> <identity>`
 /// ```
-pub fn record_a_child_started(common_dir: &Path, pid: u32) {
+pub fn record_a_child_started(common_dir: &Path, pid: u32) -> std::io::Result<()> {
     let folder: PathBuf = folder_of(common_dir);
-    let _noted = note(folder.as_path(), CHILD_KIND, pid);
+    return note(folder.as_path(), CHILD_KIND, pid);
 }
 
 /// What:
@@ -373,9 +395,21 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
     let Some((path, writer)) = record_of_this_process(folder) else {
         return Err(std::io::Error::other("the identity of this process is unavailable"));
     };
-    let Some(identity) = identity_of_process(i64::from(pid)) else {
+    #[cfg(test)]
+    self::hold_before_reading_a_childs_identity::wait_if_a_control_placed_one();
+    // What: A child's birth is read whatever state the child is in, so a Git that took a lock and ended before this
+    //       reading is still named; this process's own birth is read as the living process it is.
+    // Why:  The record is the only proof that a lock's holder is gone, and the window between a child's start and this
+    //       reading is enough for it to take a lock and die (a review of `429503238b`, finding 1).
+    //       A zombie's record still carries its start tick, and the judgement reads a zombie as gone.
+    let birth: Option<String> = match kind == CHILD_KIND {
+        true => birth_identity_of_a_process_that_may_have_ended(i64::from(pid)).ok().flatten(),
+        false => process_birth_identity(i64::from(pid)).ok().flatten(),
+    };
+    let Some(birth) = birth else {
         return Err(std::io::Error::other("the identity of that process is unavailable"));
     };
+    let identity: String = identity_of_birth(birth.as_str());
     let mut made_again: bool = false;
     loop {
         match write_a_record_line_once(folder, path.as_path(), kind, pid, identity.as_str(), writer.as_str()) {
@@ -408,25 +442,75 @@ pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, p
     use std::io::Write as _;
     // The writer's own line, written when the file is made: it names the one process that appends to this file.
     let own: (i64, String) = (i64::from(std::process::id()), writer.to_owned());
-    if !path.exists() {
-        std::fs::create_dir_all(folder)?;
-        let mut made: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(path) {
-            Ok(file) => file,
-            // Another thread of this process made it: the header is there and the append below is enough.
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => std::fs::OpenOptions::new().append(true).open(path)?,
-            Err(error) => return Err(error),
-        };
-        made.write_all(record_text(&[(SELF_KIND, own.0, own.1.clone())]).as_bytes())?;
-        if kind != SELF_KIND {
-            made.write_all(record_line(kind, i64::from(pid), identity).as_bytes())?;
+    // The folder the wrapper writes in is its own name inside the Git directory, and a person may have put a file, a link
+    //  or a pipe there: a folder that is not a directory is refused rather than followed.
+    std::fs::create_dir_all(folder)?;
+    if !std::fs::symlink_metadata(folder)?.file_type().is_dir() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the record folder is not a directory"));
+    }
+    // What: Every open of a record is the plain-file open: it cannot wait, follows no link, and refuses a pipe, a device
+    //       or a folder at the name.
+    // Why:  A named pipe at the record's path held a Git start for good, before the ceiling of the command it served had
+    //       even begun (a review of `429503238b`, finding 4).
+    let mut made: std::fs::File = match crate::plain_file::create_plain_file(path) {
+        Ok(file) => file,
+        // Another thread of this process made it, or it is this process's own record already: the append below is enough.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // The writer's own line is already the file's, so asking for it again writes nothing.
+            if kind == SELF_KIND {
+                return Ok(());
+            }
+            let mut existing: std::fs::File = crate::plain_file::open_plain_file_to_append(path)?;
+            return existing.write_all(record_line(kind, i64::from(pid), identity).as_bytes());
         }
-        return Ok(());
+        Err(error) => return Err(error),
+    };
+    made.write_all(record_text(&[(SELF_KIND, own.0, own.1.clone())]).as_bytes())?;
+    if kind != SELF_KIND {
+        made.write_all(record_line(kind, i64::from(pid), identity).as_bytes())?;
     }
-    // The writer's own line is already the file's, so asking for it again writes nothing.
-    if kind == SELF_KIND {
-        return Ok(());
-    }
-    let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path)?;
-    file.write_all(record_line(kind, i64::from(pid), identity).as_bytes())?;
     return Ok(());
+}
+
+/// A hold a control places between a child's start and the reading of its identity,
+/// so the window a start gate closes can be shown without making a real machine slow.
+#[cfg(test)]
+pub(crate) mod hold_before_reading_a_childs_identity {
+    use std::cell::Cell;
+    use std::time::Duration;
+
+    thread_local! {
+        /// How long this thread waits before it reads the identity of a process it is naming.
+        static HOLD: Cell<Option<Duration>> = const { Cell::new(None) };
+    }
+
+    /// What:
+    ///  Make this thread wait `hold` before every identity it reads while naming a child,
+    ///  until it is given nothing.
+    /// Why:
+    ///   A child that dies at once is one the parent may be too late to name;
+    ///  a control that widens that window shows whether the start held the child until it was named.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// holdBeforeReadingAChildsIdentity(200) // milliseconds
+    /// ```
+    pub(crate) fn hold(hold: Option<Duration>) {
+        HOLD.with(|cell| { cell.set(hold); });
+    }
+
+    /// What:
+    ///  Wait the time a control placed, if it placed any.
+    /// Why:
+    ///   The wait is the window: the child runs freely while it lasts.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (hold) Atomics.wait(..., hold)
+    /// ```
+    pub(crate) fn wait_if_a_control_placed_one() {
+        if let Some(hold) = HOLD.with(|cell| { return cell.get(); }) {
+            std::thread::sleep(hold);
+        }
+    }
 }

@@ -14,7 +14,8 @@
 /// Import the forwarding functions under test and shared fixtures.
 use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
 use crate::hooks_off::StartOwner;
-use crate::lock_holder_records::{SELF_KIND, remember_repository, this_process_record_path};
+use crate::abandoned_locks::{candidates_of_git_directory, clear_abandoned_locks};
+use crate::lock_holder_records::{SELF_KIND, hold_before_reading_a_childs_identity::{hold as hold_the_identity_read}, remember_repository, this_process_record_path};
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
@@ -529,5 +530,58 @@ fn a_step_with_a_ceiling_names_the_git_it_starts_in_the_record() {
     assert!(text.starts_with("monochromatic-git-policy-cli lock-holder-record v1"), "a record starts with its header: {text:?}");
     assert!(text.contains(format!("{SELF_KIND} {} ", std::process::id()).as_str()), "the record names this process: {text:?}");
     assert!(text.matches("child ").count() == 1, "the one Git the ceiling ended is named: {text:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A Git that takes the index lock and dies before the wrapper has read its identity is still named in the record,
+///  so the next pass clears the lock it left.
+/// Why:
+///  A start that names its child after the child may already be running loses the record of a Git that dies at once:
+///  the identity cannot be read, the record is not written, and the next commit fails on the standing lock
+///  (a review of `429503238b`,
+/// finding 1).
+///  The window is made certain by a hold before the identity is read,
+///  which is the delay the review's arm made with `strace`:
+///  a start that holds its child until it is named passes,
+///  and one that does not finds the child gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdBeforeReadingAChildsIdentity(300); const lock = join(common, 'index.lock');
+/// await runRealGitUntil(scriptThatLocksAndDies, [], [], 5s); expect(recordLines(common)).toContain('child ');
+/// expect(clearAbandonedLocks(...).cleared).toHaveLength(1); expect(existsSync(lock)).toBe(false);
+/// ```
+#[test]
+fn a_git_that_dies_before_its_identity_is_read_is_still_named_and_its_lock_is_cleared() {
+    let root: PathBuf = fixture("forward-fast-death-record");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.join("objects").as_path()).expect("the object directory");
+    std::fs::create_dir_all(common.join("refs/heads").as_path()).expect("the references");
+    std::fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+    remember_repository(common.as_path());
+    let lock: PathBuf = common.join("index.lock");
+    let pid_file: PathBuf = common.join("index~pid.lock");
+    let program: PathBuf = root.join("dying-git");
+    // The lock and its PID file are written first, and the Git then ends itself before the wrapper can read its identity.
+    let script: String = format!(
+        "#!/bin/sh\n: > '{0}'\nsleep 0.02\necho pid $$ > '{1}'\nkill -9 $$\n",
+        lock.display(),
+        pid_file.display()
+    );
+    executable(program.as_path(), script.as_bytes());
+    hold_the_identity_read(Some(std::time::Duration::from_millis(300)));
+    let ended = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(5), StartOwner::Wrapper);
+    hold_the_identity_read(None);
+    assert!(matches!(ended, Ok(ChildOutcome::Signaled(9))), "the stand-in Git ended itself: {ended:?}");
+    let record: PathBuf = this_process_record_path(common.as_path()).expect("this process's record path");
+    let text: String = std::fs::read_to_string(record.as_path()).expect("the record the start wrote, though the Git died at once");
+    assert!(text.matches("child ").count() == 1, "the Git that died is named: {text:?}");
+    assert!(lock.exists() && pid_file.exists(), "the lock and its PID file are the ones the stand-in left");
+    // The PID file names the shell that made it, and the record names the same process: the proof is the one a later
+    //  command has, and it is enough.
+    let outcome = clear_abandoned_locks(candidates_of_git_directory(common.as_path()).as_slice(), common.as_path(), common.as_path());
+    assert_eq!(outcome.cleared.len(), 1, "the next pass clears the lock on the record the start wrote");
+    assert!(!lock.exists(), "the lock the dead Git left is gone");
     remove(root.as_path());
 }
