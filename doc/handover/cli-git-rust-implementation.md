@@ -1594,6 +1594,66 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock a killed Git left is answered: one list says what a Git directory is; its review is told the one limit the branch states (2026-11-15T07:01:26-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The lock a killed Git left, for a reference lock**,
+  its author's third run,
+  ended 06:56:30 at `6c2272132b`,
+  `main` merged.
+  Both of the review's programs reproduced at the old tip.
+  The second finding is answered:
+  one list
+  (`lock/git_directories_of_the_repository.rs`)
+  now says what a Git directory is,
+  for the pass and for the watch
+  (the invocation's,
+  the common one,
+  every linked worktree's registration and every submodule's);
+  `objects` and `logs` are skipped only directly below a folder of that list,
+  and nothing under `refs/` is asked what it is.
+  A control names references and namespaces called `objects`,
+  `logs`,
+  `worktrees`,
+  `modules`,
+  `HEAD` and `packed-refs`,
+  each found and cleared,
+  and fails with the fix out.
+  Cost:
+  paired median plus 0.3 ms on 38.9 ms,
+  the differences on both sides of zero.
+  The first finding stands by a dependency the branch states:
+  the bounded runner writes no record of its child in this range,
+  and that record comes with the lock-holders branch.
+- Its review is queued tenth,
+  with a brief the package wrote and two paragraphs added by hand:
+  the range,
+  and that the missing record of the bounded runner is a stated limit and not a finding,
+  while a place where the code claims more than that is one
+  (`~/temp/agent/change-reviews/git-policy-cli-lock-a-killed-git-left-for-a-reference-lock-answers-after-its-second-review/brief.md`).
+  This is the second review brief extended by hand this night;
+  the first was the masking's.
+  Both need the same thing the package's writer cannot yet take:
+  a paragraph of what the review must know beyond the diff.
+  That belongs to the review brief's template,
+  whose fresh run is going.
+- **The temperature**,
+  read at 07:00:44:
+  56.9 degrees,
+  budget 32.0 threads,
+  13.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:00:48:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:55;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 86 entries at 07:01:26.
+
 ##### `0.6.1-alpha.40` is published and installed on this machine and its gate is running; the last two unowned test problems get runs (2026-11-15T06:59:10-05:00)
 
 Not final and not approved:
