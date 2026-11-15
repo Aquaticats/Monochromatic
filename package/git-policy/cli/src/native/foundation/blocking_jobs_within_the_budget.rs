@@ -265,6 +265,25 @@ where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
+    return run_workholding_the_places(job, None).await;
+}
+
+/// What:
+///  `run_blocking_job_within_the_budget` with a place of slow work travelling into the job,
+///  when the work is slow work.
+/// Why:
+///  The place of slow work is the job's and goes back when the job's work ends,
+///  so it travels with the job through the same claim and the same place of the bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runWorkHoldingThePlaces(job, slow)
+/// ```
+async fn run_workholding_the_places<T, J>(job: J, slow_work: Option<Arc<ThePlaceOfOneJob>>) -> Result<T, BlockingJobError>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
     let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
@@ -272,13 +291,19 @@ where
         Ok(Ok(taken)) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
         Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
-        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
-        Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed; the
+        //  place of slow work goes back with the frame, because nothing will run to give it back.
+        Err(_no_place) => {
+            if let Some(slow) = slow_work.as_ref() {
+                slow.give_it_back();
+            }
+            return Err(BlockingJobError::NoPlaceWithinTheCeiling);
+        }
     };
     // The place is this job's, so it is no longer one of the jobs waiting for one.
     #[cfg(test)]
     drop(_asking);
-    return run_a_job_holding_the_place(place, job).await;
+    return run_a_job_holding_the_place(place, slow_work, job).await;
 }
 
 /// What:
@@ -295,7 +320,7 @@ where
 /// ```ts
 /// const value = await runTheJobHoldingThePlace(place, job);
 /// ```
-async fn run_a_job_holding_the_place<T, J>(place: tokio::sync::OwnedSemaphorePermit, job: J) -> Result<T, BlockingJobError>
+async fn run_a_job_holding_the_place<T, J>(place: tokio::sync::OwnedSemaphorePermit, slow_work: Option<Arc<ThePlaceOfOneJob>>, job: J) -> Result<T, BlockingJobError>
 where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
@@ -307,12 +332,20 @@ where
     // A caller that stops waiting drops this, and the job the pool still holds queued must then do nothing.
     let mut call: TheCallOnAJob = TheCallOnAJob { claimed: Arc::clone(&claimed), held: Arc::clone(&held), settled: false };
     let (jobs_claim, jobs_place) = (Arc::clone(&claimed), Arc::clone(&held));
+    let jobs_slow: Option<Arc<ThePlaceOfOneJob>> = slow_work.as_ref().map(|slow| { return Arc::clone(slow); });
     let outcome = run_blocking_job(move || {
         // The claim comes first, before anything of the job's own work.
         if !jobs_claim.the_job_takes_it() {
             return None;
         }
         let _place: APlaceGivenBackWhenItEnds = APlaceGivenBackWhenItEnds::covering(jobs_place);
+        // What:
+        //  The place of slow work goes back when this job's work ends, and never when a caller stops waiting for it.
+        // Why:
+        //  The place of slow work is the limit on the slow jobs that run, so a job nobody waits for any more still holds
+        //  it: the lane drops the look that waited at its ceiling and the job runs on, and a permit that went back with
+        //  the dropped caller let the next look start a replacement beside it (the review of `ff4fc2a1fb`, finding 1).
+        let _slow: Option<APlaceGivenBackWhenItEnds> = jobs_slow.map(APlaceGivenBackWhenItEnds::covering);
         return Some(job());
     })
     .await;
@@ -327,7 +360,7 @@ where
         Err(failed) => {
             // The place goes back here only when the job will never run: a job that took the claim holds it until its
             //  work ends, so the process's bound keeps covering every running job.
-            let answered: BlockingJobError = a_refused_thread_start(failed, &claimed, &held);
+            let answered: BlockingJobError = a_refused_thread_start(failed, &claimed, &held, slow_work.as_ref());
             call.settled = true;
             Err(answered)
         }
@@ -422,16 +455,35 @@ where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
-    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(slow_places()).acquire_owned()).await {
+    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(crate::wait_ceilings::PLACE_WAIT_CEILING).await {
+        Ok(taken) => taken,
+        Err(no_place) => return Err(no_place),
+    };
+    return run_workholding_the_places(job, Some(slow)).await;
+}
+
+/// What:
+///  Take one place of slow work,
+///  awaited no longer than `ceiling`,
+///  and hold it in the one object a job and the caller that waits for it both reach.
+/// Why:
+///  The place belongs to the job that will run, not to the frame that waits for it,
+/// so it is handed to the runner that travels into the job;
+/// and an answer of "no place came" here is a job that never started, so nothing of it can change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slow = await within(ceiling, slowPlaces.acquire()); // thePlaceOfOneJob(slow)
+/// ```
+async fn take_a_place_of_slow_work(ceiling: Duration) -> Result<Arc<ThePlaceOfOneJob>, BlockingJobError> {
+    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(slow_places()).acquire_owned()).await {
         Ok(Ok(taken)) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
         Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
-        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        // No place came within the ceiling, so nothing ran.
         Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
     };
-    let answer: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(job).await;
-    drop(slow);
-    return answer;
+    return Ok(ThePlaceOfOneJob::holding(slow));
 }
 
 /// What:
@@ -448,15 +500,31 @@ where
 /// const slow = await slowPlaces.acquire(PLACE_WAIT_CEILING); try { return await runAJobOrNoPlace(state, work); } finally { slow.release(); }
 /// ```
 pub async fn run_a_slow_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
-    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(slow_places()).acquire_owned()).await {
-        Ok(Ok(taken)) => taken,
-        Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
-        // No place of slow work came within the ceiling, so nothing ran.
-        Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
+    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(crate::wait_ceilings::PLACE_WAIT_CEILING).await {
+        Ok(taken) => taken,
+        Err(no_place) => return Err(no_place),
     };
-    let answer: Result<T, BlockingJobError> = run_a_job_or_no_place(state, work).await;
-    drop(slow);
-    return answer;
+    return run_a_job_or_no_place_holding_the_slow_place(state, work, slow).await;
+}
+
+/// What:
+///  `run_a_job_or_no_place` with a place of slow work travelling into the job.
+/// Why:
+///  The place is the job's, and the job of the bound is where it is held until the work ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runAJobOrNoPlace(state, work, slow)
+/// ```
+async fn run_a_job_or_no_place_holding_the_slow_place<S: Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T, slow: Arc<ThePlaceOfOneJob>) -> Result<T, BlockingJobError> {
+    return match run_workholding_the_places(move || { return work(state); }, Some(slow)).await {
+        Ok(value) => Ok(value),
+        // The system gave no thread, which is the one answer that promises the step did not run and changed nothing
+        //  (`a_refused_thread_start`): the caller is told that no place came, which is what it looks again on.
+        Err(BlockingJobError::NoThreadToStart) => Err(BlockingJobError::NoPlaceWithinTheCeiling),
+        // A job the pool queued anyway may have run, and an answer this caller cannot read is that answer's own.
+        Err(another) => Err(another),
+    };
 }
 
 /// What:
@@ -481,7 +549,7 @@ pub async fn run_a_slow_job_or_no_place<S: Send + 'static, T: Send + 'static>(st
 /// return await runBlockingJobWithinTheBudget(() => work(state)); // a refused thread is 'no place', never work done here
 /// ```
 pub async fn run_a_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
-    return match run_blocking_job_within_the_budget(move || { return work(state); }).await {
+    return match run_workholding_the_places(move || { return work(state); }, None).await {
         Ok(value) => Ok(value),
         // The system gave no thread, which is the one answer that promises the step did not run and changed nothing
         //  (`a_refused_thread_start`): the caller is told that no place came, which is what it looks again on.
@@ -496,6 +564,7 @@ pub async fn run_a_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: 
 ///  from what the claim on the job's work decided.
 /// Why:
 ///  This is the only place that knows which of two things happened,
+///  and it gives back every place the job held when it learns the job will never run,
 /// because it takes the claim:
 ///  a reporter's claim proves the queued closure will do nothing,
 /// and a claim the job took first proves the job started on another thread
@@ -509,9 +578,13 @@ pub async fn run_a_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: 
 /// ```ts
 /// const answered = aRefusedThreadStart(failed, claim, place); // NeverRuns | StartedAnyway
 /// ```
-fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWork, held: &ThePlaceOfOneJob) -> BlockingJobError {
+fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWork, held: &ThePlaceOfOneJob, slow_work: Option<&Arc<ThePlaceOfOneJob>>) -> BlockingJobError {
     if claimed.the_reporter_takes_it() {
+        // Both places of a job that will never run go back here, and once each.
         held.give_it_back();
+        if let Some(slow) = slow_work {
+            slow.give_it_back();
+        }
         return match failed {
             // The runner's own refusal promises nothing about the closure the pool queued; the claim this call has just
             //  taken is what makes this answer sure.
@@ -603,27 +676,27 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 /// const answer = await runASlowJobOnceAwaitedNoLongerThan(ceiling, state, work); // { ran } | noPlace | noAnswer
 /// ```
 pub async fn run_a_slow_job_once_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
-    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(slow_places()).acquire_owned()).await {
-        Ok(Ok(taken)) => taken,
+    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(ceiling).await {
+        Ok(taken) => taken,
         // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
-        Ok(Err(_closed)) => return TheAnswerOfAJobAwaited::NotRun,
-        Err(_elapsed) => return TheAnswerOfAJobAwaited::NotRun,
+        Err(_no_place) => return TheAnswerOfAJobAwaited::NotRun,
     };
-    // What:
-    //  The place of slow work travels into the job, as a place of the bound does, so it goes back when the job's work ends
-    //  and never when the caller stops waiting.
-    // Why:
-    //  A caller whose ceiling passes does not stop its job: a job that outlasted its caller's ceiling runs on, and a place
-    //  given back on the frame would let a second slow job start beside it
-    //  (the review of `e1a615aab0`, F6: two jobs were live under one slow permit).
-    let slow_held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(slow);
-    let answer: TheAnswerOfAJobAwaited<T> = run_a_job_once_awaited_no_longer_than(ceiling, move || {
-        let _slow: crate::the_place_of_one_blocking_job::APlaceGivenBackWhenItEnds =
-            crate::the_place_of_one_blocking_job::APlaceGivenBackWhenItEnds::covering(Arc::clone(&slow_held));
-        return work(state);
-    })
-    .await;
-    return answer;
+    return run_a_job_once_awaited_no_longer_than_holding_the_slow_place(ceiling, state, work, slow).await;
+}
+
+/// What:
+///  `run_a_job_once_awaited_no_longer_than` with a place of slow work travelling into the job.
+/// Why:
+///  A caller whose ceiling passes does not stop its job: a job that outlasted its caller's ceiling runs on, and a place
+///  given back on the frame would let a second slow job start beside it
+///  (the reviews of `e1a615aab0`, F6, and `ff4fc2a1fb`, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runAJobOnceAwaitedNoLongerThan(ceiling, slow, state, work)
+/// ```
+async fn run_a_job_once_awaited_no_longer_than_holding_the_slow_place<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T, slow: Arc<ThePlaceOfOneJob>) -> TheAnswerOfAJobAwaited<T> {
+    return run_a_job_once_awaited_no_longer_than_with(ceiling, Some(slow), move || { return work(state); }).await;
 }
 
 /// What:
@@ -657,7 +730,7 @@ pub async fn run_an_answer_to_a_client<S: Send + 'static, T: Send + 'static>(cei
         // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
         Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
     };
-    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, move || { return work(state); })).await {
+    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, None, move || { return work(state); })).await {
         Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
         // Only a refusal that promised the job will not run leaves the state as it was.
         Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
@@ -688,17 +761,37 @@ pub async fn run_an_answer_to_a_client<S: Send + 'static, T: Send + 'static>(cei
 /// const answer = await runAJobOnceAwaitedNoLongerThan(ceiling, job);
 /// ```
 pub async fn run_a_job_once_awaited_no_longer_than<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T> {
+    return run_a_job_once_awaited_no_longer_than_with(ceiling, None, job).await;
+}
+
+/// What:
+///  `run_a_job_once_awaited_no_longer_than` with a place of slow work travelling into the job,
+///  when the work is slow work.
+/// Why:
+///  The place travels with the job, so a caller whose ceiling passes gives up its wait and never the job's place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runAJobOnceAwaitedNoLongerThan(ceiling, slow, job)
+/// ```
+async fn run_a_job_once_awaited_no_longer_than_with<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, slow_work: Option<Arc<ThePlaceOfOneJob>>, job: J) -> TheAnswerOfAJobAwaited<T> {
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
     let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
     let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(&budget().places).acquire_owned()).await {
         Ok(Ok(taken)) => taken,
-        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
-        Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed; the
+        //  place of slow work goes back with the frame, because nothing will run to give it back.
+        Ok(Err(_)) | Err(_) => {
+            if let Some(slow) = slow_work.as_ref() {
+                slow.give_it_back();
+            }
+            return TheAnswerOfAJobAwaited::NotRun;
+        }
     };
     #[cfg(test)]
     drop(_asking);
-    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {
+    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, slow_work, job)).await {
         Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
         // Only a refusal that promised the job will not run leaves the state as it was.
         Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
