@@ -22,6 +22,7 @@
 //! stderr.write(render({ kind: 'not-installed' }));
 //! ```
 
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
 use std::path::Path;
 use std::time::Duration;
 
@@ -124,8 +125,18 @@ pub enum Platform {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientFailure {
-    /// The service was started and did not come up.
-    DidNotStart,
+    /// The wait for the commit service ended with nothing greeting it,
+    /// and what it learned about the service manager's own answer is what says why:
+    /// a start that was never asked for leaves the service's log empty.
+    DidNotStart {
+        /// The unit this command asked the service manager about,
+        /// or nothing where no manager can be asked to start a service at all.
+        unit: Option<String>,
+        /// What the service manager last said about that unit.
+        answer: ManagerLastWords,
+        /// What this command asked the manager to do about it.
+        asked: RequestedStart,
+    },
     /// Something accepted the connection at the service's address and nothing answered;
     /// no service manager could be asked to start or restart it.
     NothingAnswered {
@@ -322,9 +333,10 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::DidNotStart => format!(
-            "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
-             Run the commit again after fixing that. {NOTHING_CHANGED}"
+        ClientFailure::DidNotStart { unit, answer, asked } => format!(
+            "The commit service did not start, so this commit was not made: {}. Its log shows why: `{LOG_COMMAND}`. \
+             Run the commit again after fixing that. {NOTHING_CHANGED}",
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(unit.as_deref(), answer, *asked)
         ),
         ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
         ClientFailure::NoActivation(platform) => format!(
