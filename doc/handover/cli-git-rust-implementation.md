@@ -1605,6 +1605,75 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Integration pass 52 is in `main` and `0.6.1-alpha.41` is dispatched; the driver's notice of a silent tool command is built and goes to review (2026-11-15T07:48:14-05:00)
+
+Not final and not approved:
+what one pass and one author report and what the coordinating session did.
+
+- **Integration pass 52** ended 07:46:28 at `070536cef5`,
+  which holds `main` as it stood
+  (`9bfdd11f91`,
+  with passes 50 and 51 in it),
+  and reports fit:
+  the whole library suite with no failure,
+  the tests the branch exists for passing by name inside it;
+  two failures in the binary suite,
+  both on the gate's known list;
+  the two known TypeScript failures and no other.
+  One thing it names before a release:
+  `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`
+  failed once in a whole-suite run and passed alone,
+  on no gate list;
+  that control has a run that owns it.
+  **Merged** as `ce4cba8bb6` (07:47:50),
+  after checking that `main` held nothing the tip lacked.
+  **Release `0.6.1-alpha.41` dispatched** at 07:48:00
+  (run 43715673005);
+  the install,
+  the sample commit,
+  the gate and the fuzz sidecar's type check follow.
+  Three of the gate's eighteen standing failures are this branch's.
+- **The driver notices a tool command that says nothing**,
+  a fresh run,
+  ended 07:43:11 at `6b86edc7f6`.
+  "Said nothing" is no record of any kind from Pi,
+  which is the record's own activity clock.
+  After 600 s a `silence` line is written to the feed and into the summary,
+  naming the command;
+  after 3,600 s the command is ended the way the wall clock ends one,
+  and the agent is told what was ended and why.
+  Both values are options of the driver and come from a measurement of 2,346 feeds.
+  A long honest command is not told from a hang:
+  the ending sits above every honest silence measured,
+  and an agent that knows a command will run long gives it the tool's own `timeout`,
+  which the driver waits out and sixty seconds more.
+  Controls fail with the fix removed,
+  among them a descendant that holds the pipe.
+  193 suites pass in the last whole run;
+  four different existing tests failed in four earlier whole runs and pass alone,
+  which is the subject of the run queued at 06:57.
+  The launchers do not pass the new options yet,
+  so the defaults hold for every run once this is in `main`.
+  Its review is queued tenth
+  (`main...6b86edc7f6`,
+  twelve code files that are not tests).
+  One commit's body does not name `README.md` although it changed it;
+  the author says so and did not amend.
+- **The temperature**,
+  read at 07:47:23:
+  52.1 degrees,
+  budget 32.0 threads,
+  2.7 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:47:26:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:34;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 86 entries at 07:48:14.
+
 ##### The wrapper under the gate container's Git: a fifth review of its test helper; two findings go back, two are weighed as a limit by a measurement (2026-11-15T07:35:49-05:00)
 
 Not final and not approved:
