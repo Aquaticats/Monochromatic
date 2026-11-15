@@ -1594,6 +1594,95 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `0.6.1-alpha.39` fails 26 of 9,119, three of them for the first time, on a machine held down for its temperature (2026-11-15T06:24:26-05:00)
+
+Not final and not approved:
+what the gate printed,
+how the coordinating session read it,
+and what it queued.
+
+- **The gate** on `f82fc29fc3` ended 06:21:58:
+  9,119 run,
+  9,093 passed,
+  26 failed,
+  28 skipped,
+  837 s
+  (the gate before,
+  on `7edb782568`,
+  took 690 s and failed 22).
+  The log is `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-f82fc29fc3-20261115T060018-0500.log`;
+  the panics and the comparison with the four gates before are in `~/temp/agent/gate/keep/`
+  (`panics-of-the-failing-tests-of-the-gate-on-f82fc29fc3-2026-11-15T060018.txt`,
+  `failing-tests-of-the-gate-on-f82fc29fc3-against-the-four-gates-before-it.txt`).
+- **Standing**,
+  failed in all four gates before:
+  21,
+  the same as before
+  (the Git version,
+  the long runtime directory,
+  the refused service starts,
+  the lock-holders folder,
+  the library tests,
+  the record of another boot);
+  each has a branch with an author,
+  a review or a pass.
+- **Failed in one of the four before**:
+  `foundation::lazy_runtime::tests::a_build_that_finishes_while_the_caller_gives_up_is_kept`
+  and `worktree::worktree_process_inside::tests::a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table`
+  (the second has a fresh run queued).
+- **Failed for the first time**,
+  three,
+  all in the binary suite:
+  - `a_record_nothing_announced_is_found::an_idle_service_runs_no_work`:
+    the service's counters could not be read,
+    and the service's last line says it was ended by a signal 8 ms after it started.
+  - `commit_timing::a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_record`:
+    standard error held a line,
+    `automatic maintenance ran maintenance_ms=220`,
+    where the test expects none.
+  - `package_repair::real_cargo_leaves_a_stale_lockfile_as_checked_out`:
+    the bytes a clean displaced were not kept,
+    and the service said a Cargo build directory could not be filled.
+  **Read**:
+  two things differ from the gate before,
+  the code
+  (integration pass 51)
+  and the machine
+  (this gate ran under the CPU budget and the power-saver profile).
+  Which one each failure belongs to is not known,
+  and it is not guessed here.
+  A fresh run is queued fifth to put each on the code or on the speed by a run in the gate's two images,
+  with the test's own container capped,
+  and to remove the cause where it is
+  (`~/temp/agent/pi-runs/three-gate-controls-that-failed-for-the-first-time-on-a-held-down-machine-have-their-cause-found-prompt.md`).
+  By the owner's answer of 2026-11-14,
+  a gate's failures do not hold the next release.
+- **The wrapper under the gate container's Git**,
+  its author's fifth run,
+  ended 06:17:46 at `c5a3fdf410`:
+  the review's reproduction reproduced at its old tip;
+  the helper's input is written on a thread of its own,
+  so a full pipe no longer holds the bound;
+  the control failed after 60 s without the fix and answers in about 2.1 s with it.
+  Its review is queued seventh
+  (`main...c5a3fdf410`,
+  four code files that are not tests).
+  Seven gate failures wait on it.
+- **The temperature**,
+  read at 06:22:18 after the gate:
+  54.4 degrees,
+  budget 32.0 threads,
+  4.5 in use.
+  The highest sample while the gate ran that this session read was 60.5.
+- Read at 06:22:20:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:14;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 84 entries at 06:24:26.
+
 ##### Two authors answer: the push of a branch that is not checked out, and the service a test starts that writes no line into the journal (2026-11-15T06:15:47-05:00)
 
 Not final and not approved:
