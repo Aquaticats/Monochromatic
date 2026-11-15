@@ -738,6 +738,30 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T09:46:57-05:00,
+  from the author of the landed removal
+  (branch tip `5ca2149aea`,
+  in review),
+  not blocking work:
+  a shell alias (`!…`) can build a `git worktree remove` in ways no reader of its text can follow,
+  and the rule against self-invocation rules out making the alias's Git the wrapper.
+  The branch therefore refuses every `!` alias that is not one plain Git command line,
+  with the opt-out,
+  a harmless `!echo hello` among them.
+  This machine's Git configuration holds no alias today,
+  so nothing is stopped here.
+  Does that refusal stand,
+  or is a shell alias forwarded as it is
+  (which leaves the removal a shell alias builds unguarded)?
+
+- A proposal for `AGENTS.md`,
+  added 2026-11-15T09:46:57-05:00,
+  after a brief's suggestion collided with a record under `doc/planning/`:
+  the rule that says to grep `doc/decision/` before briefing work on a component names `doc/planning/` as well,
+  since accepted rules of the owner's live in both.
+  Not applied;
+  the file is the owner's.
+
 - Added 2026-11-15T08:06:19-05:00,
   about the removal of a worktree,
   not blocking work:
@@ -1638,6 +1662,95 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The landed removal answers: an alias the wrapper cannot read is refused; a suggestion of the coordinating session collided with a recorded rule; the checkout migration answers (2026-11-15T09:46:57-05:00)
+
+Not final and not approved:
+what two authors report,
+what the coordinating session got wrong and measured,
+and what it queued.
+
+- **The landed removal**,
+  its author's fourteenth run,
+  ended 09:43:59 at `5ca2149aea`:
+  the review's three scripts reproduced at the old tip and do not at the new.
+  - **The brief's suggestion collided with the project's record.**
+    The coordinating session had suggested that the Git a shell alias reaches be the wrapper.
+    The author built it,
+    then read `doc/planning/cli-git-no-self-invocation.md`
+    (the wrapper never starts its own executable,
+    whether as a child,
+    a hook command or a shim it writes,
+    and never writes shell text),
+    and took every line of it out.
+    The brief should have named that record:
+    the records under `doc/planning/` were not searched before the suggestion was written,
+    only what the session remembered of `doc/decision/`.
+  - What stands in its place:
+    an alias whose command is one plain Git command line is judged as that command
+    (an inner `-C`, `--git-dir`, `--work-tree`, `--namespace` or `--attr-source` is refused as naming another repository);
+    **every other `!` alias is refused**,
+    with its text and the opt-out,
+    `!echo hello` among them.
+    The stated limit:
+    a plain alias whose value runs a program by an absolute path.
+  - A repository inside an ignored folder is refused when it names a commit the removing repository does not;
+    an ignored folder with no repository,
+    and a repository with no commit,
+    are deleted as decided.
+    The look is bounded at 50,000 entries or ten seconds and costs 25.6 ms on 20,000 ignored files.
+  - An ordinary removal costs 2.8 ms more
+    (41.6 against 39.6 ms);
+    884 `worktree::` tests pass.
+  - The author's own mistake,
+    reported by it:
+    a cost arm built from an uncommitted tree was restored over its edits,
+    which it applied again from its session.
+  Its review is queued third
+  (`main...5ca2149aea`,
+  22 code files that are not tests).
+- **Measured for the refusal of shell aliases**:
+  the Git configuration this checkout reads holds no alias at all,
+  so on this machine today the refusal stops nothing.
+  **Adopted,
+  open to veto,
+  and kept as a question**:
+  the refusal stands for the review and the pass.
+- **The checkout migration**,
+  a fresh run,
+  ended 09:41:19 at `311a65f852`:
+  the migration refused its own repository because a record the wrapper itself wrote during the copy was missing at the destination.
+  The comparison now holds a migration to what a person or Git put there;
+  the wrapper's own records are named once,
+  by the names the code that writes them uses,
+  and a file counts as the wrapper's only when it carries the writer's own mark.
+  Kinds with no mark still count and can still refuse,
+  which the module states.
+  Controls fail with the fix out;
+  354 library tests and the five binary controls pass.
+  Its review is queued eighth
+  (`main...311a65f852`,
+  seven code files that are not tests).
+- **A note to the lock-holders author**,
+  whose fifth run had started with a suggestion of the same session in its brief
+  (the process about to be Git writes its own record between `fork` and `exec`):
+  the record on self-invocation is named to it,
+  with the session's reading that code in the forked child starts no second copy of the wrapper,
+  and that the record stands over the suggestion if the author reads it otherwise.
+- **The temperature**,
+  read at 09:45:49:
+  53.6 degrees,
+  budget 32.0 threads,
+  5.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:45:50:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:39;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
 
 ##### The address-space controls answer their one finding by a measurement; a review of the one added commit is written by hand and queued (2026-11-15T09:40:57-05:00)
 
