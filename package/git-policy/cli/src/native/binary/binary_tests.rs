@@ -48,6 +48,11 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// The folder a binary control's sockets stand in,
+/// and the short runtime directory one of them holds.
+#[path = "binary_support_socket_folders.rs"]
+mod support_socket_folders;
+
 /// How a fixture tells that its service is at work and that it is ready.
 #[path = "binary_support_fixture_service_readiness.rs"]
 mod support_fixture_service_readiness;
@@ -705,7 +710,6 @@ mod stale_ref_lock;
 /// kept when it does not.
 #[path = "binary_killed_holder_lock_tests.rs"]
 mod killed_holder_lock;
-
 
 /// The message and identity options through the service,
 /// compared with native Git field by field.
