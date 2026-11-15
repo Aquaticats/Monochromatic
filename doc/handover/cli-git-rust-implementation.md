@@ -738,6 +738,31 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T12:39:01-05:00,
+  from the author of mpm-shadow's install that removes no version in use
+  (branch tip `acc855a2f3`,
+  review queued),
+  none blocking work:
+  - A process that hides what it runs keeps every version it could be running.
+    This machine has 11 such processes among the account's 511
+    (the session's PAM helper,
+    the compositor,
+    a sandbox helper,
+    the polkit agent,
+    the SSH agent and others),
+    so no old version is removed here until they end.
+    Keep every version for them,
+    or something narrower?
+  - One bad row in a lock makes the whole lock unreadable,
+    which keeps everything that lock might name.
+    Whole lock,
+    or the bad row alone?
+  - A descendant that puts itself in its own session outlives a program's stop.
+    A control group around every program would end it,
+    and would also end the helpers a command starts on purpose to outlive it
+    (a compiler cache's server).
+    Worth it?
+
 - Added 2026-11-15T11:07:00-05:00,
   from the author of the push of a branch that is not checked out
   (branch tip `777c491325`,
@@ -1614,6 +1639,73 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The driver's takeover of a review folder fails its eighth review with two more orders of steps, and the author is asked whether a takeover is needed at all; mpm-shadow's install branch answers (2026-11-15T12:39:01-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The brief writer for a change to tests alone** (`baed9b0a1b`),
+  its eighth review,
+  ended 12:33:21,
+  18 of 18 files and the whole diff,
+  two things,
+  both reproduced by driving the branch's functions with one step held:
+  a slower taker's rename moves aside the ticket a faster taker has just made,
+  so two starts hold the one ticket and the slower can remove the faster's owner record;
+  and an "inactive" answer of the service manager,
+  taken before the look at the dead owner,
+  is used again after the review's unit became active.
+- **Weighed**:
+  both go back,
+  and with them a question the count of rounds raises.
+  The takeover is a lock built from renames with a liveness judgement in its middle,
+  and each of the last reviews found one more order of its steps.
+  The repository's rule is lock-free first:
+  an exclusive create and one owner per item.
+  The author is asked to weigh,
+  before fixing the two,
+  a review folder that is never taken over
+  (a start that finds the name taken takes a name of its own beside it,
+  and a dead starter's folder is a leftover),
+  a suggestion of the coordinating session's and not a requirement,
+  against a takeover that is one compare-and-take with the manager asked again at the instant of taking,
+  shown by a walk over every pair of steps.
+  Its ninth run is queued eighth.
+- **mpm-shadow's install that removes no version in use**,
+  a fresh run's fifth,
+  ended 12:36:57 at `acc855a2f3`:
+  the fifth review's findings answered.
+  A crate name,
+  a version,
+  a tool id and a link name that are not one directory name are refused,
+  and nothing is removed outside the store;
+  a version never claimed keeps its archives through a recovery;
+  a zombie is no live holder;
+  a process that hides what it runs keeps the version.
+  884 of 884 tests pass;
+  the cost is inside one arm's spread.
+  **Counted on this machine**:
+  511 processes of this account,
+  11 of which hide what they run,
+  so by the rule an install's removals and `prune` keep every version they judge until those 11 end.
+  Its three questions for the owner join the kept ones:
+  every version kept for the hidden processes or something narrower;
+  whether one bad row makes a whole lock unreadable;
+  whether a control group around each program is worth the helpers it would end.
+  Its review is queued ninth
+  (`main...acc855a2f3`,
+  27 code files that are not tests).
+- Read at 12:38:00:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes.
 
 ##### The landing that never waits: its review read the whole range, ran nothing of the package, and makes four claims; the author goes back with a control asked for each (2026-11-15T12:28:14-05:00)
 
