@@ -76,7 +76,7 @@ pub mod policy_catalog_specifiers;
 /// The branch-worktree-only check.
 pub mod policy_branch_worktree;
 
-/// The two commands the wrapper records and never refuses.
+/// The two commands the wrapper records, and the line a refused removal leaves.
 pub mod policy_audited;
 
 /// The optional forbidden-strings policy over the linked scanner,

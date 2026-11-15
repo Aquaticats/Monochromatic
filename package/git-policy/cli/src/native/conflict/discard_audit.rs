@@ -100,11 +100,12 @@ pub enum AuditOutcome {
     ///  and the wrapper moved it whole beside the audit log first.
     SavedNestedRepository,
 
-    /// The form is recorded and was never refused:
+    /// The form is recorded, and this line says what it took:
     ///  it runs as Git runs it,
-    ///  by the owner's decision,
-    ///  and this
-    ///       line says what it took.
+    ///  by the owner's decision.
+    ///  A `git worktree remove` that a guard refuses leaves `Rejected` instead,
+    ///  with the refusal's words,
+    ///  so a reader sees both endings in the same file.
     Logged,
 }
 

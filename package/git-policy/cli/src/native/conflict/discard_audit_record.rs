@@ -87,7 +87,10 @@ impl From<GuardedCommand> for DecidedForm {
 /// What:
 ///  An audited command as the form of a record.
 /// Why:
-///   A recorded form that is never refused lands in the same file,
+///   A recorded form lands in the same file as every guarded one,
+///  and its refusal,
+///  where a guard has one,
+///  lands there too,
 ///  so it converts the same way.
 ///
 /// In TS you'd write (pseudocode):

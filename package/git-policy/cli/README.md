@@ -2806,15 +2806,35 @@ because the line is written before Git runs and cannot say whether Git ran the d
 by the owner's decision,
 also when `--no-enforce-worktree` is given.
 `git branch -d` and its forms are never rejected.
-`git worktree remove` is never rejected for what the worktree itself holds,
+`git worktree remove` is not rejected for the files the worktree itself holds
+(an ignored file, an untracked one),
 because agents are as likely to run `rm -rf`,
 and it is rejected in two cases only.
+The guard acts only on a name Git itself would remove with:
+when Git answers "is not a working tree" the removal deletes nothing,
+so nothing is refused and Git's own words are the answer.
+Which worktree a name picks is Git's decision, read at Git 2.56.0:
+the end of a registered worktree's path first, with ASCII case folded only when `core.ignorecase` says so,
+and then the real path the name resolves to,
+so `../topic`, a path with `./`, a trailing separator or a path through a link all reach the same worktree
+and are all examined.
 A live process works in the worktree:
 that refusal names the process by its number and the kernel's name for the program it runs,
 never its command line or its environment,
 says what the removal would do to that program,
 and names the one flag that runs the removal anyway,
 `git worktree --no-enforce-worktree remove <path>`.
+The command itself and each of its parents are not counted as that process,
+by the owner's decision of 2026-11-14:
+a removal started from inside an unprivileged user namespace finds almost every working folder unreadable,
+its own shell and `timeout` among them,
+and could otherwise never run there.
+The cost, accepted with that decision:
+a shell that stands in the worktree and removes it from there loses that folder,
+and so does any other parent standing there.
+Every other process still counts,
+and one whose working folder cannot be read keeps its worktree
+unless its start time proves it predates the worktree.
 A worktree registered inside the one you named holds work no other copy has:
 an edit to a tracked file or a staged change,
 or a commit that no reference names,

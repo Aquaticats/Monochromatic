@@ -184,15 +184,40 @@ fn a_private_mount_namespace_is_available(control: &str) -> bool {
 
 /// What:
 ///  Run one script in a private mount namespace of this command's own,
-///  with the wrapper first on `PATH`.
+///  with the wrapper first on `PATH`,
+///  and in a process namespace of its own with a `/proc` that holds only its processes.
 /// Why:
 ///  A mount a control makes needs a namespace nobody else shares,
 ///  and the rule that bounds every probe applies to it:
 ///  the script runs under `timeout`,
 ///  and the namespace ends with it.
+///  The process namespace is this control's own measurement:
+///  inside a user and mount namespace alone, `/proc` still lists every process of the host,
+///  and the working folders of all but the namespace's own are unreadable,
+///  so the removal guard counted every process started after the fixture's worktree as one that hides its folder
+///  and refused (measured on 2026-11-14;
+///  the guard leaves out the command and its ancestors, and no other process).
+///  With `--pid --fork --mount-proc` the table the guard reads holds this script and its children,
+///  which is the state a machine with no other process on it would give,
+///  and the removal's own behaviour is what these controls measure.
 fn inside_a_private_mount_namespace(fixture: &Fixture, directory: &Path, script: &str) -> Observed {
     let mut command: Command = Command::new("/usr/bin/unshare");
-    command.args(["--user", "--map-root-user", "--mount", "--propagation", "private", "--", "/usr/bin/timeout", TIME_BOUND_SECONDS, "/bin/sh", "-c", script]);
+    command.args([
+        "--user",
+        "--map-root-user",
+        "--mount",
+        "--propagation",
+        "private",
+        "--pid",
+        "--fork",
+        "--mount-proc",
+        "--",
+        "/usr/bin/timeout",
+        TIME_BOUND_SECONDS,
+        "/bin/sh",
+        "-c",
+        script,
+    ]);
     hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
     command.current_dir(directory);
     return observe(&mut command, b"");

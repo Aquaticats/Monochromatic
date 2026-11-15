@@ -209,10 +209,12 @@ impl GuardedCommand {
 }
 
 /// What:
-///  The forms the wrapper records and never refuses.
+///  The forms the wrapper records rather than judging them for what they would discard.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   The owner decided these two run exactly as Git runs them and leave one audit line:
+///   The owner decided these two run exactly as Git runs them and leave one audit line,
+///  and a `git worktree remove` is refused by one guard of its own before it runs
+///  (`worktree_removal_refusal.rs`):
 ///  `git worktree remove`
 ///       ("This one is pretty intentional because agents are just as likely to run a rm rf,
 ///  so preventing

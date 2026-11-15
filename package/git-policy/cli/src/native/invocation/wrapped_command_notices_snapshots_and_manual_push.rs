@@ -41,7 +41,7 @@ use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees}
 use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
 use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
-/// The two forms that are recorded and never refused.
+/// The two forms that are recorded, and the line a refused removal leaves.
 use crate::policy_audited::record_audited;
 /// The guarded decision about the command Git will run,
 ///  resolved once with the guard and the transforms.

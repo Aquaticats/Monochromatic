@@ -53,12 +53,15 @@
 //! ```
 
 use crate::discard_audit_facts::AuditFact;
+use crate::process_use::PROCESS_SCAN_CEILING;
 use crate::transaction_git::GitContext;
-use crate::worktree_landed_registrations::{Registration, registrations_of};
 use crate::worktree_nested_git_work::{NestedHoldingGitWork, nested_worktrees_holding_git_work};
-use crate::worktree_process_inside::{ProcessWorking, process_working_inside};
+use crate::worktree_process_inside::{LeftOut, ProcessWorking, process_working_inside_until};
 use crate::worktree_removal_second_look::age_of;
+use crate::worktree_remove_registry::{GitRemoval, registered_worktree, worktree_git_removes};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// The finding code of a removal this program refuses.
 /// Why:
@@ -82,7 +85,7 @@ pub const REMOVAL_ESCAPE: &str = "--no-enforce-worktree";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovalInQuestion = { context: GitContext; commonDir: string; procRoot: string; target: string; force: boolean };
+/// type RemovalInQuestion = { context: GitContext; commonDir: string; procRoot: string; operand: string; commandDirectory: string; force: boolean };
 /// ```
 pub struct RemovalInQuestion<'a> {
     /// How to start real Git.
@@ -92,9 +95,12 @@ pub struct RemovalInQuestion<'a> {
     /// The process table to read,
     /// which a control replaces with a fixture listing.
     pub proc_root: &'a Path,
-    /// The worktree the command names,
-    /// as the repository resolves that name.
-    pub target: &'a Path,
+    /// The name the person typed,
+    /// which Git resolves its own way.
+    pub operand: &'a OsStr,
+    /// The directory the command runs in,
+    /// which a relative name is read from.
+    pub command_directory: &'a Path,
     /// Whether the person forced the removal.
     pub force: bool,
 }
@@ -120,26 +126,56 @@ pub fn why_a_removal_is_refused(removal: &RemovalInQuestion<'_>) -> Option<Strin
     if removal.force {
         return None;
     }
-    let registered: Vec<Registration> = match registrations_of(removal.common_dir) {
-        Ok(found) => found,
-        Err(reason) => return Some(cannot_tell(format!("the worktrees this repository registers could not be read ({reason})").as_str())),
+    let deadline: Instant = Instant::now() + PROCESS_SCAN_CEILING;
+    // The owner's decision of 2026-11-14: this command and its parents are not counted, so a removal started from inside
+    //  a namespace where other processes cannot be read still runs (`LeftOut`).
+    let left_out: LeftOut = LeftOut::of_this_command(removal.proc_root, deadline);
+    return match worktree_git_removes(removal.context, removal.common_dir, removal.command_directory, removal.operand) {
+        // Git removes nothing for that name, so there is nothing here to ask about and Git's own words are the answer:
+        //  a name that is not a worktree this repository registers is not refused by this guard.
+        GitRemoval::Nothing => None,
+        GitRemoval::One(worktree) => the_first_reason_to_keep(removal, worktree.as_path(), &left_out, deadline),
+        // Case alone cannot decide it: Git folds case only when `core.ignorecase` says so, so every worktree the name
+        //  could pick is asked about, and one of them holding a process is enough to keep the removal from running.
+        GitRemoval::Among(worktrees) => {
+            for worktree in worktrees {
+                if let Some(why) = the_first_reason_to_keep(removal, worktree.as_path(), &left_out, deadline) {
+                    return Some(why);
+                }
+            }
+            None
+        }
     };
+}
+
+/// What:
+///  Why this removal may not take `worktree`,
+///  or nothing when nothing here keeps it.
+/// Why:
+///  The two conditions are asked of one worktree and answered in the order the caller reads them:
+///  a process working in it,
+///  then a worktree registered inside it that holds Git work no other copy has.
+///  The chains read are those of the command, which is why the scan is told what to leave out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theFirstReasonToKeep(removal, worktree, leftOut, deadline) // string | undefined
+/// ```
+fn the_first_reason_to_keep(removal: &RemovalInQuestion<'_>, worktree: &Path, left_out: &LeftOut, deadline: Instant) -> Option<String> {
     // A linked worktree's own Git directory lies in the common directory, and a service's marker there is not a
     //  person working in the worktree, so the scan is told which directory not to count (`worktree_process_inside.rs`).
-    let admin: PathBuf = registered
-        .iter()
-        .find(|one| return one.worktree == removal.target)
-        .map_or_else(|| return removal.target.join(".git"), |one| return one.admin.clone());
-    if let Some(why) = match process_working_inside(removal.target, admin.as_path(), removal.proc_root, age_of(removal.target)) {
+    let admin: PathBuf = registered_worktree(removal.common_dir, worktree)
+        .map_or_else(|_unregistered| return worktree.join(".git"), |one| return one.admin);
+    if let Some(why) = match process_working_inside_until(worktree, admin.as_path(), removal.proc_root, age_of(worktree), deadline, left_out) {
         ProcessWorking::Nobody => None,
-        ProcessWorking::Someone(working) => Some(working_process_keeps_it(removal.target, working.why().as_str())),
+        ProcessWorking::Someone(working) => Some(working_process_keeps_it(worktree, working.why().as_str())),
         ProcessWorking::Unfinished(why) => Some(cannot_tell(why.as_str())),
     } {
         return Some(why);
     }
-    return match nested_worktrees_holding_git_work(removal.context, removal.common_dir, removal.target) {
+    return match nested_worktrees_holding_git_work(removal.context, removal.common_dir, worktree) {
         Ok(holding) if holding.is_empty() => None,
-        Ok(holding) => Some(a_nested_worktree_holds_git_work(removal.target, holding.as_slice())),
+        Ok(holding) => Some(a_nested_worktree_holds_git_work(worktree, holding.as_slice())),
         Err(reason) => Some(cannot_tell(format!("nothing shows whether a worktree inside it holds work of yours ({reason})").as_str())),
     };
 }

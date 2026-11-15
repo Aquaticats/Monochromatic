@@ -19474,6 +19474,32 @@ skipping this account's own commit-service markers inside the worktree's Git dir
 and carrying `PROCESS_SCAN_CEILING`;
 a scan that reached it answers that it did not finish,
 and the removal is refused rather than guessed.
+The guard acts only where the removal would act,
+and decides which worktree a name picks the way Git does
+(`find_worktree` in `worktree.c`, read at v2.56.0):
+the end of a registered worktree path first,
+with ASCII case folded only when `core.ignorecase` says so,
+and then the real path the name resolves to.
+A name that picks no worktree of this repository removes nothing,
+so nothing is refused for it and Git's own refusal is the answer.
+Where the name differs from a registered path by case alone and `core.ignorecase` cannot be read,
+every worktree it could pick is asked about and a refusal decides,
+because a guard that cannot decide stays refused.
+The command itself and each of its parents are left out of the process scan,
+by the owner's decision of 2026-11-14
+("The removal guard leaves out the command's own chain of parents"):
+the chain is read from the process table before the scan begins,
+each step being the parent number of `/proc/<pid>/stat`,
+a parent that starts after its child is not followed because its number was taken again,
+and the chain stops at a process with no parent,
+at a number already read,
+at a parent whose own record cannot be read (that number still stays left out),
+and after sixty-four steps.
+The cost recorded with that decision:
+a shell that stands in the worktree and removes it from there loses that folder,
+and so does any other parent standing there.
+Every other process still counts, and one whose working folder cannot be read keeps its worktree
+unless its start time proves it predates the worktree.
 The second refusal is the first sentence of the owner's decision of 2026-11-12T13:04:14:
 "Git work is never destroyed by a removal: a commit that no reference holds,
 and an edit to a tracked file, however it is hidden".

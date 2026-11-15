@@ -10,7 +10,7 @@
 //! expect(processWorkingInside(worktree, table)).toEqual({ kind: 'someone', process: { pid } });
 //! ```
 
-use super::{ProcessWorking, WorkingFolder, WorkingProcess, process_working_inside, process_working_inside_until, started_before};
+use super::{LeftOut, ProcessWorking, WorkingFolder, WorkingProcess, process_working_inside, process_working_inside_until, started_before};
 use std::time::{Duration, Instant};
 use crate::test_support::{fixture, spawn_owned};
 use std::path::{Path, PathBuf};
@@ -430,7 +430,7 @@ fn a_scan_that_reached_its_bound_answers_that_it_did_not_finish() {
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::create_dir(elsewhere.as_path()).expect("a folder no process works in the worktree from");
     let table: PathBuf = a_table_with_one_process_in(elsewhere.as_path(), 5555);
-    let found: ProcessWorking = process_working_inside_until(worktree.as_path(), &worktree.join(".git"), table.as_path(), None, Instant::now());
+    let found: ProcessWorking = process_working_inside_until(worktree.as_path(), &worktree.join(".git"), table.as_path(), None, Instant::now(), &LeftOut::none());
     let ProcessWorking::Unfinished(why) = &found else {
         panic!("a scan past its moment did not finish: {found:?}");
     };
@@ -466,4 +466,143 @@ fn a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table() {
     let _waited = child.wait();
     assert_eq!(found, someone(child.id(), "tee", WorkingFolder::OpenFile), "the helper's own descriptor is named");
     std::fs::remove_dir_all(elsewhere.as_path()).expect("the helper's own folder");
+}
+
+/// What:
+///  A stand-in process table holding `rows`:
+///  each `(pid, ppid, start ticks, working folder)`.
+/// Why:
+///  The chain of parents is read from the same table the scan reads,
+///  so a control writes the chain it wants instead of arranging real parents.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// a_table(name, [[4242, 4343, 100, worktree], [4343, 4444, 90, worktree]])
+/// ```
+fn a_table_of_rows(name: &str, rows: &[(u32, u32, u64, &Path)]) -> PathBuf {
+    let root: PathBuf = fixture(name);
+    let table: PathBuf = root.join("proc");
+    std::fs::create_dir_all(table.as_path()).expect("the process table");
+    for (pid, parent, started, working) in rows {
+        let entry: PathBuf = table.join(pid.to_string());
+        std::fs::create_dir_all(entry.as_path()).expect("a process entry");
+        std::os::unix::fs::symlink(working, entry.join("cwd")).expect("the working folder of the process");
+        let mut fields: Vec<String> = vec![String::from("S"), parent.to_string()];
+        // The fields between the parent's number and the start time are numbers this read never looks at: the start is
+        //  the twentieth after the program's name.
+        for _unused in 0..17 {
+            fields.push(String::from("0"));
+        }
+        fields.push(started.to_string());
+        std::fs::write(entry.join("stat"), format!("{pid} (a helper) {}\n", fields.join(" "))).expect("the process's own row");
+        std::fs::write(entry.join("comm"), b"a helper\n").expect("the program the process runs");
+    }
+    std::fs::write(table.join("uptime"), b"100000.00 0.00\n").expect("the machine's uptime");
+    return table;
+}
+
+/// What:
+///  This command and its parents are left out of the scan,
+///  and a stranger that works in the folder still keeps it.
+/// Why:
+///  The owner's decision of 2026-11-14: a removal leaves out the command itself and each of its parents.
+///  Read with that set the scan finds nobody though every one of those stands in the folder,
+///  and without it the same table still reports the command's own process,
+///  which is what a caller that reads its own process like any other gets (the automatic removal).
+#[test]
+fn this_command_and_its_parents_are_left_out_of_the_scan() {
+    let root: PathBuf = fixture("process-chain-left-out");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process works in");
+    let own: u32 = std::process::id();
+    // This command, its parent and its grandparent all stand in the folder, and a stranger does too.
+    let table: PathBuf = a_table_of_rows(
+        "process-chain-left-out-table",
+        &[
+            (own, 4343, 100, worktree.as_path()),
+            (4343, 4444, 90, worktree.as_path()),
+            (4444, 1, 80, worktree.as_path()),
+            (4545, 1, 70, worktree.as_path()),
+        ],
+    );
+    let left_out: LeftOut = LeftOut::of_this_command(table.as_path(), Instant::now() + std::time::Duration::from_secs(2));
+    let found: ProcessWorking = process_working_inside_until(
+        worktree.as_path(),
+        &worktree.join(".git"),
+        table.as_path(),
+        Some(Duration::from_secs(1)),
+        Instant::now() + std::time::Duration::from_secs(2),
+        &left_out,
+    );
+    assert_eq!(found, someone(4545, "a helper", WorkingFolder::Inside), "only the stranger that is not a parent keeps it: {found:?}");
+    let without: ProcessWorking = process_working_inside_until(
+        worktree.as_path(),
+        &worktree.join(".git"),
+        table.as_path(),
+        Some(Duration::from_secs(1)),
+        Instant::now() + std::time::Duration::from_secs(2),
+        &LeftOut::none(),
+    );
+    let ProcessWorking::Someone(working) = &without else { panic!("the command's own process is read when nothing is left out: {without:?}") };
+    assert_eq!(working.pid, own, "and it is this command");
+}
+
+/// What:
+///  A parent number taken again after the real parent ended ends the chain,
+///  and the stranger that holds the number keeps the folder.
+/// Why:
+///  A parent starts before its child;
+///  a record that starts after the child's cannot be that child's parent,
+///  so leaving it out would leave out a process that may work anywhere.
+#[test]
+fn a_parent_number_taken_again_ends_the_chain() {
+    let root: PathBuf = fixture("process-chain-reused");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process works in");
+    let own: u32 = std::process::id();
+    // The number the command's record names as its parent belongs to a process that started after the command.
+    let table: PathBuf = a_table_of_rows(
+        "process-chain-reused-table",
+        &[(own, 4343, 100, worktree.as_path()), (4343, 1, 200, worktree.as_path())],
+    );
+    let left_out: LeftOut = LeftOut::of_this_command(table.as_path(), Instant::now() + std::time::Duration::from_secs(2));
+    assert!(!left_out.holds(4343), "a number whose record starts after the command's is no parent of it");
+    let found: ProcessWorking = process_working_inside_until(
+        worktree.as_path(),
+        &worktree.join(".git"),
+        table.as_path(),
+        Some(Duration::from_secs(1)),
+        Instant::now() + std::time::Duration::from_secs(2),
+        &left_out,
+    );
+    assert_eq!(found, someone(4343, "a helper", WorkingFolder::Inside), "the process holding that number keeps the folder: {found:?}");
+}
+
+/// What:
+///  A parent whose own record cannot be read is left out,
+///  and the chain ends there.
+/// Why:
+///  The child's record named it as its parent,
+///  so it is one of the command's own chain;
+///  its own record is what would name the next ancestor,
+///  and without it the chain cannot go on.
+#[test]
+fn a_parent_whose_record_cannot_be_read_is_left_out_and_ends_the_chain() {
+    let root: PathBuf = fixture("process-chain-unreadable-parent");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process works in");
+    let own: u32 = std::process::id();
+    let table: PathBuf = root.join("proc");
+    let entry: PathBuf = table.join(own.to_string());
+    std::fs::create_dir_all(entry.as_path()).expect("this command's entry");
+    std::fs::write(entry.join("stat"), format!("{own} (a helper) S 4343 0 0 0\n")).expect("a record with a parent and no start");
+    std::fs::write(entry.join("comm"), b"a helper\n").expect("the program this command runs");
+    let parent: PathBuf = table.join("4343");
+    std::fs::create_dir_all(parent.as_path()).expect("the parent's entry");
+    std::os::unix::fs::symlink(worktree.as_path(), parent.join("cwd")).expect("its working folder");
+    std::fs::write(parent.join("comm"), b"a helper\n").expect("the program the parent runs");
+    std::fs::write(table.join("uptime"), b"100000.00 0.00\n").expect("the machine's uptime");
+    let left_out: LeftOut = LeftOut::of_this_command(table.as_path(), Instant::now() + std::time::Duration::from_secs(2));
+    assert!(left_out.holds(4343), "the parent the command's record names stays left out");
+    assert!(left_out.holds(own), "and so does the command");
 }

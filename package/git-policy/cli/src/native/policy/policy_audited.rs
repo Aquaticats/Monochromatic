@@ -1,7 +1,8 @@
 //! What:
-//!  The two commands the wrapper records and never refuses:
+//!  The two commands the wrapper records,
 //!  `git worktree remove`,
-//!  and `git branch -d`/`-D` from the main worktree.
+//!  and `git branch -d`/`-D` from the main worktree,
+//!  and the one kind of line a refused removal leaves.
 //! Why:
 //!  The owner decided both run exactly as Git runs them,
 //!  and both leave one audit line,
@@ -44,6 +45,11 @@ use std::path::{Path, PathBuf};
 ///   The line is written before Git runs,
 ///  so a reader sees what was about to be taken even when the command is
 ///       killed half-way.
+///  This is the line of a command that then runs.
+///  A `git worktree remove` this program refuses leaves a line of its own, with outcome `rejected`
+///  and the refusal's words (`policy_linked_worktree.rs`),
+///  because the guard added on 2026-11-12 refuses a worktree a process works in
+///  and one whose nested worktree holds Git work no other copy has.
 ///  The target worktree's facts are read before the removal,
 ///  because afterwards nothing is there
 ///  to read.

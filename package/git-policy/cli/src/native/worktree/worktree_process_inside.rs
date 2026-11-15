@@ -76,10 +76,20 @@
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
-//!  This command's own process is read like every other one:
-//!  a wrapper started with a worktree as its working folder
-//!  (a program that spawns `git -C <another worktree> merge <branch>` there,
-//!  which is what a tool driving this wrapper does)
+//!  The removal a person types leaves out the command itself and each of its parents
+//!  (`LeftOut`),
+//!  by the owner's decision of 2026-11-14,
+//!  because a removal started from inside an unprivileged user namespace
+//!  finds almost every process hidden,
+//!  its own shell and `timeout` among them,
+//!  and could otherwise never succeed there.
+//!  The cost that was accepted with that option:
+//!  a person's shell that stands in the worktree and removes it from there
+//!  loses that folder when the removal goes through,
+//!  and a parent whose working folder is the worktree loses it the same way.
+//!  The automatic removal reads its own process like every other one,
+//!  which is a different question with the same shape:
+//!  a wrapper a program spawned with `-C <a landed worktree>` and that worktree as its working folder
 //!  does not work in the worktree `-C` names,
 //!  and skipping it removed the folder the command itself was started in,
 //!  which a cross-vendor audit of the landed sweep reproduced:
@@ -238,6 +248,145 @@ enum Entry {
 }
 
 /// What:
+///  The processes one removal leaves out of its scan:
+///  the command itself and each of its parents up the chain,
+///  and no other process.
+/// Why:
+///  The owner's decision of 2026-11-14 (answered by 18:19,
+///  `doc/handover/cli-git-rust-implementation.md`,
+///  "The removal guard leaves out the command's own chain of parents"):
+///  asked what a removal does where it cannot read other processes' working folders,
+///  which is every removal started from inside an unprivileged user namespace,
+///  the owner chose "Skip own parent chain".
+///  A removal inside such a namespace finds almost every process hidden,
+///  and the shell and `timeout` that started it are among them,
+///  so without this no unforced removal started that way could ever succeed.
+///  The cost that was put with the option and accepted:
+///  a parent whose working folder is the worktree loses that folder when the removal goes through,
+///  and so does a person's shell that stands in the worktree and removes it from there.
+///  What stays is the rule the reviews held this scan to:
+///  a process that is not one of these and whose working folder cannot be read still keeps its worktree.
+///  The chain is read from the same process table the scan reads,
+///  before the scan begins:
+///  each step is the parent number in `/proc/<pid>/stat` field 4,
+///  and a parent that starts *after* its child cannot be that child's parent,
+///  so a number that was taken again ends the chain there.
+///  It stops at a process with no parent (1), at a number already read,
+///  at a parent whose own record cannot be read (that number still stays left out:
+///  the child's record named it), and after a bound of steps,
+///  so a table that lies cannot hold the scan.
+///  The ancestors beyond such a stop are counted like any other process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// leftOut = LeftOut.ofThisCommand(procRoot, deadline); // { pids: Set<number> }
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LeftOut {
+    /// The process numbers to leave out.
+    pids: std::collections::HashSet<u32>,
+}
+
+impl LeftOut {
+    /// No process left out,
+    /// which is what a scan that reads its own process like any other takes.
+    pub fn none() -> LeftOut {
+        return LeftOut::default();
+    }
+
+    /// Whether this process is one the scan leaves out.
+    pub fn holds(&self, pid: u32) -> bool {
+        return self.pids.contains(&pid);
+    }
+
+    /// What:
+    ///  This process and each of its parents,
+    ///  read once from `proc_root`,
+    ///  and no further than `deadline`.
+    /// Why:
+    ///   The chain is the one that stood there when the scan began;
+    ///  a parent that ended and whose number was taken again is not followed,
+    ///  because its record starts after its child's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// LeftOut.ofThisCommand('/proc', deadline) // { pids: {self, parent, grandparent, ...} }
+    /// ```
+    pub fn of_this_command(proc_root: &Path, deadline: Instant) -> LeftOut {
+        let mut left_out: LeftOut = LeftOut::default();
+        let mut current: u32 = std::process::id();
+        let mut started: Option<f64> = start_ticks_of(proc_root, current);
+        left_out.pids.insert(current);
+        for _step in 0..CHAIN_STEPS {
+            if Instant::now() >= deadline {
+                break;
+            }
+            let Some(parent) = parent_of(proc_root, current) else { break };
+            if parent == 0 || parent == current || left_out.pids.contains(&parent) {
+                break;
+            }
+            let parent_started: Option<f64> = start_ticks_of(proc_root, parent);
+            if let (Some(child), Some(parent_age)) = (started, parent_started)
+                && parent_age > child
+            {
+                // The number was taken again after the real parent ended, so the chain ends here rather than leaving a
+                //  stranger out of the scan.
+                break;
+            }
+            // A parent whose own record cannot be read still stays left out: the child's record named it. Its start is
+            //  then unknown, so the comparison that catches a reused number is skipped from here on.
+            left_out.pids.insert(parent);
+            current = parent;
+            started = parent_started;
+        }
+        return left_out;
+    }
+}
+
+/// How many parents one chain may name.
+/// Why:
+///   A process table is another program's data, so a cycle or a lie in it must not hold the scan;
+///  a real chain is a handful of processes,
+///  and sixty-four is more than any session on this machine shows.
+const CHAIN_STEPS: usize = 64;
+
+/// What:
+///  The parent number of one process,
+///  or nothing when its record cannot be read.
+/// Why:
+///   `/proc/<pid>/stat` names the parent in field 4;
+///  the program's own name sits in parentheses and may hold spaces,
+///  so the fields after it are counted from the last closing parenthesis.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// parentOf('/proc', 4242) // 4241 | undefined
+/// ```
+fn parent_of(proc_root: &Path, pid: u32) -> Option<u32> {
+    let stat: String = std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")).ok()?;
+    let after_name: &str = stat.rsplit_once(')')?.1;
+    // The state is first after the name and the parent's number second.
+    return after_name.split_whitespace().nth(1)?.parse::<u32>().ok();
+}
+
+/// What:
+///  The start time of one process in clock ticks,
+///  or nothing when its record cannot be read.
+/// Why:
+///   The chain compares a parent's start with its child's,
+///  which is what tells a real parent from a number that was taken again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// startTicksOf('/proc', 4242) // 12345.0 | undefined
+/// ```
+fn start_ticks_of(proc_root: &Path, pid: u32) -> Option<f64> {
+    let stat: String = std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")).ok()?;
+    let after_name: &str = stat.rsplit_once(')')?.1;
+    return after_name.split_whitespace().nth(19)?.parse::<f64>().ok();
+}
+
+/// What:
 ///  The first process that keeps the worktree,
 ///  or nothing when the scan read every process and none did.
 /// Why:
@@ -257,7 +406,23 @@ enum Entry {
 /// processWorkingInside(root, procRoot, worktreeAge) // ProcessWorking
 /// ```
 pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> ProcessWorking {
-    return process_working_inside_until(root, git_dir, proc_root, worktree_age, Instant::now() + PROCESS_SCAN_CEILING);
+    return process_working_inside_left_out(root, git_dir, proc_root, worktree_age, &LeftOut::none());
+}
+
+/// What:
+///  `process_working_inside` with the processes its caller leaves out.
+/// Why:
+///   The removal a person types leaves out the command itself and its parents,
+///  by the owner's decision of 2026-11-14,
+///  and every other caller reads its own process like any other
+///  (`LeftOut`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// processWorkingInsideLeftOut(root, gitDir, procRoot, age, leftOut)
+/// ```
+pub fn process_working_inside_left_out(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>, left_out: &LeftOut) -> ProcessWorking {
+    return process_working_inside_until(root, git_dir, proc_root, worktree_age, Instant::now() + PROCESS_SCAN_CEILING, left_out);
 }
 
 /// What:
@@ -273,7 +438,7 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
 /// ```ts
 /// processWorkingInsideUntil(root, procRoot, worktreeAge, deadline)
 /// ```
-pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>, deadline: Instant) -> ProcessWorking {
+pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>, deadline: Instant, left_out: &LeftOut) -> ProcessWorking {
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(listed) => listed,
         Err(error) => return ProcessWorking::Unfinished(format!("the process table {proc_root:?} cannot be read ({error}), so nothing proves no process works there")),
@@ -285,6 +450,9 @@ pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Pat
         let Ok(pid) = name.parse::<u32>() else {
             continue;
         };
+        if left_out.holds(pid) {
+            continue;
+        }
         if Instant::now() >= deadline {
             return ProcessWorking::Unfinished(stopped_at_the_bound(reached, proc_root));
         }

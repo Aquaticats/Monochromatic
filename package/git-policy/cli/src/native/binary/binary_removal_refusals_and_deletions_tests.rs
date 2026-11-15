@@ -19,7 +19,7 @@
 /// The shared fixtures and bounded process helpers.
 use super::fault_run::{run_watched, unbounded_wrapper};
 use super::support::{
-    Fixture, Observed, fixture, git, hermetic, remove, repository, run_wrapped, settle_service_work, spawn_owned, stderr_of, wrapper_first_path,
+    Fixture, Observed, fixture, git, hermetic, observe, remove, repository, run_wrapped, settle_service_work, spawn_owned, stderr_of, wrapper_first_path,
 };
 use std::path::{Path, PathBuf};
 use std::os::unix::process::ExitStatusExt as _;
@@ -606,6 +606,282 @@ fn a_rename_of_a_nested_worktree_is_named_by_both_paths() {
     assert_eq!(escaped.code, Some(0), "the escape runs the removal: {}", stderr_of(&escaped));
     let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
     assert!(record.contains("\"changed\":[\"renamed.txt\",\"ab c.txt\"]"), "the record names both paths, the old one whole: {record}");
+    remove(&fixture);
+}
+
+/// The variable a hidden helper reads:
+/// the directory it enters and parks in,
+/// which is the worktree a control is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.env.CLI_GIT_TEST_HIDDEN_WORKER // '/fixture/topic' | undefined
+/// ```
+const HIDDEN_WORKER_VARIABLE: &str = "CLI_GIT_TEST_HIDDEN_WORKER";
+
+/// What:
+///  The child body of a hidden process:
+///  enter the directory the variable names,
+///  become non-dumpable,
+///  and park until it is killed.
+/// Why:
+///  `PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the account that owns the process,
+///  and it is reset by `execve`,
+///  so the process must be this binary's own test body rather than a program it starts.
+///  Inert unless the variable is set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!process.env.CLI_GIT_TEST_HIDDEN_WORKER) return; chdir(dir); prctl(PR_SET_DUMPABLE, 0); park();
+/// ```
+#[test]
+fn a_hidden_process_waits_in_the_worktree_until_it_is_killed() {
+    let Ok(directory) = std::env::var(HIDDEN_WORKER_VARIABLE) else {
+        return;
+    };
+    std::env::set_current_dir(directory.as_str()).expect("the directory the helper works in");
+    // SAFETY: `prctl` takes integers and touches no memory of this process.
+    let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) };
+    assert_eq!(refused, 0, "the helper must become non-dumpable");
+    std::thread::park();
+}
+
+/// What:
+///  Run one script in a user namespace, a private mount namespace and a process namespace of its own,
+///  with the wrapper first on `PATH` and its own `/proc`.
+/// Why:
+///  This is where the owner's decision on the command's own chain was needed:
+///  inside an unprivileged user namespace almost every process of the account hides its working folder.
+///  The process namespace makes the control deterministic as well:
+///  without it, `/proc` lists every process of the host,
+///  and any other control's helper started after the fixture's worktree is a young, hidden stranger
+///  that keeps the worktree for a reason this control is not about (measured on 2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unshare --user --map-root-user --mount --propagation private --pid --fork --mount-proc -- timeout <bound> /bin/sh -c <script>
+/// ```
+fn inside_a_user_and_process_namespace(fixture: &Fixture, directory: &Path, script: &str) -> Observed {
+    let mut command: Command = Command::new("/usr/bin/unshare");
+    command.args([
+        "--user",
+        "--map-root-user",
+        "--mount",
+        "--propagation",
+        "private",
+        "--pid",
+        "--fork",
+        "--mount-proc",
+        "--",
+        "/usr/bin/timeout",
+        "120",
+        "/bin/sh",
+        "-c",
+        script,
+    ]);
+    hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
+    command.current_dir(directory);
+    return observe(&mut command, b"");
+}
+
+/// A path as a word a shell script takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shellWord = (path) => `'${path.replaceAll("'", "'\\''")}'`
+/// ```
+fn shell_word(path: &Path) -> String {
+    return format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
+}
+
+/// What:
+///  A name Git would not remove with is left to Git,
+///  in every shape that is not a worktree of this repository,
+///  and Git's own words are the answer.
+/// Why:
+///  The guard acts only where the removal would act
+///  (two of `main`'s `worktree_ladder` controls, red under a guard that scanned the typed path alone).
+///  The decision is Git's own, read at v2.56.0 (`find_worktree` in `worktree.c`):
+///  the end of a registered path first, case folded only when `core.ignorecase` says so,
+///  and then the real path the name resolves to.
+///  A name that picks none of them removes nothing,
+///  so refusing it would refuse a command that deletes nothing,
+///  and the command is left to Git, which removes nothing and says why.
+#[test]
+fn a_name_git_would_not_remove_with_is_left_to_git() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-not-a-worktree", "build/\n");
+    let root: PathBuf = std::fs::canonicalize(fixture.root.as_path()).expect("the fixture root");
+    let plain: PathBuf = root.join("plain");
+    std::fs::create_dir(plain.as_path()).expect("a plain directory");
+    let other: PathBuf = repository(&fixture, std::ffi::OsStr::new("other"));
+    let foreign: Observed = run_wrapped(&fixture, other.as_path(), &["worktree", "add", "--quiet", "-b", "foreign", "../foreign"]);
+    assert_eq!(foreign.code, Some(0), "{}", stderr_of(&foreign));
+    let foreign_path: PathBuf = root.join("foreign");
+    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "false"]);
+    let mut wanted: std::process::Child = a_process_working_in(&fixture, topic.as_path());
+    // The worktree holds a busy process in every arm, so a guard that scanned it would refuse; each arm must not.
+    // A relative name is read from the repository, which is where a person runs the command.
+    for (label, operand) in [
+        ("a name that is not there", root.join("no-such-worktree").display().to_string()),
+        ("a plain directory", plain.display().to_string()),
+        ("another repository's worktree", foreign_path.display().to_string()),
+        ("a last component that is not there", String::from("no-such-name")),
+    ] {
+        let said: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", operand.as_str()]);
+        assert_eq!(said.code, Some(128), "{label}: Git answers: {}", stderr_of(&said));
+        assert!(stderr_of(&said).contains("is not a working tree"), "{label}: Git's own words: {}", stderr_of(&said));
+        assert!(!stderr_of(&said).contains("worktree-removal-refused"), "{label}: this guard does not refuse it: {}", stderr_of(&said));
+    }
+    // A name that differs by case alone, where this repository compares bytes as Git does: Git removes nothing.
+    for (label, operand) in [("a last component in another case", String::from("TOPIC")), ("a path in another case", root.join("TOPIC").display().to_string())] {
+        let said: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", operand.as_str()]);
+        assert_eq!(said.code, Some(128), "{label}: Git answers: {}", stderr_of(&said));
+        assert!(stderr_of(&said).contains("is not a working tree"), "{label}: Git's own words: {}", stderr_of(&said));
+    }
+    let empty: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", ""]);
+    assert_eq!(empty.code, Some(128), "an empty name: Git answers: {}", stderr_of(&empty));
+    assert!(stderr_of(&empty).contains("is not a working tree"), "an empty name: Git's own words: {}", stderr_of(&empty));
+    let _ended = wanted.kill();
+    let _waited = wanted.wait();
+    assert!(topic.is_dir(), "the worktree is still there");
+    remove(&fixture);
+}
+
+/// What:
+///  A name Git would remove with is still examined and refused,
+///  spelled every way Git resolves it,
+///  while a process works in the worktree.
+/// Why:
+///  The other direction of the decision:
+///  a name Git resolves must never be the one this guard skips.
+///  Each spelling below is one real Git removes with, measured with Git v2.56.0 on this host:
+///  the end of a registered path, the real path the name resolves to (with `./`, a trailing separator,
+///  from a subfolder, or through a link), and a name that differs by case alone where `core.ignorecase` folds case.
+#[test]
+fn a_name_git_would_remove_with_is_still_refused_however_it_is_spelled() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-every-spelling", "build/\n");
+    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "false"]);
+    let mut child: std::process::Child = a_process_working_in(&fixture, topic.as_path());
+    let root: PathBuf = std::fs::canonicalize(fixture.root.as_path()).expect("the fixture root");
+    let linked: PathBuf = root.join("linked-root");
+    std::os::unix::fs::symlink(root.as_path(), linked.as_path()).expect("a link to the fixture root");
+    let absolute: String = root.join("topic").display().to_string();
+    // The worktree sits beside the repository, so a relative spelling is written from the repository.
+    let spellings: Vec<(&str, PathBuf, String)> = vec![
+        ("the last component", repo.clone(), String::from("topic")),
+        ("a path with ./", repo.clone(), String::from("./../topic")),
+        ("a trailing separator", repo.clone(), String::from("../topic/")),
+        ("a bare dot from the worktree, reached with -C", repo.clone(), String::from(".")),
+        ("through a linked prefix", repo.clone(), linked.join("topic").display().to_string()),
+        ("its absolute path", repo.clone(), absolute.clone()),
+        ("an absolute path with ./", repo.clone(), format!("{}/./topic", root.display())),
+        ("an absolute path with a trailing separator", repo.clone(), format!("{absolute}/")),
+    ];
+    for (label, directory, operand) in spellings {
+        // The bare dot is the one spelling that needs `-C`: a person who runs it stands in the worktree, and the
+        //  require-root policy refuses a command started below a repository's root.
+        let worktree_text: String = root.join("topic").display().to_string();
+        let arguments: Vec<&str> = match label {
+            "a bare dot from the worktree, reached with -C" => vec!["-C", worktree_text.as_str(), "worktree", "remove", operand.as_str()],
+            _ => vec!["worktree", "remove", operand.as_str()],
+        };
+        let said: Observed = run_wrapped(&fixture, directory.as_path(), arguments.as_slice());
+        assert_ne!(said.code, Some(0), "{label}: a name Git resolves is examined: {}", stderr_of(&said));
+        assert!(
+            stderr_of(&said).contains("linked-worktree-only/worktree-removal-refused"),
+            "{label}: this guard refuses it while a process works there: {}",
+            stderr_of(&said)
+        );
+        assert!(topic.is_dir(), "{label}: the worktree stays");
+    }
+    // The same name in another case, where this repository folds case as Git does.
+    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "true"]);
+    let folded: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "TOPIC"]);
+    assert!(
+        stderr_of(&folded).contains("linked-worktree-only/worktree-removal-refused"),
+        "a name that differs by case alone under core.ignorecase is asked about and refused: {}",
+        stderr_of(&folded)
+    );
+    assert!(topic.is_dir(), "the worktree stays");
+    let _ended = child.kill();
+    let _waited = child.wait();
+    remove(&fixture);
+}
+
+/// What:
+///  A removal a shell standing in the worktree starts goes through,
+///  and that shell keeps no veto over its own folder.
+/// Why:
+///  The owner's decision of 2026-11-14 leaves out the command and each of its parents,
+///  and this is the cost accepted with it:
+///  a person whose shell stands in the worktree and removes it from there loses that folder,
+///  and a script that does the same works instead of being refused for standing where it works.
+///  Before this the refusal named the shell itself.
+#[test]
+fn a_removal_a_parent_standing_in_the_worktree_starts_goes_through() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-from-the-worktree", "build/\n");
+    let script: String = format!("cd {} && git worktree remove {}", shell_word(topic.as_path()), shell_word(topic.as_path()));
+    let removed: Observed = inside_a_user_and_process_namespace(&fixture, repo.as_path(), script.as_str());
+    assert_eq!(removed.code, Some(0), "a shell standing in the worktree may remove it: {}", stderr_of(&removed));
+    assert!(!topic.exists(), "the worktree is gone");
+    remove(&fixture);
+}
+
+/// What:
+///  A removal is refused while a process that is not one of its parents hides its working folder in the worktree,
+///  and goes through once that process is gone.
+/// Why:
+///  The owner's decision keeps exactly this:
+///  a process that is not one of the command's parents keeps its worktree while the removal cannot rule it out,
+///  and here that process hides its folder from every reader outside its own namespace.
+///  The helper is young (it starts after the worktree was made), so its age does not rule it out,
+///  and it is a sibling of the wrapper rather than an ancestor, so the chain this removal leaves out does not reach it.
+///  Inside the user namespace this control runs in, the root of that namespace can read the helper's folder,
+///  so the refusal names it as working there instead of as one that hides its folder;
+///  the words for a folder that cannot be read are pinned by the unit controls of `worktree_process_inside`.
+#[test]
+fn a_removal_is_refused_while_a_hidden_process_that_is_not_a_parent_works_in_the_worktree() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-hidden-stranger", "build/\n");
+    #[allow(clippy::disallowed_methods, reason = "starts this test binary (libtest), not the wrapper; the ban on `current_exe` guards the wrapper's own start")]
+    let binary: PathBuf = std::env::current_exe().expect("this test binary");
+    let pid_file: PathBuf = fixture.root.join("hidden.pid");
+    let script: String = format!(
+        "{} --exact removal_refusals_and_deletions::a_hidden_process_waits_in_the_worktree_until_it_is_killed --nocapture --test-threads=1 & echo $! > {pid}; sleep 0.5; git worktree remove {topic}; status=$?; kill -9 $(cat {pid}); exit $status",
+        shell_word(binary.as_path()),
+        pid = shell_word(pid_file.as_path()),
+        topic = shell_word(topic.as_path())
+    );
+    let mut refused: Observed = {
+        let mut command: Command = Command::new("/usr/bin/unshare");
+        command.args([
+            "--user",
+            "--map-root-user",
+            "--mount",
+            "--propagation",
+            "private",
+            "--pid",
+            "--fork",
+            "--mount-proc",
+            "--",
+            "/usr/bin/timeout",
+            "120",
+            "/bin/sh",
+            "-c",
+            script.as_str(),
+        ]);
+        hermetic(&mut command, &fixture, wrapper_first_path(&fixture).as_os_str());
+        command.current_dir(repo.as_path()).env(HIDDEN_WORKER_VARIABLE, topic.as_path());
+        observe(&mut command, b"")
+    };
+    let said: String = stderr_of(&refused);
+    assert_ne!(refused.code, Some(0), "a process that is no parent keeps the worktree: {said}");
+    let helper: String = std::fs::read_to_string(pid_file.as_path()).expect("the script named the helper's process");
+    assert!(said.contains(format!("process {} ", helper.trim()).as_str()), "and the refusal names that process: {said}");
+    assert!(topic.is_dir(), "the worktree stays");
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_eq!(removed.code, Some(0), "with no hidden process in it the removal runs: {}", stderr_of(&removed));
+    assert!(!topic.exists(), "the worktree is gone");
+    let _ = &mut refused;
     remove(&fixture);
 }
 

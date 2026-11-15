@@ -234,6 +234,185 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
 }
 
 /// What:
+///  What Git would remove for one typed name,
+///  asked by the guard that keeps a worktree a process works in.
+/// Why:
+///   The guard must act only where the removal would act:
+///  a name Git answers with "is not a working tree" deletes nothing,
+///  and refusing it would refuse a command that removes nothing
+///  (two of `main`'s `worktree_ladder` controls, red under a guard that scanned the typed path alone).
+///  The other direction is as binding:
+///  a warrant Git resolves must never be the one the guard skips,
+///  because a worktree a process works in is exactly what the guard is for.
+///  So the answer is Git's own resolution (`find_worktree` in `worktree.c`):
+///  the last components of the registered paths first,
+///  then the path the name resolves to,
+///  and a name two registered paths end in is the ambiguous case that falls back to the resolved path.
+///  Case is the one thing a registered path's bytes do not decide:
+///  Git folds it only when `core.ignorecase` says so (`fspathcmp`),
+///  so that setting is read from Git itself,
+///  with the command's own configuration and overlays,
+///  and a name that differs by case alone picks the worktree Git picks.
+///  When the setting cannot be read the name is not decided but asked about (`Among`),
+///  which refuses when one of those worktrees holds a process and otherwise leaves Git to answer:
+///  a guard that cannot decide stays refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// worktreeGitRemoves(commonDir, start, operand) // { kind: 'one', path } | { kind: 'among', paths } | { kind: 'nothing' }
+/// ```
+pub enum GitRemoval {
+    /// Git removes this worktree for the name.
+    One(PathBuf),
+    /// Git may remove one of these, depending on a setting this tree cannot read two ways at once.
+    Among(Vec<PathBuf>),
+    /// Git removes nothing for the name, and its own words say why.
+    Nothing,
+}
+
+/// What:
+///  What Git would remove for `operand`,
+///  read in `start`.
+/// Why:
+///   The empty name is Git's "not a working tree" whatever the directory holds.
+///  A unique match by the last components of the registered paths is the worktree Git removes.
+///  Two or more matches fall back to the resolved path, exactly as Git does.
+///  A path that resolves to a directory this repository does not register is no worktree of it,
+///  and Git removes nothing:
+///  the other repository's worktree and a plain directory both end there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// worktreeGitRemoves(commonDir, start, '') // { kind: 'nothing' }
+/// ```
+pub fn worktree_git_removes(context: &crate::transaction_git::GitContext, common_dir: &Path, start: &Path, operand: &OsStr) -> GitRemoval {
+    if operand.is_empty() {
+        return GitRemoval::Nothing;
+    }
+    let registered: Vec<RegisteredPath> = match registered_paths(common_dir, common_dir.join("worktrees").as_path()) {
+        Ok(found) => found,
+        // The list cannot be read, so nothing proves which worktree a name picks; the resolved path is all that is left,
+        //  and it is asked about when it is a directory.
+        Err(_unknown) => return resolved_and_registered(common_dir, start, operand),
+    };
+    let exact: Vec<&RegisteredPath> = registered.iter().filter(|listed| return ends_with_name(listed.path.as_slice(), operand.as_bytes())).collect();
+    if exact.len() == 1
+        && let Some(picked) = as_a_worktree(exact[0].path.as_slice())
+    {
+        return GitRemoval::One(picked);
+    }
+    let loose: Vec<&RegisteredPath> = registered.iter().filter(|listed| return ends_with_name_ignoring_case(listed.path.as_slice(), operand.as_bytes())).collect();
+    if exact.is_empty() && !loose.is_empty() {
+        return match case_is_folded(context, start) {
+            // Git folds case here, so the worktrees its suffix match could pick are the ones it picks, and more than one
+            //  of them is its ambiguous case, which falls back to the resolved path.
+            Some(true) if loose.len() == 1 => match as_a_worktree(loose[0].path.as_slice()) {
+                Some(picked) => GitRemoval::One(picked),
+                None => resolved_and_registered(common_dir, start, operand),
+            },
+            Some(true) => resolved_and_registered(common_dir, start, operand),
+            // Git compares the bytes, and none of them ends in this name.
+            Some(false) => resolved_and_registered(common_dir, start, operand),
+            None => {
+                let mut among: Vec<PathBuf> = Vec::with_capacity(loose.len());
+                for listed in loose {
+                    if let Some(picked) = as_a_worktree(listed.path.as_slice()) {
+                        among.push(picked);
+                    }
+                }
+                if among.is_empty() { GitRemoval::Nothing } else { GitRemoval::Among(among) }
+            }
+        };
+    }
+    return resolved_and_registered(common_dir, start, operand);
+}
+
+/// What:
+///  Whether Git folds ASCII case when it compares a typed name with a registered path:
+///  `core.ignorecase` as this command's configuration has it,
+///  or nothing when that cannot be read.
+/// Why:
+///   `fspathcmp` is `strcasecmp` only when that setting is on,
+///  so the setting is the difference between a name that picks a worktree and one that picks none.
+///  Asking Git for it keeps the configuration precedence (the repository's file,
+///  the user's, `-c` overlays) in Git's own hands,
+///  and `--get --bool` answers `1` with no such setting, which is Git's default off.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// caseIsFolded(git, '/x/repo') // true | false | undefined
+/// ```
+fn case_is_folded(context: &crate::transaction_git::GitContext, start: &Path) -> Option<bool> {
+    let arguments: Vec<std::ffi::OsString> = ["config", "--get", "--bool", "core.ignorecase"].iter().map(std::ffi::OsString::from).collect();
+    let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(start, arguments.as_slice());
+    let output: crate::transaction_git::GitOutput = crate::transaction_git::run_git(context, &request).ok()?;
+    let said: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    return match (output.code, said.as_str()) {
+        (Some(0), "true") => Some(true),
+        (Some(0), "false") => Some(false),
+        // `--get` exits 1 when the key is not set anywhere, which is Git's own default for this setting.
+        (Some(1), _) => Some(false),
+        _ => None,
+    };
+}
+
+/// What:
+///  The worktree Git would remove for a name read as a path,
+///  which is the one this repository registers under the path the name resolves to.
+/// Why:
+///   Git's fallback compares the resolved path with every registered worktree path,
+///  so a directory this repository does not register is no worktree of it and nothing is removed;
+///  the main checkout is registered but Git refuses to remove it (`is a main working tree`),
+///  so it too is nothing this guard has to ask about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// resolvedAndRegistered(commonDir, start, '../topic') // { kind: 'one', path } | { kind: 'nothing' }
+/// ```
+fn resolved_and_registered(common_dir: &Path, start: &Path, operand: &OsStr) -> GitRemoval {
+    let Ok(resolved) = std::fs::canonicalize(start.join(operand)) else { return GitRemoval::Nothing };
+    if !resolved.is_dir() || is_the_main_checkout(common_dir, resolved.as_path()) {
+        return GitRemoval::Nothing;
+    }
+    return match registered_worktree(common_dir, resolved.as_path()) {
+        Ok(_registered) => GitRemoval::One(resolved),
+        Err(_not_this_repository) => GitRemoval::Nothing,
+    };
+}
+
+/// What:
+///  Whether a path is the checkout whose Git directory is the common one.
+/// Why:
+///   Git refuses to remove it (`is a main working tree`),
+///  so a name that picks it is not a removal this guard has to ask about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isTheMainCheckout(commonDir, '/x/repo') // boolean
+/// ```
+fn is_the_main_checkout(common_dir: &Path, path: &Path) -> bool {
+    return common_dir.file_name().is_some_and(|name| return name == ".git") && common_dir.parent() == Some(path);
+}
+
+/// What:
+///  A registered path as the directory Git would act on,
+///  or nothing when it no longer names a directory.
+/// Why:
+///   Nothing can be working in a directory that is gone,
+///  and Git's removal of one removes nothing,
+///  so such a name is left to Git rather than asked about:
+///  the guard's refusal for a missing directory would rest on processes it merely cannot rule out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// asAWorktree('/x/../topic') // '/x/topic' | undefined
+/// ```
+fn as_a_worktree(listed: &[u8]) -> Option<PathBuf> {
+    let resolved: PathBuf = std::fs::canonicalize(Path::new(OsStr::from_bytes(listed))).ok()?;
+    return resolved.is_dir().then_some(resolved);
+}
+
+/// What:
 ///  The registration of `target` in the repository whose common Git directory is `common_dir`,
 /// when it is a linked worktree of that repository.
 /// Why:

@@ -104,7 +104,8 @@ fn a_worktree_nothing_is_working_in_may_be_removed() {
         context: &context,
         common_dir: fixture.common.as_path(),
         proc_root: table.as_path(),
-        target: fixture.worktree.as_path(),
+        operand: fixture.worktree.as_os_str(),
+        command_directory: fixture.root.as_path(),
         force: false,
     });
     assert_eq!(refusal, None, "a worktree with nothing of the person's in it may go");
@@ -126,7 +127,8 @@ fn a_process_working_in_the_worktree_is_refused_by_its_number_and_its_program() 
         context: &context,
         common_dir: fixture.common.as_path(),
         proc_root: table.as_path(),
-        target: fixture.worktree.as_path(),
+        operand: fixture.worktree.as_os_str(),
+        command_directory: fixture.root.as_path(),
         force: false,
     })
     .expect("a worktree a process is working in stays");
@@ -153,7 +155,8 @@ fn a_forced_removal_is_not_refused_by_a_process_working_in_the_worktree() {
             context: &context,
             common_dir: fixture.common.as_path(),
             proc_root: table.as_path(),
-            target: fixture.worktree.as_path(),
+            operand: fixture.worktree.as_os_str(),
+        command_directory: fixture.root.as_path(),
             force: true,
         }),
         None,
@@ -174,7 +177,8 @@ fn a_process_table_that_cannot_be_read_refuses() {
         context: &context,
         common_dir: fixture.common.as_path(),
         proc_root: fixture.root.join("no-such-proc").as_path(),
-        target: fixture.worktree.as_path(),
+        operand: fixture.worktree.as_os_str(),
+        command_directory: fixture.root.as_path(),
         force: false,
     })
     .expect("nothing proves the worktree is empty");

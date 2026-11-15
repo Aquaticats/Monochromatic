@@ -50,7 +50,7 @@ use crate::discarded_prune::Limits;
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
 /// The rejection text that names every conflicted file the command would replace.
 use crate::rule_linked_worktree_messages::conflicted_files_message;
-/// The two commands that are recorded and never refused.
+/// The two commands that are recorded, and the line a removal this program refuses leaves.
 use crate::policy_audited::record_audited;
 /// The abort and skip carve-out:
 /// the operation's own state is what the command lets go,
@@ -347,11 +347,15 @@ fn why_the_removal_is_refused(facts: &mut dyn RepositoryFacts, seen: &[OsString]
     };
     let target: PathBuf = removal_target(&context, removal.target.as_os_str(), directory.as_path());
     let common_dir: &Path = common_directory(&location.identity)?;
+    // The guard is asked about the name the person typed and the directory Git reads it in, and decides itself which
+    //  worktree Git removes for it: a name Git answers with "is not a working tree" removes nothing, and refusing it
+    //  would refuse a command that deletes nothing (`worktree_git_removes`).
     let why: String = why_a_removal_is_refused(&RemovalInQuestion {
         context: &context,
         common_dir,
         proc_root: Path::new(PROC_ROOT),
-        target: target.as_path(),
+        operand: removal.target.as_os_str(),
+        command_directory: directory.as_path(),
         force,
     })?;
     return Some((why, target, force));
