@@ -303,6 +303,14 @@ await describe({
           },
         },),
         it({
+          name: 'says a build\'s own ignored files are not a change to the worktree, names the kind of task it means, and counts finding nothing only once the whole change was read',
+          fn: async () => {
+            expect(aBrief(),).toContain('a build writes its own files under the folders this checkout ignores, which is not a change to it',);
+            expect(aBrief(),).toContain('where `<task>` is one the package\'s own `mise.toml` names',);
+            expect(aBrief(),).toContain('Finding nothing is a good result once you have read every file listed above and the whole diff',);
+          },
+        },),
+        it({
           name: 'lists the folders of earlier reviews, and the reviews folder outside the review\'s own, among the answers it must not read',
           fn: async () => {
             expect(aBrief(),).toContain('/var/home/user/temp/agent/kimi-reviews',);
