@@ -475,6 +475,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between looks for a control's release file while the warm request's look at the processes is parked, and only the control variable `PARK_VARIABLE` (`CLI_GIT_TEST_ONLY_WARM_SCAN_PARK`) arms it: a request without it passes at once. The pause runs inside the job `work_within` wraps, not on a worker of the runtime, and it ends at the control's release file or at `CONTROL_PARK_CEILING` (60 s), so a control that ended leaves no thread parked. The entry goes when the park is replaced by a signal the control sends rather than a file the request polls",
     },
     Allowed {
+        file: "service/service_decision_record_hold_control_window.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks for a control's release file while the landing board has not yet published a request's decision, and only the control variable `HOLD_VARIABLE` (`CLI_GIT_TEST_ONLY_DECISION_RECORD_HOLD`) arms it: a board without it passes at once. The pause runs where the record is written, which is the landing thread of the synchronous landing and never a worker of the runtime, and it ends at the control's release file or at `CONTROL_PARK_CEILING` (60 s), so a control that ended leaves no thread parked. The entry goes when the hold is replaced by a signal the control sends rather than a file the board polls",
+    },
+    Allowed {
         file: "transaction/transaction_phase.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at a phase's release, on the synchronous face",

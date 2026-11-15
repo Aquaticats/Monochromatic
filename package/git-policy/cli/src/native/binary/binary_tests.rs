@@ -924,3 +924,8 @@ mod kept_references;
 /// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
+
+/// A commit that arrives while the service is held inside the write of a request's decision record:
+/// it must be answered within the bound this project puts on a commit.
+#[path = "binary_commit_while_a_decision_record_is_held_tests.rs"]
+mod commit_while_a_decision_record_is_held;

@@ -62,6 +62,10 @@ pub mod wait_ceilings;
 /// shared with the threads that talk to waiting clients.
 pub mod service_busy;
 
+/// The one instant of a request's decision a control may take hold of,
+/// so a commit's wait is measured without a drive made slow.
+pub mod service_decision_record_hold_control_window;
+
 /// The answers the landing board gives and the checks on the names it keeps.
 pub mod service_busy_answers_and_name_checks;
 

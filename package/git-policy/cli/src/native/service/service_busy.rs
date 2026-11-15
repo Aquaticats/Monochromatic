@@ -246,6 +246,9 @@ impl LandingBoard {
     /// ```
     fn decide(&self, id: &str, outcome: &str) -> std::io::Result<Decision> {
         let decision: PathBuf = self.decision_path(id);
+        // A control of the wait a commit bears holds the record here instead of stalling the disk the journal is on;
+        // nothing but the explicit test variable arms it (`service_decision_record_hold_control_window.rs`).
+        crate::service_decision_record_hold_control_window::the_decision_record_waits_where_a_control_says();
         // Written whole beside its name and published without replacing (`private_storage`: the exclusive publish of the `tempfile`
         //  crate, the checked rename where the filesystem has neither that nor hard links), removed whichever way it ends.
         return match write_private_file_unsynced(decision.as_path(), outcome.as_bytes()) {
