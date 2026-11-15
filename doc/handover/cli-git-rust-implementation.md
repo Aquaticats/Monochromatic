@@ -1670,6 +1670,54 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate's failing control of a runtime kept when the caller gave up was the control's own; the fuzz check holds with pass 54 in; pass 55 goes (2026-11-15T17:12:03-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session measured and queued.
+
+- **The runtime a build finished with, kept when the caller gave up**
+  (`foundation::lazy_runtime::tests::a_build_that_finishes_while_the_caller_gives_up_is_kept`,
+  a gate failure),
+  fresh run ended 17:07:31 at `e031918c33`.
+  Its account:
+  the code keeps the runtime at every order that can be reached
+  (the build's send before the caller's last read;
+  the caller's close before the send,
+  where the failed send hands the runtime back and the helper keeps it);
+  the control looked once at an instant before the helper's keep,
+  a margin it measured at a median of 31 microseconds.
+  It changed the control and one seam used by tests alone;
+  the reproduction was committed first (`904560e107`) and fails in the gate's words,
+  and fails again with the fix taken out.
+  The range changes `lazy_runtime.rs` (16 lines) and its tests;
+  review queued tenth.
+  Kept from its report:
+  two sibling controls are still ordered by sleeps;
+  a process that lost its runtime would spend the whole 60 s `RUNTIME_BUILD_PATIENCE` per task and end with status 4.
+- **A breach of the credential rule by that run, with no value shown**:
+  it ran `printenv CARGO_TARGET_DIR`,
+  which every brief forbids for any name,
+  and reports that it printed nothing.
+  The name is no credential.
+- **The fuzz sidecar's type check** on `main` with pass 54 in:
+  exit 0 at 17:07:07,
+  the wrapper checked at `0.6.1-alpha.43`.
+- **Pass 55 is going**,
+  as are the authors of the landing that never waits and of the lock-holders folder,
+  and the review of the masking.
+- Read at 17:11:40:
+  six changed files in the main checkout;
+  no failed start and no brief refused since 16:56;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  20 runs going,
+  none silent for twenty minutes.
+  The queue held 81 entries at 17:09,
+  no name twice.
+  Free at 17:09:
+  484 GiB on the home drive,
+  1,920 GiB on the repository's.
+
 ##### Integration pass 54 is in `main`, `0.6.1-alpha.43` is released and installed, its gate runs; the fix for the empty-tree commit goes back with six claims; pass 55 is queued (2026-11-15T17:06:41-05:00)
 
 Not final and not approved:
