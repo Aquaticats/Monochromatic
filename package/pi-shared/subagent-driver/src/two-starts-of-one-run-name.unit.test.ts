@@ -625,11 +625,15 @@ await describe({
           return words.includes('remove',);
         },),).toEqual([],);
         expect(await readFile(otherStartsWork, 'utf8',),).toContain('has not committed',);
+        /**
+         What was caught, as the refusal it is, which the code without the fix never throws.
+         */
+        const refusal = refused.caught as Error;
         // The refusal is read by the name its error carries and by its words, so this control needs nothing the fix adds to the
         // library: the code without the fix reaches these assertions with nothing caught at all.
-        expect((refused.caught as Error | undefined)?.name,).toBe('WorktreeTakenError',);
-        expect(String(refused.caught,),).toContain('left exactly as it is',);
-        expect(String(refused.caught,),).toContain('nothing was removed',);
+        expect(refusal.name,).toBe('WorktreeTakenError',);
+        expect(String(refusal,),).toContain('left exactly as it is',);
+        expect(String(refusal,),).toContain('nothing was removed',);
       },
     },),
     it({
