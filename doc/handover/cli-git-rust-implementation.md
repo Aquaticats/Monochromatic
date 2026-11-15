@@ -1455,6 +1455,74 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The daily update moved the compiler and the wrapper's D-Bus library on `main`, and `main` is being checked; mpm-shadow's removal of old versions goes back to its author (2026-11-15T02:02:40-05:00)
+
+Not final and not approved:
+what the coordinating session read,
+started and queued.
+
+- **The machine's daily update committed to `main`** while this session worked:
+  `c7efc4a131` at 01:51:33
+  (the toolchain lock:
+  Rust from `nightly-2026-11-14` to `nightly-2026-11-15`)
+  and `aaf95005a2` at 01:54:22
+  (dependency locks,
+  29 files).
+  Under the packages this session answers for:
+  `rust-catalog.toml` moves `zbus` from `>=6.2.1` to `>=6.3.0`,
+  with `package/git-policy/cli/Cargo.toml`,
+  its `Cargo.lock` and the fuzz sidecar's;
+  `package/mpm-shadow/cli/Cargo.lock` and `package/cargo-shadow/cli/Cargo.lock` move too.
+  `0.6.1-alpha.38` was built before both commits and does not carry them;
+  the next release would,
+  and so does every branch that merges `main` from now.
+- **Checks of `main` at `7edb782568` started by this session**,
+  since no run or gate had built that tree:
+  - Clippy of the wrapper:
+    exit 0 at 02:02:24
+    (`~/temp/agent/main-after-the-daily-update-of-2026-11-15-clippy-of-wrapper-mpm-shadow-cargo-shadow/keep/`);
+    mpm-shadow's and cargo-shadow's follow in the same command.
+  - The container gate,
+    started 02:00:13
+    (`gpc-gate-wrapper-next-alpha-on-7edb782568-20261115T020013-0500`).
+    Its wrapper source is the gate's on `d7a2f6a013`,
+    so what differs between the two verdicts is the update,
+    as far as one run each can show.
+- **mpm-shadow's removal of old versions** (`58db281dc5`),
+  its review,
+  ended 01:57:28,
+  six of six files,
+  four things,
+  each by a program run against the library:
+  a sync of the global scope deletes a version a repository's lock still names;
+  a lock row with a route the pass does not know names nothing and its version is deleted;
+  a live process that cannot be looked into and has a short name
+  (`fd`,
+  and by the same cutoff `node`,
+  `rg`,
+  `bat`)
+  protects nothing;
+  a file written a moment ago inside a version is deleted,
+  since the age read is the root's alone.
+  All weighed as worth their fix.
+  They share one shape,
+  one step before the author's state model begins:
+  what the pass could not see,
+  it took for absent.
+  The author is resumed and asked for that one rule,
+  written beside the model,
+  and every read of the decision checked against it
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-review-of-2026-11-15-prompt.md`,
+  queued seventh).
+- Read at 02:01:57:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The resumed session is not named by the credential scan.
+  The queue held 81 entries at 02:02:40.
+
 ##### The gate on `0.6.1-alpha.38` fails 23: the two-adds control passes, the three push controls pass, and one failure that had no run gets one (2026-11-15T01:58:59-05:00)
 
 Not final and not approved:
