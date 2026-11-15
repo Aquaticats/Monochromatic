@@ -1615,6 +1615,43 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The review brief's coverage branch goes back with two findings: a reference that moves between two Git questions, and a folder written in parts (2026-11-15T11:28:14-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The driver's review brief that says what the change is** (`6e7021c03e`),
+  its fourth review,
+  ended 11:22:57,
+  17 of 17 files,
+  two things,
+  both reproduced by driving `writeReviewBrief`:
+  the writer pins the branch's tip and leaves `main` as a name,
+  so a merge that lands between its two Git questions makes a real change "nothing to review";
+  and a second write into a folder that already holds a review overwrites the diff and the record and can then fail at the brief,
+  leaving an old brief beside a new diff.
+- **Weighed**:
+  both go back.
+  This machine merges into `main` many times an hour and its runs are killed at any instruction,
+  so neither is a rare case here,
+  and both are cheap to close for good:
+  every name turned into a commit once and every later question asked of those commits;
+  a review folder written whole or not at all.
+  The author's fifth run is queued seventh
+  (`~/temp/agent/pi-runs/review-brief-coverage-answers-its-fourth-review-of-2026-11-15-prompt.md`).
+  The starter's stopgap stays until this branch is in `main`.
+- Read at 11:27:20:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The released wrapper can land a commit with the empty tree when a file of its scratch goes: shown on `main`, fixed on a branch whose review is now second in line; the checkout migration's review finds two ways a person's file is lost (2026-11-15T11:18:47-05:00)
 
 Not final and not approved:
