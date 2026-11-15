@@ -284,8 +284,17 @@ fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
 }
 
 /// What:
-///  The name `tag` padded so that `parent/<name>/run` takes one byte more than one socket address holds,
-/// whatever folder this account gives.
+///  The room `parent` leaves for the name of a path that ends in `/run` and must be `length` bytes long.
+/// Why:
+///   The helper that pads a name and the control that holds the length of the path it makes must count the same bytes,
+/// so the count is written once: a name does not take the separator after its folder, and it does not take `/run`.
+fn the_room_a_folder_leaves_for_a_name(parent: &Path, length: usize) -> usize {
+    return length.saturating_sub(parent.as_os_str().len() + 1 + "/run".len());
+}
+
+/// What:
+///  The name `tag` cut or padded so that `parent/<name>/run` is one byte past the longest runtime directory a path
+///  carries, and left at one byte where the folder is already that long.
 /// Why:
 ///   The control that uses it is about a spelling no file system can make,
 /// and its sentence is that a commit stops at once instead of binding where an address cannot be;
@@ -293,14 +302,14 @@ fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
 /// with a home directory of two bytes the folder was 18 bytes and `a-file-with-room/run` took 38,
 /// which kept the path form,
 /// so the control failed there and passed here.
-/// The padding is computed from the limit,
-/// so no folder's length decides which form the commit has to stop at.
+/// The name is counted from the whole path and cut to it,
+/// so the spelling stands exactly one byte past the limit wherever the folder leaves a byte for a name.
 fn a_name_that_makes_the_path_past_the_limit(parent: &Path, tag: &str) -> String {
-    // `parent/<name>/run`, its two separators, and the socket's suffix take one byte more than one address holds.
-    let room: usize = (longest_runtime_directory(INSTANCE) + 1).saturating_sub(parent.as_os_str().len() + 1 + "/run".len());
-    return match room > tag.len() {
-        true => format!("{tag}{}", "x".repeat(room - tag.len())),
-        false => String::from(tag),
+    let room: usize = the_room_a_folder_leaves_for_a_name(parent, longest_runtime_directory(INSTANCE) + 1);
+    let name_length: usize = room.max(1);
+    return match name_length > tag.len() {
+        true => format!("{tag}{}", "x".repeat(name_length - tag.len())),
+        false => tag.get(..name_length).expect("the tag is at least as long as the name").to_string(),
     };
 }
 
@@ -752,8 +761,24 @@ fn spellings_no_file_system_can_make(parent: &Path) -> [(&'static str, PathBuf);
 #[cfg(target_os = "linux")]
 fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
     let parent: PathBuf = short_parent();
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    // The room the name of this spelling has: the helper cuts or pads it to put the whole path one byte past the limit,
+    // and a folder that leaves no room leaves a longer path, which is past the limit all the same.
+    let room: usize = the_room_a_folder_leaves_for_a_name(parent.as_path(), longest + 1);
     let spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
     for (tag, runtime) in spellings {
+        match room {
+            0 => assert!(
+                runtime.as_os_str().len() > longest + 1,
+                "{tag}: a folder already past the limit leaves a longer spelling: {} bytes",
+                runtime.as_os_str().len()
+            ),
+            _ => assert_eq!(
+                runtime.as_os_str().len(),
+                longest + 1,
+                "{tag}: the spelling is one byte past the longest runtime directory, which is {longest} bytes"
+            ),
+        }
         assert!(
             is_waited_at_by_a_name(runtime.as_path(), INSTANCE),
             "{tag}: the runtime directory is past what a path form carries: {} bytes",
