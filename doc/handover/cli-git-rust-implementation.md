@@ -738,6 +738,18 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T22:57:44-05:00,
+  from the landed removal's author
+  (branch tip `5a2bd4bb6c`,
+  in review),
+  not blocking work:
+  an unforced removal of a worktree is now refused while a commit is named only by that worktree's own logs or operation records.
+  `FETCH_HEAD` is deliberately not read,
+  on the author's judgement that a fetched object is still where it came from and is no commit a person made;
+  on this repository's 179 linked worktrees four hold a commit only `FETCH_HEAD` names,
+  all four the same one,
+  and none a commit only a reflog names.
+  Is leaving `FETCH_HEAD` out right?
 - Added 2026-11-14T22:38:58-05:00,
   from the report of the run on a refused service start
   (`~/temp/agent/controls-of-a-service-start-refused-agree-with-wrapper-2026-11-14/keep/`,
@@ -1345,6 +1357,71 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The landed removal is answered with a refusal while a commit is named only by the worktree's own logs or records, at 64 ms more per removal; it goes to review (2026-11-14T22:57:44-05:00)
+
+Not final and not approved:
+what one author reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The landed removal's guard**,
+  its author's tenth run,
+  ended 22:52:45 at `5a2bd4bb6c`,
+  its report whole.
+  The review's script reproduced at the old tip and does not at the new one.
+  What names a commit under a worktree's administrative directory was probed operation by operation
+  (a reset,
+  an amend,
+  a stopped cherry-pick,
+  merge,
+  bisect and rebase),
+  and the guard now reads the whole `logs` tree and 25 operation records,
+  and counts a commit as surviving when the common directory's references and logs still reach it.
+- **Which way it built**:
+  the refusal,
+  not the keep this session had suggested,
+  on the project's own record:
+  a keep under `refs/cli-git/kept/` is what the wrapper does where no person can be asked,
+  and where a person is present every guard of a removal stops,
+  names the commit and prints the command that names it for good.
+  Measured on this repository's 179 linked worktrees:
+  none holds a commit only a reflog names,
+  so the refusal fires on nothing here today.
+  The suggestion was labelled as not a requirement,
+  and the author's reason is a record,
+  so it stands.
+- **One judgement it offers for veto**:
+  `FETCH_HEAD` is not read.
+  Now in "Questions kept for the owner's return".
+- **Cost**,
+  twelve interleaved rounds with fifty commits reset away:
+  a median of 87.5 ms against 22.2 ms on an unforced removal,
+  64.3 ms more
+  (30.2 to 104.0),
+  where one arm against itself spreads by a median of 1.0 ms.
+  Most of it is reading the common `logs` tree
+  (2,139 files here)
+  and one `rev-list`.
+  Weighed:
+  a removal is not a commit and no rule bounds it,
+  but four times is a real cost;
+  the review reads it,
+  and the number is kept here for whoever weighs it later.
+- Controls quoted failing with the reads taken out;
+  Clippy clean;
+  873 `worktree` tests and the two binary removal modules passing;
+  `main` merged.
+  Its review is queued second
+  (`main...5a2bd4bb6c`,
+  twenty code files).
+  This author's tenth run ended whole.
+- Read at 22:57:26:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  24 runs going.
+  The queue held 70 entries at 22:57:44.
 
 ##### The renamed subvolume left with no owner is answered: nothing is deleted on its name, only on a mark the wrapper wrote or a record of that delete; it goes to review (2026-11-14T22:50:59-05:00)
 
