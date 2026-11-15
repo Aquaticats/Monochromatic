@@ -1330,6 +1330,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's empty last answer is answered, with claims read on every look and taken only on proof, and goes to review (2026-11-14T22:28:33-05:00)
+
+Not final and not approved:
+what one author reports,
+and what the coordinating session queued.
+
+- **A driver run whose last answer is empty is asked to go on and never ends as finished**,
+  its author's fifth run,
+  ended 22:23:35 at `179075366e`,
+  its report whole.
+  All four of its fourth review's scripts reproduced against its old tip.
+  Changed:
+  claims of inbox messages are read on every look and once more before the summary,
+  so a message a dead driver had claimed is kept under `.orphaned-<name>` and named in `inboxNotTaken`;
+  a claim is taken only on proof that its owner is gone
+  (no process record,
+  or a different start),
+  never on a record that cannot be read;
+  a driver that cannot read its own start claims nothing;
+  the test helper waits for its child's exit from the moment it is spawned and reaps it on every path.
+  Four controls committed before the fix and quoted failing against the old code;
+  build,
+  type check and lint clean;
+  190 passing suite lines.
+  Cost:
+  one `readdir` per 300 ms look and one `/proc/<pid>/stat` per claim held.
+  Left by its design for a person:
+  a malformed claim,
+  and a claim whose owner's start is unknown while its number names something.
+- Its review is queued second
+  (`main...179075366e`,
+  22 code files,
+  the range being the whole branch).
+  It runs the driver from the main checkout for every Pi unit once merged,
+  so its merge follows a clean review and a look at what else `main` then holds of the driver.
+- Read at 22:28:07:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  21 runs going.
+  The queue held 72 entries at 22:28:33.
+
 ##### The journal change is answered and goes to review; its author met a commit service that stopped answering and two commits taken back (2026-11-14T22:22:48-05:00)
 
 Not final and not approved:
