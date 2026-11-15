@@ -1346,6 +1346,59 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The renamed subvolume left with no owner is answered: nothing is deleted on its name, only on a mark the wrapper wrote or a record of that delete; it goes to review (2026-11-14T22:50:59-05:00)
+
+Not final and not approved:
+what one author reports,
+and what the coordinating session queued.
+
+- **The renamed subvolume of a removal handed over is never left with no owner**,
+  its author's second run,
+  ended 22:46:20 at `944cc6abca`,
+  its report whole.
+  Both of the review's scripts showed the old behaviour at `b7481cca10`.
+  On the name:
+  a leaving name shows only that someone knew the subvolume's own kernel ID,
+  which accident cannot meet and intent can;
+  so the scan deletes nothing on a name.
+  It deletes on one of two proofs:
+  an extended attribute the wrapper now writes onto the subvolume before it renames it
+  (holding that subvolume's ID,
+  so a kill leaves a marked subvolume under its old name only),
+  or a record of that very delete in any state a round keeps.
+  The mark cannot be required,
+  nothing before this change having written one,
+  which is why the record is the second proof;
+  what neither proves is said once and left.
+  The other four:
+  the scan reads the directories of linked worktrees only;
+  one open without waiting,
+  directory-only,
+  with every later question asked of that descriptor;
+  a parent that is not text is refused before anything is queued,
+  with the command a person can run;
+  a delete already owed is told to the service,
+  three times at most,
+  then one line.
+  Six controls quoted failing with their fixes out;
+  Clippy clean;
+  847 `worktree` tests and eleven btrfs controls passing;
+  `main` merged.
+- Its review is queued second
+  (`main...944cc6abca`,
+  ten code files).
+- The steps this session wrote by hand in a one-off script each round,
+  to queue a review of a range after checking its name and its code,
+  are now one script beside the others:
+  `queue-a-review-of-a-range-after-checking-its-name-and-its-code.ts`.
+- Read at 22:50:36:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  24 runs going,
+  the cap.
+  The queue held 70 entries at 22:50:59.
+
 ##### The fix for the control of two adds is reviewed with nothing found and goes to pass 49; the journal change goes back, its fixture's service still able to reach the machine's journal; the gate's Git version has its fix (2026-11-14T22:47:39-05:00)
 
 Not final and not approved:
