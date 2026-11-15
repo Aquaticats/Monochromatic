@@ -28,30 +28,34 @@ use std::sync::{Arc, Mutex};
 /// which is what says the commit was made.
 const SUBJECT: &str = "through a long runtime directory";
 
+/// The bytes a digest of a tag takes in a runtime directory's name,
+/// which is the room this control asks for where the tag itself does not fit.
+const DIGEST_NAME_BYTES: usize = 8;
+
 /// What:
 ///  A runtime directory with a path of exactly `length` bytes,
-///  made under the short scratch directory of this test process.
+///  made under the longest folder this account offers that leaves room for its name.
 /// Why:
 ///   The boundary the kernel has is a count of bytes,
 /// so a control that guessed the length would prove nothing about it,
 /// and the fixture root under the build directory is far too long to build one under.
+/// The room below the folder is what is left once its own path and the name are taken,
+/// and it is shorter where the home directory's path is longer or the process number has more digits:
+/// the gate's container leaves seven bytes under `$HOME/temp/agent`, where a name of `at-the-longest` plus padding
+/// needs thirteen.
+/// So the folder is asked for by the room the name needs,
+/// and a control here never depends on how long this account's home directory is.
 fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
-    let parent: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
-        .join("temp/agent")
-        .join(format!("lr{}", std::process::id()));
-    std::fs::create_dir_all(&parent).expect("the scratch directory");
-    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
-    // The name holds the tag where there is room for it and padding to the byte the control asks for. A runtime directory of
-    //  forty bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
-    //  digit narrows that, so a tag that does not fit is replaced by a digest of itself: two controls still get two
-    //  directories, whichever number this process runs as.
-    // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
-    //  controls apart, and the digest needs eight bytes.
-    assert!(room >= 2, "a runtime directory of {length} bytes leaves {room} bytes past this process's scratch folder, too little to name a control in");
-    let name: String = if room > tag.len() {
+    let name_length: usize = tag.len().min(DIGEST_NAME_BYTES);
+    let longest_parent: usize = length.saturating_sub(1 + name_length);
+    let parent: PathBuf = runtime_directory_parent("lr", longest_parent);
+    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a runtime directory longer than the folder it stands in");
+    // The name holds the tag where there is room for it and padding to the byte the control asks for. A tag that does not
+    //  fit is replaced by a digest of itself: two controls still get two directories, whichever number this process runs
+    //  as, and the room the digest needs was what the folder above was chosen for.
+    let name: String = if room >= tag.len() {
         format!("{tag}{}", "x".repeat(room - tag.len()))
     } else {
-        assert!(room >= 8, "the tag {tag:?} does not fit {room} bytes, and a digest of it needs eight");
         let mut digest: String = git_policy_cli::service_instance::digest_of_bytes(tag.as_bytes());
         digest.truncate(room);
         digest
@@ -60,6 +64,44 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
     assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
     return runtime;
+}
+
+/// What:
+///  The folder this process's runtime directories are made in:
+///  the longest place this account offers that is at most `longest` bytes long.
+/// Why:
+///   A socket address carries 107 bytes of path,
+/// and the room a runtime directory of a fixed length leaves for its own name is what stays past the folder it stands in,
+/// which depends on this account and on this process.
+/// The binary controls cannot use the library's test support (`#[cfg(test)]` is not compiled into this target),
+/// so this is the same choice the unit controls make, named here for the one thing they share.
+fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf {
+    let name: String = format!("{prefix}{}", std::process::id());
+    let mut places: Vec<PathBuf> = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        // The folder this package's fixtures keep their sockets in.
+        places.push(home.join("temp/agent").join(name.as_str()));
+        // The same folder without the two segments the package adds, which a short home directory cannot spare.
+        places.push(home.join("temp").join(name.as_str()));
+    }
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
+        // The directory the product itself serves a session's sockets in, which is the shortest place an account has.
+        places.push(runtime.join(name.as_str()));
+    }
+    for place in &places {
+        if place.as_os_str().len() > longest {
+            continue;
+        }
+        std::fs::create_dir_all(place).expect("the folder of this control's runtime directories");
+        return place.clone();
+    }
+    let tried: String = if places.is_empty() {
+        String::from("this account names no home directory and no runtime directory")
+    } else {
+        let described: Vec<String> = places.iter().map(|place| { return format!("{} ({} bytes)", place.display(), place.as_os_str().len()); }).collect();
+        described.join(", ")
+    };
+    panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
 }
 
 /// A repository with one committed file and an edit of it waiting for a commit.

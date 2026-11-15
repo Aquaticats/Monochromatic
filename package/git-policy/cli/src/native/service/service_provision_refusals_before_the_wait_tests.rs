@@ -103,15 +103,13 @@ impl Manager for Addressing {
 }
 
 /// What:
-///  The directory of one test process's runtime directories for these controls,
-/// short enough to leave room for a socket name in what it holds.
+///  The directory of one test process's runtime directories for these controls.
 /// Why:
-///   One socket address holds 107 bytes,
-/// the runtime directory may take 40 of them,
-/// and the fixture root under the build directory is far longer.
-/// The process number keeps two runs of the gate from sharing one,
-/// and each control removes its own runtime directory (never this one,
-/// which a control running beside it still writes in).
+///   A stand-in Git directory and every runtime directory this module makes stand under this process's own folder,
+/// never under the fixture root,
+/// which sits under the build directory and is far longer than a socket address carries.
+/// A control whose name needs more room than this folder leaves asks for a shorter one
+/// (`runtime_directory_of_length`).
 fn short_parent() -> PathBuf {
     let directory: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
         .join("temp/agent")
@@ -122,38 +120,25 @@ fn short_parent() -> PathBuf {
 
 /// What:
 ///  A runtime directory of exactly `length` bytes,
-/// standing in this control's scratch directory.
+/// standing in the longest folder this account offers that leaves room for its name.
 /// Why:
 ///   The room the path of one socket needs is what these controls move past,
 /// so the directory is built to the byte and the length is asserted rather than assumed.
+/// That room is what stays below the folder once the folder's own path and the name are taken,
+/// and it is shorter where the home directory's path is longer or the process number has more digits:
+/// the gate's container leaves seven bytes under `$HOME/temp/agent`,
+/// and a name of `longest`, which is seven bytes, is what the control on the last byte of an address asks for.
+/// So the folder is asked for by the room the name needs,
+/// and a control here never depends on how long this account's home directory is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// runtimeDirectoryOfLength(41, 'past') // '/home/user/temp/agent/pr4242/past/xxxxxxxxx'
 /// ```
 fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
-    let parent: PathBuf = short_parent();
-    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
-    // The name holds the tag and then padding, never nothing: a path that ends in the separator has one byte less than it
-    //  says it has when anything is joined to it. A runtime directory of forty bytes leaves a handful of bytes past this
-    //  process's own scratch folder, and a longer process number narrows that, so a tag that does not fit is replaced by a
-    //  digest of itself: two controls still get two directories, whichever number this process runs as.
-    // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
-    //  controls apart, and the digest needs eight bytes.
-    assert!(room >= 2, "a runtime directory of {length} bytes leaves {room} bytes past this process's scratch folder, too little to name a control in");
-    let name: String = if room > tag.len() {
-        format!("{tag}{}", "x".repeat(room - tag.len()))
-    } else {
-        assert!(room >= 8, "the tag {tag:?} does not fit {room} bytes, and a digest of it needs eight");
-        let mut digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
-        digest.truncate(room);
-        digest
-    };
-    let runtime: PathBuf = parent.join(name);
-    std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
-    crate::test_support::track_for_this_thread(runtime.as_path());
-    return runtime;
+    let longest_parent: usize = length.saturating_sub(1 + crate::test_support::room_a_runtime_name_needs(tag));
+    let parent: PathBuf = crate::test_support::runtime_directory_parent("pr", longest_parent);
+    return crate::test_support::runtime_directory_under(parent.as_path(), length, tag);
 }
 
 /// What:
@@ -195,11 +180,17 @@ fn name_length_to_spell(parent: usize) -> usize {
 ///   The check about the room an address needs cannot be what refuses a control of spellings,
 /// so the name is measured by `name_length_to_spell`,
 /// which keeps both spellings inside one address.
+/// A folder of one byte less leaves a name of two bytes more,
+/// so the folder is chosen for the name the tag needs rather than assumed from where this process happens to sit.
 fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
-    let parent: PathBuf = short_parent();
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    // The name, the separator after the folder, `..` between the two copies of the name and the name again: a folder of
+    //  at most this many bytes leaves a name one byte longer than the tag.
+    let longest_parent: usize = longest.saturating_sub(5 + 2 * (tag.len() + 1));
+    let parent: PathBuf = crate::test_support::runtime_directory_parent("pr", longest_parent);
     let name_length: usize = name_length_to_spell(parent.as_os_str().len());
     assert!(name_length > tag.len(), "the tag {tag:?} leaves room to pad a name of {name_length} bytes");
-    return runtime_directory_of_length(parent.as_os_str().len() + 1 + name_length, tag);
+    return crate::test_support::runtime_directory_under(parent.as_path(), parent.as_os_str().len() + 1 + name_length, tag);
 }
 
 /// What:

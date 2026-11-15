@@ -333,6 +333,107 @@ pub(crate) fn track_for_this_thread(root: &Path) {
     THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
 }
 
+/// The bytes a digest of a tag takes in a runtime directory's name.
+const DIGEST_NAME_BYTES: usize = 8;
+
+/// What:
+///  The fewest bytes a runtime directory's name may take to hold `tag`:
+/// the tag itself where a name that long fits,
+/// or the eight bytes a digest of it takes where it does not.
+/// Why:
+///   A name cannot be shorter than what it spells,
+/// so the room a control asks this account for is this number and never a guess:
+/// a name whose tag does not fit is the first bytes of that tag's digest.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// roomARuntimeNameNeeds('boundary') // 8
+/// ```
+pub(crate) fn room_a_runtime_name_needs(tag: &str) -> usize {
+    return tag.len().min(DIGEST_NAME_BYTES);
+}
+
+/// What:
+///  The folder this process's runtime directories are made in:
+///  the longest place this account offers that is at most `longest` bytes long.
+/// Why:
+///   A socket address carries 107 bytes of path,
+/// and a runtime directory of a fixed length leaves whatever is past the folder it stands in for its own name,
+/// so the room a name has depends on this account and on this process:
+/// the gate's container has a home directory of twelve bytes and process numbers of six digits,
+/// which leaves seven bytes under the package's usual `$HOME/temp/agent`,
+/// so a control whose name needs eight panicked there while the same control passed where the home was shorter and the
+/// number had fewer digits.
+/// The places are tried from the package's own folder to the shortest this account has,
+/// and a place that leaves too little is named rather than assumed away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runtimeDirectoryParent('pr', 32) // '/home/tester/temp/pr123456'
+/// ```
+pub(crate) fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf {
+    let name: String = format!("{prefix}{}", std::process::id());
+    let mut places: Vec<PathBuf> = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        // The folder this package's fixtures keep their sockets in.
+        places.push(home.join("temp/agent").join(name.as_str()));
+        // The same folder without the two segments the package adds, which a short home directory cannot spare.
+        places.push(home.join("temp").join(name.as_str()));
+    }
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
+        // The directory the product itself serves a session's sockets in, which is the shortest place an account has.
+        places.push(runtime.join(name.as_str()));
+    }
+    for place in &places {
+        if place.as_os_str().len() > longest {
+            continue;
+        }
+        std::fs::create_dir_all(place).expect("the folder of this thread's runtime directories");
+        return place.clone();
+    }
+    let tried: String = if places.is_empty() {
+        String::from("this account names no home directory and no runtime directory")
+    } else {
+        let described: Vec<String> = places.iter().map(|place| { return format!("{} ({} bytes)", place.display(), place.as_os_str().len()); }).collect();
+        described.join(", ")
+    };
+    panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
+}
+
+/// What:
+///  A runtime directory of exactly `length` bytes under `parent`,
+///  named for `tag` where the room below `parent` holds the tag and for a digest of it where it does not.
+/// Why:
+///   The boundary these controls move past is a count of bytes,
+/// so the directory is built to the byte and its length asserted rather than assumed.
+/// The folder is the caller's,
+/// because a control that needs room for another spelling of the same directory decides how long the name may be.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runtimeDirectoryUnder(parent, 40, 'longest') // `${parent}/longest`
+/// ```
+pub(crate) fn runtime_directory_under(parent: &Path, length: usize, tag: &str) -> PathBuf {
+    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a runtime directory longer than the folder it stands in");
+    assert!(
+        room >= room_a_runtime_name_needs(tag),
+        "a runtime directory of {length} bytes leaves {room} bytes below {}, too little to name a control {tag:?} in",
+        parent.display()
+    );
+    let name: String = if room >= tag.len() {
+        format!("{tag}{}", "x".repeat(room - tag.len()))
+    } else {
+        let mut digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
+        digest.truncate(room);
+        digest
+    };
+    let runtime: PathBuf = parent.join(name);
+    std::fs::create_dir_all(&runtime).expect("the runtime directory");
+    assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
+    track_for_this_thread(runtime.as_path());
+    return runtime;
+}
+
 /// What:
 ///  Move a path's modification time two minutes into the past without following a symbolic link.
 /// Why:
