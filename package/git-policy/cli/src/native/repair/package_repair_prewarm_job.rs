@@ -234,7 +234,9 @@ struct TheNames {
     ///  (the review of `fc620ef950`, F1). The claim is the kernel's own answer to whether the filling that wrote the
     /// marker still lives, and it is released when that filling ends, however it ends.
     /// Nothing when the names are this run's own or the add's staged state: no other filling can name them.
-    claim: Option<std::fs::File>,
+    /// It is read by nothing: the lock it holds for the life of this value is the whole of it, as the hold on a landing's
+    /// copy is (`landing/service_land_copy.rs`, `PrivateCopy`).
+    _claim: Option<std::fs::File>,
 }
 
 /// What:
@@ -275,7 +277,7 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
                 let _given_back = std::fs::remove_file(marker.as_path());
                 return Ok(names_of_this_runs_own(usual.as_path()));
             }
-            Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker), claim: Some(held) })
+            Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker), _claim: Some(held) })
         }
         // Another filling of this same workspace lives and holds the usual names: this one stages under names of its own
         //  and leaves that filling everything, its marker included.
@@ -371,7 +373,7 @@ fn claim_the_usual_names(marker: &Path) -> Result<TheClaimOnTheUsualNames, Strin
 fn names_of_this_runs_own(usual: &Path) -> TheNames {
     let own: PathBuf = a_name_of_this_runs_own(usual);
     let own_target: PathBuf = target_of(own.as_path());
-    return TheNames { staging: own, target: own_target, marker: None, claim: None };
+    return TheNames { staging: own, target: own_target, marker: None, _claim: None };
 }
 
 /// What:
@@ -830,8 +832,23 @@ fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
     if !marker_claims(marker.as_path()) {
         return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
     }
+    // What:
+    //  The add staged this state under the usual names, so a filling of it holds the claim on those names like any other.
+    // Why:
+    //  Two fillings of one workspace can run at once, and one of them may have been handed the add's staged state while
+    //  the other takes the usual names by `names_for`; the claim is what stops both from cleaning and publishing one
+    //  directory at the same time (the review of `fc620ef950`, F1).
+    let held: std::fs::File = match claim_the_usual_names(marker.as_path())? {
+        TheClaimOnTheUsualNames::Ours { held, .. } => held,
+        // Another filling holds these names: this look does nothing and the names are its.
+        TheClaimOnTheUsualNames::AnotherFillingLives => return Ok(None),
+        // The mark the add wrote is gone and something else holds the name: this job's staged state is not there.
+        TheClaimOnTheUsualNames::SomebodysFile => {
+            return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
+        }
+    };
     let target: PathBuf = target_of(staging);
-    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker), claim: None }));
+    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker), _claim: Some(held) }));
 }
 
 /// What:
@@ -997,7 +1014,7 @@ fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
         // A marker that cannot be claimed is one this job cannot prove is its own, so nothing is removed.
         Err(_unclaimed) => return,
     };
-    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker), claim: Some(leftovers) };
+    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker), _claim: Some(leftovers) };
     if let Err(reason) = remove_if_any(names.staging.as_path()) {
         // Nothing of the worktree depends on this directory; the next filling of the same workspace tries again.
         debug(TAG, format!("{reason}; a staging copy a killed filling left stays for the next one").as_str());
