@@ -17376,15 +17376,17 @@ and what answers the withdrawal of a request the client stopped waiting for (`se
 A service removes such a record only when both hold:
 it is older than `A_FINISHED_RECORD_IS_READ`,
 and it is beyond the newest `DONE_RETAINED` records of the journal.
-The removal runs when a service starts, beside the loop that lands commits
+The removal runs when a service starts,
+beside the loop that lands commits
 (`service_prune_old_records_beside_the_loop.rs`),
 and never on the path a commit waits on:
 the records it takes are the ones past the newest `DONE_RETAINED`,
 which no landing reads,
 while the newest ones are read into memory before the first landing
 (`landed_commits`) because a repeat of a landed request must not land twice.
-The steps a start does take before it reads its queue each say which one they are, in the journal and to the client
-that waits, when they take longer than `A_START_STEP_NAMED_AFTER`.
+The steps a start does take before it reads its queue each say which one they are,
+in the journal and to the client that waits,
+when they take longer than `A_START_STEP_NAMED_AFTER`.
 The age is the whole life of a client of the record (`service/wait_ceilings.rs`):
 the wait for the answer,
 inside which every resend of the request happens (`ANSWER_CEILING`),
