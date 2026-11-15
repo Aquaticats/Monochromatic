@@ -88,12 +88,8 @@ fn route_inside(holder: &Path, route: &Route) -> Route {
 /// so a recovery must not read that empty scope as a run that ended.
 #[test]
 fn an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    let route = delegated_route();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let inside: Route = route_inside(holder.group.directory(), &route);
     let planned: ControlGroup = ControlGroup::plan(&inside).expect("a scope name");
     fs::create_dir(planned.directory()).expect("make the scope's control group the way the manager does, before it attaches a process");
@@ -129,12 +125,8 @@ fn an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended() {
 /// Nothing may decide from a second look that the run is complete.
 #[test]
 fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    let route = delegated_route();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let inside: Route = route_inside(holder.group.directory(), &route);
     let planned: ControlGroup = ControlGroup::plan(&inside).expect("a scope name");
     assert!(!planned.directory().exists());
@@ -166,12 +158,8 @@ fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run
 /// look at the scope shows.
 #[test]
 fn a_scope_that_appears_inside_the_real_recovery_is_not_read_as_a_run_that_ended() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    let route = delegated_route();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let inside: Route = route_inside(holder.group.directory(), &route);
     let planned: ControlGroup = ControlGroup::plan(&inside).expect("a scope name");
     assert!(!planned.directory().exists());
@@ -530,9 +518,7 @@ fn bind_substitution_fixture() {
 /// so the refusal is caused by the bind and nothing else.
 #[test]
 fn a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let root = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let journal: PathBuf = journal_with_records(root.path(), &format!("{}\nsettled {}\n", planned.record(), planned.directory().display()));
