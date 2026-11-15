@@ -32,6 +32,15 @@ use crate::auto_push_single_flight::{
 };
 use crate::auto_push_dirty_paths::diff_paths;
 use crate::auto_push_reconcile_basics_and_limits::argv;
+/// The questions about a checkout's files: what the branch lacks, what holds the merge's bytes, where
+/// the checkout disagrees with its branch, and which paths still hold the old tip's.
+use crate::auto_push_reconcile_branch_checkout_files::{
+    the_branchs_own_entries_written_awaiting, the_merge_bytes_left_on_the_branch_awaiting,
+    the_paths_still_holding_the_old_tip_awaiting, the_paths_the_checkout_disagrees_with_its_branch_awaiting,
+};
+/// The branch a checkout shows,
+/// asked in one place for both the repair and the report.
+pub(crate) use crate::auto_push_reconcile_branch_checkout_files::shows_awaiting;
 use std::ffi::OsString;
 
 /// What:
@@ -68,120 +77,6 @@ pub(crate) enum Checkout {
         /// Why they are still there.
         reason: String,
     },
-}
-
-/// What:
-///  The branch the worktree shows,
-/// or nothing for a detached `HEAD`.
-/// Why:
-///   The report names it,
-/// and the repair writes the tree of the branch it is,
-/// which is not the branch the move was for once a switch took the checkout elsewhere.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const shows = await git(['symbolic-ref','--quiet','HEAD']); // undefined for a detached HEAD
-/// ```
-pub(crate) async fn shows_awaiting(git: &PushGit) -> Result<Option<String>, SingleFlightError> {
-    let asked = run_query_awaiting(git, &argv(&["symbolic-ref", "--quiet", "HEAD"])).await?;
-    if asked.code != Some(0) {
-        return Ok(None);
-    }
-    let name: String = String::from_utf8_lossy(&asked.stdout).trim().to_owned();
-    return Ok(if name.is_empty() { None } else { Some(name) });
-}
-
-/// What:
-///  The paths of `paths` where the merge's content and the tree of the branch the checkout shows
-/// differ, or all of them when `HEAD` names no commit.
-/// Why:
-///   These are the paths of the move that the branch the checkout shows does not hold,
-/// so a worktree holding the merge's bytes there is the state a reset of the index can hide.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// diffPaths((await git(['--no-optional-locks','diff','--name-only','-z','--no-renames',merge,'HEAD','--',...paths])).stdout)
-/// ```
-async fn the_paths_the_branch_lacks_awaiting(
-    git: &PushGit,
-    merge_oid: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let mut arguments: Vec<OsString> = argv(&["--no-optional-locks", "diff", "--name-only", "-z", "--no-renames", merge_oid, "HEAD", "--"]);
-    arguments.extend(paths.iter().map(|path| return crate::path_bytes::os_from_path_bytes(path.as_slice())));
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: format!("diff --name-only -z --no-renames {merge_oid} HEAD"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    return Ok(diff_paths(&listed.stdout));
-}
-
-/// What:
-///  The paths of `paths` whose worktree file holds the merge's own content.
-/// Why:
-///   A byte in a worktree is replaced only where the code shows what it is,
-/// and this is the question that shows it:
-///  `git diff <merge> -- <paths>` lists the paths whose worktree content differs from the merge's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// paths.filter((path) => !differingFromTheMerge.includes(path))
-/// ```
-async fn the_worktree_paths_holding_the_merge_awaiting(
-    git: &PushGit,
-    merge_oid: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let mut arguments: Vec<OsString> = argv(&["--no-optional-locks", "diff", "--name-only", "-z", "--no-renames", merge_oid, "--"]);
-    arguments.extend(paths.iter().map(|path| return crate::path_bytes::os_from_path_bytes(path.as_slice())));
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: format!("diff --name-only -z --no-renames {merge_oid}"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    let differing: Vec<Vec<u8>> = diff_paths(&listed.stdout);
-    return Ok(paths.iter().filter(|path| return !differing.contains(path)).cloned().collect());
-}
-
-/// What:
-///  The paths of the move whose worktree holds the merge's own bytes while the branch the checkout shows does not,
-///  which is the state a mixed reset leaves.
-/// Why:
-///   The index can be made to agree with anything by a reset,
-/// so the answer "nothing of the merge is in this checkout" rests on the files and not on the index
-///  (a review of commit `36cae084ae`, its finding 4).
-/// Only the paths the branch lacks are asked about,
-/// and on a checkout that shows the pushed branch there are none,
-///  which is why a move whose checkout followed pays no query here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lacking = await thePathsTheBranchLacks({ git, merge, paths });
-/// return lacking.length === 0 ? [] : (await theWorktreePathsHoldingTheMerge({ git, merge, paths: lacking })).filter((path) => lacking.includes(path));
-/// ```
-pub(crate) async fn the_merge_bytes_left_on_the_branch_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    merge_oid: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let shows: Option<String> = shows_awaiting(git).await?;
-    if shows.as_deref() == Some(branch_ref) {
-        // The branch the checkout shows is at the merge, so its own file is the merge's and nothing is hidden.
-        return Ok(Vec::new());
-    }
-    let lacking: Vec<Vec<u8>> = the_paths_the_branch_lacks_awaiting(git, merge_oid, paths).await?;
-    if lacking.is_empty() {
-        return Ok(Vec::new());
-    }
-    return the_worktree_paths_holding_the_merge_awaiting(git, merge_oid, lacking.as_slice()).await;
 }
 
 /// What:
@@ -255,6 +150,63 @@ async fn the_paths_held_unlike_the_branch_awaiting(
 }
 
 /// What:
+///  Bring the files of the move to the branch the checkout shows,
+/// writing the branch's own entry over a path that holds what the old tip held,
+/// and saying which paths were left because they are a person's.
+/// Why:
+///   The index is already the branch's here, so what remains is the files:
+/// a path of the move whose stored entry is the old tip's is this move's own leftover (a reset of the
+///  index can leave it, and a checkout that took the branch after the write keeps it), and the branch's
+///  entry belongs there;
+/// a path whose entry is the merge's is the finding of the review before this one, and is named;
+///  a path that holds neither the old tip's entry nor the merge's is a person's, and stays theirs
+///  (a review of commit `cae78e1d7e`, its finding 3, and commit `36cae084ae`, its finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function theFilesOfTheMoveBrought({ git, branchRef, local, merge, paths }): Promise<Brought>;
+/// ```
+async fn the_files_of_the_move_brought_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+    local: &str,
+    merge_oid: &str,
+    paths: &[Vec<u8>],
+) -> Result<Brought, SingleFlightError> {
+    let differing: Vec<Vec<u8>> = the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths).await?;
+    if differing.is_empty() {
+        return Ok(Brought::Right);
+    }
+    let holding_the_old_tip: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, local, differing.as_slice()).await?;
+    if !holding_the_old_tip.is_empty() {
+        #[cfg(test)]
+        play_in_the_window(Window::WhileTheCheckoutIsRepaired);
+        if let Some(reason) = the_branchs_own_entries_written_awaiting(git, holding_the_old_tip.as_slice()).await? {
+            return Ok(Brought::Left {
+                paths: holding_the_old_tip,
+                reason,
+                write_refused: true,
+            });
+        }
+        let still: Vec<Vec<u8>> = the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths).await?;
+        if still.is_empty() {
+            return Ok(Brought::Right);
+        }
+        return Ok(Brought::Left {
+            paths: still,
+            reason: String::from("the worktree holds neither the old tip's content nor the merge's on those paths, so they are a change of your own"),
+            write_refused: false,
+        });
+    }
+    let hidden: Vec<Vec<u8>> = the_merge_bytes_left_on_the_branch_awaiting(git, branch_ref, merge_oid, differing.as_slice()).await?;
+    return Ok(Brought::Left {
+        paths: if hidden.is_empty() { differing } else { hidden },
+        reason: String::from("the worktree holds neither the old tip's content nor the merge's on those paths, so they are a change of your own"),
+        write_refused: false,
+    });
+}
+
+/// What:
 ///  What became of the checkout a move wrote,
 /// and what of the merge is still in it.
 /// Why:
@@ -320,19 +272,11 @@ pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
         return Ok(Brought::Right);
     }
     if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
-        // What: the index agrees with the branch, so the files are asked too.
-        // Why: a switch and a reset can make the index agree while the merge's bytes stay in the worktree,
-        //      and a commit there would record the merge's content on a branch it was to be kept from
-        //      (a review of commit `36cae084ae`, its finding 4).
-        let hidden: Vec<Vec<u8>> = the_merge_bytes_left_on_the_branch_awaiting(git, branch_ref, merge_oid, paths.as_slice()).await?;
-        if hidden.is_empty() {
-            return Ok(Brought::Right);
-        }
-        return Ok(Brought::Left {
-            paths: hidden,
-            reason: String::from("the worktree holds the merge's content on those paths and the branch does not, because a reset of the index can hide it"),
-            write_refused: false,
-        });
+        // What: the index agrees with the branch, and the files of the move are asked next.
+        // Why: no single comparison finishes a record: a reset moves the index without the files, and a path
+        //      whose stored entry is the old tip's is this move's own leftover, which the branch's entry replaces
+        //      (a review of commit `cae78e1d7e`, its finding 3, and commit `36cae084ae`, its finding 4).
+        return the_files_of_the_move_brought_awaiting(git, branch_ref, local, merge_oid, paths.as_slice()).await;
     }
     #[cfg(test)]
     play_in_the_window(Window::WhileTheCheckoutIsRepaired);
@@ -361,21 +305,17 @@ pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
         }
         // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
         crate::inner_git_words::record_streams(&["read-tree", "-u", "-m", from, to], &written.stdout, &written.stderr);
-        if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
+        if the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
             return Ok(Brought::Right);
         }
     }
     let left: Vec<Vec<u8>> = the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?;
     if left.is_empty() {
-        let hidden: Vec<Vec<u8>> = the_merge_bytes_left_on_the_branch_awaiting(git, branch_ref, merge_oid, paths.as_slice()).await?;
-        if hidden.is_empty() {
-            return Ok(Brought::Right);
-        }
-        return Ok(Brought::Left {
-            paths: hidden,
-            reason: String::from("the worktree holds the merge's content on those paths and the branch does not, because a reset of the index can hide it"),
-            write_refused: false,
-        });
+        // What: the write left the index in the branch's own state, so what still differs is the files', and the same
+        // answer that decides a checkout agrees decides this one.
+        // Why: asking the index alone read a reset of the index plus stale files as a finished checkout
+        //      (a review of commit `cae78e1d7e`, its finding 3).
+        return the_files_of_the_move_brought_awaiting(git, branch_ref, local, merge_oid, paths.as_slice()).await;
     }
     if refusal.is_empty() {
         refusal = String::from("a switch of the checkout landed while the branch moved, and the branch's own tree is not what those paths hold");

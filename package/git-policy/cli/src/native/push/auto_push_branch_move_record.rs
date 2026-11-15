@@ -53,6 +53,35 @@
 //! run by every wrapper command in a worktree before its own work,
 //! and by the advance itself right after the write.
 //!
+//! When a record is finished, and who may finish it:
+//!
+//!  A record is finished when every worktree that has its branch checked out shows the tip the branch was
+//!  moved to, in its index and in its files, or holds changes that are a person's own, which are left to
+//!  them and named.
+//!  No single comparison answers that, and each one alone was a defect found in this work:
+//!  the branch tip alone is not the answer, because the tip moves before any checkout does;
+//!  the index alone is not, because a `git reset` moves the index without the files
+//!  (a review of commit `cae78e1d7e`, its finding 3);
+//!  and one path is not, because a checkout can hold the merge's content on one path and the old tip's
+//!  on another.
+//!  So the checkout is asked all three: the branch it shows and that branch's tip, the index against
+//!  that tip, and every path of the move in the worktree.
+//!  A path of the move that holds what the old tip held is this record's own leftover and is brought to
+//!  the branch's entry;
+//!  a path that holds neither the old tip's entry nor the merge's is a person's and is left as it is,
+//!  and the refusal names it.
+//!  The record carries both tips (`old_oid`, `new_oid`) for exactly this: `old_oid` is what tells a
+//!  leftover of the move from a change of the person's on a path where the move wrote nothing.
+//!
+//!  Who may finish it: any later command in a worktree that has the branch checked out, once the process
+//!  that wrote the record is gone or has said it left the record (`owner_left_it`).
+//!  A live writer says only that it may be repairing this checkout right now,
+//!  and that is a moment inside the advance, not the record's whole life:
+//!  the resident service outlives every record it writes,
+//!  so a writer that keeps its record and goes on to other work marks it,
+//!  and the next command finishes it however long that writer lives
+//!  (a review of commit `cae78e1d7e`, its finding 2).
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const record = await writeBranchMove({ commonDir, owner, targetRef, oldOid, newOid });
@@ -94,13 +123,21 @@ const RECORD_SUFFIX: &str = ".json";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type BranchMove = { owner: TransactionOwner; targetRef: string; oldOid: string; newOid: string };
+/// type BranchMove = { owner: TransactionOwner; ownerLeftIt: boolean; targetRef: string; oldOid: string; newOid: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BranchMove {
     /// The process that wrote the record,
     /// whose death is what tells a later command the move is finished or stopped.
     pub owner: TransactionOwner,
+    /// Whether that process is alive and has gone on to other work,
+    /// so any later command may finish this record.
+    /// Why:
+    ///  A live writer may be repairing this checkout right now, which is why liveness alone stops a
+    ///  later command;
+    /// but a writer that kept the record and went on marks it here,
+    /// and the resident service outlives every record it writes.
+    pub owner_left_it: bool,
     /// The branch that was moved.
     pub target_ref: String,
     /// The tip the branch held before the move.
@@ -126,6 +163,9 @@ pub fn encode_branch_move(movement: &BranchMove) -> String {
         .string("createdAt", movement.owner.created_at.as_str());
     if let Some(namespace) = &movement.owner.owner_pid_namespace {
         writer.string("ownerPidNamespace", namespace.as_str());
+    }
+    if movement.owner_left_it {
+        writer.boolean("ownerLeftIt", true);
     }
     writer
         .string("targetRef", movement.target_ref.as_str())
@@ -159,6 +199,7 @@ pub fn parse_branch_move(bytes: &[u8]) -> Option<BranchMove> {
         return None;
     }
     return Some(BranchMove {
+        owner_left_it: matches!(map.get("ownerLeftIt"), Some(serde_json::Value::Bool(true))),
         owner: TransactionOwner {
             transaction_id: String::from(string_field(&map, "transactionId")?),
             owner_pid,
@@ -209,6 +250,30 @@ pub fn write_branch_move(common_dir: &Path, movement: &BranchMove) -> std::io::R
     write_exclusive_synced(path.as_path(), encode_branch_move(movement).as_bytes())?;
     sync_directory(directory.as_path())?;
     return Ok(path);
+}
+
+/// What:
+///  Say that the process that wrote a record is alive and has gone on to other work,
+/// by publishing the record again with `ownerLeftIt` set.
+/// Why:
+///   Liveness alone stops a later command, because a live writer may be repairing this checkout
+///   right now;
+/// that is a moment inside the advance, and the resident service outlives every record it writes,
+///  so a writer that keeps its record and goes on says so, and anyone may then finish it
+///  (a review of commit `cae78e1d7e`, its finding 2).
+///  The record is published over its name in one rename, so a kill leaves either the record that was
+///  there or the complete new one, and either is a record a later command reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await replacePrivateFile(record, encode({ ...movement, ownerLeftIt: true }));
+/// ```
+pub fn leave_the_branch_move_to_anyone(record: &Path, movement: &BranchMove) -> std::io::Result<()> {
+    let left: BranchMove = BranchMove {
+        owner_left_it: true,
+        ..movement.clone()
+    };
+    return crate::private_storage::replace_private_file(record, encode_branch_move(&left).as_bytes());
 }
 
 /// What:
@@ -319,6 +384,8 @@ pub fn record_branch_move(common_dir: &Path, target_ref: &str, old_oid: &str, ne
             .ok()?;
     let movement: BranchMove = BranchMove {
         owner,
+        // The writer has not left it: it is about to move the branch and repair the checkout.
+        owner_left_it: false,
         target_ref: target_ref.to_owned(),
         old_oid: old_oid.to_owned(),
         new_oid: new_oid.to_owned(),
@@ -363,14 +430,17 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                 record.display()
             ));
         };
-        // A move that still runs is not finished by another command.
-        let alive: bool = match crate::transaction_owner::classify_transaction_owner_record(&movement.owner, record.as_path()) {
-            Ok(crate::transaction_owner::OwnerLiveness::Alive) => true,
-            Ok(crate::transaction_owner::OwnerLiveness::Dead) => false,
-            // A probe that cannot be made reads as alive, as it does for the merge records.
-            Err(_) => true,
-        };
-        if alive {
+        // A writer that may be repairing this checkout right now is not overruled by another command;
+        // one that kept the record and went on to other work left it to whoever comes next
+        //  (a review of commit `cae78e1d7e`, its finding 2).
+        let still_writing: bool = !movement.owner_left_it
+            && match crate::transaction_owner::classify_transaction_owner_record(&movement.owner, record.as_path()) {
+                Ok(crate::transaction_owner::OwnerLiveness::Alive) => true,
+                Ok(crate::transaction_owner::OwnerLiveness::Dead) => false,
+                // A probe that cannot be made reads as alive, as it does for the merge records.
+                Err(_) => true,
+            };
+        if still_writing {
             continue;
         }
         let holder = match crate::auto_push_reconcile_branch_worktree::live_holder_awaiting(git, movement.target_ref.as_str()).await {
@@ -436,7 +506,13 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
             }
             Ok(crate::auto_push_reconcile_branch_checkout::Brought::Left { paths, reason, write_refused }) => {
                 if write_refused {
-                    // A write Git refused is one a later command may finish, so the record stays for it.
+                    // What: a write Git refused is one a later command may finish, so the record stays for it.
+                    // Why: this command is alive and is going on to other work, so it says it left the record;
+                    //      without that, its own liveness would stop every later command from finishing the checkout.
+                    match leave_the_branch_move_to_anyone(record.as_path(), &movement) {
+                        Ok(()) => {}
+                        Err(error) => debug_line(out, &format!("the record {} could not be left to a later command ({error})", record.display())),
+                    }
                     debug_line(out, &format!("the checkout at {} was not written ({reason}), so the record {} is left", place.display(), record.display()));
                     continue;
                 }

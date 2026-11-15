@@ -3990,3 +3990,274 @@ fn a_held_index_lock_keeps_the_record_and_lets_the_command_go_on() {
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout is brought to the merge");
     remove(&s.scenario.root);
 }
+
+/// What:
+///  An automatic push whose merge the remote accepted is confirmed and followed, even though the push
+///  command that sent it reported a failure with no rejection in it.
+/// Why:
+///  The automatic arm answered that failure at once, without the look the explicit arm makes on its
+/// next attempt: the remote held the merge, the command said it failed, and the branch stayed behind
+///  (a review of commit `cae78e1d7e`, its finding 1).
+#[test]
+fn an_automatic_merge_that_landed_is_confirmed_before_its_failure_is_answered() {
+    let s = scenario("ar-automatic-merge-landed-then-a-failure");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed: String = commit_local(&s, "b.txt", "local\n");
+    let mut merge_pushed: Option<String> = None;
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the disposable remote accepts the merge");
+        merge_pushed = Some(merge_oid.to_owned());
+        // What: the remote took it, and the connection dropped before the answer came back.
+        // Why: that is the state the remote's own history decides, and no rejection is printed.
+        return Ok(PushAttempt {
+            exit_code: 1,
+            output: String::from("error: failed to push some refs: the connection dropped after acceptance"),
+        });
+    };
+    let attempt: PushAttempt = finished(integrate(&s, landed.as_str(), false, &mut push_merge));
+    let merge: String = merge_pushed.expect("the merge push ran");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "refs/heads/main"]), merge, "the remote accepted the merge");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), merge, "the branch follows the merge the remote accepted");
+    assert!(
+        attempt.output.contains("so the merge was published even though its own command reported a failure"),
+        "the answer says what the remote holds: {}",
+        attempt.output
+    );
+    assert!(attempt.output.contains("are now at it"), "and where the branch is: {}", attempt.output);
+    remove(&s.root);
+}
+
+/// What:
+///  A record whose writer is alive but has left it is finished by the next command while that writer
+///  still runs, and the marker is on the record while the checkout waits.
+/// Why:
+///   The resident service outlives every record it writes, so liveness alone stopped every later
+///   command and the checkout stayed stale for as long as the service lived
+///   (a review of commit `cae78e1d7e`, its finding 2).
+#[test]
+fn a_record_its_writer_left_is_finished_by_a_later_command_while_that_writer_lives() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, parse_branch_move};
+    use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-record-left-by-a-live-writer");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let stale: PathBuf = taker.clone();
+    let old_tip: String = s.local_tip.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        let made = git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old_tip.as_str()]);
+        assert!(made.status.success(), "the racing worktree is made");
+        let _named = git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+        let git_dir: PathBuf = PathBuf::from(text_of(&stale, &["rev-parse", "--absolute-git-dir"]));
+        std::fs::write(git_dir.join("index.lock"), b"held by another command").expect("the held index lock");
+    });
+    let _advanced = await_it(advance_pushed_branch_awaiting(
+        &push_git(&s.scenario.local),
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the ref-only move finishes its report");
+    drop(_played);
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let records: Vec<PathBuf> = list_branch_moves(common_dir.as_path()).expect("the records");
+    assert_eq!(records.len(), 1, "the lock refusal leaves the record");
+    let left = parse_branch_move(std::fs::read(records[0].as_path()).expect("the record").as_slice()).expect("a record this release wrote");
+    assert!(left.owner_left_it, "the writer that went on says it left the record");
+    let git_dir: PathBuf = PathBuf::from(text_of(&taker, &["rev-parse", "--absolute-git-dir"]));
+    std::fs::remove_file(git_dir.join("index.lock")).expect("the other command releases the lock");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the later sweep runs while the writer lives");
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).unwrap_or_default(),
+        "remote side\n",
+        "the later command finishes the checkout: {}",
+        String::from_utf8_lossy(&stderr)
+    );
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "and the record is gone");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A checkout a mixed reset left holding the old tip's files, with the index already at the branch's
+///  tip, is brought to the branch and the record goes, so the next commit reverses nothing.
+/// Why:
+///   The answer was decided on the index alone, which a reset moves without the files, so recovery
+///   declared the checkout finished and removed the only record of the move
+///   (a review of commit `cae78e1d7e`, its finding 3).
+#[test]
+fn a_checkout_a_reset_left_holding_the_old_files_is_brought_to_the_branch() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    let s = nowhere("ar-checkout-left-by-a-mixed-reset");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
+    git(&taker, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (record, movement) = record_branch_move(common_dir.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("the record");
+    let mut recorded = movement.clone();
+    recorded.owner.owner_identity = String::from("linux:1");
+    std::fs::write(record.as_path(), crate::auto_push_branch_move_record::encode_branch_move(&recorded)).expect("the record of a gone owner");
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    git(&taker, &["reset", "--quiet"]);
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "D remote.txt\n?? local.txt", "the index agrees and the files do not");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("remote.txt"),
+        "remote side\n",
+        "the merge's file is written: {}",
+        String::from_utf8_lossy(&stderr)
+    );
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "?? local.txt", "and only the person's untracked file is left");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is finished and gone");
+    let committed = crate::testing::test_support::git_output(&taker, &["commit", "--quiet", "--all", "--message=commit after the repair"]);
+    assert!(!committed.status.success(), "there is nothing left to commit over the merge");
+    assert_eq!(text_of(&taker, &["ls-tree", "--name-only", "HEAD", "--", "remote.txt"]), "remote.txt", "so the merge's file stands");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A fixture in which the merge changes a file both tips have and adds another,
+///  while the pushed branch is checked out in no worktree.
+/// Why:
+///  A change to a file both sides have is a path the person can edit after the move,
+///  and a path the move adds is one whose old state is absence:
+///  the two are what a repair has to tell apart.
+fn nowhere_changing(name: &str) -> Nowhere {
+    let root: PathBuf = fixture(name);
+    let remote: PathBuf = root.join("remote.git");
+    git(&root, &["init", "--bare", "--quiet", "--initial-branch=main", "remote.git"]);
+    git(&root, &["init", "--quiet", "--initial-branch=main", "local"]);
+    let local: PathBuf = root.join("local");
+    std::fs::write(local.join("a.txt"), "base\n").expect("a.txt");
+    git(&local, &["add", "a.txt"]);
+    git(&local, &["commit", "--quiet", "-m", "base"]);
+    git(&local, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(&local, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(&local, &["switch", "--quiet", "-c", "topic"]);
+    git(&local, &["push", "--quiet", "--set-upstream", "origin", "topic"]);
+    let other: PathBuf = root.join("other");
+    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(&other, &["switch", "--quiet", "topic"]);
+    std::fs::write(other.join("a.txt"), "remote side\n").expect("a.txt");
+    std::fs::write(other.join("added.txt"), "added side\n").expect("added.txt");
+    git(&other, &["add", "a.txt", "added.txt"]);
+    git(&other, &["commit", "--quiet", "-m", "remote side"]);
+    git(&other, &["push", "--quiet", "origin", "topic"]);
+    std::fs::write(local.join("local.txt"), "local side\n").expect("local.txt");
+    git(&local, &["add", "local.txt"]);
+    git(&local, &["commit", "--quiet", "-m", "local side"]);
+    let local_tip: String = text_of(&local, &["rev-parse", "refs/heads/topic"]);
+    git(&local, &["fetch", "--quiet", "origin"]);
+    git(&local, &["switch", "--quiet", "main"]);
+    let remote_tip: String = text_of(&other, &["rev-parse", "refs/heads/topic"]);
+    let merge: String = text_of(
+        &local,
+        &["commit-tree", "-p", &local_tip, "-p", &remote_tip, "-m", "merge", "origin/topic^{tree}"],
+    );
+    return Nowhere { scenario: Scenario { local, other, remote, root }, local_tip, merge };
+}
+
+/// What:
+///  A person's own edit beside a leftover of the move is kept, and the answer names it, while the
+///  leftover is brought to the branch.
+/// Why:
+///   The record's old tip is what tells a leftover from an edit, and a write that cannot tell them
+///   apart would destroy what the person made
+///  (a review of commit `cae78e1d7e`, its findings 2 and 3).
+#[test]
+fn a_persons_edit_beside_a_leftover_is_kept_and_named() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    let s = nowhere_changing("ar-persons-edit-beside-a-leftover");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
+    git(&taker, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (record, movement) = record_branch_move(common_dir.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("the record");
+    let mut recorded = movement.clone();
+    recorded.owner.owner_identity = String::from("linux:1");
+    std::fs::write(record.as_path(), crate::auto_push_branch_move_record::encode_branch_move(&recorded)).expect("the record of a gone owner");
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    git(&taker, &["reset", "--quiet"]);
+    // What: the person's own bytes on a path the move changes, beside a path the move adds.
+    // Why: the two must be told apart by the old tip the record carries, and only the second is the move's.
+    std::fs::write(taker.join("a.txt"), "the person's own words\n").expect("the person's edit");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
+    assert_eq!(
+        std::fs::read_to_string(taker.join("a.txt")).expect("a.txt"),
+        "the person's own words\n",
+        "the person's bytes are untouched"
+    );
+    assert_eq!(
+        std::fs::read_to_string(taker.join("added.txt")).expect("added.txt"),
+        "added side\n",
+        "and the move's own leftover is brought to the branch"
+    );
+    let said: String = String::from_utf8_lossy(&stderr).into_owned();
+    assert!(said.contains("still differs from refs/heads/topic on a.txt"), "the answer names the person's path: {said}");
+    // The read trims, so the first column's space is not in the answer.
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "M a.txt\n?? local.txt", "and that change is still theirs");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is told and gone");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A worktree that took the branch after the holder listing and before the reference moved, with the
+///  move killed before its second listing, is finished by a later command in that worktree.
+/// Why:
+///  This is the state the last answer left open: the record is written before the reference moves, so
+/// even a worktree nobody listed is covered by the record the next command reads
+///  (a review of commit `cae78e1d7e`, its finding 3).
+#[test]
+fn a_checkout_that_took_the_branch_before_the_write_and_was_killed_is_finished_by_a_later_command() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves};
+    use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-took-it-in-the-window-then-killed");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let stale: PathBuf = taker.clone();
+    let old_tip: String = s.local_tip.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        let made = git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old_tip.as_str()]);
+        assert!(made.status.success(), "the racing worktree is made");
+        let _named = git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+        let _reset = git(&stale, &["reset", "--quiet"]);
+        panic!("stand in for a kill before the look after the write");
+    });
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = await_it(advance_pushed_branch_awaiting(
+            &push_git(&s.scenario.local),
+            "refs/heads/topic",
+            s.local_tip.as_str(),
+            s.merge.as_str(),
+        ));
+    }));
+    drop(_played);
+    assert!(stopped.is_err(), "the control stops before the second listing");
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let records: Vec<PathBuf> = list_branch_moves(common_dir.as_path()).expect("the records");
+    assert_eq!(records.len(), 1, "the record the move wrote before its write is still there");
+    let mut movement = crate::auto_push_branch_move_record::parse_branch_move(std::fs::read(records[0].as_path()).expect("the record").as_slice())
+        .expect("a record this release wrote");
+    movement.owner.owner_identity = String::from("linux:1");
+    std::fs::write(records[0].as_path(), crate::auto_push_branch_move_record::encode_branch_move(&movement)).expect("the record of a gone owner");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the next command runs the sweep");
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("remote.txt"),
+        "remote side\n",
+        "the checkout is finished: {}",
+        String::from_utf8_lossy(&stderr)
+    );
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "?? local.txt", "and holds only the person's untracked file");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is gone");
+    remove(&s.scenario.root);
+}

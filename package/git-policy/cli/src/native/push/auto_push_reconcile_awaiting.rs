@@ -28,6 +28,8 @@ use crate::auto_push_reconcile_basics_and_limits::{
 use crate::auto_push_reconcile_branch_advance::{Advanced, advice_to_move};
 use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
+/// The one question both arms ask about a merge they pushed, and the one sentence it is reported with.
+use crate::auto_push_reconcile_published::{the_published_merge_report, the_remote_holds_the_merge_awaiting};
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::auto_push_destination::{Destination, read_destination_awaiting};
 use crate::diagnostic_log::debug;
@@ -306,10 +308,7 @@ pub async fn integrate_and_push_awaiting(
         //      fetch (a post-receive hook, another push): the remote's tip then contains the merge instead of being it,
         //      and a test for equality missed it (a review of commit `c15fc5a7b1`, its finding 1).
         let published_on_the_remote: Option<String> = match published.as_deref() {
-            Some(merge) => match (is_ancestor_awaiting(git, merge, &remote_tip)).await? {
-                Some(true) => Some(merge.to_owned()),
-                _ => None,
-            },
+            Some(merge) => (the_remote_holds_the_merge_awaiting(git, merge, &remote_tip)).await?,
             None => None,
         };
         match (
@@ -333,14 +332,7 @@ pub async fn integrate_and_push_awaiting(
                 // Why: the merge is published either way, and the branch must follow it and be said to
                 //      (a review of commit `c15fc5a7b1`, its finding 2: this path moved nothing and said nothing of the branch).
                 let followed: String = the_pushed_branch_follows_awaiting(git, plan, &local, &merge).await;
-                return Ok(Integrated::Finished(PushAttempt {
-                    exit_code: 0,
-                    output: format!(
-                        "{line_prefix}to undo this merge, `git revert -m 1 {merge}` keeps both sides' commits and removes its effect.\n\
-                         {line_prefix}{remote}/{short} is at {remote_tip}, which contains the merge {merge} this push made, so the merge was published \
-                         even though its own command reported a failure, {followed} (merge {merge}).",
-                    ),
-                }));
+                return Ok(Integrated::Finished(the_published_merge_report(plan, &remote_tip, &merge, followed.as_str())));
             }
             (_, Some(true)) if plan.explicit => {
                 debug(
@@ -423,6 +415,24 @@ pub async fn integrate_and_push_awaiting(
             }));
         }
         if !plan.explicit && !was_rejected_as_stale(&pushed.output) {
+            // What: a failure that is not a rejection is answered only after the remote is asked what it holds.
+            // Why: a push can be accepted and report a failure (a connection dropped after acceptance, a kill), and an
+            //      automatic push used to answer that failure at once, without the look the explicit arm makes on its
+            //      next attempt: the remote held the merge, the command said it failed, and the branch stayed behind
+            //      (a review of commit `cae78e1d7e`, its finding 1).
+            //      The look is one fetch and one ancestry read, and it runs in the resident commit service's own work,
+            //      never on a command's path: a person's command returned before this push started
+            //      (`service_work.rs`: "The command that ran the push returned long before it ended").
+            if let Ok(remote_tip_now) = (fetch_remote_tip_awaiting(git, &destination)).await? {
+                if let Some(merge) = (the_remote_holds_the_merge_awaiting(git, &merge_oid, &remote_tip_now)).await? {
+                    debug(
+                        TAG,
+                        &format!("{remote}/{short} at {remote_tip_now} contains the merge {merge} the automatic push made, so the failure it reported is not one"),
+                    );
+                    let followed: String = the_pushed_branch_follows_awaiting(git, plan, &local, &merge).await;
+                    return Ok(Integrated::Finished(the_published_merge_report(plan, &remote_tip_now, &merge, followed.as_str())));
+                }
+            }
             return Ok(Integrated::Finished(pushed));
         }
         previous = pushed.output.clone();

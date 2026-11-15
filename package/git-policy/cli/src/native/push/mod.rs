@@ -162,6 +162,7 @@ pub mod auto_push_reconcile_plan;
 /// Publishing a landed commit that a moved remote branch rejected:
 /// the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
+pub mod auto_push_reconcile_published;
 
 /// The reconcile loop and its merge push,
 /// awaited by a task of the runtime,
@@ -186,6 +187,7 @@ pub mod auto_push_reconcile_branch_advance;
 /// What became of the worktree's checkout a move wrote,
 /// and the step that makes a checkout agree with the branch it shows.
 pub mod auto_push_reconcile_branch_checkout;
+pub mod auto_push_reconcile_branch_checkout_files;
 
 /// Which worktree holds the branch a push sent,
 /// whether it is this one,

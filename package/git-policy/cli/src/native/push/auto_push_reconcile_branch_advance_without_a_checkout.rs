@@ -36,7 +36,7 @@ use crate::auto_push_reconcile_branch_advance::{Advanced, BRANCH_MOVED, Brought,
 /// The repair that writes only what its own write proves is the move's own content.
 use crate::auto_push_reconcile_branch_checkout::{bring_the_checkout_to_its_branch_awaiting, shown_branch_awaiting};
 /// The record of the move, written before the reference moves, and the command that finishes a stop.
-use crate::auto_push_branch_move_record::{record_branch_move, remove_branch_move};
+use crate::auto_push_branch_move_record::{leave_the_branch_move_to_anyone, record_branch_move, remove_branch_move};
 use crate::auto_push_reconcile_branch_worktree::{git_at, live_holder_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 use crate::diagnostic_log::debug;
@@ -140,7 +140,7 @@ pub(crate) async fn move_the_ref_only_awaiting(
     // An answer with no directory in it leaves an empty name, whose record write fails and stops the move with the
     //  sentence below, which is the one place a repository whose Git directory is gone is reported.
     let common_dir: PathBuf = PathBuf::from(common_dir_said.unwrap_or_default());
-    let Some((record, _movement)) = record_branch_move(common_dir.as_path(), branch_ref, local, merge_oid) else {
+    let Some((record, movement)) = record_branch_move(common_dir.as_path(), branch_ref, local, merge_oid) else {
         // What: the record could not be written, so the reference is not moved.
         // Why: a stop after the write would leave a checkout with the older files and nothing that finishes it
         //      (a review of commit `36cae084ae`, its finding 3).
@@ -175,6 +175,12 @@ pub(crate) async fn move_the_ref_only_awaiting(
             // What: the look after the write failed, so the record stays and the next command asks again.
             // Why: a checkout that took the branch may hold the older files, and nothing here can tell which it is.
             debug(TAG, &format!("the worktrees of {branch_ref} could not be read after its reference moved ({error}); the record stays"));
+            // The record stays and this command goes on, so it says it left it: liveness alone would stop every later
+            //  command from finishing the checkout (a review of commit `cae78e1d7e`, its finding 2).
+            match leave_the_branch_move_to_anyone(record.as_path(), &movement) {
+                Ok(()) => {}
+                Err(error) => debug(TAG, &format!("the record {} could not be left to a later command ({error})", record.display())),
+            }
             return Ok(NowhereMove::Answered(Advanced::HoldersUnreadable {
                 reason: format!("the worktrees that may have {branch_ref} checked out could not be read after the branch moved: {error}"),
             }));
@@ -191,6 +197,13 @@ pub(crate) async fn move_the_ref_only_awaiting(
         // Why: the checkout still holds the older files on paths the merge changes, and the person was not asked anything:
         //      the move writes them by the proof, so a lock is all that stood in the way.
         debug(TAG, &format!("the checkout at {} was not written, so the record stays for a later command", took_it.display()));
+        // This command is alive and is going on to other work, so it says it left the record; otherwise its own
+        //  liveness would stop every later command from finishing that checkout
+        //  (a review of commit `cae78e1d7e`, its finding 2).
+        match leave_the_branch_move_to_anyone(record.as_path(), &movement) {
+            Ok(()) => {}
+            Err(error) => debug(TAG, &format!("the record {} could not be left to a later command ({error})", record.display())),
+        }
     } else {
         // The repair has run and told what it left, so the record has nothing more to finish: a record kept would only
         //  tell it again at every command. A stop inside the repair left it, and the next command finishes the rest.
