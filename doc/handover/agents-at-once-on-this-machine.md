@@ -7,21 +7,44 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **20** agents run on this machine at once since 2026-11-15T00:32:16-05:00.
+At most **17** agents run on this machine at once since 2026-11-15T01:00:44-05:00
+(18 from 00:50:55;
+level eighteen failed at 00:57:33 on 109,241 ms and then 59,474 ms,
+under "Level 18 fails on stalls of 109 and 59 seconds, 2026-11-15T00:44:53-05:00 to 01:00:46-05:00").
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T010044`
+and the probe `disk-ceiling-probe-level-17-20261115T010046`.
+Should seventeen fail,
+the cap is sixteen,
+the probe then runs with `readings-only` and ends on no reading,
+and the cap goes no lower without the owner.
+**None of tonight's levels was tested at its own number**:
+19 to 23 agents were going at every failing reading,
+because no run is stopped when a level ends.
+What follows in this paragraph is the state of 00:50:55,
+kept as it was written.
+At most 18 agents ran at once from 2026-11-15T00:50:55-05:00.
 Level twenty-four failed its criterion at 00:31:09
 (the home drive's write-and-sync took 14,892 ms and then 7,722 ms,
 with 23 agents going and `snapper-cleanup.service` running since 00:00:11),
-and the rule under "What counts as the ceiling" gives twenty.
+and the rule under "What counts as the ceiling" gave twenty;
+level twenty failed at 00:44:03
+(6,277 ms and then 21,599 ms,
+20 agents going,
+the cleanup still running),
+and the same rule gives eighteen.
 No run that was going is stopped;
-nothing new starts until fewer than twenty are going.
-The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T003216`
+nothing new starts until fewer than eighteen are going.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-18-20261115T005055`
 (eight hours)
-and the probe `disk-ceiling-probe-level-20-20261115T003216`.
-Should twenty fail,
-the same rule gives eighteen.
+and the probe `disk-ceiling-probe-level-18-20261115T004453`.
+Should eighteen fail,
+the same rule gives seventeen and then sixteen,
+the last level that held,
+and the cap goes no lower than sixteen without the owner.
 Not final and not approved;
 the readings are under
-"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00".
+"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00" and
+"Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00".
 What stood before:
 at most 24 agents ran at once from 2026-11-14T08:54:33-05:00,
 by the owner's answer of that morning
@@ -1088,3 +1111,165 @@ of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
   whether the cap returns to twenty-four once the cleanup has ended is the owner's to say
   and is kept in `doc/handover/cli-git-rust-implementation.md`,
   "Questions kept for the owner's return".
+
+#### Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00
+
+Not final and not approved:
+the twelve readings of level twenty,
+taken by the coordinating session from the same file.
+
+- **Level twenty fails at 00:44:03**:
+  the home drive took 2,198 ms at 00:41:54,
+  6,277 ms at 00:42:57
+  and 21,599 ms at 00:44:03,
+  with 20 agents going at all three.
+  Earlier in the same twelve minutes it took 8,480 ms at 00:33:17 and 21,214 ms at 00:35:25,
+  with 22 going,
+  each followed by a reading of one millisecond.
+  The build drive took 6 to 13 ms throughout.
+  `snapper-cleanup.service` was still running at 00:44:34.
+- **The stalls came with low I/O pressure, not high**:
+  the kernel's `some` pressure over ten seconds read 0.27 to 0.45 percent at the three last readings
+  and 2 to 3 percent at the two earlier slow ones,
+  against 5 to 12 percent at the fast readings between.
+  An earlier wording here read that as little waiting on the drive during a stall.
+  **That reading is withdrawn**
+  (2026-11-15T01:02:00-05:00):
+  the probe samples `/proc/pressure/io` before it writes
+  (`probe-write-and-sync-on-both-drives-every-minute.ts`,
+  the reading is built before the loop over the drives),
+  so the figure describes the ten seconds before a stall and says nothing of the stall;
+  and the 59,474 ms reading of 00:57:33 began at 25 percent,
+  the highest of the night.
+- **What was done**:
+  the probe was started at level eighteen at 00:44:53.
+  The filling unit was restarted at eighteen at 00:50:55,
+  six minutes later than the probe:
+  the restart script looks for the moment between two of the unit's rounds by the age of its last journal line,
+  and a unit with no free place to fill writes none,
+  so its first try gave up after six minutes with nothing stopped.
+  The script now reads the unit's control group when the journal is silent
+  (one process there is the unit asleep).
+  In those six minutes the unit at level twenty started nothing,
+  since twenty were going.
+  20 agents were going at 00:45:45;
+  none was stopped.
+
+#### Level 18 fails on stalls of 109 and 59 seconds, 2026-11-15T00:44:53-05:00 to 01:00:46-05:00
+
+Not final and not approved:
+the eleven readings of level eighteen and what was read beside them,
+by the coordinating session.
+
+- **Level eighteen fails at 00:57:33**:
+  the home drive's write-and-sync begun at 00:54:43 took 109,241 ms,
+  and the next,
+  begun at 00:57:33,
+  took 59,474 ms.
+  20 and 19 agents were going.
+  Before them at this level:
+  3,367 ms at 00:46:53 and nine readings of 2 to 369 ms.
+  The build drive took 6 to 151 ms throughout.
+- **The level was never at eighteen**:
+  19 or 20 agents were going at every one of its readings,
+  as 20 to 22 were at level twenty's.
+  So tonight's three failures are readings at 19 to 23 agents during the cleanup,
+  and say nothing of whether 18,
+  20 or 24 agents can be carried.
+- **Two commits waited on the commit service across those readings**:
+  in the main checkout,
+  under `0.6.1-alpha.37`,
+  `fd002ed513` (landed 00:54:32) and `5a7c6c0d03` (landed 00:57:12) each printed that the service had not answered in ten seconds,
+  then landed.
+  `origin` held `5a7c6c0d03` at 01:00:59.
+  The repository is on the build drive,
+  which answered in 10 ms and 78 ms at those readings.
+- **What the snapshot cleanup logged**
+  (`journalctl --unit=snapper-cleanup.service`,
+  read at 01:01):
+  started 00:00:11;
+  "Running number cleanup for 'root'" at 00:00:15;
+  at 00:23:27 the deletion of twenty snapshots of root in one second
+  (numbers up to 43)
+  and "Running timeline cleanup for 'root'";
+  no line since,
+  the unit still active at 01:01.
+  The first reading over a second after that came at 00:27:39,
+  four minutes later,
+  and the first failing pair at 00:29:54.
+  The night before,
+  by this record,
+  a batch was deleted at 00:14:49 and the first level failed at 01:10:30.
+- **Quota groups are on for the home filesystem and off for the build one**:
+  `/sys/fs/btrfs/1bb3d23e-ec16-473a-b932-0deb3c450b94/qgroups` exists and holds 39 entries
+  (the filesystem of `/var/home`,
+  `/dev/dm-1`);
+  `/sys/fs/btrfs/01c308e7-06fa-4737-8a7b-3bb5fcba871d/qgroups` does not exist
+  (`/dev/mapper/crypt_sda`,
+  the repository's).
+- **The kernel logged no drive or filesystem error**:
+  `journalctl --dmesg` since 00:00 holds 31 lines,
+  none naming `nvme`,
+  `ata`,
+  `btrfs`,
+  an I/O error,
+  a reset or a blocked task
+  (the six newest are SELinux mount notices).
+- **What this is and is not**:
+  evidence for the owner's question about the cap,
+  each line read once tonight.
+  The stalls follow a batch deletion of snapshots on a filesystem that keeps quota groups,
+  on two nights;
+  no measurement here separates that from the count of agents or from the drive itself,
+  and single stalls of fifteen to twenty-four seconds came the evening before with no cleanup running.
+- **What was done**:
+  the filling unit was restarted at seventeen at 01:00:44 and the probe at 01:00:46.
+  19 agents were going;
+  none was stopped.
+
+#### The stalls end with the snapshot cleanup, again: level 17 from 2026-11-15T01:00:46-05:00 to 02:23:05-05:00
+
+Not final and not approved:
+the readings of level seventeen so far,
+taken by the coordinating session from the same file.
+
+- **`snapper-cleanup.service` ended at 01:45:02**
+  (`systemctl show`;
+  its last journal lines are "Running empty-pre-post cleanup for 'root'" and "Running 'btrfs qgroup clear-stale /var/home/.snapshots'").
+  It had run since 00:00:11,
+  an hour and three quarters.
+- **Until it ended**:
+  43 readings at this level from 01:00:46,
+  ten of them a second or more on either drive,
+  none twice in a row on one drive over five seconds,
+  so the level stood.
+  The home drive:
+  29,005 ms at 01:02:46,
+  8,211 ms at 01:28:21,
+  5,232 ms at 01:38:51,
+  2,917 ms at 01:36:45.
+  The build drive took 1.5 to 7.1 s at seven readings between 01:24 and 01:44,
+  the minutes in which the wrapper's whole suites and a container gate ran there.
+  16 to 19 agents were going.
+- **After it ended**:
+  39 readings from 01:45:04 to 02:23:05,
+  none a second or more,
+  the slowest 116 ms.
+  12 to 17 agents were going,
+  a container gate ran from 02:00 to 02:17,
+  and the machine's daily toolchain update ran throughout.
+- **What this does and does not show**:
+  on two nights running the long stalls of the home drive stopped within minutes of the cleanup's end
+  (this section,
+  and "The stalls end within seven minutes of the snapshot cleanup's end" for the night before).
+  The count of agents fell in the same window tonight,
+  from 17 to 12,
+  because this session's queue stood still from 02:12 to 02:21,
+  so tonight's after-window is not the same load as its before-window;
+  the first 27 minutes after the cleanup's end,
+  28 readings at 15 to 17 agents before the queue stood still,
+  had no slow reading either
+  (the slowest 116 ms).
+  The single stalls of the evening before,
+  with no cleanup running,
+  are not explained by any of this.
