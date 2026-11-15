@@ -1670,6 +1670,90 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Issue 6293 answers its five findings, three of them the same as claims just sent to the branch it stands on; the order of the two branches, and a narrow review (2026-11-15T17:57:30-05:00)
+
+Not final and not approved:
+what one author reports,
+what the coordinating session measured,
+what it changed in a brief it had queued,
+and the order it adopted for two branches,
+open to veto.
+
+- **Issue 6293**
+  (the private runtime directory as the boundary;
+  a push to no remote ends at once),
+  its author's seventh run,
+  ended 17:48:26 at `12a18711db`.
+  Its account:
+  the last review's five programs all reproduced at its tip before any change;
+  five fix commits,
+  each with a control that fails without it
+  (a push's arrival read for every destination;
+  a service keeps its note while it can still write and claims before it binds;
+  a manager start that sees no greeting keeps a live service that is preparing;
+  no two writers share a temporary file;
+  two spellings of one path are one path);
+  `main` merged.
+  Its report says the `main` it merged was "passes 44–46, 0.6.1-alpha.36";
+  by Git the merge's second parent is `e39ea74e8a`,
+  today's 16:33:36,
+  which holds pass 53 and not pass 54.
+- **The two branches, measured**:
+  issue 6293 was cut from the branch of the commit service the wrapper starts itself and both went on.
+  Under `package/git-policy/` it holds 41 commits that branch lacks and lacks 38 of that branch's,
+  and 72 of `main`'s.
+  Against `main` issue 6293 changes 79 code files that are not tests
+  and the other branch's reviewed range changed 78;
+  how many are the same files was not counted.
+- **Three of issue 6293's five fixes answer what the review of the other branch claimed by reading an hour before**
+  (a missing note read as gone;
+  the shared temporary name of the real-Git record;
+  the end of a service at the manager's deadline),
+  in functions both branches carry.
+  The brief queued at 17:26 for the other branch's thirteenth run called those unreproduced and asked for a control and a fix of its own for each,
+  which would have given one defect two answers in the same files.
+  **Corrected before that run began**
+  (its run folder did not exist and the queue held its entry at the fourth place with that brief):
+  for those three,
+  the control is issue 6293's,
+  run at its own tip;
+  where it fails,
+  the suggestion is to take issue 6293's fix commit as it is;
+  where it passes,
+  the claim stays a claim.
+  The session's advisor was asked before this was routed
+  (a second pass by the same vendor's model,
+  not an independent review),
+  and the correction is its.
+- **The order, adopted and open to veto**:
+  the commit service the wrapper starts itself settles first;
+  issue 6293 then merges that tip and `main`,
+  and what is left is its own subject
+  (destinations of a push,
+  the session boundary).
+  Neither goes into a pass before that.
+- **A narrow review of issue 6293 is queued seventh**,
+  written by hand:
+  the five fix commits since the tip its last review read (`8da90399b2`),
+  what its merge of `main` changed by hand
+  (as `git show --remerge-diff` prints it,
+  4,454 lines of the diff's 5,385),
+  and the two commits after;
+  29 files listed;
+  a build and each fix taken out are asked for.
+  A review of `main...12a18711db` would have been both branches whole.
+  **A measure of the session's read wrong and corrected by the advisor**:
+  the count of "79 files against the other branch" was the same range as against `main`,
+  since Git found several merge bases and took a commit of `main`;
+  it says nothing of what issue 6293 adds over that branch.
+- Read at 17:52:40:
+  six changed files in the main checkout;
+  no failed start in the new filling unit's journal;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  20 runs going,
+  none silent for twenty minutes.
+
 ##### The landing that never waits answers its three findings; its review is queued third, with what it must build to count (2026-11-15T17:47:55-05:00)
 
 Not final and not approved:
