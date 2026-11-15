@@ -19,7 +19,7 @@ use std::fs::FileTimes;
 /// Imports what these tests use from `std::path`.
 use std::path::{Path, PathBuf};
 /// Imports `Duration` and `SystemTime` from `std::time`.
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Imports the module under test.
 use crate::toolchain::store_versions::{
@@ -32,7 +32,7 @@ use crate::test_scratch::scratch;
 /// The names of the versions the scan lists for `tools`.
 fn versions_of(root: &Path, tools: &[&str]) -> Vec<String> {
     let set: BTreeSet<String> = tools.iter().map(|tool| return (*tool).to_string()).collect();
-    return version_directories(root, &set)
+    return version_directories(root, &set, Instant::now() + Duration::from_secs(60))
         .into_iter()
         .map(|version| return format!("{}-{}", version.tool, version.version))
         .collect();
@@ -82,7 +82,11 @@ fn lists_versions_with_their_downloads_and_skips_staging() {
     fs::create_dir_all(&downloads).expect("make the downloads directory");
     fs::write(downloads.join("node.tar.gz"), vec![b'z'; 50]).expect("write the archive");
 
-    let found = version_directories(&root, &["node".to_string()].into_iter().collect());
+    let found = version_directories(
+        &root,
+        &["node".to_string()].into_iter().collect(),
+        Instant::now() + Duration::from_secs(60),
+    );
 
     let listed: Vec<String> = found
         .iter()
@@ -195,13 +199,13 @@ fn records_a_size_and_measures_again_once_the_version_is_written() {
     let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
     assert_eq!(read_size_records(&root).get("node/26.13.1").map(|record| return record.bytes), Some(1000));
     assert!(root.join(SIZE_RECORDS_FILE_NAME).is_file());
 
     // An install replaces a version as one rename, so the next entry changes the directory's own write time.
     fs::write(version.join("extra"), vec![b'e'; 24]).expect("add a file to the version");
-    assert_eq!(version_directories(&root, &tools)[0].bytes, 1024);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1024);
 }
 
 /// A version whose directory is unchanged keeps its recorded size even when a file inside it was rewritten in place,
@@ -212,11 +216,11 @@ fn trusts_a_record_while_the_version_directory_is_unchanged() {
     let root: PathBuf = directory.path().join("toolchain");
     let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
 
     fs::write(version.join("program"), vec![b'b'; 10]).expect("rewrite the program in place");
 
-    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
 }
 
 /// A size record file that is not the document this release writes reads as no records,
@@ -230,7 +234,7 @@ fn measures_everything_when_the_size_records_are_not_readable() {
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
     assert!(read_size_records(&root).is_empty());
-    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
 }
 
 /// The size of a version is the length of every file below it.

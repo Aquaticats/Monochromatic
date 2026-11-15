@@ -61,6 +61,8 @@ fn candidate(tool: &str, version: &str, bytes: u64, written_seconds_ago: u64) ->
         bytes,
         written: SystemTime::now() - Duration::from_secs(written_seconds_ago),
         inode: None,
+        files: 1,
+        newest: SystemTime::now() - Duration::from_secs(written_seconds_ago),
         leftover: false,
     };
 }
@@ -296,7 +298,7 @@ impl Fixture {
 
     fn candidates(&self) -> Vec<TrimCandidate> {
         let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
-        return candidates_of(std::slice::from_ref(&self.root), &tools);
+        return candidates_of(std::slice::from_ref(&self.root), &tools, Instant::now() + Duration::from_secs(60));
     }
 
     fn run(&self) -> TrimRun {
@@ -394,8 +396,15 @@ fn finishes_a_removal_cut_short() {
     let fixture = Fixture::new();
     let version: PathBuf = fixture.root.join("node/26.11.0");
     let marker: PathBuf = tombstone_of(&version);
-    // The fault point: exactly what a kill between the rename and the delete leaves.
+    // The fault point: exactly what a kill between the rename and the delete leaves, record and all.
+    let facts: crate::toolchain::store_versions::TreeFacts =
+        crate::toolchain::store_versions::tree_facts(&version, Instant::now() + Duration::from_secs(60));
     fs::rename(&version, &marker).expect("move the version aside");
+    fs::write(
+        crate::toolchain::store_versions::facts_of(&marker),
+        format!("{} {} {}\n", facts.files, facts.bytes, crate::toolchain::store_versions::written_ns(facts.newest)),
+    )
+    .expect("write the removal's record");
     let files_before: usize = fs::read_dir(&marker).expect("list the marker").count();
     assert_eq!(files_before, 1);
     let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
@@ -514,6 +523,17 @@ fn finishes_a_removal_cut_short_even_when_the_worktrees_cannot_be_listed() {
     let version_marker: PathBuf = tool.join(format!("{TOMBSTONE_PREFIX}1.0.0"));
     fs::create_dir_all(&version_marker).expect("make the removal marker");
     fs::write(version_marker.join("program"), vec![b'a'; 1000]).expect("write the version's file");
+    {
+        let facts = crate::toolchain::store_versions::tree_facts(
+            &version_marker,
+            Instant::now() + Duration::from_secs(60),
+        );
+        fs::write(
+            crate::toolchain::store_versions::facts_of(&version_marker),
+            format!("{} {} {}\n", facts.files, facts.bytes, crate::toolchain::store_versions::written_ns(facts.newest)),
+        )
+        .expect("write the removal's record");
+    }
     fs::write(unfinished_marker(&store), b"").expect("write the unfinished-removal marker");
     // The fault this control exists for: the listing of worktrees fails, so no lock name is known.
     let runner = crate::toolchain::fakes::FakeRunner::new();
@@ -623,14 +643,22 @@ fn deletes_a_held_copy_whose_name_another_run_took() {
 
     assert!(version.join("program").exists(), "{:?}", finished.lines);
     assert_eq!(fs::read(version.join("program")).expect("read the newer copy"), b"fresh copy");
-    assert!(!marker.exists(), "the held copy was restored over the newer one: {:?}", finished.lines);
-    assert!(finished.unfinished.is_empty(), "a removal is still pending: {:?}", finished.lines);
+    // What: the copy a process uses is neither deleted nor restored over the newer one.
+    // Why: deleting it breaks the running process, and restoring it would write over the install.
+    assert!(marker.join("program").exists(), "the copy a process uses was deleted: {:?}", finished.lines);
+    // The copy waits aside until the process using it ends, so the store root is left unfinished.
+    assert!(finished.unfinished.contains(&fixture.root), "the copy aside was not left for a later pass: {:?}", finished.lines);
     assert!(
-        finished.lines.iter().any(|line| return line.contains("a newer copy holds")),
+        finished
+            .lines
+            .iter()
+            .any(|line| return line.contains("has not finished") || line.contains("newer copy") || line.contains("no record")),
         "{:?}",
         finished.lines
     );
-    assert!(crate::toolchain::store_versions::removal_markers(&fixture.root).is_empty());
+    // The copy stays aside under its removal name until the process using it ends; it is not deleted.
+    let aside: Vec<_> = crate::toolchain::store_versions::removal_markers(&fixture.root);
+    assert_eq!(aside.len(), 1, "{aside:?}");
 }
 
 //region the path spelling, a live version's downloads, and a bound at the largest number
@@ -681,7 +709,7 @@ fn keeps_a_version_a_process_uses_when_the_store_path_is_a_symlink() {
     let held: Option<String> = held_reason(&look, &victim);
 
     let tools: std::collections::BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&store), &tools), &run.bounds, SystemTime::now(), &|found| {
+    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&store), &tools, Instant::now() + Duration::from_secs(60)), &run.bounds, SystemTime::now(), &|found| {
         return held_reason(&look, &found.directory).map(|reason| return format!("it is in use: {reason}"));
     });
     let outcome: TrimOutcome = apply_trim(&plan, &run);
@@ -999,7 +1027,7 @@ fn keeps_a_fresh_install_that_lands_between_the_look_and_the_move() {
         .clone();
     // What: the removal's first half, which is the look that refuses an entry that is not the judged one.
     // Why: it passes here, because the judged entry is still in place.
-    crate::toolchain::store_trim::judged_entry_still_there(&judged).expect("the judged entry is there").expect("present");
+    crate::toolchain::store_trim::judged_entry_still_there(&judged, Instant::now() + Duration::from_secs(60)).expect("the judged entry is there").expect("present");
 
     // What: an install's atomic replace, exactly as `publish_staged` does it: the old copy aside, the new one in.
     // Why: this is what lands between the look and the move.
@@ -1011,7 +1039,7 @@ fn keeps_a_fresh_install_that_lands_between_the_look_and_the_move() {
     fs::rename(&version, fixture.root.join("node/.26.11.0.replaced")).expect("move the old copy aside");
     fs::rename(&fresh, &version).expect("put the fresh copy in place");
 
-    let moved = crate::toolchain::store_trim::move_judged_entry(&judged);
+    let moved = crate::toolchain::store_trim::move_judged_entry(&judged, Instant::now() + Duration::from_secs(60));
 
     assert!(moved.is_err(), "the removal took a copy it did not judge");
     assert_eq!(
@@ -1141,7 +1169,7 @@ fn keeps_a_leftover_whose_file_was_replaced_after_the_scan() {
     fs::write(&stale, vec![b'z'; 40]).expect("write the leftover");
     written_ago(&stale, 2 * 24 * 3600);
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&fixture.root), &tools), &fixture.run().bounds, SystemTime::now(), &|_found| {
+    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&fixture.root), &tools, Instant::now() + Duration::from_secs(60)), &fixture.run().bounds, SystemTime::now(), &|_found| {
         return None;
     });
     let planned: bool = plan.steps.iter().any(|step| {
@@ -1162,6 +1190,153 @@ fn keeps_a_leftover_whose_file_was_replaced_after_the_scan() {
 }
 
 //endregion the copy a marker holds, and the file a leftover name holds
+
+//region the five rules of the state model
+
+/// Makes a finished archive copy of `node` in `directory`.
+fn make_finished_copy(directory: &std::path::Path, payload: &[u8]) {
+    fs::create_dir_all(directory.join("bin")).expect("make the copy");
+    fs::write(directory.join("bin/node"), payload).expect("write its program");
+    let mut permissions = fs::metadata(directory.join("bin/node")).expect("read its mode").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
+    fs::set_permissions(directory.join("bin/node"), permissions).expect("make it runnable");
+    fs::write(directory.join(crate::toolchain::archive_staging::COMPLETE_MARKER), b"node 26.0.0\n")
+        .expect("mark it finished");
+}
+
+/// What:
+/// A tombstone whose deletion has begun is finished, never put back under the version's name.
+/// Why: a kill inside a recursive deletion leaves a tree with files already gone.
+/// Restoring it would show a broken copy as whole, and its executable and completion marker can survive the kill.
+#[test]
+fn never_puts_a_partly_deleted_tombstone_back_as_a_version() {
+    let fixture = Fixture::new();
+    // A version the fixture does not hold, so "the version's name is free" is the fixture's own state too.
+    let version: PathBuf = fixture.root.join("node/20.0.0");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&version);
+    // The state a kill inside the deletion leaves: a deletion name holding a tree a file short.
+    make_finished_copy(&deleting, b"surviving program");
+    fs::create_dir_all(deleting.join("lib")).expect("make the library directory");
+    fs::write(deleting.join("lib/libnode.so"), b"gone soon").expect("write the library");
+    fs::remove_file(deleting.join("lib/libnode.so")).expect("model a file the deletion already took");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
+
+    let finished = finish_removals(&fixture.run());
+
+    assert!(!version.exists(), "a partly deleted copy was put back as the version: {:?}", finished.lines);
+    assert!(!deleting.exists(), "the deletion was not finished: {:?}", finished.lines);
+    assert!(crate::toolchain::store_versions::removal_markers(&fixture.root).is_empty());
+}
+
+/// What:
+/// A copy a live process works inside is neither deleted nor replaced when another install takes the version's name.
+/// Why: the process keeps working only while its copy is there.
+#[test]
+fn keeps_a_copy_a_process_uses_even_when_the_name_is_taken() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let marker: PathBuf = tombstone_of(&version);
+    fs::rename(&version, &marker).expect("move the version aside");
+    // The name is taken by a finished copy of the same version, and a process works inside the moved-aside one.
+    make_finished_copy(&version, b"fresh copy");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
+    let mut child = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&marker)
+        .spawn()
+        .expect("start a process inside the moved-aside copy");
+
+    let finished = finish_removals(&fixture.run());
+    let cwd: PathBuf = fs::read_link(format!("/proc/{}/cwd", child.id())).expect("read the child's folder");
+    let used_copy_survived: bool = marker.join("program").exists();
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(used_copy_survived, "the copy a process uses was deleted; cwd={} lines={:?}", cwd.display(), finished.lines);
+}
+
+/// What:
+/// A write into a folder that already existed, after the scan, keeps the version.
+/// Why: it changes neither the version root's inode nor its own write time,
+/// and only the whole-tree facts (the file count, the bytes, the newest write inside) show it.
+#[test]
+fn keeps_a_write_into_a_nested_folder_that_lands_after_the_scan() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    fs::create_dir_all(version.join("nested")).expect("make a nested folder");
+    fs::write(version.join("nested/old"), b"old").expect("write a nested file");
+    written_ago(&version, 2 * 24 * 3600);
+    let judged: TrimCandidate = fixture
+        .candidates()
+        .into_iter()
+        .find(|found| return found.directory == version)
+        .expect("the version is scanned");
+    // What: another command writes into the folder that already existed.
+    // Why: the entry that changes is inside the tree, not the root.
+    fs::write(version.join("nested/fresh"), b"fresh user data").expect("write after the scan");
+    assert_eq!(
+        fs::symlink_metadata(&version).and_then(|metadata| return metadata.modified()).ok(),
+        Some(judged.written),
+        "the fixture must prove the root's own write time cannot see this write"
+    );
+    let plan: TrimPlan = TrimPlan { total_bytes: judged.bytes, over_bound: true, steps: vec![TrimStep::Remove(judged)] };
+
+    let outcome: TrimOutcome = apply_trim(&plan, &fixture.run());
+
+    assert!(version.join("nested/fresh").exists(), "the write after the scan was deleted: {:?}", outcome.lines);
+}
+
+/// What:
+/// A pass finds a tombstone and recovers it even when it installed nothing and the store-root marker is gone.
+/// Why: two passes settling the marker at once can clear it after one wrote it, and recovery must not wait on an
+/// unrelated install.
+#[test]
+fn recovers_a_tombstone_when_nothing_was_installed_and_the_marker_is_gone() {
+    // What: the pass runs in a store whose only trace of a killed removal is the tombstone itself.
+    // Why: the store-root marker is a hint, and two passes settling it at once can clear it after one wrote it.
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    let marker: PathBuf = store.join("node").join(format!("{TOMBSTONE_PREFIX}26.11.0"));
+    fs::create_dir_all(&marker).expect("make the tombstone");
+    fs::write(marker.join("program"), b"a whole copy").expect("write its payload");
+    assert!(!has_unfinished_removal(&store), "this case is about a store root whose marker is gone");
+    let runner = FakeRunner::new();
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+
+    trim_after_install(&context, &[]);
+
+    assert!(
+        store.join("node/26.11.0/program").exists(),
+        "the no-op install left the tombstone unrecovered; marker present={}",
+        has_unfinished_removal(&store)
+    );
+}
+
+/// What:
+/// A deletion that runs out of its time limit leaves the tree under its deletion name, and the next pass finishes it.
+/// Why: a begun deletion is finished and never undone; the work limit bounds the walk, not only the loop around it.
+#[test]
+fn a_deletion_that_runs_out_of_time_leaves_its_tree_under_the_deletion_name() {
+    let fixture = Fixture::new();
+    // A version the fixture does not hold, so "the version's name is free" is the fixture's own state too.
+    let version: PathBuf = fixture.root.join("node/20.0.0");
+    make_finished_copy(&version, b"a tree to delete");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&version);
+    // What: the deletion's own seam, with a deadline already gone.
+    // Why: no large tree and no wait are needed to show what the walk does at its limit.
+    let refusal: Option<String> =
+        crate::toolchain::store_trim::delete_tree_within(&version, Instant::now() - Duration::from_secs(1));
+
+    assert!(refusal.is_some(), "the deletion reported it finished a tree it could not reach the end of");
+    assert!(deleting.exists(), "the tree was not left under its deletion name: {refusal:?} version_exists={}", version.exists());
+    assert!(!version.exists(), "the version's name still holds a tree whose deletion began");
+    // The next pass finishes it without asking what it is.
+    let finished = finish_removals(&fixture.run());
+    assert!(!deleting.exists(), "the next pass did not finish the deletion: {:?}", finished.lines);
+}
+
+//endregion the five rules of the state model
 
 //region replaying a real store's listing
 
@@ -1312,7 +1487,7 @@ fn replays_a_real_store_listing() {
     let planning_look: StoreHolders = run.look();
     let look_ms: u128 = look_clock.elapsed().as_millis();
     let inventory_clock: Instant = Instant::now();
-    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools);
+    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools, Instant::now() + Duration::from_secs(60));
     let inventory_ms: u128 = inventory_clock.elapsed().as_millis();
     let judge_clock: Instant = Instant::now();
     let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|found| {

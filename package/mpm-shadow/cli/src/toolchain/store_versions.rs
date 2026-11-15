@@ -31,8 +31,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
-/// Imports `SystemTime` and `UNIX_EPOCH` from `std::time`.
-use std::time::{SystemTime, UNIX_EPOCH};
+/// Imports `Instant`,
+/// `SystemTime` and `UNIX_EPOCH` from `std::time`.
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// Imports `Value` from `serde_json`,
 /// which reads the size records.
@@ -55,6 +56,11 @@ pub const DOWNLOADS_DIRECTORY_NAME: &str = "downloads";
 /// so every scan skips it (they all skip dot-names)
 /// and the next run can finish it.
 pub const TOMBSTONE_PREFIX: &str = ".mpm-shadow-removing.";
+
+/// The prefix of the name a version is moved to when its deletion begins:
+/// `.<version>.mpm-shadow-deleting` beside it.
+/// Only the deletion step writes this name, so whatever stands under it is condemned and is finished, never restored.
+pub const DELETING_PREFIX: &str = ".mpm-shadow-deleting.";
 
 /// The suffix of a download that is still being written,
 /// which is never a leftover to remove.
@@ -83,13 +89,18 @@ pub struct SizeRecord {
     /// The version directory's own write time,
     /// in nanoseconds after the epoch.
     pub written_ns: u64,
-    /// The bytes the version and the downloads kept for it weighed.
+    /// The bytes the version weighed.
     pub bytes: u64,
+    /// How many files stood in it.
+    pub files: u64,
+    /// The newest write inside it,
+    /// in nanoseconds after the epoch.
+    pub newest_ns: u64,
 }
 
 /// The nanoseconds `written` lies after the epoch,
 /// and zero for a time before it.
-fn written_ns(written: SystemTime) -> u64 {
+pub fn written_ns(written: SystemTime) -> u64 {
     return match written.duration_since(UNIX_EPOCH) {
         Ok(since) => u64::try_from(since.as_nanos()).unwrap_or(u64::MAX),
         Err(_) => 0,
@@ -127,7 +138,13 @@ pub fn read_size_records(toolchain_root: &Path) -> BTreeMap<String, SizeRecord> 
         let Some(bytes) = record.get("bytes").and_then(Value::as_u64) else {
             continue;
         };
-        records.insert(key.clone(), SizeRecord { written_ns, bytes });
+        let Some(files) = record.get("files").and_then(Value::as_u64) else {
+            continue;
+        };
+        let Some(newest_ns) = record.get("newestNs").and_then(Value::as_u64) else {
+            continue;
+        };
+        records.insert(key.clone(), SizeRecord { written_ns, bytes, files, newest_ns });
     }
     return records;
 }
@@ -148,6 +165,8 @@ pub fn write_size_records(toolchain_root: &Path, records: &BTreeMap<String, Size
         let mut fields: serde_json::Map<String, Value> = serde_json::Map::new();
         fields.insert("writtenNs".to_string(), Value::from(record.written_ns));
         fields.insert("bytes".to_string(), Value::from(record.bytes));
+        fields.insert("files".to_string(), Value::from(record.files));
+        fields.insert("newestNs".to_string(), Value::from(record.newest_ns));
         versions.insert(key.clone(), Value::Object(fields));
     }
     let mut document: serde_json::Map<String, Value> = serde_json::Map::new();
@@ -207,6 +226,10 @@ pub struct VersionDirectory {
     /// when the platform reports them:
     /// what tells this entry from one an install puts at the same name later.
     pub inode: Option<(u64, u64)>,
+    /// How many files the tree held when it was read.
+    pub files: u64,
+    /// The newest write anywhere inside it when it was read.
+    pub newest: SystemTime,
 }
 
 /// What:
@@ -322,7 +345,7 @@ fn is_version_entry(entry: &fs::DirEntry, name: &str) -> bool {
 /// ```ts
 /// export function versionDirectories(root: string, tools: ReadonlySet<string>): VersionDirectory[]
 /// ```
-pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> Vec<VersionDirectory> {
+pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>, deadline: Instant) -> Vec<VersionDirectory> {
     let recorded: BTreeMap<String, SizeRecord> = read_size_records(toolchain_root);
     let mut measured: BTreeMap<String, SizeRecord> = BTreeMap::new();
     let mut found: Vec<VersionDirectory> = Vec::new();
@@ -354,19 +377,39 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> V
             // install replaces the version, so one `stat` per version answers whether the record still holds.
             let key: String = format!("{tool}/{version}");
             let recorded_ns: u64 = written_ns(written);
-            let bytes: u64 = match recorded.get(&key) {
-                Some(record) if record.written_ns == recorded_ns => record.bytes,
-                _ => {
-                    let mut measured_bytes: u64 = tree_size(&directory);
-                    if let Some(downloads_path) = &downloads {
-                        measured_bytes = measured_bytes.saturating_add(tree_size(downloads_path));
-                    }
-                    measured_bytes
-                }
+            let facts: TreeFacts = match recorded.get(&key) {
+                Some(record) if record.written_ns == recorded_ns => TreeFacts {
+                    bytes: record.bytes,
+                    files: record.files,
+                    newest: UNIX_EPOCH + std::time::Duration::from_nanos(record.newest_ns),
+                    complete: true,
+                },
+                _ => tree_facts(&directory, deadline),
             };
-            measured.insert(key, SizeRecord { written_ns: recorded_ns, bytes });
+            // A tree this pass could not read whole is kept: its size is unknown, so it is not judged.
+            if !facts.complete {
+                continue;
+            }
+            let mut bytes: u64 = facts.bytes;
+            if let Some(downloads_path) = &downloads {
+                bytes = bytes.saturating_add(tree_size(downloads_path));
+            }
+            measured.insert(
+                key,
+                SizeRecord { written_ns: recorded_ns, bytes: facts.bytes, files: facts.files, newest_ns: written_ns(facts.newest) },
+            );
             let inode: Option<(u64, u64)> = inode_of(&metadata);
-            found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written, inode });
+            found.push(VersionDirectory {
+                tool: tool.clone(),
+                version,
+                directory,
+                downloads,
+                bytes,
+                written,
+                inode,
+                files: facts.files,
+                newest: facts.newest,
+            });
         }
     }
     write_size_records(toolchain_root, &measured);
@@ -441,6 +484,106 @@ pub fn tombstone_of(directory: &Path) -> PathBuf {
     return directory.with_file_name(format!("{TOMBSTONE_PREFIX}{name}"));
 }
 
+/// The suffix of the sidecar that records what a removal judged of the tree it moved aside.
+/// It sits beside the removal name, holds the tree's file count, bytes, newest write and root write time,
+/// and is what lets a later pass tell a whole tombstone from a partly deleted one.
+pub const FACTS_SUFFIX: &str = ".facts";
+
+/// The sidecar that records what a removal judged of the tree it moved aside,
+/// beside the removal name.
+pub fn facts_of(marker: &Path) -> PathBuf {
+    let name: String = file_name_text(marker);
+    return marker.with_file_name(format!("{name}{FACTS_SUFFIX}"));
+}
+
+/// The name a version directory is moved to when its deletion begins.
+pub fn deleting_of(directory: &Path) -> PathBuf {
+    let name: String = file_name_text(directory);
+    return directory.with_file_name(format!("{DELETING_PREFIX}{name}"));
+}
+
+/// What:
+/// What one walk of a tree read:
+/// the space it weighs,
+/// how many files it holds,
+/// the newest write anywhere inside it,
+/// and whether the walk reached the end.
+/// Why:
+/// The plan judges a version by what the whole tree was, not by its root alone:
+/// a write into a folder that already existed changes the newest write and the file count,
+/// and changes neither the root's inode nor its own write time.
+/// `complete` is false when the deadline ran out,
+/// and a tree the pass could not read whole is kept rather than removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function treeFacts(path: string, deadline: Instant): TreeFacts
+/// ```
+pub struct TreeFacts {
+    /// The space the tree weighs,
+    /// in bytes.
+    pub bytes: u64,
+    /// How many files stand in it.
+    pub files: u64,
+    /// The newest write time anywhere inside it,
+    /// or the epoch for an empty tree.
+    pub newest: SystemTime,
+    /// Whether the walk reached the end before its deadline.
+    pub complete: bool,
+}
+
+/// How many entries a walk reads between two reads of the clock.
+const DEADLINE_CHECK_EVERY: u64 = 128;
+
+/// What:
+/// Walks `path` and reads its facts,
+/// stopping at `deadline` and saying that it stopped.
+/// Why:
+/// The work limit has to bound the work itself, and the inventory is the largest piece of it;
+/// a store that is slow to read leaves the rest of its trees for the next run,
+/// which finds them under the same names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function treeFacts(path: string, deadline: Instant): TreeFacts
+/// ```
+pub fn tree_facts(path: &Path, deadline: Instant) -> TreeFacts {
+    let mut facts: TreeFacts = TreeFacts { bytes: 0, files: 0, newest: UNIX_EPOCH, complete: true };
+    if Instant::now() >= deadline {
+        facts.complete = false;
+        return facts;
+    }
+    let mut pending: Vec<PathBuf> = vec![path.to_path_buf()];
+    let mut seen: u64 = 0;
+    while let Some(current) = pending.pop() {
+        seen = seen.saturating_add(1);
+        if seen % DEADLINE_CHECK_EVERY == 0 && Instant::now() >= deadline {
+            facts.complete = false;
+            return facts;
+        }
+        let Ok(metadata) = fs::symlink_metadata(&current) else {
+            continue;
+        };
+        if metadata.is_dir() {
+            let Ok(children) = fs::read_dir(&current) else {
+                continue;
+            };
+            for child in children.flatten() {
+                pending.push(child.path());
+            }
+            continue;
+        }
+        facts.files = facts.files.saturating_add(1);
+        facts.bytes = facts.bytes.saturating_add(metadata.len());
+        if let Ok(written) = metadata.modified()
+            && written > facts.newest
+        {
+            facts.newest = written;
+        }
+    }
+    return facts;
+}
+
 /// What:
 /// One removal an earlier run started and did not finish:
 /// the version it moved out of its name,
@@ -470,11 +613,16 @@ pub struct RemovalMarker {
     pub version: String,
     /// The marker holding the version directory.
     pub version_marker: PathBuf,
+    /// Whether the version's marker is a deletion name,
+    /// whose tree a pass has begun to delete and which is finished, never restored.
+    pub version_deleting: bool,
     /// The name the version directory takes back when the removal is undone.
     pub version_directory: PathBuf,
     /// The marker holding the downloads of that version,
     /// when the removal moved some aside.
     pub downloads_marker: Option<PathBuf>,
+    /// Whether the downloads marker is a deletion name.
+    pub downloads_deleting: bool,
     /// The name the downloads directory takes back.
     pub downloads_directory: Option<PathBuf>,
 }
@@ -501,17 +649,24 @@ fn subdirectory_names(directory: &Path) -> Vec<String> {
 
 /// The removal markers directly inside `directory`,
 /// each with the version its name carries.
-fn markers_in(directory: &Path) -> Vec<(String, PathBuf)> {
+fn markers_in(directory: &Path) -> Vec<(String, PathBuf, bool)> {
     let Ok(entries) = fs::read_dir(directory) else {
         return Vec::new();
     };
-    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    let mut found: Vec<(String, PathBuf, bool)> = Vec::new();
     for entry in entries.flatten() {
-        let name: String = entry.file_name().to_string_lossy().to_string();
-        let Some(version) = name.strip_prefix(TOMBSTONE_PREFIX) else {
+        let is_plain_directory: bool = entry.file_type().map(|kind| return kind.is_dir()).unwrap_or(false);
+        if !is_plain_directory {
             continue;
-        };
-        found.push((version.to_string(), entry.path()));
+        }
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if let Some(version) = name.strip_prefix(TOMBSTONE_PREFIX) {
+            found.push((version.to_string(), entry.path(), false));
+            continue;
+        }
+        if let Some(version) = name.strip_prefix(DELETING_PREFIX) {
+            found.push((version.to_string(), entry.path(), true));
+        }
     }
     found.sort();
     return found;
@@ -562,7 +717,7 @@ pub fn removal_markers(toolchain_root: &Path) -> Vec<RemovalMarker> {
     let downloads_root: PathBuf = toolchain_root.join(DOWNLOADS_DIRECTORY_NAME);
     let mut found: BTreeMap<(String, String), RemovalMarker> = BTreeMap::new();
     for tool in tool_directories_of_store(toolchain_root) {
-        for (version, version_marker) in markers_in(&toolchain_root.join(&tool)) {
+        for (version, version_marker, version_deleting) in markers_in(&toolchain_root.join(&tool)) {
             let downloads_marker: PathBuf = downloads_root.join(&tool).join(format!("{TOMBSTONE_PREFIX}{version}"));
             let markers_tool: String = tool.clone();
             let has_downloads: bool = fs::symlink_metadata(&downloads_marker).is_ok();
@@ -572,7 +727,9 @@ pub fn removal_markers(toolchain_root: &Path) -> Vec<RemovalMarker> {
                     root: toolchain_root.to_path_buf(),
                     version_directory: toolchain_root.join(&tool).join(&version),
                     version_marker,
+                    version_deleting,
                     downloads_marker: if has_downloads { Some(downloads_marker) } else { None },
+                    downloads_deleting: false,
                     downloads_directory: if has_downloads {
                         Some(downloads_root.join(&tool).join(&version))
                     } else {
@@ -588,19 +745,22 @@ pub fn removal_markers(toolchain_root: &Path) -> Vec<RemovalMarker> {
     // Why: a kill between the two renames leaves only the downloads moved aside, and the next run must take the
     // version's name back from the marker's own name.
     for tool in subdirectory_names(&downloads_root) {
-        for (version, downloads_marker) in markers_in(&downloads_root.join(&tool)) {
+        for (version, downloads_marker, downloads_deleting) in markers_in(&downloads_root.join(&tool)) {
             let entry: &mut RemovalMarker = found.entry((tool.clone(), version.clone())).or_insert_with(|| {
                 return RemovalMarker {
                     root: toolchain_root.to_path_buf(),
                     version_directory: toolchain_root.join(&tool).join(&version),
                     version_marker: toolchain_root.join(&tool).join(format!("{TOMBSTONE_PREFIX}{version}")),
+                    version_deleting: false,
                     downloads_marker: None,
+                    downloads_deleting: false,
                     downloads_directory: Some(downloads_root.join(&tool).join(&version)),
                     tool: tool.clone(),
                     version: version.clone(),
                 };
             });
             entry.downloads_marker = Some(downloads_marker);
+            entry.downloads_deleting = downloads_deleting;
             entry.downloads_directory = Some(downloads_root.join(&tool).join(&version));
         }
     }
