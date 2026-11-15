@@ -540,6 +540,68 @@ never a version.
   and the `bin` downloader keep in their own homes,
   which mpm-shadow never wrote.
 
+## What a kill at each step leaves, and what the next pass does
+
+A removal writes these names in this order,
+and a kill after each leaves a state a later pass reads:
+
+1. **the root's recovery marker**:
+   nothing else has moved;
+   the next pass finds nothing in progress and takes the marker
+   away.
+2. **the downloads claim**:
+   nothing has moved;
+   the claim names a dead maker,
+   so the next pass clears it and takes the
+   marker away.
+3. **the archives' removing name**:
+   the version is still at its own name,
+   so the removal never began;
+   the next pass
+   puts the archives back beside it and takes the marker away.
+4. **the version's claimed name**:
+   the next pass gives the version back and its archives with it.
+5. **the version's removing name**:
+   the version was judged and taken out of use;
+   the next pass finishes the deletion of
+   both removing names.
+6. **the deletes**:
+   only the marker is left,
+   and the next pass takes it away.
+
+Each of those six states is a control in `store_trim_tests`
+(`a_kill_after_…`,
+`a_kill_before_the_version_claim_…`).
+
+## Names that come from files
+
+A name a lock,
+a plan or a record gives is data:
+the tool id,
+the crate name,
+the version,
+a link's name and a link's directory are one path segment of the tool's own
+alphabet or the row is refused with its file and the field named,
+and a link directory may not walk up with `..`.
+After every join,
+before anything is moved or deleted,
+the path is resolved and shown to lie under the store
+(`resolves_under`):
+the scan skips a tool directory that resolves elsewhere and says so,
+and every removal site asks
+before it acts.
+
+A process that has ended and waits to be collected has ended:
+both answers that judge a holder by its number and start
+time read its state as well,
+so a zombie holds nothing.
+A process of this account the kernel will not describe may hold any version,
+and its name is no evidence either way,
+so
+the two removals an install makes and `prune` keep every version they judge and say why.
+That keeps every removable version on a machine with such a process,
+which is the owner's question and recorded in `doc/toolchain-version-cleanup.md`'s report of the round that added it.
+
 ## What a command waits on, and for how long
 
 Nothing here waits for ever,
