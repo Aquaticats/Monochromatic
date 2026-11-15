@@ -1652,6 +1652,89 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A test harness that could signal a number no longer its own is held back although it is test code; the driver's silent command has one finding; mpm-shadow's removal answers all five (2026-11-15T14:00:27-05:00)
+
+Not final and not approved:
+what two reviews and one author report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The shared wait of the binary controls** (`e12b36fd81`),
+  its first review,
+  ended 13:55:21,
+  2 of 2 files,
+  two things:
+  - the inner `timeout` and the harness's wait carry one deadline,
+    and where the inner one fires first its `SIGKILL` is classified as the command ending by itself
+    (reproduced with the parent held back 100 ms);
+  - the kill at the bound goes to the child's number after the waiter thread may have reaped it,
+    so a process group that was given that number meanwhile is killed instead
+    (by reading).
+- **Weighed, and an adoption open to veto**:
+  this branch is test support,
+  and by the owner's answer of 2026-11-15 a finding in test code does not hold a wrapper branch.
+  The second finding is held back all the same,
+  by this session's reading:
+  the harness runs on the host beside every other agent's processes of the same account,
+  and a `SIGKILL` to a number that may have a new owner is the thing the rule added at `1b899ad61c` forbids a run to do
+  (a run signals only a process it started).
+  Measured on `main`:
+  its wait has no `process_group(0)`,
+  no raw `kill` and no `recv_timeout`
+  (it asks the supervisor for a kill by child),
+  so the gap is this branch's and `main` does not carry it.
+  The author's second run is queued ninth:
+  one ending known from who ended it;
+  a signal sent only while the child is held unreaped,
+  through a `pidfd`.
+- **The driver's tool command that says nothing** (`292331333a`),
+  its second review,
+  ended 13:54:38,
+  the nine code files and the whole diff
+  (the three files of the range its list left out are stand-ins for tests),
+  one thing,
+  reproduced:
+  the new end `silent-command-unanswered` is counted as evidence of how long work takes,
+  so hours of silence would move the limit that says when a run is overdue.
+  The author's report had called the omission deliberate and gave no reason.
+  Its third run is queued eighth:
+  the reason;
+  and every end saying,
+  where the ends are declared,
+  whether its length is the length of work,
+  so that a new end cannot be forgotten.
+- **mpm-shadow's removal of old versions**,
+  its author's fourth run,
+  ended 13:58:14 at `eb8eb4f3c0`:
+  all five findings of the ninth review reproduced and answered.
+  One reader of names strips removal and deletion prefixes any number deep;
+  recovery asks the locks before it is handed anything,
+  and keeps a deletion when any lock could not be read;
+  a request's deadline is a ceiling with its reason,
+  so the compiler found all nine call sites
+  (one hour for a step,
+  sixty seconds for a worktree listing,
+  each with what it was sized on);
+  the bounded wait no longer joins its readers.
+  Six controls failing first,
+  five cut-outs each failing without its fix;
+  878 tests pass;
+  cost inside the spread.
+  It too says the machine is under a CPU budget with power-saver,
+  which it was not
+  (the section of 13:45:24).
+  Its review is queued tenth
+  (`main...eb8eb4f3c0`,
+  15 code files that are not tests).
+- Read at 13:58:54:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 13:51;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes.
+
 ##### Measured: no commit lands while its wrapper fails under an address-space limit; the landing that never waits and the lock-holders folder answer their reviews, and both go to review (2026-11-15T13:52:18-05:00)
 
 Not final and not approved:
