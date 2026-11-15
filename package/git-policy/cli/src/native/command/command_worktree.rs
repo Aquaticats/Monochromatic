@@ -26,6 +26,9 @@
 /// ```ts
 /// // string, but byte-preserving.
 /// ```
+use crate::command_options::{DEFAULT_MODE, ParsedOptions, parse_options};
+use crate::command_options_query::is_enabled;
+use crate::command_worktree_remove_table::{WORKTREE_REMOVE_FORCE, WORKTREE_REMOVE_TABLE};
 use std::ffi::OsString;
 
 /// What:
@@ -71,27 +74,16 @@ pub fn worktree_removal(region: &[OsString]) -> Option<WorktreeRemoval> {
         return None;
     }
     let rest: &[OsString] = &region[1..];
-    // `force_discard` reads `-f` in any short cluster and `--force` in every prefix this command's own option table
-    //  leaves unambiguous (`--f` included), which are exactly the spellings Git accepts here.
-    let force: bool = crate::command_discard::force_discard(b"worktree", rest) == crate::command_discard::Discard::Overwrites;
-    // The first token that is not an option is the directory; `--` separates the two, and Git stops reading options
-    //  after it.
-    let mut options_end: bool = false;
-    for token in rest {
-        let bytes: &[u8] = token.as_encoded_bytes();
-        if !options_end && bytes == b"--" {
-            options_end = true;
-            continue;
-        }
-        if !options_end && bytes.starts_with(b"-") {
-            continue;
-        }
-        return Some(WorktreeRemoval {
-            target: token.clone(),
-            force,
-        });
-    }
-    return None;
+    // `worktree remove` reads `-f`/`--force` and nothing else, so its own table is the whole reading:
+    //  the force is that option's last spelling, and the directory is the one token that is no option.
+    //  A region Git refuses names nothing here, and the command is forwarded without a record.
+    let parsed: ParsedOptions = parse_options(rest, WORKTREE_REMOVE_TABLE, DEFAULT_MODE, &[]).ok()?;
+    let force: bool = is_enabled(&parsed, WORKTREE_REMOVE_FORCE);
+    let target: usize = *parsed.leading.first()?;
+    return Some(WorktreeRemoval {
+        target: rest.get(target)?.clone(),
+        force,
+    });
 }
 
 ///  The `git worktree` subcommand words that register or re-register a worktree path.

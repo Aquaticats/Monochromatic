@@ -29,7 +29,10 @@
 /// ```ts
 /// import { dirtyQuestion, targetTree } from '../command/rule_linked_worktree.ts';
 /// ```
-use crate::command_clean::{clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, paths_only_the_exclusions_add};
+use crate::command_clean::{
+    clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, parse_clean_region,
+    paths_only_the_exclusions_add,
+};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
 use crate::effective_target::{
@@ -74,6 +77,8 @@ use crate::rule_linked_worktree::{
     dirty_worktree_message, dirty_worktree_message_naming, exemption_notice, repository_stash_message,
     resolve_linked_worktree,
 };
+/// The refusal of a command one of whose words no option table of its subcommand holds.
+use crate::rule_linked_worktree_refused_overwrite_messages::{UnreadOption, unread_option_message};
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
 use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
 /// The text that refusal prints.
@@ -210,6 +215,43 @@ fn refuse_shared_remote_settings(
 }
 
 /// What:
+///  Refuse a command one of whose words is an option no table of its subcommand holds,
+///  record the refusal,
+///  and name the word and the opt-out.
+///  `&[OsString]` borrows the words the guard decided about and the words Git receives.
+/// Why:
+///  The guard reads every guarded subcommand from Git 2.56.0's own option table,
+///  so a word outside it is one whose value and meaning the guard cannot know;
+///  refusing it is the difference between a guess and an answer,
+///  and the sentence says which word stopped it and how to run the command anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseAnUnreadOption(facts, Remove, '--bogus', ['rm','-f','--bogus'], ['rm','-f','--bogus']): PolicyOutcome;
+/// ```
+fn refuse_an_unread_option(
+    facts: &mut dyn RepositoryFacts,
+    command: GuardedCommand,
+    written: &[u8],
+    decided: &[OsString],
+    seen: &[OsString],
+) -> PolicyOutcome {
+    let location: RepositoryLocation = match facts.location() {
+        Ok(found) => found,
+        Err(message) => return fact_unavailable(message),
+    };
+    record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+    let region: &[OsString] = match command_tokens(decided) {
+        Some((_word, tokens)) => tokens,
+        None => &[],
+    };
+    return rejected(
+        LINKED_WORKTREE_REQUIRED_CODE,
+        unread_option_message(UnreadOption { command, region, written }),
+    );
+}
+
+/// What:
 ///  Whether the form ends the operation it finds waiting,
 ///  which is every abort form and every skip form.
 /// Why:
@@ -258,7 +300,12 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
     // Both dry runs start where the clean runs, which is where Git measures its prefix from.
     let run_in: PathBuf = command_run_directory(prefix.as_slice(), shell_directory)?;
     // A region Git would refuse deletes nothing, and Git refuses it in its own words when the command runs.
-    let Some(with_patterns) = clean_dry_run_arguments(prefix.as_slice(), region, run_in.as_path()) else {
+    //  The dry runs are rebuilt from this one reading, so their force count and their paths are the ones Git's own
+    //  table gives the typed clean.
+    let Ok(cleaned) = parse_clean_region(region, &[]) else {
+        return Ok(false);
+    };
+    let Some(with_patterns) = clean_dry_run_arguments(prefix.as_slice(), &cleaned, run_in.as_path()) else {
         return Ok(false);
     };
     let deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(with_patterns)?;
@@ -267,7 +314,7 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
     }
     // The same clean without them deletes what the worktree itself ignores; both answers name a path the same way,
     //  so they are compared as Git printed them.
-    let Some(without_patterns) = clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region, run_in.as_path()) else {
+    let Some(without_patterns) = clean_dry_run_arguments_without_exclusions(prefix.as_slice(), &cleaned, run_in.as_path()) else {
         return Ok(true);
     };
     let otherwise_deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(without_patterns)?;
@@ -334,6 +381,14 @@ pub(crate) fn check_linked_worktree(
         LinkedWorktreeDecision::WhenDirty(command) => (*command, true),
         // Refused above, before any guarded form was measured.
         LinkedWorktreeDecision::SharedRemote(_) => return clean(),
+        // What:
+        //  A word of the region no table of this subcommand holds.
+        // Why:
+        //  The guard cannot tell what the command writes, so it refuses and names the word, and the opt-out runs
+        //  the command as real Git runs it.
+        LinkedWorktreeDecision::UnreadableOption { command, written } => {
+            return refuse_an_unread_option(facts, *command, written.as_encoded_bytes(), decided, seen);
+        }
     };
     let location: RepositoryLocation = match facts.location() {
         Ok(found) => found,

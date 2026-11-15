@@ -43,10 +43,13 @@ use crate::command_branch_delete::branch_deletions;
 use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_region};
 use crate::command_worktree::worktree_removal;
 use crate::command_discard::{
-    Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, skip_discard, switch_discard,
+    Discard, abort_discard, checkout_discard, checkout_index_reading, move_reading, read_tree_discard,
+    remove_reading, restore_reading, skip_discard, switch_discard,
 };
-use crate::command_options::OptionError;
+use crate::command_checkout_table::{CHECKOUT_TABLE, IGNORE_SKIP_WORKTREE_BITS};
+use crate::command_options::{DEFAULT_MODE, OptionError, OptionErrorKind, parse_options};
+use crate::command_options_query::is_enabled;
+use crate::command_restore_table::{RESTORE_IGNORE_SKIP_WORKTREE_BITS, RESTORE_TABLE};
 use crate::command_reset::{ResetMode, ResetRegion, parse_reset_region};
 use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
 use crate::effective_target::EffectiveTarget;
@@ -269,6 +272,44 @@ pub enum LinkedWorktreeDecision {
     ///  the change names the file the command named for it,
     ///  when it named one.
     SharedRemote(SharedRemoteChange),
+    /// What:
+    ///  A word of the region is an option no table of this subcommand holds,
+    ///  so the guard cannot tell what the command would write over or delete.
+    /// Why:
+    ///  The tables are Git 2.56.0's own, and a newer Git's option may discard:
+    ///  reading such a word as harmless is the guess that let
+    ///  `git rm -f --pathspec-from-file --no-force` delete an edit.
+    ///  The command is refused,
+    ///  the refusal names the word,
+    ///  and the opt-out runs the command as real Git runs it.
+    UnreadableOption {
+        /// The guarded form the word belongs to.
+        command: GuardedCommand,
+        /// The word as the person typed it.
+        written: OsString,
+    },
+}
+
+/// What:
+///  One reading the guard could not make,
+///  with the form whose table the word was read from.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The caller has to tell a usage request (Git writes nothing) and Git's own refusal of a region
+///  (whose options the table holds) from a word no table holds, and only the last one is the
+///  guard's to refuse.
+///  The form travels with the failure because the arm that read the table knows it, and the word
+///  alone does not say which of its forms a HEAD-moving command is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Unreadable = { command: GuardedCommand; error: OptionError };
+/// ```
+struct Unreadable {
+    /// The form whose region was being read.
+    command: GuardedCommand,
+    /// What the tokenizer answered.
+    error: OptionError,
 }
 
 /// What:
@@ -338,19 +379,25 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
         GuardedCommand::Clean => {
             return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked));
         }
-        // A form that writes the paths its own words name writes over an edit the `skip-worktree` mark hides,
-        //  while a whole-tree write keeps the file that mark names; measured with native Git 2.56.0 and recorded
-        //  on `DirtyScope::TrackedAndSkipWorktreeEdits`.
+        // What:
+        //  Which edits a form that writes paths replaces, the one a `skip-worktree` mark hides included.
+        // Why:
+        //  The written paths are the question, not the form that names them:
+        //  a tree written over named paths replaces the file the mark names
+        //  (`checkout <tree> -- <path>`, `restore --source <tree> -- <path>`, and either of them with
+        //  `--pathspec-from-file=<file>`), and a forced `mv` replaces the destination that way too,
+        //  while a whole-tree write, an index write, a `read-tree` and a `checkout-index` keep it
+        //  (each measured on this host with native Git 2.56.0, 2026-11-15).
+        //  A form that names no tree path answers the plain question.
         //  `--ignore-skip-worktree-bits` is the person telling Git to ignore the mark, and Git then writes the file
         //  the mark named, which is their own decision.
-        GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree => {
+        GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree | GuardedCommand::Move => {
             let written: Option<crate::command_written_paths::WrittenPaths> =
                 crate::command_written_paths::written_paths(command, region);
-            let names_a_tree: bool = matches!(
-                written,
-                Some(crate::command_written_paths::WrittenPaths::MatchingTree { revision: Some(_), .. })
-            );
-            if names_a_tree && !ignores_skip_worktree_bits(region) {
+            let writes_a_marked_edit: bool = written
+                .as_ref()
+                .is_some_and(crate::command_written_paths::writes_over_an_edit_a_mark_hides);
+            if writes_a_marked_edit && !ignores_skip_worktree_bits(command, region) {
                 return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndSkipWorktreeEdits));
             }
             return Some(DirtyQuestion::Worktree(DirtyScope::Tracked));
@@ -391,24 +438,10 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
 /// const reaches = (region) => region.some((w) => spellsLong(w, 'sparse', RM_LONG_OPTIONS)) && !region.some((w) => spellsLong(w, 'cached', RM_LONG_OPTIONS));
 /// ```
 fn reaches_a_skipped_edit(region: &[OsString]) -> bool {
-    // An option written twice is the last one, negation included: `git rm --sparse --no-sparse s.txt` is a plain
-    //  removal and `git rm --no-sparse --sparse s.txt` reaches the marked edit
+    // Both flags are read from the removal's own table, so a value that looks like either one is neither:
+    //  `git rm --sparse --sparse --no-sparse` is a plain removal and `--no-sparse --sparse` reaches the marked edit
     //  (measured on this host with native Git 2.56.0, 2026-11-15).
-    let mut sparse: bool = false;
-    let mut cached: bool = false;
-    for token in region {
-        let written: &[u8] = token.as_encoded_bytes();
-        if written == b"--" {
-            break;
-        }
-        if let Some(state) = crate::command_discard::long_option_state(written, "sparse", crate::command_discard::RM_LONG_OPTIONS) {
-            sparse = state;
-        }
-        if let Some(state) = crate::command_discard::long_option_state(written, "cached", crate::command_discard::RM_LONG_OPTIONS) {
-            cached = state;
-        }
-    }
-    return sparse && !cached;
+    return remove_reading(region).is_ok_and(|reading| return reading.reaches_a_skipped_edit);
 }
 
 /// What:
@@ -422,17 +455,17 @@ fn reaches_a_skipped_edit(region: &[OsString]) -> bool {
 /// ```ts
 /// const ignores = (region) => region.some((word) => word === '--ignore-skip-worktree-bits');
 /// ```
-fn ignores_skip_worktree_bits(region: &[OsString]) -> bool {
-    for token in region {
-        let written: &[u8] = token.as_encoded_bytes();
-        if written == b"--" {
-            return false;
+fn ignores_skip_worktree_bits(command: GuardedCommand, region: &[OsString]) -> bool {
+    // The flag is a row of each command's own table, so a file named `--ignore-skip-worktree-bits` is that
+    //  option's value and no switch:
+    //  `git restore --source=other --pathspec-from-file --ignore-skip-worktree-bits` reads a file.
+    let enabled: Option<bool> = match command {
+        GuardedCommand::RestoreWorktree | GuardedCommand::RestoreStaged => {
+            parse_options(region, RESTORE_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, RESTORE_IGNORE_SKIP_WORKTREE_BITS))
         }
-        if written == b"--ignore-skip-worktree-bits" {
-            return true;
-        }
-    }
-    return false;
+        _ => parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, IGNORE_SKIP_WORKTREE_BITS)),
+    };
+    return enabled.unwrap_or(false);
 }
 
 /// What:
@@ -514,7 +547,7 @@ fn skipping_form(word: &[u8]) -> Option<GuardedCommand> {
 fn guarded_decision(
     word: &[u8],
     region: &[OsString],
-) -> Result<LinkedWorktreeDecision, OptionError> {
+) -> Result<LinkedWorktreeDecision, Unreadable> {
     // The settings every worktree shares are written by two command words only, and no guarded form is about them.
     if let Some(write) = shared_remote_write(word, region) {
         return Ok(LinkedWorktreeDecision::SharedRemote(write));
@@ -538,7 +571,7 @@ fn guarded_decision(
     }
     if word == b"clean" {
         // `&[]` is an empty flag list: wrapper controls were removed before this point.
-        let facts: CleanRegion = parse_clean_region(region, &[])?;
+        let facts: CleanRegion = read_by(GuardedCommand::Clean, parse_clean_region(region, &[]))?;
         if !clean_changes_worktree(&facts) {
             return Ok(LinkedWorktreeDecision::Pass);
         }
@@ -553,7 +586,7 @@ fn guarded_decision(
         return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Clean));
     }
     if word == b"reset" {
-        let facts: ResetRegion = parse_reset_region(region, &[])?;
+        let facts: ResetRegion = read_by(GuardedCommand::ResetHard, parse_reset_region(region, &[]))?;
         // Every mode but `--soft` replaces the index, and with it the staged entries.
         return Ok(match facts.mode {
             Some(ResetMode::Soft) => LinkedWorktreeDecision::Pass,
@@ -566,24 +599,25 @@ fn guarded_decision(
         });
     }
     if word == b"checkout" {
-        return Ok(match checkout_discard(region)? {
+        return Ok(match read_by(GuardedCommand::CheckoutPaths, checkout_discard(region))? {
             Discard::Overwrites => decided(GuardedCommand::CheckoutPaths, Discard::Overwrites),
             reading => decided(GuardedCommand::CheckoutMove, reading),
         });
     }
     if word == b"switch" {
-        return Ok(match switch_discard(region)? {
+        return Ok(match read_by(GuardedCommand::SwitchForce, switch_discard(region))? {
             Discard::Overwrites => decided(GuardedCommand::SwitchForce, Discard::Overwrites),
             reading => decided(GuardedCommand::SwitchMove, reading),
         });
     }
     if word == b"restore" {
-        let command: GuardedCommand = if restores_index_only(region) {
+        let reading = read_by(GuardedCommand::RestoreWorktree, restore_reading(region))?;
+        let command: GuardedCommand = if reading.staged_only {
             GuardedCommand::RestoreStaged
         } else {
             GuardedCommand::RestoreWorktree
         };
-        return Ok(decided(command, restore_discard(region)));
+        return Ok(decided(command, reading.discard));
     }
     if word == b"worktree" {
         if worktree_removal(region).is_some() {
@@ -606,20 +640,23 @@ fn guarded_decision(
         //  (measured on this host with native Git 2.56.0, 2026-11-14),
         //  so a removal that reaches such an edit is guarded even without a force.
         //  Every other unforced removal is Git's own protection and stays out of this policy.
-        let forced: Discard = force_discard(b"rm", region);
-        if matches!(forced, Discard::Harmless) && !reaches_a_skipped_edit(region) {
+        let reading = read_by(GuardedCommand::Remove, remove_reading(region))?;
+        if matches!(reading.discard, Discard::Harmless) && !reading.reaches_a_skipped_edit {
             return Ok(LinkedWorktreeDecision::Pass);
         }
         return Ok(decided(GuardedCommand::Remove, Discard::Overwrites));
     }
     if word == b"mv" {
-        return Ok(decided(GuardedCommand::Move, force_discard(b"mv", region)));
+        return Ok(decided(GuardedCommand::Move, read_by(GuardedCommand::Move, move_reading(region))?));
     }
     if word == b"checkout-index" {
-        return Ok(decided(GuardedCommand::CheckoutIndex, force_discard(b"checkout-index", region)));
+        return Ok(decided(
+            GuardedCommand::CheckoutIndex,
+            read_by(GuardedCommand::CheckoutIndex, checkout_index_reading(region))?,
+        ));
     }
     if word == b"read-tree" {
-        return Ok(decided(GuardedCommand::ReadTree, read_tree_discard(region)?));
+        return Ok(decided(GuardedCommand::ReadTree, read_by(GuardedCommand::ReadTree, read_tree_discard(region))?));
     }
     // The two forms that end the operation a conflict stopped are read before every other form of their word,
     //  because both drop the hand resolution the operation is waiting on.
@@ -681,7 +718,40 @@ pub fn decide_linked_worktree(arguments: &[OsString]) -> LinkedWorktreeDecision 
 /// function decideGuardedWord(word: Buffer, region: string[]): LinkedWorktreeDecision;
 /// ```
 pub fn decide_guarded_word(word: &[u8], region: &[OsString]) -> LinkedWorktreeDecision {
-    return guarded_decision(word, region).unwrap_or(LinkedWorktreeDecision::Pass);
+    return match guarded_decision(word, region) {
+        Ok(decision) => decision,
+        // What:
+        //  A word no table of this subcommand holds.
+        // Why:
+        //  Its value and its meaning are unknown to the guard, so it may discard, and reading it as harmless is
+        //  the guess that let a pathspec file named `--no-force` delete an edit.
+        //  Git would refuse it itself at 2.56.0, so nothing is lost by refusing it here first, and the message
+        //  names the word and the opt-out.
+        Err(problem) if problem.error.kind == OptionErrorKind::UnknownOption => {
+            LinkedWorktreeDecision::UnreadableOption {
+                command: problem.command,
+                written: region.get(problem.error.token).cloned().unwrap_or_default(),
+            }
+        }
+        // A usage request, an ambiguous abbreviation, a missing or unexpected value and a long option behind one
+        //  dash are all regions Git answers itself without writing anything, so the guard leaves them to Git.
+        Err(_) => LinkedWorktreeDecision::Pass,
+    };
+}
+
+/// What:
+///  One table's reading,
+///  with the form whose word was read set beside a failure.
+/// Why:
+///  Only an option no table holds is the guard's to refuse, and the caller cannot name the form from the
+///  failure alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readBy = (command, reading) => reading.mapErr((error) => ({ command, error }));
+/// ```
+fn read_by<Reading>(command: GuardedCommand, reading: Result<Reading, OptionError>) -> Result<Reading, Unreadable> {
+    return reading.map_err(|error| return Unreadable { command, error });
 }
 
 /// What:

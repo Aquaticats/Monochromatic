@@ -251,7 +251,7 @@ fn plan_interactive_clean(arguments: &[OsString], shell_directory: Option<&Path>
     return Some(InteractiveClean {
         query: clean_dry_run_arguments(
             &arguments[..layout.prefix_len],
-            region,
+            &facts,
             command_run_directory(&arguments[..layout.prefix_len], shell_directory).ok()?.as_path(),
         )?,
         insertion: layout.prefix_len + 1 + option_region_end(&parsed, region.len()),

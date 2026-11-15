@@ -19,16 +19,26 @@
 //! // writtenPaths('CheckoutPaths', ['other', '--', 'b.txt']) === { kind: 'matching-tree', revision: 'other', pathspecs: ['b.txt'] }
 //! ```
 
-use crate::command_checkout_table::{CHECKOUT_TABLE, FORCE, SWITCH_TABLE};
+use crate::command_checkout_index_table::{
+    CHECKOUT_INDEX_ALL, CHECKOUT_INDEX_PREFIX, CHECKOUT_INDEX_STDIN, CHECKOUT_INDEX_TABLE,
+};
+use crate::command_checkout_table::{CHECKOUT_TABLE, FORCE, GUESS, PATHSPEC_FILE_NUL, PATHSPEC_FROM_FILE, SWITCH_TABLE};
 use crate::command_discard::{
     READ_TREE_DEBUG_UNPACK, READ_TREE_DRY_RUN, READ_TREE_MERGE, READ_TREE_PREFIX, READ_TREE_RESET, READ_TREE_TABLE,
-    READ_TREE_UPDATE, restores_index_only, spells_long,
+    READ_TREE_UPDATE,
 };
 /// Git's own option grammar, for where a region's options end and its paths begin.
 use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
 /// The token indices that are positionals rather than options,
-///  and the exact bytes of an option's value.
-use crate::command_options_query::{is_enabled, positional_tokens, value_bytes};
+///  the final state of one option, and the exact bytes of its value.
+use crate::command_options_query::{is_enabled, last_occurrence, positional_tokens, value_bytes};
+/// The command's own table of `git mv`, and its rows of the values a move reads.
+use crate::command_mv_table::MV_TABLE;
+/// The command's own table of `git restore`, and the rows of the values it reads.
+use crate::command_restore_table::{
+    RESTORE_PATHSPEC_FILE_NUL, RESTORE_PATHSPEC_FROM_FILE, RESTORE_SOURCE, RESTORE_STAGED, RESTORE_TABLE,
+    RESTORE_WORKTREE,
+};
 use crate::command_reset::{RESET_TABLE, ResetMode, parse_reset_region};
 /// The forms the linked-worktree policy guards.
 use crate::rule_linked_worktree::GuardedCommand;
@@ -306,10 +316,12 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
         }
         GuardedCommand::CheckoutPaths => return checkout_written_paths(region),
         GuardedCommand::SwitchForce => {
+            let parsed: ParsedOptions = parse_options(region, SWITCH_TABLE, DEFAULT_MODE, &[]).ok()?;
+            let target: Option<OsString> = parsed.leading.first().and_then(|index| return region.get(*index).cloned());
             return Some(WrittenPaths::Tree {
-                revision: first_positional(region, SWITCH_TABLE),
+                revision: target,
                 entries: WrittenEntries::EveryEntry,
-                guesses_a_remote_branch: guess_is_not_switched_off(region),
+                guesses_a_remote_branch: guess_is_not_switched_off(&parsed),
             });
         }
         GuardedCommand::RestoreWorktree => return restore_written_paths(region),
@@ -318,6 +330,44 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
         GuardedCommand::CheckoutIndex => return checkout_index_written_paths(region),
         _ => return None,
     }
+}
+
+/// What:
+///  Whether a form that writes these paths writes over an edit a `skip-worktree` mark hides.
+/// Why:
+///  A mark says a file is outside the sparse definition,
+///  so Git's own status never names an edit to it;
+///  the guard asks about those edits exactly where Git replaces one,
+///  and the written paths are what says where that is.
+///  Measured on this host with native Git 2.56.0 (2026-11-15):
+///  `git checkout other -- a.txt` and `git restore --source=other -- b.txt` replace the file,
+///  and so does each of them with `--pathspec-from-file=<list>`
+///  (the seventh review found that form missing);
+///  `git mv -f a.txt b.txt` replaces the destination that way as well,
+///  while `git checkout --force <branch>`, `git reset --hard`,
+///  `git read-tree --reset -u`, `git checkout-index -f` and a restore of the index
+///  keep the file the mark names (`checkout-index -f -a` printed the edit unchanged, and a restore
+///  or checkout of a path without a tree answered `did not match any file(s) known to git`).
+///  A form that writes no tree path at all writes over no marked edit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const atRisk = (written) => written.kind === 'matching-tree' && written.revision
+///   || written.kind === 'pathspec-file' && written.target.kind === 'tree' && written.target.revision
+///   || written.kind === 'move-into';
+/// ```
+pub fn writes_over_an_edit_a_mark_hides(written: &WrittenPaths) -> bool {
+    return match written {
+        WrittenPaths::MatchingTree { revision: Some(_), .. } => true,
+        WrittenPaths::PathspecFile { target: PathspecTarget::Tree(Some(_)), .. } => true,
+        WrittenPaths::MoveInto { .. } => true,
+        WrittenPaths::Tree { .. }
+        | WrittenPaths::MatchingTree { revision: None, .. }
+        | WrittenPaths::Index { .. }
+        | WrittenPaths::IndexUnderPrefix { .. }
+        | WrittenPaths::PathspecFile { .. }
+        | WrittenPaths::ReadTree { .. } => false,
+    };
 }
 
 /// What:
@@ -344,18 +394,14 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
 /// function moveWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
 fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+    // Every word that is no option is a source or the destination: no row of `mv` takes a value, and the table is
+    //  what decides which words are options, so a `-k` or a `--sparse` of the person's own is none of them.
+    let parsed: ParsedOptions = parse_options(region, MV_TABLE, DEFAULT_MODE, &[]).ok()?;
     let mut words: Vec<&OsString> = Vec::<&OsString>::new();
-    let mut after_dash_dash: bool = false;
-    for token in region {
-        let written: &[u8] = token.as_encoded_bytes();
-        if !after_dash_dash && written == b"--" {
-            after_dash_dash = true;
-            continue;
+    for index in positional_tokens(&parsed, region.len()) {
+        if let Some(token) = region.get(index) {
+            words.push(token);
         }
-        if !after_dash_dash && written.len() > 1 && written[0] == b'-' {
-            continue;
-        }
-        words.push(token);
     }
     let destination: &OsString = words.last()?;
     let mut sources: Vec<OsString> = Vec::<OsString>::with_capacity(words.len().saturating_sub(1));
@@ -386,64 +432,20 @@ fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 /// function checkoutIndexWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
 fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
-    let names: &[&str] = crate::command_discard::CHECKOUT_INDEX_LONG_OPTIONS;
-    let mut all: bool = false;
-    let mut stdin: bool = false;
-    let mut prefix: Option<OsString> = None;
+    // The table decides which words are options and which tokens are their values: `--prefix` and `--stage` take
+    //  one, so the token after them is never a path the command writes,
+    //  and `-a` inside a cluster is the whole-index form (`git checkout-index -fq -a`, `-fa`).
+    let parsed: ParsedOptions = parse_options(region, CHECKOUT_INDEX_TABLE, DEFAULT_MODE, &[]).ok()?;
+    let all: bool = is_enabled(&parsed, CHECKOUT_INDEX_ALL);
+    let stdin: bool = is_enabled(&parsed, CHECKOUT_INDEX_STDIN);
+    let prefix: Option<OsString> = last_occurrence(&parsed, CHECKOUT_INDEX_PREFIX)
+        .and_then(|occurrence| return occurrence.value)
+        .map(|value| return word_of(value_bytes(region, value)));
     let mut pathspecs: Vec<OsString> = Vec::<OsString>::new();
-    let mut at: usize = 0;
-    while at < region.len() {
-        let written: &[u8] = region[at].as_encoded_bytes();
-        at += 1;
-        if written == b"--" {
-            pathspecs.extend(region[at..].iter().cloned());
-            break;
+    for index in positional_tokens(&parsed, region.len()) {
+        if let Some(token) = region.get(index) {
+            pathspecs.push(token.clone());
         }
-        if written.len() > 1 && written[0] == b'-' && !written.starts_with(b"--") {
-            if written.contains(&b'a') {
-                all = true;
-            }
-            continue;
-        }
-        if let Some(state) = crate::command_discard::long_option_state(written, "all", names) {
-            all = state;
-            continue;
-        }
-        if let Some(state) = crate::command_discard::long_option_state(written, "stdin", names) {
-            stdin = state;
-            continue;
-        }
-        if spells_long(written, "prefix", names) {
-            match written.iter().position(|byte| return *byte == b'=') {
-                Some(equals) => prefix = Some(word_of(&written[equals + 1..])),
-                None => {
-                    // A separated value is that value and no path: the token after `--prefix` is consumed here, and a
-                    //  reading that left it in the loop read it as a pathspec too, which named `<prefix>/<prefix>/…`
-                    //  and refused a command Git runs over nothing of the sort
-                    //  (`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` alone, measured on this host
-                    //  with native Git 2.56.0, 2026-11-14).
-                    prefix = region.get(at).cloned();
-                    at += 1;
-                }
-            }
-            continue;
-        }
-        if spells_long(written, "stage", names) {
-            // `--stage=<n>` takes the number of the stage whose entry Git writes, and the separated spelling takes the
-            //  token after it for that number.
-            //  The number is no path: a reading that left it in the loop read it as a pathspec, which named an index
-            //  entry called `2` and refused a command Git runs over nothing of the sort
-            //  (`git checkout-index -f --stage 2 -- a.txt` refuses for the stage itself when the index holds no
-            //  stage-2 entry, measured on this host with native Git 2.56.0, 2026-11-14).
-            if !written.contains(&b'=') {
-                at += 1;
-            }
-            continue;
-        }
-        if written.starts_with(b"--") {
-            continue;
-        }
-        pathspecs.push(region[at - 1].clone());
     }
     // A form with neither `--all` nor a path has nothing to write: Git refuses it
     //  (`fatal: git checkout-index: nothing specified`), so the guard reads no write rather than the whole index.
@@ -534,8 +536,8 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     let parsed: ParsedOptions = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok()?;
     // A form that reads its pathspecs from a file reaches paths no token names, so the file is where the
     //  written paths are read.
-    if let Some((file, nul_separated)) = pathspec_file(region) {
-        return Some(pathspec_file_written_paths(region, file, nul_separated, is_enabled(&parsed, FORCE)));
+    if let Some((file, nul_separated)) = pathspec_file(&parsed, region, PATHSPEC_FROM_FILE, PATHSPEC_FILE_NUL) {
+        return Some(pathspec_file_written_paths(&parsed, region, file, nul_separated, is_enabled(&parsed, FORCE)));
     }
     let names: Vec<&OsString> = positional_tokens(&parsed, region.len())
         .into_iter()
@@ -566,14 +568,14 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     return Some(WrittenPaths::Tree {
         revision: names.first().map(|name| return (*name).clone()),
         entries: WrittenEntries::EveryEntry,
-        guesses_a_remote_branch: guess_is_not_switched_off(region),
+        guesses_a_remote_branch: guess_is_not_switched_off(&parsed),
     });
 }
 
 /// What:
 ///  Whether a `checkout` or `switch` region leaves Git free to guess the remote branch a short
 ///  name stands for.
-///  `&[OsString]` borrows the tokens after the subcommand.
+///  `&ParsedOptions` borrows the tokenized region.
 /// Why:
 ///  `--no-guess` and `checkout.guess=false` both turn the guess off,
 ///  and Git then refuses the name itself
@@ -581,49 +583,50 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 ///  native Git 2.56.0, 2026-11-13);
 ///  the guess the guard makes must follow the same switch,
 ///  or it would resolve a branch Git never touches.
-///  `--guess` and `--gu` are the same option Git accepts by that prefix,
-///  and nothing else in the two tables starts with `guess`.
+///  Git obeys the last of the two spellings, so `--no-guess --guess` guesses and `--guess --no-guess` does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const guesses = (region) => !region.some((word) => spellsLong(word, 'no-guess'));
+/// const guesses = (parsed) => parsed.last(GUESS)?.negated !== true;
 /// ```
-fn guess_is_not_switched_off(region: &[OsString]) -> bool {
-    // Git obeys the last of the two, so `--no-guess --guess` guesses and `--guess --no-guess` does not.
-    //  `--` ends the options, and everything after it is a path.
+fn guess_is_not_switched_off(parsed: &ParsedOptions) -> bool {
     let mut guess: bool = true;
-    for token in region {
-        let written: &[u8] = token.as_encoded_bytes();
-        if written == b"--" {
-            break;
-        }
-        if let Some(state) = crate::command_discard::long_option_state(written, "guess", &["guess"]) {
-            guess = state;
-        }
+    if let Some(last) = last_occurrence(parsed, GUESS) {
+        guess = !last.negated;
     }
     return guess;
 }
 
 /// What:
 ///  The paths a `git restore` form writes over,
-///  read from its `--source` and its own path list.
+///  read from its own option table.
 /// Why:
 ///  Without a source the index's content goes back over the worktree,
 ///  and with one the source tree's content does;
 ///  a form that restores only the index writes no worktree file at all.
 ///  The paths are the tokens after `--` when it is written,
-///  and otherwise every token that is not an option or the value of one.
+///  and otherwise every token that is not an option or the value of one,
+///  which the table decides:
+///  `git restore -U 3 -- a.txt` names a number and a path,
+///  and `git restore -s -W --staged -- a.txt` names a revision called `-W`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function restoreWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
 fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
-    if restores_index_only(region) {
+    let parsed: ParsedOptions = parse_options(region, RESTORE_TABLE, DEFAULT_MODE, &[]).ok()?;
+    if is_enabled(&parsed, RESTORE_STAGED) && !is_enabled(&parsed, RESTORE_WORKTREE) {
         return None;
     }
-    let source: Option<OsString> = restore_source(region);
-    if let Some((file, nul_separated)) = pathspec_file(region) {
+    // `--source` takes a value in Git's own table, so the token after it is that value whatever it looks like, and an
+    //  option written twice keeps the last one:
+    //  `git restore -s main -s other -- f.txt` writes `other`'s content
+    //  (measured on this host with native Git 2.56.0, 2026-11-13).
+    let source: Option<OsString> = last_occurrence(&parsed, RESTORE_SOURCE)
+        .and_then(|occurrence| return occurrence.value)
+        .map(|value| return word_of(value_bytes(region, value)));
+    if let Some((file, nul_separated)) = pathspec_file(&parsed, region, RESTORE_PATHSPEC_FROM_FILE, RESTORE_PATHSPEC_FILE_NUL) {
         return Some(WrittenPaths::PathspecFile {
             target: match source {
                 Some(revision) => PathspecTarget::Tree(Some(revision)),
@@ -631,13 +634,18 @@ fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
             },
             file,
             nul_separated,
-                // Git refuses a restore with no path at all: `fatal: you must specify path(s) to restore`
+            // Git refuses a restore with no path at all: `fatal: you must specify path(s) to restore`
             //  (measured on this host with native Git 2.56.0, 2026-11-13), so only the refusal follows an empty file.
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: false,
         });
     }
-    let pathspecs: Vec<OsString> = restore_pathspecs(region);
+    let mut pathspecs: Vec<OsString> = Vec::<OsString>::new();
+    for index in positional_tokens(&parsed, region.len()) {
+        if let Some(token) = region.get(index) {
+            pathspecs.push(token.clone());
+        }
+    }
     return Some(match source {
         Some(revision) => WrittenPaths::MatchingTree { revision: Some(revision), pathspecs },
         None => WrittenPaths::Index { pathspecs },
@@ -645,190 +653,33 @@ fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 }
 
 /// What:
-///  The revision a `git restore` form names as its source,
-///  in any spelling Git's own table accepts.
-/// Why:
-///   `--source <tree>`, `--source=<tree>`, `-s <tree>` and `-s<tree>` are one option,
-///  and a value that looks like a flag is that value (`restore --source -W -- f`).
-///  An option written twice keeps the last value, as Git's own parser does,
-///  so every occurrence is read and the last one is the answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function restoreSource(region: string[]): string | undefined;
-/// ```
-fn restore_source(region: &[OsString]) -> Option<OsString> {
-    let mut at: usize = 0;
-    let mut source: Option<OsString> = None;
-    while at < region.len() {
-        let written: &[u8] = region[at].as_encoded_bytes();
-        at += 1;
-        if written == b"--" {
-            break;
-        }
-        if let Some(value) = long_option_value(written, "source") {
-            // Git's own option parser keeps the last value of an option written twice
-            //  (`git restore -s main -s other -- f.txt` writes `other`'s content,
-            //  measured on this host with native Git 2.56.0, 2026-11-13), so a reading that stopped at the first
-            //  one asked about a tree Git never reads.
-            source = Some(value);
-            continue;
-        }
-        let long_without_value: bool =
-            written.starts_with(b"--") && !written.contains(&b'=') && spells_long(written, "source", crate::command_discard::RESTORE_LONG_OPTIONS);
-        if long_without_value {
-            if let Some(value) = region.get(at) {
-                source = Some(value.clone());
-            }
-            at += 1;
-            continue;
-        }
-        if written.starts_with(b"--") {
-            if !written.contains(&b'=') && option_takes_a_value(written) {
-                at += 1;
-            }
-            continue;
-        }
-        if written.len() > 1 && written[0] == b'-' {
-            let cluster: &[u8] = &written[1..];
-            let position: usize = match cluster.iter().position(|byte| return *byte == b's') {
-                Some(found) => found,
-                None => {
-                    continue;
-                }
-            };
-            let value: &[u8] = &cluster[position + 1..];
-            if !value.is_empty() {
-                source = Some(word_of(value));
-                continue;
-            }
-            if let Some(next) = region.get(at) {
-                source = Some(next.clone());
-            }
-            at += 1;
-        }
-    }
-    return source;
-}
-
-/// What:
-///  The value a long option carries inside its own token (`--name=value`),
-///  by any abbreviation Git accepts for `restore`.
-/// Why:
-///   Git accepts an unambiguous prefix of every long option,
-///  and `--so`/`--sour` are `--source`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function longOptionValue(token: string, name: string): string | undefined; // the part after '='
-/// ```
-fn long_option_value(written: &[u8], name: &str) -> Option<OsString> {
-    if !spells_long(written, name, crate::command_discard::RESTORE_LONG_OPTIONS) {
-        return None;
-    }
-    let equals: usize = written.iter().position(|byte| return *byte == b'=')?;
-    return Some(word_of(&written[equals + 1..]));
-}
-
-/// What:
-///  Whether one long option of `git restore` takes the next token as its value.
-/// Why:
-///   `--source` and `--conflict` do,
-///  and every other long option of this command does not,
-///  so the token after one of them is a value and never a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const optionTakesAValue = (token) => ['source', 'conflict'].some((name) => spellsLong(token, name));
-/// ```
-fn option_takes_a_value(written: &[u8]) -> bool {
-    let names: [&str; 2] = ["source", "conflict"];
-    return names.iter().any(|name| return spells_long(written, name, crate::command_discard::RESTORE_LONG_OPTIONS));
-}
-
-/// What:
-///  The paths a `git restore` form names,
-///  which are the tokens after `--` when it is written and the plain words of the region otherwise.
-/// Why:
-///   Everything after `--` is a path to Git,
-///  and before it every token that is not an option and not the value of one is a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function restorePathspecs(region: string[]): string[];
-/// ```
-fn restore_pathspecs(region: &[OsString]) -> Vec<OsString> {
-    let mut paths: Vec<OsString> = Vec::<OsString>::new();
-    let mut at: usize = 0;
-    while at < region.len() {
-        let written: &[u8] = region[at].as_encoded_bytes();
-        at += 1;
-        if written == b"--" {
-            paths.extend(region[at..].iter().cloned());
-            return paths;
-        }
-        if written.starts_with(b"--") {
-            if !written.contains(&b'=') && option_takes_a_value(written) {
-                at += 1;
-            }
-            continue;
-        }
-        if written.len() > 1 && written[0] == b'-' {
-            // A short cluster that ends with `s` takes the next token as its value.
-            if written[1..].ends_with(b"s") {
-                at += 1;
-            }
-            continue;
-        }
-        paths.push(region[at - 1].clone());
-    }
-    return paths;
-}
-
-/// What:
 ///  The file a region reads its pathspecs from,
 ///  and whether it separates them with NUL bytes,
-///  written in either spelling Git's own table accepts.
+///  read from the command's own option table.
+///  `u16` names those two options' rows in that table.
 /// Why:
 ///  `--pathspec-from-file <file>`, `--pathspec-from-file=<file>` and the abbreviations Git accepts
 ///  are one option,
 ///  and `--pathspec-file-nul` decides how its entries are separated.
 ///  A file named here reaches paths no other word of the command names,
 ///  so a reading that ignores it asks about nothing.
+///  The table is what makes a value that looks like an option the file's name:
+///  `git restore --source=other --pathspec-from-file --staged` reads the file named `--staged`
+///  (the seventh review, reproduced here),
+///  and a value that looks like a separator does not turn the separator on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pathspecFile = (region) => scan(region, ['pathspec-from-file', 'pathspec-file-nul']);
+/// const pathspecFile = (parsed, region, fromFile, fileNul) => ({ file: valueOf(parsed, fromFile), nul: enabled(parsed, fileNul) });
 /// ```
-fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
-    let names: [&str; 2] = ["pathspec-from-file", "pathspec-file-nul"];
-    let mut file: Option<OsString> = None;
-    let mut nul_separated: bool = false;
-    let mut at: usize = 0;
-    while at < region.len() {
-        let written: &[u8] = region[at].as_encoded_bytes();
-        at += 1;
-        if written == b"--" {
-            break;
-        }
-        if let Some(state) = crate::command_discard::long_option_state(written, "pathspec-file-nul", &names) {
-            nul_separated = state;
-            continue;
-        }
-        if !spells_long(written, "pathspec-from-file", &names) {
-            continue;
-        }
-        match written.iter().position(|byte| return *byte == b'=') {
-            Some(equals) => file = Some(word_of(&written[equals + 1..])),
-            None => {
-                // A separated value is that option's value and no token of its own, so the scan steps past it: a value
-                //  that reads as a separator or as an option would otherwise stop or redirect the rest of the scan.
-                file = region.get(at).cloned();
-                at += 1;
-            }
-        }
-    }
-    return file.map(|named| return (named, nul_separated));
+fn pathspec_file(
+    parsed: &ParsedOptions,
+    region: &[OsString],
+    from_file: u16,
+    file_nul: u16,
+) -> Option<(OsString, bool)> {
+    let value = last_occurrence(parsed, from_file)?.value?;
+    return Some((word_of(value_bytes(region, value)), is_enabled(parsed, file_nul)));
 }
 
 /// What:
@@ -843,7 +694,13 @@ fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
 /// ```ts
 /// const fromFile = (region, file, nul, shell) => ({ kind: 'pathspec-file', target: revision(region) ?? 'index', file, nul, shell });
 /// ```
-fn pathspec_file_written_paths(region: &[OsString], file: OsString, nul_separated: bool, forced: bool) -> WrittenPaths {
+fn pathspec_file_written_paths(
+    parsed: &ParsedOptions,
+    region: &[OsString],
+    file: OsString,
+    nul_separated: bool,
+    forced: bool,
+) -> WrittenPaths {
     // The tree-ish is the last word that is neither an option nor the file's name.
     //  The file's name is never among the positional words: `--pathspec-from-file` takes a value in Git's own table
     //  (`CHECKOUT_TABLE`), so a separated value is consumed as that option's value and an attached one is part of the
@@ -852,13 +709,10 @@ fn pathspec_file_written_paths(region: &[OsString], file: OsString, nul_separate
     //  `git checkout -f topic --pathspec-from-file=topic` was then read as aimed at the index, whose paths do not hold
     //  `topic`'s new file
     //  (the untracked `b.txt` was overwritten, measured on this host with native Git 2.56.0, 2026-11-14).
-    let read: Option<ParsedOptions> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok();
     let mut revision: Option<OsString> = None;
-    if let Some(parsed) = read {
-        for index in positional_tokens(&parsed, region.len()) {
-            if let Some(token) = region.get(index) {
-                revision = Some(token.clone());
-            }
+    for index in positional_tokens(parsed, region.len()) {
+        if let Some(token) = region.get(index) {
+            revision = Some(token.clone());
         }
     }
     return WrittenPaths::PathspecFile {
@@ -869,25 +723,8 @@ fn pathspec_file_written_paths(region: &[OsString], file: OsString, nul_separate
         file,
         nul_separated,
         entries: if forced { WrittenEntries::EveryEntry } else { WrittenEntries::OnlyIgnored },
-        guesses_a_remote_branch: guess_is_not_switched_off(region),
+        guesses_a_remote_branch: guess_is_not_switched_off(parsed),
     };
-}
-
-/// What:
-///  The first positional word of a region,
-///  which a `switch` reads as the branch or commit it moves to.
-/// Why:
-///   `git switch -f <target>` writes the target's whole tree,
-///  and every option before it is not part of the target's name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function firstPositional(region: string[], table: OptionSpec[]): string | undefined;
-/// ```
-fn first_positional(region: &[OsString], table: &[crate::command_options::OptionSpec]) -> Option<OsString> {
-    let parsed: ParsedOptions = parse_options(region, table, DEFAULT_MODE, &[]).ok()?;
-    let index: &usize = parsed.leading.first()?;
-    return region.get(*index).cloned();
 }
 
 /// Reading the forms' words into the paths they write,

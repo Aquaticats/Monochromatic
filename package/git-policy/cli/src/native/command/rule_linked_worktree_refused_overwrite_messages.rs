@@ -191,6 +191,57 @@ pub fn tree_reading_failed_message(command: GuardedCommand, region: &[OsString],
     );
 }
 
+/// What:
+///  The refusal of a command one of whose words is an option the guard does not read,
+///  naming that word and the command that runs it anyway.
+///  `&[u8]` borrows the word as the person typed it.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The guard decides from Git 2.56.0's own option table for each subcommand it reads.
+///  A word no table holds is one whose value and whose meaning the guard cannot know:
+///  it may be a newer Git's option that discards, so reading it as harmless is a guess, and a
+///  guess is what let `git rm -f --pathspec-from-file --no-force` delete an edit.
+///  The person reads which word the guard could not read, that nothing ran, and that the option
+///  runs the command as real Git runs it, where Git's own parser answers the word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unreadOptionMessage({ command: 'rm', region: ['-f', '--pathspec-from-file', '--no-force'], written: '--no-force' });
+/// ```
+pub struct UnreadOption<'a> {
+    /// The guarded form whose region holds the word.
+    pub command: GuardedCommand,
+    /// The tokens after the subcommand,
+    ///  as the guard decided about them.
+    pub region: &'a [OsString],
+    /// The word no option table of this subcommand holds.
+    pub written: &'a [u8],
+}
+
+/// What:
+///  The sentence that refusal prints.
+/// Why:
+///  It says which word stopped the guard,
+///  why the guard cannot read it,
+///  that nothing ran,
+///  and the one command that runs it anyway,
+///  which is what a person needs to act.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unreadOptionMessage(unread: UnreadOption): string;
+/// ```
+pub fn unread_option_message(unread: UnreadOption<'_>) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git {} is rejected because the guard does not read the option `{}` of this \
+         command, so it cannot tell what the command would write over or delete. Nothing in your worktree was \
+         changed. If you have decided to run it anyway, run `{}`, and the command runs exactly as real Git runs it.",
+        subcommand(unread.command),
+        String::from_utf8_lossy(unread.written),
+        hatch_command(unread.command, unread.region),
+    );
+}
+
 /// The refusal's words.
 #[cfg(test)]
 #[path = "rule_linked_worktree_refused_overwrite_messages_tests.rs"]

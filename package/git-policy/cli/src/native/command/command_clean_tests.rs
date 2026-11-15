@@ -32,10 +32,51 @@ use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::path::PathBuf;
 use std::process::Output;
 
+
 /// Parse a region Git accepts,
 ///  with no other wrapper flags.
 fn region(values: &[&str]) -> CleanRegion {
     return parse_clean_region(os_arguments(values).as_slice(), &[]).expect("valid region");
+}
+
+/// Dry runs in long,
+///  abbreviated,
+///  short and clustered forms delete nothing.
+/// What:
+///  One dry run of a clean region,
+///  through the one reading of that region.
+/// Why:
+///  The builders take the facts,
+///  because a caller has read them once for every question it asks of the clean;
+///  a control that spells a region asks for that reading here,
+///  and a region Git refuses answers nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dryRunWith = (prefix, region, runIn) => cleanDryRunArguments(prefix, parseCleanRegion(region, []), runIn);
+/// ```
+fn dry_run_with(prefix: &[std::ffi::OsString], region: &[std::ffi::OsString], run_in: &std::path::Path) -> Option<CleanDryRun> {
+    let facts: CleanRegion = parse_clean_region(region, &[]).ok()?;
+    return clean_dry_run_arguments(prefix, &facts, run_in);
+}
+
+/// What:
+///  The same dry run without the clean's own `-e`/`--exclude` patterns.
+/// Why:
+///  The second reading of a clean that names patterns is the same clean without them,
+///  and it is built from the same one reading of the region.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dryRunWithoutExclusions = (prefix, region, runIn) => cleanDryRunArgumentsWithoutExclusions(prefix, parseCleanRegion(region, []), runIn);
+/// ```
+fn dry_run_without_exclusions(
+    prefix: &[std::ffi::OsString],
+    region: &[std::ffi::OsString],
+    run_in: &std::path::Path,
+) -> Option<CleanDryRun> {
+    let facts: CleanRegion = parse_clean_region(region, &[]).ok()?;
+    return clean_dry_run_arguments_without_exclusions(prefix, &facts, run_in);
 }
 
 /// Dry runs in long,
@@ -238,7 +279,7 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
         vec!["-fX", "--excl", "notes.txt"],
     ] {
         let region: Vec<std::ffi::OsString> = os_arguments(spelling.as_slice());
-        let query: CleanDryRun = clean_dry_run_arguments(&[], region.as_slice(), run_in).expect("Git accepts the region");
+        let query: CleanDryRun = dry_run_with(&[], region.as_slice(), run_in).expect("Git accepts the region");
         assert_eq!(query.run_in, PathBuf::from("/work/here"), "{spelling:?}");
         assert_eq!(
             query.arguments,
@@ -250,7 +291,7 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
     let region: Vec<std::ffi::OsString> =
         os_arguments(&["-ffdX", "-i", "-q", "-e", "one", "-e", "two", "--", "sub", "other"]);
     assert_eq!(
-        clean_dry_run_arguments(&[], region.as_slice(), run_in),
+        dry_run_with(&[], region.as_slice(), run_in),
         Some(CleanDryRun {
             run_in: PathBuf::from("/work/here"),
             arguments: os_arguments(&[
@@ -273,17 +314,20 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
     );
     // A clean that deletes untracked files as well keeps its own mode, and one that names neither has no mode.
     assert_eq!(
-        clean_dry_run_arguments(&[], os_arguments(&["-fx"]).as_slice(), run_in),
+        dry_run_with(&[], os_arguments(&["-fx"]).as_slice(), run_in),
         Some(CleanDryRun {
             run_in: PathBuf::from("/work/here"),
             arguments: os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-x", "--"]),
         })
     );
+    // A clean with no force is one Git may refuse before it reads anything, so the dry run carries no force of its
+    //  own: `git clean -Xd` under the default `clean.requireForce` exits 128 and deletes nothing, while
+    //  `git clean -n -X` lists without a word (measured on this host with native Git 2.56.0, 2026-11-14).
     assert_eq!(
-        clean_dry_run_arguments(&[], os_arguments(&["-d"]).as_slice(), run_in),
+        dry_run_with(&[], os_arguments(&["-d"]).as_slice(), run_in),
         Some(CleanDryRun {
             run_in: PathBuf::from("/work/here"),
-            arguments: os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "--"]),
+            arguments: os_arguments(&["--no-optional-locks", "clean", "-n", "-d", "--"]),
         })
     );
     // Both ignored modes together are Git's own refusal, so the rebuilt reading carries both and meets it too: a reading
@@ -301,30 +345,31 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
     ] {
         let written: Vec<std::ffi::OsString> = os_arguments(spelling.as_slice());
         let query: CleanDryRun =
-            clean_dry_run_arguments(&[], written.as_slice(), run_in).expect("the region parses");
+            dry_run_with(&[], written.as_slice(), run_in).expect("the region parses");
         assert_eq!(query.run_in, PathBuf::from("/work/here"), "{spelling:?}");
         assert_eq!(query.arguments, os_arguments(expected.as_slice()), "{spelling:?}");
     }
     // A region Git refuses is nothing to ask about.
-    assert_eq!(clean_dry_run_arguments(&[], os_arguments(&["--no-such-option"]).as_slice(), run_in), None);
+    assert_eq!(dry_run_with(&[], os_arguments(&["--no-such-option"]).as_slice(), run_in), None);
     // The same clean without its own patterns is the second reading: every fact is the same but each `-e` pattern,
     //  and a `-e` in a clustered short option goes with the whole cluster.
     assert_eq!(
-        clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["-fdX", "-e", "notes.txt"]).as_slice(), run_in),
+        dry_run_without_exclusions(&[], os_arguments(&["-fdX", "-e", "notes.txt"]).as_slice(), run_in),
         Some(CleanDryRun {
             run_in: PathBuf::from("/work/here"),
             arguments: os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "-X", "--"]),
         })
     );
+    // No force is written when the person wrote none, for the reason the row above gives.
     assert_eq!(
-        clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["--exclude=notes.txt"]).as_slice(), run_in),
+        dry_run_without_exclusions(&[], os_arguments(&["--exclude=notes.txt"]).as_slice(), run_in),
         Some(CleanDryRun {
             run_in: PathBuf::from("/work/here"),
-            arguments: os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "--"]),
+            arguments: os_arguments(&["--no-optional-locks", "clean", "-n", "--"]),
         })
     );
     assert_eq!(
-        clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["--no-such-option"]).as_slice(), run_in),
+        dry_run_without_exclusions(&[], os_arguments(&["--no-such-option"]).as_slice(), run_in),
         None
     );
 }
@@ -366,8 +411,8 @@ fn a_dry_run_starts_where_the_clean_runs() {
         "-n",
     ]);
     for reading in [
-        clean_dry_run_arguments(prefix.as_slice(), region.as_slice(), run_in),
-        clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region.as_slice(), run_in),
+        dry_run_with(prefix.as_slice(), region.as_slice(), run_in),
+        dry_run_without_exclusions(prefix.as_slice(), region.as_slice(), run_in),
     ] {
         let query: CleanDryRun = reading.expect("Git accepts the region");
         assert_eq!(query.run_in, PathBuf::from("/worktree/top"), "{query:?}");
@@ -380,7 +425,7 @@ fn a_dry_run_starts_where_the_clean_runs() {
     // Every `-C` the caller wrote goes, so Git moves once and not twice.
     let twice: Vec<std::ffi::OsString> = os_arguments(&["-C", "below", "-C", "../elsewhere"]);
     let query: CleanDryRun =
-        clean_dry_run_arguments(twice.as_slice(), region.as_slice(), run_in).expect("Git accepts the region");
+        dry_run_with(twice.as_slice(), region.as_slice(), run_in).expect("Git accepts the region");
     assert_eq!(query.run_in, PathBuf::from("/worktree/top"));
     assert!(
         !query.arguments.iter().any(|token| {
@@ -392,7 +437,7 @@ fn a_dry_run_starts_where_the_clean_runs() {
     // A value that spells an option is a value: only the `-C` before it goes, and the option it names stays.
     let tricky: Vec<std::ffi::OsString> = os_arguments(&["-C", "--literal-pathspecs", "--no-pager"]);
     assert_eq!(
-        clean_dry_run_arguments(tricky.as_slice(), region.as_slice(), run_in),
+        dry_run_with(tricky.as_slice(), region.as_slice(), run_in),
         Some(CleanDryRun {
             run_in: PathBuf::from("/worktree/top"),
             arguments: os_arguments(&[
@@ -508,11 +553,11 @@ fn the_dry_run_sees_the_exclusion_the_status_cannot() {
             .unwrap_or_else(|why| { panic!("{why}: {}", String::from_utf8_lossy(started.stderr.as_slice())) });
     };
     let typed: Vec<Vec<u8>> = read(
-        clean_dry_run_arguments(&[], os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice(), root.as_path())
+        dry_run_with(&[], os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice(), root.as_path())
             .expect("Git accepts the region"),
     );
     let otherwise: Vec<Vec<u8>> = read(
-        clean_dry_run_arguments_without_exclusions(
+        dry_run_without_exclusions(
             &[],
             os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice(),
             root.as_path(),

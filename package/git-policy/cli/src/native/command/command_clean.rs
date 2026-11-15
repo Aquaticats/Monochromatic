@@ -158,6 +158,13 @@ pub struct CleanRegion {
     /// The patterns `-e`/`--exclude` added to the ignore rules this clean applies,
     ///  exactly as their bytes were written.
     pub exclusions: Vec<Vec<u8>>,
+    /// What:
+    ///  The paths the clean names,
+    ///  each exactly as the person wrote it.
+    /// Why:
+    ///  The dry run is rebuilt from these facts and written with `--` before them,
+    ///  so a path that looks like an option stays a path.
+    pub paths: Vec<OsString>,
     /// Wrapper-only flags in option position;
     ///  `escape` is `--no-enforce-worktree`.
     pub wrapper: WrapperFlags,
@@ -221,8 +228,31 @@ pub fn parse_clean_region(
         descends: is_enabled(&parsed, DIRECTORIES),
         forces,
         exclusions,
+        paths: paths_of(&parsed, region),
         wrapper: split_wrapper_flags(parsed.wrapper.as_slice()),
     });
+}
+
+/// What:
+///  The paths one region names,
+///  in the order the person wrote them.
+/// Why:
+///  Every non-option token of a clean is a path,
+///  and the rebuilt dry run writes them after `--`,
+///  so how many forces the clean carries and which paths it names are read once, from one parse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paths = (parsed, region) => positionalTokens(parsed, region.length).map((i) => region[i]);
+/// ```
+fn paths_of(parsed: &ParsedOptions, region: &[OsString]) -> Vec<OsString> {
+    let mut paths: Vec<OsString> = Vec::<OsString>::new();
+    for index in positional_tokens(parsed, region.len()) {
+        if let Some(token) = region.get(index) {
+            paths.push(token.clone());
+        }
+    }
+    return paths;
 }
 
 /// What:
@@ -289,8 +319,8 @@ pub struct CleanDryRun {
 /// ```ts
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[], runIn: string): CleanDryRun | undefined;
 /// ```
-pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString], run_in: &Path) -> Option<CleanDryRun> {
-    return dry_run_arguments(global_prefix, region, run_in, true);
+pub fn clean_dry_run_arguments(global_prefix: &[OsString], facts: &CleanRegion, run_in: &Path) -> Option<CleanDryRun> {
+    return dry_run_arguments(global_prefix, facts, run_in, true);
 }
 
 /// What:
@@ -307,8 +337,8 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString], 
 /// ```ts
 /// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[], runIn: string): CleanDryRun | undefined;
 /// ```
-pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString], run_in: &Path) -> Option<CleanDryRun> {
-    return dry_run_arguments(global_prefix, region, run_in, false);
+pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], facts: &CleanRegion, run_in: &Path) -> Option<CleanDryRun> {
+    return dry_run_arguments(global_prefix, facts, run_in, false);
 }
 
 /// What:
@@ -344,54 +374,48 @@ pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], re
 /// ```
 fn dry_run_arguments(
     global_prefix: &[OsString],
-    region: &[OsString],
+    facts: &CleanRegion,
     run_in: &Path,
     with_exclusions: bool,
 ) -> Option<CleanDryRun> {
-    // The region Git refuses is nothing to ask about; the `?` is that refusal.
-    let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
-    let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
-    let ignored_only: bool = is_enabled(&parsed, IGNORED_ONLY);
-    let descends: bool = is_enabled(&parsed, DIRECTORIES);
-    let mut forces: usize = 0;
-    let mut exclusions: Vec<&[u8]> = Vec::<&[u8]>::new();
-    for occurrence in &parsed.occurrences {
-        if occurrence.id == FORCE && !occurrence.negated {
-            forces += 1;
-        }
-        if with_exclusions
-            && occurrence.id == EXCLUDE
-            && let Some(value) = occurrence.value
-        {
-            exclusions.push(value_bytes(region, value));
-        }
-    }
     let mut arguments: Vec<OsString> = without_directory_changes(global_prefix);
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
-    for _ in 0..forces {
+    // What:
+    //  The force count the person typed, from the one reading of the region.
+    // Why:
+    //  `-f` is a counted option and `--no-force` resets it (`OPTION_COUNTUP`,
+    //  `parse-options.h:568-569`), so `git clean -f --no-force -f -X -d` carries one force while two
+    //  positive spellings are there;
+    //  a rebuild that counted the positive spellings alone made Git's dry run report a repository the clean
+    //  keeps as removed, and the wrapper moved that repository aside
+    //  (the seventh review, reproduced here).
+    for _ in 0..facts.forces {
         arguments.push(OsString::from("-f"));
     }
-    if descends {
+    if facts.descends {
         arguments.push(OsString::from("-d"));
     }
     // Every ignored-mode token the person wrote is written too, in Git's own order: `git clean` refuses `-x` with `-X`
     //  inside its own process (`cmd_clean`), and a rebuilt reading that dropped one of them succeeded where the command
     //  the person typed cannot, so the wrapper moved a repository for a clean Git never ran.
+    let include_ignored: bool = facts.deletes_ignored && !facts.ignored_only;
     if include_ignored {
         arguments.push(OsString::from("-x"));
     }
-    if ignored_only {
+    if facts.ignored_only || facts.both_ignored_modes {
         arguments.push(OsString::from("-X"));
     }
-    for pattern in exclusions {
-        arguments.push(OsString::from("-e"));
-        arguments.push(bytes_argument(pattern));
+    if with_exclusions {
+        for pattern in &facts.exclusions {
+            arguments.push(OsString::from("-e"));
+            arguments.push(bytes_argument(pattern.as_slice()));
+        }
     }
     arguments.push(OsString::from("--"));
-    for index in positional_tokens(&parsed, region.len()) {
-        arguments.push(region[index].clone());
+    for path in &facts.paths {
+        arguments.push(path.clone());
     }
     return Some(CleanDryRun { run_in: run_in.to_path_buf(), arguments });
 }

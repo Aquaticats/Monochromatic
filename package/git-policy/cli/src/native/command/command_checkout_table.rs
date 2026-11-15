@@ -68,6 +68,12 @@ pub const DISCARD_CHANGES: u16 = 11;
 /// the paths come from a file,
 /// so the command is the path form.
 pub const PATHSPEC_FROM_FILE: u16 = 12;
+/// `--pathspec-file-nul`:
+/// that file separates its entries with NUL bytes.
+pub const PATHSPEC_FILE_NUL: u16 = 13;
+/// `--ignore-skip-worktree-bits`:
+/// the person asks Git to write the files a `skip-worktree` mark names.
+pub const IGNORE_SKIP_WORKTREE_BITS: u16 = 14;
 
 /// What:
 ///  `git checkout`:
@@ -127,7 +133,7 @@ pub const CHECKOUT_TABLE: &[OptionSpec] = &[
         false,
     ),
     row(
-        UNREAD,
+        IGNORE_SKIP_WORKTREE_BITS,
         None,
         Some("ignore-skip-worktree-bits"),
         Arity::None,
@@ -140,7 +146,7 @@ pub const CHECKOUT_TABLE: &[OptionSpec] = &[
         Arity::Required,
         true,
     ),
-    row(UNREAD, None, Some("pathspec-file-nul"), Arity::None, true),
+    row(PATHSPEC_FILE_NUL, None, Some("pathspec-file-nul"), Arity::None, true),
 ];
 
 /// What:

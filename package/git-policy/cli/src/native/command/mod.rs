@@ -116,6 +116,21 @@ pub(crate) mod command_branch_target;
 /// The complete Git 2.56.0 option tables of `git checkout` and `git switch`.
 pub mod command_checkout_table;
 
+/// The complete Git 2.56.0 option table of `git restore`.
+pub mod command_restore_table;
+
+/// The complete Git 2.56.0 option table of `git rm`.
+pub mod command_rm_table;
+
+/// The complete Git 2.56.0 option table of `git mv`.
+pub mod command_mv_table;
+
+/// The complete Git 2.56.0 option table of `git checkout-index`.
+pub mod command_checkout_index_table;
+
+/// The complete Git 2.56.0 option table of `git worktree remove`.
+pub mod command_worktree_remove_table;
+
 /// The Git 2.56.0 option groups of `git config`.
 pub mod command_config_table;
 

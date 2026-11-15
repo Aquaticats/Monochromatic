@@ -187,9 +187,50 @@ fn each_form_asks_about_the_state_it_can_destroy() {
     }
 }
 
+/// What:
+///  A word no option table of its subcommand holds is refused,
+///  and the refusal names that word.
+/// Why:
+///  The tables are Git 2.56.0's own;
+///  a word outside them is one whose value and meaning the guard cannot know,
+///  so reading it as harmless is a guess.
+///  `git rm -f --pathspec-from-file --no-force` is the loss that guess let through:
+///  the file named `--no-force` turned the guard's force reading off while Git kept the force on
+///  (the seventh review, reproduced here).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decide(['rm', '--no-such-option']) === { kind: 'unreadable-option', command: 'remove', written: '--no-such-option' };
+/// ```
+#[test]
+fn an_option_no_table_holds_is_refused_naming_it() {
+    for (values, command, written) in [
+        (vec!["rm", "--no-such-option"], GuardedCommand::Remove, "--no-such-option"),
+        (vec!["mv", "--no-such-option", "a", "b"], GuardedCommand::Move, "--no-such-option"),
+        (vec!["checkout-index", "--no-such-option"], GuardedCommand::CheckoutIndex, "--no-such-option"),
+        (vec!["restore", "--no-such-option"], GuardedCommand::RestoreWorktree, "--no-such-option"),
+        (vec!["restore", "--he"], GuardedCommand::RestoreWorktree, "--he"),
+        (vec!["read-tree", "--merge", "HEAD"], GuardedCommand::ReadTree, "--merge"),
+        (vec!["checkout", "--no-such-option"], GuardedCommand::CheckoutPaths, "--no-such-option"),
+        (vec!["switch", "--no-such-option"], GuardedCommand::SwitchForce, "--no-such-option"),
+        (vec!["clean", "--no-such-option"], GuardedCommand::Clean, "--no-such-option"),
+        (vec!["reset", "--hard", "--no-such-option"], GuardedCommand::ResetHard, "--no-such-option"),
+    ] {
+        assert_eq!(
+            decide(values.as_slice()),
+            LinkedWorktreeDecision::UnreadableOption {
+                command,
+                written: std::ffi::OsString::from(written),
+            },
+            "{values:?}"
+        );
+    }
+    // A global option before the subcommand is Git's, not this guard's, and one of those passes as it always did.
+    assert_eq!(decide(&["--no-such-global", "reset", "--hard"]), LinkedWorktreeDecision::Pass);
+}
+
 /// Other commands,
-///  dry runs,
-///  index-only resets and regions Git refuses pass without a measurement.
+///  dry runs and index-only resets pass without a measurement.
 #[test]
 fn harmless_forms_pass() {
     for values in [
@@ -224,12 +265,6 @@ fn harmless_forms_pass() {
         vec!["read-tree", "-n", "-m", "-u", "HEAD"],
         vec!["read-tree", "--dry-run", "--reset", "-u", "HEAD"],
         vec!["read-tree", "--debug-unpack", "-m", "-u", "HEAD"],
-        vec!["read-tree", "--merge", "HEAD"],
-        vec!["checkout", "--no-such-option"],
-        vec!["switch", "--no-such-option"],
-        vec!["clean", "--no-such-option"],
-        vec!["reset", "--hard", "--no-such-option"],
-        vec!["--no-such-global", "reset", "--hard"],
     ] {
         assert_eq!(
             decide(values.as_slice()),

@@ -20,23 +20,37 @@
 //! with `-u`,
 //! worktree files,
 //!  so each is read as what it writes.
-//! Each region is read as Git 2.56.0 reads it,
+//! Each region is read from the command's own option table through one tokenizer,
 //! so a spelling
 //!  Git accepts as `--force` is not missed and a value that looks like a flag is not mistaken for one.
+//!  The tables are `command_checkout_table`,
+//!  `command_restore_table`,
+//!  `command_rm_table`,
+//!  `command_mv_table`,
+//!  `command_checkout_index_table` and the read-tree table below.
 //! Gotcha:
 //!  Where Git itself refuses the region the answer is the refusal;
 //! the caller lets Git say so.
+//!  An option no table holds is different:
+//!  it is a word the guard cannot read,
+//!  so the caller refuses the command and names it rather than guessing what it writes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // checkoutDiscard(['--', 'a.txt']) === 'overwrites'; checkoutDiscard(['topic']) === 'moves-head'
 //! ```
 
-use crate::command_checkout_table::{
-    CHECKOUT_TABLE, DISCARD_CHANGES, FORCE, PATCH, PATHSPEC_FROM_FILE, STAGE, SWITCH_TABLE,
+use crate::command_checkout_index_table::{
+    CHECKOUT_INDEX_FORCE, CHECKOUT_INDEX_TABLE,
 };
+use crate::command_checkout_table::{CHECKOUT_TABLE, DISCARD_CHANGES, FORCE, PATCH, PATHSPEC_FROM_FILE, STAGE, SWITCH_TABLE};
+use crate::command_mv_table::{MV_DRY_RUN, MV_FORCE, MV_TABLE};
 use crate::command_options::{Arity, Boundary, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options, row, UNREAD};
 use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
+use crate::command_restore_table::{
+    RESTORE_IGNORE_SKIP_WORKTREE_BITS, RESTORE_STAGED, RESTORE_TABLE, RESTORE_WORKTREE,
+};
+use crate::command_rm_table::{RM_CACHED, RM_DRY_RUN, RM_FORCE, RM_SPARSE, RM_TABLE};
 use std::ffi::OsString;
 
 /// The `--dry-run` row of `git read-tree`:
@@ -183,7 +197,7 @@ pub fn checkout_discard(region: &[OsString]) -> Result<Discard, OptionError> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function switchDiscard(region: string[]): Discard; // throws OptionError
+/// function switchDiscard(region: string[]): Discard;
 /// ```
 pub fn switch_discard(region: &[OsString]) -> Result<Discard, OptionError> {
     let parsed: ParsedOptions = parse_options(region, SWITCH_TABLE, DEFAULT_MODE, &[])?;
@@ -196,214 +210,34 @@ pub fn switch_discard(region: &[OsString]) -> Result<Discard, OptionError> {
     return Ok(Discard::Harmless);
 }
 
-/// The tokens a flag scan reads:
-/// everything before the first `--`.
-///  A value after `--` is a path,
-/// never an option.
-fn options_of(region: &[OsString]) -> Vec<&[u8]> {
-    let mut tokens: Vec<&[u8]> = Vec::<&[u8]>::new();
-    for token in region {
-        let bytes: &[u8] = token.as_encoded_bytes();
-        if bytes == b"--" {
-            break;
-        }
-        tokens.push(bytes);
-    }
-    return tokens;
-}
-
-/// Whether a byte separates an option's name from its inline value.
-fn is_equals(byte: &u8) -> bool {
-    return *byte == b'=';
-}
-
-/// The long option names of `git rm` (`builtin/rm.c`, `builtin.h`).
-/// Why:
-///   Git accepts a prefix of a long option only while no other option of the same command starts
-///  the same way,
-///  so the sibling names are what decides whether `--f` is `--force` or nothing.
-pub const RM_LONG_OPTIONS: &[&str] = &[
-    "cached",
-    "force",
-    "dry-run",
-    "ignore-unmatch",
-    "quiet",
-    "sparse",
-    "pathspec-from-file",
-    "pathspec-file-nul",
-];
-
-/// The long option names of `git mv`.
-pub const MV_LONG_OPTIONS: &[&str] = &["force", "verbose", "dry-run", "sparse"];
-
-/// The long option names of `git worktree remove`.
-pub const WORKTREE_REMOVE_LONG_OPTIONS: &[&str] = &["force", "dry-run"];
-
-/// The long option names of `git checkout-index`.
-pub const CHECKOUT_INDEX_LONG_OPTIONS: &[&str] = &[
-    "all",
-    "force",
-    "prefix",
-    "stage",
-    "index",
-    "quiet",
-    "no-create",
-    "temp",
-    "stdin",
-];
-
-/// The long option names of `git restore` (`builtin/checkout.c`, `checkout_options` and `switch_options`).
-pub const RESTORE_LONG_OPTIONS: &[&str] = &[
-    "source",
-    "staged",
-    "worktree",
-    "patch",
-    "ours",
-    "theirs",
-    "merge",
-    "conflict",
-    "ignore-unmerged",
-    "overlay",
-    "no-overlay",
-    "quiet",
-    "progress",
-    "no-progress",
-    "help",
-    "recurse-submodules",
-    "no-recurse-submodules",
-    "pathspec-from-file",
-    "pathspec-file-nul",
-];
-
-/// The shortest spelling of `--abort` Git accepts:
-/// `--ab`.
-/// Why:
-///   Every command that reads `--abort` (`merge`,
-/// `rebase`,
-/// `cherry-pick`,
-/// `revert` and `am`) accepts that prefix,
-///  and no one of them names another long option starting with `ab`,
-///  so the two-figure prefix after the dashes is where their tables stop being ambiguous
-///  (measured on this host with Git 2.56.0:
-///  each takes `--ab` and refuses `--a` as ambiguous, 2026-11-12).
-pub const SHORTEST_ABORT: usize = 4;
-
-/// The shortest spelling of `--skip` Git accepts:
-/// `--sk`.
-/// Why:
-///   The four commands that read `--skip` (`rebase`,
-/// `cherry-pick`,
-/// `revert` and `am`) accept that prefix and refuse `--s` as ambiguous,
-///  with the options they each carry beside it,
-///  so the two-figure prefix after the dashes is where their tables stop being ambiguous
-///  (measured on this host with native Git 2.56.0, 2026-11-13).
-pub const SHORTEST_SKIP: usize = 4;
-
 /// What:
-///  Whether a token spells the long option `wanted` by a spelling Git accepts for the command whose
-///  other long option names are `siblings`,
-/// with or without an `=value`.
+///  What one `git restore` region does,
+///  read from its own table.
+///  A `struct` is a record with named fields.
 /// Why:
-///   Git accepts every unambiguous prefix of a long option (`parse-options.c`, `parse_long_opt`):
-/// `--f` reaches `--force` where `--force` is the only name starting that way,
-/// while `--s` is ambiguous among `--source` and `--staged` and is no option at all.
-///  A hand-picked minimum length is what let `rm --f`,
-///  `mv --f` and `checkout-index --f` through the guard while Git ran them as `--force`,
-///  so the rule is Git's own and the sibling names come from the command's table.
-///  An exact spelling wins over every prefix, as it does in Git.
+///   Every restore form writes worktree files,
+///  the index,
+///  or both,
+///  so the only question left is which of the two,
+///  and whether the person asked Git to write the files a `skip-worktree` mark names;
+///  both answers come from the same parse,
+///  so the flag reading and the scope reading cannot disagree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function spellsLong(token: string, wanted: string, siblings: string[]): boolean;
+/// type RestoreReading = { discard: Discard; stagedOnly: boolean; ignoreSkipWorktreeBits: boolean };
 /// ```
-pub(crate) fn spells_long(token: &[u8], wanted: &str, siblings: &[&str]) -> bool {
-    if !token.starts_with(b"--") {
-        return false;
-    }
-    let written: &[u8] = token.split(is_equals).next().unwrap_or_default();
-    let name: &[u8] = &written[b"--".len()..];
-    if name == wanted.as_bytes() {
-        return true;
-    }
-    let mut matched: Vec<&str> = Vec::<&str>::new();
-    for sibling in siblings {
-        if sibling.as_bytes().starts_with(name) {
-            matched.push(sibling);
-        }
-    }
-    return matched.len() == 1 && matched[0] == wanted;
-}
-
-/// What:
-///  The state one token gives a boolean long option,
-///  negation included,
-///  or nothing when the token is not that option.
-///  `Option<bool>` is "on, off, or not this option".
-/// Why:
-///  Git accepts `--no-<name>` for every boolean option that is not `PARSE_OPT_NONEG`,
-///  and an option written twice is the last one:
-///  `git rm -f --no-force` is an unforced removal and `git rm --no-force -f` a forced one
-///  (`OPT__FORCE` is `OPTION_COUNTUP`, whose negation resets the count; measured on this host with
-///  native Git 2.56.0,
-///  2026-11-15).
-///  A scan that stopped at the first `-f` read the second spelling as forced,
-///  which refuses a whole class of commands Git runs.
-///  `wanted` is the option's own name and `siblings` the command's other long names,
-///  because Git accepts a prefix only while no sibling starts the same way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const state = (token, 'force', RM_LONG_OPTIONS); // true | false | undefined
-/// ```
-pub(crate) fn long_option_state(token: &[u8], wanted: &str, siblings: &[&str]) -> Option<bool> {
-    if !token.starts_with(b"--") {
-        return None;
-    }
-    let written: &[u8] = token.split(is_equals).next().unwrap_or_default();
-    let name: &[u8] = &written[b"--".len()..];
-    if name == wanted.as_bytes() {
-        return Some(true);
-    }
-    // `--no-<name>`: Git reads it as the same option turned off, and the negation must not be an
-    //  ambiguous prefix of anything else the command has.
-    if let Some(negated) = name.strip_prefix(b"no-")
-        && !negated.is_empty()
-    {
-        let mut matched: Vec<&str> = Vec::<&str>::new();
-        for sibling in siblings {
-            if sibling.as_bytes().starts_with(negated) {
-                matched.push(sibling);
-            }
-        }
-        if matched.len() == 1 && matched[0] == wanted {
-            return Some(false);
-        }
-        return None;
-    }
-    let mut matched: Vec<&str> = Vec::<&str>::new();
-    for sibling in siblings {
-        if sibling.as_bytes().starts_with(name) {
-            matched.push(sibling);
-        }
-    }
-    if matched.len() == 1 && matched[0] == wanted {
-        return Some(true);
-    }
-    return None;
-}
-
-/// What:
-///  Whether a token is a cluster of short flags that contains `letter`.
-/// Why:
-///   `-rf` and `-fr` are `-r -f` in every command read by a flag scan,
-/// none of whose short flags takes a value.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function hasShort(token: string, letter: string): boolean;
-/// ```
-fn has_short(token: &[u8], letter: u8) -> bool {
-    return token.len() > 1 && token[0] == b'-' && token[1] != b'-' && token[1..].contains(&letter);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RestoreReading {
+    /// What the region does to uncommitted state.
+    pub discard: Discard,
+    /// `--staged` without `--worktree`:
+    ///  the index alone is written and the files stay.
+    pub staged_only: bool,
+    /// `--ignore-skip-worktree-bits`:
+    ///  the person asked for the files the mark names,
+    ///  so the mark hides no loss of theirs.
+    pub ignore_skip_worktree_bits: bool,
 }
 
 /// What:
@@ -413,116 +247,146 @@ fn has_short(token: &[u8], letter: u8) -> bool {
 /// the index,
 /// or both;
 /// only a request for usage text writes nothing.
+///  The tokenizer finds that request itself,
+///  and it knows which words are values:
+///  `git restore -s -h -- a.txt` restores the branch `-h`,
+///  whose word a scan for a help flag took for the request and let the edit go
+///  (the seventh review, reproduced here).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function restoreDiscard(region: string[]): Discard;
+/// restoreReading(['-s', '-h', '--', 'a.txt']) === { discard: 'overwrites', stagedOnly: false, ignoreSkipWorktreeBits: false };
 /// ```
-pub fn restore_discard(region: &[OsString]) -> Discard {
-    for token in options_of(region) {
-        if token == b"-h" || spells_long(token, "help", RESTORE_LONG_OPTIONS) {
-            return Discard::Harmless;
-        }
-    }
-    return Discard::Overwrites;
+pub fn restore_reading(region: &[OsString]) -> Result<RestoreReading, OptionError> {
+    let parsed: ParsedOptions = parse_options(region, RESTORE_TABLE, DEFAULT_MODE, &[])?;
+    let staged: bool = is_enabled(&parsed, RESTORE_STAGED);
+    let worktree: bool = is_enabled(&parsed, RESTORE_WORKTREE);
+    return Ok(RestoreReading {
+        discard: Discard::Overwrites,
+        staged_only: staged && !worktree,
+        ignore_skip_worktree_bits: is_enabled(&parsed, RESTORE_IGNORE_SKIP_WORKTREE_BITS),
+    });
 }
 
 /// What:
-///  Whether a `git restore` region touches the index only.
+///  What one `git rm` region does,
+///  read from its own table.
 /// Why:
-///   `--staged` alone unstages and leaves the files,
-/// so the guidance differs from a restore of file content;
-///  `--worktree` beside it brings the files back in.
-/// `--st` and `--w` are the shortest unambiguous prefixes.
-/// A token that
-///  is the value of `--source`,
-/// `-s` or `--conflict` is that value and never a flag (`restore --source -W --staged` names
-///  a revision `-W` and restores the index only).
+///   A removal deletes an edited file when it carries a force,
+///  and it also deletes the edit a `skip-worktree` mark hides when it carries `--sparse` without
+///  `--cached`
+///  (`git rm --sparse s.txt` exits 0 and the edited `s.txt` is gone,
+///  while `git rm s.txt` refuses and keeps it,
+///  measured on this host with native Git 2.56.0, 2026-11-14),
+///  so a caller that guards the forced form needs the second answer as well.
+///  `--dry-run` removes nothing at all.
+///  Both answers come from the same parse,
+///  so a word of one is never read as a value by the other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function restoresIndexOnly(region: string[]): boolean;
+/// type RemoveReading = { discard: Discard; reachesASkippedEdit: boolean };
 /// ```
-pub fn restores_index_only(region: &[OsString]) -> bool {
-    let tokens: Vec<&[u8]> = options_of(region);
-    let mut staged: bool = false;
-    let mut worktree: bool = false;
-    let mut at: usize = 0;
-    while at < tokens.len() {
-        let token: &[u8] = tokens[at];
-        at += 1;
-        if token.starts_with(b"--") {
-            if spells_long(token, "staged", RESTORE_LONG_OPTIONS) {
-                staged = true;
-            }
-            if spells_long(token, "worktree", RESTORE_LONG_OPTIONS) {
-                worktree = true;
-            }
-            // `--source <tree>` and `--conflict <style>` take the next token as their value, whatever it looks like.
-            if !token.contains(&b'=')
-                && (spells_long(token, "source", RESTORE_LONG_OPTIONS) || spells_long(token, "conflict", RESTORE_LONG_OPTIONS))
-            {
-                at += 1;
-            }
-            continue;
-        }
-        if token.len() > 1 && token[0] == b'-' {
-            // A short cluster is read letter by letter; `s` takes the rest of the token as its value, or the next token
-            // when it ends the cluster, so nothing after it in the same token is a flag.
-            for (position, letter) in token[1..].iter().enumerate() {
-                match *letter {
-                    b'S' => staged = true,
-                    b'W' => worktree = true,
-                    b's' => {
-                        if position + 2 == token.len() {
-                            at += 1;
-                        }
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-    return staged && !worktree;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RemoveReading {
+    /// What the region does to uncommitted state.
+    pub discard: Discard,
+    /// `--sparse` without `--cached`:
+    ///  Git reaches the entries its sparse rules hide,
+    ///  and the edit a `skip-worktree` mark names is one of them.
+    pub reaches_a_skipped_edit: bool,
 }
 
 /// What:
-///  Read a `git rm`,
-/// `git mv` or `git checkout-index` region.
+///  Read a `git rm` region.
 /// Why:
-///   Each refuses to overwrite or delete a modified file unless forced;
-/// `-f` and `--force` are the only way
-///  these commands discard.
-/// `--fo` is the shortest prefix of `--force` in all three.
+///   An unforced removal refuses a modified file itself,
+/// so only a force discards by the person's instruction,
+/// and a dry run discards nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function forceDiscard(word: string, region: string[]): Discard;
+/// removeReading(['-f', '--pathspec-from-file', '--no-force']).discard === 'overwrites';
 /// ```
-pub fn force_discard(word: &[u8], region: &[OsString]) -> Discard {
-    let siblings: &[&str] = match word {
-        b"mv" => MV_LONG_OPTIONS,
-        b"checkout-index" => CHECKOUT_INDEX_LONG_OPTIONS,
-        b"worktree" => WORKTREE_REMOVE_LONG_OPTIONS,
-        _ => RM_LONG_OPTIONS,
-    };
-    // An option written twice is the last one, and `--no-force` turns it off (`OPTION_COUNTUP`):
-    //  a scan that stopped at the first `-f` read `git rm -f --no-force` as forced.
-    let mut forced: bool = false;
-    for token in options_of(region) {
-        if has_short(token, b'f') {
-            forced = true;
+pub fn remove_reading(region: &[OsString]) -> Result<RemoveReading, OptionError> {
+    let parsed: ParsedOptions = parse_options(region, RM_TABLE, DEFAULT_MODE, &[])?;
+    let forced: bool = counted_force_is_on(&parsed, RM_FORCE);
+    let dry_run: bool = is_enabled(&parsed, RM_DRY_RUN);
+    let sparse: bool = is_enabled(&parsed, RM_SPARSE);
+    let cached: bool = is_enabled(&parsed, RM_CACHED);
+    return Ok(RemoveReading {
+        discard: if forced && !dry_run { Discard::Overwrites } else { Discard::Harmless },
+        reaches_a_skipped_edit: sparse && !cached,
+    });
+}
+
+/// What:
+///  Read a `git mv` region.
+/// Why:
+///   A move refuses to write over an existing destination unless it carries a force,
+///  and `--dry-run` moves nothing:
+///  `git mv -f -n a.txt b.txt` reports the move and leaves both files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// moveDiscard(['-f', 'a.txt', 'b.txt']) === 'overwrites'; moveDiscard(['-f', '-n', 'a.txt', 'b.txt']) === 'harmless';
+/// ```
+pub fn move_reading(region: &[OsString]) -> Result<Discard, OptionError> {
+    let parsed: ParsedOptions = parse_options(region, MV_TABLE, DEFAULT_MODE, &[])?;
+    if counted_force_is_on(&parsed, MV_FORCE) && !is_enabled(&parsed, MV_DRY_RUN) {
+        return Ok(Discard::Overwrites);
+    }
+    return Ok(Discard::Harmless);
+}
+
+/// What:
+///  Read a `git checkout-index` region.
+/// Why:
+///   Without a force Git skips a file that already exists,
+///  so the force is the whole question:
+///  `git checkout-index -a` writes the files the worktree does not hold and leaves the ones it does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// checkoutIndexDiscard(['-f', '-a']) === 'overwrites'; checkoutIndexDiscard(['-a']) === 'harmless';
+/// ```
+pub fn checkout_index_reading(region: &[OsString]) -> Result<Discard, OptionError> {
+    let parsed: ParsedOptions = parse_options(region, CHECKOUT_INDEX_TABLE, DEFAULT_MODE, &[])?;
+    if counted_force_is_on(&parsed, CHECKOUT_INDEX_FORCE) {
+        return Ok(Discard::Overwrites);
+    }
+    return Ok(Discard::Harmless);
+}
+
+/// What:
+///  Whether the last spelling of a counted force option leaves it on.
+///  `&ParsedOptions` borrows the tokenized region,
+///  `u16` names the option's row.
+/// Why:
+///  `-f`/`--force` is `OPTION_COUNTUP` in every command that reads it here,
+///  so `--no-force` sets the count back to zero and a later `-f` raises it again:
+///  `git rm -f --no-force` is an unforced removal and `git rm --no-force -f` a forced one
+///  (`OPT__FORCE`, `parse-options.h:569`; measured on this host with native Git 2.56.0, 2026-11-15).
+///  A scan that counted the positive spellings alone read the first as forced,
+///  and a scan that stopped at the first `-f` read the second as unforced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forced = countup(parsed, RM_FORCE) > 0;
+/// ```
+fn counted_force_is_on(parsed: &ParsedOptions, id: u16) -> bool {
+    let mut count: usize = 0;
+    for occurrence in &parsed.occurrences {
+        if occurrence.id != id {
             continue;
         }
-        if let Some(state) = long_option_state(token, "force", siblings) {
-            forced = state;
+        if occurrence.negated {
+            count = 0;
+        } else {
+            count += 1;
         }
     }
-    if forced {
-        return Discard::Overwrites;
-    }
-    return Discard::Harmless;
+    return count > 0;
 }
 
 /// What:
@@ -592,14 +456,43 @@ pub fn read_tree_discard(region: &[OsString]) -> Result<Discard, OptionError> {
     return Ok(Discard::Overwrites);
 }
 
+/// The shortest spelling of `--abort` Git accepts:
+/// `--ab`.
+/// Why:
+///   Every command that reads `--abort` (`merge`,
+/// `rebase`,
+/// `cherry-pick`,
+/// `revert` and `am`) accepts that prefix,
+///  and no one of them names another long option starting with `ab`,
+///  so the two-figure prefix after the dashes is where their tables stop being ambiguous
+///  (measured on this host with Git 2.56.0:
+///  each takes `--ab` and refuses `--a` as ambiguous, 2026-11-12).
+pub const SHORTEST_ABORT: usize = 4;
+
+/// The shortest spelling of `--skip` Git accepts:
+/// `--sk`.
+/// Why:
+///   The four commands that read `--skip` (`rebase`,
+/// `cherry-pick`,
+/// `revert` and `am`) accept that prefix and refuse `--s` as ambiguous,
+///  with the options they each carry beside it,
+///  so the two-figure prefix after the dashes is where their tables stop being ambiguous
+///  (measured on this host with native Git 2.56.0, 2026-11-13).
+pub const SHORTEST_SKIP: usize = 4;
+
 /// What:
 ///  Whether a token spells the long option `wanted` by any abbreviation of at least `shortest` characters,
 /// with or without an `=value`.
 /// Why:
 ///   The five commands that read `--abort` all take `--ab` and refuse anything shorter,
-///  so the reading is that shortest spelling and not a per-command sibling table;
-///  `spells_long` above answers the force spelling,
-///  whose shortest form each command's own table decides.
+///  so the reading is that shortest spelling and not a per-command sibling table.
+///  This is the one reading that consumes no value on purpose:
+///  its question is whether a word is there at all,
+///  so it cannot miss the option it guards,
+///  and a word that is another option's value costs a refusal of a command Git runs,
+///  which is the safe direction
+///  (`git rebase --onto --abort` names the revision `--abort`;
+///  `SPEC.md`, "Discarding commands", records the limit).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -609,8 +502,33 @@ fn spells_long_from(token: &[u8], wanted: &str, shortest: usize) -> bool {
     if !token.starts_with(b"--") {
         return false;
     }
-    let name: &[u8] = token.split(is_equals).next().unwrap_or_default();
+    let name: &[u8] = token.split(|byte| return *byte == b'=').next().unwrap_or_default();
     return name.len() >= shortest && wanted.as_bytes().starts_with(&name[b"--".len()..]);
+}
+
+/// What:
+///  The tokens a presence scan reads:
+///  everything before the first `--`.
+///  A value after `--` is a path,
+/// never an option.
+/// Why:
+///  Only the abort and skip readings use this scan;
+///  every other reading asks its command's option table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wordsBeforeAPathList = (region) => region.slice(0, region.indexOf('--'));
+/// ```
+fn options_of(region: &[OsString]) -> Vec<&[u8]> {
+    let mut tokens: Vec<&[u8]> = Vec::<&[u8]>::new();
+    for token in region {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if bytes == b"--" {
+            break;
+        }
+        tokens.push(bytes);
+    }
+    return tokens;
 }
 
 /// What:
@@ -646,8 +564,7 @@ pub fn abort_discard(region: &[OsString]) -> Discard {
 ///   `--skip` drops the commit or patch the operation stopped at and goes on,
 ///  and the reset it makes over the worktree throws away the hand resolution of that conflict
 ///  (measured with Git 2.56.0 for every form).
-///  `--sk` is the shortest prefix no sibling option shares,
-///  which `spells_long` reads from the sibling names Git's own table holds.
+///  `--sk` is the shortest prefix no sibling option shares.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

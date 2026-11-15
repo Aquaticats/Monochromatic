@@ -12,12 +12,79 @@
 
 /// The readings and the argument builder.
 use super::{
-    Discard, abort_discard, checkout_discard, force_discard, previous_branch_expression,
-    read_tree_discard, restore_discard, restores_index_only, switch_discard,
+    Discard, abort_discard, checkout_discard, checkout_index_reading, move_reading, previous_branch_expression,
+    read_tree_discard, remove_reading, restore_reading, switch_discard,
 };
+use crate::command_options::{OptionError, OptionErrorKind};
 use crate::command_test_support::{fixture, git, git_status, os_arguments, remove, repository, repository_with_tracked_file};
 use std::path::{Path, PathBuf};
 use std::process::Output;
+
+/// What:
+///  What one spelled restore region does,
+///  with a usage request read as the harmless form it is.
+/// Why:
+///  The reading answers `Overwrites` for every form Git runs,
+///  and the tokenizer reports a usage request as its own answer;
+///  a control asks the question a person's command asks of that request, which is what it writes:
+///  nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const restoreDiscardOf = (values) => { const r = restoreReading(values); return 'discard' in r ? r.discard : harmlessWhenHelp(r) };
+/// ```
+fn restore_discard_of(values: &[&str]) -> Discard {
+    return match restore_reading(os_arguments(values).as_slice()) {
+        Ok(reading) => reading.discard,
+        Err(OptionError { kind: OptionErrorKind::HelpRequested, .. }) => Discard::Harmless,
+        Err(error) => panic!("{values:?}: {error}"),
+    };
+}
+
+/// What:
+///  Whether one spelled restore region writes the index alone.
+/// Why:
+///  The index-only answer is one field of the reading,
+///  so a control reads it the way the policy does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stagedOnlyOf = (values) => restoreReading(values).stagedOnly;
+/// ```
+fn staged_only_of(values: &[&str]) -> bool {
+    return restore_reading(os_arguments(values).as_slice()).expect("the region parses").staged_only;
+}
+
+fn force_reading_is_a_refusal(word: &str, region: &[std::ffi::OsString]) -> bool {
+    return match word {
+        "rm" => remove_reading(region).is_err(),
+        "mv" => move_reading(region).is_err(),
+        "checkout-index" => checkout_index_reading(region).is_err(),
+        other => panic!("no force reading for {other}"),
+    };
+}
+
+/// What:
+///  What one spelled force region does,
+///  read from the table of the word it belongs to.
+/// Why:
+///  Each of `rm`,
+///  `mv` and `checkout-index` has its own table,
+///  so a control asks each word the way the policy does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forceDiscardOf = (word, values) => word === 'rm' ? removeReading(values).discard : word === 'mv' ? moveReading(values) : checkoutIndexReading(values);
+/// ```
+fn force_discard_of(word: &str, values: &[&str]) -> Discard {
+    let region: Vec<std::ffi::OsString> = os_arguments(values);
+    return match word {
+        "rm" => remove_reading(region.as_slice()).expect("the region parses").discard,
+        "mv" => move_reading(region.as_slice()).expect("the region parses"),
+        "checkout-index" => checkout_index_reading(region.as_slice()).expect("the region parses"),
+        other => panic!("no force reading for {other}"),
+    };
+}
 
 /// Every read of a checkout region that Git accepts.
 #[test]
@@ -101,52 +168,94 @@ fn every_restore_form_overwrites_except_usage() {
         (vec!["--", "-h"], Discard::Overwrites),
         (vec!["-h"], Discard::Harmless),
         (vec!["--help"], Discard::Harmless),
-        (vec!["--he"], Discard::Harmless),
     ] {
         assert_eq!(
-            restore_discard(os_arguments(values.as_slice()).as_slice()),
+            restore_discard_of(values.as_slice()),
             expected,
             "{values:?}"
         );
     }
 }
 
-/// Force spells discard for `rm`,
-/// `mv` and `checkout-index`,
-/// in every cluster and every abbreviation Git's own table accepts,
-/// `--f` included.
+/// What:
+///  Force spells discard for `rm`,
+///  `mv` and `checkout-index`,
+///  in every cluster and every abbreviation Git's own table accepts,
+///  `--f` included.
+/// Why:
+///  Each word has its own table,
+///  so each is asked with the rows that table holds:
+///  `-r` is an `rm` option, `-k` an `mv` option, and `--prefix` a `checkout-index`
+///  option,
+///  and a word given an option its table does not hold is a region Git refuses.
+///  A dry run discards nothing in any of the three.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(forceDiscardOf('rm', ['-rf', 'dir'])).toBe('overwrites');
+/// ```
 #[test]
 fn force_in_any_spelling_overwrites() {
-    for word in ["rm", "mv", "checkout-index"] {
-        for (values, expected) in [
-            (vec![], Discard::Harmless),
-            (vec!["a.txt"], Discard::Harmless),
-            (vec!["-r", "--cached", "a.txt"], Discard::Harmless),
-            (vec!["-n", "-k", "a", "b"], Discard::Harmless),
-            (vec!["--prefix=force/", "-a"], Discard::Harmless),
-            (vec!["-f", "a.txt"], Discard::Overwrites),
-            (vec!["-rf", "dir"], Discard::Overwrites),
-            (vec!["-fr", "dir"], Discard::Overwrites),
-            (vec!["--force", "a.txt"], Discard::Overwrites),
-            (vec!["--forc", "a.txt"], Discard::Overwrites),
-            (vec!["--fo", "a.txt"], Discard::Overwrites),
-            (vec!["--f", "a.txt"], Discard::Overwrites),
-            (vec!["--force=x", "a.txt"], Discard::Overwrites),
-            (vec!["--", "-f"], Discard::Harmless),
-            (vec!["--fe", "a.txt"], Discard::Harmless),
-        ] {
-            assert_eq!(
-                force_discard(word.as_bytes(), os_arguments(values.as_slice()).as_slice()),
-                expected,
-                "{word} {values:?}"
-            );
-        }
+    for (word, values, expected) in [
+        ("rm", vec![], Discard::Harmless),
+        ("rm", vec!["a.txt"], Discard::Harmless),
+        ("rm", vec!["-r", "--cached", "a.txt"], Discard::Harmless),
+        ("rm", vec!["-n", "a.txt"], Discard::Harmless),
+        ("rm", vec!["-f", "a.txt"], Discard::Overwrites),
+        ("rm", vec!["-rf", "dir"], Discard::Overwrites),
+        ("rm", vec!["-fr", "dir"], Discard::Overwrites),
+        ("rm", vec!["--force", "a.txt"], Discard::Overwrites),
+        ("rm", vec!["--forc", "a.txt"], Discard::Overwrites),
+        ("rm", vec!["--fo", "a.txt"], Discard::Overwrites),
+        ("rm", vec!["--f", "a.txt"], Discard::Overwrites),
+        ("rm", vec!["--", "-f"], Discard::Harmless),
+        ("mv", vec![], Discard::Harmless),
+        ("mv", vec!["a", "b"], Discard::Harmless),
+        ("mv", vec!["-k", "a", "b"], Discard::Harmless),
+        ("mv", vec!["-n", "a", "b"], Discard::Harmless),
+        ("mv", vec!["-f", "a", "b"], Discard::Overwrites),
+        ("mv", vec!["-fn", "a", "b"], Discard::Harmless),
+        ("mv", vec!["--f", "a", "b"], Discard::Overwrites),
+        ("mv", vec!["--forc", "a", "b"], Discard::Overwrites),
+        ("mv", vec!["--", "-f"], Discard::Harmless),
+        ("checkout-index", vec![], Discard::Harmless),
+        ("checkout-index", vec!["-a"], Discard::Harmless),
+        ("checkout-index", vec!["-q", "-n", "a"], Discard::Harmless),
+        ("checkout-index", vec!["--prefix=force/", "-a"], Discard::Harmless),
+        ("checkout-index", vec!["-f", "-a"], Discard::Overwrites),
+        ("checkout-index", vec!["-fa"], Discard::Overwrites),
+        ("checkout-index", vec!["-qf", "-a"], Discard::Overwrites),
+        ("checkout-index", vec!["--f", "-a"], Discard::Overwrites),
+        ("checkout-index", vec!["--forc", "-a"], Discard::Overwrites),
+        ("checkout-index", vec!["--", "-f"], Discard::Harmless),
+    ] {
+        assert_eq!(force_discard_of(word, values.as_slice()), expected, "{word} {values:?}");
     }
-    // `git worktree remove` names one other option, so `--f` is its `--force` too.
-    assert_eq!(
-        force_discard(b"worktree", os_arguments(&["--f", "here"]).as_slice()),
-        Discard::Overwrites
-    );
+    // A region Git refuses itself is the refusal: a value where the option takes none, and a letter its table does
+    //  not hold.
+    for (word, values) in [
+        ("rm", vec!["--force=x", "a.txt"]),
+        ("mv", vec!["--force=x", "a", "b"]),
+        ("checkout-index", vec!["--force=x", "-a"]),
+        ("rm", vec!["-k", "a.txt"]),
+        ("checkout-index", vec!["-k", "-a"]),
+        // `--fe` is no abbreviation of any of the three tables' long names, so Git refuses it, and so does the guard.
+        ("rm", vec!["--fe", "a.txt"]),
+        ("mv", vec!["--fe", "a", "b"]),
+        ("checkout-index", vec!["--fe", "-a"]),
+    ] {
+        let region: Vec<std::ffi::OsString> = os_arguments(values.as_slice());
+        assert!(
+            force_reading_is_a_refusal(word, region.as_slice()),
+            "{word} {values:?} is a region Git refuses"
+        );
+    }
+    // `git worktree remove` names one force and nothing else, so `--f` is its `--force` too.
+    let removal: crate::command_worktree::WorktreeRemoval =
+        crate::command_worktree::worktree_removal(os_arguments(&["remove", "--f", "here"]).as_slice())
+            .expect("a removal");
+    assert!(removal.force, "--f is the force of a removal");
+    assert_eq!(removal.target, std::ffi::OsString::from("here"));
 }
 
 /// What:
@@ -310,7 +419,7 @@ fn staged_alone_restores_the_index_only() {
         (vec!["--", "--staged"], false),
     ] {
         assert_eq!(
-            restores_index_only(os_arguments(values.as_slice()).as_slice()),
+            staged_only_of(values.as_slice()),
             expected,
             "{values:?}"
         );
@@ -341,7 +450,7 @@ fn an_option_value_is_not_a_restore_flag() {
         (vec!["-SW", "-s", "HEAD", "--", "f"], false),
         (vec!["--staged", "--worktree", "--source=-S", "--", "f"], false),
     ] {
-        assert_eq!(restores_index_only(os_arguments(values.as_slice()).as_slice()), expected, "{values:?}");
+        assert_eq!(staged_only_of(values.as_slice()), expected, "{values:?}");
     }
 }
 

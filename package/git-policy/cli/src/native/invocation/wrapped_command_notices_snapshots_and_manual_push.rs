@@ -92,9 +92,9 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
     let seen: &[OsString] = forwarded.arguments.as_slice();
     let form: DecidedForm = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return,
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => {
-            DecidedForm::Guarded(*command)
-        }
+        LinkedWorktreeDecision::NeedsEffectiveTarget(command)
+        | LinkedWorktreeDecision::WhenDirty(command)
+        | LinkedWorktreeDecision::UnreadableOption { command, .. } => DecidedForm::Guarded(*command),
         // A write to the settings every worktree shares runs under the hatch, and this line is what a later reader
         //  uses to attribute the change to the command that made it.
         LinkedWorktreeDecision::SharedRemote(_) => DecidedForm::SharedRemote,

@@ -229,7 +229,7 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     // Every move this reading made, byte-exact, so a refusal can put each one back where it was.
     let mut moves: Vec<(Vec<u8>, PathBuf, SavedCopy)> = Vec::<(Vec<u8>, PathBuf, SavedCopy)>::new();
     for _look in 1..=LOOKS_BEFORE_REFUSING {
-        let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), region, run_in.as_path()) else {
+        let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), &parsed, run_in.as_path()) else {
             return NestedRepositories::Nothing;
         };
         let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {

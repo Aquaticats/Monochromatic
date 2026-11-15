@@ -17,7 +17,7 @@
 //! ```
 
 use crate::command_clean::parse_clean_region;
-use crate::command_discard::{Discard, force_discard};
+use crate::command_discard::{Discard, checkout_index_reading, remove_reading};
 use crate::command_test_support::{git, git_status, repository_with_tracked_file};
 use crate::command_written_paths::{PathspecTarget, WrittenPaths, written_paths};
 use crate::rule_linked_worktree::{GuardedCommand, dirty_question};
@@ -113,8 +113,8 @@ fn a_repeated_remove_force_is_the_last_spelling_in_git_and_in_the_guard() {
     let forced = git_status(linked.as_path(), &["rm", "--no-force", "-f", "m.txt"]);
     assert!(forced.status.success(), "Git removes it when the last spelling is -f: {forced:?}");
     assert!(!file.exists(), "the file is gone");
-    assert!(matches!(force_discard(b"rm", words(&["-f", "--no-force", "m.txt"]).as_slice()), Discard::Harmless));
-    assert!(matches!(force_discard(b"rm", words(&["--no-force", "-f", "m.txt"]).as_slice()), Discard::Overwrites));
+    assert!(matches!(remove_reading(words(&["-f", "--no-force", "m.txt"]).as_slice()), Ok(r) if r.discard == Discard::Harmless));
+    assert!(matches!(remove_reading(words(&["--no-force", "-f", "m.txt"]).as_slice()), Ok(r) if r.discard == Discard::Overwrites));
     crate::command_test_support::remove(root.as_path());
 }
 
@@ -134,14 +134,14 @@ fn a_repeated_checkout_index_force_is_the_last_spelling_in_git_and_in_the_guard(
     assert_eq!(std::fs::read(file.as_path()).expect("the file"), b"edited\n", "the last spelling is --no-force");
     git(linked.as_path(), &["checkout-index", "--no-force", "-f", "--", "a.txt"]);
     assert_eq!(std::fs::read(file.as_path()).expect("the file"), b"index\n", "the last spelling is -f");
-    assert!(matches!(
-        force_discard(b"checkout-index", words(&["-f", "--no-force", "--", "a.txt"]).as_slice()),
-        Discard::Harmless
-    ));
-    assert!(matches!(
-        force_discard(b"checkout-index", words(&["--no-force", "-f", "--", "a.txt"]).as_slice()),
-        Discard::Overwrites
-    ));
+    assert_eq!(
+        checkout_index_reading(words(&["-f", "--no-force", "--", "a.txt"]).as_slice()),
+        Ok(Discard::Harmless)
+    );
+    assert_eq!(
+        checkout_index_reading(words(&["--no-force", "-f", "--", "a.txt"]).as_slice()),
+        Ok(Discard::Overwrites)
+    );
     crate::command_test_support::remove(root.as_path());
 }
 
