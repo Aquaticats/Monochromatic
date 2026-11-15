@@ -40,8 +40,11 @@ const PID_FILE_BIRTH_DEADLINE: Duration = Duration::from_secs(5);
 /// const [pid, identity] = aDeadProcess();
 /// ```
 pub(crate) fn a_dead_process() -> (i64, String) {
+    // What: The helper is given a life long enough that this reading cannot race it, and ended here.
+    // Why:  A helper that exits in the microsecond between its start and the read has no identity to read, and a
+    //       machine under a power profile makes that window wider (the host ran at power-saver on 2026-11-15).
     let mut helper: std::process::Child = std::process::Command::new("sleep")
-        .arg("0")
+        .arg("600")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -49,6 +52,7 @@ pub(crate) fn a_dead_process() -> (i64, String) {
         .expect("a bounded helper starts");
     let gone: i64 = i64::from(helper.id());
     let identity: String = identity_of_process(gone).expect("its identity while it runs");
+    let _killed = helper.kill();
     helper.wait().expect("the helper ends");
     return (gone, identity);
 }

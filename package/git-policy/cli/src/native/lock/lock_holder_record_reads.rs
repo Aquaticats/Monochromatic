@@ -63,8 +63,11 @@ use std::path::{Path, PathBuf};
 
 /// How many record files one sweep reads,
 /// so a folder a broken command filled cannot hold a command.
-/// It bounds reading, not finding: a record a lock names is looked for by its own name.
-const MOST_RECORDS: usize = 512;
+///  The proof reads every record the same bound allows,
+///  and the value is measured against the folders this wrapper keeps: one record per live command,
+///  and the sweep removes the rest, so a repository with more than this many is one a program other than the wrapper filled.
+///  A folder the bound cuts is answered "unknown", which keeps the lock, and the log says so.
+pub const MOST_RECORDS: usize = 4096;
 
 /// The longest record one read takes.
 const RECORD_LIMIT: u64 = SMALL_FILE_LIMIT;

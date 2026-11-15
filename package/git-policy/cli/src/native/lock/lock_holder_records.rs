@@ -396,7 +396,7 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
         return Err(std::io::Error::other("the identity of this process is unavailable"));
     };
     #[cfg(test)]
-    self::hold_before_reading_a_childs_identity::wait_if_a_control_placed_one();
+    self::hold_before_reading_a_childs_identity_test_support::wait_if_a_control_placed_one();
     // What: A child's birth is read whatever state the child is in, so a Git that took a lock and ended before this
     //       reading is still named; this process's own birth is read as the living process it is.
     // Why:  The record is the only proof that a lock's holder is gone, and the window between a child's start and this
@@ -472,45 +472,18 @@ pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, p
     return Ok(());
 }
 
-/// A hold a control places between a child's start and the reading of its identity,
-/// so the window a start gate closes can be shown without making a real machine slow.
+/// What:
+///  A hold a control places between a child's start and the reading of its identity,
+///  so the window a record written after a start must close can be shown without making a real machine slow.
+/// Why:
+///   It exists only in test builds:
+///  the release code must never sleep on a clock that holds a thread the runtime's workers await
+///  (`source_guard::blocking_code_off_the_runtime`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a module that exists only in test builds
+/// ```
 #[cfg(test)]
-pub(crate) mod hold_before_reading_a_childs_identity {
-    use std::cell::Cell;
-    use std::time::Duration;
-
-    thread_local! {
-        /// How long this thread waits before it reads the identity of a process it is naming.
-        static HOLD: Cell<Option<Duration>> = const { Cell::new(None) };
-    }
-
-    /// What:
-    ///  Make this thread wait `hold` before every identity it reads while naming a child,
-    ///  until it is given nothing.
-    /// Why:
-    ///   A child that dies at once is one the parent may be too late to name;
-    ///  a control that widens that window shows whether the start held the child until it was named.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// holdBeforeReadingAChildsIdentity(200) // milliseconds
-    /// ```
-    pub(crate) fn hold(hold: Option<Duration>) {
-        HOLD.with(|cell| { cell.set(hold); });
-    }
-
-    /// What:
-    ///  Wait the time a control placed, if it placed any.
-    /// Why:
-    ///   The wait is the window: the child runs freely while it lasts.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// if (hold) Atomics.wait(..., hold)
-    /// ```
-    pub(crate) fn wait_if_a_control_placed_one() {
-        if let Some(hold) = HOLD.with(|cell| { return cell.get(); }) {
-            std::thread::sleep(hold);
-        }
-    }
-}
+#[path = "hold_before_reading_a_childs_identity_test_support.rs"]
+pub(crate) mod hold_before_reading_a_childs_identity_test_support;

@@ -15,7 +15,8 @@
 use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
 use crate::hooks_off::StartOwner;
 use crate::abandoned_locks::{candidates_of_git_directory, clear_abandoned_locks};
-use crate::lock_holder_records::{SELF_KIND, hold_before_reading_a_childs_identity::{hold as hold_the_identity_read}, remember_repository, this_process_record_path};
+use crate::lock_holder_records::hold_before_reading_a_childs_identity_test_support::hold as hold_the_identity_read;
+use crate::lock_holder_records::{SELF_KIND, remember_repository, this_process_record_path};
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
