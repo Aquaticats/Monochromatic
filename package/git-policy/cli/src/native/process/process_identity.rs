@@ -215,11 +215,9 @@ pub(crate) fn is_birth_identity(birth: &str) -> bool {
     }
     #[cfg(target_os = "linux")]
     {
-        let after_a_space_or_none: &str = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); });
-        let names_the_tag: bool = after_a_space_or_none
-            .get(..LINUX_IDENTITY_PREFIX.len())
-            .is_some_and(|tag| { return tag.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX); });
-        if !names_the_tag {
+        let after_a_space_or_none: &str = birth.trim_start();
+        let tag: &[u8] = &after_a_space_or_none.as_bytes()[..after_a_space_or_none.len().min(LINUX_IDENTITY_PREFIX.len())];
+        if !tag.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX.as_bytes()) {
             // A text whose grammar this reader does not know is compared as the text it is.
             return true;
         }
