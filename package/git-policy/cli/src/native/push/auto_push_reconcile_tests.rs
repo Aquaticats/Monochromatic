@@ -4678,14 +4678,27 @@ fn the_gate_brings_a_path_at_the_old_tip_forward_and_admits_no_reversal() {
     let git_dir: PathBuf = PathBuf::from(text_of(&taker, &["rev-parse", "--absolute-git-dir"]));
     let identity = crate::worktree_identity::WorktreeIdentity::LinkedWorktree {
         common_dir: common.clone(),
-        git_dir,
+        git_dir: git_dir.clone(),
         worktree_root: taker.clone(),
     };
     // What: the gate's Git context with the environment a fixture's commands run in, beside the overlay it always has.
     // Why:  the sweep's queries keep their own scratch files under a home, and the bare context names none.
     let mut context = crate::test_support::git_context();
     context.overlay.extend(fixture_environment());
+    // What: another program holds the checkout's index, so the path the person did not touch cannot be
+    // brought forward yet.
+    // Why: that is the state the gate must not clear over, and the state a later command finishes
+    //  (a review of commit `777c491325`, its finding 3).
+    let lock: PathBuf = git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"held by another program").expect("the index lock");
+    let held = recover_for_command_with_home(&context, &identity, None);
+    assert!(
+        !matches!(held, crate::invocation::startup_gate::Gate::Clear),
+        "the gate does not clear a command over a path that still holds the old tip: {held:?}"
+    );
+    std::fs::remove_file(lock.as_path()).expect("the lock goes");
     let gate = recover_for_command_with_home(&context, &identity, None);
+    drop(context);
     let added: String = std::fs::read_to_string(taker.join("added.txt")).unwrap_or_default();
     assert_eq!(
         added, "added side\n",
