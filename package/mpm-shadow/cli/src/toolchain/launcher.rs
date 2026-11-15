@@ -259,6 +259,8 @@ const RECORD_LOCK_POLL: std::time::Duration = std::time::Duration::from_millis(1
 /// one: if it does, the newer record that stands is what the tree's own lock asks for, and this run leaves it alone.
 /// The launcher is a copy of the same `mpm-shadow` program either way, so nothing a person sees is wrong.
 /// A lock that cannot be read says nothing about another tool, and then this run writes what its own lock says.
+/// A record that stands there naming another tool is left too, unless the lock on disk gives this name to this tool:
+/// that record is what the last install made of the name.
 /// A record that already says what this run would write is not written again, and no lock is taken for it:
 /// an install with nothing to do replaces no file, which is what keeps it as cheap as it was.
 /// A file at the record's name that is not a launcher record is left and named, never replaced.
@@ -281,10 +283,21 @@ fn write_the_record_the_lock_asks_for(
     // Under the lock the record is read again, because another install may have written it between the read above and
     // this instant, and the lock on disk is asked which tool it gives this name now.
     let standing: Option<String> = the_record_at(&path)?;
-    if current_lock(scope).is_some_and(|lock| return another_tool_declares(&lock, name, tool_id)) {
+    let on_disk: Option<Lock> = current_lock(scope);
+    if on_disk.as_ref().is_some_and(|lock| return another_tool_declares(lock, name, tool_id)) {
         return Ok(());
     }
     if standing.as_deref() == Some(text.as_str()) {
+        return Ok(());
+    }
+    // A record naming another tool stands, and the lock on disk does not give this name to this tool: that record is what
+    // the last install made of the name, and this one leaves it. A name the lock declares nowhere is retired by the next
+    // pass with whatever record stands, so which of two installs of a dropped name wrote first changes nothing a person
+    // can see.
+    if let Some(standing_text) = &standing
+        && parse_record(standing_text).is_some_and(|standing_record| return standing_record.tool_id != tool_id)
+        && !on_disk.as_ref().is_some_and(|lock| return declares_launcher_for(lock, name, tool_id))
+    {
         return Ok(());
     }
     if let Some(standing_text) = &standing
@@ -361,6 +374,18 @@ pub(crate) fn launcher_names_of(tool: &LockedTool) -> Vec<String> {
         names.push(link.source_bin.clone());
     }
     return names;
+}
+
+/// What:
+/// Whether the lock gives `name` a launcher for `tool_id`.
+/// Why:
+/// This and `another_tool_declares` are the two answers a record's write needs from the lock on disk:
+/// the name is another tool's, so the record that stands stays;
+/// or it is this tool's, so this run writes what the lock asks for.
+pub(crate) fn declares_launcher_for(lock: &Lock, name: &str, tool_id: &str) -> bool {
+    return lock.tools.iter().any(|tool| {
+        return tool.declaration.id == tool_id && is_repository_published(tool) && launcher_names_of(tool).iter().any(|bin| return bin == name);
+    });
 }
 
 /// What:
