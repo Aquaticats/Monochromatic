@@ -1710,7 +1710,7 @@ and what it queued.
   to widen it with this path as its first failing case,
   and to report what else it then finds.
   That guard is in `main`.
-  Read in `main` at 18:28:
+  Read in `main` between 18:26:09 and 18:27:01:
   this path is not on a worker there.
   `started_watch.remember(own)` is called at `service/service_server.rs:356` inside `serve_in_a_landing`,
   a plain function,
