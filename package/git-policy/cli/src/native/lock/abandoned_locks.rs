@@ -236,19 +236,17 @@ fn is_a_lock_name(name: &str) -> bool {
 ///  and is named only to the commands that run there:
 ///  an add printed a standing line about another add's `index.lock` in the gate on `0.6.1-alpha.34`,
 ///  where its own worktree's command had nothing to do with that file.
-///  A path this cannot place is reported,
-///  which is what every lock got before this answer existed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// standsInTheWay('/r/.git/worktrees/held/index.lock', '/r/.git', '/r/.git'); // false
 /// ```
 fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
-    let linked: PathBuf = common_dir.join(LINKED_WORKTREES_FOLDER);
-    if lock.starts_with(linked.as_path()) {
-        return git_dir.starts_with(linked.as_path()) && lock.starts_with(git_dir);
+    if !lock.starts_with(common_dir.join(LINKED_WORKTREES_FOLDER).as_path()) {
+        return true;
     }
-    return lock.starts_with(git_dir) || lock.starts_with(common_dir);
+    // A linked worktree's own administrative directory is its own state: this command meets it only when it runs there.
+    return git_dir.as_os_str() != common_dir.as_os_str() && lock.starts_with(git_dir);
 }
 
 /// What:
@@ -411,3 +409,8 @@ pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsStrin
     record_this_process(common.as_path());
     clear_abandoned_locks_telling(roots_of_git_directory(git_dir.as_path()).as_slice(), &mut std::io::stderr());
 }
+
+/// Controls of the answer that decides which locks are named stay out of the release executable.
+#[cfg(test)]
+#[path = "abandoned_locks_tests.rs"]
+mod tests;
