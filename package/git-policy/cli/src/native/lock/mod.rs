@@ -119,6 +119,7 @@ pub mod lock_bindings;
 
 /// The watch a command keeps on its Git's directories while that Git runs,
 /// and the events that prove which locks it took.
+pub mod git_directories_of_the_repository;
 pub mod lock_watch;
 
 /// Controls of the records about taken locks.

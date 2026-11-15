@@ -1074,3 +1074,53 @@ fn folder_named(path: &Path) -> (u64, u64) {
     let seen = crate::index_lock_evidence::read_lock_metadata(path).ok().flatten().expect("the folder's own identity");
     return (seen.device, seen.inode);
 }
+
+/// What:
+///  A lock in a reference namespace is reported by the watch,
+///  though the folder above it holds a reference named `HEAD`
+///  and the namespace is named `objects`, `logs`, `worktrees` or `modules`.
+/// Why:
+///  The watch decided what a Git directory is by a file the folder holds,
+///  so `refs/heads/marker/HEAD` made `marker` look like one and its `objects` child was never
+///  watched:
+///  a killed update's lock there got no record, and the next command kept it
+///  (a review of `ca936e0b93`,
+/// finding 2).
+///  The kind of a folder is now a lookup in the Git directories the wrapper was told,
+///  and nothing under `refs/` is one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = Watch.over([gitDir]); write(refs/heads/marker/HEAD); writePair(…/objects/topic.lock);
+/// expect(tracker.locksTaken(process.pid)).toContain('…/objects/topic.lock')
+/// ```
+#[test]
+fn a_reference_namespace_beside_a_reference_named_head_is_watched() {
+    let directory: PathBuf = fixture("watch-head-named-reference");
+    let marker: PathBuf = directory.join("refs/heads/marker");
+    std::fs::create_dir_all(marker.as_path()).expect("the folder a reference named HEAD lives in");
+    std::fs::write(marker.join("HEAD"), b"").expect("a reference named HEAD");
+    // The namespaces and their references stand before the watch opens, as they do in a repository a command meets.
+    let mut locks: Vec<PathBuf> = Vec::new();
+    for name in ["objects", "logs", "worktrees", "modules"] {
+        let namespace: PathBuf = marker.join(name);
+        std::fs::create_dir_all(namespace.as_path()).expect("the reference namespace");
+        std::fs::write(namespace.join("topic"), b"").expect("a reference in the namespace");
+        locks.push(namespace.join("topic.lock"));
+    }
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let pid: i64 = i64::from(std::process::id());
+    // The locks are written while the watch runs, as a killed update writes them.
+    for lock in locks.iter() {
+        std::fs::write(lock.as_path(), b"a killed update's lock\n").expect("the reference lock");
+        std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("the reference PID file");
+    }
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(queued(&mut watch).as_slice());
+    let found: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    for lock in locks {
+        assert!(found.contains(&lock), "a reference lock under {} must be reported: {found:?}", lock.display());
+    }
+}

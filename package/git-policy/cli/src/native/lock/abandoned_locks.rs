@@ -59,16 +59,16 @@ const MOST_ENTRIES: usize = 8192;
 /// whose `*.lock` files are a pack writer's own temporary names,
 /// and the logs,
 /// which hold no lock at all.
-/// Why the skip is only for a folder directly below a Git directory:
+/// Why the skip is only for a folder directly below a Git directory,
+///  and why the Git directories are a list rather than a guess:
 ///  Git accepts a reference called `refs/heads/objects/topic`,
-///  and a lock taken for it stands in the folder that name gives.
-///  A walk that skipped the name at every depth never found that lock,
-///  so a record of it had nothing that would act on it
-///  (a review of `6a506fc03f`,
-/// finding 5).
-///  The object stores and the reflog folders are the ones directly below a Git directory,
-///  including a linked worktree's own and a submodule's,
-///  and each of those folders carries a `HEAD` file.
+///  and one called `refs/heads/marker/HEAD`,
+///  so neither a folder's name nor a file it holds says what kind of folder it is
+///  (a review of `6a506fc03f`, finding 5;
+/// a review of `ca936e0b93`, finding 2).
+///  The Git directories are the ones the wrapper was told
+///  (`git_directories_of_the_repository.rs`),
+///  and every other folder is walked.
 const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
 /// The folder of the common Git directory that holds each linked worktree's own administrative directory.
@@ -182,6 +182,15 @@ pub fn walked(roots: &[PathBuf]) -> Walked {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut complete: bool = true;
     let mut seen: usize = 0;
+    // What: The Git directories of this repository, as Git told the wrapper where they are.
+    // Why:  The object store and the reflog folders of a Git directory are skipped, and a folder's kind is a lookup in
+    //       this list: a name a person can choose under `refs/` is never read as a kind (a review of `ca936e0b93`,
+    //       finding 2).
+    let Some(first) = roots.first() else {
+        return Walked { locks: found, complete };
+    };
+    let git_directories: Vec<PathBuf> =
+        crate::git_directories_of_the_repository::git_directories_of(roots, common_dir_for(first.as_path()).as_path());
     for root in roots {
         let mut pending: Vec<(PathBuf, usize)> = vec![(root.clone(), 0)];
         while let Some((directory, depth)) = pending.pop() {
@@ -190,10 +199,12 @@ pub fn walked(roots: &[PathBuf]) -> Walked {
                 complete = false;
                 continue;
             };
-            // What: Whether this folder is a Git directory, which its own `HEAD` file says.
+            // What: Whether this folder is a Git directory, which the list of the Git directories the wrapper was told
+            //       says.
             // Why:  The object store and the reflog folders of a Git directory hold no lock of the worktree's state,
-            //       and a reference namespace of the same name does (a review of `6a506fc03f`, finding 5).
-            let is_a_git_directory: bool = depth == 0 || directory.join("HEAD").is_file();
+            //       and a reference namespace of the same name does (a review of `6a506fc03f`, finding 5); a folder's own
+            //       contents cannot say what it is (a review of `ca936e0b93`, finding 2).
+            let is_a_git_directory: bool = crate::git_directories_of_the_repository::is_a_git_directory(git_directories.as_slice(), directory.as_path());
             for entry in entries.flatten() {
                 seen += 1;
                 if seen > MOST_ENTRIES {

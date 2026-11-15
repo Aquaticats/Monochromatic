@@ -586,6 +586,10 @@ pub struct Watch {
     child: Option<i32>,
     /// The folders this watch opened, each with the folder itself as the kernel reported it then.
     directories: Vec<WatchedFolder>,
+    /// The Git directories of this repository, as the wrapper was told them,
+    ///  which is what says whether a folder is one whose object store and logs hold no lock of the
+    ///  worktree's state.
+    git_directories: Vec<PathBuf>,
     /// The roots the watch was opened for,
     ///  which an event that names no folder is reported against.
     roots: Vec<PathBuf>,
@@ -651,7 +655,12 @@ impl Watch {
         if descriptor < 0 {
             return None;
         }
-        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), roots: roots.to_vec() };
+        // What: The Git directories of this repository, as Git told the wrapper where they are.
+        // Why:  A folder's kind is a lookup in what the wrapper was told and never a look at the folder
+        //       (a review of `ca936e0b93`, finding 2).
+        let common_dir: PathBuf = roots.first().map(|root| { return crate::git_directories_of_the_repository::common_dir_of(root.as_path()); }).unwrap_or_default();
+        let git_directories: Vec<PathBuf> = crate::git_directories_of_the_repository::git_directories_of(roots, common_dir.as_path());
+        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), git_directories, roots: roots.to_vec() };
         for root in roots {
             watch.watch_folder_and_below(root.as_path());
         }
@@ -687,10 +696,13 @@ impl Watch {
                 let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
                     continue;
                 };
-                // What: Whether this folder is a Git directory, which its own `HEAD` file says.
+                // What: Whether this folder is a Git directory, which the list of the Git directories the wrapper was
+                //       told says.
                 // Why:  The object store and the reflog folders of a Git directory hold no lock of the worktree's state,
-                //       and a reference namespace of the same name does (a review of `6a506fc03f`, finding 5).
-                let is_a_git_directory: bool = depth == 0 || folder.join("HEAD").is_file();
+                //       and a reference namespace of the same name does (a review of `6a506fc03f`, finding 5); a folder's
+                //       own contents cannot say what it is, because a person chooses the names under `refs/`
+                //       (a review of `ca936e0b93`, finding 2).
+                let is_a_git_directory: bool = crate::git_directories_of_the_repository::is_a_git_directory(self.git_directories.as_slice(), folder.as_path());
                 let mut below: Vec<PathBuf> = Vec::new();
                 for entry in entries.flatten() {
                     let Ok(kind) = entry.file_type() else {
