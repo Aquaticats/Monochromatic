@@ -1317,6 +1317,70 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 46 is in `main` and `0.6.1-alpha.36` is dispatched; the drawn tree's review over its whole range finds a commit that fails (2026-11-14T20:13:23-05:00)
+
+Not final and not approved:
+what one pass and one review report,
+and what the coordinating session measured,
+merged and queued.
+
+- **Integration pass 46** (tip `e91764a440`:
+  the watch note a landing writes before it answers a commit is written within a ceiling)
+  reported fit at 20:07:58,
+  holding `main` with pass 45:
+  build,
+  both test compiles and Clippy clean;
+  its own controls,
+  its review's,
+  and those of passes 44 and 45 passing at the merged tip and at four CPUs;
+  both guard modules passing;
+  the whole suites failing only in the fourteen places known red on this machine and in the one subvolume test another agent has.
+  The `fault_limits` control that failed at pass 45's tip is not among its failures.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `9e101673b0` at 20:13:02;
+  `origin` held it at 20:13:20,
+  and `0.6.1-alpha.36` was dispatched at 20:13:23
+  (run 43662049261).
+  The wait,
+  the install,
+  the sample commit and the start of the gate run as one background command.
+  Pass 47,
+  the one pass going,
+  was told.
+  The fuzz sidecar's type check on `main` at `9e101673b0`:
+  exit 0 at 20:14:15.
+  The next wrapper release is `0.6.1-alpha.37`.
+- **The drawn shadow tree** (`be2299c325`),
+  its fourth review resumed over the whole range,
+  ended 20:10:58,
+  all 21 changed files.
+  Two things.
+  Reproduced with a real service and repository:
+  a tree that goes after Git has succeeded and before the wrapper reads the commit back fails the commit,
+  with Git's own summary of the new commit printed and the branch left where it was;
+  the change had closed two of the three windows a tree can go in.
+  Reproduced:
+  two of its three binary controls need a pathname service socket,
+  and under a long `HOME`,
+  where the service takes an abstract socket and hands no tree,
+  they fail or pass for nothing.
+  The first is the reason this review's first verdict of "no defects" was not counted.
+  The reviewer's first attempt had also run a program older than the tree in front of it,
+  the package's known defect that another run has.
+  The author is resumed
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **The count of leftover processes named one at 20:12:33**,
+  four minutes old,
+  in the worktree of the run on the read-only main checkout:
+  that run's launcher was active and its unit not yet,
+  so it was a start and nothing was stopped.
+  The count reads a worktree as left when no unit of its name is going,
+  and a run being started has none for some minutes;
+  a process that young beside an active launcher is not a leftover.
+- Read at 20:12:33:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+
 ##### The landing's seventh review finds seven things, one a commit refused with nothing stuck; three authors are resumed and the queue's redesign goes to a fresh run (2026-11-14T20:06:40-05:00)
 
 Not final and not approved:
