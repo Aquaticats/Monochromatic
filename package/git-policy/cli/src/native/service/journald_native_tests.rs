@@ -604,3 +604,42 @@ fn a_line_a_full_pipe_cannot_take_is_dropped_rather_than_waited_for() {
     assert_eq!(delivery, Delivery::Dropped, "a full pipe takes nothing, so the line is dropped");
     assert!(took < std::time::Duration::from_millis(500), "and it returns at once rather than waiting: {took:?}");
 }
+
+/// What:
+///  A line that falls back to standard error is written under the identifier the entry was given:
+///  the wrapper's entry stays the wrapper's and the service's stays the service's,
+///  whether standard error is the journal's stream (with the priority prefix) or a plain one.
+/// Why:
+///   A review of 2026-11-15 found the fallback carrying the service's prefix whatever identifier the entry had:
+/// an entry recorded as the client's (`record_entry_as(CLIENT_IDENTIFIER, ...)`, the word-level merge report among them)
+/// was attributed to the service, and a look for the client's name found nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(fallbackLine(CLIENT_IDENTIFIER, 'word-level merge')).toBe('<4>monochromatic-git-policy-cli: word-level merge')
+/// ```
+#[test]
+fn a_fallback_line_is_written_under_the_identifier_the_entry_was_given() {
+    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-names-{}", std::process::id()));
+    let named: [(&str, &str); 2] = [
+        ("monochromatic-git-policy-cli", "monochromatic-git-policy-cli: "),
+        (IDENTIFIER, "monochromatic-git-policy-cli-service: "),
+    ];
+    for (identifier, prefix) in named {
+        let stream: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
+        let mut written: Vec<u8> = Vec::new();
+        assert_eq!(
+            stream.deliver_as(identifier, Priority::Warning, "word-level merge: a.md", &[], "word-level merge: a.md at_ms=1\n", &mut written),
+            Delivery::Stderr
+        );
+        assert_eq!(
+            String::from_utf8(written).expect("text"),
+            format!("<4>{prefix}word-level merge: a.md at_ms=1\n"),
+            "the journal's stream names the entry under its own identifier"
+        );
+        let plain: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE + 1)), &nobody);
+        let mut written: Vec<u8> = Vec::new();
+        assert_eq!(plain.deliver_as(identifier, Priority::Warning, "m", &[], "m at_ms=1\n", &mut written), Delivery::Stderr);
+        assert_eq!(String::from_utf8(written).expect("text"), format!("{prefix}m at_ms=1\n"), "a plain standard error names it too");
+    }
+}
