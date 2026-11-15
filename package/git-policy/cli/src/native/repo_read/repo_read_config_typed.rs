@@ -24,6 +24,10 @@
 //! and
 //!  `every_documented_key_with_a_malformed_value_is_declined_or_equals_git` keeps it honest against the Git that
 //!  runs the tests.
+//!  `index.maxPathLen` joined the table when the read-cache fix that 2.56.1 merged up made every command read it
+//!  (`git_default_core_config` in `environment.c`):
+//!  a Git with the key set to a malformed value fails every command,
+//! so the readers must decline it before they answer.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

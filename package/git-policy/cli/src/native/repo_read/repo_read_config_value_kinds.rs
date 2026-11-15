@@ -356,6 +356,7 @@ pub(crate) fn plain_kind(key: &str) -> Option<Kind> {
         "fetch.negotiationalgorithm" => Kind::OneOf { words: &["skipping", "noop", "consecutive", "default"], empty: false },
         "format.pretty" => Kind::OneOf { words: &["oneline", "short", "medium", "full", "fuller", "reference", "email", "raw", "mboxrd"], empty: true },
         "grep.patterntype" => Kind::OneOf { words: &["default", "basic", "extended", "fixed", "perl"], empty: false },
+        "index.maxpathlen" => NON_NEGATIVE,
         "index.threads" => Kind::IntegerOrBoolean,
         "index.version" => Kind::Integer { low: 2, high: 4 },
         "log.date" => Kind::OneOf {
