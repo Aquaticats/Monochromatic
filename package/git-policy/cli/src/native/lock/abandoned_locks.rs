@@ -290,30 +290,6 @@ fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
 }
 
 /// What:
-///  Which numbers the process-record sweep must keep,
-///  asked when the records are removed and not when the folders were walked.
-/// Why:
-///  A record is evidence for as long as something standing may need it:
-///  the locks that stand beside it,
-///  and the pins that stand and name it.
-///  A wrapped Git can take a lock in a folder the walk has passed and be killed with its wrapper,
-///  and then the walk's list names no number for it while its pin does
-///  (a review of `6c2272132b`,
-/// finding 1).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// numbersInUse([...standingLockPids(pass.standing), ...holderNumbersThatStand(commonDir)])
-/// ```
-fn numbers_in_use(outcome: &Outcome, common_dir: &Path) -> Vec<i64> {
-    let mut in_use: Vec<i64> = standing_lock_pids(outcome.standing.as_slice());
-    in_use.extend(crate::lock_bindings::holder_numbers_that_stand(common_dir));
-    in_use.sort_unstable();
-    in_use.dedup();
-    return in_use;
-}
-
-/// What:
 ///  Judge every lock of the Git directories `roots`,
 ///  remove the ones whose holder is proven gone,
 ///  and say what was removed.
@@ -359,15 +335,16 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     //  still explain one below the bound: nothing is swept then. A lock made after this walk cannot be explained by a
     //  record naming a dead number either, because a Git that takes a lock writes its own number into the PID file, and a
     //  PID file left over from an earlier holder (the one case a record would be read for) is a lock no pass may remove.
-    // What: A process record is kept by a number that stands beside a lock now, or that a pin standing now names.
-    // Why:  The walk's list is what the pass found, not what exists: a wrapped Git can take a lock in a folder the walk
-    //       has passed and be killed with its wrapper, and its record is then the only half of the proof its own pin
-    //       needs. So the numbers are asked at the moment of the removal, and a pin that stands names one of them
-    //       (a review of `6c2272132b`, finding 1).
-    //  The pins whose lock is gone are litter and go first, so a pin that names a number below really does stand.
+    // What: The pins whose lock is gone are swept first, and then the process records, which ask the pins that stand
+    //       themselves.
+    // Why:  A record is evidence for as long as something standing may need it, and a pin is that thing: a wrapped Git
+    //       that takes a lock in a folder the walk has passed is named by its pin and by no list of the walk
+    //       (a review of `6c2272132b`, finding 1). Sweeping the litter pins first keeps a litter pin from keeping a
+    //       record that nothing needs.
     crate::lock_bindings::sweep(common_dir.as_path());
     if searched.complete {
-        sweep(common_dir.as_path(), numbers_in_use(&outcome, common_dir.as_path()).as_slice());
+        // The sweep asks the pins that stand itself, so a number the walk never saw is kept by the step that sees both.
+        sweep(common_dir.as_path(), standing_lock_pids(outcome.standing.as_slice()).as_slice());
     }
     return outcome;
 }

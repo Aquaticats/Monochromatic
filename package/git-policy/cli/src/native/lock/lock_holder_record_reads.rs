@@ -216,10 +216,16 @@ pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
 /// for (const [file, holders] of records) if (holders.every(dead) && !holders.some(inUse)) rm(file)
 /// ```
 pub fn sweep(common_dir: &Path, pids_in_use: &[i64]) {
+    // What: The numbers the pins that stand name, asked here, at the removal, and not by the caller.
+    // Why:  A pin is half of a proof whose other half is this record, and the caller's list of numbers is one reading
+    //       of the lock directories: a wrapped Git that takes a lock in a folder a walk has passed is in neither, and
+    //       its record was removed while its pin stood (a review of `6c2272132b`, finding 1).
+    //       One step sees both, so no caller can hand this sweep a list that is missing a pin's number.
+    let named_by_the_pins_that_stand: Vec<i64> = crate::lock_bindings::holder_numbers_that_stand(common_dir);
     for (path, holders) in every_holder(common_dir) {
         let mut explainable: bool = false;
         for (pid, identity) in &holders {
-            if pids_in_use.contains(pid) || holder_state(Some(&(*pid, identity.clone()))) != HolderState::Gone {
+            if pids_in_use.contains(pid) || named_by_the_pins_that_stand.contains(pid) || holder_state(Some(&(*pid, identity.clone()))) != HolderState::Gone {
                 explainable = true;
                 break;
             }
