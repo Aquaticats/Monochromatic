@@ -1447,6 +1447,91 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three wrapper branches answer and go to review: the Git version of the gate, the lock a killed Git left on a reference, and the controls under an address-space limit, whose review is written by hand (2026-11-15T01:25:15-05:00)
+
+Not final and not approved:
+what three runs report,
+by the part of each report read here,
+and what the coordinating session queued.
+
+- **The wrapper under the Git the gate's container installs**,
+  its author's second run,
+  ended 01:19:03 at `0394659183`.
+  The review's finding reproduced
+  (`-0` taken by the wrapper's reader where Git refuses).
+  The rule now:
+  for an integer that cannot be negative,
+  any spelling with a minus sign is left to Git,
+  which is the shape of Git's own `git_parse_unsigned`;
+  and a second rule it found itself,
+  for `core.abbrev`,
+  where a number standing for zero was read as a false word.
+  A control over every documented key found 16 such pairs on this machine and 18 in the image before the fix and none after;
+  its first version skipped every key with a capital letter and was corrected.
+  In the gate's base image:
+  249 of 249 library tests of its selection and 6 of 6 binary ones.
+  Its review is queued
+  (`main...0394659183`,
+  two code files that are not tests).
+- **The lock a killed Git left, for a reference lock end to end**,
+  the fresh run from `f4b1fdf476`,
+  ended 01:22:48 at `6a506fc03f`.
+  Cause found:
+  the watch that records a lock's holder was opened only where a command waits for its own forwarded Git,
+  and a merge moves the branch through the wrapper's own transaction runner,
+  which opened none;
+  so `refs/heads/main.lock` stood with no record,
+  and after a kill the next command exited 2.
+  Fixed with a watcher thread started by that runner;
+  the control fails before
+  ("a record must exist for the reference lock the merge's Git holds")
+  and passes after,
+  with the next command exiting 0 and finishing the merge.
+  A limit it states in the SPEC:
+  1,024 watched folders,
+  where this repository's `.git` holds over 3,500,
+  so a lock in a deep folder gets no record and a sentence saying the lock was kept.
+  Cost inside the noise
+  (+1.6 ms on a one-file commit over fifteen interleaved rounds).
+  It also reports that one of the review's two scripts never ran the wrapper
+  (its `PATH` left it out).
+  Its review is queued
+  (`main...6a506fc03f`,
+  eleven code files that are not tests).
+- **The controls of a service under an address-space limit**,
+  their author's second run,
+  ended 01:19:27 at `d2d874b3fc`:
+  two test files,
+  no file of the wrapper.
+  Each control now proves its sentence from a state proved in the same run and sets its limit from the plan's constants;
+  both address-space controls refuse a search answer that is not above the room,
+  after `saturating_sub` had made one a limit of zero.
+  Three planted breaks for each of three controls,
+  each quoted failing.
+  The gate was not run.
+- **How a change to tests alone is reviewed today**:
+  the script that queues a review of a range refuses a range with no code file that is not a test,
+  and the branch that teaches the brief writer such a change is back with its author.
+  The project's decision is that such a change is reviewed
+  ("Answers on the owner's return",
+  2026-11-14).
+  So this one's brief is written by hand,
+  in the shape of the package's own,
+  with the range,
+  the diff and the two files named,
+  and queued as a run on the stand-in reviewer
+  (`~/temp/agent/change-reviews/git-policy-cli-controls-of-a-service-under-an-address-space-limit-a-change-to-tests-alone/brief.md`,
+  queued third).
+  Two sentences of its first wording said why a control had failed in the gate;
+  no record backed them and they were taken out before the review started.
+- Read at 01:23:21:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  one under the cap of 17.
+  The queue held 78 entries at 01:25:15.
+
 ##### mpm-shadow's removal of old versions is finished by its fresh run and goes to review; level 17 holds its first quarter of an hour (2026-11-15T01:15:56-05:00)
 
 Not final and not approved:
