@@ -293,7 +293,6 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
@@ -332,6 +331,10 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 pub(crate) fn track_for_this_thread(root: &Path) {
     THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
 }
+
+/// The folder chooser and the runtime directory built to a length inside it,
+/// named here so every `crate::test_support::name` path stays the same.
+pub(crate) use crate::runtime_directory_folders::*;
 
 /// What:
 ///  Fills a listening socket's backlog,
@@ -459,7 +462,7 @@ pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
 pub(crate) mod fixture_git_commands;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
-pub(crate) use fixture_git_commands::{git, git_output};
+pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, git, git_output, real_git_within};
 
 #[path = "child_test_process.rs"]
 pub(crate) mod child_test_process;
