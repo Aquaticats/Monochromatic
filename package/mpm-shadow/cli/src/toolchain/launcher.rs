@@ -16,6 +16,16 @@
 //! Replacing the process (instead of waiting for a child) makes exit codes,
 //! signals and standard output the real binary's own.
 //!
+//! The record's write is one critical section under a lock of that folder's own,
+//! and the lock on disk is asked in it which tool declares this bin name:
+//! two installs can load different locks for one name,
+//! and the older one can finish after the newer one wrote its record,
+//! so a writer that finds the lock on disk naming another tool leaves the newer record in place
+//! instead of writing its own over it.
+//! Leaving it changes nothing that a person can see:
+//! the launcher is a copy of the same `mpm-shadow` program either way,
+//! and the record that stands names the tool the lock on disk declares.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // launcher.ts

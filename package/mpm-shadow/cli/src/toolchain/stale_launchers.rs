@@ -26,9 +26,13 @@
 //! so a person's broken link that shares a name with a launcher stays.
 //! A file whose own bytes are not provably `mpm-shadow`'s stays where it is,
 //! and the install names it and why.
-//! The removal moves the entry it judged aside in one atomic step and compares what moved with what was judged
+//! The removal moves the entry it judged to a hidden name with one no-replace rename, and judges what it moved
 //! (`super::removal`),
-//! so a file a person puts at the path while the proof runs is put back rather than deleted.
+//! so a file a person puts at the path while the proof runs is put back rather than deleted,
+//! and a file that a person edits in place after the judgement is put back because its content changed.
+//! Every file this pass reads was not created by this run, so each read opens without waiting and refuses anything
+//! but an ordinary file (`super::ordinary_file`):
+//! a named pipe where a record stood waits for no writer and cannot hang an install.
 //! Nothing here is taken on the strength of a lock this run loaded earlier:
 //! the lock on disk is read again at the instant of every removal,
 //! and an item the lock declares then is left alone,

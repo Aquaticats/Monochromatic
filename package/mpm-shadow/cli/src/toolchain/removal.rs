@@ -1,40 +1,93 @@
 //! What:
-//! Removing one entry of a checkout only when it is still the entry that was judged,
+//! Removing one entry of a checkout only when it is the entry that was judged,
 //! the identity a judgement keeps,
 //! and the sentence for a file that could not be put back.
-//! The steps, each and what it proves and what a kill after it leaves:
 //!
-//! 1. **Judge.** `judged_of_metadata` keeps what the entry is: its device and inode, its size, its modification time and
-//!    its change time, to the nanosecond. An edit in place keeps the inode and changes the size and both times, so the
-//!    compare below sees it.
-//! 2. **Find a free hidden name, replacing nothing.** `temporary_name_beside` tries names in order and *creates* nothing;
-//!    the step after it is the one that must not replace, and it fails when the name was taken in between.
-//! 3. **Link the entry to that name.** `fs::hard_link` is the no-replace creation every platform this tool supports has:
-//!    Linux and macOS have `link(2)` (and a no-replace rename, `renameat2` with `RENAME_NOREPLACE` and `renamex_np` with
-//!    `RENAME_EXCL`, which the standard library does not expose), Windows has `CreateHardLinkW`, which also fails when the
-//!    name exists. A filesystem without hard links answers `EPERM` and the entry is left, with a sentence. A symlink is
-//!    linked as a symlink (`linkat` does not follow it).
-//!    A kill after this leaves the entry under both names: nothing is lost, and the visible name is still the old state.
-//! 4. **Unlink the visible name.** The entry is now only under the hidden name.
-//!    A kill after this leaves the entry hidden and the visible path free: the repair pass (`repair_what_a_kill_left` in
-//!    `stale_launchers.rs`) puts it back at its own name, which is the old state.
-//! 5. **Compare what the hidden name holds with what was judged.** Different bytes, a different size or a later time mean
-//!    something changed after the judgement, and the entry is put back (never over something newer) and kept.
-//!    A kill inside this compare leaves it hidden, and the repair pass puts it back.
-//! 6. **Ask `may_remove`** (the caller's question, asked of the lock on disk at this instant). No keeps it, put back.
-//!    A kill here or after step 5 leaves it hidden, and the repair pass puts it back.
-//! 7. **Remove the hidden name.** The entry is gone.
-//!    A kill inside this removal leaves the hidden name, which the repair pass puts back (the old state) and the next
-//!    pass judges again.
+//! Why:
+//! A name is not its entry.
+//! Between the look that judged an entry and the step that acts on its name,
+//! another command can move a file of its own onto that name,
+//! and an unlink of the name then removes a file this call never judged
+//! (two reviews reproduced that, one of them losing the other command's file, and one losing an edit in place whose
+//! writer put the modification time back).
+//! So every step below that removes or replaces something is one of two things:
+//! an operation that fails when what it needs is not true,
+//! or an act on a name only this process can name.
 //!
-//! Nothing in these steps replaces a file: not the free-name choice (it creates nothing), not the link (it fails when
-//! the name exists), not the put-back (a hard link again), and the hidden name a person's file is kept at is named in the
-//! sentence that reports a put-back that could not happen.
+//! The steps, each with what must be true of that very entry at that very instruction,
+//! how the step knows it,
+//! and what a kill after it leaves:
+//!
+//! 1. **Judge**, once, before anything moves (`judge`).
+//!    What must be true: the entry is an ordinary file or a symbolic link,
+//!    and what is kept is enough to tell it from anything that takes its place.
+//!    How: `symlink_metadata`, which never waits,
+//!    and one read of its bytes through an open that never waits (`super::ordinary_file`).
+//!    What is kept is device and inode, size, modification time to the nanosecond,
+//!    and a SHA-256 of the bytes.
+//!    Size and time alone miss an edit in place whose writer put the modification time back;
+//!    the content catches it.
+//!    The change time is deliberately not kept: the move itself bumps it on the inode.
+//!    A named pipe, a directory, a socket or a device is not judged,
+//!    so this module removes none of them.
+//!    *A kill leaves nothing: nothing has been named or changed.*
+//!
+//! 2. **Choose a hidden name** (`temporary_name_beside`).
+//!    What must be true: nothing yet; this step creates nothing and so can replace nothing.
+//!    *A kill leaves nothing.*
+//!
+//! 3. **Move the entry at the path to that name with one no-replace rename** (`move_without_replacing`).
+//!    What must be true: the hidden name is free,
+//!    and the act takes the entry that stands at the path at that instruction, whatever it is.
+//!    How: `renameat2` with `RENAME_NOREPLACE` on Linux and `renamex_np` with `RENAME_EXCL` on macOS,
+//!    which fails with `EEXIST` when something took the name in between and never writes over it,
+//!    and with `ENOENT` when nothing stands at the path.
+//!    The step does not decide which entry it took: it takes whatever stood there,
+//!    and step 4 judges what it took,
+//!    so the decision is made about the entry in hand and never about a name.
+//!    A file system or platform without that operation leaves the entry where it is, with a sentence:
+//!    an undeclared launcher left one install longer costs nothing,
+//!    and a file removed that was not the one judged is a loss.
+//!    *A kill leaves the entry under the hidden name only, and the visible path free;
+//!    the repair pass (`repair_what_a_kill_left` in `stale_launchers.rs`) moves it back with one rename, in one pass.*
+//!
+//! 4. **Compare what the hidden name holds with what was judged.**
+//!    What must be true: every field of the judgement, content included, is the one recorded in step 1.
+//!    How: `judge` again on the entry in hand, and equality.
+//!    A difference means the caller's lock now declares the name, or another command's entry was moved aside:
+//!    the entry is put back with another no-replace rename, and kept when something newer took the path.
+//!    This step runs after step 3, so it describes the entry this call holds and nobody else can name;
+//!    a replacement another command put at the visible path after step 3 is not touched at all.
+//!    *A kill inside this compare leaves it hidden; the repair pass moves it back.*
+//!
+//! 5. **Ask `may_remove`** (the caller's question, asked of the lock on disk at this instant).
+//!    What must be true: the entry may go now. No keeps it, put back with the same no-replace rename.
+//!    *A kill here leaves it hidden; the repair pass moves it back, which is the old state,
+//!    and the next pass judges it again.*
+//!
+//! 6. **Remove the hidden name** (`drop_aside`).
+//!    What must be true: that name is the one this process made in step 3, and it still holds the entry moved there.
+//!    How: the name carries this process's number, no other run's repair pass touches a live maker's name,
+//!    and nothing else writes a name this process chose,
+//!    so this unlink is an act on a name only this process can name.
+//!    It is never an unlink of a shared path that another command may have replaced.
+//!    *A kill inside this removal leaves the hidden name;
+//!    the repair pass moves it back and the next pass judges it again.*
+//!
+//! The put-back is the same one operation in the other direction (`put_back`):
+//! a no-replace rename, which fails with `EEXIST` instead of writing over whatever took the path,
+//! and then leaves the moved file hidden with the sentence that names it.
+//! Nothing in these steps replaces a file:
+//! not the free-name choice (it creates nothing),
+//! not the move (it fails when the name is taken),
+//! not the put-back (a no-replace move again),
+//! and the hidden name a person's file is kept at is named in the sentence that reports it,
+//! together with the command that moves it back.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // removal.ts
-//! export type Judged = { device: number; inode: number; size: number; modified: bigint; changed: bigint };
+//! export type Judged = { device: number; inode: number; size: number; modified: bigint; content: Uint8Array };
 //! export type Removal = 'retired' | 'gone' | 'replaced' | 'kept';
 //! export function removeIfStill(path: string, judged: Judged, mayRemove: () => boolean): Removal  // throws
 //! ```
