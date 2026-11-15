@@ -1184,6 +1184,9 @@ and Pi's compaction and branch summarization build their request from the sessio
 (`dist/core/compaction/compaction.js:524`),
 so a value that an old session already held could travel inside one.
 
+A file a run replaces is replaced only when the caller can say the file's writer is gone:
+a session a run resumes is never replaced at all, but masked into a copy Pi resumes,
+and a session at rest is replaced only after Pi's leaving was confirmed.
 Every place a value is kept has three answers:
 covered,
 not there,

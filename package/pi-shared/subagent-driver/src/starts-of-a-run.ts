@@ -89,6 +89,11 @@ export type StartsOfARun = {
    Why no further start followed, when every start ended before the prompt was taken.
    */
   readonly startStoppedBy?: NoFurtherStart;
+
+  /**
+   The session file Pi named in its own state, when it named one, which is what the run masks once it is over.
+   */
+  readonly sessionFile?: string;
 };
 
 /**
@@ -106,9 +111,11 @@ export type StartsOfARun = {
 function piCommandLine({
   options,
   maskingArguments,
+  sessionFile,
 }: {
   readonly options: DriverOptions;
   readonly maskingArguments: readonly string[];
+  readonly sessionFile?: string;
 },): readonly string[] {
   return [
     '--mode',
@@ -118,9 +125,9 @@ function piCommandLine({
     options.provider,
     '--model',
     options.model,
-    ...(options.session === undefined ? [] : [
+    ...(sessionFile === undefined ? [] : [
       '--session',
-      options.session,
+      sessionFile,
     ]),
     ...options.piArguments,
   ];
@@ -197,6 +204,7 @@ export async function startsOfARun({
   secretValues,
   maskingArguments,
   standardErrorFile,
+  sessionFile,
   mask,
 }: {
   readonly options: DriverOptions;
@@ -207,6 +215,11 @@ export async function startsOfARun({
   readonly secretValues: readonly SecretValue[];
   readonly maskingArguments: readonly string[];
   readonly standardErrorFile: string;
+
+  /**
+   The session Pi resumes, which is a masked copy of the one the run was given when it resumes one.
+   */
+  readonly sessionFile?: string;
   readonly mask: TextMasking;
 },): Promise<StartsOfARun> {
   /**
@@ -265,6 +278,7 @@ export async function startsOfARun({
       piArguments: piCommandLine({
         options,
         maskingArguments,
+        ...(sessionFile === undefined ? {} : { sessionFile, }),
       },),
       workingFolder: options.workingFolder,
       environment: {
@@ -310,7 +324,10 @@ export async function startsOfARun({
     /**
      Why this start left the run.
      */
-    const { endReason, } = await endReasonOfRun({
+    const {
+      endReason,
+      sessionFile: namedSession,
+    } = await endReasonOfRun({
       connection,
       record,
       options,
@@ -343,6 +360,7 @@ export async function startsOfARun({
         endReason,
         startsTaken: attempt,
         startFailures,
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession, }),
       };
     }
     /**
@@ -412,6 +430,7 @@ export async function startsOfARun({
         endReason: 'pi-exited-before-prompt',
         startsTaken: attempt,
         startFailures,
+        ...(namedSession === undefined ? {} : { sessionFile: namedSession }),
         startStoppedBy: stopReasonOf({
           another,
           now: Date.now(),

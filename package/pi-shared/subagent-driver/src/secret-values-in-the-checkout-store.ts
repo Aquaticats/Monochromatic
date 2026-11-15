@@ -9,7 +9,9 @@
  @module
  */
 
+import { join, } from 'node:path';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import { openAnOrdinaryFile, } from './ordinary-file-opened-without-waiting.ts';
 import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 import { ENV_PATH_VARIABLE_NAME, } from '@monochromatic-dev/env-local-json-core/ts/constants.ts';
 import {
@@ -81,16 +83,28 @@ export async function storeOfTheCheckout({
    */
   const named = environment[ENV_PATH_VARIABLE_NAME];
   /**
+   Whether the environment named a store of its own.
+   */
+  const explicitlyNamed = ((typeof named) === 'string') && (named !== '');
+  /**
    Where discovery looks, which is the checkout this run works in rather than the driver's own folder.
    */
-  const storePath = await resolveStorePath({
-    cwd: checkoutFolder,
+  const discovered = await discoveredStorePath({
+    checkoutFolder,
     home,
-    ...(((typeof named) === 'string') && (named !== '') ? { path: named, } : {}),
+    ...(explicitlyNamed ? { path: named, } : {}),
+    ...(explicitlyNamed ? { namedPath: named, } : {}),
   },);
-  if (storePath === NO_STORE_FOUND) {
+  if ('cause' in discovered) {
+    return { cause: discovered.cause, };
+  }
+  if ('absent' in discovered) {
     return { absent: true, };
   }
+  /**
+   The store discovery found.
+   */
+  const {storePath} = discovered;
   /**
    The store's ciphertext, or why it could not be read.
    */
@@ -115,6 +129,138 @@ export async function storeOfTheCheckout({
       .filter(function isNotMetadata(name,) {
         return name !== SOPS_METADATA_KEY;
       },),
+  };
+}
+
+/**
+ Asks this package's discovery where the store is, keeping a failure rather than letting it become "no store".
+
+ @param checkoutFolder - the checkout whose store is looked for
+
+ @param home - home folder bounding discovery
+
+ @param path - the store path the environment named, when it named one
+
+ @returns the store's path, that discovery found none, or why discovery failed
+ */
+async function askDiscovery({
+  checkoutFolder,
+  home,
+  path,
+}: {
+  readonly checkoutFolder: string;
+  readonly home: string;
+  readonly path?: string;
+}): Promise<
+  | { readonly storePath: string }
+    | { readonly absent: true }
+    | { readonly cause: string }
+  > {
+  try {
+    /**
+     What discovery answered.
+     */
+    const discovered = await resolveStorePath({
+      cwd: checkoutFolder,
+      home,
+      ...(path === undefined ? {} : { path, }),
+    },);
+    return (discovered === NO_STORE_FOUND) ? { absent: true, } : { storePath: discovered, };
+  }
+  catch (error) {
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    return { cause: plainCauseOf(error,), };
+  }
+}
+
+/**
+ Finds the store a checkout declares, telling "the checkout has none" from "a store is there and cannot be read".
+
+ The discovery this package uses answers one symbol for both a checkout with no store and a store it could not stat, so the checkout's
+ own store file is asked about here, through the one place that decides absent from could-not.
+
+ @param checkoutFolder - the checkout whose store is looked for
+
+ @param home - home folder bounding discovery
+
+ @param path - the store path the environment named, when it named one
+
+ @param namedPath - that same path, for the message a failure says
+
+ @returns the store's path, that the checkout has none, or why a store that is there cannot be read
+ */
+async function discoveredStorePath({
+  checkoutFolder,
+  home,
+  path: namedPathToRead,
+  namedPath,
+}: {
+  readonly checkoutFolder: string;
+  readonly home: string;
+  readonly path?: string;
+  readonly namedPath?: string;
+}): Promise<
+  | { readonly storePath: string }
+    | { readonly absent: true }
+    | { readonly cause: string }
+  > {
+  /**
+   What discovery answered, including the failure it turns into "no store".
+   */
+  const discovery = await askDiscovery({
+    checkoutFolder,
+    home,
+    ...(namedPathToRead === undefined ? {} : { path: namedPathToRead, }),
+  },);
+  if ('cause' in discovery) {
+    if (namedPathToRead === undefined) {
+      return { cause: discovery.cause, };
+    }
+    // An explicit path that cannot be used is a store somebody named and this code cannot read, unless the name is simply not there.
+    /**
+     Whether the named path can be opened at all.
+     */
+    const opened = await openAnOrdinaryFile({ path: namedPathToRead, },);
+    if ('handle' in opened) {
+      await opened.handle
+        .close();
+      return { storePath: namedPathToRead, };
+    }
+    return ('absent' in opened)
+      ? { absent: true, }
+      : { cause: discovery.cause, };
+  }
+  if ('storePath' in discovery) {
+    return { storePath: discovery.storePath, };
+  }
+  // Discovery found nothing. The checkout's own store file is what decides whether that is "none" or "one that cannot be read": a
+  // symlink whose target lies behind a folder that denies the way is a store this code must not treat as absent, and a store the
+  // discovery missed is still a store.
+  /**
+   The checkout's own store file.
+   */
+  const ownStore = join(
+    checkoutFolder,
+    STORE_FILE_NAME,
+  );
+  /**
+   Whether that file can be opened, which is the question "is a store there" really asks.
+   */
+  const opened = await openAnOrdinaryFile({ path: ownStore, },);
+  if ('handle' in opened) {
+    await opened.handle
+      .close();
+    return { storePath: ownStore, };
+  }
+  if ('absent' in opened) {
+    return { absent: true, };
+  }
+  return {
+    cause: (namedPath === undefined)
+      ? opened.cause
+      : `${opened.cause}, so the store ${namedPath} cannot be read`,
   };
 }
 

@@ -10,6 +10,7 @@
 
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
+import { presenceFromFailure, } from './what-the-operating-system-answered.ts';
 import { valuesInPiFile, } from './pi-credential-values.ts';
 import { exportedCredentialValues, } from './shell-assignments-of-a-start-up-file.ts';
 import { join, } from 'node:path';
@@ -224,10 +225,15 @@ export async function textOfAFile({ path, }: { readonly path: string },): Promis
     return { text: await readOrdinaryFile(path,), };
   }
   catch (error) {
-    if (isMissingPathFailure({ error, },)) {
-      return { absent: true, };
-    }
-    return { cause: plainCauseOf(error,), };
+    // One place decides "not there" from "could not": only the operating system's own "no such file", with no parent denying the way.
+    /**
+     What the operating system answered about the path.
+     */
+    const presence = await presenceFromFailure({
+      path,
+      error,
+    },);
+    return ('absent' in presence) ? { absent: true, } : { cause: plainCauseOf(error,), };
   }
 }
 
@@ -244,7 +250,14 @@ export async function textOfAFile({ path, }: { readonly path: string },): Promis
  ```
  */
 export async function readJSONFile({ path, }: { readonly path: string },): Promise<
-  | { readonly parsed: unknown }
+  | {
+    readonly parsed: unknown;
+
+    /**
+     The file's own text, which spells some values differently from the values themselves.
+     */
+    readonly text: string
+  }
     | { readonly absent: true }
     | { readonly cause: string }
   > {
@@ -259,7 +272,10 @@ export async function readJSONFile({ path, }: { readonly path: string },): Promi
     return { cause: read.cause, };
   }
   try {
-    return { parsed: JSON.parse(read.text,), };
+    return {
+      parsed: JSON.parse(read.text,),
+      text: read.text,
+    };
   }
   catch (error) {
     return { cause: `${path} is not JSON (${plainCauseOf(error,)})`, };
@@ -405,6 +421,7 @@ async function valuesInOnePiCredentialFile({
   return { values: valuesInPiFile({
     fileName,
     parsed: read.parsed,
+    text: read.text,
   },), };
 }
 
@@ -492,9 +509,11 @@ export async function valuesInPiCredentialFiles({ home, }: { readonly home: stri
 async function valuesInOneShellStartFile({
   path,
   fileName,
+  environment,
 }: {
   readonly path: string;
   readonly fileName: string;
+  readonly environment: EnvironmentOfThisMachine;
 },): Promise<
   | { readonly values: readonly SecretValue[] }
     | { readonly absent: true }
@@ -520,6 +539,7 @@ async function valuesInOneShellStartFile({
   } of exportedCredentialValues({
     text: read.text,
     fileName,
+    environment,
   },)) {
     if (!isMaskableValue(value,)) {
       continue;
@@ -544,7 +564,13 @@ async function valuesInOneShellStartFile({
  const read = await valuesInShellStartFiles({ home: '/home/a', },);
  ```
  */
-export async function valuesInShellStartFiles({ home, }: { readonly home: string },): Promise<ValuesAndTheirSources> {
+export async function valuesInShellStartFiles({
+  home,
+  environment,
+}: {
+  readonly home: string;
+  readonly environment: EnvironmentOfThisMachine;
+},): Promise<ValuesAndTheirSources> {
   /**
    Every value the start-up files export.
    */
@@ -569,6 +595,7 @@ export async function valuesInShellStartFiles({ home, }: { readonly home: string
         home,
         fileName,
       ),
+      environment,
     },);
     /* oxlint-enable eslint/no-await-in-loop */
     if ('absent' in read) {

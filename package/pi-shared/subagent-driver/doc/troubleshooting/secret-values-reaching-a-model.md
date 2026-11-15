@@ -69,6 +69,41 @@ Where a row says "no hook", that is Pi's own limit, and the row also says what t
 | A marker that names a value, or a second pass that changes the text | a marker names the variable only when its name holds no armed form, or says `#N` instead; a pass that leaves a form is refused | "never puts an armed value, or a form of one, inside a marker it writes" and "changes nothing when it runs over its own answer a second time" |
 | A tool result that masks nothing, on a result of ordinary data | the same hook, which hands back the same data | "answers the result as data when no value stands in it" |
 
+### The four classes a third review found, and what answers each
+
+The third review found eight roads, five of them in classes the earlier rounds had called closed. The answer to a class is a shape,
+not a row, so each of these is a row of the table above and a stated limit where a shape cannot close it.
+
+- **A file replaced while another writer may append to it.** One decision, `FileWriterAnswer`, is what every replacement asks for:
+  a caller that cannot say the file's writer is gone gets a refusal, not a try. The three call sites answer it explicitly: a session
+  a run resumes is never replaced at all (it is masked into a copy that Pi resumes, and the original keeps what it holds, which is
+  the stated limit), the session at rest is replaced only when Pi's leaving was confirmed, and Pi's output file only because Pi's own
+  tool closed it before the result existed (`finishOutput` awaits `closeTempFile`). What no shape closes is a process outside this
+  package appending in the window between the last read and the rename; that window is the stated limit, and the identity check
+  reads the file again rather than pretending the window is closed (`a-file-is-replaced-only-when-its-writer-is-gone.unit.test.ts`).
+- **"Could not be read" answered as "not there".** One function decides it, `presenceOfPath` and `presenceFromFailure`: only the
+  operating system's own "no such file", with every parent askable, is absent; a denied file, a denied parent, a wrong type, a pipe,
+  a name too long, a link that loops and a missing answer are all could-not. Every source and every kept place asks it, and a
+  could-not stops the run or leaves an ending that is not clean
+  (`every-source-answers-absent-could-not-or-values.unit.test.ts` walks each place through absent, a folder, a denied file, a denied
+  folder above it, a pipe, and readable).
+- **The driver reads shell text with a parser of its own.** The reader now refuses every line it cannot read exactly (one quoted or
+  unquoted word, nothing after it but a comment) and takes the value from the environment the driver was started with, by name, when
+  it cannot; without that, the run does not start and the message names the file and the line. A second answer to the class is
+  stated: a value only the shell computes and only the file holds is one this code cannot arm, and the run stops rather than guess
+  (`a-shell-value-is-what-the-shell-exports-or-a-stop.unit.test.ts` holds every spelling against real `bash`).
+- **A second way in that the driver does not look at.** The free-form Pi words are read with Pi's own `parseArgs`, and every spelling
+  that names or resumes a session is refused with its reason, because the driver masks only the session its own `--session` names
+  (`free-form-words-that-resume-a-session-are-refused.unit.test.ts`). The other free-form words were listed: `--system-prompt` and
+  `--append-system-prompt` reach the request and are masked by `context_with_system`; `--extension` and `--mcp` reach tool results,
+  which `tool_result` masks, and stderr, which the stream matcher masks; `--skill` and `--prompt-template` reach the prompt, which
+  `context_with_system` masks; `--no-session` leaves the session at rest with nothing to mask, which the run records; `--api-key` puts
+  a credential on Pi's command line, which any process of the account can read, and is named here rather than refused.
+
+Two single roads of the same review are rows above: the spelling a credential file writes a value in (`\uXXXX`) is armed beside the
+decoded value, and the kept standard error's destination failure is reported through the copy's own error listener instead of
+ending the driver as an unhandled stream error.
+
 ### How the rows were looked for
 
 The list was made from Pi's installed source, not from the hooks this package knows about. Two searches, each over Pi's own
@@ -85,6 +120,11 @@ The list was made from Pi's installed source, not from the hooks this package kn
   the limits below) and the output files (`dist/utils/output-files.js`). The entry kinds that reach the session were then listed
   from `appendMessage`, `appendCustomEntry`, `appendCompaction`, `appendContextEdit` and the bash-execution appends at
   `core/agent-session.js:3304` and `:3332`.
+
+A fifth class was looked for the same way and not found: the two searches above cover every place Pi builds a request and every place
+it writes, the driver's own writes are one boundary each, and the two reviews' twenty-two roads were then walked against the class
+shapes above. What remains outside them is named, not missed: a process outside this package writing a file the driver replaces
+while it replaces it, a value only a shell can compute, and the three masking limits below.
 
 Two rows come out of that second search and are named rather than covered: Pi's **crash log** (a crash record holds Pi's own error
 text, and the driver stops Pi rather than crashing it) and the **bash-execution messages** of a `!` command, which RPC mode never

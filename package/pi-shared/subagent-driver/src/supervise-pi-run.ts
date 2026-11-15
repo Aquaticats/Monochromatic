@@ -48,8 +48,15 @@ import {
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
 import { startsOfARun, } from './starts-of-a-run.ts';
 import { endingLineOf, } from './the-line-a-driver-ends-with.ts';
+import {
+  keepsNoSession,
+  refusedFreeFormWords,
+} from './free-form-arguments-of-pi.ts';
 import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
-import { maskTheSessionAtRest, } from './session-file-at-rest.ts';
+import {
+  maskASessionIntoACopy,
+  maskTheSessionAtRest,
+} from './session-file-at-rest.ts';
 import { writeSummary, } from './write-summary.ts';
 
 /**
@@ -96,9 +103,19 @@ async function secretValuesOrNoRun({
 function sessionFileIn({
   sessionStats,
   named,
+  resumed,
 }: {
   readonly sessionStats: unknown;
+
+  /**
+   The session file Pi named in its own state, which is where Pi keeps what this run writes.
+   */
   readonly named?: string;
+
+  /**
+   The session the run was told to resume, when Pi's statistics and state named neither.
+   */
+  readonly resumed?: string;
 }): { readonly path: string } | { readonly absent: true } {
   /**
    The path Pi put in its statistics, of any shape.
@@ -112,7 +129,12 @@ function sessionFileIn({
   if ((typeof reported) === 'string') {
     return { path: reported, };
   }
-  return (named === undefined) ? { absent: true, } : { path: named, };
+  // The statistics are what Pi says last; the state it answered when it started names the same file; and a run that resumed a session
+  // named it itself. Any of the three is the file this run keeps.
+  if (named !== undefined) {
+    return { path: named, };
+  }
+  return (resumed === undefined) ? { absent: true, } : { path: resumed, };
 }
 
 /**
@@ -168,6 +190,20 @@ export async function supervisePiRun(
     readonly environment: NodeJS.ProcessEnv
   },
 ): Promise<RunSummary> {
+  /**
+   A free-form word that resumes a session this package cannot mask before Pi reads it stops the run here, with its reason.
+   */
+  const refused = refusedFreeFormWords({ words: options.piArguments, },);
+  if (refused.length > 0) {
+    throw new DriverOptionsError(
+      `this run's free-form Pi arguments cannot start it:\n${
+        refused.map(function lineOf(refusal,) {
+          return `  ${refusal.word}: ${refusal.reason}`;
+        },)
+          .join('\n',)
+      }\nUsage: ${DRIVER_USAGE}`,
+    );
+  }
   if (environment[NESTED_RUN_VARIABLE] !== undefined) {
     throw new NestedDriverError(
       'This driver was started by a Pi that a driver is already running, and it stops here so agents cannot start agents without end. Do this work in the current session, or finish and let the lead start another run.',
@@ -286,24 +322,36 @@ export async function supervisePiRun(
    A session this run resumes is masked before Pi starts, so that no request Pi builds from it, its compaction among them, can carry
    a value an earlier run left in it. Pi's own hooks cover what this run writes, and never what was already there.
    */
+  /**
+   The session Pi resumes: the one the run was told about, or a masked copy of it.
+   */
+  let sessionForPi = options.session;
   if (options.session !== undefined) {
     /**
-     What masking the resumed session found.
+     What masking the resumed session into a copy found.
      */
-    const resumed = await maskTheSessionAtRest({
+    const resumed = await maskASessionIntoACopy({
       sessionFile: options.session,
+      copyFile: join(
+        options.runFolder,
+        'resumed-session.jsonl',
+      ),
       mask: writeMasking.masking,
     },);
-    if (resumed.outcome === 'unmasked') {
+    if ('problem' in resumed) {
       // A value an earlier session holds, which this code cannot take out before Pi reads it: the run does not start.
       throw new SecretEnvironmentUnreadableError({
         source: `the session ${options.session}`,
         cause: resumed.problem,
       },);
     }
+    // The file the run was given is another run's and is left exactly as it is; Pi resumes the masked copy, so no value of the old
+    // session can reach a request, and the original keeps what it holds as a stated limit of this masking.
+    sessionForPi = ('path' in resumed) ? resumed.path : options.session;
     record.note({
       kind: 'session_resumed',
-      rewritten: resumed.outcome === 'rewritten',
+      copy: ('path' in resumed) ? resumed.path : null,
+      masked: ('path' in resumed) ? 'into-a-copy' : 'no-session-file',
     },);
   }
   /**
@@ -326,6 +374,7 @@ export async function supervisePiRun(
     secretValues: values,
     maskingArguments,
     standardErrorFile,
+    ...(sessionForPi === undefined ? {} : { sessionFile: sessionForPi, }),
     mask: writeMasking.masking,
   },);
   /**
@@ -352,7 +401,8 @@ export async function supervisePiRun(
    */
   const sessionFile = sessionFileIn({
     sessionStats: putAway.sessionStats,
-    ...(options.session === undefined ? {} : { named: options.session, }),
+    ...(starts.sessionFile === undefined ? {} : { named: starts.sessionFile, }),
+    ...(options.session === undefined ? {} : { resumed: options.session, }),
   },);
   /**
    What masking that file found: Pi's own hooks should have kept every value out of it, and this closes what no hook reaches.
@@ -363,11 +413,27 @@ export async function supervisePiRun(
   /**
    What masking the session at rest found.
    */
+  /**
+   Whether Pi has been reaped, which is what makes this run the last writer of its own session file.
+   */
+  const piIsGone = putAway.stopped && lastConnection.hasExited();
+  /**
+   What masking the session at rest found.
+   */
   const sessionAtRest = ('absent' in sessionFile)
-    ? { outcome: 'absent' as const, }
+    // A run told to keep no session has none to mask, which is an answer; a run that keeps one and cannot say where is not.
+    ? ((keepsNoSession({ words: options.piArguments, },))
+      ? { outcome: 'absent' as const, }
+      : {
+        outcome: 'unmasked' as const,
+        problem: 'Pi named no session file and the run keeps one, so a value an entry holds was not masked and this summary cannot say where it stands',
+      })
     : await maskTheSessionAtRest({
       sessionFile: sessionFile.path,
       mask: writeMasking.masking,
+      writer: piIsGone
+        ? { gone: true, }
+        : { mayExist: `Pi's leaving could not be confirmed, so the session may still be written under ${sessionFile.path}` },
     },);
   if (sessionAtRest.outcome === 'unmasked') {
     record.note({

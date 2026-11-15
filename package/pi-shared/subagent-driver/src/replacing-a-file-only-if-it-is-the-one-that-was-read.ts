@@ -18,7 +18,7 @@ import {
   writeFile,
   type FileHandle,
 } from 'node:fs/promises';
-import { errorCodeOf, } from './error-code-of.ts';
+import { presenceFromFailure, } from './what-the-operating-system-answered.ts';
 
 //region Constants
 
@@ -36,11 +36,6 @@ const PRIVATE_FILE_MODE = 0o600;
  How many times a file that changed under the writer is read, masked and asked about again before it is left alone.
  */
 const ATTEMPTS_ON_A_CHANGING_FILE = 3;
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 //endregion Constants
 
@@ -153,9 +148,18 @@ async function openWithoutWaiting({ path, }: { readonly path: string },): Promis
     if (!Error.isError(error,)) {
       throw error;
     }
-    return (errorCodeOf(error,) === MISSING_PATH_CODE)
+    /**
+     What the operating system answered about the path.
+     */
+    const presence = await presenceFromFailure({
+      path,
+      error,
+    },);
+    return ('absent' in presence)
       ? { missing: true, }
-      : { failed: error.name, };
+      : {
+        failed: ('couldNot' in presence) ? presence.cause : error.name,
+      };
   }
 }
 
@@ -169,9 +173,33 @@ async function openWithoutWaiting({ path, }: { readonly path: string },): Promis
 export type ReplacedFile =
   | { readonly replaced: true }
     | { readonly unchanged: true }
+  // The caller could not say that the file's writer is gone, so the file was not touched.
+    | {
+      readonly refused: string;
+    }
     | {
       readonly problem: string;
     };
+
+/**
+ What a caller knows about the process that writes the file it hands in.
+
+ A file is replaced only when the writer that can append to it is gone, and that is a fact the caller has to have: Pi has not
+ started, or Pi has ended and been reaped, or Pi's own tool closed the file before it returned the result. No check and rename closes
+ the window against a process this code cannot see, so it does not pretend to: a caller that cannot say the writer is gone gets a
+ refusal.
+ */
+export type FileWriterAnswer = {
+  /**
+   Whether the writer is gone, and why the caller knows it.
+   */
+  readonly gone: true;
+} | {
+  /**
+   Why the file may still be written, which is the reason a replacement is refused.
+   */
+  readonly mayExist: string;
+};
 
 /**
  Replaces a file's contents with a masked text, only while the path still names the file that was read.
@@ -190,10 +218,15 @@ export type ReplacedFile =
 export async function replaceAFileWithItsMaskedText({
   path,
   maskText,
+  writer,
 }: {
   readonly path: string;
   readonly maskText: (text: string) => string;
+  readonly writer: FileWriterAnswer;
 },): Promise<ReplacedFile> {
+  if ('mayExist' in writer) {
+    return { refused: writer.mayExist, };
+  }
   /**
    How many times the file has been read, masked and asked about again.
    */

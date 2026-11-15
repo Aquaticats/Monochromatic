@@ -204,7 +204,11 @@ const SHORT_WALL_SECONDS = 1;
  Seconds a run may last when its subject is a compaction that outlives it: above the start-up and the three commands before the
  prompt, so the wall clock reaches the run while Pi is compacting, and short so the test is quick.
  */
-const COMPACTION_WALL_SECONDS = 3;
+/**
+ Seconds a compaction test may last, which leaves the start about twice the room it needs on a loaded host: a run whose clock is
+ gone before Pi takes the prompt ends without the compaction event the test reads.
+ */
+const COMPACTION_WALL_SECONDS = 8;
 /** Seconds of silence after which a settled run ends. */
 const IDLE_SECONDS = 0.2;
 /** Seconds of idle wait in tests that end the run with the stop file. */
@@ -1924,17 +1928,26 @@ await describe({
           },
         },);
         expect(run.summary.endReason,).toBe('idle',);
-        // What Pi was handed held no value at the moment it started, which is what covers its own compaction request.
-        expect(run.feed.find((entry,) => entry.kind === 'session_resumed',)?.rewritten,).toBe(true,);
-        expect(run.markers,).toContain('session-holds-armed-value no',);
+        // What Pi was handed is a masked copy of the session, and that is what it resumes: its own compaction request is built from
+        // the copy, which holds no value.
         /**
-         What the session holds once the run is over.
+         What the feed says about the session the run resumed.
          */
-        const kept = await readFile(
+        const resumed = run.feed.find((entry,) => entry.kind === 'session_resumed',);
+        expect(resumed?.masked,).toBe('into-a-copy',);
+        expect(run.markers,).toContain('session-holds-armed-value no',);
+        // The file the run was given is another run's, and is left exactly as it was: that is the stated limit of a resumed session.
+        expect(await readFile(
           sessionFile,
           'utf8',
-        );
-        expect(kept,).not.toContain(MASKED_STORE_VALUE,);
+        ),).toContain(MASKED_STORE_VALUE,);
+        /**
+         The copy Pi resumed, which is in the run folder's own files and holds the marker where the value was.
+         */
+        expect(String(resumed?.copy,),).toContain('resumed-session.jsonl',);
+        const copy = run.runFiles['resumed-session.jsonl'] ?? '';
+        expect(copy,).not.toContain(MASKED_STORE_VALUE,);
+        expect(copy,).toContain('[masked secret value of',);
       },
     },),
     it({
@@ -1972,6 +1985,7 @@ await describe({
           sessionFile,
           'utf8',
         ),).toContain(MASKED_STORE_VALUE,);
+
       },
     },),
     it({

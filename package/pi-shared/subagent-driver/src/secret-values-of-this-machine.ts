@@ -107,7 +107,10 @@ export async function readSecretValuesOfThisMachine({
   /**
    The shell start-up files.
    */
-  const shell = await valuesInShellStartFiles({ home, },);
+  const shell = await valuesInShellStartFiles({
+    home,
+    environment,
+  },);
   /**
    The key that decrypts the store.
    */

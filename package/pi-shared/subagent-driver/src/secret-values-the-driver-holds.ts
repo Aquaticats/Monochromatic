@@ -8,9 +8,9 @@
  @module
  */
 
-import { existsSync, } from 'node:fs';
 import { join, } from 'node:path';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import { presenceOfPath, } from './what-the-operating-system-answered.ts';
 import {
   resolveSopsIdentity,
   type SopsIdentity,
@@ -236,12 +236,22 @@ async function identityOfThisMachine({
     if (!Error.isError(error,)) {
       throw error;
     }
-    // A machine that declares no identity has none to read: that is "not there", not "could not". One that declares an identity
-    // this code cannot use is a place a value stands that this code does not know.
-    return identityIsDeclared({
+    /**
+     Whether this machine declares an identity at all, by a variable or by its default file.
+     */
+    const declared = await identityIsDeclared({
       environment,
       home,
-    },)
+    },);
+    // A machine that declares no identity has none to read: that is "not there", not "could not". One that declares an identity
+    // this code cannot use, or whose default file could not be read, is a place a value stands that this code does not know.
+    if ('couldNot' in declared) {
+      return {
+        unreadable: true,
+        cause: declared.cause,
+      };
+    }
+    return ('declared' in declared)
       ? {
         unreadable: true,
         cause: plainCauseOf(error,),
@@ -264,13 +274,16 @@ async function identityOfThisMachine({
  const declared = identityIsDeclared({ environment: process.env, home: '/home/a', },);
  ```
  */
-function identityIsDeclared({
+async function identityIsDeclared({
   environment,
   home,
 }: {
   readonly environment: EnvironmentOfThisMachine;
   readonly home: string;
-},): boolean {
+},): Promise<{ readonly declared: true } | { readonly absent: true } | {
+  readonly couldNot: true;
+  readonly cause: string
+}> {
   /**
    Whether one of the variables an identity can be named by holds anything.
    */
@@ -286,10 +299,15 @@ function identityIsDeclared({
     const value = environment[name];
     return ((typeof value) === 'string') && (value.trim() !== '');
   },);
-  // The default file is the identity when it is there, even when it cannot be read: that is still a declaration. This asks the
-  // file system once, before Pi is started, for a path whose answer is a yes or a no.
-  // oxlint-disable-next-line no-restricted-syntax/no-sync -- one question of the file system at a run's start, not a stream.
-  return named || existsSync(join(
+  if (named) {
+    return { declared: true, };
+  }
+  // The default file is the identity when it is there, even when it cannot be read: that is still a declaration, and one this code
+  // could not read. It is asked about through the one place that tells absent from could-not.
+  /**
+   What the operating system answered about the default identity file.
+   */
+  const presence = await presenceOfPath({ path: join(
     environment.MISE_CONFIG_DIR
       ?? join(
         environment.XDG_CONFIG_HOME ?? join(
@@ -299,7 +317,17 @@ function identityIsDeclared({
         'mise',
       ),
     'age.txt',
-  ),);
+  ), },);
+  if ('present' in presence) {
+    return { declared: true, };
+  }
+  if ('absent' in presence) {
+    return { absent: true, };
+  }
+  return {
+    couldNot: true,
+    cause: presence.cause,
+  };
 }
 
 /**

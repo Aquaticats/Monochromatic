@@ -156,6 +156,9 @@ export async function maskSpareCopyOfToolOutput({
   const replaced = await replaceAFileWithItsMaskedText({
     path,
     maskText: masking.maskText,
+    // Pi's own writer of this file is gone: its bash tool finishes the output and closes the file
+    // (`finishOutput` awaits `output.closeTempFile()`) before the tool returns the result this hook is masking.
+    writer: { gone: true, },
   },);
   return ('problem' in replaced)
     ? { problem: `the whole output of a masked tool result could not be rewritten, so the file keeps what was written: ${replaced.problem}` }

@@ -29,6 +29,18 @@ export {
 } from './secret-value-masking.ts';
 export { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 export {
+  keepsNoSession,
+  refusedFreeFormWords,
+  type RefusedFreeFormWord,
+} from './free-form-arguments-of-pi.ts';
+export {
+  isDeniedOrWrongType,
+  type Presence,
+  presenceFromFailure,
+  presenceOfPath,
+} from './what-the-operating-system-answered.ts';
+export { writeSummary, } from './write-summary.ts';
+export {
   createStreamMatcher,
   type StreamMatcher,
 } from './masking-a-stream.ts';
@@ -41,6 +53,11 @@ export {
   maskSpareCopyOfToolOutput,
   spareCopyOfToolOutput,
 } from './pi-output-file-of-a-tool-result.ts';
+export {
+  maskASessionIntoACopy,
+  type MaskedSessionAtRest,
+  type MaskedSessionToResume,
+} from './session-file-at-rest.ts';
 export {
   type FileIdentity,
   identityOfFile,

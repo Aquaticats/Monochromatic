@@ -93,6 +93,16 @@ const log = env.STAND_IN_PI_LOG ?? '/dev/null';
 const closeDescriptor = promisify(close,);
 
 /**
+ The session Pi was told to resume, which is the word after `--session` in its own arguments.
+ */
+const sessionArgumentAt = argv.indexOf('--session',);
+
+/**
+ That session, when the run named one, or the file this stand-in reports for a session of its own.
+ */
+const sessionFile = (sessionArgumentAt === (-1)) ? env.STAND_IN_PI_SESSION_FILE : argv[sessionArgumentAt + 1];
+
+/**
  What Pi answers each ordinary command with, so a run's state, its command names and its statistics all have shapes to read.
  */
 const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord>([
@@ -101,6 +111,8 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
     {
       model: { id: 'stand-in-model', },
       thinkingLevel: 'xhigh',
+      // Pi's own `get_state` answer names the session file it keeps, which is where this run's masking finds it at rest.
+      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
     },
   ],
   [
@@ -113,7 +125,7 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
   [
     'get_session_stats',
     {
-      sessionFile: env.STAND_IN_PI_SESSION_FILE ?? 'stand-in-session.jsonl',
+      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
       cost: 0.5,
     },
   ],
@@ -372,7 +384,7 @@ await appendFile(
  */
 const sessionValue = await sessionHoldsAValue({
   masking,
-  ...(env.STAND_IN_PI_SESSION_FILE === undefined ? {} : { sessionFile: env.STAND_IN_PI_SESSION_FILE, }),
+  ...(sessionFile === undefined ? {} : { sessionFile, }),
 },);
 if ((typeof sessionValue) === 'string') {
   await appendFile(

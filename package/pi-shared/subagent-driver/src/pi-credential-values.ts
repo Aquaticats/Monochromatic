@@ -73,9 +73,15 @@ export function isPiCredentialField(field: string,): boolean {
 export function valuesInPiFile({
   fileName,
   parsed,
+  text,
 }: {
   readonly fileName: string;
   readonly parsed: unknown;
+
+  /**
+   The file's own text, which spells a value it writes as JSON escapes where the value itself may not.
+   */
+  readonly text?: string;
 },): readonly SecretValue[] {
   /**
    Whether this file is Pi's own credential store, whose secrets are named by the schema rather than by a rule.
@@ -151,7 +157,115 @@ export function valuesInPiFile({
     part: parsed,
     fieldPath: [],
   },);
-  return found;
+  // A file that spells a character as a JSON `\uXXXX` escape holds the value in that spelling too, and a tool that prints the file
+  // prints it that way. The spelling is armed beside the decoded value, under the same name, so the marker still says where the
+  // value stood.
+  return [
+    ...found,
+    ...spellingsIn({
+      ...(text === undefined ? {} : { text, }),
+      values: found,
+    },),
+  ];
+}
+
+/**
+ Reads one JSON string token as the value it spells.
+
+ @param written - the token, quotes and all
+
+ @returns the value it spells, or that it is not a string this code can read
+ */
+function decodedString({ written, }: { readonly written: string },): { readonly decoded: string } | {
+  readonly notAString: true;
+} {
+  try {
+    /**
+     What the token decodes to.
+     */
+    const decoded: unknown = JSON.parse(written,);
+    return ((typeof decoded) === 'string') ? { decoded, } : { notAString: true, };
+  }
+  catch (error) {
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    return { notAString: true, };
+  }
+}
+
+/**
+ Every spelling of an armed value that the file writes and the value itself does not.
+
+ @param text - the file's own text
+
+ @param values - the values the file declares
+
+ @returns one value per spelling, named as the value it spells is named
+ */
+function spellingsIn({
+  text,
+  values,
+}: {
+  readonly text?: string;
+
+  /**
+   The values the file declares, by their own text.
+   */
+  readonly values: readonly SecretValue[];
+},): readonly SecretValue[] {
+  if (text === undefined) {
+    return [];
+  }
+  /**
+   The decoded text of each value the file declares, which is what a spelling decodes to.
+   */
+  const nameOfText = new Map(values.map(function toEntry(value,) {
+    return [
+      value.value,
+      value.name,
+    ] as const;
+  },),);
+  /**
+   The spellings found.
+   */
+  const spellings: SecretValue[] = [];
+  // A JSON string token is a shape, and the file is one credential file of this machine: the walk is over that file's own text,
+  // anchored to quoted runs with no nested quantifier, so it is linear in the file.
+  // oxlint-disable-next-line no-restricted-syntax/no-regex -- see the comment above.
+  for (const match of text.matchAll(/"(?:[^"\\]|\\.)*"/gu,)) {
+    /**
+     The text between the quotes, as the file writes it.
+     */
+    const written = match[0]
+      .slice(
+      1,
+      -1,
+      );
+    /**
+     What that text decodes to, or that it is not a JSON string this code can read.
+     */
+    const read = decodedString({ written: match[0], },);
+    if ('notAString' in read) {
+      continue;
+    }
+    /**
+     The value the token spells.
+     */
+    const { decoded, } = read;
+    /**
+     The name the value it spells is armed with.
+     */
+    const name = nameOfText.get(decoded,);
+    if ((name !== undefined) && (written !== decoded)
+      && (!nameOfText.has(written,))) {
+      spellings.push({
+        name,
+        value: written,
+      },);
+    }
+  }
+  return spellings;
 }
 
 //endregion Reading one file

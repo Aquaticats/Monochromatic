@@ -14,14 +14,9 @@ import {
   open,
   type FileHandle,
 } from 'node:fs/promises';
-import { errorCodeOf, } from './error-code-of.ts';
+import { presenceFromFailure, } from './what-the-operating-system-answered.ts';
 
 //region Opening
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  A file open for reading, or why the path is not one.
@@ -90,9 +85,18 @@ async function openWithoutWaiting({ path, }: { readonly path: string },): Promis
     if (!Error.isError(error,)) {
       throw error;
     }
-    return (errorCodeOf(error,) === MISSING_PATH_CODE)
+    /**
+     What the operating system answered about the path.
+     */
+    const presence = await presenceFromFailure({
+      path,
+      error,
+    },);
+    return ('absent' in presence)
       ? { missing: true, }
-      : { failed: error.name, };
+      : {
+        failed: ('couldNot' in presence) ? presence.cause : error.name,
+      };
   }
 }
 

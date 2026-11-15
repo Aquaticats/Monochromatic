@@ -334,6 +334,7 @@ await describe({
             const appended: { done: boolean } = { done: false, };
             const replaced = await replaceAFileWithItsMaskedText({
               path,
+              writer: { gone: true, },
               maskText: function maskAndAppend(text: string,) {
                 // A second writer appends here, between the read and the swap, which is the instant the replacement must notice.
                 if (!appended.done) {

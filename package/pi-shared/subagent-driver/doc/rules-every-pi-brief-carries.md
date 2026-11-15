@@ -149,6 +149,21 @@ Each rule is the project's own requirement.
   That ban stands as before,
   and a run does not rely on it alone:
   see the next rule.
+- A run that cannot read a place that holds a credential does not start:
+  a store that is there and cannot be read,
+  a file of Pi's that cannot be read,
+  a start-up file whose credential line the driver cannot read exactly,
+  or an age identity the machine declares and this code cannot read.
+  "Not there" and "could not be read" are told apart by the operating system's own answer alone,
+  so a folder that denies the way is a stop, never "nothing there",
+  and the message names the file and, for a start-up file, the line.
+- A run that resumes a session masks it into a copy first and resumes that copy;
+  the session file it was given is left exactly as it was,
+  which is the stated limit of resuming:
+  the old file keeps whatever it holds,
+  and nothing of it reaches a request.
+  A free-form Pi argument that names or resumes a session is refused,
+  because only the driver's own `--session` is masked before the start.
 - What a run's Pi masks for you
   (the driver reads these values once, in its own process,
   and never writes them anywhere):
