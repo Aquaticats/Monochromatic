@@ -1145,8 +1145,6 @@ const THE_ROOMS_OF_THE_SERVICE: usize = crate::blocking_jobs_within_the_budget::
 /// that no place of slow work came (`PLACE_WAIT_CEILING`) and short enough to fail in a moment.
 const A_LOOK_LONG_ENOUGH_FOR_A_NO_PLACE: Duration = crate::wait_ceilings::PLACE_WAIT_CEILING.saturating_add(Duration::from_secs(3));
 
-/// How long past that look the control waits for the states it reads, which a loaded machine needs.
-const A_MARGIN_PAST_THE_THIRD_LOOK: Duration = Duration::from_secs(3);
 
 /// The two trashes whose waits are dropped at the ceiling, and the trash behind them.
 const THE_FIRST_TRASH_OF_THE_CONTROL: &str = "3333333333333333333333333333333333333333";
@@ -1205,13 +1203,13 @@ fn waits_past_their_ceiling_keep_their_slow_places_and_the_work_that_needs_none_
     crate::service_hold_a_step_for_a_control::hold_for_a_control(crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH, holds.as_path());
     let reached: PathBuf = crate::service_hold_a_step_for_a_control::reached_file(holds.as_path(), crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH);
     // What the lane drops when its ceiling passes: the future that waits for the trash, while the job it started runs on.
-    let dropped_at_the_ceiling = |oid: &str, reached: &PathBuf| -> bool {
+    let dropped_at_the_ceiling = |oid: &str, mark: &PathBuf| -> bool {
         let item: WorkItem = a_trash_record_that_reads(&staged, oid);
-        let _ = std::fs::remove_file(reached.as_path());
+        let _ = std::fs::remove_file(mark.as_path());
         let answered: bool = crate::merge_second_pass::tests::await_it(async move {
             return tokio::time::timeout(A_LOOK_A_CONTROL_WAITS_OUT, crate::worktree_trash_dispose_awaiting::empty_trash_awaiting(&item)).await.is_err();
         });
-        return answered && reached.exists();
+        return answered && mark.exists();
     };
     assert!(
         dropped_at_the_ceiling(THE_FIRST_TRASH_OF_THE_CONTROL, &reached),
@@ -1241,13 +1239,13 @@ fn waits_past_their_ceiling_keep_their_slow_places_and_the_work_that_needs_none_
     wake.send((git_dir.clone(), None)).expect("the push's wake");
     assert!(wait_until(&|| { return remote_tip(&staged) == staged.landed; }), "the push landed while every slow place was held");
     // And a job of the client's path still answers, which is the place the slow work must never take.
-    let answered: bool = crate::merge_second_pass::tests::await_it(async {
+    let a_client_job_answered: bool = crate::merge_second_pass::tests::await_it(async {
         return matches!(
             crate::blocking_jobs_within_the_budget::run_a_job_awaited_no_longer_than(Duration::from_secs(5), (), |_| ()).await,
             crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::Ran(())
         );
     });
-    assert!(answered, "a job of the client's path answered that no place came while two slow jobs held their places");
+    assert!(a_client_job_answered, "a job of the client's path answered that no place came while two slow jobs held their places");
     // The held jobs are let go so the service ends, and the loop with it.
     std::fs::write(crate::service_hold_a_step_for_a_control::let_go_file(holds.as_path(), crate::service_hold_a_step_for_a_control::PREPARING_A_TRASH).as_path(), b"").expect("the let-go file");
     drop(wake);

@@ -52,12 +52,9 @@ pub(crate) struct ThePlaceOfOneJob {
 pub(crate) struct TheSlowPlaceHeld {
     /// The number this place's register entry carries,
     /// which the register removes when the place goes back.
+    /// The operation's words and the instant it took the place stay in the register, which is what a look reads:
+    /// nothing here is read, the number is what takes its entry away.
     pub(crate) number: u64,
-    /// The operation,
-    /// in the words the caller gave.
-    pub(crate) name: String,
-    /// When the operation took the place.
-    pub(crate) since: std::time::Instant,
 }
 
 impl Drop for TheSlowPlaceHeld {

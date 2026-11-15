@@ -394,7 +394,7 @@ pub(crate) fn note_a_slow_place(name: &str) -> crate::the_place_of_one_blocking_
     let number: u64 = THE_NEXT_SLOW_PLACE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let register = THE_SLOW_PLACES_HELD.get_or_init(|| { return std::sync::Mutex::new(Vec::new()); });
     register.lock().expect("the places of slow work held").push((number, String::from(name), std::time::Instant::now()));
-    return crate::the_place_of_one_blocking_job::TheSlowPlaceHeld { number, name: String::from(name), since: std::time::Instant::now() };
+    return crate::the_place_of_one_blocking_job::TheSlowPlaceHeld { number };
 }
 
 /// Take the entry of one place of slow work away, because that place went back.
