@@ -32,8 +32,9 @@ use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 /// Imports `Duration`,
+/// `Instant`,
 /// `SystemTime` and `UNIX_EPOCH` from `std::time`.
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Imports `Value` from `serde_json`,
 /// which reads the size records.
@@ -350,19 +351,52 @@ fn is_version_entry(entry: &fs::DirEntry, name: &str) -> bool {
 /// they are kept for that version and go with it.
 ///
 /// In TS you'd write (pseudocode):
+/// The inventory stops when the deadline passes,
+/// between one tool and the next and between one version and the next,
+/// and says why it is not the whole store.
+/// Two calls inside it cannot be cut in the middle and are the ones outside the limit:
+/// one version's size walk (`tree_size`) and one directory read,
+/// because a size half counted is a number a bound would be compared with wrongly;
+/// neither leaves anything behind.
+///
+/// In TS you'd write (pseudocode):
 /// ```ts
-/// export function versionDirectories(root: string, tools: ReadonlySet<string>): VersionDirectory[]
+/// export function versionDirectories(root: string, tools: ReadonlySet<string>, deadline: Date): [VersionDirectory[], string?]
 /// ```
-pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> Vec<VersionDirectory> {
+pub fn version_directories(
+    toolchain_root: &Path,
+    tools: &BTreeSet<String>,
+    deadline: Instant,
+) -> (Vec<VersionDirectory>, Option<String>) {
     let recorded: BTreeMap<String, SizeRecord> = read_size_records(toolchain_root);
     let mut measured: BTreeMap<String, SizeRecord> = BTreeMap::new();
     let mut found: Vec<VersionDirectory> = Vec::new();
-    for tool in tools {
+    let mut stopped: Option<String> = None;
+    for (index, tool) in tools.iter().enumerate() {
+        // What: the inventory is cut between one tool and the next, never inside one version's measurement.
+        // Why: the pass may spend only so long on a store, and a version whose size was half counted would be a
+        // number the size bound is compared with wrongly.
+        if Instant::now() >= deadline {
+            stopped = Some(format!(
+                "the inventory ran out of its time limit after {} of {} tools, so this pass judges only the versions it \
+                 reached",
+                index,
+                tools.len()
+            ));
+            break;
+        }
         let tool_directory: PathBuf = toolchain_root.join(tool);
         let Ok(entries) = fs::read_dir(&tool_directory) else {
             continue;
         };
         for entry in entries.flatten() {
+            if Instant::now() >= deadline {
+                stopped = Some(format!(
+                    "the inventory ran out of its time limit inside {}, so this pass judges only the versions it reached",
+                    tool
+                ));
+                break;
+            }
             let version: String = entry.file_name().to_string_lossy().to_string();
             if !is_version_entry(&entry, &version) {
                 continue;
@@ -398,6 +432,9 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> V
             measured.insert(key, SizeRecord { written_ns: recorded_ns, bytes });
             found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written });
         }
+        if stopped.is_some() {
+            break;
+        }
     }
     write_size_records(toolchain_root, &measured);
     // Oldest write first: the cleanup removes in this order.
@@ -408,7 +445,7 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> V
         }
         return left.directory.cmp(&right.directory);
     });
-    return found;
+    return (found, stopped);
 }
 
 /// What:

@@ -96,6 +96,24 @@ const STOPPED_OUTPUT_GRACE: Duration = Duration::from_millis(500);
 /// a program still there after this is left to the kernel rather than waited for.
 const REAP_GRACE: Duration = Duration::from_secs(2);
 
+/// How long the process table is read for, to find what a stopped program started: 500 ms.
+/// Why:
+/// A process that left the program's own process group is reached through its parent and by nothing else,
+/// so the tree is recorded before the group is signalled;
+/// this machine's table holds about a thousand processes and reading it costs about 0.18 s
+/// (`doc/toolchain-version-cleanup.md`), so half a second covers it with room.
+/// A tree this does not reach is not stopped, and the caller is told so.
+const DESCENDANT_SCAN_DEADLINE: Duration = Duration::from_millis(500);
+
+/// How long the runner waits for the shell that signals a stopped program's group: 2 s.
+const SIGNAL_HELPER_BOUND: Duration = Duration::from_secs(2);
+
+/// How long the runner waits, after signalling, for the processes it signalled to be gone: 1 s.
+/// Why:
+/// A signalled process leaves the table at once, unless it is a zombie waiting for the parent it was given,
+/// and the wait must not hold a command that has already given up.
+const STOP_SETTLE_GRACE: Duration = Duration::from_secs(1);
+
 /// What:
 /// One program start:
 /// the program (a name looked up on `PATH`,
@@ -265,34 +283,14 @@ fn collect(source: Option<impl std::io::Read + Send + 'static>, stdout: bool, se
     }
 }
 
-/// Kills a program and waits for the kernel to report it gone,
-/// for at most `REAP_GRACE`.
+/// Waits for a started program to end,
+/// or kills it once `bound` passed,
+/// and returns its exit status when it ended.
 /// Why:
-/// `Child::wait` after a kill blocks until the program is reaped,
-/// which a program in an uninterruptible call can hold for ever;
-/// the runner's bound must not depend on that.
-fn stop(child: &mut std::process::Child) {
-    let give_up_at: Instant = Instant::now() + REAP_GRACE;
-    let _killed = child.kill();
-    while Instant::now() < give_up_at {
-        match child.try_wait() {
-            Ok(Some(_status)) => return,
-            Ok(None) => std::thread::sleep(FIRST_PAUSE),
-            Err(_unknown) => return,
-        }
-    }
-}
-
-/// Waits for a started program until its bound,
-/// and returns its exit status,
-/// or nothing when the bound passed and the program was stopped.
-/// Why:
-/// The pause grows from `FIRST_PAUSE` to `LONGEST_PAUSE`,
-/// so a program that answers in milliseconds is not held up by the check
-/// and an hour's wait costs a few thousand checks rather than an hour of them.
-fn wait_until_stopped(child: &mut std::process::Child, bound: Duration) -> Option<std::process::ExitStatus> {
+/// A helper the runner itself starts is waited for with this,
+/// so the stop path can never reach itself through another stop.
+fn wait_for_exit(child: &mut std::process::Child, bound: Duration) -> Option<std::process::ExitStatus> {
     let give_up_at: Instant = Instant::now() + bound;
-    let mut pause: Duration = FIRST_PAUSE;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return Some(status),
@@ -300,8 +298,175 @@ fn wait_until_stopped(child: &mut std::process::Child, bound: Duration) -> Optio
             Err(_unknown) => return None,
         }
         if Instant::now() >= give_up_at {
-            stop(child);
+            let _killed = child.kill();
+            let _reaped = child.try_wait();
             return None;
+        }
+        std::thread::sleep(FIRST_PAUSE);
+    }
+}
+
+/// What:
+/// Sends SIGKILL to the process group `leader` leads and to each process in `more`.
+/// Why:
+/// The standard library can signal only a child it started itself,
+/// so the group is signalled through the shell's own `kill`,
+/// whose negative number names the group;
+/// the group's number is the leader's, because the program is started in a group of its own.
+/// A signal that cannot be sent costs the stop and not the command: the caller is told what is left running.
+#[cfg(unix)]
+fn signal_dead(leader: u32, more: &[u32]) -> bool {
+    let mut line: String = format!("kill -s KILL -- -{leader}");
+    for pid in more {
+        line.push_str(&format!(" {pid}"));
+    }
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg(&line).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    let Ok(mut helper) = command.spawn() else {
+        return false;
+    };
+    return match wait_for_exit(&mut helper, SIGNAL_HELPER_BOUND) {
+        Some(status) => status.success(),
+        None => false,
+    };
+}
+
+/// Sends SIGKILL to a program and the processes it started;
+/// no system but Unix has a process group to name.
+#[cfg(not(unix))]
+fn signal_dead(_leader: u32, _more: &[u32]) -> bool {
+    return false;
+}
+
+/// What:
+/// The state letter and the parent's number one process's `/proc/<pid>/stat` line holds,
+/// or `None` where it cannot be read.
+/// Why:
+/// The kernel writes the process's own name in parentheses in that line,
+/// and a name may hold spaces or parentheses,
+/// so the fields after it are counted from the last `)`:
+/// the first is the state and the second is the parent.
+#[cfg(target_os = "linux")]
+fn state_and_parent(pid: u32) -> Option<(char, u32)> {
+    let line: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after_name: &str = line.rsplit_once(')')?.1;
+    let mut fields = after_name.split_whitespace();
+    let state: char = fields.next()?.chars().next()?;
+    let parent: u32 = fields.next()?.parse().ok()?;
+    return Some((state, parent));
+}
+
+/// The state letter and the parent's number of one process;
+/// no system but Linux keeps the file that says.
+#[cfg(not(target_os = "linux"))]
+fn state_and_parent(_pid: u32) -> Option<(char, u32)> {
+    return None;
+}
+
+/// Whether the process `pid` is in the process table and not a zombie waiting to be reaped.
+fn is_running(pid: u32) -> bool {
+    return match state_and_parent(pid) {
+        Some((state, _parent)) => state != 'Z',
+        None => false,
+    };
+}
+
+/// What:
+/// Every process whose parent chain leads to `root`, as the table shows it now.
+/// Why:
+/// A process that called `setsid` or `setpgid` itself is no longer in the group a stop signals,
+/// and its parent is the only thing that still names it;
+/// recording the tree before the group is signalled is what lets the stop reach those too,
+/// and say which ones it could not.
+fn descendants_of(root: u32, deadline: Instant) -> Vec<u32> {
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    let mut parents: Vec<(u32, u32)> = Vec::new();
+    for entry in entries.flatten() {
+        if Instant::now() >= deadline {
+            break;
+        }
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
+        };
+        if let Some((_state, parent)) = state_and_parent(pid) {
+            parents.push((pid, parent));
+        }
+    }
+    let mut found: Vec<u32> = Vec::new();
+    let mut frontier: Vec<u32> = vec![root];
+    while let Some(parent) = frontier.pop() {
+        for (pid, candidate_parent) in &parents {
+            if *candidate_parent == parent && *pid != root {
+                found.push(*pid);
+                frontier.push(*pid);
+            }
+        }
+    }
+    return found;
+}
+
+/// What:
+/// Stops a program whole:
+/// the program, the process group it leads, and every process it started,
+/// and answers with what is still running when that is not nothing.
+/// Why:
+/// A program the runner stops at its bound is stopped so that no part of its work goes on beside the next command;
+/// a descendant still writing into an install would meet the retry.
+/// The group is signalled, which is one step for everything still in it;
+/// the tree recorded before the signal is signalled too, for a process that left the group;
+/// and a process that left both (a double fork that reparented before the tree was read) is beyond reach,
+/// which is why the caller is told what is still running rather than promised silence.
+fn stop(child: &mut std::process::Child) -> Option<String> {
+    let leader: u32 = child.id();
+    let tree: Vec<u32> = descendants_of(leader, Instant::now() + DESCENDANT_SCAN_DEADLINE);
+    if !signal_dead(leader, &tree) {
+        // Best effort: the group could not be signalled, so at least the program the runner started is killed.
+        let _killed = child.kill();
+    }
+    let give_up_at: Instant = Instant::now() + REAP_GRACE;
+    while Instant::now() < give_up_at {
+        match child.try_wait() {
+            Ok(Some(_status)) => break,
+            Ok(None) => std::thread::sleep(FIRST_PAUSE),
+            Err(_unknown) => break,
+        }
+    }
+    let settle_until: Instant = Instant::now() + STOP_SETTLE_GRACE;
+    loop {
+        let mut alive: Vec<u32> = tree.iter().copied().filter(|pid| return is_running(*pid)).collect();
+        if alive.is_empty() {
+            return None;
+        }
+        if Instant::now() >= settle_until {
+            alive.sort_unstable();
+            return Some(format!("these processes it started are still running: {alive:?}"));
+        }
+        std::thread::sleep(FIRST_PAUSE);
+    }
+}
+
+/// What:
+/// Waits for a started program until its bound,
+/// and returns its exit status when it ended,
+/// or why something it started may still run when the bound passed and it was stopped.
+/// Why:
+/// The pause grows from `FIRST_PAUSE` to `LONGEST_PAUSE`,
+/// so a program that answers in milliseconds is not held up by the check
+/// and an hour's wait costs a few thousand checks rather than an hour of them.
+fn wait_until_stopped(child: &mut std::process::Child, bound: Duration) -> Result<std::process::ExitStatus, Option<String>> {
+    let give_up_at: Instant = Instant::now() + bound;
+    let mut pause: Duration = FIRST_PAUSE;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Ok(status),
+            Ok(None) => {}
+            Err(_unknown) => return Err(None),
+        }
+        if Instant::now() >= give_up_at {
+            let note: Option<String> = stop(child);
+            return Err(note);
         }
         std::thread::sleep(pause);
         pause = pause.saturating_mul(2).min(LONGEST_PAUSE);
@@ -349,6 +514,15 @@ impl Runner for ProcessRunner {
         if let Some(directory) = &request.cwd {
             command.current_dir(directory);
         }
+        // What: the program is started in a process group of its own.
+        // Why: a stopped program is stopped whole through that group,
+        // and a signal aimed at this process's group (a terminal's interrupt) cannot take the program away from
+        // under the runner that is waiting for it.
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
         let mut child: std::process::Child = match command.spawn() {
             Ok(started) => started,
             Err(error) => {
@@ -370,21 +544,27 @@ impl Runner for ProcessRunner {
         drop(sender);
         let out_thread = std::thread::spawn(move || return collect(out, true, out_sender));
         let err_thread = std::thread::spawn(move || return collect(err, false, err_sender));
-        let status: Option<std::process::ExitStatus> = wait_until_stopped(&mut child, request.bound);
+        let waited: Result<std::process::ExitStatus, Option<String>> = wait_until_stopped(&mut child, request.bound);
         let (stdout, stderr) = captured_output(&receiver);
         // The reader threads end with their streams; a join here would wait on a pipe another program still holds.
         drop(out_thread);
         drop(err_thread);
-        let Some(exit) = status else {
-            let mut message: String = format!(
-                "{} was still running after its bound of {} s and was stopped, so nothing it was doing finished",
-                request.line(),
-                request.bound.as_secs()
-            );
-            if !stderr.trim().is_empty() {
-                message.push_str(&format!(": {}", stderr.trim()));
+        let exit: std::process::ExitStatus = match waited {
+            Ok(status) => status,
+            Err(left_running) => {
+                let mut message: String = format!(
+                    "{} was still running after its bound of {} s and was stopped, so nothing it was doing finished",
+                    request.line(),
+                    request.bound.as_secs()
+                );
+                if let Some(note) = left_running {
+                    message.push_str(&format!("; {note}"));
+                }
+                if !stderr.trim().is_empty() {
+                    message.push_str(&format!(": {}", stderr.trim()));
+                }
+                return RunOutcome { stdout, stderr: message, code: 1 };
             }
-            return RunOutcome { stdout, stderr: message, code: 1 };
         };
         return RunOutcome { stdout, stderr, code: exit.code().unwrap_or(1) };
     }

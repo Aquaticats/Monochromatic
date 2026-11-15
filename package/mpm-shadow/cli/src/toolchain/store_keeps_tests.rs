@@ -209,3 +209,31 @@ fn a_route_that_keeps_no_version_directory_has_no_directory_name() {
 }
 
 //endregion
+
+//region what a scan that could not finish keeps
+
+/// What:
+/// A process scan that ran out of its time keeps the version:
+/// "the scan did not finish" is carried to the removal as its own answer, never as "nothing runs it".
+/// Why:
+/// The review of this change ran an install with `MPM_SHADOW_STORE_WORK_LIMIT=0` while an older version of the tool was
+/// running, and the install deleted that running version:
+/// `holders_of` answered `incomplete`, and the answer was dropped on the way to the decision.
+/// The module's own rule says a process table that cannot be read keeps every version.
+#[test]
+fn a_process_scan_that_could_not_finish_keeps_the_version() {
+    let mut rig = Rig::new();
+    // The process scan's deadline is spent before its first look at the table.
+    rig.env = rig.env.with(crate::toolchain::store_trim::WORK_LIMIT_ENV, "0");
+    let directory: std::path::PathBuf = rig.scope.toolchain_root.join("node").join("26.11.0");
+
+    let keeps = super::store_keeps::InstallKeeps::of(&rig.context());
+    let kept: Option<String> = keeps.keep_reason("node", "26.11.0", &directory);
+
+    assert!(kept.is_some(), "a scan that could not tell what is in use was read as nothing in use");
+    let line: String = kept.expect("the reason");
+    assert!(line.contains("could not be read"), "the line says which answer was missing: {line}");
+    assert!(keeps.in_use_reason(&directory).is_some(), "the newest-only rule asks this alone too");
+}
+
+//endregion

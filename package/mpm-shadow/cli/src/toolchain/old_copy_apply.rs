@@ -209,21 +209,34 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
     // What: the `current` link is settled before any version goes, so no launcher or link that names it ever sees it dangle,
     // and only when it names a version this run removes.
     // Why: a link naming a version that stays, or one another tree just installed here, belongs to that version.
+    let mut settled: Option<String> = None;
     match current_after_removal(ctx, plan) {
         CurrentAfterRemoval::Leave => {}
         CurrentAfterRemoval::Point(link, version) => match atomic_symlink(&link, Path::new(&version)) {
             Ok(()) => outcome.lines.push(format!("{} now names {version}", link.display())),
-            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot point {} at {version}: {error}", link.display()))),
+            Err(error) => settled = Some(format!("cannot point {} at {version}: {error}", link.display())),
         },
         CurrentAfterRemoval::Forward(link, target) => match atomic_symlink(&link, &target) {
             Ok(()) => outcome.lines.push(format!("{} now forwards to {}", link.display(), target.display())),
-            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot forward {}: {error}", link.display()))),
+            Err(error) => settled = Some(format!("cannot forward {}: {error}", link.display())),
         },
         CurrentAfterRemoval::Remove(link) => match fs::remove_file(&link) {
             Ok(()) => outcome.lines.push(format!("removed {}, which named a version this run removed", link.display())),
             Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot remove {}: {error}", link.display()))),
+            Err(error) => settled = Some(format!("cannot remove {}: {error}", link.display())),
         },
+    }
+    // What: a link this run could not settle keeps every version it names.
+    // Why: the copies below are what that link points into,
+    // so deleting them while it still names one leaves a link that resolves to nothing,
+    // and a launcher or a record that follows it stops working with no way back.
+    if let Some(reason) = settled {
+        outcome.failed.push((loser_label(plan), reason));
+        outcome.warnings.push(loser_kept_warning(
+            plan,
+            "its `current` link was not settled, so every older copy of it stays; settle the link and run the command again",
+        ));
+        return;
     }
     for copy in &plan.copies {
         match remove_version(plan, &copy.directory, &copy.version) {
@@ -237,6 +250,16 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
             Err(message) => outcome.failed.push((loser_label(plan), message)),
         }
     }
+}
+
+/// What:
+/// `apply_loser`, for the tests that pin the order of the link and the copies.
+/// Why:
+/// The step is private, and the order is the whole rule:
+/// a test that cannot reach it cannot show that a link which was not settled keeps its version.
+#[cfg(test)]
+pub(crate) fn apply_loser_for_a_test(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {
+    return apply_loser(ctx, plans, plan, outcome);
 }
 
 /// What:

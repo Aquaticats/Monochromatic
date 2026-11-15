@@ -65,6 +65,8 @@ use super::layout::{find_bin_under, install_dir_name, tool_directory, tool_downl
 use super::model::{LockedTool, Request, Route};
 /// Imports `PresentVersion` from `super::prune_cargo`.
 use super::prune_cargo::PresentVersion;
+/// Imports what this module uses from `super::download_ownership`.
+use super::download_ownership::{RemovalClaim, RemovalRight, live_owner, take_removal_right};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{DOWNLOADS_DIRECTORY_NAME, downloads_in_use};
 /// Imports the name checks from `super::segment`.
@@ -249,11 +251,30 @@ pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bi
 /// ```
 pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Result<(), ToolchainError> {
     let directory: PathBuf = tool_downloads_dir(toolchain_root, id, version)?;
-    // What: a downloads directory an install is writing or unpacking now is kept, whoever asks for its removal.
-    // Why: another command may be installing this version from a lock this run read before that command's lock named
-    // it, and taking the archive away fails that install for a version this run only judged removable from a
-    // snapshot; the next pass removes the archives once nothing has touched them for the in-use floor.
+    // What: the right to remove these archives is taken before they are judged, and an install that is using them is
+    // seen before anything is deleted.
+    // Why: a check and then a delete leaves a window an install can start in,
+    // and the claim is what closes it: the install looks for the claim after it writes its owner file,
+    // so no install is writing here while this call holds the right.
+    let right: RemovalRight = take_removal_right(toolchain_root, id, version)?;
+    let claim: RemovalClaim = match right {
+        // Nothing at that name: another command removed it, which is the state this call wanted.
+        RemovalRight::Absent => return Ok(()),
+        // Another command holds the right: it is removing these archives, and this one has nothing to add.
+        RemovalRight::Taken => return Ok(()),
+        RemovalRight::Held(claim) => claim,
+    };
+    if live_owner(&directory).is_some() {
+        // What: an install that wrote its owner file before this claim is using the archives, so they stay.
+        // Why: taking them away fails that install, and the line it prints would name a version it only judged
+        // removable from a snapshot of the locks taken before that install's lock named it.
+        drop(claim);
+        return Ok(());
+    }
+    // What: an older release's install does not write an owner file, so its use is judged by the age of its files.
+    // Why: the store is shared by every worktree, and one of them may run a release from before this rule.
     if downloads_in_use(&directory).is_some() {
+        drop(claim);
         return Ok(());
     }
     match fs::remove_dir_all(&directory) {
@@ -266,7 +287,9 @@ pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Resul
     if let Some(tool_downloads) = directory.parent() {
         // Best effort: the tool's downloads directory goes once its last version's downloads are gone, and stays when
         // another version's downloads are still in it.
+        drop(claim);
         let _ = fs::remove_dir(tool_downloads);
+        return Ok(());
     }
     return Ok(());
 }
@@ -312,13 +335,12 @@ pub fn remove_orphan_downloads(toolchain_root: &Path, tools: &BTreeSet<String>, 
             if toolchain_root.join(tool).join(&version).exists() {
                 continue;
             }
+            // What: the removal is the same one the newest-only rule makes, right and ownership included.
+            // Why: one owner of the rule keeps the sweep from deleting what that removal keeps.
             let directory: PathBuf = entry.path();
-            if downloads_in_use(&directory).is_some() {
-                continue;
-            }
             // Best effort: a removal that fails leaves the archives for the next pass, and nothing here is data a
             // person loses.
-            if fs::remove_dir_all(&directory).is_ok() {
+            if remove_downloads(toolchain_root, tool, &version).is_ok() && !directory.exists() {
                 lines.push(format!(
                     "mpm-shadow: removed the archives of {} {}, which this root does not have installed any more",
                     tool, version

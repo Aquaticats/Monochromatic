@@ -134,6 +134,16 @@ impl InstallKeeps {
         if unreadable.is_none() {
             unreadable = named.unreadable.clone();
         }
+        // What: a process scan that ran out of its time is carried to the decision as its own answer.
+        // Why: the scan stops before reading the process table,
+        // so "it found no holder" is not "nothing runs the version";
+        // folding that into no would delete a version in use precisely when the scan could not tell.
+        if let Some(reason) = &holders.incomplete {
+            unreadable = Some(match unreadable {
+                Some(known) => format!("{known}; {reason}"),
+                None => reason.clone(),
+            });
+        }
         return InstallKeeps { named, holders, unreadable };
     }
 

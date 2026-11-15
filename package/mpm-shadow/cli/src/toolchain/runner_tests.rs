@@ -9,6 +9,9 @@ use std::path::Path;
 
 use super::fakes::FakeRunner;
 use super::runner::{ProcessRunner, RunRequest, Runner, toolchain_path_env};
+/// Imports `Duration` from `std::time`,
+/// for the bound a stopped program runs under.
+use std::time::Duration;
 use super::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, repo_scope};
 use crate::test_scratch::scratch;
 
@@ -132,3 +135,26 @@ fn a_program_that_outlives_its_bound_is_stopped_and_named() {
 }
 
 //endregion
+
+//region what a stopped program's children do
+
+/// What:
+/// A program the runner stops is stopped whole:
+/// the process it started does not go on writing after `run` returned a failure.
+/// Why:
+/// The review of this change ran a program whose child started a grandchild and then waited:
+/// the bound expired, `run` returned, and the grandchild wrote its marker afterwards,
+/// beside whatever retry the caller started.
+#[test]
+fn a_stopped_programs_descendant_does_not_go_on_writing() {
+    let directory = crate::test_scratch::scratch();
+    let marker: std::path::PathBuf = directory.path().join("grandchild-continued");
+    let script: String = format!("sh -c 'sleep 1; printf continued > {}' & wait", marker.display());
+
+    let outcome = ProcessRunner.run(&RunRequest::new("sh", &["-c", &script]).bounded(Duration::from_millis(100)));
+
+    assert_eq!(outcome.code, 1, "the direct child is stopped at its bound: {outcome:?}");
+    // Longer than the descendant's sleep: a descendant that survived writes its marker in that second.
+    std::thread::sleep(Duration::from_millis(1_600));
+    assert!(!marker.exists(), "a descendant of the stopped program kept running and wrote its marker");
+}

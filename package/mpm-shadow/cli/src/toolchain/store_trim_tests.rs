@@ -37,6 +37,11 @@ use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
 
+/// A deadline no test reaches, for an inventory a test asks for in full.
+fn far_deadline() -> Instant {
+    return Instant::now() + Duration::from_secs(600);
+}
+
 /// A mebibyte,
 /// so a test's bound reads as a fixture size.
 const MIB: u64 = 1024 * 1024;
@@ -298,7 +303,7 @@ impl Fixture {
 
     fn candidates(&self) -> Vec<TrimCandidate> {
         let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
-        return candidates_of(std::slice::from_ref(&self.root), &tools);
+        return candidates_of(std::slice::from_ref(&self.root), &tools, far_deadline()).0;
     }
 
     fn run(&self) -> TrimRun {
@@ -838,7 +843,7 @@ fn replays_a_real_store_listing() {
         .filter(|version| return version.pinned)
         .map(|version| return format!("{}-{}", version.tool, version.version))
         .collect();
-    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools);
+    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools, far_deadline()).0;
     let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|found| {
         if pinned.contains(&format!("{}-{}", found.tool, found.version)) {
             return Some("a lock of the replayed machine named it".to_string());
@@ -939,3 +944,68 @@ fn the_install_pass_removes_the_archives_of_a_version_that_is_gone() {
 
     assert!(!orphan.exists(), "the pass left the archives of a version this root does not have");
 }
+
+//region what a claim under a root keeps, and what the inventory's deadline does
+
+/// What:
+/// The recovery marker stays while any claim is under the root, alive or dead,
+/// and goes once the last claim is given back.
+/// Why:
+/// The review of this change ran a second sync while a live removal owned a hidden claim:
+/// the pass left the claim (its owner was alive), did not mark the root unfinished, and `settle_markers` deleted the
+/// marker because no tombstone was left.
+/// The owner was then killed, and every later sync that installed nothing returned early, so the version stayed hidden
+/// under its claimed name for good.
+#[test]
+fn the_recovery_marker_stays_while_a_claim_is_under_the_root() {
+    let fixture = Fixture::new();
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    let version: PathBuf = fixture.root.join("node/26.12.0");
+    let maker: ProcessIdentity = this_process().expect("this process's start time is readable");
+    let claimed: PathBuf = fixture
+        .root
+        .join("node")
+        .join(claimed_name("26.12.0", maker.pid, maker.started));
+    fs::rename(&version, &claimed).expect("model a removal after its claim");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("model its recovery marker");
+
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    assert!(lines.is_empty(), "the claim of a live removal is not this pass's to move: {lines:?}");
+    settle_markers(std::slice::from_ref(&fixture.root), &tools, &unfinished);
+
+    assert!(
+        has_unfinished_removal(&fixture.root),
+        "the marker was cleared while a claim was still under the root"
+    );
+
+    // Control: once the claim is gone, a pass settles the marker, so it is not kept for ever.
+    fs::rename(&claimed, &version).expect("give the version back by hand");
+    let (_, second_pass_unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    settle_markers(std::slice::from_ref(&fixture.root), &tools, &second_pass_unfinished);
+    assert!(!has_unfinished_removal(&fixture.root), "the marker stayed with nothing left to do");
+}
+
+/// What:
+/// An inventory whose deadline has passed is not the whole store, and it says so.
+/// Why:
+/// The review of this change found the cleanup's work limit does not bound its filesystem work:
+/// the inventory walked every version and measured every tree with no deadline,
+/// so a large store made the pass overrun its bound by the whole store's cost.
+#[test]
+fn an_inventory_past_its_deadline_stops_and_says_so() {
+    let fixture = Fixture::new();
+    let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
+
+    let (candidates_in_time, stopped_in_time) =
+        candidates_of(std::slice::from_ref(&fixture.root), &tools, Instant::now() + Duration::from_secs(60));
+    assert!(stopped_in_time.is_empty(), "the inventory in time has nothing to report: {stopped_in_time:?}");
+    assert_eq!(candidates_in_time.len(), 4, "the whole fixture is in the inventory in time");
+
+    // A deadline that has already passed: the scan stops at its first check and says why it is not the whole store.
+    let (candidates_late, stopped_late) = candidates_of(std::slice::from_ref(&fixture.root), &tools, Instant::now());
+    assert!(candidates_late.is_empty(), "a scan past its deadline listed versions after all: {candidates_late:?}");
+    assert_eq!(stopped_late.len(), 1, "the scan says it is not the whole store: {stopped_late:?}");
+    assert!(stopped_late[0].contains("ran out of its time limit"), "{stopped_late:?}");
+}
+
+//endregion

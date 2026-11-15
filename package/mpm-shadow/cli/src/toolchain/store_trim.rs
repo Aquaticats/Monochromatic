@@ -60,6 +60,9 @@ use super::cargo_installs::{CURRENT_LINK_NAME, shell_word};
 use super::context::Context;
 /// Imports `Route` from `super::model`.
 use super::model::Route;
+/// Imports what this module uses from `super::download_ownership`,
+/// which says who owns a version's downloads while an install writes them and who may remove them.
+use super::download_ownership::{RemovalClaim, RemovalRight, live_owner, take_removal_right};
 /// Imports `remove_orphan_downloads` from `super::published_archive`,
 /// which owns where a version's archives are kept and what tells an install's use of them.
 use super::published_archive::remove_orphan_downloads;
@@ -335,10 +338,15 @@ pub struct TrimCandidate {
 /// ```ts
 /// export function candidatesOf(roots: string[], tools: ReadonlySet<string>): TrimCandidate[]
 /// ```
-pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>) -> Vec<TrimCandidate> {
+pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>, deadline: Instant) -> (Vec<TrimCandidate>, Vec<String>) {
     let mut candidates: Vec<TrimCandidate> = Vec::new();
+    let mut incomplete: Vec<String> = Vec::new();
     for root in roots {
-        for version in version_directories(root, tools) {
+        let (versions, stopped) = version_directories(root, tools, deadline);
+        if let Some(reason) = stopped {
+            incomplete.push(format!("{}: {reason}", root.display()));
+        }
+        for version in versions {
             candidates.push(candidate_of_version(root, version));
         }
         for leftover in leftover_downloads(root, tools) {
@@ -355,7 +363,7 @@ pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>) -> Vec<TrimCan
         }
     }
     candidates.sort_by(compare_oldest_first);
-    return candidates;
+    return (candidates, incomplete);
 }
 
 /// The candidate one version directory makes.
@@ -651,15 +659,19 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     outcome.unfinished.insert(candidate.root.clone());
                     continue;
                 }
-                match remove_one(candidate) {
-                    Ok(Some(bytes)) => {
+                match remove_one(candidate, run) {
+                    Removal::Removed(bytes) => {
                         outcome.removed += 1;
                         outcome.removed_bytes = outcome.removed_bytes.saturating_add(bytes);
                         outcome.lines.push(removed_line(candidate));
                     }
                     // The version is gone already: another run removed it, and there is nothing to say.
-                    Ok(None) => {}
-                    Err(reason) => outcome.lines.push(kept_line(candidate, &reason)),
+                    Removal::Gone => {}
+                    Removal::Kept(reason) => outcome.lines.push(kept_line(candidate, &reason)),
+                    Removal::Deferred => {
+                        deferred += 1;
+                        outcome.unfinished.insert(candidate.root.clone());
+                    }
                 }
             }
         }
@@ -671,6 +683,23 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
         ));
     }
     return outcome;
+}
+
+/// What one removal did.
+/// Why:
+/// A pass that ran out of its time is not a version that was kept for a reason about the version,
+/// and the report has to tell them apart:
+/// one is work for the next install, the other says what about the version keeps it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Removal {
+    /// The version went, and gave back this many bytes.
+    Removed(u64),
+    /// Nothing stood at its name any more.
+    Gone,
+    /// The version stayed, for this reason.
+    Kept(String),
+    /// The pass's time ran out with the version still in place.
+    Deferred,
 }
 
 /// What:
@@ -689,22 +718,31 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
 /// ```ts
 /// function removeOne(candidate: TrimCandidate): number | undefined  // throws on a refusal
 /// ```
-fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
+fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
+    // What: the deadline is looked at before each step that moves something, and never between the last rename and
+    // the delete.
+    // Why: the steps before that can be undone where they are, and a recursive delete cannot be cut in the middle
+    // without leaving half a version: one that is cut leaves its tombstone behind, which carries the marker, and the
+    // next pass finishes it (`finish_removals`).
+    let out_of_time = || return run.started.elapsed() >= run.bounds.work_limit;
     if candidate.leftover {
         return match fs::remove_file(&candidate.directory) {
-            Ok(()) => Ok(Some(candidate.bytes)),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(format!("it cannot be removed: {error}")),
+            Ok(()) => Removal::Removed(candidate.bytes),
+            Err(error) if error.kind() == ErrorKind::NotFound => Removal::Gone,
+            Err(error) => Removal::Kept(format!("it cannot be removed: {error}")),
         };
+    }
+    if out_of_time() {
+        return Removal::Deferred;
     }
     let metadata: fs::Metadata = match fs::symlink_metadata(&candidate.directory) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("it cannot be read: {error}")),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Removal::Gone,
+        Err(error) => return Removal::Kept(format!("it cannot be read: {error}")),
     };
     let judged: JudgedVersion = JudgedVersion::of(&metadata);
     if judged.written != Some(candidate.written) {
-        return Err("another run wrote it while the cleanup ran".to_string());
+        return Removal::Kept("another run wrote it while the cleanup ran".to_string());
     }
     // What: a version whose downloads an install is writing stays, whoever asked for its removal.
     // Why: the archives are that install's, and moving or deleting them fails it for a version this pass judged from
@@ -712,30 +750,59 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
     if let Some(downloads) = &candidate.downloads
         && let Some(reason) = downloads_in_use(downloads)
     {
-        return Err(format!("an install is using its downloads: {reason}"));
+        return Removal::Kept(format!("an install is using its downloads: {reason}"));
     }
     // What: the name the version will be moved to is chosen before anything moves.
     // Why: a name that cannot be had keeps the version where it is, and the pass has written nothing to undo.
     let Some(claimed) = claim_name_beside(&candidate.directory) else {
-        return Err("no free claim name is left beside it, so it is not moved aside".to_string());
+        return Removal::Kept("no free claim name is left beside it, so it is not moved aside".to_string());
     };
     // What: the marker is written before the first rename.
     // Why: a run killed inside `remove_dir_all` leaves the marker, and the next install finishes the removal.
     let _ = fs::write(unfinished_marker(&candidate.root), b"");
+    if out_of_time() {
+        return Removal::Deferred;
+    }
+    // What: the downloads are taken by a claim before they are moved, and an install that owns them keeps the
+    // version whole.
+    // Why: the claim is what an install looks for after it writes its owner file,
+    // so no install starts writing here while this call holds it,
+    // and an install that started before it is seen and left alone;
+    // a check and then a move would leave the instant between them open.
+    let mut downloads_right: Option<RemovalClaim> = None;
     // What: the downloads are moved out of their name first, then the version.
     // Why: a kill between the two leaves the version whole and a downloads marker the next run finishes, never a
     // version that is gone while its downloads still sit under a version's name.
     let moved_downloads: Option<PathBuf> = match &candidate.downloads {
-        Some(downloads) => {
-            let marker: PathBuf = tombstone_of(downloads);
-            match fs::rename(downloads, &marker) {
-                Ok(()) => Some(marker),
-                Err(error) if error.kind() == ErrorKind::NotFound => None,
-                Err(error) => return Err(format!("its downloads cannot be moved aside: {error}")),
+        Some(downloads) => match take_removal_right(&candidate.root, &candidate.tool, &candidate.version) {
+            Err(error) => return Removal::Kept(error.message),
+            // The directory went between the scan and now: there is nothing to move aside.
+            Ok(RemovalRight::Absent) => None,
+            Ok(RemovalRight::Taken) => {
+                return Removal::Kept("another command is removing its archives right now".to_string());
             }
-        }
+            Ok(RemovalRight::Held(claim)) => {
+                if live_owner(downloads).is_some() {
+                    return Removal::Kept("an install owns its downloads and is unpacking them".to_string());
+                }
+                downloads_right = Some(claim);
+                let marker: PathBuf = tombstone_of(downloads);
+                match fs::rename(downloads, &marker) {
+                    Ok(()) => Some(marker),
+                    Err(error) if error.kind() == ErrorKind::NotFound => None,
+                    Err(error) => return Removal::Kept(format!("its downloads cannot be moved aside: {error}")),
+                }
+            }
+        },
         None => None,
     };
+    // What: a deadline that passed after the downloads moved puts them back and leaves the version whole.
+    // Why: the version's own name is where a reader expects it, and a downloads marker without a version beside it is
+    // work the next pass would have to guess about.
+    if out_of_time() {
+        restore_downloads(&moved_downloads, &candidate.downloads);
+        return Removal::Deferred;
+    }
     // What: the version is taken out of its name before anything is compared or deleted,
     // to a hidden name no scan judges and no recovery deletes.
     // Why: the move is one atomic step, so whatever another run put at that name is in hand and can be told from the
@@ -744,36 +811,43 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {
             restore_downloads(&moved_downloads, &candidate.downloads);
-            return Ok(None);
+            return Removal::Gone;
         }
         Err(error) => {
             restore_downloads(&moved_downloads, &candidate.downloads);
-            return Err(format!("it cannot be moved aside: {error}"));
+            return Removal::Kept(format!("it cannot be moved aside: {error}"));
         }
     }
     if !judged.still_at(&claimed) {
-        return Err(put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
+        return Removal::Kept(put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
+    }
+    // What: the deadline is looked at once more before the version takes its removal name.
+    // Why: from there on the delete runs to its end, and a pass that would cut it short had better stop before it.
+    if out_of_time() {
+        return Removal::Kept(put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
     }
     let version_marker: PathBuf = tombstone_of(&candidate.directory);
     if let Err(error) = fs::rename(&claimed, &version_marker) {
         // The version stays, so it goes back to its name with the downloads that were moved aside for it.
         let reason: String = put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads);
-        return Err(format!("it cannot be moved aside: {error}; {reason}"));
+        return Removal::Kept(format!("it cannot be moved aside: {error}; {reason}"));
     }
     for marker in [Some(version_marker), moved_downloads].into_iter().flatten() {
         match fs::remove_dir_all(&marker) {
             Ok(()) => {}
             Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("{} is left half removed: {error}", marker.display())),
+            Err(error) => return Removal::Kept(format!("{} is left half removed: {error}", marker.display())),
         }
     }
+    // The claim goes before the tool's downloads directory is looked at, which is not empty while it is there.
+    drop(downloads_right);
     if let Some(downloads) = &candidate.downloads
         && let Some(tool_downloads) = downloads.parent()
     {
         // Best effort: a tool's downloads directory goes once its last version's archives are gone.
         let _ = fs::remove_dir(tool_downloads);
     }
-    return Ok(Some(candidate.bytes));
+    return Removal::Removed(candidate.bytes);
 }
 
 /// What:
@@ -1107,11 +1181,34 @@ fn removed_line(candidate: &TrimCandidate) -> String {
 /// ```
 pub fn settle_markers(roots: &[PathBuf], tools: &BTreeSet<String>, unfinished: &BTreeSet<PathBuf>) {
     for root in roots {
-        if unfinished.contains(root) || !tombstones(root, tools).is_empty() {
+        // What: the marker goes only when nothing under the root is a removal in progress, alive or dead.
+        // Why: a claim names work that is not done, even when this pass cannot finish it (its owner is still running),
+        // and a marker cleared then is never looked at again by a sync that installs nothing,
+        // so the version would stay hidden under its claimed name for good.
+        if unfinished.contains(root) || !tombstones(root, tools).is_empty() || has_claimed_versions(root, tools) {
             continue;
         }
         let _ = fs::remove_file(unfinished_marker(root));
     }
+}
+
+/// What:
+/// Whether any claim of a removal sits under this root, whatever its maker is doing.
+/// Why:
+/// A claim is a version taken out of its name, and until it is given back or deleted the work it belongs to is not
+/// done; the marker is what makes a later sync look.
+fn has_claimed_versions(root: &Path, tools: &BTreeSet<String>) -> bool {
+    for tool in tools {
+        let Ok(entries) = fs::read_dir(root.join(tool)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if ClaimedVersion::parse(&entry.file_name().to_string_lossy()).is_some() {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -1277,7 +1374,14 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
         let holders: StoreHolders = holders_of(&roots, run.started + bounds.work_limit);
         let installed_set: BTreeSet<(String, String)> = installed.iter().cloned().collect();
         let links: BTreeMap<(PathBuf, String), String> = current_links(&roots, &tools);
-        let candidates: Vec<TrimCandidate> = candidates_of(&roots, &tools);
+        let (candidates, inventory_incomplete): (Vec<TrimCandidate>, Vec<String>) =
+            candidates_of(&roots, &tools, run.started + bounds.work_limit);
+        // What: an inventory that ran out of its time is said, and this pass judges only what it reached.
+        // Why: the versions it did not reach are not in the plan, so nothing is removed on a guess about them,
+        // and a person reading the run knows why the pass was short.
+        for reason in &inventory_incomplete {
+            lines.push(format!("mpm-shadow: the cleanup's inventory is not the whole store: {reason}"));
+        }
         // What: a scan that could not be completed keeps every version.
         // Why: a version a process the scan did not reach uses must not be removed.
         let unread: Option<String> = holders.incomplete.clone();

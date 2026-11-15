@@ -48,6 +48,10 @@ mod verb_grammar;
 /// observer and resolver receives.
 pub mod context;
 
+/// Who owns a version's downloads directory while an install writes into it,
+/// and who may remove it.
+pub mod download_ownership;
+
 /// The error type and its exit codes.
 pub mod error;
 
@@ -342,6 +346,14 @@ mod observe_tests;
 /// The unit tests of every installer.
 #[cfg(test)]
 mod install_tests;
+
+/// The unit tests of who owns a version's downloads directory.
+#[cfg(test)]
+mod download_ownership_tests;
+
+/// The unit tests of the old-copy cleanup's last step.
+#[cfg(test)]
+mod old_copy_apply_tests;
 
 /// The unit tests of the Rust component and target reconciler.
 #[cfg(test)]

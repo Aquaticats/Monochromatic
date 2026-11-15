@@ -29,6 +29,9 @@ use std::path::{Path, PathBuf};
 
 /// Imports what this module uses from `super::archive_staging`.
 use super::archive_staging::{discard_path, publish_staged, staging_dir_of, write_complete_marker};
+/// Imports `DownloadsOwner` from `super::download_ownership`,
+/// which says which install a version's downloads belong to while it writes them.
+use super::download_ownership::DownloadsOwner;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `ToolchainError` from `super::error`.
@@ -316,6 +319,11 @@ fn unpack_and_mark(ctx: &Context, tool: &LockedTool, url: &str, download_path: &
 fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let artifact = artifact_for_host(tool, &ctx.host.platform)?;
     let file_name: String = safe_file_name(&artifact.url);
+    // What: this install owns the version's downloads directory before its first byte, and until the archive is used.
+    // Why: a removal that took the directory would leave this install without the archive it is about to unpack,
+    // and the owner file is what that removal sees and leaves;
+    // it goes when this value drops, which is after the archive has been unpacked.
+    let ownership: DownloadsOwner = DownloadsOwner::take(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     let download_path: PathBuf = tool_downloads_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?.join(&file_name);
     download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
     let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
@@ -329,5 +337,7 @@ fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), Toolcha
         discard_path(&staging);
         return Err(error);
     }
+    // The archive has been unpacked: it is nobody's working file now, and a removal may take it.
+    drop(ownership);
     return publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""));
 }
