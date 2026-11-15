@@ -129,8 +129,18 @@ pub(super) fn check_limited_run(label: &str, output: &Output, may_abort: bool) -
 
 /// What one case showed.
 struct Case {
-    /// Whether the commit landed under the limit.
+    /// Whether the wrapper returned success under the limit:
+    /// its own exit status,
+    /// and never whether the service made the commit,
+    /// which the service's own words answer.
     landed: bool,
+    /// How the wrapper itself ended under the limit,
+    /// as an exit status or a signal,
+    /// for a failure that must say what happened rather than what it means.
+    status: std::process::ExitStatus,
+    /// What the wrapper wrote on its standard error under the limit,
+    /// which is where it says why it did not return success.
+    stderr: String,
     /// Whether the first run ended with a check failure,
     /// or the recovery after it did not hold.
     verdict: Result<(), String>,
@@ -174,9 +184,11 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     };
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let landed: bool = output.status.code() == Some(0);
+    let status: std::process::ExitStatus = output.status;
+    let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let log: String = the_service_log_of(&fixture);
     remove_settled(&fixture);
-    return Case { landed, verdict, log, service_end };
+    return Case { landed, status, stderr, verdict, log, service_end };
 }
 
 /// What:
@@ -802,11 +814,16 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
     let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true, None);
     assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
-    // The case above the boundary carries the landing, so a refusal there fails here and is not counted as one more
-    //  refusal of the sweep: the totals below would hide it while any case of the sweep landed.
+    // The case above the boundary carries the landing, so a wrapper that does not return success there fails here and is
+    //  not counted as one more refusal of the sweep: the totals below would hide it while any case of the sweep landed.
+    //  The message names what happened, which is the wrapper's own ending and what it said; whether a commit landed is a
+    //  second fact, and the service's words answer it, so the two are not confused when they differ.
     assert!(
         above.landed,
-        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which one lands ({lands_at} MiB), and the commit there did not: what the service wrote: {}",
+        "the wrapper must return success at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and it ended {}; what it wrote on its standard error: {}
+what the service wrote, which answers whether a commit landed: {}",
+        above.status,
+        above.stderr,
         above.log
     );
     let landed: usize = swept_landed + usize::from(above.landed);
@@ -856,9 +873,11 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let landed: bool = output.status.code() == Some(0);
+    let status: std::process::ExitStatus = output.status;
+    let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let log: String = the_service_log_of(&fixture);
     remove_settled(&fixture);
-    return Case { landed, verdict, log, service_end: None };
+    return Case { landed, status, stderr, verdict, log, service_end: None };
 }
 
 /// A running service whose address-space limit is lowered in place to each of `MEMORY_STEPS` parts of its mapped size plus the
