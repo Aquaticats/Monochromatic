@@ -101,15 +101,6 @@ pub struct Start {
 }
 
 /// What:
-///  The source with every string,
-/// character and comment masked to spaces,
-/// keeping every line's length.
-/// Why:
-///   The reader must not find a start in a format text or a comment
-/// (`source_guard/blocking_code_off_the_runtime_fixture_tests.rs` holds `.spawn()` in a constant on purpose),
-/// and keeping the lengths lets a finding name the line and column it came from.
-///
-/// What:
 ///  Reads one Rust character or byte-character literal whole, escapes included,
 ///  and answers where it ends;
 ///  a lifetime's quote opens no literal, so there is no answer.
@@ -189,9 +180,18 @@ fn hex_digit(byte: u8) -> bool {
     return byte.is_ascii_hexdigit();
 }
 
+/// What:
+///  The source with every string,
+/// character and comment masked to spaces,
+/// keeping every line's length.
+/// Why:
+///   The reader must not find a start in a format text or a comment
+/// (`source_guard/blocking_code_off_the_runtime_fixture_tests.rs` holds `.spawn()` in a constant on purpose),
+/// and keeping the lengths lets a finding name the line and column it came from.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const masked = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])'/g, (m) => m.replace(/[^\n]/g, ' '));
+/// const masked = maskRust(source); // `// …`, `/* … /* … *\/ … *\/`, `"…"` with escapes, `r#…"…"#…`, `b"…"`, `'x'`, `'\x41'`, `'\u{1F600}'`
 /// ```
 pub fn mask(text: &str) -> String {
     let bytes: &[u8] = text.as_bytes();
