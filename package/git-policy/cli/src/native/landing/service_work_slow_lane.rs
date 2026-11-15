@@ -32,7 +32,9 @@
 //! A claim the lane keeps (a retryable answer,
 //! or a settling step that could not run) is looked at again by the lane at the
 //! moment its lease runs out,
-//! so the retry the answer promised needs no other request and no periodic poll.
+//! so the retry the answer promised needs no other request and no periodic poll;
+//! a wake that arrives before that moment ends the wait at once, because no claim covers a record written and announced
+//! while the lane waits.
 //!  A look that panicked is kept as a look that left its work for a later one,
 //! so one repository's defect ends that look and not the lane,
 //!  and the count that keeps the service up is given back even then.
@@ -271,9 +273,22 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
             }
             // Nothing was left for a later look, so the lane waits for the next wake.
             let Some(wait) = soonest else { break };
-            tokio::time::sleep(wait).await;
+            // What: The wait before that look, which a wake that arrives meanwhile ends at once.
+            // Why:  The wait is the end of a claim (a retry's, or another instance's), so it can be a whole lease, and no
+            //       claim covers a record written and announced during it: nothing else would look at that record until the
+            //       wait ended (`binary_fault_remote_tests.rs`, a commit whose push failed left its upkeep pending for the
+            //       rest of the control's wait). The look that serves the wake answers its own wait again, so the claim's end
+            //       this one named is not lost.
+            let mut next: Vec<Wake> = left;
+            match tokio::time::timeout(wait, inbox.recv()).await {
+                // The wait ended with nothing said: look at what asked to be looked at again.
+                Err(_passed) => {}
+                // The lane is the service's, so a closed queue is a service that is stopping.
+                Ok(None) => return,
+                Ok(Some(arrived)) => next.push(arrived),
+            }
             // A wake that arrived during the look is served with the repository that asked to be looked at again.
-            wakes = left;
+            wakes = next;
             while let Ok(queued) = inbox.try_recv() {
                 wakes.push(queued);
             }
