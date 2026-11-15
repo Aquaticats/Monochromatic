@@ -1490,6 +1490,72 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The controls under an address-space limit and the commit-service fix go back to their authors; the second review read and did not run (2026-11-15T02:30:27-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The controls of a service under an address-space limit** (`d2d874b3fc`,
+  tests alone,
+  the brief written by hand),
+  their review,
+  ended 02:24:44.
+  It read both files and the service's files they exercise,
+  built a disposable copy,
+  planted six breaks one at a time and ran one named control against each.
+  Four of the controls caught their break.
+  Two things reproduced:
+  the control of a service that ends before it listens passes when the service's three exits are replaced by returns and the service stays alive for twenty seconds,
+  because it reads the log line and never the exit;
+  and the same assertion fails a correct service when the thread that copies the log is held for 250 ms,
+  because nothing waits for that thread.
+  Both weighed as worth their fix,
+  and as one mistake:
+  what the service said is read as what it did.
+  The author is resumed and asked to observe the exit itself,
+  and to list every other read of a copied log
+  (`~/temp/agent/pi-runs/controls-of-a-service-under-an-address-space-limit-answer-their-review-of-2026-11-15-prompt.md`,
+  queued seventh).
+  The hand-written brief did its work:
+  the review states its range,
+  both files,
+  and every run.
+- **The commit service of an unloaded unit** (`fc0b529839`),
+  its review,
+  ended 02:26:33,
+  nine of nine files.
+  It says it built and ran nothing.
+  By the project's rule a review counts by what it ran,
+  so this one clears nothing,
+  and its two findings are claims:
+  a service that is `activating` at the ceiling is described as never asked to start,
+  though the client's own connection started it;
+  and the manager's repeated "no such unit" after a start was asked is dropped and reported as silence.
+  Both are about the words a person reads,
+  both are the collapse the change itself was made to remove,
+  one step later,
+  and both are cheap to show or refute with the fixture the author already has.
+  The author is resumed:
+  a control for each claim first,
+  then one table of the manager's answers against what the client has done,
+  and the leg its report left unproved,
+  a real manager,
+  in a container
+  (`~/temp/agent/pi-runs/commit-service-of-an-unloaded-unit-answers-its-review-of-2026-11-15-prompt.md`,
+  queued third).
+  The answer is reviewed again,
+  and that review must run.
+- Read at 02:29:21:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 02:22;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  14 runs going.
+  Neither resumed session is named by the credential scan.
+  The queue held 82 entries at 02:30:27.
+
 ##### This session's queue stood still for nine minutes on one entry and is moving again; the drive's stalls ended with the snapshot cleanup (2026-11-15T02:23:19-05:00)
 
 Not final and not approved:
