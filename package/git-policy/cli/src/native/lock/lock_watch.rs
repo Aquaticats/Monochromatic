@@ -417,6 +417,56 @@ fn pid_name_of(name: &std::ffi::OsStr) -> std::ffi::OsString {
     return std::ffi::OsString::from(format!("{base}{PID_INFIX}"));
 }
 
+// The events a control states as made up, delivered by `read_events` as if the kernel had reported them,
+// so a shape the kernel rarely or never gives this machine can be tested.  Never part of the release executable.
+#[cfg(test)]
+thread_local! {
+    /// The made-up events of the running thread, in the order they are delivered.
+    static MADE_UP: std::cell::RefCell<Vec<(i32, u32, std::ffi::OsString)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  Run `body` with `events` delivered by every read as if the kernel had reported them,
+///  and put the thread's own list back however the body ends.
+/// Why:
+///  A queue overflow and a watch that ended are shapes this machine's limits make impossible to reach by
+///  producing them,
+///  and what the wrapper believes after one of them is what a control has to state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withMadeUpEvents([[(-1, IN_Q_OVERFLOW, '')]], () => expect(readEvents()).toContainOverflowEvent())
+/// ```
+#[cfg(test)]
+pub fn with_made_up_events<T>(events: Vec<(i32, u32, std::ffi::OsString)>, body: impl FnOnce() -> T) -> T {
+    let put_back: Vec<(i32, u32, std::ffi::OsString)> = MADE_UP.with(|held| { return held.replace(events); });
+    let ended: T = body();
+    MADE_UP.with(|held| { let _replaced = held.replace(put_back); });
+    return ended;
+}
+
+/// What:
+///  The made-up events of this thread,
+///  taken out so that one read delivers them once.
+/// Why:
+///   An event is reported once,
+///  as the kernel reports it once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takeMadeUpEvents() // []
+/// ```
+#[cfg(test)]
+fn take_made_up_events() -> Vec<(i32, u32, std::ffi::OsString)> {
+    return MADE_UP.with(|held| { return std::mem::take(&mut *held.borrow_mut()); });
+}
+
+/// Does nothing in the release executable.
+#[cfg(not(test))]
+fn take_made_up_events() -> Vec<(i32, u32, std::ffi::OsString)> {
+    return Vec::new();
+}
+
 /// What:
 ///  The watch on a run's directories,
 ///  and the child whose end wakes it.
@@ -510,7 +560,7 @@ impl Watch {
     /// ```ts
     /// watch.wait(WAIT_STEP) // Event[]
     /// ```
-    pub fn wait(&self, timeout: std::time::Duration) -> Vec<Event> {
+    pub fn wait(&mut self, timeout: std::time::Duration) -> Vec<Event> {
         let mut entries: Vec<libc::pollfd> = vec![libc::pollfd { fd: self.descriptor, events: libc::POLLIN, revents: 0 }];
         if let Some(child) = self.child {
             entries.push(libc::pollfd { fd: child, events: libc::POLLIN, revents: 0 });
@@ -544,8 +594,16 @@ impl Watch {
     /// ```ts
     /// watch.readEvents()
     /// ```
-    pub fn read_events(&self) -> Vec<Event> {
+    pub fn read_events(&mut self) -> Vec<Event> {
         let mut events: Vec<Event> = Vec::new();
+        // What: A control's made-up events are delivered first, as if the kernel had reported them before the queue.
+        // Why:  A shape this machine cannot produce still has to reach the tracker in a control.
+        for (watched, mask, name) in take_made_up_events() {
+            let Some(directory) = self.directories.iter().find(|(descriptor, _)| { return *descriptor == watched; }).map(|(_, root)| { return root.clone(); }) else {
+                continue;
+            };
+            events.push(Event { directory, mask, name });
+        }
         let mut buffer: [u8; 8192] = [0; 8192];
         loop {
             // SAFETY: the buffer is valid for its whole length and the descriptor is this watch's.

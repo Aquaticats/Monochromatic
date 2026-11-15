@@ -19,7 +19,7 @@
 //! ```
 
 use crate::lock_bindings::{self, Binding};
-use crate::lock_watch::{A_FINISHED_CHILD_FORGETS, BEFORE_A_TAKE_IS_PINNED, Event, Tracker, Watched, Watch, wait_for_a_watched_child, watch_before_starting};
+use crate::lock_watch::{A_FINISHED_CHILD_FORGETS, BEFORE_A_TAKE_IS_PINNED, Event, Tracker, Watched, Watch, wait_for_a_watched_child, watch_before_starting, with_made_up_events};
 use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -215,7 +215,7 @@ fn a_watch_on_a_real_directory_reports_the_lock_a_child_took() {
     let (directory, lock) = with_lock_and_pid_file("watch-real", i64::from(std::process::id()));
     std::fs::remove_file(lock.as_path()).expect("the control makes the lock while the watch runs");
     std::fs::remove_file(directory.join("index~pid.lock")).expect("the control makes the PID file while the watch runs");
-    let watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
     std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
     std::fs::write(directory.join("index~pid.lock"), format!("pid {}\n", std::process::id()).as_bytes()).expect("the PID file");
     let mut tracker: Tracker = Tracker::new();
@@ -590,4 +590,138 @@ fn a_dead_holder_for_the_gap() -> (i64, String) {
     let _killed = child.kill();
     child.wait().expect("the helper ends");
     return (pid, identity);
+}
+
+/// What:
+///  A lock inside a folder below a Git directory is reported by the watch,
+///  as one at the root of it is.
+/// Why:
+///  A watch on a folder does not cover its subfolders,
+///  and Git takes reference locks in `refs/heads`, `refs/tags`, the reftable's folder and others:
+///  a merge or a rebase updates a branch through such a lock,
+///  so a Git killed while it holds one leaves a lock no record describes,
+///  and the retried command stops at it with Git's own refusal
+///  (a review of `fee5557595`, finding 1).
+///  The watch opens a watch on every folder below its roots,
+///  so the creation of the lock and of the PID file beside it are reported like any other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = Watch.over([gitDir]); writePair(gitDir/refs/heads/topic.lock);
+/// expect(tracker.locksTaken(process.pid)).toContain('refs/heads/topic.lock')
+/// ```
+#[test]
+fn a_lock_in_a_nested_folder_is_reported() {
+    let directory: PathBuf = fixture("watch-nested-folder");
+    std::fs::create_dir_all(directory.join("refs/heads")).expect("the reference folders");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let root_lock: PathBuf = directory.join("index.lock");
+    let nested_lock: PathBuf = directory.join("refs/heads/topic.lock");
+    let pid: i64 = i64::from(std::process::id());
+    for lock in [root_lock.as_path(), nested_lock.as_path()] {
+        std::fs::write(lock, b"a half-written copy\n").expect("the lock");
+        std::fs::write(pid_file_of(lock).as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
+    }
+    let mut tracker: Tracker = Tracker::new();
+    tracker.feed(queued(&mut watch).as_slice());
+    let found: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    assert!(found.contains(&root_lock), "the positive control: a lock at the root of the Git directory is reported");
+    assert!(found.contains(&nested_lock), "a lock inside refs/heads is reported too: {found:?}");
+}
+
+/// What:
+///  A lock inside a folder made after the watch began is reported,
+///  as a folder that was there when the watch began is.
+/// Why:
+///  Git makes a folder for a branch whose name has a slash in it
+///  (`refs/heads/feature/x`), and a reftable repository has no `reftable` folder until the first write,
+///  so a watch that only knew the folders of its first look would miss those locks.
+///  The watch opens a watch on a folder the kernel reports created, before the lock inside it is taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = Watch.over([gitDir]); mkdir(gitDir/refs/heads/feature); writePair(…/feature/x.lock);
+/// expect(tracker.locksTaken(process.pid)).toContain('refs/heads/feature/x.lock')
+/// ```
+#[test]
+fn a_lock_in_a_folder_made_after_the_watch_began_is_reported() {
+    let directory: PathBuf = fixture("watch-new-folder");
+    std::fs::create_dir_all(directory.join("refs/heads")).expect("the reference folders");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    let mut tracker: Tracker = Tracker::new();
+    let pid: i64 = i64::from(std::process::id());
+    // The folder is made while the watch runs, and the watch is given a moment to open a watch on it.
+    std::fs::create_dir_all(directory.join("refs/heads/feature")).expect("the new folder");
+    tracker.feed(queued(&mut watch).as_slice());
+    let lock: PathBuf = directory.join("refs/heads/feature/x.lock");
+    std::fs::write(lock.as_path(), b"a half-written copy\n").expect("the lock");
+    std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
+    tracker.feed(queued(&mut watch).as_slice());
+    let found: Vec<PathBuf> = tracker.locks_taken(pid);
+    drop(watch);
+    remove(directory.as_path());
+    assert!(found.contains(&lock), "a lock inside a folder made after the watch began is reported: {found:?}");
+}
+
+/// What:
+///  An event that says the kernel dropped events makes the run's record say nothing,
+///  though the lock and its PID file were seen created.
+/// Why:
+///  The tracker already treats a lost queue as unprovable
+///  (`Tracker::feed`, the `IN_Q_OVERFLOW` mask),
+///  but the reader dropped that event before the tracker could see it:
+///  the kernel reports an overflow with a watch descriptor of `-1` (`inotify(7)`),
+///  and the reader skipped every event whose descriptor matched no watched folder.
+///  With events lost, a replacement lock another live command took can be taken for the first
+///  child's and recorded under that child,
+///  and later cleared while the other command works with no descriptor open
+///  (a review of `fee5557595`, finding 2).
+///  So an event that says events were lost is delivered, whatever its descriptor.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withMadeUpEvents([[-1, IN_Q_OVERFLOW, '']], () => { feed(realTake); expect(locksTaken(child)).toEqual([]) })
+/// ```
+#[test]
+fn a_lost_queue_makes_the_run_record_nothing() {
+    let (directory, lock) = with_lock_and_pid_file("watch-lost-queue", i64::from(std::process::id()));
+    std::fs::remove_file(lock.as_path()).expect("the control makes the lock while the watch runs");
+    std::fs::remove_file(directory.join("index~pid.lock")).expect("the control makes the PID file while the watch runs");
+    let mut watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
+    std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
+    std::fs::write(directory.join("index~pid.lock"), format!("pid {}\n", std::process::id()).as_bytes()).expect("the PID file");
+    let mut tracker: Tracker = Tracker::new();
+    let seen: Vec<Event> = with_made_up_events(vec![(-1, libc::IN_Q_OVERFLOW, std::ffi::OsString::from(""))], || { return queued(&mut watch); });
+    tracker.feed(seen.as_slice());
+    let taken: Vec<PathBuf> = tracker.locks_taken(i64::from(std::process::id()));
+    drop(watch);
+    remove(directory.as_path());
+    assert!(seen.iter().any(|event| { return event.mask & libc::IN_Q_OVERFLOW != 0; }), "the reader delivers the event that says events were lost");
+    assert!(taken.is_empty(), "a run whose queue was dropped records nothing: {taken:?}");
+}
+
+/// What:
+///  Everything the watch holds for a moment, read until nothing more arrives.
+/// Why:
+///  The kernel queues an event a moment after the call that made it,
+///  so a control reads a few times before it concludes that nothing else is coming.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const events = []; for (let i = 0; i < 20; i++) events.push(...watch.readEvents()); sleep(2)
+/// ```
+fn queued(watch: &mut Watch) -> Vec<Event> {
+    let mut events: Vec<Event> = Vec::new();
+    for _attempt in 0..20 {
+        events.extend(watch.read_events());
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    return events;
+}
+
+/// The PID file Git writes beside `lock`.
+fn pid_file_of(lock: &Path) -> PathBuf {
+    return crate::stale_ref_lock_walk::pid_file_beside(lock);
 }
