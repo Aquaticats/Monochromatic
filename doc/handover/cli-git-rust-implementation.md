@@ -1330,6 +1330,63 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The killed-Git lock's author fixes both findings in part and cannot make the whole hold; a fresh run takes it from `f4b1fdf476` (2026-11-14T21:20:31-05:00)
+
+Not final and not approved:
+what one author reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **A lock a killed Git left is cleared by a record the wrapper wrote**,
+  its author's sixth run,
+  ended 21:15:33 at `f4b1fdf476`.
+  By its report both of the review's programs showed what the review said at the old tip.
+  Changed:
+  the watch covers every folder below each root at the depth the lock pass reads
+  (leaving out `objects` and `logs`,
+  bounded at 1,024 folders),
+  and opens a watch on a folder the kernel reports made;
+  an event that says events were lost is delivered whatever descriptor it carries.
+  Three unit controls fail without the fix and pass with it;
+  `lock::` 403 of 403,
+  both guard modules,
+  Clippy clean.
+- **What it owes,
+  in its words**:
+  the end-to-end control of a reference lock "does not hold yet":
+  with real Git made to hold `refs/heads/main.lock`,
+  "no record appeared for the nested lock",
+  and the wrapper "received no events there";
+  it removed the failing test.
+  The cost of more watches is not measured,
+  and `main` is not merged.
+- **Weighed**:
+  not ready for review.
+  The parts hold alone and the whole has not been seen to hold,
+  which is the review's second finding still standing for a real command until shown otherwise.
+  A fresh run from that tip has it
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-record-holds-end-to-end-for-a-reference-lock-finished-in-a-fresh-run-prompt.md`,
+  queued fourth),
+  asked to run the review's merge script first,
+  then to find by evidence which process holds the watch on each command's lock path.
+- **Three authors running have ended short of their own list**,
+  each saying so:
+  the landing's in its eighth run,
+  mpm-shadow's removal in its seventh,
+  this one in its sixth.
+  Each went to a fresh run from its tip with the author's report as the handover.
+  Adopted by this session,
+  open to veto:
+  an author in its sixth run or later whose report says it ran out is not resumed again;
+  its unfinished list goes to a fresh run.
+  That is three cases and no measurement of where a session's room ends.
+- Read at 21:19:45:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  21 runs going.
+  The queue held 71 entries at 21:20:31.
+
 ##### mpm-shadow's removal of old versions is left unfinished by its author, who ran out of room; a fresh run finishes it from `e6f4a7467f` (2026-11-14T21:12:38-05:00)
 
 Not final and not approved:
