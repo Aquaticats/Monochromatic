@@ -38,8 +38,9 @@
 //!  so a scan is what the truth costs.
 //!  A process that ended while it was being read is skipped:
 //!  it cannot be working there any more.
-//!  A process of this account whose working folder cannot be read keeps the worktree only when it could have been there:
-//!  a program can hide its working folder from every other reader
+//!  A process of this account whose working folder cannot be read keeps the worktree
+//!  when nothing shows it started before the worktree was made,
+//!  because a program can hide its working folder from every other reader
 //!  (`PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the account that owns the process),
 //!  and skipping it removed a worktree under a live process,
 //!  which a cross-vendor review of the landed sweep reproduced
@@ -49,27 +50,37 @@
 //!  (measured here:
 //! `systemd --user`,
 //! `(sd-pam)` and four more),
-//!  so keeping every worktree they might be in would remove none.
-//!  A process that started before the worktree was made cannot be working inside it,
-//!  which is what its start time proves:
-//!  a folder can only lead into a directory that already existed.
-//!  So a hidden process of this account keeps the worktree only while its age is shorter than the worktree's,
-//!  or while either age cannot be read,
-//!  and the reason names the process.
+//!  so an answer that kept every worktree a hidden process might be in would remove none.
+//!  What decides instead is the process's start:
+//!  a process of this account whose working folder cannot be read is taken to be working inside the worktree
+//!  when it started after the worktree was made,
+//!  or when its start cannot be read,
+//!  and taken to be outside when it started before the worktree was made,
+//!  and the reason names the process when the answer is that it may be inside.
+//!  That is a guess at which processes change into a worktree,
+//!  not a proof:
+//!  a process that started before the worktree was made can change into it afterwards,
+//!  and one that does is the miss this rule leaves.
+//!  Whether that miss is accepted is an open question for the owner
+//!  (`doc/handover/cli-git-rust-implementation.md`,
+//! `Questions kept for the owner's return`,
+//!  the item added 2026-11-15T03:06:17-05:00).
 //!  A refused read of the files a process holds open is never none either:
 //!  a program can keep its working folder readable and stop every other reader of its descriptor table
 //!  (measured on this host with a password manager that runs from login:
 //! its working folder read as the account's home folder,
 //! and its descriptor table refused with `EACCES`),
 //!  so a file it holds in a worktree would be invisible.
-//!  That answer is bounded the way a hidden folder is:
-//!  the process keeps the worktree only while its age is shorter than the worktree's,
-//!  and the reason names the process.
-//!  The bound is weaker here than for a folder,
-//!  because a program can open a file in a worktree long after it started,
-//!  and what it leaves is a program that hid its descriptor table after the worktree was made:
-//!  without the bound every walk of this host stops at the password manager that runs from login,
-//!  which keeps every worktree and removes none.
+//!  The same ages decide that answer as decide a working folder that cannot be read:
+//!  the process is taken to be working inside when it is younger than the worktree,
+//!  or when its age cannot be read,
+//!  and taken to be outside when it is older.
+//!  The miss is larger there than it is for a working folder,
+//!  because a program can open a file in a worktree long after it started:
+//!  an older program that opens one after the worktree was made is taken to be outside all the same.
+//!  The rule is as it is because without it every walk of this host stops at that password manager,
+//!  which keeps every worktree and removes none,
+//!  and whether its miss is accepted is the same open question for the owner as the folder's.
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
@@ -120,7 +131,7 @@ pub enum WorkingFolder {
 pub struct WorkingProcess {
     /// Its process id.
     pub pid: u32,
-    /// What the read of its working folder showed.
+    /// What the reads of this process showed.
     pub folder: WorkingFolder,
 }
 
@@ -129,7 +140,7 @@ impl WorkingProcess {
     ///  The words that say why this process keeps the worktree.
     /// Why:
     ///   A person reads the reason and decides,
-    ///  so it names the process and says whether its folder was seen there or could not be read at all,
+    ///  so it names the process and says whether its folder or the files it holds could not be read at all,
     ///  and this command's own process is named as itself:
     ///  "process 4242 is working in it" about the command a person just ran says nothing to them.
     ///
@@ -167,8 +178,10 @@ impl WorkingProcess {
 ///  a command started in a worktree is a process working there,
 ///  and `-C` names the repository rather than that folder.
 ///  `worktree_age` is how long `root` has existed,
-///  which is what a hidden folder is judged by:
-///  a process older than the folder cannot have its working folder inside it.
+///  which is what a process this account could not see into is judged by:
+///  one older than the folder is taken to be outside it,
+///  though one can change into it or open a file in it after the folder was made,
+///  which is the miss the module doc names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,8 +202,10 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
                 match open_files_in(entry.path().as_path(), root, git_dir) {
                     OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
                     OpenFiles::Outside => {}
-                    // A descriptor table this account may not read hides what the process holds, so the process is
-                    // judged by the same age a hidden working folder is.
+                    // A descriptor table this account may not read hides what the process holds, so the age of the
+                    // process decides it as it decides a hidden working folder: one younger than the worktree keeps
+                    // it, one older is taken to hold nothing there, and an older one that opened a file there after
+                    // the worktree was made is the miss the module doc names.
                     OpenFiles::Unreadable => {
                         if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
                             return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
@@ -231,7 +246,9 @@ enum OpenFiles {
 ///  a working folder and a descriptor table,
 ///  and both are judged by the same two facts:
 ///  another account's process is not this account's to wait for,
-///  and a process that started before the worktree was made cannot have changed into it.
+///  and a process that started before the worktree was made is taken to be outside it,
+///  though one can change into it or open a file in it afterwards,
+///  which is the miss the module doc names.
 ///  An age that cannot be read excuses nothing,
 ///  so the worktree stays.
 ///
@@ -322,12 +339,15 @@ fn without_deleted_suffix(target: &Path) -> &Path {
 const DELETED_SUFFIX: &str = " (deleted)";
 
 /// What:
-///  Whether a process that started this long ago cannot be working in a folder this young.
+///  Whether a process that started this long ago is taken to be outside a folder this young.
 /// Why:
-///   A working folder can only be a directory that existed when the process changed into it,
-///  so a process older than the worktree is outside it,
-///  and one younger may be inside,
-/// as may one whose age cannot be read.
+///   A working folder is a directory the process changed into,
+///  and a process that started before the worktree was made can change into it afterwards,
+///  so this answers by a guess at which processes do that and not by a proof:
+///  what it assumes is that a process works in the folder it started in.
+///  A process younger than the worktree may be inside,
+///  as may one whose age cannot be read,
+///  and one that started before and came in anyway is the miss the module doc names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
