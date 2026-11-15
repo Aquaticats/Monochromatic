@@ -142,3 +142,26 @@ fn the_state_directory_moves_only_for_a_bus_proven_another_sessions() {
         "an unproven bus with neither XDG_STATE_HOME nor HOME names no state directory at all"
     );
 }
+
+/// What:
+///  A bus address that names the session's own socket through another spelling is this session,
+///  so the account's durable state is where the records go.
+/// Why:
+///  The sixth review of issue 6293 (finding 5):
+///  the comparison was of the two paths as text,
+/// and `unix:path=/run/user/1000/../1000/bus` therefore read as another session,
+/// which moved journals, scratch and push retry plans into a directory a logout clears.
+#[test]
+fn a_bus_address_that_spells_the_runtime_directory_another_way_is_this_session() {
+    let root: PathBuf = crate::test_support::fixture("session-alias");
+    let runtime: PathBuf = root.join("run/user/1000");
+    std::fs::create_dir_all(runtime.as_path()).expect("the runtime directory");
+    let aliased: String = format!("unix:path={}/../1000/bus", runtime.display());
+    assert_eq!(session_of(Some(runtime.as_path()), runtime.as_path(), Some(aliased.as_str())), Session::ThisSession, "the same place spelled another way is this session");
+    assert_eq!(
+        state_dir_of_the_command(Some(runtime.as_path()), runtime.as_path(), Some(aliased.as_str()), Some(Path::new("/account/state")), Some(Path::new("/home/user"))),
+        Some(PathBuf::from("/account/state")),
+        "so the durable records stay in the account's state directory and not in storage a logout clears"
+    );
+    crate::test_support::remove(root.as_path());
+}

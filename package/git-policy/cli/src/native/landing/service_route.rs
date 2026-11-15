@@ -165,8 +165,12 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     };
     // What: The runtime directory the environment named, when it is the one in use.
     // Why:  Only that one can be a session; a folder this program fell back to names no session at all.
+    // What: The runtime directory the environment named is "the one in use" when it names that place, however it is spelled.
+    // Why:  A spelling with a `..` part or through a link names one directory; comparing the text would call a real session's
+    //       directory "proven by nothing" and move its journals, scratch and retry plans into storage a logout clears
+    //       (the sixth review of issue 6293, finding 5).
     let named_in_use: Option<PathBuf> = match inputs.named_runtime_dir {
-        Some(named) if named == runtime_dir => Some(named.to_path_buf()),
+        Some(named) if crate::service_session_of_the_runtime_directory::same_place(named, runtime_dir) => Some(named.to_path_buf()),
         _ => None,
     };
     // What: The state folder of this command: the account's, or the runtime directory for a run of its own.

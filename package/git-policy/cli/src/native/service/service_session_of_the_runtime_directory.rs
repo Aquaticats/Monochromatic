@@ -97,7 +97,7 @@ pub enum Session {
 /// ```
 pub fn session_of(named_runtime_directory: Option<&Path>, runtime_dir: &Path, bus_address: Option<&str>) -> Session {
     let Some(named) = named_runtime_directory else { return Session::Unproven };
-    if named != runtime_dir {
+    if !same_place(named, runtime_dir) {
         return Session::Unproven;
     }
     let Some(spelled) = bus_address else { return Session::Unproven };
@@ -107,9 +107,37 @@ pub fn session_of(named_runtime_directory: Option<&Path>, runtime_dir: &Path, bu
         }
         let Some(path) = one.strip_prefix(PATH_ENTRY) else { continue };
         let Some(directory) = Path::new(path).parent() else { return Session::Unproven };
-        return if directory == runtime_dir { Session::ThisSession } else { Session::AnotherSession };
+        return if same_place(directory, runtime_dir) { Session::ThisSession } else { Session::AnotherSession };
     }
     return Session::Unproven;
+}
+
+/// What:
+///  Whether two spellings name one place:
+///  the same text,
+///  or two paths the file system resolves to one.
+/// Why:
+///  The runtime directory is the boundary this release draws,
+/// and a boundary must not turn on how a path is spelled:
+/// a bus address written with a `..` part or through a link named another session,
+/// so a real session's journals, scratch and retry plans were moved into a directory a logout clears
+/// (the sixth review of issue 6293, finding 5).
+/// A path the file system cannot resolve is not proven to be the other,
+/// so only the text decides there,
+/// and that answer never widens the boundary.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// samePlace(a, b) // a === b || (realpath(a) === realpath(b))
+/// ```
+pub(crate) fn same_place(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    };
 }
 
 /// What:
