@@ -130,7 +130,7 @@ fn message_of(payload: Box<dyn std::any::Any + Send>) -> String {
 ///  So the control releases it by writing one line into a pipe of the fixture's own,
 ///  and reads a marker the descendant writes as it goes,
 ///  which is also what shows that nothing of the control outlived it.
-fn descendant(made: &Fixture, release_and_gone: (&Path, &Path)) -> String {
+fn descendant(release_and_gone: (&Path, &Path)) -> String {
     let (release, gone) = release_and_gone;
     return format!(
         "/usr/bin/setsid {SHELL} -c 'read -r line < \"{}\"; printf gone > \"{}\"' &\n",
@@ -179,32 +179,6 @@ fn spawned_beside_the_control(command: &mut Command) -> (Child, libc::pid_t) {
         .expect("the command starts");
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a process ID fits the pid type");
     return (child, group);
-}
-
-/// What:
-///  The wait starts the program a bounded line names itself,
-///  and nothing else keeps a timer on the command.
-/// Why:
-///  Two timers with one deadline cannot tell which of them ended a command,
-///  so the wait starts the program the line names in the group it makes;
-///  then the command's own parent is this test process,
-///  and no `timeout` stands between them to fire first.
-#[test]
-fn the_wait_starts_the_program_the_line_names_with_no_timer_in_front_of_it() {
-    let made: Fixture = fixture("observe-no-timer");
-    let parent: PathBuf = made.root.join("parent");
-    let body: String = format!("#!/bin/sh\nprintf '%s' \"$PPID\" > \"{}\"\nexit 0\n", parent.display());
-    let command: PathBuf = script(&made, "says-its-parent", body.as_str());
-    let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
-    let seen = observe(&mut wrapped, b"");
-    assert_eq!(seen.code, Some(0), "the command ends by itself: {}", String::from_utf8_lossy(seen.stderr.as_slice()));
-    let written: String = std::fs::read_to_string(parent.as_path()).expect("the script wrote its parent");
-    assert_eq!(
-        written.trim().parse::<u32>().expect("a process number"),
-        std::process::id(),
-        "the command the wait started is this test process's own child, and no `timeout` stands between them"
-    );
-    remove(&made);
 }
 
 /// What:
@@ -387,7 +361,7 @@ fn a_command_that_never_ends_is_ended_at_its_bound() {
     let payload = outcome.expect_err("a command this wait ended is reported, never answered as one that ended by itself");
     let message: String = message_of(payload);
     println!("the wait returned after {elapsed:?}, and said: {message}");
-    assert!(message.contains("ended the command at its 1s"), "the sentence says what this wait did: {message}");
+    assert!(message.contains("was ended at its 1s wall-clock bound"), "the sentence says what the bound did: {message}");
     assert!(elapsed < PATIENCE, "the wait kept its one-second bound, and returned after {elapsed:?}");
     remove(&made);
 }
@@ -410,7 +384,7 @@ fn a_command_whose_descendant_holds_its_output_is_ended_at_its_bound() {
     named_pipe(release.as_path());
     let body: String = format!(
         "#!/bin/sh\n{}exec /usr/bin/sleep {HOLDS_SECONDS}\n",
-        descendant(&made, (release.as_path(), gone.as_path()))
+        descendant((release.as_path(), gone.as_path()))
     );
     let command: PathBuf = script(&made, "starts-a-descendant", body.as_str());
     let began: Instant = Instant::now();
@@ -424,7 +398,7 @@ fn a_command_whose_descendant_holds_its_output_is_ended_at_its_bound() {
     let payload = outcome.expect_err("a command that never ends is ended by this wait");
     let message: String = message_of(payload);
     println!("the wait returned after {elapsed:?} against its one-second bound, and said: {message}");
-    assert!(message.contains("ended the command at its 1s"), "the sentence says what this wait did: {message}");
+    assert!(message.contains("was ended at its 1s wall-clock bound"), "the sentence says what the bound did: {message}");
     assert!(
         message.contains("still holds its standard output"),
         "the sentence names the pipe a descendant still holds: {message}"
@@ -447,7 +421,7 @@ fn a_command_that_ends_by_itself_says_that_a_descendant_still_holds_its_output()
     let release: PathBuf = made.root.join("release");
     let gone: PathBuf = made.root.join("descendant-gone");
     named_pipe(release.as_path());
-    let body: String = format!("#!/bin/sh\n{}exit 0\n", descendant(&made, (release.as_path(), gone.as_path())));
+    let body: String = format!("#!/bin/sh\n{}exit 0\n", descendant((release.as_path(), gone.as_path())));
     let command: PathBuf = script(&made, "leaves-a-descendant", body.as_str());
     let began: Instant = Instant::now();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

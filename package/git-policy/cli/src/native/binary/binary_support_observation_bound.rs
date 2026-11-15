@@ -11,7 +11,10 @@
 //!  and says which of those things ended the command.
 //!  The bound counts from the command's own start,
 //!  read from the kernel's record of it,
-//!  so no work of this parent after the spawn can move the deadline.
+//!  so no work of this parent after the spawn can move the deadline;
+//!  that start is also where the `timeout` in the line counts its own,
+//!  so this wait's deadline is the earlier of the two,
+//!  and a command the line's own `timeout` ends at that bound is still the bound's doing.
 //!  A signal goes out only through a handle that still names the command:
 //!  a pinned process for the command itself,
 //!  and the process group only while the command,
@@ -27,6 +30,7 @@
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
+use std::os::unix::process::ExitStatusExt as _;
 use std::path::Path;
 use std::process::{Child, Command};
 use crate::supervisor::take_kill;
@@ -78,8 +82,10 @@ pub enum Ending {
     /// a code of 124 or 137,
     /// or a signal's death.
     Itself,
-    /// This wait ended it at the bound,
-    /// by killing the process group it led.
+    /// The bound ended it, at the bound its own line states:
+    ///  by this wait's kill of the process group the command led,
+    ///  or by the command's own `timeout`,
+    ///  which keeps the same value and starts no earlier than the command.
     AtTheBound,
 }
 
@@ -88,8 +94,8 @@ pub enum Ending {
 ///  and who ended it.
 /// Why:
 ///  The ending is this wait's own act and never a reading of the status the command came back with:
-///  a command that kills itself with the signal `timeout` re-raises cannot be told from the bound by its status
-///  alone.
+///  a command that kills itself with `SIGKILL` before its bound is its own,
+///  and only a death at the bound is the bound's.
 pub struct Answer {
     /// Its own ending and what its pipes gave before it went.
     pub status: std::process::ExitStatus,
@@ -131,7 +137,7 @@ impl Answer {
             (Ending::Itself, Some(named)) => panic!("{spelled}{location} ended by itself, and {named}"),
             (Ending::AtTheBound, named) => {
                 let also: String = named.map(|sentence| { return format!(", and {sentence}"); }).unwrap_or_default();
-                panic!("this wait ended the command at its {bound:?} wall-clock bound: {spelled}{location}{also}");
+                panic!("the command was ended at its {bound:?} wall-clock bound: {spelled}{location}{also}");
             }
         }
     }
@@ -225,9 +231,14 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
             Ok(Err(error)) => panic!("the ending of the command {id} cannot be read: {error}"),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 if exited_without_reaping(pid) {
-                    // It ended by itself in the instant the bound came due, so nothing is signalled.
+                    // It ended in the instant the bound came due, so nothing is signalled.
+                    // A death by the signal the line's own `timeout` sends is the bound's doing:
+                    //  the two timers keep one value and this wait's deadline is the earlier one,
+                    //  so a `SIGKILL` that arrives here is the bound's, never a command's own death long before it.
                     let claimed: Option<String> = take_kill(id);
-                    (Ending::Itself, claimed, reaped(&mut child))
+                    let status: std::process::ExitStatus = reaped(&mut child);
+                    let by_the_bound: Ending = if status.signal() == Some(libc::SIGKILL) { Ending::AtTheBound } else { Ending::Itself };
+                    (by_the_bound, claimed, status)
                 } else {
                     let claimed: Option<String> = take_kill(id);
                     signal_the_child_and_its_group(pid, started, group);
@@ -412,31 +423,6 @@ pub fn stated_bound(command: &Command) -> std::time::Duration {
         return UNSTATED_BOUND;
     };
     return std::time::Duration::from_secs(seconds);
-}
-
-/// What:
-///  The program the harness's bounded form names,
-///  and its arguments:
-///  `/usr/bin/timeout --signal=KILL <seconds> <program> <argument> …` gives `<program>` and its arguments.
-/// Why:
-///  A wait that lets `timeout` run beside its own timer has two deadlines for one value,
-///  and then no status can say which timer ended the command;
-///  the wait starts the program the line names itself,
-///  in the group it makes,
-///  so there is one timer and the ending is its own act.
-///  `None` for any other line,
-///  which the wait starts as it was given and bounds with `UNSTATED_BOUND`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const started = withoutTheTimer('timeout --signal=KILL 600 git status'); // { program: 'git', args: ['status'] }
-/// ```
-pub fn the_program_the_line_starts(command: &Command) -> Option<(OsString, Vec<OsString>)> {
-    in_front_of_a_bounded_program(command)?;
-    let arguments: Vec<OsString> = command.get_args().map(OsStr::to_os_string).collect();
-    let rest: &[OsString] = arguments.get(2..)?;
-    let (named, its_arguments) = rest.split_first()?;
-    return Some((named.clone(), its_arguments.to_vec()));
 }
 
 /// The command line as a person reads it:

@@ -39,13 +39,13 @@
 //! ```
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, close_on_exec_pipe, decline_in_process_lfs_scan, executable, fixture, git, observe, observe_handing, repository, stderr_of};
+use super::support::{Fixture, Observed, close_on_exec_pipe, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
-use std::os::unix::process::CommandExt as _;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::JoinHandle;
@@ -84,8 +84,7 @@ impl Tripwire {
         return Tripwire { read_end: File::from(read_end), write_end: Some(write_end) };
     }
 
-    /// Hand the write end to a command a control starts itself,
-    /// as descriptor nine.
+    /// Hand the write end to the command as descriptor nine.
     pub(super) fn arm(&self, command: &mut Command) {
         let held: RawFd = self.write_end.as_ref().expect("the write end is open").as_raw_fd();
         // SAFETY: between fork and exec only `dup2`, an async-signal-safe call, runs; it clears the close-on-exec flag.
@@ -97,18 +96,6 @@ impl Tripwire {
                 return Ok(());
             });
         }
-    }
-
-    /// The write end a command's tree must inherit,
-    /// and the descriptor number it is given,
-    /// for a command run through `observe_handing`.
-    /// Why not `arm` for an observed command:
-    ///  the observation starts a bounded command's program itself,
-    ///  so a `pre_exec` armed on that command would never run,
-    ///  and the control would read a released tripwire whether or not anything survived.
-    pub(super) fn handed(&self) -> (RawFd, RawFd) {
-        let held: RawFd = self.write_end.as_ref().expect("the write end is open").as_raw_fd();
-        return (held, TRIPWIRE_DESCRIPTOR);
     }
 
     /// Close this process's copy and report whether every other holder has exited within the deadline.
@@ -234,7 +221,8 @@ fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Obse
     super::support::give_service_environment(fixture, "CLI_GIT_PUSH_DEADLINE_SECONDS", deadline);
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=one", "--", "a.txt"]);
     command.env("CLI_GIT_PUSH_DEADLINE_SECONDS", deadline);
-    let landed: Observed = observe_handing(&mut command, b"", tripwire.handed());
+    tripwire.arm(&mut command);
+    let landed: Observed = observe(&mut command, b"");
     return (landed, tripwire);
 }
 
@@ -362,7 +350,8 @@ fn explicit_push_fails_cleanly(name: &str, url: &str) {
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
     let tripwire: Tripwire = Tripwire::new();
     let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["push", "origin", "main"]);
-    let pushed: Observed = observe_handing(&mut command, b"", tripwire.handed());
+    tripwire.arm(&mut command);
+    let pushed: Observed = observe(&mut command, b"");
     assert_ne!(pushed.code, Some(0), "an unreachable remote cannot be pushed to");
     assert!(pushed.code.is_some(), "the push was ended by a signal: {}", stderr_of(&pushed));
     assert!(!stderr_of(&pushed).trim().is_empty(), "a failed push says why");
