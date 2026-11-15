@@ -89,17 +89,40 @@ pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 ///  Writes `text` to `path` through a temporary file beside it and a rename.
 /// Why:
 ///   A reader never sees half a note,
-/// and two writers of the same text agree without a lock:
-/// the rename is atomic and the last one wins with identical bytes.
+/// and the rename is atomic, so the last writer's whole text is the one a reader finds.
+/// The temporary file is the writer's own:
+/// a name two writers shared let one rename the other's file away and made that one's write fail
+/// (the sixth review of issue 6293, finding 4, and the same shape in `real_git_record.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writeFileSync(`${path}.writing`, text); renameSync(`${path}.writing`, path);
+/// writeFileSync(`${path}.${process.pid}.writing`, text); renameSync(`${path}.${process.pid}.writing`, path);
 /// ```
 fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
-    let temporary: PathBuf = path.with_extension("writing");
+    let temporary: PathBuf = path.with_extension(format!("{}.{}.writing", std::process::id(), next_temporary_number()));
     std::fs::write(&temporary, text)?;
-    return std::fs::rename(&temporary, path);
+    let published: std::io::Result<()> = std::fs::rename(&temporary, path);
+    if published.is_err() {
+        let _left = std::fs::remove_file(&temporary);
+    }
+    return published;
+}
+
+/// What:
+///  A number no other write of this process has taken,
+///  so two writes at once never share a temporary file.
+/// Why:
+///   A process's number tells two processes apart and not two writes of one process,
+/// and the notes this file writes are written by a command and, at the same time, by the service it started
+/// (the sixth review of issue 6293, finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nextTemporaryNumber() // a counter this process increments
+/// ```
+fn next_temporary_number() -> u64 {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    return COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// What:
