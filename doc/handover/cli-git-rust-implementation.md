@@ -1530,6 +1530,90 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The killed-Git lock refuses to write a record it cannot check, and the review brief's coverage answers from one table; both go to review (2026-11-15T04:12:00-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+- **The lock a killed Git left on a reference**,
+  its author's second run,
+  ended 04:10:54 at `ca936e0b93`,
+  `main` with pass 49 merged.
+  - The gravest finding is answered by refusing to write a wrong record:
+    a record claims the folder
+    (device and inode the watch opened,
+    compared when it is written,
+    in its name,
+    when it is read,
+    and again just before the `unlink`),
+    the file,
+    the PID file's number in that folder against the child's identity,
+    and that the run was complete.
+    A folder that says it moved away makes the run record nothing.
+    Records of the old shape are read by no one and swept,
+    so their locks are kept.
+  - The review's four programs,
+    run against the new tip,
+    now fail at their defect assertions;
+    its planting program no longer compiles,
+    since writing a record demands the folder's identity.
+  - **It says one thing it did not do**:
+    the brief asked it to run those programs before changing anything,
+    and it read the review's recorded outputs and began with controls.
+  - The drain stops at a stated count;
+    one way of starting a watched Git serves the bounded runner and the asynchronous one;
+    `objects` and `logs` are skipped only directly below a Git directory.
+  - Five controls committed red;
+    Clippy 0;
+    guards 26 of 26;
+    `lock::` 412 of 412;
+    cost +0.4 ms and +0.7 ms paired,
+    inside the spread.
+  - It names what stays open:
+    a command the wrapper hands straight to Git by `exec` cannot be watched;
+    the commit service's own `update-ref` is unwatched;
+    the bounded runner still writes no child record,
+    which is the lock-holders branch's half.
+  Its review is queued third
+  (`main...ca936e0b93`,
+  twelve code files that are not tests).
+- **The review brief's coverage check**,
+  its author's second run,
+  ended 04:07:15 at `bfe448b896`.
+  One table both commands answer from;
+  fewer files than listed,
+  no count,
+  and "cannot be told" all answer 1,
+  and a repeated save answers what the first did.
+  A range is written and read as a Markdown code span,
+  with nothing removed from inside.
+  A test asks `git check-ref-format` about every printable byte at the start,
+  middle and end of a branch name
+  (285 questions,
+  about 7 s)
+  and requires each accepted name back byte for byte.
+  Each control quoted failing with its fix out.
+  Build,
+  type check and lint 0;
+  196 suites pass.
+  It says old reviews now answer 1 where they answered 0,
+  and leaves two questions:
+  whether a coverage failure should also show in the starter's list of statuses,
+  and whether the brief writer should write the reading record before the brief,
+  which would close the kill window the review found.
+  The second is a suggestion this session passes to whoever next works on that writer;
+  nothing is decided.
+  Its review is queued fourth
+  (`main...bfe448b896`,
+  fifteen code files that are not tests).
+- Read at 04:11:27:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:07;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going.
+  The queue held 82 entries at 04:12:00.
+
 ##### The commit-service fix has both claims shown to hold, a table of answers, and a real manager in a container; it goes to review again (2026-11-15T04:07:32-05:00)
 
 Not final and not approved:
