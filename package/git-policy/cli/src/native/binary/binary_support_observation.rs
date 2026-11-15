@@ -319,6 +319,12 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
 /// the upkeep) the commit service runs once the commit returned.
 pub const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// The controls of the wait above: the endings a command can come back with, a pipe a descendant holds, and a
+/// command that writes more than a pipe holds.
+#[cfg(test)]
+#[path = "binary_support_observation_tests.rs"]
+mod tests;
+
 /// Every state directory of a work directory with the names it holds,
 /// for the failure message of a wait that ran out.
 pub fn work_listing(work: &Path) -> String {
