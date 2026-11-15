@@ -35,6 +35,10 @@ pub struct Fixture {
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
     /// How the fixture's services are started when a fault control needs more than the plain program.
     pub service_launch: std::sync::Mutex<ServiceLaunch>,
+    /// The folders this fixture's sockets stand in,
+    /// named and owned here,
+    /// removed when the fixture goes.
+    pub socket_folders: std::sync::Mutex<crate::support_socket_folders::SocketFolders>,
 }
 
 /// How a fixture's service ended,
@@ -378,23 +382,30 @@ pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
 /// and a fixture root under a deep checkout does not.
 /// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
 ///  on a long checkout and passed on a short one (2026-11-08),
-///  so a test depended on how deep the repository sat.
+///  so a test depended on how deep the repository sat;
+/// and it then depended on the length of the home directory as well (2026-11-15),
+///  so the folder now comes from `socket_folder`,
+/// which asks every place this account offers and names them when none
+///  is short enough.
 /// The service's own socket already lives in such a directory,
 /// and this is the one place that makes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt-${pid}-${n}`
+/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt3f9a1c/rt-0`
 /// ```
 pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
-    let _ = fixture;
-    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
+    let name: String = format!("rt-{number}");
+    // The runtime directory is one socket path less its name and the socket's own suffix, and every instance of this
+    //  package is `INSTANCE_LENGTH` hexadecimal digits, so the suffix is the same whatever the worktree is.
+    let instance: String = "0".repeat(git_policy_cli::service_instance::INSTANCE_LENGTH);
+    let longest_folder: usize = git_policy_cli::service_instance::longest_runtime_directory(instance.as_str()).saturating_sub(1 + name.len());
+    let folder: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("rt", longest_folder);
+    let runtime: PathBuf = folder.join(name.as_str());
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
     return runtime;
 }
-
 /// What:
 ///  Starts `command` from a thread that lives as long as this test process,
 /// and returns the child.
@@ -425,7 +436,6 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
     spawner.lock().expect("the spawner's sender").send((command, reply)).expect("the spawner thread runs");
     return answer.recv().expect("the spawner thread answers");
 }
-
 
 impl FixtureService {
     /// What:
@@ -827,6 +837,12 @@ impl Drop for Fixture {
         // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
         end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+        // Then the folders this control's sockets stood in, which are this fixture's own and nobody else's.
+        if let Ok(folders) = self.socket_folders.lock() {
+            for folder in folders.made_folders() {
+                settle_fixture(folder.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+            }
+        }
     }
 }
 

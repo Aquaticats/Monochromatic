@@ -293,7 +293,6 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
@@ -332,6 +331,10 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 pub(crate) fn track_for_this_thread(root: &Path) {
     THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
 }
+
+/// The folder chooser and the runtime directory built to a length inside it,
+/// named here so every `crate::test_support::name` path stays the same.
+pub(crate) use crate::runtime_directory_folders::*;
 
 /// What:
 ///  Move a path's modification time two minutes into the past without following a symbolic link.
