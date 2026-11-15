@@ -12,7 +12,7 @@
 use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout};
 use crate::git_version::{MINIMUM_GIT_VERSION, parse_git_version};
 use crate::global_arguments_pathspec_modes::without_pathspec_mode_options;
-use crate::test_support::{FIXTURE_GIT_BOUND_SECONDS, REAL_GIT, real_git_within};
+use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, real_git_within};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -147,10 +147,12 @@ fn unsupported_globals_do_not_gain_a_wrapper_interpretation() {
 /// The output of one real-Git query of this control,
 ///  run under `bound` seconds so a Git that never answers fails this control
 ///  with a verdict that names the query and the bound.
-fn git_output_within(arguments: &[&str], bound: &str) -> std::process::Output {
+fn git_output_within(arguments: &[&str], bound: std::time::Duration) -> std::process::Output {
     let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
-    let asked: Option<std::process::Output> = real_git_within(Path::new(REAL_GIT), None, &[], words.as_slice(), None, bound);
-    return asked.unwrap_or_else(|| panic!("the Git query {arguments:?} did not answer within {bound} s: the bound ended it"));
+    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), None, &[], words.as_slice(), None, bound);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the Git query {arguments:?} did not answer within {} s: the bound ended it", bound.as_secs());
+    assert!(!answer.held_open, "the Git query {arguments:?} ended, and a descendant of it still holds its output");
+    return answer.output;
 }
 
 /// The selected native Git executable confirms representative query and error forms.
@@ -160,14 +162,14 @@ fn git_output_within(arguments: &[&str], bound: &str) -> std::process::Output {
 /// so a newer Git in the gate's image passes here or says the wrapper has fallen behind it.
 #[test]
 fn native_git_256_controls_confirm_the_option_boundary() {
-    let version = git_output_within(&["--version"], FIXTURE_GIT_BOUND_SECONDS);
+    let version = git_output_within(&["--version"], FIXTURE_GIT_BOUND);
     assert!(version.status.success());
     let release = parse_git_version(&version.stdout).expect("the Git under test names its release");
     assert!(release >= MINIMUM_GIT_VERSION, "{:?}", String::from_utf8_lossy(&version.stdout));
-    let query = git_output_within(&["--exec-path-extra"], FIXTURE_GIT_BOUND_SECONDS);
+    let query = git_output_within(&["--exec-path-extra"], FIXTURE_GIT_BOUND);
     assert!(query.status.success());
     for flag in ["-C/fixture", "--super-prefix", "--shallow-file=unused"] {
-        let rejected = git_output_within(&[flag, "status"], FIXTURE_GIT_BOUND_SECONDS);
+        let rejected = git_output_within(&[flag, "status"], FIXTURE_GIT_BOUND);
         assert!(!rejected.status.success(), "{flag}");
         assert!(
             String::from_utf8_lossy(&rejected.stderr).contains("unknown option"),

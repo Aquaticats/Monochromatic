@@ -11,7 +11,7 @@ use super::*;
 use crate::repo_read_layout::read_layout_with;
 use crate::repo_read_query::{Answer, Query, answer_with};
 use crate::repo_read_query::tests::scope;
-use crate::test_support::{FIXTURE_GIT_BOUND_SECONDS, REAL_GIT, fixture, git, git_output, real_git_within, remove, repository};
+use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, fixture, git, git_output, real_git_within, remove, repository};
 use std::path::PathBuf;
 
 /// The malformed spellings the sweep tries for every documented key:
@@ -76,9 +76,10 @@ fn shapes(head: &str) -> Vec<Shape> {
 /// instead of holding the suite.
 fn real(repo: &Path, shape: &Shape) -> (Vec<u8>, Vec<u8>, Option<i32>) {
     let words: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
-    let asked: Option<std::process::Output> = real_git_within(Path::new(REAL_GIT), Some(repo), &hermetic_environment(repo), words.as_slice(), shape.1.as_deref(), FIXTURE_GIT_BOUND_SECONDS);
-    let output: std::process::Output = asked.unwrap_or_else(|| panic!("the query {:?} did not answer within {FIXTURE_GIT_BOUND_SECONDS} s: the bound ended it", shape.0));
-    return (output.stdout, output.stderr, output.status.code());
+    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), Some(repo), &hermetic_environment(repo), words.as_slice(), shape.1.as_deref(), FIXTURE_GIT_BOUND);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the query {:?} did not answer within {} s: the bound ended it", shape.0, FIXTURE_GIT_BOUND.as_secs());
+    assert!(!answer.held_open, "the query {:?} ended, and a descendant of it still holds its output", shape.0);
+    return (answer.output.stdout, answer.output.stderr, answer.output.status.code());
 }
 
 /// The environment every real-Git query of this control runs with:
@@ -532,8 +533,10 @@ fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::O
         (OsString::from("HOME"), home.into_os_string()),
     ];
     let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
-    let asked: Option<std::process::Output> = real_git_within(Path::new(REAL_GIT), Some(repo), environment.as_slice(), words.as_slice(), None, FIXTURE_GIT_BOUND_SECONDS);
-    return asked.unwrap_or_else(|| panic!("the query {arguments:?} did not answer within {FIXTURE_GIT_BOUND_SECONDS} s: the bound ended it"));
+    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), Some(repo), environment.as_slice(), words.as_slice(), None, FIXTURE_GIT_BOUND);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the query {arguments:?} did not answer within {} s: the bound ended it", FIXTURE_GIT_BOUND.as_secs());
+    assert!(!answer.held_open, "the query {arguments:?} ended, and a descendant of it still holds its output");
+    return answer.output;
 }
 
 /// Stops the monitor daemon a test started in `repo`,

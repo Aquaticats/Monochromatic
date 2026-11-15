@@ -1,0 +1,126 @@
+//! What:
+//!  The controls of the bounded real-Git query in `fixture_git_commands.rs`:
+//!  a descendant that holds one of the query's pipes,
+//! and endings that are the query's own.
+//! Why:
+//!  The bound is the helper's own promise, so two things must hold:
+//! a pipe some other process still holds cannot hold the answer past the bound,
+//! and no status a query comes back with is read as the bound's doing.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! test("a descendant holding the pipe", () => { const answer = runUnderBound(setsidSleep, 1); expect(answer.heldOpen).toBe(true); });
+//! ```
+
+/// The bounded query under test and the grace it answers within.
+use super::{FIXTURE_GIT_BOUND, PIPE_GRACE, QueryAnswer, QueryEnding, real_git_within};
+/// The disposable fixture directory and its removal.
+use crate::test_support::{fixture, remove};
+/// `OsString` is owned operating-system text, which a query's arguments are.
+use std::ffi::OsString;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{Path, PathBuf};
+/// The clock a control measures its answer with.
+use std::time::{Duration, Instant};
+/// `signal` reads which signal ended a query.
+use std::os::unix::process::ExitStatusExt;
+
+/// The shell every fixture program of these controls is run by.
+const SHELL: &str = "/bin/sh";
+
+/// One executable script in the fixture's directory.
+fn script(root: &Path, name: &str, body: &str) -> PathBuf {
+    let path: PathBuf = root.join(name);
+    std::fs::write(path.as_path(), body).expect("the fixture script");
+    let mut permissions: std::fs::Permissions = std::fs::metadata(path.as_path()).expect("the script's metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o700);
+    std::fs::set_permissions(path.as_path(), permissions).expect("the script runs");
+    return path;
+}
+
+/// The arguments that run `source` through the shell.
+fn shell_arguments(source: &str) -> Vec<OsString> {
+    return vec![OsString::from("-c"), OsString::from(source)];
+}
+
+/// A descendant in a session of its own that holds the query's output pipe
+/// cannot hold the answer past the bound, and the answer says what it left.
+///  The descendant sleeps longer than the answer may take and shorter than the run's watchdog,
+/// so a helper that waited for it fails this control instead of hanging the run.
+#[test]
+fn a_query_whose_descendant_holds_its_pipe_answers_at_its_bound_and_says_so() {
+    let root: PathBuf = fixture("real-git-within-descendant");
+    let number_file: PathBuf = root.join("descendant-number");
+    let query: PathBuf = script(
+        root.as_path(),
+        "query-with-a-descendant",
+        format!(
+            "#!/bin/sh\n/usr/bin/setsid /bin/sleep 8 &\nprintf '%s\\n' \"$!\" > '{}'\nwait\n",
+            number_file.display()
+        )
+        .as_str(),
+    );
+    let bound: Duration = Duration::from_secs(1);
+    let began: Instant = Instant::now();
+    let answer: QueryAnswer = real_git_within(query.as_path(), Some(root.as_path()), &[], &[], None, bound);
+    let elapsed: Duration = began.elapsed();
+    // The descendant is this control's own to end, whatever the answer was.
+    let number: String = std::fs::read_to_string(number_file.as_path()).expect("the descendant's process number");
+    let descendant: libc::pid_t = number.trim().parse::<libc::pid_t>().expect("a process number");
+    // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours.
+    let _killed = unsafe { libc::kill(descendant, libc::SIGKILL) };
+    assert_eq!(
+        answer.ending,
+        QueryEnding::AtTheBound,
+        "the one-second bound ended a query that never ends by itself, after {elapsed:?}"
+    );
+    assert!(answer.held_open, "the descendant held the query's pipe, so the answer must say so: {answer:?}");
+    assert!(
+        elapsed < bound + PIPE_GRACE + Duration::from_millis(500),
+        "the answer waited past its bound of {bound:?} and its grace of {PIPE_GRACE:?}: {elapsed:?}"
+    );
+    remove(root.as_path());
+}
+
+/// A query that ends by itself keeps its own ending:
+///  an exit status of 124 or 137,
+///  and a signal's death,
+/// are none of them this helper's bound.
+#[test]
+fn a_query_that_ends_by_itself_keeps_its_own_ending() {
+    let root: PathBuf = fixture("real-git-within-endings");
+    let cases: [(&str, Option<i32>, Option<i32>); 3] = [
+        ("exit 124", Some(124), None),
+        ("exit 137", Some(137), None),
+        ("kill -KILL $$", None, Some(libc::SIGKILL)),
+    ];
+    for (source, code, signal) in cases {
+        let words: Vec<OsString> = shell_arguments(source);
+        let began: Instant = Instant::now();
+        let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), None, FIXTURE_GIT_BOUND);
+        assert_eq!(
+            answer.ending,
+            QueryEnding::Itself,
+            "{source}: the query ended by itself, long before the bound of {} s, which the answer reports instead",
+            FIXTURE_GIT_BOUND.as_secs()
+        );
+        assert_eq!(answer.output.status.code(), code, "{source}");
+        assert_eq!(answer.output.status.signal(), signal, "{source}");
+        assert!(began.elapsed() < FIXTURE_GIT_BOUND, "{source}: the answer waited past the bound");
+    }
+    remove(root.as_path());
+}
+
+/// One query that writes, and ends, says what it wrote:
+///  the bound does not turn its output into nothing.
+#[test]
+fn a_query_that_ends_by_itself_keeps_its_output() {
+    let root: PathBuf = fixture("real-git-within-output");
+    let words: Vec<OsString> = shell_arguments("printf 'answered\\n'");
+    let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), None, FIXTURE_GIT_BOUND);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the query ends by itself");
+    assert!(!answer.held_open, "nothing of this query outlives it");
+    assert_eq!(String::from_utf8_lossy(&answer.output.stdout).as_ref(), "answered\n");
+    assert_eq!(answer.output.status.code(), Some(0));
+    remove(root.as_path());
+}

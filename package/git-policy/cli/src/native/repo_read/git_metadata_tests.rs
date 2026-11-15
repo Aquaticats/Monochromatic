@@ -15,7 +15,7 @@ use super::{
     MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, run_metadata_git_within,
     strip_git_line,
 };
-use crate::test_support::{FIXTURE_GIT_BOUND_SECONDS, REAL_GIT, executable, fixture, real_git_within, remove};
+use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, executable, fixture, real_git_within, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -56,11 +56,12 @@ fn path_bytes_round_trip_without_decoding() {
 /// The bytes the Git at `git` prints for `--version`,
 ///  run under `bound` seconds so a Git that never answers ends this control
 ///  with a verdict that names the query and the bound.
-fn version_bytes_of_the_git_under_test(git: &Path, bound: &str) -> Vec<u8> {
-    let asked: Option<std::process::Output> = real_git_within(git, None, &[], &[OsString::from("--version")], None, bound);
-    let output: std::process::Output = asked.unwrap_or_else(|| panic!("the `git --version` query did not answer within {bound} s: the bound ended it"));
-    assert!(output.status.success(), "the `git --version` query failed: {}", String::from_utf8_lossy(&output.stderr));
-    return output.stdout;
+fn version_bytes_of_the_git_under_test(git: &Path, bound: std::time::Duration) -> Vec<u8> {
+    let answer: QueryAnswer = real_git_within(git, None, &[], &[OsString::from("--version")], None, bound);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the `git --version` query did not answer within {} s: the bound ended it", bound.as_secs());
+    assert!(!answer.held_open, "the `git --version` query ended, and a descendant of it still holds its output");
+    assert!(answer.output.status.success(), "the `git --version` query failed: {}", String::from_utf8_lossy(&answer.output.stderr));
+    return answer.output.stdout;
 }
 
 /// A Git that never answers ends the version query at its bound,
@@ -73,7 +74,7 @@ fn a_version_query_that_never_answers_ends_at_its_bound() {
     let hanging: PathBuf = root.join("hanging-git");
     executable(hanging.as_path(), b"#!/bin/sh\nsleep 5\n");
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        return version_bytes_of_the_git_under_test(hanging.as_path(), "1");
+        return version_bytes_of_the_git_under_test(hanging.as_path(), std::time::Duration::from_secs(1));
     }));
     let payload = caught.expect_err("the bound must end the query");
     let message: String = match payload.downcast_ref::<String>() {
@@ -93,7 +94,7 @@ fn a_version_query_that_never_answers_ends_at_its_bound() {
 /// instead of holding the suite.
 #[test]
 fn queries_capture_output_and_exit_state() {
-    let asked_directly: Vec<u8> = version_bytes_of_the_git_under_test(Path::new(REAL_GIT), FIXTURE_GIT_BOUND_SECONDS);
+    let asked_directly: Vec<u8> = version_bytes_of_the_git_under_test(Path::new(REAL_GIT), FIXTURE_GIT_BOUND);
     let version: MetadataOutput =
         run_metadata_git(Path::new(REAL_GIT), &[OsString::from("--version")], &[])
             .expect("Git starts");

@@ -1,7 +1,8 @@
 //! What:
-//!  The two ways the controls start real Git in a fixture:
+//!  The ways the controls start real Git in a fixture:
 //! one that answers its output,
-//! and one that requires it to have succeeded.
+//! one that requires it to have succeeded,
+//! and one that keeps a bound on the query and says who ended it.
 //! Why:
 //!  Every control that needs a repository,
 //!  a commit or an answer from Git starts it the same way,
@@ -18,12 +19,14 @@
 use super::REAL_GIT;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text (siblings `&str`/`String` must be UTF-8).
 use std::ffi::{OsStr, OsString};
-/// `Write` fills the standard input of a query that reads one.
-use std::io::Write;
+/// `Read`/`Write` fill the standard input of a query and drain its pipes.
+use std::io::{Read, Write};
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
 /// The command builder, the child's pipes and the finished child every fixture Git run is.
 use std::process::{Command, Output, Stdio};
+/// `process_group` gives the query a process group of its own, which the bound ends as a whole.
+use std::os::unix::process::CommandExt as _;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
@@ -54,30 +57,101 @@ pub(crate) fn git<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output 
     return output;
 }
 
-/// How long one real-Git query of a control may take before the bound ends it,
-/// in seconds as `/usr/bin/timeout` reads them.
+/// How long one real-Git query of a control may run before this helper ends it.
 /// Why sixty:
 ///  The same bound the binary-level controls give one fixture Git run
 /// (`NATIVE_GIT_BOUND_SECONDS`), and for the same measurement:
 /// the longest disk stall one `fsync` of a trivial command showed on this host is 4.74 s
 /// (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`),
 /// so sixty is more than ten times it.
-pub(crate) const FIXTURE_GIT_BOUND_SECONDS: &str = "60";
+pub(crate) const FIXTURE_GIT_BOUND: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// How long the two pipes may take to reach their end once the query is gone
+/// before this answer leaves them to a descendant.
+/// Why 250 ms:
+///  everything a gone query wrote sits in the pipe's buffer already,
+/// so the window covers the scheduler and no more,
+/// and a query whose descendant holds one end open never holds the control.
+pub(crate) const PIPE_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// How long a query this helper has killed may take to be reaped.
+/// Why five seconds:
+///  a `SIGKILL`ed child is reaped at once, so this window only covers the kernel and the scheduler;
+/// a query that still has not been reaped in it is a defect of this helper, not a slow host.
+const REAPING: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Who ended one bounded query.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum QueryEnding {
+    /// The query ended by itself, and its status and output are its own,
+    /// whatever status that was: a code of 124 or 137 or a signal's death included.
+    Itself,
+    /// This helper ended it at the bound, by killing the process group the query led.
+    AtTheBound,
+}
+
+/// What one bounded query of real Git answered.
+#[derive(Debug)]
+pub(crate) struct QueryAnswer {
+    /// The query's own ending and what its pipes gave before it went.
+    pub output: Output,
+    /// Who ended the query, decided by this helper's own act and never by the query's status.
+    pub ending: QueryEnding,
+    /// Whether a pipe was still held when the grace passed,
+    /// so a descendant of the query kept that end open and the output may be short of what the query wrote.
+    pub held_open: bool,
+}
 
 /// What:
-///  Run one real-Git query under `bound_seconds` and answer its output,
-///  or nothing when the bound ended it.
+///  One pipe of a query: the bytes as they arrive,
+///  and the news that its reader reached the end.
+/// Why:
+///  Reading the pipes on this thread would wait for the end of file,
+/// which a descendant that inherited the pipe can postpone past every bound;
+/// a reader of its own lets the answer keep what has arrived and leave the rest to whoever holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { bytes, ended } = drain(child.stdout); // ended: a message when the pipe reaches its end
+/// ```
+fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::sync::Mutex<Vec<u8>>>, std::sync::mpsc::Receiver<()>) {
+    let kept: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    let sink: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::clone(&kept);
+    let _reader: std::thread::JoinHandle<()> = std::thread::Builder::new().spawn(move || {
+        let mut buffer: [u8; 8192] = [0; 8192];
+        loop {
+            match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => sink.lock().expect("the pipe's bytes").extend_from_slice(&buffer[..read]),
+                Err(_) => break,
+            }
+        }
+        let _ended = sender.send(());
+    }).expect("the reader of a query's pipe starts");
+    return (kept, receiver);
+}
+
+/// What:
+///  Run one real-Git query under `bound` and answer what it printed and who ended it.
 /// Why:
 ///  A control that ran Git directly would hold the suite for ever against a Git that never answers,
 /// and report nothing at all;
-/// `/usr/bin/timeout` sends `SIGKILL` at the bound and waits for the child,
-/// so nothing of the query outlives this call.
-/// The caller answers `None` with a verdict naming its own query,
+///  and a bound asked of another program (`/usr/bin/timeout`) can only be read back from an exit status,
+/// which an ordinary 124 or 137 or a signal's death does not tell apart from the bound.
+/// So the bound is this helper's own promise and this helper keeps it:
+/// it starts the query in a process group of its own,
+/// watches the clock itself,
+/// and at the bound ends that group and reaps the query;
+/// `QueryEnding::AtTheBound` is true exactly when it did that,
+/// and a query that ended by itself comes back with its own status and output.
+/// Nothing waits without a bound,
+/// and the caller answers each ending with its own sentence,
 /// because only it knows which query it made and what the query is for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = runUnderBound('git', ['--version'], 60); // undefined when the bound ended it
+/// const answer = runUnderBound('git', ['--version'], 60); // { output, ending, heldOpen }
 /// ```
 pub(crate) fn real_git_within(
     program: &Path,
@@ -85,10 +159,10 @@ pub(crate) fn real_git_within(
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
     input: Option<&[u8]>,
-    bound_seconds: &str,
-) -> Option<Output> {
-    let mut command: Command = Command::new("/usr/bin/timeout");
-    command.arg("--signal=KILL").arg(bound_seconds).arg(program).args(arguments);
+    bound: std::time::Duration,
+) -> QueryAnswer {
+    let mut command: Command = Command::new(program);
+    command.args(arguments);
     if let Some(at) = directory {
         command.current_dir(at);
     }
@@ -98,16 +172,54 @@ pub(crate) fn real_git_within(
     }
     command.stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    // The query leads a process group of its own, so the bound takes what it started in that group with it.
+    command.process_group(0);
     let mut child: std::process::Child = command.spawn().expect("the query starts");
+    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    let (standard_output, output_ended) = draining(child.stdout.take().expect("piped standard output"));
+    let (standard_error, error_ended) = draining(child.stderr.take().expect("piped standard error"));
     if let Some(bytes) = input {
         let mut standard_input: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
         standard_input.write_all(bytes).expect("the query's input");
+        // Dropping the handle here is what gives the query its end of file.
     }
-    let output: Output = child.wait_with_output().expect("the query's output");
-    // `timeout` ends the child at the bound and reports a status of its own: 124 with the default signal and 137
-    // when the signal was KILL (measured on this host), and the signal itself on a host where it re-raises it.
-    return match output.status.code() {
-        None | Some(124) | Some(137) => None,
-        Some(_) => Some(output),
+    // The wait blocks on the query instead of looking at the clock, so a query that ends in a millisecond costs a
+    // millisecond; the bound is the wait's own deadline, not a poll's.
+    let (status_sender, status_receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
+    let waiter: std::thread::JoinHandle<()> = std::thread::Builder::new().spawn(move || {
+        let _status = status_sender.send(child.wait());
+    }).expect("the waiter of a query starts");
+    let (status, ending): (std::process::ExitStatus, QueryEnding) = match status_receiver.recv_timeout(bound) {
+        Ok(Ok(status)) => (status, QueryEnding::Itself),
+        Ok(Err(error)) => panic!("the ending of the query {program:?} cannot be read: {error}"),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours.
+            let killed: i32 = unsafe { libc::kill(-group, libc::SIGKILL) };
+            let reaped: std::io::Result<std::process::ExitStatus> = status_receiver
+                .recv_timeout(REAPING)
+                .unwrap_or_else(|_| panic!("the query {program:?} was killed at its bound of {bound:?} and not reaped within {REAPING:?}"));
+            let status: std::process::ExitStatus = reaped.unwrap_or_else(|error| panic!("the ending of the query {program:?} cannot be read: {error}"));
+            // The helper's own act decides this and never the status the query came back with;
+            // a group that was already gone was ended by itself, not by this call.
+            (status, if killed == 0 { QueryEnding::AtTheBound } else { QueryEnding::Itself })
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of the query {program:?} ended without its status"),
+    };
+    let _joined = waiter.join();
+    // What the pipes gave, under one grace for both, and never a wait past it.
+    let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
+    let output_ended: bool = output_ended.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
+    let error_ended: bool = error_ended.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
+    let stdout: Vec<u8> = standard_output.lock().expect("the query's standard output").clone();
+    let stderr: Vec<u8> = standard_error.lock().expect("the query's standard error").clone();
+    return QueryAnswer {
+        output: Output { status, stdout, stderr },
+        ending,
+        held_open: !(output_ended && error_ended),
     };
 }
+
+/// The controls of the bounded query above.
+#[cfg(test)]
+#[path = "fixture_git_commands_tests.rs"]
+mod tests;

@@ -407,7 +407,7 @@ pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
 pub(crate) mod fixture_git_commands;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
-pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND_SECONDS, git, git_output, real_git_within};
+pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, git, git_output, real_git_within};
 
 #[path = "child_test_process.rs"]
 pub(crate) mod child_test_process;
