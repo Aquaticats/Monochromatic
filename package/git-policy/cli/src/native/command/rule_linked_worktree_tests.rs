@@ -229,6 +229,57 @@ fn an_option_no_table_holds_is_refused_naming_it() {
     assert_eq!(decide(&["--no-such-global", "reset", "--hard"]), LinkedWorktreeDecision::Pass);
 }
 
+/// What:
+///  The written paths decide whether a form is asked about the edits a `skip-worktree` mark hides,
+///  not the form that names them.
+/// Why:
+///  A tree written over the paths it names replaces the file the mark names,
+///  and so does a forced move's destination,
+///  while a whole tree written by force, an index write, a `read-tree` and a `checkout-index` keep
+///  it.
+///  A reading that asked the question by the form answered `Tracked` for a pathspec file and for a
+///  move, so `git checkout other --pathspec-from-file=<list>` and `git mv -f a.txt b.txt` replaced a
+///  marked edit nobody was asked about
+///  (the seventh review, reproduced here and in its own scripts).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// dirtyQuestion('move', ['-f', 'a.txt', 'b.txt']) === { kind: 'worktree', scope: 'tracked-and-skip-worktree-edits' };
+/// ```
+#[test]
+fn the_written_paths_pick_the_edit_a_mark_hides() {
+    for (command, values, expected) in [
+        // A tree over named paths, in both spellings of the path list.
+        (GuardedCommand::CheckoutPaths, vec!["other", "--", "a.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["other", "--pathspec-from-file=list.txt"],
+            DirtyScope::TrackedAndSkipWorktreeEdits,
+        ),
+        // A restore whose source is a tree.
+        (GuardedCommand::RestoreWorktree, vec!["--source=other", "--", "a.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        (
+            GuardedCommand::RestoreWorktree,
+            vec!["--source=other", "--pathspec-from-file=list.txt"],
+            DirtyScope::TrackedAndSkipWorktreeEdits,
+        ),
+        // A forced move replaces its destination, the marked edit included.
+        (GuardedCommand::Move, vec!["-f", "a.txt", "b.txt"], DirtyScope::TrackedAndSkipWorktreeEdits),
+        // A whole tree written by force keeps the file the mark names.
+        (GuardedCommand::CheckoutPaths, vec!["-f", "other"], DirtyScope::Tracked),
+        // A restore of the index, a read-tree and a checkout-index keep it too.
+        (GuardedCommand::RestoreWorktree, vec!["--", "a.txt"], DirtyScope::Tracked),
+        (GuardedCommand::ReadTree, vec!["--reset", "-u", "other"], DirtyScope::Tracked),
+        (GuardedCommand::CheckoutIndex, vec!["-f", "-a"], DirtyScope::Tracked),
+    ] {
+        assert_eq!(
+            dirty_question(command, os_arguments(values.as_slice()).as_slice()),
+            Some(DirtyQuestion::Worktree(expected)),
+            "{command:?} {values:?}"
+        );
+    }
+}
+
 /// Other commands,
 ///  dry runs and index-only resets pass without a measurement.
 #[test]
