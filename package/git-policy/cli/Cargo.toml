@@ -212,7 +212,7 @@ tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 tower-service = ">=0.3.3"
 webpki-roots = ">=1.0.12"
-zbus = { version = ">=6.2.1", default-features = false }
+zbus = { version = ">=6.3.0", default-features = false }
 
 # Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
 [lints.rust.unexpected_cfgs]
