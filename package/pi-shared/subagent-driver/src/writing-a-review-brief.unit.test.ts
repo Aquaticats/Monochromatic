@@ -1014,11 +1014,20 @@ process.stdout.write('took the folder\\n',);
 setInterval(() => {}, 1000,);
 `,);
             /**
-             The start that took the folder.
+             The start that took the folder, killed when this test ends, however it ends.
              */
-            const child = spawn(process.execPath, [childFile, aBranch(), ownerFile,], {
-              stdio: ['ignore', 'pipe', 'pipe',],
-            },);
+            using started = {
+              child: spawn(process.execPath, [childFile, aBranch(), ownerFile,], {
+                stdio: ['ignore', 'pipe', 'pipe',],
+              },),
+              [Symbol.dispose]: function endTheStart() {
+                this.child.kill('SIGKILL',);
+              },
+            };
+            /**
+             The start the test watches.
+             */
+            const { child, } = started;
             /**
              What the start said on its error stream, for a start that ends before it takes the folder.
              */
@@ -1027,62 +1036,57 @@ setInterval(() => {}, 1000,);
             child.stderr.on('data', function saidOnTheErrorStream(chunk: string,) {
               childErrors += chunk;
             },);
-            try {
-              await new Promise<void>(function waitForTheFolder(resolve, reject,) {
-                child.stdout.setEncoding('utf8',);
-                child.stdout.once('data', function tookTheFolder(chunk: string,) {
-                  if (chunk.includes('took the folder',)) {
-                    resolve();
-                  }
-                },);
-                child.once('exit', function endedBeforeTaking(code,) {
-                  reject(new Error(`the start ended before it took the folder, with ${String(code,)}: ${childErrors}`,),);
-                },);
-              },);
-              /**
-               The number of the start that took the folder.
-               */
-              const killed = child.pid;
-              expect(typeof killed,).toBe('number',);
-              child.kill('SIGKILL',);
-              await new Promise<void>(function waitForTheEnd(resolve,) {
-                child.once('exit', function ended() {
+            await new Promise<void>(function waitForTheFolder(resolve, reject,) {
+              child.stdout.setEncoding('utf8',);
+              child.stdout.once('data', function tookTheFolder(chunk: string,) {
+                if (chunk.includes('took the folder',)) {
                   resolve();
-                },);
+                }
               },);
-              /**
-               What the folder held before this start wrote its brief.
-               */
-              const before = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
-                readonly process?: { readonly pid?: unknown };
-              };
-              expect(before.process?.pid,).toBe(killed,);
-              /**
-               What this start answered.
-               */
-              const briefed = await writeAChangeOfBranch({
-                changed: [aModifiedFile(aCodeFile(),),],
-                folder: folder.path,
+              child.once('exit', function endedBeforeTaking(code,) {
+                reject(new Error(`the start ended before it took the folder, with ${String(code,)}: ${childErrors}`,),);
               },);
-              expect(briefed.written,).toBe(true,);
-              /**
-               What the folder now records.
-               */
-              const owner = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
-                readonly branch?: unknown;
-                readonly process?: { readonly pid?: unknown };
-              };
-              expect(owner.branch,).toBe(aBranch(),);
-              expect(owner.process?.pid,).toBe(process.pid,);
-              /**
-               The brief the writer wrote.
-               */
-              const briefFile = join(reviewsFolder, aReview(), 'brief.md',);
-              expect(existsSync(briefFile,),).toBe(true,);
-            }
-            finally {
-              child.kill('SIGKILL',);
-            }
+            },);
+            /**
+             The number of the start that took the folder.
+             */
+            const killed = child.pid;
+            expect(typeof killed,).toBe('number',);
+            child.kill('SIGKILL',);
+            await new Promise<void>(function waitForTheEnd(resolve,) {
+              child.once('exit', function ended() {
+                resolve();
+              },);
+            },);
+            /**
+             What the folder held before this start wrote its brief.
+             */
+            const before = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
+              readonly process?: { readonly pid?: unknown };
+            };
+            expect(before.process?.pid,).toBe(killed,);
+            /**
+             What this start answered.
+             */
+            const briefed = await writeAChangeOfBranch({
+              changed: [aModifiedFile(aCodeFile(),),],
+              folder: folder.path,
+            },);
+            expect(briefed.written,).toBe(true,);
+            /**
+             What the folder now records.
+             */
+            const owner = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
+              readonly branch?: unknown;
+              readonly process?: { readonly pid?: unknown };
+            };
+            expect(owner.branch,).toBe(aBranch(),);
+            expect(owner.process?.pid,).toBe(process.pid,);
+            /**
+             The brief the writer wrote.
+             */
+            const briefFile = join(reviewsFolder, aReview(), 'brief.md',);
+            expect(existsSync(briefFile,),).toBe(true,);
           },
         },),
         it({
