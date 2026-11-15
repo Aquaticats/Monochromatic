@@ -315,7 +315,11 @@ fn a_build_directory_the_copy_carried_is_moved_aside_before_the_add_answers() {
     let staged: PathBuf = entry.staged_in.clone().expect("the entry says where the worktree's own state waits");
     assert_eq!(entry.to, package.join("target"));
     assert!(!entry.to.exists(), "the copied state is out of the worktree's build directory before the add answers");
-    assert_eq!(staged, crate::package_repair_prewarm_job::staging_of(entry.to.as_path()), "the state waits beside the build directory it was taken from");
+    assert!(
+        staged.to_string_lossy().starts_with(crate::package_repair_prewarm_job::staging_of(entry.to.as_path()).to_string_lossy().as_ref()),
+        "the state waits beside the build directory it was taken from, under a name of the add's own: {}",
+        staged.display()
+    );
     let exclude: String = std::fs::read_to_string(git_directory.join("info/exclude")).expect("the repository's exclude file names the staging patterns");
     assert!(exclude.contains("*.monochromatic-prewarm/"), "the staging name is kept out of the person's `git status`: {exclude}");
     assert!(staged.join("debug/copied").is_file(), "the copy's state sits at the staging name: {}", staged.display());
