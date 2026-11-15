@@ -21,6 +21,7 @@ use crate::service_journal::{BatchClaim, Recovery, claim_batch};
 use crate::service_land_follow::storage_failure;
 use crate::service_index_lock::{Announce, Announcer};
 use crate::service_captures::CaptureMemory;
+use crate::service_claim_watch_note_within_a_ceiling::{NoteForTheNextService, note_for_the_next_service_within};
 use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use crate::journald_native::Priority;
 use crate::service::service_server_land_group_answer_log::{BatchTimes, landing_figures_of, log_answer, path_of_change};
@@ -149,7 +150,10 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// and answers each client.
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
 /// (`wait_ceilings.rs`,
-/// `WAITING_NOTICE_AFTER`).
+/// `WAITING_NOTICE_AFTER`),
+/// and `note_ceiling` the wait its note to the next service is granted
+/// (`wait_ceilings.rs`,
+/// `LANDING_WATCH_NOTE_CEILING`).
 /// Records the identities of the requests whose scratch tree the landing did not read for good,
 /// because the answer sent their client back to read the private index of the attempt it captured
 /// (`service_prepare_ready_shapes.rs`,
@@ -163,6 +167,7 @@ pub(crate) fn land_group(
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
     place_after: Duration,
+    note_ceiling: Duration,
     handed_back: &mut std::collections::HashSet<String>,
     drawn: &std::sync::Arc<crate::service_shadow_draw::DrawnShadows>,
 ) {
@@ -301,6 +306,22 @@ pub(crate) fn land_group(
                 }
             }
             crate::service_fault::reach("before-ack");
+            // What:
+            //  The journal directory the notes for the next service are kept in,
+            //  whether the note of this batch has already given no answer,
+            //  and whether the system has already refused a thread for one of its notes.
+            // Why:
+            //  A store that has not answered one write of this batch is not asked again within it,
+            //  so a batch of many commits holds one unanswered note and pays one ceiling,
+            //  and never one for each of its commits.
+            //  The store is not asked again by a later batch either while that write is outstanding
+            //  (`service_claim_watch_note_within_a_ceiling.rs`, `A_NOTE_WRITE_IS_OUTSTANDING`).
+            //  A refused thread is said once and the store is asked again by the next commit this batch lands:
+            //  nothing ran, the place of the one write is free again, and a refusal that came from a moment when much
+            //  ran at once is over by that commit's turn.
+            let note_store: std::path::PathBuf = context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY);
+            let mut the_store_answers: bool = true;
+            let mut no_thread_was_said: bool = false;
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
                     for (repeat, stream, arrival) in &repeats {
@@ -323,12 +344,40 @@ pub(crate) fn land_group(
                         hold_the_push(request, commit.as_str());
                         // The repository is written down for the next service in the same instant, so a wrapper killed between
                         //  promoting that push and waking the service is still found when a service starts
-                        //  (`service_claim_watch.rs`, `note_for_the_next_service`).
-                        crate::service_claim_watch::note_for_the_next_service(
-                            context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY).as_path(),
-                            instance,
-                            request.git_dir.as_path(),
-                        );
+                        //  (`service_claim_watch.rs`, `note_for_the_next_service`). The wait for that write is bounded
+                        //  (`wait_ceilings.rs`, `LANDING_WATCH_NOTE_CEILING`), because the commit has landed and its push is held
+                        //  by now, and the work loop writes the same note when this answer's wake sends it to look.
+                        if the_store_answers {
+                            match note_for_the_next_service_within(note_ceiling, note_store.as_path(), instance, request.git_dir.as_path()) {
+                                NoteForTheNextService::Answered => {}
+                                NoteForTheNextService::AnEarlierWriteHasNotEnded => {
+                                    the_store_answers = false;
+                                    crate::service_warn!(
+                                        "the note that names {} for the next service is not written, because a note an earlier commit handed over has not ended after {note_ceiling:?}; this commit is answered and stays landed, and the after-commit work writes that note when the wake of that answer sends it to look at the repository",
+                                        crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                    );
+                                }
+                                NoteForTheNextService::NoThreadToStart => {
+                                    // Nothing ran, so this batch asks again for the next commit it lands, and only the first
+                                    //  refusal is said: a system short of threads refuses many, and one line is what a person
+                                    //  can act on.
+                                    if !no_thread_was_said {
+                                        no_thread_was_said = true;
+                                        crate::service_warn!(
+                                            "the system gave no thread for the note that names {} for the next service, so it is not written yet; this commit is answered and stays landed, the next commit of this batch or the after-commit work writes that note, and the system's thread and process limits are what to look at",
+                                            crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                        );
+                                    }
+                                }
+                                NoteForTheNextService::NoAnswer => {
+                                    the_store_answers = false;
+                                    crate::service_warn!(
+                                        "the note that names {} for the next service gave no answer within {note_ceiling:?} and is left behind; this commit is answered and stays landed, and the after-commit work writes that note when the wake of this answer sends it to look at the repository",
+                                        crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                    );
+                                }
+                            }
+                        }
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
                         "landed"

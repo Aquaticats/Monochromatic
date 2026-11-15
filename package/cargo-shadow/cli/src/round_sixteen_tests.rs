@@ -22,7 +22,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::bounded_run::{Bound, RunError, on_start_for_test, output_within, take_trace_for_test, use_route_settings_for_test};
-use crate::cgroup_test_support::{delegated_route, start_in_scope, wait_until};
+use crate::cgroup_test_support::{start_in_scope, wait_until};
 use crate::contain_counterexample_tests::wait_for_file;
 use crate::control_group::RouteSettings;
 use crate::test_scratch::scratch;
@@ -214,9 +214,7 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
 /// and the unrelated child survives both cleanups.
 #[test]
 fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wrappers_group() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
 
     let seen: Seen = at_the_launch_boundary(directory.path(), None);
@@ -267,12 +265,8 @@ fn moved_wrapper_fixture() {
 /// equality the test above asserts fails under that regression.
 #[test]
 fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees() {
-    if delegated_route().is_none() {
-        return;
-    }
-    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
-        return;
-    };
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let holder = start_in_scope(Command::new("sleep").arg("600"));
     let directory = scratch();
     let status = Command::new(std::env::current_exe().expect("this test executable"))
         .args(["--ignored", "--exact", "round_sixteen_tests::moved_wrapper_fixture", "--nocapture"])
@@ -314,8 +308,8 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
         let plain = scratch();
         if weaker {
             use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
-        } else if delegated_route().is_none() {
-            return;
+        } else {
+            crate::cgroup_test_support::this_test_needs_a_delegated_scope();
         }
         let root = scratch();
         fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
@@ -386,9 +380,7 @@ fn the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_ab
 /// The run used a delegated scope (its journal records one).
 #[test]
 fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     for at_the_bound in [false, true] {
         let root = scratch();
         fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
@@ -474,12 +466,12 @@ fn a_journal_whose_only_record_is_malformed_is_kept_with_its_diagnostic_until_it
 /// A scope with a live descendant and a journal that records it with a resolved lifecycle (the scope and its settled end),
 /// so the
 /// member is the only thing that can block.
-fn journal_with_a_scope_that_has_a_member(root: &Path) -> Option<(crate::cgroup_test_support::TestScope, PathBuf)> {
-    let scope = start_in_scope(Command::new("sleep").arg("600"))?;
+fn journal_with_a_scope_that_has_a_member(root: &Path) -> (crate::cgroup_test_support::TestScope, PathBuf) {
+    let scope = start_in_scope(Command::new("sleep").arg("600"));
     let journal: PathBuf = crate::journal_support::plant(root, &[snapshot("first")], &[]);
     fs::write(journal.join("groups"), format!("{}\nsettled {}\n", scope.group.record(), scope.group.directory().display())).expect("record the scope");
     assert!(scope.group.members().is_ok_and(|found| { return !found.is_empty(); }), "the scope has no member, so the schedule is not made");
-    return Some((scope, journal));
+    return (scope, journal);
 }
 
 /// Stops a scope and waits until it is gone.
@@ -500,15 +492,11 @@ fn end_scope(scope: &crate::cgroup_test_support::TestScope) {
 /// which is the control that no other uncertainty was blocking.
 #[test]
 fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_ends() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
     // The other journal is planted first: planting begins a transaction, which a journal with a live member would refuse.
     let _other = crate::journal_support::plant(root.path(), &[snapshot("second")], &[]);
-    let Some((scope, _journal)) = journal_with_a_scope_that_has_a_member(root.path()) else {
-        return;
-    };
+    let (scope, _journal) = journal_with_a_scope_that_has_a_member(root.path());
 
     let before_journals: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
     let blocked: Vec<String> = crate::journal::recover(root.path(), &refusing);
@@ -533,13 +521,9 @@ fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_e
 /// starts once it is gone (the control).
 #[test]
 fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
-    let Some((scope, journal)) = journal_with_a_scope_that_has_a_member(root.path()) else {
-        return;
-    };
+    let (scope, journal) = journal_with_a_scope_that_has_a_member(root.path());
     let journals_before: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
     let record_before: String = fs::read_to_string(journal.join("groups")).expect("the record");
     let snapshot_before: String = fs::read_to_string(journal.join("0.lock")).expect("the snapshot");
@@ -579,9 +563,7 @@ fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends()
 /// so the transaction reports no writers that may remain.
 #[test]
 fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let directory = scratch();
     let root = scratch();
     fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
@@ -620,9 +602,7 @@ fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
 /// writers may remain and the journal is retained.
 #[test]
 fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = scratch();
     fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
     fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
@@ -734,9 +714,7 @@ fn refusing_systemd_run(directory: &Path) -> PathBuf {
 /// needs no acknowledgement.
 #[test]
 fn a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_runs_nothing() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     // No cgroup.kill: discovery names it.
     let no_kill: RouteSettings = RouteSettings { systemctl: "sh".to_string(), question: Some(vec!["-c".to_string(), "echo /".to_string()]), ..RouteSettings::default() };
     let refused = crate::control_group::detect_route(&no_kill).expect_err("the root group has no cgroup.kill");
