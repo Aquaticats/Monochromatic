@@ -87,6 +87,41 @@ fn a_recorded_machine_id_that_is_not_valid_is_unknown() {
     }
 }
 
+/// A boot ID as the kernel prints it,
+/// with the dashes a stored identity never carries.
+const A_BOOT_WITH_THE_KERNEL_DASHES: &str = "e044d6c2-e7f5-41bd-aff8-9ac57532f7ff";
+
+/// Refused:
+/// a text whose parts are not the kinds a writer of this release leaves is never read as a boot that ended.
+/// A writer that cannot read the boot ID of its host leaves that part out,
+/// so the number of its PID namespace stands where the boot belongs,
+/// and a boot as the kernel prints it carries the dashes a stored identity never has.
+/// Read as a boot that ended,
+/// either text proves every process of it gone,
+/// and a lock of a writer that runs is removed.
+#[test]
+fn a_text_whose_parts_are_not_the_kinds_a_writer_leaves_is_never_gone() {
+    let asked = std::cell::Cell::new(0_usize);
+    let counting = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
+        asked.set(asked.get() + 1);
+        return Ok(None);
+    };
+    let texts: [(&str, String); 3] = [
+        ("a boot the writer could not read is left out, so its PID namespace stands in the boot's place", format!("linux:777#{SCOPE}")),
+        ("a boot with the dashes the kernel prints", format!("linux:777#{A_BOOT_WITH_THE_KERNEL_DASHES}#{SCOPE}")),
+        ("a machine part with nothing in it", format!("linux:777#{BOOT_A}#{SCOPE}#")),
+    ];
+    for (what, text) in texts {
+        // A reader with no machine ID is a container's, and one with MACHINE_A is this host's; neither may call it gone.
+        for machine in [None, Some(MACHINE_A)] {
+            // `text.clone()` copies the text into the holder the reader is given, which owns the identity it explains.
+            let holder: (i64, String) = (100, text.clone());
+            assert_eq!(holder_state_in(Some(&holder), &view(BOOT_B, machine), &counting), HolderState::Unknown, "{what}: {holder:?}");
+        }
+    }
+    assert_eq!(asked.get(), 0, "no process is asked about on a text whose parts cannot be read like for like");
+}
+
 /// A marker that names no machine keeps its reading for a reader that has none either:
 /// another boot is gone.
 #[test]
