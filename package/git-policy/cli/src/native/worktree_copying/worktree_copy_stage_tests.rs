@@ -609,12 +609,18 @@ fn the_copy_slices_take_places_of_the_processs_bound() {
     remove(root.as_path());
 }
 
-/// Where the system starts no thread the copy workers' slices are copied in turn and every file arrives with its bytes.
-/// The body runs
-/// in a child that is refused every thread.
+/// What:
+///  Where the system starts no thread, a staged copy of many files answers that no place came and copies nothing.
+/// Why:
+///   The slices of a copy are jobs of the blocking pool, and a call into storage must never run on the task that awaits
+/// it (`blocking_jobs_within_the_budget.rs`, `run_a_job_or_no_place`): a copy that ran there could not be ended by any
+/// deadline, so a refused thread is answered as no place and the copy is looked at again
+/// (the review of `a7a6958f9d`, third finding, is the other face of the same rule).
+/// Nothing of the source may be in the stage of a copy that did not run.
+/// The body runs in a child that is refused every thread.
 #[test]
-fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn") {
+fn a_parallel_stage_copy_where_no_thread_can_start_copies_nothing_and_says_so() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_stage_copy_where_no_thread_can_start_copies_nothing_and_says_so") {
         return;
     }
     let root: PathBuf = fixture("stage-copy-no-threads");
@@ -626,10 +632,12 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
         std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
     }
     let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
-    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
-    assert_eq!(copied.stamps.len(), entries.len());
-    assert!(copied.gone.is_empty(), "no entry went away here");
-    assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");
+    let refused: crate::worktree_copy_error::WorktreeCopyError = match copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()) {
+        Ok(_copied) => panic!("a copy whose slices found no place says so"),
+        Err(refused) => refused,
+    };
+    assert!(refused.0.contains("no place"), "the refusal names the place that never came: {}", refused.0);
+    assert_eq!(std::fs::read_dir(stage.join("many")).expect("the stage's own directory").count(), 0, "a copy that did not run put nothing in the stage");
     remove(&root);
 }
 
