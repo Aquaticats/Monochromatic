@@ -466,9 +466,10 @@ fn a_repository_shape(directory: &Path) -> Option<bool> {
 
 /// What:
 ///  Whether one directory is a bare repository:
-///  a `HEAD` file,
+///  a `HEAD` Git's own `validate_headref` accepts,
 ///  an `objects` directory and a `refs` directory,
-///  which is what Git's own `is_git_directory` reads before it calls a directory a repository.
+///  which is what Git's own `is_git_directory` reads before it calls a directory a repository
+///  (`setup.c:413-451`).
 /// Why:
 ///  A bare repository keeps its whole history in the directory itself,
 ///  so nothing else marks it as a repository,
@@ -481,19 +482,52 @@ fn a_repository_shape(directory: &Path) -> Option<bool> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function aBareRepositoryIs(directory: string): boolean; // HEAD file && objects/ && refs/
+/// function aBareRepositoryIs(directory: string): boolean; // HEAD git reads && objects/ && refs/
 /// ```
 fn a_bare_repository_is(directory: &Path) -> bool {
-    let Ok(head) = std::fs::metadata(directory.join("HEAD")) else {
+    // The entry itself, never the target of a link: Git's `validate_headref` reads it with `lstat`
+    //  (`setup.c:359`), and a link whose target is missing is still a `HEAD` to Git.
+    let Ok(head) = std::fs::symlink_metadata(directory.join("HEAD")) else {
         return false;
     };
-    if !head.is_file() {
+    if !a_head_git_reads(head.file_type(), directory) {
         return false;
     }
     if !a_directory_is(directory.join("objects").as_path()) {
         return false;
     }
     return a_directory_is(directory.join("refs").as_path());
+}
+
+/// What:
+///  Whether one `HEAD` entry is one Git accepts:
+///  a link that names a ref under `refs/`,
+///  or a plain file,
+///  which Git goes on to read.
+///  `FileType` is what the entry itself is,
+///  `&Path` the directory whose `HEAD` a link names.
+/// Why:
+///  Git's rule for a link is the target's first five bytes and nothing more
+///  (`validate_headref`, `setup.c:363-368`):
+///  `HEAD` as a link to `refs/heads/missing` is a repository's `HEAD` although no such ref exists,
+///  and the seventh review's clean deleted a bare repository whose `HEAD` was exactly that, unsaved,
+///  because a `stat` through the link failed (reproduced here).
+///  A file is read with no such rule here: the reading saves a repository Git would delete, and a
+///  file that is not a valid `HEAD` at all is one Git deletes too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readable = (kind, directory) =>
+///   kind.isSymbolicLink() ? readlink(join(directory, 'HEAD')).startsWith('refs/') : kind.isFile();
+/// ```
+fn a_head_git_reads(kind: std::fs::FileType, directory: &Path) -> bool {
+    if !kind.is_symlink() {
+        return kind.is_file();
+    }
+    let Ok(target) = std::fs::read_link(directory.join("HEAD")) else {
+        return false;
+    };
+    return target.as_os_str().as_encoded_bytes().starts_with(b"refs/");
 }
 
 /// What:

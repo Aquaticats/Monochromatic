@@ -328,6 +328,7 @@ fn stopped(failure: SaveFailure, moved: &[Moved]) -> SaveStopped {
 /// ```ts
 /// type Back = 'returned' | 'never-moved' | 'not-answered';
 /// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Back {
     /// The repository is where the worktree had it.
     Returned,
@@ -360,8 +361,51 @@ pub fn move_back_within_a_ceiling(source: &Path, destination: &Path) -> Back {
         });
     return match returned {
         Some(Ok(())) => Back::Returned,
-        Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => Back::NeverMoved,
+        // What:
+        //  A rename the system refused because a path was missing.
+        // Why:
+        //  `ENOENT` says one of the two paths was missing and never which one:
+        //  a rename back whose destination directory another process removed answers exactly as one
+        //  whose source is gone does,
+        //  and reading the first as "nothing was moved" dropped a repository that is still below the
+        //  saved copies from the record of the stopped save
+        //  (the seventh review, found by reading; the control below runs it).
+        //  The source alone says whether the copy is still there, and only when it answers `NotFound`
+        //  is the copy gone.
+        Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+            if the_saved_copy_is_gone(destination) {
+                Back::NeverMoved
+            } else {
+                Back::NotAnswered
+            }
+        }
         Some(Err(_)) | None => Back::NotAnswered,
+    };
+}
+
+/// What:
+///  Whether the place a copy was moved to holds nothing any more,
+///  asked of the place itself under the worktree lookup ceiling.
+///  `&Path` borrows that place.
+/// Why:
+///  A rename back cannot say which of its two paths was missing,
+///  so the question is asked of one of them:
+///  a copy that is not there is a move that never happened and owes no record,
+///  while a copy that is there is one the person still has to be told about.
+///  A lookup that gives no answer is no proof that the copy is gone, and the copy stays on record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gone = (saved) => workWithin(CEILING, () => stat(saved))?.code === 'ENOENT';
+/// ```
+fn the_saved_copy_is_gone(saved: &Path) -> bool {
+    let named: PathBuf = saved.to_path_buf();
+    let answer = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+        return std::fs::symlink_metadata(named.as_path());
+    });
+    return match answer {
+        Some(Err(error)) => error.kind() == std::io::ErrorKind::NotFound,
+        Some(Ok(_)) | None => false,
     };
 }
 

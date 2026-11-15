@@ -152,8 +152,13 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
     },
     UnderACeiling {
         file: "command/command_clean_nested_repositories.rs",
-        call: "let Ok(head) = std::fs::metadata(directory.join(\"HEAD\")) else {",
-        why: "the same walk job: a bare repository's markers (`a_bare_repository_is`)",
+        call: "let Ok(head) = std::fs::symlink_metadata(directory.join(\"HEAD\")) else {",
+        why: "the same walk job: a bare repository's `HEAD`, read as the entry itself (`a_bare_repository_is`)",
+    },
+    UnderACeiling {
+        file: "command/command_clean_nested_repositories.rs",
+        call: "let Ok(target) = std::fs::read_link(directory.join(\"HEAD\")) else {",
+        why: "the same walk job: the target of a `HEAD` link, which Git reads before it calls a directory a repository (`a_head_git_reads`)",
     },
     UnderACeiling {
         file: "command/command_clean_nested_repositories.rs",
@@ -204,6 +209,11 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
         file: "command/rule_worktree_dirty.rs",
         call: "through_a_link: std::sync::Arc::new(|path: &Path| return std::fs::metadata(path)),",
         why: "the same `work_within` job: the reading `is_dir` makes of the Git directory",
+    },
+    UnderACeiling {
+        file: "conflict/discarded_nested_repository.rs",
+        call: "return std::fs::symlink_metadata(named.as_path());",
+        why: "the job of `work_within` in `the_saved_copy_is_gone`, bounded by `WORKTREE_LOOKUP_CEILING`: a rename back's `ENOENT` is proved to be the copy's absence only by asking the copy",
     },
     UnderACeiling {
         file: "conflict/discarded_nested_repository.rs",

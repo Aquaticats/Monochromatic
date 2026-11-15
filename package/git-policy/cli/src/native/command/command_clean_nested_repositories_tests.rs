@@ -332,6 +332,42 @@ fn a_bare_repository_is_found_below_a_removed_path() {
 }
 
 /// What:
+///  A bare repository whose `HEAD` is a link is a repository Git deletes, and one whose link names
+///  nothing under `refs/` is not.
+/// Why:
+///  Git's own `validate_headref` reads the entry itself (`setup.c:359-368`),
+///  so `HEAD` as a link to `refs/heads/missing` is a repository's `HEAD` although no such ref exists.
+///  The seventh review put exactly that below an ignored directory:
+///  `git clean -f -X -d` removed the whole directory and the wrapper saved nothing,
+///  because a `stat` through the link answered `NotFound` and the walk found no repository
+///  (reproduced here).
+///  A link that names a path outside `refs/` is not a `HEAD` Git accepts, and the directory is the
+///  ordinary ignored directory Git deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nestedRepositoriesTheCleanDeletes(['Would remove ignored/'], root, '') === ['ignored/bare.git'];
+/// ```
+#[test]
+fn a_bare_repository_whose_head_is_a_dangling_link_is_found() {
+    let root: PathBuf = fixture("clean-nested-bare-dangling-head");
+    for name in ["bare.git", "elsewhere.git"] {
+        std::fs::create_dir_all(root.join("ignored").join(name).join("objects")).expect("a bare repository's objects");
+        std::fs::create_dir_all(root.join("ignored").join(name).join("refs")).expect("a bare repository's refs");
+    }
+    std::os::unix::fs::symlink("refs/heads/missing", root.join("ignored/bare.git/HEAD")).expect("a dangling head");
+    std::os::unix::fs::symlink("../outside.txt", root.join("ignored/elsewhere.git/HEAD")).expect("a head outside refs");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove ignored/\n"]).as_slice(),
+        root.as_path(),
+        b"",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("ignored/bare.git")]);
+    remove(root.as_path());
+}
+
+/// What:
 ///  A look inside a removed directory that gives no answer within its ceiling stops the clean,
 ///  and the command does not wait for the mount.
 /// Why:

@@ -13,7 +13,7 @@
 //! // expect(existsSync(join(copy.savedTo, '.git', 'HEAD'))).toBe(true);
 //! ```
 
-use super::{describe_rename_failure, set_nested_repositories_aside};
+use super::{Back, describe_rename_failure, move_back_within_a_ceiling, set_nested_repositories_aside};
 use crate::command_test_support::{fixture, remove};
 use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy};
 use std::path::{Path, PathBuf};
@@ -212,6 +212,104 @@ fn another_file_system_is_refused_in_words_a_person_can_act_on() {
     let failure: String = describe_rename_failure(std::io::Error::from_raw_os_error(libc::EXDEV));
     assert!(failure.contains("another file system"), "{failure}");
     assert!(failure.contains("does not copy a whole repository"), "{failure}");
+}
+
+/// What:
+///  A rename back whose destination directory another process removed keeps the copy on record,
+///  and one whose copy is gone is a move that never happened.
+/// Why:
+///  `ENOENT` names one missing path and not which:
+///  the seventh review found that a rollback took every `ENOENT` for a missing source and dropped a
+///  repository from its record although the only copy was still below the saved copies
+///  (found by reading, run here).
+///  A later prune would delete it with no refusal and no audit line naming its place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// moveBack(worktree + '/gone/nested', saved + '/nested') === 'not-answered';
+/// moveBack(worktree + '/nested', saved + '/nothing-here') === 'never-moved';
+/// ```
+#[test]
+fn a_rename_back_whose_destination_directory_went_keeps_the_copy_on_record() {
+    let root: PathBuf = crate::command_test_support::fixture("save-rollback-missing-destination");
+    let worktree: PathBuf = root.join("worktree");
+    let saved: PathBuf = root.join("saved/2026-11-15T12-00-00/nested");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    std::fs::create_dir_all(saved.as_path()).expect("the saved copy");
+    std::fs::write(saved.join("untracked.txt"), b"the only copy\n").expect("its work");
+    // The directory the repository came from is gone, and the copy is not: no rename can put it back.
+    assert_eq!(
+        move_back_within_a_ceiling(worktree.join("gone/nested").as_path(), saved.as_path()),
+        Back::NotAnswered
+    );
+    assert!(saved.join("untracked.txt").exists(), "the copy is still below the saved copies");
+    // The copy itself gone is the move that never happened, and nothing is owed a record.
+    assert_eq!(
+        move_back_within_a_ceiling(worktree.join("nested").as_path(), root.join("saved/nothing").as_path()),
+        Back::NeverMoved
+    );
+    crate::command_test_support::remove(root.as_path());
+}
+
+/// What:
+///  A stopped save whose later move fails keeps the repository an earlier move put aside,
+///  when the worktree directory that repository came from went in between.
+/// Why:
+///  This is the whole path the seventh review read:
+///  the first move goes through, the worktree directory it emptied is removed, the second move is
+///  refused, and the rollback has to say that the first repository is still below the saved copies.
+///  Reading `ENOENT` as "the source is gone" said everything was put back while the only copy stayed
+///  unrecorded (found by reading, run here).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stopped = setNestedRepositoriesAsideWaitedWith(common, worktree, ['nested/a', 'nested/b'], 1, seam);
+/// expect(stopped.still_moved.map((c) => c.path)).toEqual(['nested/a']);
+/// ```
+#[test]
+fn a_stopped_save_keeps_the_copy_an_earlier_move_made_when_its_worktree_directory_went() {
+    let root: PathBuf = crate::command_test_support::fixture("save-rollback-keeps-the-copy");
+    let worktree: PathBuf = root.join("worktree");
+    let common: PathBuf = root.join("common");
+    for name in ["a", "b"] {
+        std::fs::create_dir_all(worktree.join("nested").join(name)).expect("a nested repository");
+        std::fs::write(worktree.join("nested").join(name).join("untracked.txt"), b"the person's work\n").expect("its work");
+    }
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    // The first move goes through and the directory it emptied goes with it; the second is refused.
+    let moves: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let emptied: PathBuf = worktree.join("nested");
+    let seam = move |from: &Path, to: &Path| -> Option<std::io::Result<()>> {
+        if moves.fetch_add(1, std::sync::atomic::Ordering::SeqCst) > 0 {
+            return Some(Err(std::io::Error::from_raw_os_error(libc::EACCES)));
+        }
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent).expect("the place the copy goes");
+        }
+        std::fs::rename(from, to).expect("the first rename went through");
+        std::fs::remove_dir_all(emptied.as_path()).expect("the directory the repository left");
+        return Some(Ok(()));
+    };
+    let stopped: super::SaveStopped = super::set_nested_repositories_aside_waited_with(
+        common.as_path(),
+        worktree.as_path(),
+        &[Vec::from(b"nested/a".as_slice()), Vec::from(b"nested/b".as_slice())],
+        1,
+        &seam,
+    )
+    .expect_err("a refused move stops the save");
+    assert_eq!(
+        stopped.still_moved.iter().map(|copy| return copy.path.as_str()).collect::<Vec<&str>>(),
+        vec!["nested/a"],
+        "the repository the first move put aside is named with the place it is: {:?}",
+        stopped.still_moved
+    );
+    let place = stopped.still_moved[0].saved_to.as_deref().expect("the place it is");
+    assert_eq!(
+        std::fs::read_to_string(place.join("untracked.txt")).expect("the copy"),
+        "the person's work\n"
+    );
+    crate::command_test_support::remove(root.as_path());
 }
 
 /// What:
