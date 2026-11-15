@@ -1615,6 +1615,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's brief writer for a change to tests alone answers its seventh review; its review is queued (2026-11-15T11:34:05-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The brief writer that takes a change touching tests alone**,
+  its author's eighth run,
+  ended 11:29:25 at `baed9b0a1b`:
+  the review's two findings held and are answered.
+  A dead owner's review folder is taken by one start alone
+  (the record is re-read under a ticket and moved aside by a rename only one start can do;
+  with the fix out both starts took it).
+  The owner record now names the review's unit,
+  and a takeover asks the service manager:
+  a unit that is active,
+  starting,
+  reloading or stopping keeps the folder;
+  one that is inactive,
+  failed or not there lets it be taken;
+  any other answer,
+  no answer among them,
+  keeps it.
+  198 suites pass and the linter is clean.
+  Left alone and named:
+  the queue can still start a unit after a takeover in one window,
+  which needs the launcher to read the claim.
+  Its review is queued eighth
+  (`main...baed9b0a1b`,
+  18 code files that are not tests).
+- **Three branches now meet in the review brief**:
+  this one
+  (a claim on the folder),
+  the coverage branch
+  (the folder written whole,
+  back with its author)
+  and the writer for every kind of code file
+  (the plan and the brief's text,
+  back with its author).
+  The coverage author's queued brief is told of this branch's owner record and to build no claim of its own.
+  Whichever reaches `main` second merges the first.
+- Read at 11:33:41:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The review brief's coverage branch goes back with two findings: a reference that moves between two Git questions, and a folder written in parts (2026-11-15T11:28:14-05:00)
 
 Not final and not approved:
