@@ -39,7 +39,7 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{open_directory_at, open_root};
 use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::plain_file::read_plain_file;
-use crate::service_work::{MAX_TRIES, work_directory};
+use crate::service_work::work_directory;
 use crate::work_item::queued_ids;
 use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
 use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, RECORD_LIMIT, forget_the_leaving, leaving_records, queue_the_delete_again, read_the_leaving};
@@ -312,17 +312,18 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// if (owed.has(leaving.item.id())) return;
-/// if (leaving.tries >= MAX_TRIES) { answer.said.push(spentWords); return; }
+/// if (!consumeAnAttempt(commonDir, leaving.item.id())) { answer.said.push(spentWords); return; }
 /// const queued = queueTheDeleteAgain(commonDir, leaving); if (queued.error) { answer.said.push(cannotQueueWords(queued.error)); return; }
 /// answer.queued = true;
 /// ```
 fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving, target: &Path, owed: &HashSet<String>, answer: &mut Leavings) {
-    if owed.contains(leaving.item.id().as_str()) {
+    // A record a release before the branch field wrote stands under the older name, and the work it owes is the same.
+    if crate::worktree_removal_leaving_that_outlives_its_record::the_ids_of(&leaving.item).iter().any(|id| { return owed.contains(id.as_str()) }) {
         wake_a_pending_delete(common_dir, leaving, target, answer);
         return;
     }
-    if leaving.tries >= MAX_TRIES {
-        answer.said.push(attempts_are_spent_line(target, leaving.tries));
+    if crate::worktree_removal_leaving_that_outlives_its_record::consume_an_attempt(common_dir, leaving.item.id().as_str()).is_none() {
+        answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
         return;
     }
     if let Err(reason) = queue_the_delete_again(common_dir, leaving) {
@@ -347,12 +348,14 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (leaving.tries >= MAX_TRIES) return said.push(attemptsAreSpentLine(target, leaving.tries));
+/// if (!consumeAnAttempt(commonDir, leaving.item.id())) return said.push(attemptsAreSpentLine(commonDir, target, leaving.item.id()));
 /// noteTheAttempt(commonDir, leaving); answer.queued = true;
 /// ```
 pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target: &Path, answer: &mut Leavings) {
-    if leaving.tries >= MAX_TRIES {
-        answer.said.push(attempts_are_spent_line(target, leaving.tries));
+    // The attempt is a file this command creates exclusively, so of any number of commands asking at once exactly one takes
+    // each of the three, and a wake is asked for only by a command that took one.
+    if crate::worktree_removal_leaving_that_outlives_its_record::consume_an_attempt(common_dir, leaving.item.id().as_str()).is_none() {
+        answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
         return;
     }
     crate::worktree_removal_leaving_that_outlives_its_record::note_the_attempt(common_dir, leaving);
@@ -373,9 +376,10 @@ pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target
 /// ```ts
 /// const line = `${SAID} the subvolume a removed worktree was renamed to at ${path} is still there after ${tries} more attempts to delete it, ...`;
 /// ```
-fn attempts_are_spent_line(target: &Path, tries: u32) -> String {
+fn attempts_are_spent_line(common_dir: &Path, target: &Path, id: &str) -> String {
+    let taken: u32 = crate::worktree_removal_leaving_that_outlives_its_record::attempts_taken(common_dir, id);
     return format!(
-        "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {tries} more attempts to delete it, so nothing here deletes it; `journalctl --identifier=monochromatic-git-policy-cli` says why the commit service could not, and `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+        "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {taken} more attempts to delete it, so nothing here deletes it; `journalctl --identifier=monochromatic-git-policy-cli` says why the commit service could not, and `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
         named = target.display()
     );
 }

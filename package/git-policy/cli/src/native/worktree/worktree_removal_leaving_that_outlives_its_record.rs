@@ -42,7 +42,7 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
 use crate::process_identity::current_birth_identity;
-use crate::service_work::work_directory;
+use crate::service_work::{MAX_TRIES, work_directory};
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, requeue_after_giving_up, state_directory};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -50,6 +50,37 @@ use std::path::{Path, PathBuf};
 /// The folder of the common Git directory that holds one record per subvolume a removal has renamed aside and not yet
 /// proved gone.
 pub const LEAVINGS_FOLDER: &str = "monochromatic-git-policy-cli/leavings";
+
+/// What:
+///  The folder of the common Git directory that holds one record per directory a removal of this program has renamed a
+///  subvolume inside,
+///  so a command still knows where to look once the registration of the worktree that stood there is gone.
+/// Why:
+///   The look for a leftover of a removal reads the places a removal renames into,
+///  and it finds them in the registrations of the linked worktrees that stand now
+/// (`worktree_removal_leavings_no_record_names.rs`).
+///  A removal is exactly what takes a registration away:
+///  where a directory held one worktree,
+///  the command that renames that worktree's subvolume also removes the last registration,
+///  and every later command would have no directory to read.
+///  What the removal knows at that moment is the directory it renames in,
+///  so it writes it down before the rename,
+///  and a command that finds nothing of this program's left there drops the record.
+pub(crate) const LEAVING_PLACES_FOLDER: &str = "monochromatic-git-policy-cli/leaving-places";
+
+/// What:
+///  The folder of the common Git directory in which one file stands for one attempt a leaving may cost,
+///  created exclusively by the command that takes it.
+/// Why:
+///   The attempts a record may cost bound how often the service is asked for a delete,
+///  and several commands of one repository run at once:
+///  a count each of them reads from the record before writing it back lets four commands ask four times while the record
+///  advances once
+/// (`wake_a_pending_delete`).
+///  A file a command creates with `create_new` can be made by one command only,
+///  so the number of attempts taken is the number of files,
+///  whatever runs beside it.
+pub(crate) const LEAVING_ATTEMPTS_FOLDER: &str = "monochromatic-git-policy-cli/leaving-attempts";
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalLeaving";
@@ -358,9 +389,218 @@ pub fn forget_the_leaving(common_dir: &Path, id: &str) {
             return;
         }
     }
+    // An attempt belongs to the leaving it was taken for: one that outlived its record would spend the budget of the next
+    // leaving of the same place.
+    forget_the_attempts(common_dir, id);
     // The folder goes with the last record, as the record of a removal's destroy does; one that still holds another record
     // stays, which its own failure says.
     let _kept = std::fs::remove_dir(common_dir.join(LEAVINGS_FOLDER));
+}
+
+/// What:
+///  The two names a queue record of this delete may stand under:
+///  the one this release writes,
+///  and the one a release before the branch field wrote,
+///  which `WorkItem` still reads (`id_before_the_branch`).
+/// Why:
+///  A queue outlives the release that wrote to it,
+///  and a leftover of an earlier release whose record carries the older name is still its leftover.
+///  A look that asked one name alone would prove nothing and wake nobody
+/// (`worktree_removal_leavings_no_record_names.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ids = the_ids_of(item); // [item.id(), item.id_before_the_branch()]
+/// ```
+pub(crate) fn the_ids_of(item: &WorkItem) -> [String; 2] {
+    return [item.id(), item.id_before_the_branch()];
+}
+
+/// What:
+///  The file one attempt of one leaving is taken by,
+///  named by the leaving's id and the number of the attempt.
+/// Why:
+///   The name is what the exclusive create decides on,
+///  so one file is one attempt and no two commands can take the same one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = join(commonDir, LEAVING_ATTEMPTS_FOLDER, `${id}.${number}`);
+/// ```
+fn attempt_path(common_dir: &Path, id: &str, number: u32) -> PathBuf {
+    return common_dir.join(LEAVING_ATTEMPTS_FOLDER).join(format!("{id}.{number}"));
+}
+
+/// What:
+///  Take one of the attempts a leaving may cost,
+///  or answer nothing when they are all spent.
+/// Why:
+///  The create is exclusive,
+///  so of any number of commands asking at once exactly one takes each attempt,
+///  and the attempts are spent after the number a record may cost whatever runs beside it.
+///  An attempt that cannot be created for any other reason is logged and counted as spent:
+///  the alternative is a wake on every command for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = consumeAnAttempt(commonDir, id); // { number } | undefined
+/// ```
+pub(crate) fn consume_an_attempt(common_dir: &Path, id: &str) -> Option<u32> {
+    let folder: PathBuf = common_dir.join(LEAVING_ATTEMPTS_FOLDER);
+    if let Err(error) = create_private_directory_all(folder.as_path()) {
+        warn(TAG, format!("the attempts of {id} cannot be taken, because {} cannot be made ({error})", folder.display()).as_str());
+        return None;
+    }
+    for number in 1..=MAX_TRIES {
+        let path: PathBuf = attempt_path(common_dir, id, number);
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
+            Ok(_taken) => return Some(number),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                warn(TAG, format!("the attempt {number} of {id} cannot be taken ({error})", ).as_str());
+                return None;
+            }
+        }
+    }
+    return None;
+}
+
+/// What:
+///  How many attempts of this leaving a command has taken,
+///  for the line that says they are spent.
+/// Why:
+///  The number is the count of the files the commands created,
+///  which is the count every later command agrees on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = attempts_taken(commonDir, id);
+/// ```
+pub(crate) fn attempts_taken(common_dir: &Path, id: &str) -> u32 {
+    let mut taken: u32 = 0;
+    for number in 1..=MAX_TRIES {
+        if attempt_path(common_dir, id, number).is_file() {
+            taken += 1;
+        }
+    }
+    return taken;
+}
+
+/// What:
+///  Drop the attempts taken for one leaving,
+///  once nothing of this program's stands where it named.
+/// Why:
+///  An attempt is the budget of one leaving,
+///  and the record of the next leaving of the same place must start with all of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetTheAttempts(commonDir, id);
+/// ```
+fn forget_the_attempts(common_dir: &Path, id: &str) {
+    for number in 1..=MAX_TRIES {
+        let _removed = std::fs::remove_file(attempt_path(common_dir, id, number));
+    }
+    let _kept = std::fs::remove_dir(common_dir.join(LEAVING_ATTEMPTS_FOLDER));
+}
+
+/// What:
+///  Write down the directory a removal of this program is renaming a subvolume inside,
+///  before the rename,
+///  so a command still knows where to look once the registration of that worktree is gone.
+/// Why:
+///  The record is one small file per directory,
+///  named by a digest of the directory's own bytes,
+///  so a directory whose name is not text is recorded as itself
+///  (a name spelled in hexadecimal twice its length would not fit a file name).
+///  Writing it twice is one record,
+///  and a failure costs the look on that directory and nothing else,
+///  so the caller warns rather than refusing the removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordThePlace(commonDir, place); // leaving-places/<sha1(place bytes)>
+/// ```
+pub(crate) fn record_the_place(common_dir: &Path, place: &Path) -> Result<(), String> {
+    let folder: PathBuf = common_dir.join(LEAVING_PLACES_FOLDER);
+    if let Err(error) = create_private_directory_all(folder.as_path()) {
+        return Err(format!("the folder {} cannot be made ({error})", folder.display()));
+    }
+    let path: PathBuf = place_record_path(common_dir, place);
+    let bytes: &[u8] = crate::path_bytes::path_bytes_of(place);
+    return match replace_private_file_unsynced(path.as_path(), bytes) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("{} cannot be written ({error})", path.display())),
+    };
+}
+
+/// What:
+///  Every directory a removal of this program has recorded as one it renames inside,
+///  with that directory's bytes as it wrote them.
+/// Why:
+///  These are the places the look reads beside the registrations that stand now,
+///  so a leftover of a directory whose last registration went is still looked at.
+///  A record that cannot be read names no directory and is left for the next command,
+///  and one that is not absolute or not a directory any more is dropped by the caller's look at it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const places = the_recorded_places(commonDir); // [Path]
+/// ```
+pub(crate) fn the_recorded_places(common_dir: &Path) -> Vec<PathBuf> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let folder: PathBuf = common_dir.join(LEAVING_PLACES_FOLDER);
+    let Ok(listing) = std::fs::read_dir(folder.as_path()) else { return Vec::new() };
+    let mut places: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        let record: PathBuf = entry.path();
+        let Ok(bytes) = crate::plain_file::read_plain_file(record.as_path(), RECORD_LIMIT) else {
+            debug(TAG, format!("{} is not a plain record of a place and is left alone", record.display()).as_str());
+            continue;
+        };
+        if bytes.is_empty() {
+            continue;
+        }
+        let place: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(bytes.as_slice()));
+        if !place.is_absolute() {
+            debug(TAG, format!("{} names no absolute directory, so it is not a place a removal renames into", record.display()).as_str());
+            continue;
+        }
+        places.push(place);
+    }
+    return places;
+}
+
+/// What:
+///  The file one directory's place is recorded in,
+///  named by a digest of the directory's bytes.
+/// Why:
+///  A path spelled in hexadecimal is twice its length,
+///  and a path of the length the kernel allows is already more than a file name holds,
+///  so the name is a digest and the bytes are the record's content.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = join(commonDir, LEAVING_PLACES_FOLDER, sha1(pathBytes(place)));
+/// ```
+fn place_record_path(common_dir: &Path, place: &Path) -> PathBuf {
+    let digest: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(crate::subvolume_sha::sha1(crate::path_bytes::path_bytes_of(place)).as_slice());
+    return common_dir.join(LEAVING_PLACES_FOLDER).join(digest);
+}
+
+/// What:
+///  Drop the record of one directory a removal renames in,
+///  once nothing of this program's is left there to look for.
+/// Why:
+///  A record that outlived its need would be read by every command for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetAPlace(commonDir, place);
+/// ```
+pub(crate) fn forget_a_place(common_dir: &Path, place: &Path) {
+    let _removed = std::fs::remove_file(place_record_path(common_dir, place).as_path());
+    let _kept = std::fs::remove_dir(common_dir.join(LEAVING_PLACES_FOLDER));
 }
 
 /// What:
@@ -468,9 +708,14 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
 pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<(), String> {
     let work: PathBuf = work_directory(common_dir);
     let id: String = leaving.item.id();
-    if requeue_after_giving_up(work.as_path(), id.as_str()) {
-        note_the_attempt(common_dir, leaving);
-        return Ok(());
+    let ids: [String; 2] = the_ids_of(&leaving.item);
+    // A record a release before the branch field wrote stands under the older name, and a delete it gave up on is still
+    // the work this one owes.
+    for name in &ids {
+        if requeue_after_giving_up(work.as_path(), name.as_str()) {
+            note_the_attempt(common_dir, leaving);
+            return Ok(());
+        }
     }
     let pending: PathBuf = state_directory(work.as_path(), PENDING);
     if let Err(error) = create_private_directory_all(pending.as_path()) {
@@ -484,8 +729,10 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(format!("{} cannot be written ({error})", pending.join(id.as_str()).display())),
     }
-    let _settled_done = std::fs::remove_file(state_directory(work.as_path(), DONE).join(id.as_str()));
-    let _settled_failed = std::fs::remove_file(state_directory(work.as_path(), FAILED).join(id.as_str()));
+    for name in &ids {
+        let _settled_done = std::fs::remove_file(state_directory(work.as_path(), DONE).join(name.as_str()));
+        let _settled_failed = std::fs::remove_file(state_directory(work.as_path(), FAILED).join(name.as_str()));
+    }
     note_the_attempt(common_dir, leaving);
     return Ok(());
 }

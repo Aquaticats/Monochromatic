@@ -14,8 +14,31 @@ use crate::service_work::{MAX_TRIES, Verdict, work_directory};
 use crate::test_support::remove;
 use crate::work_item::{Claimed, DONE, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, settle, state_directory};
 use crate::worktree_remove_hand_over::{delete_subvolume_of, removal_item};
+use crate::fs_beneath::open_root;
+use crate::private_storage::write_private_file_unsynced;
 use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, read_the_leaving};
 use crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names;
+use crate::worktree_remove_hand_over::{ToldOfHandOver, hand_over_with};
+use std::sync::{Arc, Barrier};
+
+/// What:
+///  A wake that reached no service,
+///  which a control of the hand-over's own records needs and never reads.
+/// Why:
+///   A hand-over is a record and a rename without a service,
+///  and the absence of a wake is not the removal's failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class NobodyTold { told() { return undefined } }
+/// ```
+struct NobodyTold;
+
+impl ToldOfHandOver for NobodyTold {
+    fn told(&self, _common_dir: &Path) -> Result<(), String> {
+        return Ok(());
+    }
+}
 
 /// The name a removal gives the subvolume it renames aside,
 /// which a person's directory can carry too.
@@ -466,5 +489,253 @@ fn a_plain_directory_at_a_leaving_name_is_left_as_it_is_and_named_once() {
     assert_eq!(std::fs::read(kept.as_path()).expect("the person's file is still there"), b"a person's bytes\n", "and its content is untouched");
     let again: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
     assert!(again.said.is_empty(), "the same line is not said again: {:?}", again.said);
+    remove(place.root.as_path());
+}
+
+/// What:
+///  The place a removal of this release renames in is recorded in the common Git directory,
+///  written before the rename and read beside the live registrations,
+///  so a directory whose last registration went is still looked at.
+/// Why:
+///  The scan finds its places in the registrations of the linked worktrees that stand now,
+///  and a removal is exactly what takes one away:
+///  where a directory held one worktree, the command that renames its subvolume also removes the last registration,
+///  and every later command would have no directory to read
+/// (`the_directories_a_removal_renames_inside`).
+///  What the removal knows at that moment is the directory it renames in,
+///  so that is written down before the rename, as the mark is,
+///  and cleared by a command that finds nothing of this program's left there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceWithTwoRegisteredWorktrees('scan-last-registration-gone');
+/// const [id, hidden] = aSubvolumeUnderItsOwnLeavingName(place.place, 'kept.txt', b'held\n');
+/// await settleAQueuedDelete(removalItem(place.common, place.place, id));   // the earlier release's proof
+/// await handOverWith({ ...hiddenSubvolumeOfTheLastWorktree });             // this release records the place
+/// rm(join(place.common, 'worktrees'));                                    // both registrations go
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(true); expect(exists(pendingOf(place, id))).toBe(true);
+/// ```
+#[test]
+fn a_leftover_of_a_directory_whose_last_registration_went_is_found_through_the_place_its_removal_recorded() {
+    let Some(root): Option<PathBuf> = btrfs_fixture("scan-last-registration-gone") else { return };
+    let place: PathBuf = root.join("worktrees");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(place.as_path()).expect("the directory the worktrees stand in");
+    for registration in ["one", "two"] {
+        std::fs::create_dir_all(common.join("worktrees").join(registration).as_path()).expect("a registration");
+    }
+    let first: PathBuf = place.join("first");
+    std::fs::create_dir(first.as_path()).expect("a worktree of the repository");
+    std::fs::write(common.join("worktrees").join("one").join("gitdir").as_path(), format!("{}/.git\n", first.display()).as_bytes()).expect("the registration's back-link");
+    // The last worktree of this directory, which the removal of this release hands over.
+    let last: PathBuf = place.join("last");
+    subvolume_create_at(last.as_path()).expect("the subvolume of the last worktree");
+    let last_id: u64 = subvolume_id(&File::open(last.as_path()).expect("the last subvolume"), last.as_path()).expect("its own id");
+    std::fs::write(common.join("worktrees").join("two").join("gitdir").as_path(), format!("{}/.git\n", last.display()).as_bytes()).expect("the registration's back-link");
+    let holder: Place = Place { root: root.clone(), common: common.clone(), place: place.clone() };
+    // The leftover of an earlier release: renamed aside, its delete settled done, no leaving record of any kind.
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.as_path(), "kept.txt", b"held\n");
+    let leftover: WorkItem = removal_item(common.as_path(), place.as_path(), id);
+    enqueue(work_of(&holder).as_path(), &leftover).expect("the delete the earlier release queued before its rename");
+    let claimed: Claimed = claim_next_of(work_of(&holder).as_path(), &ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("a claim").expect("the record is claimable");
+    settle(work_of(&holder).as_path(), &claimed, DONE).expect("the round looked before the rename and settled a delete it found nothing for");
+    // The removal of this release hands its own subvolume over, which is where it records the directory it renames in.
+    let parent: File = open_root(place.as_path()).expect("the directory the worktrees stand in");
+    hand_over_with(common.as_path(), &parent, place.as_path(), std::ffi::OsStr::new("last"), last_id, last.as_path(), std::ffi::OsStr::new("two"), &NobodyTold).expect("the last removal hands its subvolume over");
+    let handed: WorkItem = removal_item(common.as_path(), place.as_path(), last_id);
+    assert_eq!(delete_subvolume_of(&handed), Verdict::Done, "the service deletes the subvolume it was handed");
+    // The leaving of the subvolume the service deleted is dropped here rather than by a look, because a look run while the
+    // registrations still stand would adopt the earlier release's leftover, which is the state this control must not enter.
+    crate::worktree_removal_leaving_that_outlives_its_record::forget_the_leaving(common.as_path(), handed.id().as_str());
+    // Every removal takes its own registration away, so this directory holds none any more.
+    std::fs::remove_dir_all(common.join("worktrees").as_path()).expect("the registrations of the directory go with their removals");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(common.as_path());
+    assert!(answer.queued, "the directory the removal recorded is read although no worktree stands in it: {:?}", answer.said);
+    assert!(owed(&holder, &leftover), "and the leftover's delete is queued again");
+    assert!(hidden.is_dir(), "the control takes the subvolume itself");
+    assert_eq!(delete_subvolume_of(&leftover), Verdict::Done, "the control takes the subvolume the record names");
+    let cleared: Leavings = queue_the_leavings_a_record_no_longer_names(common.as_path());
+    assert!(!cleared.queued, "nothing is queued once the directory holds nothing of this program's");
+    remove(root.as_path());
+}
+
+/// What:
+///  A marked leftover under a directory whose name is not text is refused and named once,
+///  and no record is written for a path that would be another directory.
+/// Why:
+///  A record names its paths in text,
+///  so a delete queued for a place that is not text names a directory with the replacement character in it,
+///  which the service finds empty and settles as done while the real subvolume stands
+/// (`the_removal_of` refuses such a parent for the hand-over,
+/// `say_unproved` here).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = placeWhoseNameIsNotText('scan-marked-non-text');
+/// const [id, hidden] = aSubvolumeUnderItsOwnLeavingName(place.place, 'kept.txt', b'held\n');
+/// await markTheLeaving(held, id);
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(false); expect(answer.said.length).toBe(1);
+/// expect(leavingRecords(place.common)).toEqual([]); expect(exists(join(work, 'pending'))).toBe(false);
+/// ```
+#[test]
+fn a_marked_leftover_under_a_parent_whose_name_is_not_text_is_refused_and_named_once() {
+    let Some(root): Option<PathBuf> = btrfs_fixture("scan-marked-non-text") else { return };
+    let not_text: std::ffi::OsString = <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(b"worktrees-\xff".to_vec());
+    let place: PathBuf = root.join(not_text);
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(place.as_path()).expect("a directory whose name is not text");
+    std::fs::create_dir_all(common.join("worktrees").join("one").as_path()).expect("a registration");
+    let checkout: PathBuf = place.join("topic");
+    std::fs::create_dir(checkout.as_path()).expect("a checkout below it");
+    let mut back_link: Vec<u8> = std::os::unix::ffi::OsStrExt::as_bytes(checkout.as_os_str()).to_vec();
+    back_link.extend_from_slice(b"/.git\n");
+    std::fs::write(common.join("worktrees").join("one").join("gitdir").as_path(), back_link.as_slice()).expect("the registration's raw bytes");
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.as_path(), "kept.txt", b"held\n");
+    let held: File = File::open(hidden.as_path()).expect("the subvolume the rename made");
+    mark_the_leaving(&held, id).expect("the mark this program sets on a subvolume it renames aside");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(common.as_path());
+    assert!(!answer.queued, "a place that is not text gets no delete queued, whatever proves the subvolume: {:?}", answer.said);
+    assert_eq!(answer.said.len(), 1, "the person reads one line about it: {:?}", answer.said);
+    assert!(answer.said[0].contains("not named by text"), "and it says why nothing was queued: {}", answer.said[0]);
+    assert!(leaving_records(common.as_path()).is_empty(), "no record of this program's was written for it");
+    assert!(!state_directory(work_directory(common.as_path()).as_path(), PENDING).exists(), "and nothing was queued either");
+    assert_eq!(std::fs::read(hidden.join("kept.txt").as_path()).expect("the file at the real path"), b"held\n", "the real subvolume still holds its files");
+    snapshot_destroy_in(&File::open(place.as_path()).expect("the place"), hidden.file_name().expect("a name"), hidden.as_path()).expect("the control removes its own subvolume");
+    remove(root.as_path());
+}
+
+/// What:
+///  A queue record an earlier release named by the older id is proof of its leftover,
+///  and one that is still pending is work this command wakes the service for.
+/// Why:
+///  `WorkItem` still reads a record named `subvolume-delete-<object>` (`id_before_the_branch`),
+///  and a record a release before the branch field wrote carries that name,
+///  so a look that asks the new name alone proves nothing and wakes nothing
+/// (`a_settled_record_names`, `queue_the_leaving_found`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('scan-legacy-id');
+/// const [id, hidden] = aSubvolumeUnderItsOwnLeavingName(place.place, 'kept.txt', b'held\n');
+/// const item = removalItem(place.common, place.place, id);
+/// write(join(work, 'done', item.idBeforeTheBranch()), item.encode());      // a settled record of an older release
+/// expect(queueTheLeavingsARecordNoLongerNames(place.common).queued).toBe(true);
+/// // and a pending one of the same shape is told
+/// ```
+#[test]
+fn a_settled_record_an_earlier_release_named_by_the_older_id_proves_its_leftover() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-legacy-settled-id") else { return };
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.place.as_path(), "kept.txt", b"held\n");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    let older: PathBuf = state_directory(work_of(&place).as_path(), DONE).join(item.id_before_the_branch());
+    std::fs::create_dir_all(state_directory(work_of(&place).as_path(), DONE).as_path()).expect("the settled state directory");
+    write_private_file_unsynced(older.as_path(), item.encode().as_bytes()).expect("the settled record an older release wrote");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(answer.queued, "the record of the older name proves the leftover and its delete is queued: {:?}", answer.said);
+    assert!(answer.said.is_empty(), "and nothing is said: {:?}", answer.said);
+    assert!(owed(&place, &item), "a round finds the delete under the name this release writes");
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the round's delete takes the subvolume");
+    assert!(!hidden.exists(), "the person's files are gone with it");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  A pending record an earlier release named by the older id is work this command wakes the service for.
+/// Why:
+///  The id in the queue and the id this look derives can differ by the name a release wrote,
+///  and a wake that only the new name earns leaves the older one waiting for a round nobody starts
+/// (`wake_a_pending_delete`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(join(work, 'pending', item.idBeforeTheBranch()), item.encode());
+/// const answer = queueTheLeavingsARecordNoLongerNames(place.common);
+/// expect(answer.queued).toBe(true); expect(exists(pendingOf(place, item.id()))).toBe(false);
+/// ```
+#[test]
+fn a_pending_record_an_earlier_release_named_by_the_older_id_is_told() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-legacy-pending-id") else { return };
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.place.as_path(), "kept.txt", b"held\n");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    let older: PathBuf = state_directory(work_of(&place).as_path(), PENDING).join(item.id_before_the_branch());
+    std::fs::create_dir_all(state_directory(work_of(&place).as_path(), PENDING).as_path()).expect("the pending state directory");
+    write_private_file_unsynced(older.as_path(), item.encode().as_bytes()).expect("the pending record an older release wrote");
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(answer.queued, "the pending delete of the older name is told, not left waiting for a wake nobody sends: {:?}", answer.said);
+    assert!(answer.said.is_empty(), "and nothing is said: {:?}", answer.said);
+    assert!(older.is_file(), "the older record is still the work a round owes");
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume");
+    assert!(!hidden.exists(), "the person's files are gone with it");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  Commands running at once ask for no more wakes than the attempts a record may cost,
+///  and the count is taken in the one place a race cannot lose it.
+/// Why:
+///  Every command that finds a pending delete reads the leaving record, decides whether the attempts are spent,
+///  and wakes the service. Commands that read the same count before any of them writes it all decide alike,
+///  so a count written back from the record each of them read lets four commands ask for four wakes while the record
+///  advances from nought to one.
+///  An attempt is therefore a file a command creates exclusively (`create_new`),
+///  which only one command of any number can do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [leaving] = await adoptALeaving(place, id);           // tries=0, its delete still pending
+/// const barrier = new Barrier(N + 1);
+/// const woke = await Promise.all(range(N).map(() => async () => {
+///   const read = await readTheLeaving(recordPath);            // all read tries=0 before any writes
+///   await barrier.wait();
+///   return wakeAPendingDelete(common, read, hidden, answer).queued;
+/// }));
+/// expect(woke.filter(Boolean).length).toBe(MAX_TRIES);
+/// ```
+#[test]
+fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-wakes-at-once") else { return };
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.place.as_path(), "kept.txt", b"held\n");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    enqueue(work_of(&place).as_path(), &item).expect("the pending record a command left before its wake was killed");
+    crate::worktree_removal_leaving_that_outlives_its_record::record_a_leaving_found_by_a_scan(place.common.as_path(), &item).expect("the leaving a look writes");
+    let record: PathBuf = leaving_records(place.common.as_path()).first().expect("the leaving record").1.clone();
+    // One more thread than the attempts a record may cost, so a lost count shows as an extra wake.
+    let commands: usize = usize::try_from(MAX_TRIES).expect("a count of attempts") + 1;
+    let barrier: Arc<Barrier> = Arc::new(Barrier::new(commands + 1));
+    let woke: usize = std::thread::scope(|_scope| {
+        let mut handles: Vec<std::thread::JoinHandle<bool>> = Vec::new();
+        for _command in 0..commands {
+            let barrier: Arc<Barrier> = Arc::clone(&barrier);
+            let common: PathBuf = place.common.clone();
+            let record: PathBuf = record.clone();
+            let hidden: PathBuf = hidden.clone();
+            handles.push(std::thread::spawn(move || {
+                let bytes: Vec<u8> = std::fs::read(record.as_path()).expect("the leaving record");
+                let leaving: crate::worktree_removal_leaving_that_outlives_its_record::Leaving = read_the_leaving(bytes.as_slice()).expect("a record a command reads");
+                // The barrier is what makes every command decide on the same count, which is the state a real overlap is in.
+                let _together: std::sync::BarrierWaitResult = barrier.wait();
+                let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
+                crate::worktree_removal_leavings_a_command_queues_again::wake_a_pending_delete(common.as_path(), &leaving, hidden.as_path(), &mut answer);
+                return answer.queued;
+            }));
+        }
+        let _all_read: std::sync::BarrierWaitResult = barrier.wait();
+        let mut counted: usize = 0;
+        for handle in handles {
+            if handle.join().expect("a command that ran") {
+                counted += 1;
+            }
+        }
+        return counted;
+    });
+    let allowed: usize = usize::try_from(MAX_TRIES).expect("a count of attempts");
+    assert!(woke <= allowed, "{woke} commands asked for a wake, and a record may cost {allowed} attempts");
+    assert_eq!(woke, allowed, "and the attempts a record may cost are spent by the commands that asked: {woke}");
+    assert!(owed(&place, &item), "the delete is still the round's to run");
+    let after: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!after.queued, "no later command asks for another wake");
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume");
     remove(place.root.as_path());
 }

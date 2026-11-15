@@ -8,7 +8,7 @@ use super::*;
 use crate::claim_time::ClaimTime;
 use crate::fs_btrfs_ioctl::{snapshot_destroy_in, subvolume_create_at, subvolume_id};
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::service_work::Verdict;
+use crate::service_work::{MAX_TRIES, Verdict};
 use crate::test_support::remove;
 use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, settle, state_directory};
 use crate::worktree_remove_hand_over::{delete_subvolume_of, removal_item};

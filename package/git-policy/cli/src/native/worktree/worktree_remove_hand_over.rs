@@ -44,7 +44,7 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_removal_interrupted_destroy::record_leaving;
-use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, mark_the_leaving, queue_the_delete_again, record_a_leaving};
+use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, mark_the_leaving, queue_the_delete_again, record_a_leaving, record_the_place};
 use crate::service_work::Verdict;
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_kept_notices::record_kept_worktree;
@@ -361,10 +361,13 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         return Err(reason);
     }
     let deleting: OsString = deleting_name(id);
-    // What: The mark this program carries on a subvolume it renames aside, written before the rename.
-    // Why:  It travels with the subvolume, so a leftover of this release is proved by the directory itself even when
-    //       every record of the repository is gone; a mark that cannot be written costs that proof and nothing else.
+    // What: The mark this program carries on a subvolume it renames aside, and the directory this removal renames in,
+    //       both written before the rename.
+    // Why:  The mark travels with the subvolume, so a leftover of this release is proved by the directory itself even when
+    //       every record of the repository is gone; the place is what a later command reads once the registration of the
+    //       worktree this command removes is gone. A write that fails costs that proof and nothing else.
     mark_the_subvolume(parent, name, id);
+    record_the_place_of_this_removal(common_dir, parent_path);
     // Where the files will stand is written before the rename, so a command killed between the two leaves a record whose
     // worktree path is gone and whose place is named, which is a state the next command finishes the registration by
     // (a review finding, F4).
@@ -412,6 +415,27 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         warn(TAG, format!("the delete of {} is recorded and not woken ({why})", target.display()).as_str());
     }
     return Ok(());
+}
+
+/// What:
+///  Write down the directory this removal renames inside,
+///  so a later command still knows where to look once the registration of the worktree goes,
+///  and say in the diagnostic log when it cannot be written.
+/// Why:
+///   A removal takes its own registration away,
+///  and where a directory held one worktree that leaves no registration to read:
+///  the place is what the look has left.
+///   A missing record costs that look and nothing else,
+///  so the removal goes on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordThePlaceOfThisRemoval(commonDir, parentPath); // warn when the record cannot be written
+/// ```
+fn record_the_place_of_this_removal(common_dir: &Path, parent_path: &Path) {
+    if let Err(reason) = record_the_place(common_dir, parent_path) {
+        warn(TAG, format!("the directory {} this removal renames in is not recorded, so a later command looks for its leftover only through a registration ({reason})", parent_path.display()).as_str());
+    }
 }
 
 /// What:

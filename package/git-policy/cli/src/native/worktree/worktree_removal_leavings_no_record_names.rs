@@ -45,7 +45,9 @@
 //!
 //!  Where it looks:
 //!  the directory each linked worktree of this repository stands in,
-//!  and nothing else.
+//!  and each directory a removal of it has written down before a rename,
+//!  which is what keeps a directory readable once its last registration goes;
+//!  nothing else.
 //!  A removal renames its subvolume inside the directory that holds the worktree it removes,
 //!  in one call on the parent it already holds open
 //!  (`worktree_remove_hand_over.rs`, `hand_over_with`).
@@ -88,7 +90,7 @@ use crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE;
 use crate::plain_file::read_plain_file;
 use crate::work_item::{DONE, FAILED, WorkItem, WorkKind, queued_ids, state_directory};
 use crate::worktree_remove_hand_over::{DELETE_REFERENCE, removal_item};
-use crate::worktree_removal_leaving_that_outlives_its_record::{RECORD_LIMIT, record_a_leaving_found_by_a_scan, the_mark_of};
+use crate::worktree_removal_leaving_that_outlives_its_record::{RECORD_LIMIT, forget_a_place, record_a_leaving_found_by_a_scan, the_ids_of, the_mark_of};
 use crate::worktree_removal_leavings_a_command_queues_again::{Leavings, wake_a_pending_delete};
 use crate::worktree_removal_leavings_already_reported::{forget_the_report, report_once};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
@@ -125,6 +127,12 @@ const IDENTIFIER_DIGITS: usize = 16;
 ///  no removal of this program renames anything beside it,
 ///  because Git removes no main worktree,
 ///  and a linked worktree beside it is registered itself and names its own directory.
+///  A registration is exactly what a removal takes away,
+///  so the registrations alone lose a directory whose last worktree is removed,
+///  which is the ordinary case:
+///  each removal writes down the directory it renames in before it renames
+///  (`record_the_place`),
+///  and those records are read beside the registrations that stand now.
 ///  The checkout itself is never a place a removal renames into:
 ///  the files of a worktree are a person's.
 ///  A directory that cannot be listed leaves the list empty,
@@ -155,6 +163,12 @@ fn the_directories_a_removal_renames_inside(common_dir: &Path) -> Vec<PathBuf> {
             continue;
         }
         places.push(parent.to_path_buf());
+    }
+    for recorded in crate::worktree_removal_leaving_that_outlives_its_record::the_recorded_places(common_dir) {
+        if recorded == Path::new(THE_ROOT) || places.iter().any(|seen| { return seen == &recorded }) {
+            continue;
+        }
+        places.push(recorded);
     }
     return places;
 }
@@ -225,20 +239,40 @@ fn the_subvolume_of_the_open_entry(held: &File, named_id: u64, path: &Path) -> R
 /// const named = aSettledRecordNames(work, item); // done/<id> or failed/<id> holds this item
 /// ```
 fn a_settled_record_names(work: &Path, item: &WorkItem) -> bool {
+    // Both names a release may have written the record under: a delete an earlier release settled stands under the older
+    // one, and it is the same delete of the same place and subvolume.
     for state in [DONE, FAILED] {
-        let record: PathBuf = state_directory(work, state).join(item.id());
-        let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
-        let Ok(text) = std::str::from_utf8(bytes.as_slice()) else { continue };
-        let Ok(settled) = WorkItem::decode(text) else { continue };
-        if settled.kind != WorkKind::SubvolumeDelete || settled.branch_ref != DELETE_REFERENCE {
-            continue;
+        for name in the_ids_of(item) {
+            let record: PathBuf = state_directory(work, state).join(name.as_str());
+            let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
+            let Ok(text) = std::str::from_utf8(bytes.as_slice()) else { continue };
+            let Ok(settled) = WorkItem::decode(text) else { continue };
+            if settled.kind != WorkKind::SubvolumeDelete || settled.branch_ref != DELETE_REFERENCE {
+                continue;
+            }
+            if settled.oid != item.oid || settled.parent != item.parent {
+                continue;
+            }
+            return true;
         }
-        if settled.oid != item.oid || settled.parent != item.parent {
-            continue;
-        }
-        return true;
     }
     return false;
+}
+
+/// What:
+///  Whether a round of the service owes this delete,
+///  under either name a queue record of it may stand.
+/// Why:
+///  The queue outlives the release that wrote to it,
+///  so a pending delete an earlier release queued stands under the older name,
+///  and a look that asked the new name alone would neither know it owed nor wake it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owes = aRoundOwes(queuedIds, item); // either id is among the ids a round owes
+/// ```
+fn a_round_owes(owes: &HashSet<String>, item: &WorkItem) -> bool {
+    return the_ids_of(item).iter().any(|id| { return owes.contains(id.as_str()) });
 }
 
 /// What:
@@ -271,6 +305,11 @@ pub(crate) fn queue_the_leavings_no_record_names(common_dir: &Path, work: &Path,
     for place in the_directories_a_removal_renames_inside(common_dir) {
         let held_place: File = match open_root(place.as_path()) {
             Ok(opened) => opened,
+            // A directory that is gone holds nothing of this program's, so what a removal wrote down about it is finished.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                forget_a_place(common_dir, place.as_path());
+                continue;
+            }
             Err(error) => {
                 debug(TAG, format!("{} cannot be opened, so no leftover of a removal is looked for in it ({error})", place.display()).as_str());
                 continue;
@@ -284,11 +323,37 @@ pub(crate) fn queue_the_leavings_no_record_names(common_dir: &Path, work: &Path,
                 continue;
             }
         };
+        let mut saw_the_shape: bool = false;
         for found in listing.flatten() {
-            queue_one_found_name(common_dir, work, place.as_path(), &held_place, named, &mut owed, found.file_name(), &mut answer);
+            let name: OsString = found.file_name();
+            if is_a_leaving_name(place.join(name.as_os_str()).as_path()) {
+                saw_the_shape = true;
+            }
+            queue_one_found_name(common_dir, work, place.as_path(), &held_place, named, &mut owed, name, &mut answer);
+        }
+        // What: The record of a directory goes with the last thing of this program's left to look for in it.
+        // Why:  A record that outlived its need would be read by every command for ever, and a leaving record naming a path
+        //       inside it is that path still to look at.
+        if !saw_the_shape && !a_leaving_record_names_a_path_inside(named, place.as_path()) {
+            forget_a_place(common_dir, place.as_path());
         }
     }
     return answer;
+}
+
+/// What:
+///  Whether a leaving record names a path inside this directory,
+///  which is a leftover still to look at even when nothing of the shape stands there now.
+/// Why:
+///  A record whose directory the kernel has yet to take keeps its place worth reading,
+///  and dropping the place under it would cost the next command that look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = aLeavingRecordNamesAPathInside(named, place);
+/// ```
+fn a_leaving_record_names_a_path_inside(named: &HashSet<PathBuf>, place: &Path) -> bool {
+    return named.iter().any(|path| { return path.parent() == Some(place) });
 }
 
 /// What:
@@ -329,6 +394,19 @@ fn queue_one_found_name(
             return;
         }
     };
+    // What: The refusal that holds for every proof, before any of them can queue a delete.
+    // Why:  A record names its paths in text, and a delete queued for a place that is not text names a directory with the
+    //       replacement character in it, which the service finds empty and settles as done while the real subvolume stands.
+    //       The proof does not matter: a marked subvolume under such a parent is the same lossy record.
+    if place.to_str().is_none() {
+        say_unproved(
+            common_dir,
+            path.as_path(),
+            String::from("the directory that holds it is not named by text, so no record of its delete can name the path a delete would act on"),
+            answer,
+        );
+        return;
+    }
     let id: u64 = match the_subvolume_of_the_open_entry(&held, named_id, path.as_path()) {
         Ok(proved) => proved,
         Err(why) => {
@@ -341,23 +419,12 @@ fn queue_one_found_name(
         queue_the_leaving_found(common_dir, work, place, path.as_path(), id, owed, answer);
         return;
     }
-    // A record names its paths in text, so a directory that is not named by text has no record this program could have
-    // written of its delete, and the hand-over refuses one for the same reason (`the_removal_of`).
-    if place.to_str().is_none() {
-        say_unproved(
-            common_dir,
-            path.as_path(),
-            String::from("the directory that holds it is not named by text, so no record of its delete can name the path a delete would act on"),
-            answer,
-        );
-        return;
-    }
     let item: WorkItem = removal_item(common_dir, place, id);
     // Both answers end in one step: a round that owes the delete is told, and a delete only a settled record names is
     // queued again (`queue_the_leaving_found`).
     let proved: bool = {
         let owes: &HashSet<String> = owed.get_or_insert_with(|| { return queued_ids(work); });
-        owes.contains(item.id().as_str()) || a_settled_record_names(work, &item)
+        a_round_owes(owes, &item) || a_settled_record_names(work, &item)
     };
     if proved {
         queue_the_leaving_found(common_dir, work, place, path.as_path(), id, owed, answer);
@@ -399,7 +466,7 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, place: &Path, path: &
         }
     };
     let owes: &HashSet<String> = owed.get_or_insert_with(|| { return queued_ids(work); });
-    if owes.contains(item.id().as_str()) {
+    if a_round_owes(owes, &item) {
         wake_a_pending_delete(common_dir, &leaving, path, answer);
         return;
     }

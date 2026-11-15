@@ -1135,7 +1135,18 @@ Read-only commands,
      with the `btrfs subvolume delete` line that removes one of yours,
      and leaves it exactly as it is.
      A directory whose parent is not named by text is refused the same way,
-     because a record names its paths in text and a lossy path would report a delete at a place that does not exist.
+     before any proof is asked for,
+     because a record names its paths in text and a lossy path would report a delete at a place that does not exist;
+     the subvolume stays and the one line names it.
+     A deletion a release before this one queued is still its proof,
+     under the file name that release wrote as under the one this release writes,
+     and a delete it left pending is one this command wakes the service for.
+     Each removal also writes down the directory it renames in before it renames,
+     and a command drops that record once nothing of this program's is left there:
+     a directory whose last worktree a removal took away is still looked at,
+     which is the ordinary removal of a directory's only worktree.
+     The three attempts a record may cost are three files a command creates exclusively,
+     so commands running at once ask for no more than three wakes between them.
      After the queueings such a record may cost,
    which is the three attempts a record may cost,
      that command

@@ -159,6 +159,16 @@ pub(crate) fn leave_a_subvolume_for_the_service(common_dir: &Path, from: &Path, 
     // Both records go before the move, so a command killed between them leaves a record whose path is not there yet
     // (which deletes nothing) and a leaving record a later command finishes the move by
     // (`worktree_removal_leavings_a_command_queues_again.rs`).
+    // A record names its paths in text, so a directory that is not named by text has no record this program could write of
+    // the delete, and a lossy path would report a delete at a place that does not exist. The caller refuses while nothing
+    // has moved, as the hand-over refuses one (`the_removal_of`).
+    if into.to_str().is_none() {
+        return Err(format!(
+            "the directory {} that holds {} is not named by text, so no record of this program can name the path a delete would act on",
+            into.display(),
+            from.display()
+        ));
+    }
     let item: WorkItem = removal_item(common_dir, into, id);
     if let Err(reason) = record_a_leaving(common_dir, &item) {
         return Err(format!("the delete of {} cannot be recorded: {reason}", from.display()));
@@ -171,6 +181,9 @@ pub(crate) fn leave_a_subvolume_for_the_service(common_dir: &Path, from: &Path, 
     let left: PathBuf = PathBuf::from(item.parent.as_str());
     // The mark travels with the subvolume, so a leftover of this release is proved by the directory itself even when every
     // record of the repository is gone; one that cannot be written costs that proof and nothing else.
+    if let Err(reason) = crate::worktree_removal_leaving_that_outlives_its_record::record_the_place(common_dir, into) {
+        debug(TAG, format!("the directory {} this removal renames in is not recorded, so a later command looks for its leftover only through a registration ({reason})", into.display()).as_str());
+    }
     if let Err(reason) = mark_the_leaving(&held, id) {
         debug(TAG, format!("the subvolume {id} that is moved to {} is not marked as one this program renames aside ({reason}); its records still name it", left.display()).as_str());
     }
