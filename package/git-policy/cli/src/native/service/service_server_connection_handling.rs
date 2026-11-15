@@ -23,7 +23,7 @@ use crate::service_timing::{Arrival, log, retire_line};
 use crate::service_instance::instance_of;
 use crate::service_work::Wake;
 use crate::service_busy::{EarlyAnswer, LandingBoard};
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than, run_an_answer_to_a_client};
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_an_answer_to_a_client};
 use crate::service_reply::{NoteSource, Reply, write_until_answered_noting};
 use crate::service_protocol::{
     ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client,
@@ -194,23 +194,11 @@ impl NoteSource for StuckNotice {
             //  (the review of `0b847be249`, F3); so the note waits on its own thread and the withdrawal keeps the place.
             //  A read that gives no answer is left behind on its thread, as any stuck job of the pool is, and the beat after
             //  it asks once more; the beat itself is written first.
-            let reading = crate::blocking_job::run_blocking_job(move || { return note_from_the_board_in_a_job((board, request, last)); });
-            self.still_reading = Some(Box::pin(async move {
-                return match tokio::time::timeout(crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING, reading).await {
-                    Ok(Ok(answer)) => TheAnswerOfAJobAwaited::Ran(answer),
-                    Ok(Err(refused)) => {
-                        crate::service_warn!("the note of what the landing is inside could not be read for a waiting client: {refused}");
-                        TheAnswerOfAJobAwaited::NotRun
-                    }
-                    Err(_no_answer) => {
-                        crate::service_warn!(
-                            "the note of what the landing is inside gave no answer within {:?}, so it is left behind and the beat itself is still written",
-                            crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING
-                        );
-                        TheAnswerOfAJobAwaited::NoAnswer
-                    }
-                };
-            }));
+            self.still_reading = Some(Box::pin(crate::own_thread_for_work_that_can_stall::run_on_its_own_thread(
+                crate::own_thread_for_work_that_can_stall::WorkThatCanStall::ReadingABeatNote,
+                crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING,
+                move || { return note_from_the_board_in_a_job((board, request, last)); },
+            )));
         }
         let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
         // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
@@ -323,7 +311,13 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
     //  ceiling, which keeps its place until its work ends (`blocking_jobs_within_the_budget.rs`).
     //  So a look that finds no place answers `Unavailable` and the command is told, and the answers a client waits for do
     //  not queue here at all: they have places kept for them (`PLACES_KEPT_TO_ANSWER_A_CLIENT`).
-    return match run_a_job_awaited_no_longer_than(crate::wait_ceilings::routing_look_ceiling(), (mine, git_dir), look_up_the_directory).await {
+    return match crate::own_thread_for_work_that_can_stall::run_on_its_own_thread(
+        crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook,
+        crate::wait_ceilings::routing_look_ceiling(),
+        move || { return look_up_the_directory((mine, git_dir)); },
+    )
+    .await
+    {
         TheAnswerOfAJobAwaited::Ran(foreign) => Some(foreign),
         TheAnswerOfAJobAwaited::NotRun => {
             crate::service_error!("the system gave no place for the look at the instance of a Git directory, so the request it belongs to is not taken; the next send looks again");
@@ -487,12 +481,18 @@ async fn queue_a_commit(request: Box<crate::service_protocol::CommitRequest>, wr
             // Why:
             //  A look that outlasts its ceiling keeps the place it took until its work ends, and a retry that started beside it
             //  would fill the general places one step at a time (the review of `0b847be249`, F1).
-            let free_before: usize = crate::blocking_jobs_within_the_budget::places_free();
             match is_foreign(&deciding_shared, deciding_git_dir.clone()).await {
                 Some(foreign) => break Some(foreign),
                 None if began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE => {
                     asked += 1;
-                    while crate::blocking_jobs_within_the_budget::places_free() < free_before && began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE {
+                    // What:
+                    //  A retry waits until no look of this kind is alive, so it never adds a thread beside one still running.
+                    // Why:
+                    //  The look has threads of its own, and only looks hold them, so this is the exact question
+                    //  (the review of `e1a615aab0`, F4: a count of free places cannot tell the earlier look from any other).
+                    while !crate::own_thread_for_work_that_can_stall::none_alive(crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook)
+                        && began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE
+                    {
                         tokio::time::sleep(crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE).await;
                     }
                 }

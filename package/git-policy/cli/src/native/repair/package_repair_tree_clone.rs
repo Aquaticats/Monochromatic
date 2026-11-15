@@ -209,8 +209,15 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
         // A file without read permission cannot be cloned or copied by anyone but its owner's chmod, which the source is never given:
         //  the file stays out of the destination (a missing file only makes Cargo rebuild what needs it) and is named.
         if matches!(std::fs::File::open(&from), Err(ref denied) if denied.kind() == std::io::ErrorKind::PermissionDenied) {
-            // The partial file is this clone's own creation in the new tree.
-            let _removed = std::fs::remove_file(&to);
+            // What:
+            //  The partial file is removed only when this clone made it.
+            // Why:
+            //  A create that found something already at the destination belongs to another command,
+            //  and a file nothing of this clone made is never removed
+            //  (the review of `e1a615aab0`, F1: another command's destination file was deleted).
+            if error.kind() != std::io::ErrorKind::AlreadyExists {
+                let _removed = std::fs::remove_file(&to);
+            }
             return Ok(Some(entry.relative.clone()));
         }
         return Err(format!("{} cannot be cloned ({error})", from.display()));

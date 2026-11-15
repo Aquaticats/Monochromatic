@@ -436,9 +436,11 @@ pub fn render(failure: &ClientFailure) -> String {
         ),
         ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
-             that it withdrew it, so it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to \
-             see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
-             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
+             that it withdrew it, so it is not known whether the commit was made and the request may still land.{} Do not run the \
+             commit again until the service answers and `{}` shows the branch does not hold it: until then the request may still \
+             land, so a second commit could make the same change twice. When the service answers again, look at why it was stuck \
+             with `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}` before running the commit again; `{}` shows what is \
+             still staged.",
             it_had_said(blocker.as_deref()),
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),

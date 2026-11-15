@@ -204,6 +204,9 @@ pub mod blocking_job;
 /// taken by each job and given back when it ends.
 pub mod blocking_jobs_within_the_budget;
 
+/// A kind of work that can stop on storage, on a thread of its own under a ceiling, with a stated count per kind.
+pub mod own_thread_for_work_that_can_stall;
+
 /// The room a control states for a process it cannot reach,
 /// in place of the figure the CPUs that process may use would give it.
 pub mod blocking_place_room_a_control_states;

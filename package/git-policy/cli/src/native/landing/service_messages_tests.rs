@@ -507,3 +507,17 @@ fn the_unconfirmed_service_message_promises_nothing_about_a_later_landing() {
     assert!(words.contains("may still land"), "the message says the request may still land: {words}");
     assert!(words.contains("Do not run the commit again until"), "the message tells the person what not to do yet: {words}");
 }
+
+/// What:
+///  The message for an unconfirmed withdrawal advises nothing that is unsafe while the request may still land.
+/// Why:
+///  "If it was not made, run the commit again" is advice a person follows by looking at the branch, and the request may land
+///  after that look: two `git commit --allow-empty` would then make the change twice (the review of `e1a615aab0`, F2).
+/// The message says the request may still land and tells the person not to run the command again until it does not.
+#[test]
+fn the_unconfirmed_withdrawal_message_does_not_advise_a_retry_while_the_request_may_land() {
+    let words: String = render(&ClientFailure::WithdrawalUnconfirmed { blocker: Some(String::from("a branch write")) });
+    assert!(!words.contains("If it was not made, run the commit again"), "the message must not advise a retry while the request may land: {words}");
+    assert!(words.contains("may still land"), "the message says the request may still land: {words}");
+    assert!(words.contains("Do not run the"), "the message tells the person what not to do yet: {words}");
+}

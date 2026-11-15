@@ -106,7 +106,7 @@ fn hold_every_place_of_the_work(name: &str) -> (Vec<tokio::task::JoinHandle<()>>
         let still_held = Arc::clone(&the_places_are_held);
         let control: String = String::from(name);
         let holder = crate::lazy_runtime::spawn_on_runtime(async move {
-            let answer = run_a_job_awaited_no_longer_than(THE_CALLERS_CEILING, (told_one, still_held), hold_a_place_past_its_ceiling).await;
+            let answer = crate::blocking_jobs_within_the_budget::run_a_job_awaited_no_longer_than(THE_CALLERS_CEILING, (told_one, still_held), hold_a_place_past_its_ceiling).await;
             // The caller gave up while the job kept the place it took, which is the state every control here needs.
             assert!(
                 matches!(answer, TheAnswerOfAJobAwaited::NoAnswer),
@@ -287,7 +287,7 @@ fn a_commit_is_never_failed_by_a_starved_routing_look() {
         let (service, client_end) = UnixStream::pair().expect("a connected pair");
         let serving = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
         let (read_half, mut write_half) = client_end.into_split();
-        let line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("starved-look"))));
+        let line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("starved-look", Path::new("/nowhere/repo/gitdir")))));
         tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the request line is sent");
         let mut reader = tokio::io::BufReader::new(read_half);
         let mut heard: Vec<ServiceMessage> = Vec::new();
@@ -323,12 +323,12 @@ fn a_commit_is_never_failed_by_a_starved_routing_look() {
 /// A commit request this control sends,
 /// naming a Git directory of no repository,
 /// so nothing of it is landed.
-fn a_commit_request_named(id: &str) -> crate::service_protocol::CommitRequest {
+fn a_commit_request_named(id: &str, git_dir: &Path) -> crate::service_protocol::CommitRequest {
     return crate::service_protocol::CommitRequest {
         id: String::from(id),
         repository: PathBuf::from("/nowhere"),
         common_dir: PathBuf::from("/nowhere/.git"),
-        git_dir: PathBuf::from("/nowhere/repo/gitdir"),
+        git_dir: git_dir.to_path_buf(),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: "a".repeat(40),
         changes: Vec::new(),
@@ -339,8 +339,8 @@ fn a_commit_request_named(id: &str) -> crate::service_protocol::CommitRequest {
         tree: None,
         commit: None,
         cleanup: None,
-        index: PathBuf::from("/nowhere/repo/gitdir/index"),
-        scratch: PathBuf::from("/nowhere/repo/gitdir/monochromatic-git-policy-cli-service-a-0"),
+        index: git_dir.join("index"),
+        scratch: git_dir.join("monochromatic-git-policy-cli-service-a-0"),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -395,4 +395,79 @@ fn a_withdrawal_is_decided_while_a_note_read_is_stuck() {
         Some(ServiceMessage::Withdrawn { id }) => assert_eq!(id, A_REQUEST),
         other => panic!("the withdrawal was not decided while a note read was stuck: {other:?}"),
     }
+}
+
+/// What:
+///  Two commits sent at once are both routed while every slow place is held by work that never ends,
+///  so neither is refused for a place with no storage at fault.
+/// Why:
+///  A commit's look took a general place, and the slow places' jobs take general places too: two slow jobs and one look
+///  held every general place, and the second commit's look was `NotRun`, which ends the command as `Unavailable`
+///  (the review of `e1a615aab0`, F5). The look now runs on a thread of its own kind and takes no place of the bound.
+#[test]
+fn two_commits_are_both_routed_while_every_slow_place_is_held() {
+    let _room: usize = crate::parallel_test_support::room_for("two_commits_are_both_routed_while_every_slow_place_is_held", THE_ROOM);
+    crate::wait_ceilings::hold_the_routing_look_to(THE_LOOKS_CEILING);
+    let (mut shared, _journal, mut jobs) = shared_in_a_control("connection-two-commits-beside-stuck-slow-work");
+    // The two requests name a Git directory this instance was named for, so each look reads it and says it is this instance's.
+    let own: PathBuf = crate::test_support::fixture("connection-two-commits-beside-stuck-slow-work-own");
+    shared.instance = Some(crate::service_instance::instance_of(own.as_path()));
+    // Every place slow work may take, held by jobs whose callers gave up: work that never ends, and no storage at fault.
+    let (told, told_by_a_job) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let the_places_are_held: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(waiting));
+    let mut stuck: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for _ in 0..crate::blocking_jobs_within_the_budget::places_a_round_may_take() {
+        let told_one = told.clone();
+        let still_held = Arc::clone(&the_places_are_held);
+        stuck.push(
+            crate::lazy_runtime::spawn_on_runtime(async move {
+                let _answer = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || {
+                    let _said = told_one.send(());
+                    let _ = still_held.lock().expect("the control's release").recv();
+                })
+                .await;
+            })
+            .expect("a worker for a slow job"),
+        );
+    }
+    for _ in 0..crate::blocking_jobs_within_the_budget::places_a_round_may_take() {
+        assert!(told_by_a_job.recv_timeout(crate::parallel_test_support::PATIENCE).is_ok(), "a slow job never took its place");
+    }
+    // Two commits, each on a connection of its own, both asking to be routed.
+    let mut serving: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for at in 0..2 {
+        let (service, client_end) = crate::lazy_runtime::run_on_runtime(async { return UnixStream::pair().expect("a connected pair"); }).expect("the runtime");
+        let named: String = format!("two-commits-{at}");
+        let own_for_the_ask: PathBuf = own.clone();
+        // The request line is written before the connection is served: the pair holds it, and a writer left to run beside the
+        //  handler could be dropped before it wrote anything.
+        let line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named(named.as_str(), own_for_the_ask.as_path()))));
+        crate::lazy_runtime::run_on_runtime(async move {
+            let (_read_half, mut write_half) = client_end.into_split();
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the request line");
+        })
+        .expect("the runtime");
+        serving.push(crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared.clone())).expect("a worker for the connection"));
+    }
+    // Both requests reach the landing once their looks answer, which is within one patience of a starved look.
+    let both: bool = crate::lazy_runtime::run_on_runtime(async {
+        let mut queued: usize = 0;
+        let deadline: tokio::time::Instant = tokio::time::Instant::now() + A_BOUND;
+        while queued < 2 && tokio::time::Instant::now() < deadline {
+            if tokio::time::timeout(deadline.saturating_duration_since(tokio::time::Instant::now()), jobs.recv()).await.is_ok() {
+                queued += 1;
+            }
+        }
+        return queued == 2;
+    })
+    .expect("the runtime");
+    let _let_the_places_go = release.send(());
+    for holder in stuck {
+        holder.abort();
+    }
+    for holder in serving {
+        holder.abort();
+    }
+    assert!(both, "the two commits were not both routed while every slow place was held by work that never ends");
 }

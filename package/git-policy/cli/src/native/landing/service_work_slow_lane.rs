@@ -236,7 +236,32 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
-                if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping, lease)).await {
+                // What:
+                //  One look at one repository ends within `LANE_LOOK_CEILING`, and a look that outlasts it is left behind.
+                // Why:
+                //  A call into storage cannot be taken back once it is made: a trash's prepare, its removal or its settle
+                //  that stops on the disk would otherwise hold this lane, and the lane is one task that serves every
+                //  repository in turn (the review of `e1a615aab0`, F7).
+                //  The look is dropped, its records keep their lease, and the lane goes on and says so.
+                let looking = async {
+                    return match tokio::time::timeout(
+                        crate::wait_ceilings::lane_look_ceiling(),
+                        drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping, lease),
+                    )
+                    .await
+                    {
+                        Ok(settled) => settled,
+                        Err(_no_end) => {
+                            crate::service_warn!(
+                                "the look at {} did not end within {:?}, so it is left behind and the lane goes on to the next repository; the records it claimed keep their lease",
+                                git_dir.display(),
+                                crate::wait_ceilings::lane_look_ceiling()
+                            );
+                            Some(LOOK_AGAIN_AFTER_DEFERRING)
+                        }
+                    };
+                };
+                if let Some(wait) = a_look_that_may_panic(looking).await {
                     soonest = Some(match soonest {
                         Some(already) => already.min(wait),
                         None => wait,

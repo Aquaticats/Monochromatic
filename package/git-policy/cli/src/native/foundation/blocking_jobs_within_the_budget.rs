@@ -620,8 +620,20 @@ pub async fn run_a_slow_job_once_awaited_no_longer_than<S: Send + 'static, T: Se
         Ok(Err(_closed)) => return TheAnswerOfAJobAwaited::NotRun,
         Err(_elapsed) => return TheAnswerOfAJobAwaited::NotRun,
     };
-    let answer: TheAnswerOfAJobAwaited<T> = run_a_job_once_awaited_no_longer_than(ceiling, move || { return work(state); }).await;
-    drop(slow);
+    // What:
+    //  The place of slow work travels into the job, as a place of the bound does, so it goes back when the job's work ends
+    //  and never when the caller stops waiting.
+    // Why:
+    //  A caller whose ceiling passes does not stop its job: a job that outlasted its caller's ceiling runs on, and a place
+    //  given back on the frame would let a second slow job start beside it
+    //  (the review of `e1a615aab0`, F6: two jobs were live under one slow permit).
+    let slow_held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(slow);
+    let answer: TheAnswerOfAJobAwaited<T> = run_a_job_once_awaited_no_longer_than(ceiling, move || {
+        let _slow: crate::the_place_of_one_blocking_job::APlaceGivenBackWhenItEnds =
+            crate::the_place_of_one_blocking_job::APlaceGivenBackWhenItEnds::covering(Arc::clone(&slow_held));
+        return work(state);
+    })
+    .await;
     return answer;
 }
 

@@ -1113,6 +1113,43 @@ pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
 ///  and the client's waits bound the person's side (`ANSWER_CEILING`, `WITHDRAW_CEILING`).
 pub const CLIENT_ANSWER_PLACE_CEILING: Duration = crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
 
+/// The longest one look of the slow lane spends on one repository:
+/// two minutes, which is the bound of one trash item (`TRASH_ITEM_CEILING`).
+/// A look serves one repository and each of its items has its own bound,
+/// so a look that outlasts the longest item bound is one whose storage stopped answering:
+/// the look is left behind, the lane goes on to the next repository, and the records it claimed keep their lease.
+pub const LANE_LOOK_CEILING: Duration = Duration::from_secs(120);
+
+/// The lane look's ceiling as this process uses it:
+/// the one a control stated, or `LANE_LOOK_CEILING`.
+/// A control reaches the bound in a moment rather than waiting two minutes out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const laneLookCeiling = () => statedLaneLookCeiling() ?? LANE_LOOK_CEILING;
+/// ```
+pub fn lane_look_ceiling() -> Duration {
+    #[cfg(test)]
+    {
+        let stated: u64 = A_LANE_LOOK_CEILING.load(std::sync::atomic::Ordering::SeqCst);
+        if stated > 0 {
+            return Duration::from_millis(stated);
+        }
+    }
+    return LANE_LOOK_CEILING;
+}
+
+/// The lane look's ceiling a control stated, in milliseconds;
+/// zero when none did.
+#[cfg(test)]
+static A_LANE_LOOK_CEILING: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// State the lane look's ceiling for a control, so it reaches the bound in a moment.
+#[cfg(test)]
+pub(crate) fn hold_the_lane_look_to(ceiling: Duration) {
+    A_LANE_LOOK_CEILING.store(u64::try_from(ceiling.as_millis()).unwrap_or(u64::MAX), std::sync::atomic::Ordering::SeqCst);
+}
+
 /// The longest any job of this process waits for a place before it says that it did not run:
 /// five seconds, the silence a client lets the service keep (`HEARTBEAT_SILENCE`).
 /// Why a bound at all:
