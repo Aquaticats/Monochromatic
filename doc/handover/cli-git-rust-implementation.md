@@ -1396,6 +1396,46 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The brief writer for every kind of code file counts the repository's tests and fixtures and goes to review (2026-11-15T00:16:22-05:00)
+
+Not final and not approved:
+what one author reports,
+and what the coordinating session queued.
+
+- **The review-brief writer that reads every kind of code file**,
+  its author's second run,
+  ended 00:11:40 at `e759dd56fc`,
+  its report whole.
+  The repository's markings of a test and of a fixture were counted over every tracked file and written into the lists file;
+  the older rule matched 5,408 files on the tree the change began from.
+  A file beside a test that is neither is read with the change as material a test may read;
+  a note beside a test is still refused,
+  with both paths named.
+  It states what the rule gets wrong,
+  by its own count:
+  767 files with a code extension sit under a fixture marker and a brief for code leaves them out
+  (six of them are named by production code,
+  all six test support);
+  of 46 files that tests name by a literal path,
+  two are fixture material the lists do not mark,
+  read when changed beside their test and refused when changed alone,
+  with the path named.
+  Both of the review's findings have a control on the real paths,
+  failing with the fix out.
+  Build,
+  lint and type check clean;
+  195 unit tests passing.
+  It names the lines of `material-of-a-review.ts` where its change meets the branch for a change to tests alone.
+- Its review is queued second
+  (`main...e759dd56fc`,
+  six code files).
+- Read at 00:16:04:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  23 runs going.
+  The queue held 71 entries at 00:16:22.
+
 ##### The gate on `0.6.1-alpha.37` fails 25: the six pass 48 was for pass, and four fail that did not before, three of them push controls that point at pass 48's own change (2026-11-15T00:08:53-05:00)
 
 Not final and not approved:
