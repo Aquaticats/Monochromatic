@@ -1406,8 +1406,9 @@ and what it queued.
   It also measured,
   and left,
   that at `RLIMIT_NOFILE=3` the wrapper answers "This account has no user service manager",
-  which misnames the cause;
-  no run has that.
+  which misnames the cause.
+  A fresh run for it was queued at 22:40:17
+  (`~/temp/agent/pi-runs/service-whose-program-cannot-load-is-not-called-an-account-with-no-service-manager-prompt.md`).
 - Read at 22:38:10:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no launcher had outlived a run;
