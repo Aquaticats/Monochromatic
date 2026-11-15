@@ -220,6 +220,44 @@ pub(crate) fn judged_of(path: &Path) -> Result<Judged, String> {
 }
 
 /// What:
+/// The judgement of the ordinary file an open descriptor names,
+/// with its content digest read through that same descriptor.
+/// Why:
+/// A proof of what a file is must describe the entry a removal will act on:
+/// if the proof read one path and the judgement read the path again, a swap between the two would prove one file and
+/// delete another.
+/// Reading through the descriptor the judgement keeps pins the entry, and positional reads leave its offset alone.
+///
+/// @throws The sentence naming why the entry cannot be judged, which leaves it where it is.
+pub(crate) fn judged_of_open_entry(file: &fs::File) -> Result<Judged, String> {
+    /// Imports `FileExt` from `std::os::unix::fs`,
+    /// for the positional reads that do not disturb the descriptor's offset.
+    use std::os::unix::fs::FileExt;
+    /// Imports `Digest` from `sha2`.
+    use sha2::Digest;
+    let metadata: fs::Metadata = match file.metadata() {
+        Ok(metadata) => metadata,
+        Err(error) => return Err(format!("the open entry cannot be inspected: {error}")),
+    };
+    if !metadata.is_file() {
+        return Err(super::ordinary_file::not_ordinary(Path::new("the open entry"), &metadata));
+    }
+    let mut hasher = sha2::Sha256::new();
+    let mut buffer: Vec<u8> = vec![0; 64 * 1024];
+    let mut offset: u64 = 0;
+    loop {
+        let filled: usize = match file.read_at(&mut buffer, offset) {
+            Ok(0) => break,
+            Ok(filled) => filled,
+            Err(error) => return Err(format!("the open entry cannot be read: {error}")),
+        };
+        hasher.update(&buffer[..filled]);
+        offset += u64::try_from(filled).unwrap_or(u64::MAX);
+    }
+    return Ok(judged_of_metadata(&metadata, hasher.finalize().into()));
+}
+
+/// What:
 /// The judgement of the file an open descriptor names,
 /// from the bytes that were read through that same descriptor.
 /// Why:

@@ -81,7 +81,7 @@ use super::util::process_is_gone;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 /// Imports what this module uses from `super::removal`.
-use super::removal::{Judged, Removal, judged_of, judged_of_open, maker_of_retired, put_back, remove_if_still, retired_from, same_entry};
+use super::removal::{Judged, Removal, judged_of, judged_of_open, judged_of_open_entry, maker_of_retired, put_back, remove_if_still, retired_from, same_entry};
 /// Imports the one way this tool opens a file it did not just create.
 use super::ordinary_file::{open_ordinary, open_ordinary_through_links};
 
@@ -202,11 +202,11 @@ fn owner_crate(identity: &str) -> String {
 /// `first` is an entry this tool placed and `second` may be reached through a symbolic link (`current` is one),
 /// so each is opened the way its own kind needs: without following a link for the first,
 /// and through the link for the second, which must still end at an ordinary file.
-fn same_bytes(first: &Path, second: &Path) -> bool {
-    let (Ok(mut one), Ok(mut two)) = (open_ordinary(first), open_ordinary_through_links(second)) else {
+fn same_bytes(first: &fs::File, second: &Path) -> bool {
+    let Ok(mut two) = open_ordinary_through_links(second) else {
         return false;
     };
-    let (Ok(one_metadata), Ok(two_metadata)) = (one.metadata(), two.metadata()) else {
+    let (Ok(one_metadata), Ok(two_metadata)) = (first.metadata(), two.metadata()) else {
         return false;
     };
     if one_metadata.len() != two_metadata.len() {
@@ -214,8 +214,9 @@ fn same_bytes(first: &Path, second: &Path) -> bool {
     }
     let mut left: Vec<u8> = vec![0; COMPARE_BLOCK];
     let mut right: Vec<u8> = vec![0; COMPARE_BLOCK];
+    let mut offset: u64 = 0;
     loop {
-        let (filled_left, filled_right) = match (read_block(&mut one, &mut left), read_block(&mut two, &mut right)) {
+        let (filled_left, filled_right) = match (read_block_at(first, &mut left, offset), read_block(&mut two, &mut right)) {
             (Ok(left_filled), Ok(right_filled)) => (left_filled, right_filled),
             _ => return false,
         };
@@ -225,7 +226,29 @@ fn same_bytes(first: &Path, second: &Path) -> bool {
         if filled_left != filled_right || left[..filled_left] != right[..filled_right] {
             return false;
         }
+        offset += u64::try_from(filled_left).unwrap_or(u64::MAX);
     }
+}
+
+/// Fills `buffer` from `file` at `offset`,
+/// and says how many bytes it holds (short only at the end of the file).
+fn read_block_at(file: &fs::File, buffer: &mut [u8], offset: u64) -> Result<usize, std::io::Error> {
+    /// Imports `FileExt` from `std::os::unix::fs`.
+    use std::os::unix::fs::FileExt;
+    let mut filled: usize = 0;
+    while filled < buffer.len() {
+        match file.read_at(&mut buffer[filled..], offset + u64::try_from(filled).unwrap_or(u64::MAX)) {
+            Ok(0) => {
+                return Ok(filled);
+            }
+            Ok(read) => {
+                filled += read;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    return Ok(filled);
 }
 
 /// Fills `buffer` from `file`,
@@ -375,9 +398,12 @@ impl<'a> Proofs<'a> {
         if !metadata.is_file() {
             return Err("it is not a regular file".to_string());
         }
-        let judged: Judged = judged_of(launcher)?;
+        // One open for the judgement and the proof: the entry proved and the entry a removal will act on are the same
+        // entry, whatever another command does to the path in between.
+        let opened: fs::File = open_ordinary(launcher)?;
+        let judged: Judged = judged_of_open_entry(&opened)?;
         record_is_own(&record_path(launcher), declared_tools)?;
-        let why: String = self.own_bytes(launcher, declared_tools)?;
+        let why: String = self.own_bytes(&opened, launcher, declared_tools)?;
         return Ok(Proven { why, judged });
     }
 
@@ -388,22 +414,21 @@ impl<'a> Proofs<'a> {
     /// so a launcher placed by any version of this tool is proven by what it holds,
     /// and never by its name,
     /// its path or the date it was written.
-    fn own_bytes(&mut self, file: &Path, declared_tools: &BTreeSet<&str>) -> Result<String, String> {
-        let opened: fs::File = open_ordinary(file)?;
-        if let Some(identity) = identity_of_open_file(&opened)
+    fn own_bytes(&mut self, opened: &fs::File, file: &Path, declared_tools: &BTreeSet<&str>) -> Result<String, String> {
+        if let Some(identity) = identity_of_open_file(opened)
             && owner_crate(&identity) == OWN_SHADOW_CRATE
         {
             return Ok(format!("its own bytes carry mpm-shadow's identity ({identity})"));
         }
         let images: Vec<PathBuf> = self.images();
         for image in &images {
-            if same_bytes(file, image) {
+            if same_bytes(opened, image) {
                 return Ok(format!("its bytes are the same as {}", image.display()));
             }
         }
         let witnesses: Vec<PathBuf> = self.witnesses(declared_tools, file);
         for witness in &witnesses {
-            if same_bytes(file, witness) {
+            if same_bytes(opened, witness) {
                 return Ok(format!("its bytes are the same as the launcher {}", witness.display()));
             }
         }
@@ -1223,6 +1248,9 @@ pub(super) fn repair_what_a_kill_left(ctx: &Context, notices: &mut LauncherNotic
                 // name left it, and every version of this tool before the one that moves entries with one no-replace
                 // rename did the same on every removal it was killed in. The two names are one entry, so there is
                 // nothing to put back and no file to keep: the hidden name goes, and nothing a person made is lost.
+                // Another pass may have repaired this hidden name between the two instructions above: then there is
+                // nothing here to report.
+                Err(_) if fs::symlink_metadata(&hidden).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound) => {}
                 Err(_) if same_entry(&target, &hidden) => {
                     match fs::remove_file(&hidden) {
                         Ok(()) => notices.warnings.push(format!(

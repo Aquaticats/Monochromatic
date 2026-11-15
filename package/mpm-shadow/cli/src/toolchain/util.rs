@@ -155,15 +155,28 @@ fn temporary_of(target: &Path) -> PathBuf {
 /// ```
 #[cfg(unix)]
 fn open_temporary(temporary: &Path, mode: Option<u32>) -> std::io::Result<fs::File> {
-    /// Imports `OpenOptionsExt` from `std::os::unix::fs`,
-    /// which carries the mode a created file is asked for.
-    use std::os::unix::fs::OpenOptionsExt;
-    return fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(mode.unwrap_or(NEW_FILE_MODE))
-        .open(temporary);
+    // O_NONBLOCK: a named pipe planted at the temporary name answers with an error instead of waiting for a reader.
+    // O_NOFOLLOW: a symbolic link at the temporary name is refused rather than written through, which would truncate
+    // the file it points at.
+    // O_CLOEXEC: the descriptor never reaches a program this tool starts.
+    let descriptor: rustix::fd::OwnedFd = rustix::fs::open(
+        temporary,
+        rustix::fs::OFlags::WRONLY
+            | rustix::fs::OFlags::CREATE
+            | rustix::fs::OFlags::TRUNC
+            | rustix::fs::OFlags::NONBLOCK
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::from_bits_truncate(mode.unwrap_or(NEW_FILE_MODE)),
+    )?;
+    let file: fs::File = fs::File::from(descriptor);
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the temporary name holds something that is not an ordinary file",
+        ));
+    }
+    return Ok(file);
 }
 
 /// Opens the temporary beside `target`;
