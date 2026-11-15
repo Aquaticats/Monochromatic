@@ -156,7 +156,8 @@ fn a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere: &Path, p
 ///   A refused look at the files a program holds is never none,
 ///  so the read answers that the process may hold a file there;
 ///  and that answer is bounded the way a hidden working folder is:
-///  a process that started before the worktree was made cannot have changed into it.
+///  a process that started before the worktree was made is taken to be outside it,
+///  though one that changed into it afterwards is the miss this rule leaves.
 ///  The bound is what keeps the walk from stopping at every program that hides its own memory,
 ///  a password manager that runs from login above all:
 ///  measured on this host,
@@ -191,7 +192,7 @@ fn a_process_whose_descriptor_table_cannot_be_read_keeps_the_worktree_only_befor
         younger.expect("the process whose files could not be read").why(),
         "process 5353 belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it"
     );
-    assert_eq!(older, None, "a process older than the worktree cannot have changed into it");
+    assert_eq!(older, None, "a process older than the worktree is taken to be outside it, though one that changed into it afterwards is the miss this rule leaves");
 }
 
 /// What:
@@ -291,7 +292,7 @@ fn a_hidden_process_older_than_the_worktree_does_not_count() {
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(5))),
         None,
-        "a process older than the folder cannot have changed into it"
+        "a process older than the folder is taken to be outside it, though one that changed into it afterwards is the miss this rule leaves"
     );
 }
 
@@ -313,7 +314,7 @@ fn a_hidden_process_younger_than_the_worktree_keeps_it() {
 fn an_age_that_cannot_be_read_keeps_the_worktree() {
     assert!(!started_before(None, Some(Duration::from_secs(5))), "a process whose age is unknown may be inside");
     assert!(!started_before(Some(Duration::from_secs(5)), None), "a folder whose age is unknown may hold the process");
-    assert!(started_before(Some(Duration::from_secs(6)), Some(Duration::from_secs(5))), "an older process is outside");
+    assert!(started_before(Some(Duration::from_secs(6)), Some(Duration::from_secs(5))), "an older process is taken to be outside");
     assert!(!started_before(Some(Duration::from_secs(4)), Some(Duration::from_secs(5))), "a younger one may be inside");
 }
 
