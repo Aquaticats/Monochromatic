@@ -193,7 +193,8 @@ pub fn install_directory_name(route: Route, id: &str) -> Option<String> {
 
 /// What:
 /// The two numbers that name one entry on its file system:
-/// the device and the inode, or zeros where the platform has none.
+/// the device and the inode,
+/// or zeros where the platform has none.
 /// Why:
 /// A write time tells two writes apart only as finely as the file system's clock,
 /// so two files written in the same tick look alike;
