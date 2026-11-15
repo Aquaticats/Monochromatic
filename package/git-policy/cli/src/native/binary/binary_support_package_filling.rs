@@ -40,6 +40,118 @@ pub const A_FILLS_CLEAN_ENDING_VARIABLE: &str = "CLI_GIT_TEST_ONLY_FILL_CLEAN";
 pub const ENDED_WITH_SIGKILL: &str = "killed";
 
 /// What:
+///  How many seconds a reader waits for the service's own words about a filling it did not finish.
+/// Why:
+///   The service writes that line before it answers the record's verdict,
+/// and the line reaches the fixture's log through a thread that copies the service's error stream,
+/// so a control that reads the log the moment the record settles can be a moment early.
+/// Five seconds is far past a copy the machine is not stalled in, and a wait that ends without the line still says
+/// what the record came to.
+pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// What:
+///  The sentence a control fails with when the worktree's filling did not run to its end,
+///  or nothing when it did.
+/// Why:
+///   A filling that did not run to its end never displaced a byte,
+/// so a control that reads the bytes a clean displaced must read first whether the filling ran:
+/// at the gate of 2026-11-15T06:00-05:00 this control failed with
+/// `the bytes the clean displaced were not kept: []`
+/// for a filling whose clean the machine ended by a signal,
+/// and the fill's own reason, which the service did write, never reached the person.
+/// The sentence names where the record stands and quotes the service's words about this worktree,
+/// which is the whole of what a reader needs to know why nothing is there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = aFillingThatDidNotRunToItsEnd(fixture, gitDir, worktree); // undefined when the record settled in done
+/// ```
+pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::path::Path, worktree: &std::path::Path) -> Option<String> {
+    let work: std::path::PathBuf = git_policy_cli::service_work::work_directory(git_dir);
+    // A record the consumer settled in `done` is a filling that ran to its end, whichever handler answered it.
+    if stands_in(work.as_path(), git_policy_cli::work_item::DONE, worktree) {
+        return None;
+    }
+    let standing: &str = [
+        git_policy_cli::work_item::FAILED,
+        git_policy_cli::work_item::PENDING,
+        git_policy_cli::work_item::RECOVERING,
+        git_policy_cli::work_item::CLAIMED,
+    ]
+    .into_iter()
+    .find(|state| { return stands_in(work.as_path(), state, worktree); })
+    .unwrap_or(NAMED_NOWHERE);
+    let said: String = match the_services_words(fixture, worktree) {
+        Some(words) => format!("the service said: {words}"),
+        None => String::from("the service wrote nothing about it in its log"),
+    };
+    return Some(format!(
+        "the filling of {} did not run to its end, so no byte was ever displaced for this control to read: its record stands in {standing}, and \
+         {said}. The build directory the filling publishes was left as it was carried, and the next add fills it",
+        worktree.display()
+    ));
+}
+
+/// The word a filling's record is given when no state of the work directory holds it.
+/// It is not a state of the queue: no record there means the add handed nothing over, which is its own answer.
+const NAMED_NOWHERE: &str = "no state of the work directory";
+
+/// What:
+///  Whether the work directory holds this worktree's prewarm record in `state` now.
+/// Why:
+///   The record of a filling is named by its own object and branch,
+/// and only a prewarm of this worktree says what this control is waiting for;
+/// a claim's file holds the record itself, so every state is read the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stands = readdir(stateDir).some((name) => { const item = decode(readFile(name)); return item.kind === 'prewarm' && item.repository === worktree; });
+/// ```
+fn stands_in(work: &std::path::Path, state: &str, worktree: &std::path::Path) -> bool {
+    let directory: std::path::PathBuf = git_policy_cli::work_item::state_directory(work, state);
+    let Ok(entries) = std::fs::read_dir(directory) else { return false };
+    for entry in entries.flatten() {
+        let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
+        let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else { continue };
+        if item.kind == git_policy_cli::work_item::WorkKind::Prewarm && item.repository == worktree {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The last thing the service wrote about this worktree's filling,
+///  waited for within a bound.
+/// Why:
+///   The service writes that line before it answers the record's verdict,
+/// and the line reaches the fixture's log through a thread that copies the service's error stream,
+/// so a reader that looks the moment the record settles can be a moment early.
+/// The line names the build directory it could not fill, so the worktree's own path is what tells this filling's
+///  line from those of every other worktree the same service filled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = lines(serviceLog(root)).filter((line) => line.includes('could not be filled') && line.includes(worktree)).at(-1);
+/// ```
+fn the_services_words(fixture: &Fixture, worktree: &std::path::Path) -> Option<String> {
+    let needle: String = worktree.display().to_string();
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let log: String = crate::support_fixture_service_log::service_log(fixture.root.as_path());
+        let found: Option<String> = log
+            .lines()
+            .rev()
+            .find(|line| { return line.contains("could not be filled") && line.contains(needle.as_str()); })
+            .map(str::to_owned);
+        if found.is_some() || began.elapsed() >= A_FILLINGS_WORDS_PATIENCE {
+            return found;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+/// What:
 ///  Give a filling's clean the ending the run asked for,
 ///  or leave the fixture's Cargo alone.
 /// Why:

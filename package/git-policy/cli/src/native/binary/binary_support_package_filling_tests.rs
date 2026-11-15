@@ -14,7 +14,10 @@
 //! expect(signalOf(standIn, ['clean'], { CARGO_BUILD_BUILD_DIR: staging })).toBe(9); expect(run(standIn, ['--version']).stdout).toContain('real');
 //! ```
 
-use super::support::{ENDED_WITH_SIGKILL, Fixture, end_the_fills_clean_within, executable, fixture};
+use super::support::{
+    ENDED_WITH_SIGKILL, Fixture, SERVICE_LOG_FILE, a_filling_that_did_not_run_to_its_end, end_the_fills_clean_within, executable, fixture,
+};
+use git_policy_cli::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::PathBuf;
 use std::process::Command;
@@ -107,4 +110,60 @@ fn a_run_that_asks_for_no_ending_keeps_the_real_cargo_linked() {
     assert_eq!(std::fs::read_link(cargo_in(&fixture)).expect("the fixture's Cargo is still the link it was"), real, "a run that asks for no ending leaves the real Cargo linked");
     let passed: std::process::Output = run_cargo(&fixture, &["--version"], None);
     assert!(passed.status.success(), "the real program still answers: {:?}", passed.status);
+}
+
+/// What:
+///  A filling whose record stands in `failed` is a failure that quotes the service's own words,
+///  and one that settled in `done` is none.
+/// Why:
+///   This is the sentence a person reads instead of an empty folder,
+/// so it must name where the record stands and carry the line the service wrote about this worktree:
+/// a sentence that named the bytes without the reason is the failure the gate of 2026-11-15T06:00-05:00 printed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(said).toContain('failed'); expect(said).toContain('could not be filled'); move(record, 'done'); expect(said).toBeUndefined();
+/// ```
+#[test]
+fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_service_said() {
+    let fixture: Fixture = fixture("filling-outcome");
+    let git_dir: PathBuf = fixture.root.join("repo/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the repository's Git directory");
+    let worktree: PathBuf = fixture.root.join("deeper/stale");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    // The record an add hands the service for this worktree's filling.
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Prewarm,
+        repository: worktree.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from(git_policy_cli::package_repair_prewarm::PREWARM_REFERENCE),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::from("[]"),
+        created: git_policy_cli::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("the record is queued");
+    let id: String = item.id();
+    // The service's own line about this filling, as its log keeps it.
+    let line: String = format!(
+        "monochromatic-git-policy-cli-service: the Cargo build directory of {} could not be filled: the copy of {}/target.monochromatic-prewarm could not be cleaned (stopped by signal 9: ) at_ms=1\n",
+        worktree.join("target").display(),
+        worktree.display()
+    );
+    std::fs::write(fixture.root.join(SERVICE_LOG_FILE), line.as_bytes()).expect("the service's log");
+    // The state a consumer that gave up on a filling leaves it in.
+    std::fs::create_dir_all(state_directory(work.as_path(), FAILED).as_path()).expect("the failed state");
+    std::fs::rename(state_directory(work.as_path(), PENDING).join(id.as_str()), state_directory(work.as_path(), FAILED).join(id.as_str())).expect("the record moves to failed");
+    let said: String = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).expect("a filling whose record failed did not run to its end");
+    assert!(said.contains(FAILED), "the sentence names where the record stands: {said}");
+    assert!(said.contains("could not be filled"), "the sentence quotes the service's own reason: {said}");
+    assert!(said.contains("stopped by signal 9"), "and how the clean ended: {said}");
+    // The same record settled in `done` is a filling that ran to its end, and a control reads its bytes.
+    std::fs::create_dir_all(state_directory(work.as_path(), git_policy_cli::work_item::DONE).as_path()).expect("the done state");
+    std::fs::rename(state_directory(work.as_path(), FAILED).join(id.as_str()), state_directory(work.as_path(), git_policy_cli::work_item::DONE).join(id.as_str())).expect("the record settles");
+    assert!(
+        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).is_none(),
+        "a record that settled in done is a filling that ran to its end"
+    );
 }
