@@ -489,8 +489,8 @@ fn drain_standard_error() -> std::sync::Arc<std::sync::Mutex<Vec<u8>>> {
             if got == 0 {
                 break;
             }
-            if let Ok(mut seen) = keeping.lock() {
-                seen.extend_from_slice(&piece[..got]);
+            if let Ok(mut read_so_far) = keeping.lock() {
+                read_so_far.extend_from_slice(&piece[..got]);
             }
         }
     });
