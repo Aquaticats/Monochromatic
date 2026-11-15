@@ -1594,6 +1594,50 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's handling of an empty last answer is answered a seventh time and goes to review (2026-11-15T07:12:02-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **A run whose last answer is empty is asked to go on and never ends as finished**,
+  its author's seventh run,
+  ended 07:07:08 at `f50acb1bf3`,
+  `main` merged.
+  The review's four scripts reproduced at the old tip.
+  What changed:
+  a scan for work that cannot be read is a third answer,
+  neither "work runs" nor "none",
+  so the run waits within the bounds it has and is never told to go on;
+  a process the kernel reports dead and unreaped is a driver that is gone,
+  so its claim is recovered;
+  reads and removals tolerate a folder another pass took away,
+  and a keep recognises its own publication and makes no second copy.
+  Seven controls fail with the fix out.
+  190 suites pass.
+  The author made two earlier controls of its own deterministic.
+  Its review is queued twelfth
+  (`main...f50acb1bf3`,
+  23 code files that are not tests).
+- **A run silent for twenty minutes, left alone**:
+  the review of the long runtime directory sits in a command it started under `timeout 1800`,
+  a build in a scope of four CPUs.
+  It has a bound of its own,
+  so nothing is ended;
+  the next round reads it again.
+- **The temperature**,
+  read at 07:11:41:
+  56.0 degrees,
+  budget 32.0 threads,
+  12.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:11:43:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:00;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going.
+  The queue held 86 entries at 07:12:02.
+
 ##### The lock a killed Git left is answered: one list says what a Git directory is; its review is told the one limit the branch states (2026-11-15T07:01:26-05:00)
 
 Not final and not approved:
