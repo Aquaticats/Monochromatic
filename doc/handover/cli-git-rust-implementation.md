@@ -1709,8 +1709,21 @@ and what it queued.
   the author is asked what the guard reads,
   to widen it with this path as its first failing case,
   and to report what else it then finds.
-  That guard is in `main`;
-  what it lets through there is not known until it is widened.
+  That guard is in `main`.
+  Read in `main` at 18:28:
+  this path is not on a worker there.
+  `started_watch.remember(own)` is called at `service/service_server.rs:356` inside `serve_in_a_landing`,
+  a plain function,
+  where it holds the start
+  (the slow start this branch exists for);
+  the connection handler's use of `instance_of` at `service_server_connection_handling.rs:281` is inside `run_blocking_job`;
+  `landing/service_claim_watch.rs` has no `async fn` in `main`.
+  So the branch brought this path onto a worker,
+  and `main` is shown no instance of it.
+  The guard's blind side,
+  a blocking call reached through plain functions,
+  is the same in `main`;
+  whether anything else there goes through it is what the widened guard will say.
   The author's fourth run is queued seventh.
 - Read at 18:24:54:
   six changed files in the main checkout;
