@@ -22,52 +22,133 @@
 //! ```
 
 use crate::worktree_landed_registrations::registrations_a_removal_takes;
+use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-/// One worktree a removal takes,
-/// with the Git directory that holds its own state.
+/// What:
+///  One thing a removal takes:
+///  a worktree of this repository, with its own Git directory,
+///  or a Git repository inside the worktree that this repository does not register.
+/// Why:
+///   Both hold Git work that goes with the removal,
+///  and the questions a guard asks are asked of every one of them.
+///  The second kind is the repository a person cloned inside an ignored folder:
+///  its commits and branches are its own, and its Git directory goes with the directory the removal deletes
+///  (a review of `746040080c`, finding 3).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Taken = { root: string; admin: string };
+/// type Taken = { kind: 'worktree'; root: string; admin: string } | { kind: 'repository'; root: string; gitDir: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Taken {
-    /// The worktree's own directory,
-    /// which the removal deletes.
-    pub(crate) root: PathBuf,
-    /// Its own Git directory,
-    /// below the common directory,
-    /// which the removal deletes with it.
-    pub(crate) admin: PathBuf,
+pub(crate) enum Taken {
+    /// A worktree this repository registers,
+    /// with the Git directory that holds its own state.
+    Worktree {
+        /// The worktree's own directory.
+        root: PathBuf,
+        /// Its own Git directory,
+        /// below the common directory.
+        admin: PathBuf,
+    },
+    /// A Git repository inside the worktree that this repository does not register,
+    /// with the directory its own records are in.
+    Repository {
+        /// The directory holding the repository's `.git`.
+        root: PathBuf,
+        /// Its Git directory,
+        /// which the removal deletes with it.
+        git_dir: PathBuf,
+    },
 }
 
 /// What:
-///  The worktrees a removal of `target` takes,
-///  `target` first,
+///  The things a removal of `target` takes:
+///  the target,
+///  every worktree this repository registers inside it,
+///  and every repository inside the directories it ignores,
 ///  or the reason one of them cannot be read.
 /// Why:
 ///   One list,
 ///  made once,
 ///  is what keeps every question of a removal about the same set:
 ///  a question that walked its own list would keep or miss a worktree the others do not know about.
-///  The outer worktree comes first, so a report about it reads first.
+///  The worktrees come first, so a report about the target reads first.
+///  The look for repositories is the ignored tree the removal is about to delete,
+///  and it answers with a reason when it cannot finish, because nothing then proves there is none
+///  (`repositories_inside_ignored_directories`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function theWorktreesItTakes({ commonDir, target, admin }): Taken[]; // throws the reason
+/// function theThingsARemovalTakes({ context, commonDir, target, admin }): Taken[]; // throws the reason
 /// ```
 ///
 /// # Errors
 ///
 /// The words for a registration that cannot be listed or read,
-/// which may name a worktree inside `target`.
-pub(crate) fn the_worktrees_it_takes(common_dir: &Path, target: &Path, admin: &Path) -> Result<Vec<Taken>, String> {
-    let mut taken: Vec<Taken> = vec![Taken { root: target.to_path_buf(), admin: admin.to_path_buf() }];
+/// and for a look at the ignored tree that could not finish.
+pub(crate) fn the_things_a_removal_takes(
+    context: &crate::transaction_git::GitContext,
+    common_dir: &Path,
+    target: &Path,
+    admin: &Path,
+) -> Result<Vec<Taken>, String> {
+    let mut taken: Vec<Taken> = vec![Taken::Worktree { root: target.to_path_buf(), admin: admin.to_path_buf() }];
     for one in registrations_a_removal_takes(common_dir, target)? {
-        taken.push(Taken { root: one.worktree, admin: one.admin });
+        taken.push(Taken::Worktree { root: one.worktree, admin: one.admin });
+    }
+    // The look starts a Git that reads the worktree's index, and a worktree whose index is no plain file is one this
+    // program must not hand to a Git at all: the question about hidden edits refuses it with its own words, and the look
+    // would only wait for a writer that may never come (`SPEC.md`, "Every wait has a bound";
+    // a review of `528279d099`, finding 2). So no look is made where the index is there and is no plain file.
+    let index: PathBuf = admin.join("index");
+    let index_is_readable: bool = match std::fs::symlink_metadata(index.as_path()) {
+        Err(_absent) => true,
+        Ok(metadata) => metadata.is_file(),
+    };
+    if !index_is_readable {
+        return Ok(taken);
+    }
+    for relative in crate::worktree_removal_takes::repositories_inside_ignored_directories(context, target, admin)? {
+        let root: PathBuf = target.join(std::ffi::OsString::from_vec(relative.clone()));
+        if root == target {
+            continue;
+        }
+        let git_dir: PathBuf = repository_git_directory(root.as_path())?;
+        taken.push(Taken::Repository { root, git_dir });
     }
     return Ok(taken);
+}
+
+/// What:
+///  The Git directory of the repository whose working tree is `root`,
+///  or the reason it cannot be named.
+/// Why:
+///   A `.git` is a directory of the repository's own,
+///  a file that names one elsewhere (a worktree of that other repository),
+///  or a link;
+///  and a name this program cannot read is the reason the removal stops, because it may hold a repository's Git work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function repositoryGitDirectory(root): string; // throws the reason
+/// ```
+fn repository_git_directory(root: &Path) -> Result<PathBuf, String> {
+    let pointer: PathBuf = root.join(".git");
+    let metadata: std::fs::Metadata = std::fs::metadata(pointer.as_path())
+        .map_err(|error| return format!("the repository record {} cannot be read ({error})", pointer.display()))?;
+    if metadata.is_dir() {
+        return std::fs::canonicalize(pointer.as_path()).map_err(|error| return format!("the Git directory of {} cannot be resolved ({error})", root.display()));
+    }
+    let text: Vec<u8> = std::fs::read(pointer.as_path()).map_err(|error| return format!("the repository record {} cannot be read ({error})", pointer.display()))?;
+    let line: &[u8] = text.trim_ascii();
+    let Some(named) = line.strip_prefix(b"gitdir: ") else {
+        return Err(format!("the repository record {} names no Git directory", pointer.display()));
+    };
+    let spelled: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(named.to_vec()));
+    let resolved: PathBuf = if spelled.is_absolute() { spelled } else { root.join(spelled) };
+    return std::fs::canonicalize(resolved.as_path())
+        .map_err(|error| return format!("the Git directory {} names cannot be resolved ({error})", pointer.display()));
 }
 
 /// The list of what a removal takes stays out of the release executable.

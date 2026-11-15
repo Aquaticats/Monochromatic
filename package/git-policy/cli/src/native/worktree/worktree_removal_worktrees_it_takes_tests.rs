@@ -7,8 +7,8 @@
 //! Each control states one answer the list gives,
 //! because every question of every route is a question about this list.
 
-use super::{Taken, the_worktrees_it_takes};
-use crate::test_support::{fixture, git, remove, repository};
+use super::{Taken, the_things_a_removal_takes};
+use crate::test_support::{fixture, git, git_context, remove, repository};
 use std::path::PathBuf;
 
 /// What:
@@ -25,7 +25,10 @@ fn a_removal_of_a_worktree_with_none_inside_takes_it_alone() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
     let target: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("the worktree's real path");
     let admin: PathBuf = common.join("worktrees").join("topic");
-    assert_eq!(the_worktrees_it_takes(common.as_path(), target.as_path(), admin.as_path()), Ok(vec![Taken { root: target, admin }]));
+    assert_eq!(
+        the_things_a_removal_takes(&git_context(), common.as_path(), target.as_path(), admin.as_path()),
+        Ok(vec![Taken::Worktree { root: target, admin }])
+    );
     remove(root.as_path());
 }
 
@@ -47,11 +50,11 @@ fn a_removal_takes_the_worktree_registered_inside_it() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
     let target: PathBuf = std::fs::canonicalize(outer.as_path()).expect("the worktree's real path");
     let inner_real: PathBuf = std::fs::canonicalize(inner.as_path()).expect("the nested worktree's real path");
-    let taken: Vec<Taken> = the_worktrees_it_takes(common.as_path(), target.as_path(), common.join("worktrees/outer").as_path()).expect("the registrations can be read");
+    let taken: Vec<Taken> = the_things_a_removal_takes(&git_context(), common.as_path(), target.as_path(), common.join("worktrees/outer").as_path()).expect("the registrations can be read");
     assert_eq!(taken.len(), 2, "the target and the worktree inside it: {taken:?}");
-    assert_eq!(taken[0].root, target, "the target comes first");
-    assert_eq!(taken[1].root, inner_real, "and the worktree inside it after it");
-    assert_eq!(taken[1].admin, common.join("worktrees/inner"), "with its own Git directory");
+    assert_eq!(taken[0], Taken::Worktree { root: target.clone(), admin: common.join("worktrees/outer") }, "the target comes first");
+    assert_eq!(taken[1], Taken::Worktree { root: inner_real.clone(), admin: common.join("worktrees/inner") }, "and the worktree inside it after it");
+    
     remove(root.as_path());
 }
 
@@ -72,7 +75,7 @@ fn an_unreadable_registration_is_the_reason_no_list_is_given() {
     let target: PathBuf = std::fs::canonicalize(outer.as_path()).expect("the worktree's real path");
     let registration: PathBuf = common.join("worktrees/outer/gitdir");
     std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a registration nothing may read");
-    let refused: Result<Vec<Taken>, String> = the_worktrees_it_takes(common.as_path(), target.as_path(), common.join("worktrees/outer").as_path());
+    let refused: Result<Vec<Taken>, String> = the_things_a_removal_takes(&git_context(), common.as_path(), target.as_path(), common.join("worktrees/outer").as_path());
     assert!(refused.is_err(), "a registration this program cannot read is the reason nothing is removed");
     std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o644)).expect("readable again");
     remove(root.as_path());

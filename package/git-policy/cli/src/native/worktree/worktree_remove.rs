@@ -56,7 +56,7 @@ use crate::subvolume_remove_walk::{Boundary, empty_directory, find_boundary_belo
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::{check_clean, check_clean_by_content};
 use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
-use crate::worktree_removal_worktrees_it_takes::{Taken, the_worktrees_it_takes};
+use crate::worktree_removal_worktrees_it_takes::{Taken, the_things_a_removal_takes};
 use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
@@ -285,7 +285,7 @@ fn git_work_in_the_way(request: &RemoveRequest<'_>, admin: &Path) -> Option<Stri
     // The questions below are asked of every worktree the removal takes, from the one list of them: a removal of an
     // outer worktree deletes the checkouts and Git directories of the worktrees registered inside it, so a question
     // asked of the outer directory alone misses their Git work (a review of `8858f843ee`, finding 2).
-    let taken: Vec<Taken> = match the_worktrees_it_takes(request.common_dir, target, admin) {
+    let taken: Vec<Taken> = match the_things_a_removal_takes(request.context, request.common_dir, target, admin) {
         Ok(found) => found,
         Err(reason) => {
             let report: String = crate::worktree_removal_typed_git_work::git_work_refusal(target, [format!("nothing proves which worktrees this removal takes, so nothing is removed: {reason}")].as_slice());

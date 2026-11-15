@@ -12,7 +12,7 @@
 //! ```
 
 use super::hidden_edits_beneath;
-use crate::worktree_removal_worktrees_it_takes::the_worktrees_it_takes;
+use crate::worktree_removal_worktrees_it_takes::the_things_a_removal_takes;
 use crate::test_support::{fixture, git, git_context, repository};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -32,7 +32,7 @@ impl Fixture {
     /// What a removal of the linked worktree would leave behind a mark.
     fn hidden(&self) -> Result<Vec<String>, String> {
         let context: GitContext = git_context();
-        let taken = the_worktrees_it_takes(self.common.as_path(), self.worktree.as_path(), self.admin.as_path()).expect("the registrations can be read");
+        let taken = the_things_a_removal_takes(&context, self.common.as_path(), self.worktree.as_path(), self.admin.as_path()).expect("the registrations can be read");
         return hidden_edits_beneath(&context, taken.as_slice(), self.common.as_path());
     }
 

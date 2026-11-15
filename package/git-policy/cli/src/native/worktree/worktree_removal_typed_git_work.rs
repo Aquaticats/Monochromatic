@@ -82,7 +82,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_identity::{WorktreeIdentity, common_directory};
 use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
 use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
-use crate::worktree_removal_worktrees_it_takes::{Taken, the_worktrees_it_takes};
+use crate::worktree_removal_worktrees_it_takes::{Taken, the_things_a_removal_takes};
 use crate::worktree_remove_plan::{RemovalShape, removal_shape};
 use crate::worktree_remove_registry::{OperandWorktree, Registration, git_worktree_for_operand, registered_worktree};
 use std::ffi::OsString;
@@ -199,22 +199,40 @@ struct Judged {
 fn the_removal_it_judges(command: &ResolvedCommand, context: &GitContext) -> Result<Option<Judged>, String> {
     if command.route == Route::ShellAlias {
         let Some(shell) = command.shell_command.as_ref() else {
-            // A shell command this crate cannot read as one Git command line. It is not shown to be harmless, so the
-            // text decides: one that names a removal of a worktree is refused, and one that names none is Git's.
-            let text: &[u8] = command.shell_value.as_deref().unwrap_or(&[]);
-            return match the_text_names_a_removal(text) {
-                true => Err(format!(
-                    "this alias runs `{}`, which names a removal of a worktree, and nothing here can read the command it runs as one plain Git command line",
-                    String::from_utf8_lossy(text).trim()
-                )),
-                false => Ok(None),
-            };
+            // The alias's own command cannot be read as one Git command line, and a text a shell will run cannot be read
+            // to the end: whatever a reader parses, a shell can build the words another way
+            // (`action=remove; git worktree $action`, a substitution, a function, `eval`, a second alias).
+            // Nothing of this program can stand inside Git's shell either: the wrapper never starts itself as a shim and
+            // never writes shell text (`doc/planning/cli-git-no-self-invocation.md`).
+            // So an alias whose command cannot be read is not shown to be harmless, and the project's rule refuses it
+            // rather than forwarding a removal blind (a review of `746040080c`, findings 1 and 2).
+            return Err(format!(
+                "this alias's own command, `{}`, is not one Git command line this program can read, and a shell can build words another way",
+                String::from_utf8_lossy(command.shell_value.as_deref().unwrap_or(&[])).trim()
+            ));
         };
         // The words of the command line Git's shell runs, its own global options included: they change where and how the
         // removal runs, so they are followed and not a reason to stop reading.
         let layout: crate::global_arguments::GlobalLayout = crate::global_arguments::global_layout(shell.as_slice());
         if layout.outcome != crate::global_arguments::GlobalOutcome::Command {
             return Err(String::from("the command inside this alias is not one Git command this program can read"));
+        }
+        // An inner option that moves the command to another directory or names another repository moves the removal away
+        // from the repository this invocation judges, and nothing here reads a second repository's location:
+        // so such an alias is refused rather than judged against the wrong repository
+        // (a review of `746040080c`, finding 1: the look-up and the checks were the invoking repository's, while real Git
+        // removed a worktree of the repository the inner `-C` named).
+        // Both spellings Git accepts: the options that take a separate value, and the same names carrying one inline.
+        let moving: Vec<&[u8]> = vec![b"-C", b"--git-dir", b"--work-tree", b"--namespace", b"--attr-source"];
+        let moving_inline: Vec<&[u8]> = vec![b"--git-dir=", b"--work-tree=", b"--namespace=", b"--attr-source="];
+        let moves: bool = crate::global_arguments::option_tokens(&shell[..layout.prefix_len]).iter().any(|token| {
+            let bytes: &[u8] = token.as_encoded_bytes();
+            return moving.contains(&bytes) || moving_inline.iter().any(|prefix| return bytes.starts_with(prefix));
+        });
+        if moves {
+            return Err(String::from(
+                "it carries a global option of its own that moves the removal to another directory or names another repository, and this program judges the repository the command was invoked in",
+            ));
         }
         // The shell's own directory, not the caller's: Git changes to the top of the working tree before it starts it,
         // and the command's own `-C` chain then moves from there.
@@ -238,43 +256,6 @@ fn the_removal_it_judges(command: &ResolvedCommand, context: &GitContext) -> Res
         subcommand_index: command.subcommand_index,
         start,
     }));
-}
-
-/// What:
-///  Whether the text of a shell alias names a removal of a worktree.
-/// Why:
-///  Git runs such an alias in its own shell, with real Git first on that shell's path,
-///  so no guard inside the wrapper sees the removal;
-///  and a text this crate cannot read as one Git command line cannot be judged.
-///  Between forwarding blind and refusing,
-///  the project's rule decides: where the wrapper would destroy what a person made it refuses,
-///  so a text that names a removal at all is refused,
-///  and one that names none is forwarded because no removal can come of it.
-///  The words are read the way a shell separates them,
-///  over the characters that separate words in a shell command
-///  (`worktree remove`, `worktree  remove`, `worktree;remove`, `"worktree" remove`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// theTextNamesARemoval(text) // /worktree[\s"'`;|&()]+remove/ over the text
-/// ```
-fn the_text_names_a_removal(text: &[u8]) -> bool {
-    let mut words: Vec<Vec<u8>> = Vec::new();
-    let mut current: Vec<u8> = Vec::new();
-    for &byte in text {
-        let separator: bool = matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | b'"' | b'\'' | b';' | b'|' | b'&' | b'(' | b')' | b'<' | b'>' | b'`');
-        if separator {
-            if !current.is_empty() {
-                words.push(std::mem::take(&mut current));
-            }
-            continue;
-        }
-        current.push(byte);
-    }
-    if !current.is_empty() {
-        words.push(current);
-    }
-    return words.windows(2).any(|pair| return pair[0] == b"worktree" && pair[1] == b"remove");
 }
 
 /// What:
@@ -433,7 +414,7 @@ pub(crate) fn typed_removal<F: RepositoryFacts>(command: &ResolvedCommand, escap
         }
     };
     // One list of what this removal takes, and every question goes over it.
-    let taken: Vec<Taken> = match the_worktrees_it_takes(common_dir.as_path(), target.as_path(), registration.admin.as_path()) {
+    let taken: Vec<Taken> = match the_things_a_removal_takes(&context, common_dir.as_path(), target.as_path(), registration.admin.as_path()) {
         Ok(found) => found,
         Err(reason) => return TypedRemoval::Refused(git_work_refusal(target.as_path(), [format!("nothing proves which worktrees this removal takes, so nothing is removed: {reason}")].as_slice())),
     };
@@ -568,7 +549,7 @@ fn unprovable_operand_refusal(words: &[OsString], subcommand_index: usize, reaso
 }
 
 /// What:
-///  The report of an alias refused because the command its shell runs cannot be read, and its text names a removal.
+///  The report of an alias refused because the command its shell runs cannot be read as one Git command line.
 /// Why:
 ///  Git runs such an alias in its own shell with real Git first on that shell's path,
 ///  so no guard of this program sees the removal, and a command this program cannot read is not shown to be harmless:
@@ -581,14 +562,14 @@ fn unprovable_operand_refusal(words: &[OsString], subcommand_index: usize, reaso
 /// ```ts
 /// unreadableAliasRefusal(command, reason) // the report
 /// ```
-fn unreadable_alias_refusal(command: &ResolvedCommand, reason: &str) -> String {
+pub(crate) fn unreadable_alias_refusal(command: &ResolvedCommand, reason: &str) -> String {
     let typed: String = command.arguments.iter().map(|word| return word.to_string_lossy().into_owned()).collect::<Vec<String>>().join(" ");
     let text: String = String::from_utf8_lossy(command.shell_value.as_deref().unwrap_or(&[])).trim().to_owned();
     let quoted_text: String = crate::shell_quote::shell_quote(text.as_bytes());
     let mut escaped: Vec<String> = vec![String::from("git"), String::from("--no-enforce-worktree")];
     escaped.extend(command.arguments.iter().map(|word| return crate::shell_quote::shell_quote(word.as_encoded_bytes())));
     return format!(
-        "{PREFIX}the alias {} runs {quoted_text}, which names a removal of a worktree, and nothing here can read the command it runs as one plain Git command line, so nothing was removed: {reason}. Run the removal directly, or run this alias as real Git runs it with `{}`, which the guard does not ask about.",
+        "{PREFIX}the alias {} runs {quoted_text}, and nothing here can check a removal it runs against the repository this command runs in, so nothing was run: {reason}. Run the removal directly, or run this alias as real Git runs it with `{}`, which the guard does not ask about.",
         typed,
         escaped.join(" ")
     );

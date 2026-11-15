@@ -72,6 +72,91 @@ const SHOWN_DIGITS: usize = 12;
 ///  and a bound keeps a directory holding more than this from costing the merge a longer walk than the removal itself.
 const WALKED_ENTRIES: usize = 50_000;
 
+/// How long the look for repositories below a worktree's ignored directories may take.
+/// Why:
+///   The removal of a finished worktree with a large ignored dependency tree is the common removal on this machine,
+///  so the look must finish inside the removal's own order of cost;
+///  measured on a worktree whose ignored tree is a real dependency tree:
+///  `keep/measurement-the-look-for-repositories.log` of the run that answered the review of `746040080c`.
+///  A look that cannot finish is no proof that no repository is there, and the caller refuses on that answer.
+const LOOK_BOUND: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  The repositories inside the directories `worktree` ignores,
+///  as paths relative to the worktree,
+///  or the reason the look could not finish.
+/// Why:
+///   A removal deletes what Git ignores,
+///  and a repository inside such a directory holds commits and branches, which are Git work and not a file Git ignores
+///  (a review of `746040080c`, finding 3).
+///  The look walks only the ignored directories, which the removal is about to delete,
+///  and it is bounded by an entry count and by `LOOK_BOUND`:
+///  a walk that cannot finish answers with the reason, because nothing then proves no repository is there,
+///  while a directory tree with no repository in it never turns into a refusal, because a finished walk finds none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// repositoriesInsideIgnoredDirectories(context, worktree, admin) // string[] | throws the reason
+/// ```
+pub(crate) fn repositories_inside_ignored_directories(context: &GitContext, worktree: &Path, admin: &Path) -> Result<Vec<Vec<u8>>, String> {
+    let ignored: Vec<Vec<u8>> = ignored_paths(context, worktree, admin)?;
+    let directories: BTreeSet<Vec<u8>> = ignored_directories(ignored.as_slice());
+    let started: std::time::Instant = std::time::Instant::now();
+    return repositories_beneath_within(worktree, directories.iter(), started);
+}
+
+/// What:
+///  The repositories below `directories`, relative to `worktree`,
+///  or the reason the walk could not finish.
+/// Why:
+///  The same walk the removal's line makes,
+///  with the two bounds the guard needs an answer from:
+///  the entry count, and the time since `started`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function repositoriesBeneathWithin(worktree, directories, started): string[]; // throws the reason
+/// ```
+fn repositories_beneath_within<'a>(worktree: &Path, directories: impl Iterator<Item = &'a Vec<u8>>, started: std::time::Instant) -> Result<Vec<Vec<u8>>, String> {
+    let mut roots: BTreeSet<Vec<u8>> = BTreeSet::new();
+    let mut stack: Vec<(Vec<u8>, PathBuf)> = Vec::new();
+    for name in directories {
+        let shown: String = String::from_utf8_lossy(name.as_slice()).into_owned();
+        stack.push((name.clone(), worktree.join(shown)));
+    }
+    let mut read: usize = 0;
+    while let Some((relative, directory)) = stack.pop() {
+        if started.elapsed() > LOOK_BOUND {
+            return Err(format!(
+                "the look for repositories below {} did not finish within {LOOK_BOUND:?}, so nothing proves there is none",
+                worktree.display()
+            ));
+        }
+        let Ok(entries) = std::fs::read_dir(directory.as_path()) else { continue };
+        for entry in entries.flatten() {
+            read += 1;
+            if read > WALKED_ENTRIES {
+                return Err(format!(
+                    "the look for repositories below {} read more than {WALKED_ENTRIES} entries of the ignored tree, so nothing proves there is none",
+                    worktree.display()
+                ));
+            }
+            let name: OsString = entry.file_name();
+            let mut child: Vec<u8> = relative.clone();
+            child.push(SEPARATOR);
+            child.extend_from_slice(name.as_encoded_bytes());
+            if name == OsStr::new(GIT_POINTER) {
+                roots.insert(relative.clone());
+                continue;
+            }
+            if entry.file_type().map(|kind| return kind.is_dir()).unwrap_or(false) {
+                stack.push((child, entry.path()));
+            }
+        }
+    }
+    return Ok(roots.into_iter().collect());
+}
+
 /// What:
 ///  What a removal of `worktree` deletes besides its tracked files,
 ///  in the words of the line that reports the removal.

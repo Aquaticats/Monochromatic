@@ -13,7 +13,7 @@
 //! ```
 
 use super::{NAMING_RECORD_FILES, NAMING_RECORDS, detached_head, git_work_a_removal_would_strand};
-use crate::worktree_removal_worktrees_it_takes::the_worktrees_it_takes;
+use crate::worktree_removal_worktrees_it_takes::the_things_a_removal_takes;
 use crate::test_support::{fixture, git, git_context, git_text, repository};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ impl Fixture {
         let context: GitContext = git_context();
         // The list of what this removal takes is made once, here as in the guard: a registration it cannot read is the
         // reason nothing is removed, before any question is asked.
-        let taken = the_worktrees_it_takes(self.common.as_path(), self.worktree.as_path(), self.admin.as_path())?;
+        let taken = the_things_a_removal_takes(&context, self.common.as_path(), self.worktree.as_path(), self.admin.as_path())?;
         return git_work_a_removal_would_strand(&context, self.common.as_path(), taken.as_slice());
     }
 
