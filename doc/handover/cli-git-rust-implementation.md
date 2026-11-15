@@ -738,6 +738,28 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T23:58:21-05:00,
+  from two authors' reports of that hour,
+  none blocking work:
+  - The drawn shadow tree
+    (branch tip `49d93515cf`,
+    in review):
+    when the tree goes after Git has made the commit and before the wrapper reads it back,
+    the wrapper now builds once more so that the commit lands.
+    The commit Git first made stays in the repository with nothing pointing at it,
+    and the command line runs again,
+    so an editor is asked a second time and a signer signs again.
+    Is that the price wanted for a commit that never fails there?
+  - mpm-shadow's install that removes no version in use
+    (branch tip `392540cb45`,
+    in review):
+    a stopped child's whole process group is ended through the shell's `kill`,
+    since a direct call needs `libc` or `rustix` in `rust-catalog.toml`.
+    Is that dependency wanted?
+  - The same branch:
+    an install that meets a removal of its own archives is refused after two seconds.
+    Is a refusal right there,
+    and is two seconds the bound?
 - Added 2026-11-14T23:29:43-05:00,
   from the run on two starts of one run name
   (driver,
@@ -1373,6 +1395,94 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Three authors answer and go to review (the drawn tree, mpm-shadow's install, the discarding commands); the brief writer for tests goes back; this session's own check stopped a launcher that was ending (2026-11-14T23:58:21-05:00)
+
+Not final and not approved:
+what three authors and one review report,
+how the coordinating session weighed them,
+what it queued,
+and one error of its own.
+
+- **This session's launcher check stopped a launcher inside its end work.**
+  At 23:56:43 the check that stops launchers which outlived their run found the discarding author's launcher with no unit going and a summary newer than itself,
+  and stopped it;
+  that summary was written at 23:56:44,
+  so the run had ended in that second and the launcher was doing what a launcher does after a run.
+  Read afterwards:
+  the branch stands at the tip its report names and is level with its remote,
+  its worktree is there and clean,
+  its summary is written.
+  What the stop cut short is not known beyond that.
+  The check now treats a summary younger than five minutes as a run that is ending,
+  the reason written at the line,
+  the five minutes a margin chosen by hand.
+- **The drawn shadow tree**,
+  its author's fifth run,
+  ended 23:53:21 at `49d93515cf`.
+  Both of the review's scripts reproduced at the old tip.
+  The window after Git's success now builds once more and lands
+  (at the price in "Questions kept for the owner's return");
+  the fixtures reach a pathname socket whatever `HOME` is,
+  and each control says plainly when it did not run.
+  Measured:
+  a handed tree saves 1 to 5 ms on a build.
+  It names two failures of `main`'s in `landing/`:
+  `a_lane_that_panics_stops_its_lane_and_the_round_says_so`,
+  failing alone,
+  which also fails in the gate
+  (the gate's log on `92385d3581`),
+  and `owed_push`,
+  passing alone.
+  Its review is queued second.
+- **mpm-shadow's install that removes no version in use**,
+  its author's third run,
+  ended 23:56:17 at `392540cb45`.
+  By the part of its long report read here:
+  the six findings answered,
+  controls quoted with their fixes out
+  (the fifth finding's steps within one removal have none,
+  and it says why);
+  no measurable cost on either path over twenty interleaved rounds;
+  858 of 858 tests passing.
+  It reports one mistake of its own,
+  a `git restore` that threw away uncommitted work,
+  restored from copies it had saved.
+  Its review is queued third.
+- **The discarding commands**,
+  their author's ninth run,
+  ended 23:56:44 at `0b67e7ccae`,
+  its report whole.
+  The clean looks again after every save,
+  three times at most,
+  and refuses with every move put back when repositories keep appearing;
+  marked edits are compared by their bytes,
+  a guarded `reset --hard` with 1,000 marked edits falling from 3,592 ms to 169 ms by batching;
+  every option the guard reads takes its last spelling,
+  checked against real Git by a table;
+  a move that gave no answer is named as possibly at either place.
+  It measured that this machine's repositories hold no marked entry at all.
+  The clean costs 66 ms against 50 ms,
+  for the second look.
+  Its review is queued fourth.
+- **The review-brief writer for a change to tests alone** (`f5c937ed93`),
+  its fifth review,
+  ended 23:52:15,
+  twelve of twelve files,
+  two things reproduced:
+  two branches whose names give one change name share one status,
+  so a failed brief is written over by the other's success;
+  and a name that is not UTF-8 and holds a backtick breaks the brief's code span.
+  Both weighed as worth their fix and both in what the last round added.
+  The author is resumed
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-fifth-review-of-2026-11-14-prompt.md`,
+  queued seventh).
+- Read at 23:56:43:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no process worked inside a worktree whose run was not going;
+  18 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 74 entries at 23:58:21.
 
 ##### Two starts of one run name still meet at the unit, the worktree and the branch; the add's staging removes by name; both go back (2026-11-14T23:52:14-05:00)
 
