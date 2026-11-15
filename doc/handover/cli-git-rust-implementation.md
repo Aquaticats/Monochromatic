@@ -1374,6 +1374,88 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two starts of one run name still meet at the unit, the worktree and the branch; the add's staging removes by name; both go back (2026-11-14T23:52:14-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **Two starts of one run name** (driver,
+  `719876dd2b`),
+  its review,
+  ended 23:46:47,
+  six of six files,
+  four things:
+  two starts get two folders and still ask for one unit,
+  so one is refused by the manager and its folder has no summary
+  (reproduced with the real launcher and a stand-in that holds a unit name to one);
+  an add that fails takes over the worktree another start made in between,
+  on a clean status alone,
+  and the second start's commit lands on the first one's branch
+  (reproduced with real Git);
+  an add that was killed during its checkout is accepted on the next start as "already there",
+  with staged deletions nobody made
+  (reproduced);
+  and at 2^53 the run number stops rising and the claim tries one taken folder with no end
+  (by reading,
+  with a probe of the arithmetic).
+- **Weighed**:
+  the first three worth their fix and one thing,
+  a start deciding on a look and acting on a name with its own claim not asked;
+  the fourth cheap to bound.
+  The author is resumed
+  (`~/temp/agent/pi-runs/two-starts-of-one-run-name-answers-its-review-of-2026-11-14-prompt.md`,
+  queued sixth),
+  asked to make the claim the root of every name a start takes,
+  and to list who reads a unit's name today
+  (the scratch queue scripts among them,
+  to read and not to change)
+  before it changes that name's form.
+  For this session's own queue the first finding does not bite today:
+  the scratch starter starts no entry while a unit of its name is going.
+- **An add never skips the Cargo repair** (`22c55524a6`),
+  its ninth review,
+  ended 23:49:39,
+  thirteen of thirteen files.
+  Nothing against the exclude append,
+  the lease or the lock.
+  Four things in the staging of a worktree's build state:
+  a directory already standing at the job's target name is taken for the job's own and removed whole
+  (by reading,
+  not run);
+  a dangling symbolic link at the staging name is renamed over
+  (by reading,
+  not run);
+  a workspace with a path dependency outside the worktree does not resolve in the mirror,
+  a limit the author has named twice,
+  and may then be told of a problem with the lock
+  (reproduced);
+  and the names a second filling takes for itself are not excluded,
+  so `git add --all` stages them
+  (reproduced with real Git).
+- **Weighed**:
+  the first two are again a name taken for proof of ownership,
+  the rule every removal in this project met this week;
+  the fourth is a rule written for the ordinary name and not for its twin;
+  the third stays a limit only if its words are right and nothing is lost.
+  The author is resumed,
+  its ninth report whole
+  (`~/temp/agent/pi-runs/add-never-skips-the-cargo-repair-answers-its-ninth-review-of-2026-11-14-prompt.md`,
+  queued fifth),
+  with a control first for each of the two that were not run.
+  This branch has now had nine reviews,
+  each by a reader new to it and each finding something the one before did not;
+  the findings are concrete and get smaller,
+  and no count of rounds is taken as a sign of the end.
+- Read at 23:50:59:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  21 runs going.
+  Neither resumed session is named by the credential scan.
+  The queue held 71 entries at 23:52:14.
+
 ##### `0.6.1-alpha.37` is installed, its sample commit 1,708 ms, and its gate is running (2026-11-14T23:48:03-05:00)
 
 Not final and not approved:
