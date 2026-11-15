@@ -1317,6 +1317,256 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal's fifth review finds one thing: a commit only a worktree's own reflog names is lost with the removal (2026-11-14T20:46:41-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The landed removal's guard** (`2596b5d164`),
+  fifth review,
+  the first by Kimi,
+  ended 20:41:34,
+  twenty of twenty files,
+  the program built from the tree it read.
+  One thing,
+  reproduced:
+  the guard looks at the commit a detached `HEAD` names now and at the worktree's own references,
+  and not at the worktree's `HEAD` reflog,
+  which goes with the administrative directory.
+  A commit made on a detached `HEAD` and then reset away is left nameless by an unforced removal,
+  and `git gc --prune=now` then deletes it.
+  The same commit while `HEAD` still names it is refused.
+- **Weighed**:
+  worth its fix,
+  since a reflog is how a person takes a reset back.
+  The reviewer's remedy is to refuse the removal.
+  That is one way to meet the requirement and not the only one:
+  a refusal would stand in the way of the wrapper's own sweep of finished worktrees each time,
+  where giving what the reflog alone names a name that survives loses nothing and stops nobody.
+  The author is resumed,
+  asked to measure how many real worktrees hold such a commit and to weigh both before building,
+  with keeping put as this session's suggestion and not as a requirement,
+  and to say so plainly if the choice cannot be made from the project's records
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+- **The handover commits of 20:42:39 and 20:46:58** took 950 ms and 1,314 ms by the clock on either side,
+  with load averages of 23.4 and 11.7.
+  Six commits under `0.6.1-alpha.36` have taken 762 to 1,314 ms;
+  the timing of each handover commit ends here,
+  the install's sample of 2,486 ms having no second like it.
+- Read at 20:45:55:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going.
+  The resumed session is not named by the credential scan.
+
+##### The gate on `0.6.1-alpha.36` fails the standing 28 and no other; its first six minutes are clean (2026-11-14T20:42:01-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **The gate on `36fd29ab16`** (`0.6.1-alpha.36`),
+  started 20:20:38,
+  log written until 20:41:59:
+  `9108 tests run: 9080 passed (5 slow), 28 failed, 28 skipped`,
+  `gate-exit-status=1`.
+  The 28 are the 28 of the gate on `5eca8b84cf`:
+  27 failed in all four gates before it,
+  and `landing::service_land::owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it` in three of the four.
+  So pass 46 brought no failure the gate can see.
+  The comparison and the panics are kept:
+  `~/temp/agent/gate/keep/failing-tests-of-the-gate-on-36fd29ab16-against-the-four-gates-before-it.txt`,
+  `…/panics-of-the-failing-tests-of-the-gate-on-36fd29ab16-2026-11-14T202038.txt`.
+- **The two tests that each failed in one gate alone pass here**:
+  the process scan's test
+  (the gate on `0.6.1-alpha.35`)
+  and the control of two adds at once
+  (the gate on `0.6.1-alpha.34`).
+  Each stays with the run that has it,
+  as a timing met once.
+- **One test more is skipped than in the gates before** (28, where it was 27).
+  The gate's log names no skipped test
+  (a search of two gate logs for `SKIP` lines found none in either),
+  so which one it is cannot be read from the log;
+  pass 46's report is where to look,
+  and no run has that as its task.
+- **`0.6.1-alpha.36`**,
+  the user journal from 20:20:10 to 20:26:10:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  two starts saying `0.6.1-alpha.36`,
+  each the installed program in its own unit.
+- **The handover commit of 20:40:44** took 1,210 ms by the clock on either side,
+  with a load average of 33.8.
+  Four commits under `0.6.1-alpha.36` have now taken 762 to 1,253 ms,
+  so the install's sample of 2,486 ms stands alone.
+
+##### The fix for six of the gate's failures is reviewed with nothing found and goes to integration pass 48 (2026-11-14T20:40:26-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **After-commit work that settles after a push that fails and after a pnpm that fails** (`f71fa7c363`),
+  its review,
+  on Kimi,
+  ended 20:35:16:
+  "No concrete defects found".
+  Its file states the range `main...f71fa7c363` and two of two code files read in full with the whole diff.
+  It ran three things in capped scopes under a disposable `HOME`:
+  the new control of the slow lane,
+  and two of the gate's failing controls the change is for
+  (`a_failing_pnpm_never_fails_the_add`,
+  `an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing`),
+  each passing.
+- **Weighed**:
+  taken as a clean review of a small change.
+  It read the range it was given and ran the change's own claim.
+  It planted no fault of its own,
+  so what it shows is that the claim holds where it looked,
+  and the integration pass's whole-suite run and the gate after the release are what test it further.
+- **Integration pass 48** is queued at the head with that one branch
+  (`~/temp/agent/pi-runs/integration-pass-48-with-the-slow-lane-that-serves-a-wake-while-it-waits-for-a-claim-prompt.md`),
+  asked to say for each of the six controls whether it passes at its tip,
+  and to stop what it starts before it ends.
+- **The handover commit of 20:32:19** took 820 ms by the clock on either side,
+  with a load average of 24.5.
+- Read at 20:39:38:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going.
+  The gate on `0.6.1-alpha.36` had given no verdict yet.
+  The queue held 67 entries at 20:40:26.
+
+##### The push of a branch not checked out goes back a fifth time: a person's file written over, and a published merge that the next commit would reverse (2026-11-14T20:31:55-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The push of a branch that is not checked out** (`36cae084ae`),
+  fifth review,
+  the first by Kimi,
+  ended 20:26:49,
+  fifteen of fifteen files,
+  four things,
+  each by a test it added to a scratch copy and ran:
+  recovery of a merge that already landed installs over a file the person had staged and then unstaged,
+  because a new early return passes the guard for the person's own entries;
+  a `git worktree list` that fails is read as "no worktree holds the branch",
+  so a branch that is checked out is moved without its checkout,
+  and the next commit there reverses the published merge;
+  a stop between the move of the reference and the look for a holder leaves a raced checkout with no record for recovery to finish,
+  the window the author's last report had called an open question;
+  and a mixed reset in the window before the move makes the index agree with the branch while the merge's bytes stay in the worktree,
+  so the repair does nothing and the next commit puts them on another branch.
+  All four weighed as worth their fix.
+  The author is resumed,
+  told that the record before the move and the sweep it named are the work and not a question,
+  and asked first for the steps of an advance with the record that exists at each
+  (`~/temp/agent/pi-runs/push-of-a-branch-not-checked-out-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+- **The handover commit of 20:27:34** took 762 ms by the clock on either side,
+  with a load average of 21.5.
+- Read at 20:31:19:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going.
+  The resumed session is not named by the credential scan.
+  The queue held 67 entries at 20:31:55.
+
+##### Issue 6293's sixth review finds five things; the count of leftover processes is corrected; a commit under `0.6.1-alpha.36` took 1,253 ms (2026-11-14T20:27:16-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it measured,
+corrected and queued.
+
+- **Issue 6293** (`8da90399b2`),
+  sixth review,
+  the first by Kimi,
+  ended 20:21:18,
+  62 of 62 files,
+  five things,
+  each with a program it ran:
+  a push that reaches one of two destination refs is settled as a failure of both,
+  and the commit reported as not backed up
+  (real Git and the real `named_push`);
+  the socket and PID note of a removed worktree's service are unlinked before its serving function returns,
+  so a sweep takes the service for gone and removes its journal while it can still write;
+  the start through the manager kills the whole group of a service that has claimed its instance and is recovering,
+  with no look at its PID note
+  (two real service processes);
+  every start in one runtime directory writes the same temporary file for the record of the real Git,
+  so one start publishes the other's path;
+  and a bus address that spells the same socket another way is read as another session,
+  which sends journals and retry plans to storage that is cleared at logout.
+  All five weighed as worth their fix.
+  The author is resumed,
+  and told besides that its last run left a wrapper program alive in a scope,
+  which this session stopped at 19:44,
+  and to stop what it starts before it ends
+  (`~/temp/agent/pi-runs/issue-6293-answers-its-sixth-review-of-2026-11-14-prompt.md`).
+- **The count of leftover processes read three worktrees as left that were not**,
+  between 20:12 and 20:26:
+  a run being started
+  (a launcher and no unit yet),
+  the gate's worktree
+  (no Pi run owns it),
+  and a run whose own name begins with `pi-`,
+  whose worktree is `pi-pi-…` and whose unit is `pi-…`.
+  Nothing was stopped on those readings.
+  The script now also counts a worktree as in use when any process inside it belongs to the control group of a Pi run's unit,
+  a launcher or the gate,
+  with the three cases written at its top;
+  run again at 20:26 it named none.
+- **The sample commit of `0.6.1-alpha.36`**:
+  the handover commit of 20:21:23,
+  timed by the clock on either side,
+  took 1,253 ms with a load average of 24.8,
+  inside the range of the installs before it.
+  So the 2,486 ms of the install's sample is one high reading of two.
+  The next rounds' handover commits are timed the same way.
+- Read at 20:25:55:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  The resumed session is not named by the credential scan.
+
+##### `0.6.1-alpha.36` is installed and its gate is running; its sample commit took 2,486 ms, above the seven installs before it (2026-11-14T20:20:38-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.36`** (pass 46):
+  published by 20:20:16,
+  installed here from 20:20:16 to 20:20:36,
+  `--version` answering `0.6.1-alpha.36`.
+  Its gate was started at 20:20:38 on `36fd29ab16`
+  (unit and log `gpc-gate-wrapper-next-alpha-on-36fd29ab16-20261114T202038-0500`).
+  One background command waits,
+  bounded,
+  for the verdict,
+  compares its failing tests with the four gates before it,
+  keeps their panics,
+  and then reads the journal for 20:20:10 to 20:26:10.
+- **Its sample commit took 2,486 ms.**
+  The same sample at the installs of `0.6.1-alpha.30` to `0.6.1-alpha.35`,
+  `0.6.1-alpha.34` among them,
+  took 1,051 to 1,588 ms
+  (`install-of-<version>-output.txt` in the install folder's `keep/`).
+  It is one reading,
+  on a machine with 24 agents going,
+  and inside the rule's five seconds;
+  it is also the first release that writes the watch note before it answers a commit.
+  One reading decides nothing.
+  The handover commits of the next rounds are timed by the clock on either side,
+  and if they stand as far above their like,
+  the pass's own measurement of a commit of one changed file is run again against the installed program.
+
 ##### Pass 46 is in `main` and `0.6.1-alpha.36` is dispatched; the drawn tree's review over its whole range finds a commit that fails (2026-11-14T20:13:23-05:00)
 
 Not final and not approved:
