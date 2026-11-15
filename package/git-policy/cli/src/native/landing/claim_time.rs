@@ -101,13 +101,15 @@ pub struct ClaimTime {
     wall_seconds: u64,
 }
 
-/// Whether `text` is 32 hexadecimal digits,
-/// which is what a boot ID without dashes and a machine ID are.
-/// The boot ID is read in with its dashes removed and is accepted on the same test,
-/// so a reader of an identity asks the same question of a boot part
+/// Whether `text` is 32 hexadecimal digits in either case,
+/// which is what a claim a release before the machine ID wrote may hold.
+/// The identity's boot part is asked a stricter question,
+/// `is_boot_id`,
+/// because a reader of an identity compares two boot parts as text
 /// (`service_index_identity.rs`,
-/// `holder_state_in`).
-pub(crate) fn is_compact_hex_id(text: &str) -> bool {
+/// `holder_state_in`):
+/// two spellings of one boot are no proof of another boot.
+fn is_compact_hex_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH && text.as_bytes().iter().all(u8::is_ascii_hexdigit);
 }
 
@@ -127,22 +129,43 @@ fn is_lowercase_hex_digit(byte: &u8) -> bool {
 }
 
 /// What:
-///  The boot ID of the current boot as the kernel states it,
-/// without dashes;
-/// empty when it cannot be read or is not 32 hexadecimal digits.
+///  Whether `text` is a boot ID in the one spelling the kernel and this wrapper write it:
+///  32 lowercase hexadecimal digits.
 /// Why:
-///  `current_boot_id` reads it once and keeps it.
+///  An identity's boot part is compared with this host's as text,
+/// and a comparison of two spellings of one boot reads as another boot,
+/// which is proof that the holder is gone.
+/// So the part must be in the spelling `read_boot_id` stores and `current_boot_id` answers,
+/// and a part in any other spelling (capitals, say) is no boot this reader can compare.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readBootId = () => { try { return readFileSync(BOOT_ID_PATH, 'utf8').trim().replaceAll('-', ''); } catch { return ''; } }
+/// /^[0-9a-f]{32}$/.test(text)
+/// ```
+pub(crate) fn is_boot_id(text: &str) -> bool {
+    return text.len() == BOOT_ID_LENGTH && text.as_bytes().iter().all(is_lowercase_hex_digit);
+}
+
+/// What:
+///  The boot ID of the current boot as the kernel states it,
+/// lowercase and without dashes;
+/// empty when it cannot be read or is not 32 hexadecimal digits.
+/// Why:
+///   `current_boot_id` reads it once and keeps it,
+///  and every identity written from it carries one spelling,
+///  so this lowers the kernel's text instead of keeping whatever case it printed:
+///  a reader compares two boot parts as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readBootId = () => { try { return readFileSync(BOOT_ID_PATH, 'utf8').trim().replaceAll('-', '').toLowerCase(); } catch { return ''; } }
 /// ```
 fn read_boot_id() -> String {
     let Ok(text) = std::fs::read_to_string("/proc/sys/kernel/random/boot_id") else {
         return String::new();
     };
-    let compact: String = text.trim().replace('-', "");
-    return if is_compact_hex_id(compact.as_str()) { compact } else { String::new() };
+    let compact: String = text.trim().replace('-', "").to_ascii_lowercase();
+    return if is_boot_id(compact.as_str()) { compact } else { String::new() };
 }
 
 /// What:

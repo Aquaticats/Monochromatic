@@ -13,11 +13,14 @@
 //! and a reader that cannot compare like with like answers unknown,
 //! which keeps the lock and proves nothing,
 //! instead of reading a number of another namespace as a local process and calling a live service gone.
-//! Each part after the birth stands in its own place,
-//! so a part that is not the kind of text it stands for is unknown too:
+//! Each part after the birth stands in its own place and in one spelling,
+//! so a part that is not the kind of text it stands for,
+//! or that is that text written another way,
+//! is unknown too:
 //! a writer that cannot read the boot ID of its host leaves that part out,
 //! a boot copied as the kernel prints it carries dashes,
-//! and a machine part with nothing in it names no machine;
+//! a machine part with nothing in it names no machine,
+//! and two spellings of one boot or one start tick are not two boots or two processes;
 //! read as a part of this reader's own,
 //! each would name a boot that has ended,
 //! and the lock of a holder that runs would go.
@@ -29,11 +32,11 @@
 //! const identity = ownIdentity(); const state = holderState(holder, readerView); // 'gone' | 'running' | 'unknown'
 //! ```
 
-/// A boot ID without its dashes,
+/// A boot ID without its dashes and in its one spelling,
 /// a PID namespace number and a machine ID,
-/// the kinds of text the three parts after the birth stand for.
-use crate::claim_time::{current_boot_id, current_machine_id, is_compact_hex_id, is_machine_id};
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
+/// the kinds of text the parts after the birth stand for.
+use crate::claim_time::{current_boot_id, current_machine_id, is_boot_id, is_machine_id};
+use crate::process_identity::{ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity};
 use crate::service_index_marker::marker_of;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -326,7 +329,8 @@ fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>, Option<&str>) 
 ///   A boot that has ended ends every process in it,
 /// whatever the reader's numbering.
 /// Beyond that the reader compares like with like or says unknown:
-/// a part of the text that is not the kind of text it stands for is no part it can compare,
+/// a part of the text that is not the kind of text it stands for, or that is that text in another spelling,
+/// is no part it can compare,
 /// its `/proc` must agree with its own PID,
 /// it must know its boot when the marker names one,
 /// and its PID namespace must be the marker's when the marker names one.
@@ -346,13 +350,17 @@ pub fn holder_state_in(
     //  service's on another machine, so it is never read as gone.
     let Some((pid, birth)) = holder else { return HolderState::Unknown };
     let (identity, boot, scope, machine) = split_birth(birth.as_str());
-    // Every part after the birth stands in its own place, so a part that is not the kind of text it stands for was written
-    //  by another shape of writer: one that cannot read the boot ID of its host leaves that part out and its PID namespace
-    //  stands where the boot belongs, a boot keeps the dashes the kernel prints where a writer copied it as it is, and a
-    //  machine part with nothing in it names no machine. Read as a part that is this reader's, such a text answers `gone`,
-    //  and the lock of a holder that runs is removed, so no part this reader cannot read like for like is compared.
+    // A part of an identity stands for one value in one spelling, so a part written another way is no part this reader
+    //  can compare: two spellings of one boot read as two boots, and a text read as another boot or another process is
+    //  proof that the holder is gone and loses the lock of a Git that runs. A part that is not the kind of text it stands
+    //  for was written by another shape of writer: one that cannot read the boot ID of its host leaves that part out and
+    //  its PID namespace stands where the boot belongs, a boot keeps the dashes the kernel prints where a writer copied
+    //  it as it is, and a machine part with nothing in it names no machine.
+    if !is_birth_identity(identity) {
+        return HolderState::Unknown;
+    }
     if let Some(recorded) = boot
-        && !is_compact_hex_id(recorded)
+        && !is_boot_id(recorded)
     {
         return HolderState::Unknown;
     }
