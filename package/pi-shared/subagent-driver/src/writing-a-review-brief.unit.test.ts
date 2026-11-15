@@ -1176,6 +1176,74 @@ setInterval(() => {}, 1000,);
           },
         },),
         it({
+          name: 'writes a review folder of its own beside a folder a live start made, instead of refusing or taking it over',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The first start's brief, which the second must leave as it is.
+             */
+            const first = await writeAChangeOfBranch({
+              changed: [aModifiedFile(aCodeFile(),),],
+              folder: folder.path,
+            },);
+            expect(first.written,).toBe(true,);
+            /**
+             Where the reviews live.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            const firstBrief = join(reviewsFolder, aReview(), 'brief.md',);
+            const firstDiff = join(reviewsFolder, aReview(), 'change.diff',);
+            const firstBriefText = await readFile(firstBrief, 'utf8',);
+            const firstDiffText = await readFile(firstDiff, 'utf8',);
+            /**
+             The second start of the same change.
+             */
+            const second = await writeAChangeOfBranch({
+              changed: [aModifiedFile(aCodeFile(),),],
+              folder: folder.path,
+            },);
+            expect(second.written,).toBe(true,);
+            /**
+             The folder the second start took for itself.
+             */
+            const secondFolder = join(reviewsFolder, `${aReview()}-2`,);
+            expect(existsSync(join(secondFolder, 'brief.md',)),).toBe(true,);
+            expect(await readFile(firstBrief, 'utf8',),).toBe(firstBriefText,);
+            expect(await readFile(firstDiff, 'utf8',),).toBe(firstDiffText,);
+            expect(second.line,).toContain(`${aReview()}-2`,);
+          },
+        },),
+        it({
+          name: 'leaves a folder a dead start left untouched and writes this review under a name of its own',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Where the reviews live.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            /**
+             The folder and record a dead start left.
+             */
+            const ownerFile = await writeOwnerRecord({
+              reviewsFolder,
+              branch: aBranch(),
+              process: aStartThatEnded(),
+            },);
+            const leftoverText = await readFile(ownerFile, 'utf8',);
+            /**
+             What this start answered.
+             */
+            const briefed = await writeAChangeOfBranch({
+              changed: [aModifiedFile(aCodeFile(),),],
+              folder: folder.path,
+            },);
+            expect(briefed.written,).toBe(true,);
+            expect(await readFile(ownerFile, 'utf8',),).toBe(leftoverText,);
+            expect(existsSync(join(dirname(ownerFile,), 'brief.md',)),).toBe(false,);
+            expect(existsSync(join(reviewsFolder, `${aReview()}-2`, 'brief.md',)),).toBe(true,);
+          },
+        },),
+        it({
           name: 'refuses a change of a source file whose language a review does not read beside its test, because a brief of the test alone would hide the change itself',
           fn: async () => {
             await using written = await writeAChangeThrough([
