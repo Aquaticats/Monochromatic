@@ -637,12 +637,26 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
     assert!(!case.landed, "the wrapper could start no process, so the commit cannot have landed through it");
 }
 
-/// An address space of each size on the wrapper,
-/// from the smallest under which a commit lands downward (sizes in mebibytes):
-/// a failed allocation ends
-///  a Rust program with an abort,
-/// whatever it was doing,
-/// and the repository recovers after each.
+/// What:
+///  An address space of each size on the wrapper,
+///  from the smallest under which a commit lands downward (sizes in mebibytes),
+///  and one limit above that smallest:
+///  a failed allocation ends a Rust program with an abort, whatever it was doing,
+///  and the repository recovers after each.
+/// Why:
+///  The sweep's largest limit is the search's own answer, which is a whole mebibyte at most one above the size at which a
+///  commit first lands,
+///  so on a build whose threshold sits a few kilobytes under that mebibyte the largest case is a coin flip.
+///  The landing this control needs is therefore asked for once more at
+///  `mebibytes_of_the_search_step_and_one_thread_pair` above the search's answer,
+///  where the plan leaves two workers whatever the build's mapped size is
+///  (`runtime_plan::workers_by_address_space`),
+///  and that case carries the landing.
+///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`, by halving over one mebibyte:
+///  the search answered 50 MiB while a commit first landed at 49 MiB + 180 KiB,
+///  so the largest case of the sweep stood 180 KiB above the threshold.
+///  What it no longer proves is that the sweep's own largest case lands: the boundary is the boundary, and a case at it
+///  may refuse on any host.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
     let Some(lands_at): Option<u64> = smallest_working(1, MOST_MEBIBYTES, &|value| { return lands_with("as-wrapper", value, wrapper_memory); }) else {
@@ -650,8 +664,16 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     };
     let values: Vec<u64> = spread(1, lands_at, MEMORY_STEPS);
     let (landed, refused): (usize, usize) = sweep("as-wrapper", values.as_slice(), wrapper_memory, true);
+    let room: u64 = lands_at.saturating_add(mebibytes_of_the_search_step_and_one_thread_pair());
+    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
+    let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true);
+    assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
+    let (landed, refused): (usize, usize) = (landed + usize::from(above.landed), refused + usize::from(!above.landed));
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
-    assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
+    assert!(
+        landed > 0,
+        "no address-space limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused, and so did {room}, one search step and one thread pair above it)"
+    );
 }
 
 /// The address space process `pid` has mapped now,
