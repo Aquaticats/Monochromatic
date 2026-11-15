@@ -1678,7 +1678,8 @@ and what it queued.
   61.5 degrees,
   budget 32.0 threads,
   24.6 in use
-  (pass 53 and five other starts in their first minutes),
+  (17 runs going where 14 were going six minutes before,
+  pass 53's unit among them),
   no event at or over the limit since 05:06:20.
 - Read at 08:35:37:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
