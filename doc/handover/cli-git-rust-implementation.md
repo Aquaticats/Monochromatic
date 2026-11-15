@@ -1670,6 +1670,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A held push's holder spelled another way was taken for gone, and so was a claim's owner; four more readers in `main` have the shape by reading and get a run (2026-11-15T18:39:51-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The holder of a held push** (`bc5f76067f`),
+  fresh run ended 18:34:03.
+  Its account:
+  of eleven other spellings of one live holder's identity,
+  eight made the reader answer "gone";
+  the cost is a push made too early
+  (the branch's automatic push,
+  or a person's,
+  publishes a commit whose post-commit checks have not answered),
+  not a lost push,
+  and no push runs twice.
+  The reader of a single-owner claim had the same shape and took the item from a live owner.
+  Both now answer unknown for a part not in the spelling the wrapper writes,
+  the answer `main` already has for the `index.lock` mark;
+  the fix was taken out and its controls failed.
+  Review queued tenth
+  (3 code files that are not tests).
+- **Left alone by that run, with lines, and in `main`**:
+  the same shape,
+  by reading,
+  in the owner of a worktree copy
+  (`worktree_copying/worktree_copy_owner.rs:245`,
+  `candidate/candidate_private_index.rs:227`)
+  and the owner of a transaction
+  (`transaction/transaction_owner.rs:240`,
+  `merge/merge_isolation_recovery_records.rs:223`).
+  The four files stand in `main`.
+  A fresh run is queued thirteenth
+  (`copy-owner-and-transaction-owner-spelled-another-way-are-never-taken-for-gone`):
+  a control for each place,
+  the fix through the one answer `main` has,
+  what a wrong "gone" costs there,
+  and one more look across all of `src/native/` for a reader that decides "gone" without that answer.
+- Kept from the report for a decision on wording:
+  the sentence in `SPEC.md`,
+  "Nothing releases a held record by judging a process",
+  which the settlement by verdict contradicts.
+- Two things that run did against its brief,
+  both disclosed by it:
+  `printenv CARGO_TARGET_DIR`
+  (it printed nothing;
+  the brief of that day forbade `printenv` without the words "not even for one name",
+  which briefs since carry),
+  and a `du -sh` of the whole scratch root as its first command.
+  The second gave a figure nobody else may take:
+  **290 GiB** for `~/temp/agent`,
+  in seconds.
+- Read at 18:39:00:
+  six changed files in the main checkout;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  20 runs going,
+  none silent for twenty minutes.
+
 ##### Three runs on tests end; two of them repaired one helper two ways, which the coordinating session caused, and one fresh run makes them one (2026-11-15T18:31:31-05:00)
 
 Not final and not approved:
