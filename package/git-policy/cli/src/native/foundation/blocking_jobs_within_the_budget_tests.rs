@@ -705,9 +705,9 @@ fn a_slow_job_that_outlasted_its_caller_keeps_the_place_of_slow_work() {
     let (release, held) = std::sync::mpsc::channel::<()>();
     let held_until_released: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(held));
     let first: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async move {
-        return run_a_slow_job_once_awaited_no_longer_than(SLOW_JOB_PATIENCE, (told, held_until_released), |(told, held): (std::sync::mpsc::Sender<()>, Arc<Mutex<std::sync::mpsc::Receiver<()>>>)| {
-            let _said = told.send(());
-            let _ = held.lock().expect("the control's release").recv();
+        return run_a_slow_job_once_awaited_no_longer_than(SLOW_JOB_PATIENCE, (told, held_until_released), |(told_by_the_job, still_held): (std::sync::mpsc::Sender<()>, Arc<Mutex<std::sync::mpsc::Receiver<()>>>)| {
+            let _said = told_by_the_job.send(());
+            let _ = still_held.lock().expect("the control's release").recv();
             return 7;
         })
         .await;

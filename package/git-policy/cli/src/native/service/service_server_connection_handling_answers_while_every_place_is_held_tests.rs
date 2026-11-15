@@ -476,7 +476,7 @@ fn two_commits_are_both_routed_while_every_slow_place_is_held() {
     //  no place of the bound, so the slow places cannot stand in its way. The held look is then let go, and its own commit
     //  is routed once its look is asked again.
     let (one_look_stuck, routed_while_the_look_was_held, both_routed): (bool, bool, bool) = crate::lazy_runtime::run_on_runtime(async move {
-        let stuck: bool = tokio::time::timeout(A_BOUND, reached).await.is_ok_and(|heard| { return heard.is_ok(); });
+        let held_in_its_read: bool = tokio::time::timeout(A_BOUND, reached).await.is_ok_and(|heard| { return heard.is_ok(); });
         // This wait ends before the held look is let go, so a commit routed here was routed while that look was alive.
         let routed: bool = tokio::time::timeout(A_BOUND, jobs.recv()).await.is_ok();
         let _let_the_look_go = let_go.send(());
@@ -488,7 +488,7 @@ fn two_commits_are_both_routed_while_every_slow_place_is_held() {
                 queued += 1;
             }
         }
-        return (stuck, routed, queued == 2);
+        return (held_in_its_read, routed, queued == 2);
     })
     .expect("the runtime");
     let _let_the_places_go = release.send(());
@@ -548,11 +548,11 @@ fn the_routing_retry_waits_for_its_own_kind_and_never_starts_a_second_look() {
     .expect("the runtime");
     let serving: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
     let (one_look_stuck, routed, looks_alive): (bool, bool, usize) = crate::lazy_runtime::run_on_runtime(async move {
-        let stuck: bool = tokio::time::timeout(A_BOUND, reached).await.is_ok_and(|heard| { return heard.is_ok(); });
+        let the_look_held_in_its_read: bool = tokio::time::timeout(A_BOUND, reached).await.is_ok_and(|heard| { return heard.is_ok(); });
         let routed: bool = tokio::time::timeout(A_WATCH_OF_TWO_PAUSES, jobs.recv()).await.is_ok();
         let alive: usize = crate::own_thread_for_work_that_can_stall::alive_now(crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook);
         let _let_the_look_go = let_go.send(());
-        return (stuck, routed, alive);
+        return (the_look_held_in_its_read, routed, alive);
     })
     .expect("the runtime");
     serving.abort();
@@ -623,7 +623,7 @@ fn a_beat_note_read_that_stopped_on_storage_keeps_the_one_thread_of_its_kind() {
             crate::own_thread_for_work_that_can_stall::run_on_its_own_thread(
                 crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook,
                 A_BOUND,
-                || 7_u8,
+                || return 7_u8,
             )
             .await,
             TheAnswerOfAJobAwaited::Ran(7_u8)
