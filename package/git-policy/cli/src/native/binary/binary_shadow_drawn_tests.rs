@@ -587,10 +587,7 @@ fn a_merge_whose_shadow_loses_merge_head_lands_with_every_parent() {
     git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=main"]);
     git(&case.fixture, case.repo.as_path(), &["merge", "--no-commit", "--no-ff", "side-control"]);
     assert!(case.repo.join(".git").join("MERGE_HEAD").is_file(), "the merge is in progress");
-    let scratch: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path());
-    let _ = scratch;
-    let mut command: Command = a_commit_paused_at(&case, "shadow-built", "merge");
-    command.env("XDG_RUNTIME_DIR", &case.service.runtime);
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=merge"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
     let reached: PathBuf = markers.join("shadow-built-1.reached");
@@ -613,20 +610,17 @@ fn a_merge_whose_shadow_loses_merge_head_lands_with_every_parent() {
     remove_settled(&case.fixture);
 }
 
-/// The command that commits the staged change under a message file Git cannot read as text,
-/// which is what makes Git build the commit in the shadow,
-/// held at `phase`.
+/// The commit `arguments` name, held at `phase`.
 /// Why:
-///  The message file is the one form of the command that the wrapper does not embed,
+///  A commit that names its paths is the one Git builds in the shadow,
 ///  so the build phase and every file it reads are reached.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const command = wrappedCommit(fixture, repo, ['commit', '--quiet', '--file=message.txt']); command.env('CLI_GIT_TEST_ONLY_PHASE_SIGNAL', `${phase}:pause:${markers}`)
 /// ```
-fn a_commit_of_a_non_text_message_paused_at(case: &Case, phase: &str) -> Command {
-    std::fs::write(case.repo.join("message.txt"), b"a message Git reads \xe9\n").expect("the message file");
-    let mut command: Command = wrapped_commit(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--file=message.txt"]);
+fn a_commit_built_by_git_paused_at(case: &Case, phase: &str, arguments: &[&str]) -> Command {
+    let mut command: Command = wrapped_commit(&case.fixture, case.repo.as_path(), arguments);
     command.env("XDG_RUNTIME_DIR", &case.service.runtime);
     command.env(PHASE_SIGNAL_VARIABLE, format!("{phase}:pause:{}", case.markers.display()));
     return command;
@@ -650,7 +644,7 @@ fn a_commit_whose_private_index_goes_is_still_the_commit_that_was_asked_for() {
     std::fs::write(case.repo.join("base.txt"), b"base\nmore\n").expect("the edit");
     std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt", "added.txt"]);
-    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&case, "shadow-built");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=two", "--", "base.txt", "added.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
     let reached: PathBuf = markers.join("shadow-built-1.reached");
@@ -691,8 +685,9 @@ fn a_reftable_shadow_that_loses_its_tables_is_built_again() {
     std::fs::write(reftable.join("a.txt"), b"one\n").expect("a");
     git(&case.fixture, reftable.as_path(), &["add", "--", "a.txt"]);
     let base: String = super::commit::git_text(&case.fixture, reftable.as_path(), &["rev-parse", "HEAD"]);
+    case.service.serve(&case.fixture, reftable.join(".git").as_path());
     let case: Case = Case { repo: reftable, ..case };
-    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&case, "shadow-built");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=two", "--", "a.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
     let reached: PathBuf = markers.join("shadow-built-1.reached");
@@ -757,7 +752,7 @@ fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
     std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt", "added.txt"]);
     std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
-    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&case, phase);
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, phase, &["commit", "--quiet", "--message=two", "--", "base.txt", "added.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
     let reached: PathBuf = markers.join(format!("{phase}-1.reached"));
@@ -828,7 +823,7 @@ fn the_loss_table(name: &str, phase: &str) -> Vec<LossRow> {
     std::fs::write(probe.repo.join("added.txt"), b"added\n").expect("the addition");
     git(&probe.fixture, probe.repo.as_path(), &["add", "--", "added.txt"]);
     std::fs::write(probe.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
-    let mut command: Command = a_commit_of_a_non_text_message_paused_at(&probe, phase);
+    let mut command: Command = a_commit_built_by_git_paused_at(&probe, phase, &["commit", "--quiet", "--message=probe", "--", "added.txt"]);
     let markers: PathBuf = probe.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
     let reached: PathBuf = markers.join(format!("{phase}-1.reached"));
