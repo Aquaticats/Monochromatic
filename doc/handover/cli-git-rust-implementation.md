@@ -1597,11 +1597,26 @@ a measurement by the coordinating session and one deletion.
   add-never-skips 8,189 MiB,
   issue 6293's fifth review 3,839 MiB);
   each goes when its author's answer is in.
-- **Not looked at yet**:
-  whether `pkgrepair-repair-off-the-path`,
-  `sonnet-audits`,
-  the record-of-another-boot scratch and `kimi-trials` hold anything superseded.
-  The record-of-another-boot scratch belongs to a run that is queued or going.
+- **The other large folders, looked at 03:39 and kept**,
+  none with a process working inside:
+  - `pkgrepair-repair-off-the-path` and `pkgrepair-verify`
+    (last written 2026-11-13 and 2026-11-12)
+    are the scratch of the work that took the package repair off an add's waiting path.
+    The repository's docs cite them by path:
+    this file in fourteen lines,
+    `doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`,
+    and `doc/handover/agents-at-once-on-this-machine.md`.
+    They stay as cited evidence;
+    their `stage-…` build folders are the only part that could go,
+    and only if the filesystem's own measurement shows they hold space of their own.
+  - `sonnet-audits` and `kimi-trials`
+    (written 2026-11-09 to 2026-11-13)
+    hold the audits of releases alpha.10,
+    alpha.12 and alpha.14;
+    the Kimi audit of alpha.14's LFS is still open work,
+    so they stay.
+  - The record-of-another-boot scratch belongs to a run that is queued or going.
+  A measurement with `btrfs filesystem du` of what these folders hold alone and what they share was started at 03:40 as its own unit at disk weight 1.
 
 ##### The long-runtime-directory controls go back to their author: one still fails by the width of a process number, and two let a one-byte change through (2026-11-15T03:30:00-05:00)
 
