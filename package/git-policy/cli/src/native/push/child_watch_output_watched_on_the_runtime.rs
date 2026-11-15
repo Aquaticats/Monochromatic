@@ -210,8 +210,6 @@ pub async fn output_watched_within_for_a_stop_awaiting(
         release_write_ends(command);
     }
     let (child, binder): (Child, Option<crate::lock_watch::Binder>) = spawned?;
-    // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
-    crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
@@ -307,6 +305,10 @@ pub async fn output_watched_within_for_a_stop_awaiting(
 pub async fn start_a_watched_git_awaiting(command: &mut Command) -> std::io::Result<(Child, Option<crate::lock_watch::Binder>)> {
     let watched: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
     let child: Child = spawn_retrying_without_blocking(command).await?;
+    // What: The repository's record names this Git, in this face of the one start, as the synchronous face does.
+    // Why:  A record of the child's start is half of the proof that clears a lock this Git left, and this face writes
+    //       the same records the synchronous one does (a review of `0fe1e01e9f`, finding 3).
+    crate::lock_holder_records::note_child_started(child.id());
     let binder: Option<crate::lock_watch::Binder> = crate::lock_watch::bind_while_the_caller_waits(watched, child.id());
     return Ok((child, binder));
 }

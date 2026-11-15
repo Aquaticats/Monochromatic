@@ -94,47 +94,65 @@ fn a_pid_file_created_after_its_lock_is_that_locks_holder() {
 }
 
 /// What:
-///  A PID file that stood before the watch began
-///  proves nothing about the lock beside it,
-///  and a lock a PID file was written before is not that PID file's.
+///  What the watch saw is the evidence, and not the order in which Git wrote the two files:
+///  a lock this run saw created is that child's take,
+///  and the PID file beside it, where it stands, is a second witness that must name the same child.
 /// Why:
-///  Git creates the lock and then the PID file,
-///  and a PID file it finds in the way is left alone (`lockfile.c:121-123`,
-/// Git 2.56.0),
-///  so the state this keeps is exactly the state a later Git's lock beside a dead holder's PID file has.
+///  The rule this control used to state was that the PID file's creation had to come after the lock's,
+///  and a Git killed between creating its lock and writing that file then left a lock nothing could ever
+///  prove and no commit could pass
+///  (a review of `0fe1e01e9f`,
+/// finding 1).
+///  The wrapper watched the child create the lock;
+///  that sight, bound to the child's identity, is the evidence.
+///  The file Git writes after the lock is a second witness where it stands:
+///  a PID file naming another process is that process's lock and is not returned,
+///  and one the watch saw created before this lock is an earlier take's, which changes nothing about whose
+///  this take is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// tracker.feed([created(lock)]); locksTaken(child) // []
-/// tracker.feed([created(pidFile), created(lock)]); locksTaken(child) // []
+/// withLockAndPidFile(42); tracker.feed([created(lock)]); locksTaken(42) // [lock]
+/// tracker.feed([created(pidFile), created(lock)]); locksTaken(42) // [lock]
+/// withLockAndPidFile(99); tracker.feed([created(lock)]); locksTaken(42) // []
 /// ```
 #[test]
-fn a_pid_file_that_was_not_written_after_the_lock_names_nobody() {
-    let (directory, _lock) = with_lock_and_pid_file("watch-stale-pid-file", 42);
+fn the_sight_of_a_lock_is_the_evidence_and_the_pid_file_is_a_second_witness() {
+    let (directory, lock) = with_lock_and_pid_file("watch-sight-is-the-evidence", 42);
     let mut already_there: Tracker = Tracker::new();
     already_there.feed(&[created(directory.as_path(), "index.lock")]);
-    assert!(already_there.locks_taken(42).is_empty(), "a PID file the watch never saw created is not this child's");
+    assert_eq!(already_there.locks_taken(42), vec![lock.clone()], "a lock the watch saw created is this child's, and the standing PID file names it");
     let mut before_the_lock: Tracker = Tracker::new();
     before_the_lock.feed(&[created(directory.as_path(), "index~pid.lock"), created(directory.as_path(), "index.lock")]);
-    assert!(before_the_lock.locks_taken(42).is_empty(), "a PID file written before the lock is an earlier holder's");
+    assert_eq!(before_the_lock.locks_taken(42), vec![lock.clone()], "the order the two names were written in does not change whose the lock is");
     remove(directory.as_path());
+    let (other, other_lock) = with_lock_and_pid_file("watch-second-witness-disagrees", 99);
+    let mut disagreements: Tracker = Tracker::new();
+    disagreements.feed(&[created(other.as_path(), "index.lock")]);
+    assert!(disagreements.locks_taken(42).is_empty(), "a PID file that names another process is that process's lock: {other_lock:?}");
+    remove(other.as_path());
 }
 
 /// What:
-///  A lock removed and made again under the same name
-///  is not the lock the PID file beside it was written for.
+///  A lock removed and made again under the same name is the take whose creation stands,
+///  and the record of the take that ended is the one taken away.
 /// Why:
-///  This is a person clearing a dead holder's lock and a later Git taking the name:
-///  the PID file stays,
-///  and the events say the name was given to a second file after it.
+///  Two takes of one path in one run are two files,
+///  and the second creation is what stands now:
+///  it is the child's take, and the record of it names the second file, because a record names the take it
+///  belongs to and not the path.
+///  What this control used to state was that a second lock after a PID file was nobody's,
+///  which left the second file with no record and no proof
+///  (a review of `0fe1e01e9f`,
+///  finding 1, and the invariant it states).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// feed([created(lock), deleted(lock), created(lock)]); locksTaken(child) // []
+/// feed([created(lock), created(pidFile), removed(lock), created(lock)]); locksTaken(child) // [lock]
 /// ```
 #[test]
-fn a_lock_made_again_after_its_pid_file_is_not_that_pid_files_lock() {
-    let (directory, _lock) = with_lock_and_pid_file("watch-lock-remade", 42);
+fn a_lock_made_again_is_the_take_whose_creation_stands() {
+    let (directory, lock) = with_lock_and_pid_file("watch-lock-remade", 42);
     let mut tracker: Tracker = Tracker::new();
     tracker.feed(&[
         created(directory.as_path(), "index.lock"),
@@ -142,7 +160,7 @@ fn a_lock_made_again_after_its_pid_file_is_not_that_pid_files_lock() {
         removed(directory.as_path(), "index.lock"),
         created(directory.as_path(), "index.lock"),
     ]);
-    assert!(tracker.locks_taken(42).is_empty(), "the PID file names a number, and the lock standing is a later file's");
+    assert_eq!(tracker.locks_taken(42), vec![lock.clone()], "the creation that stands is the child's take");
     remove(directory.as_path());
 }
 

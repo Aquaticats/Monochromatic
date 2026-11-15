@@ -317,7 +317,15 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if !same_file(lock, &file).unwrap_or(false) || marker_of_file(&file).is_some() {
         return None;
     }
-    if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(pid).ok()?) {
+    // The PID file, where it stands, must still name the process the judgement acted on; without one the pin is the
+    //  proof, as it is for a lock whose Git was killed before it wrote the file and for a clearance killed after
+    //  unlinking it.
+    let named_now: Option<i32> = crate::stopped_git_locks::pid_named_by(pid_file.as_path());
+    let the_pid_file_agrees: bool = match named_now {
+        Some(number) => number == i32::try_from(pid).ok()?,
+        None => !pid_file.exists(),
+    };
+    if !the_pid_file_agrees {
         return None;
     }
     // What: A removal that acts on a record reads that record once more, here, against the lock it is about to remove.
@@ -406,7 +414,18 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
 /// ```
 fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64, Evidence, crate::lock_bindings::Written)> {
     for bound in crate::lock_bindings::bindings_of(common_dir, lock) {
-        if crate::stopped_git_locks::pid_named_by(pid_file) != Some(i32::try_from(bound.pid).ok()?) {
+        // What: The PID file, where it stands, must name the process the record names; without one the record stands.
+        // Why:  A lock's Git can be killed between creating the lock and writing the PID file, and a clearance can be
+        //       killed between unlinking that file and unlinking the lock: in both states the pin and this repository's
+        //       record of the child's start are the proof, and the file is not there to be asked
+        //       (a review of `0fe1e01e9f`,
+        //       findings 1 and 2).
+        let named: Option<i32> = crate::stopped_git_locks::pid_named_by(pid_file);
+        let the_pid_file_agrees: bool = match named {
+            Some(number) => number == i32::try_from(bound.pid).unwrap_or(i32::MIN),
+            None => !pid_file.exists(),
+        };
+        if !the_pid_file_agrees {
             continue;
         }
         if crate::service_index_identity::holder_state(Some(&(bound.pid, bound.identity.clone()))) != crate::service_index_identity::HolderState::Gone {

@@ -114,8 +114,6 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
     let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
     let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut command)?;
-    // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
-    crate::lock_holder_records::note_child_started(child.id());
     let status: std::process::ExitStatus = child.wait()?;
     if let Some(watcher) = binder {
         watcher.finish();

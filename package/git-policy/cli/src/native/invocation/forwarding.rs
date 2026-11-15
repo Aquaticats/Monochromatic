@@ -300,8 +300,6 @@ pub fn run_real_git_naming(
     //       (`lock_watch.rs`, `start_a_watched_git`).
     let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut git_command(real_git, arguments, overlay, owner))?;
     on_started.started(child.id());
-    // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
-    crate::lock_holder_records::note_child_started(child.id());
     let status: std::process::ExitStatus = child.wait()?;
     // The watcher's last look is taken now that the child has ended, so a record of its last take exists before the
     //  command can be killed.
@@ -434,12 +432,9 @@ pub fn run_real_git_until(
     // Why:  The Git of a ladder step takes `index.lock` as a checkout of any other does, and the ceiling ends it while it
     //       holds the lock; a start with no watch left that lock with no record, so the next command could not prove it
     //       and kept it (a review of `6a506fc03f`, finding 3).
-    // What is not here yet: `lock_holder_records::note_child_started`, which every other watched start of this module
-    //  writes beside its spawn. Without it the record this run writes pins the lock, and the proof, which also asks for
-    //  the child's start, refuses it: the lock is cleared only by the proof that does not need a record, and this run's
-    //  own record clears it once the change that writes that child's start here lands (a review of `ca936e0b93`,
-    //  finding 1). It is not written here because another branch writes the same record for these starts, and two
-    //  branches writing one record would collide.
+    // The child's start is recorded by `start_a_watched_git`, as every watched start of this module records it, so the
+    //  record this run writes for a lock can be used by the proof that clears it (a review of `0fe1e01e9f`,
+    //  finding 3).
     let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut command)?;
     let began: std::time::Instant = std::time::Instant::now();
     loop {

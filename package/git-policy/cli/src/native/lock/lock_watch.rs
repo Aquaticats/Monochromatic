@@ -220,9 +220,6 @@ const WATCHED_EVENTS: u32 = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELET
 ///  Any other folder is watched, because Git may put a reference in it.
 const UNWATCHED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
-/// The most locks one run writes a record for.
-const MOST_LOCKS: usize = 32;
-
 /// The instant the tracker has reported a take of a lock path,
 /// and before the record of that take is pinned:
 /// the two looks the record's name and its holder come from are this one and the pinning itself.
@@ -528,19 +525,24 @@ impl Tracker {
     ///  The locks a child of this process took,
     ///  each with the file its creation left at the path.
     /// Why:
-    ///  A lock counts only when the name still refers to the file that was created,
-    ///  when its PID file was created after it and also still stands,
-    ///  and when that PID file names the child:
-    ///  Git writes the PID file after it created the lock (`lockfile.c:182-184`,
-    /// Git 2.56.0) and writes none at all when it did not create the lock,
-    ///  so a PID file naming the child is the child's own lock's.
-    ///  A name whose PID file was created before the lock,
-    ///  or whose lock was removed and made again,
-    ///  is not the child's lock and is not returned.
-    ///  A name that stood before this watch began has no creation here and is never returned either:
-    ///  a PID file that was already there,
-    ///  which a Git finds and leaves alone,
-    ///  is not this child's.
+    ///  What the wrapper saw is the evidence, and not what Git wrote beside the lock:
+    ///  this run saw the child create the name, the name still refers to the file that was created,
+    ///  and nothing removed it since,
+    ///  and that sight, bound to the child's identity, is what clears the lock once the child is gone.
+    ///  Git can be killed between creating its lock and writing the PID file beside it
+    ///  (`lockfile.c:182-184`,
+    /// Git 2.56.0),
+    ///  and a rule that required the PID file left exactly that lock with no record and no proof, for good
+    ///  (a review of `0fe1e01e9f`,
+    /// finding 1).
+    ///  The PID file, where it stands, is a second witness:
+    ///  it names the Git that took the lock, so one that names another process is that process's lock and
+    ///  is not returned.
+    ///  A name that stood before this watch began has no creation here and is never returned:
+    ///  it is reported as found by reading and bound to no child (`was_found_by_reading`).
+    ///  No count drops a standing take:
+    ///  the list is bounded by the names one run follows (`MOST_NAMES`),
+    ///  and a take the run saw and the bound would leave out is a lock nothing could ever prove again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -552,21 +554,17 @@ impl Tracker {
         }
         let mut locks: Vec<PathBuf> = Vec::new();
         for ((directory, name), standing) in &self.names {
-            if locks.len() >= MOST_LOCKS {
-                break;
-            }
-            let Some(created) = standing.created else { continue };
+            let Some(_created) = standing.created else { continue };
             if standing.removed || !is_a_lock_name(name) {
                 continue;
             }
-            let pid_name: std::ffi::OsString = pid_name_of(name);
-            let Some(pid_standing) = self.names.get(&(directory.clone(), pid_name)) else { continue };
-            let Some(pid_created) = pid_standing.created else { continue };
-            if pid_standing.removed || pid_created <= created {
-                continue;
-            }
             let lock: PathBuf = directory.join(name);
-            if pid_named_by(pid_file_beside(lock.as_path()).as_path()) != Some(i32::try_from(child_pid).unwrap_or(i32::MIN)) {
+            // What: The PID file beside the lock, where it stands, is a second witness and must name this child.
+            // Why:  The sight of the creation is the evidence (see the function's text), and the PID file is what Git
+            //       writes after it for the lock it made, so a PID file that names another process is another Git's and
+            //       the sight is not this child's.
+            let pid_file: PathBuf = pid_file_beside(lock.as_path());
+            if pid_file.exists() && pid_named_by(pid_file.as_path()) != Some(i32::try_from(child_pid).unwrap_or(i32::MIN)) {
                 continue;
             }
             locks.push(lock);
@@ -588,22 +586,6 @@ impl Tracker {
 fn is_a_lock_name(name: &std::ffi::OsStr) -> bool {
     let text: std::borrow::Cow<'_, str> = name.to_string_lossy();
     return text.ends_with(LOCK_SUFFIX) && !text.ends_with(PID_INFIX);
-}
-
-/// What:
-///  The name of the PID file Git writes beside the lock called `name`.
-/// Why:
-///  Git names it after the lock with `.lock` replaced by `~pid.lock`,
-///  so the pair is found from the lock's own name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// name.replace(/\.lock$/, '~pid.lock')
-/// ```
-fn pid_name_of(name: &std::ffi::OsStr) -> std::ffi::OsString {
-    let text: std::borrow::Cow<'_, str> = name.to_string_lossy();
-    let base: &str = text.strip_suffix(LOCK_SUFFIX).unwrap_or(text.as_ref());
-    return std::ffi::OsString::from(format!("{base}{PID_INFIX}"));
 }
 
 // The events a control states as made up, delivered by `read_events` as if the kernel had reported them,
@@ -1188,6 +1170,11 @@ pub fn start_a_watched_git(command: &mut std::process::Command) -> std::io::Resu
     use crate::start_retry::RetryStart as _;
     let watched: Option<(Watch, Watched)> = watch_before_starting();
     let child: std::process::Child = command.spawn_retrying()?;
+    // What: The repository's record names this Git, here, in the one start every watched runner uses.
+    // Why:  The record of the child's start is half of the proof that clears a lock this Git left, and a runner that
+    //       watched without it wrote a record nothing could use (a review of `0fe1e01e9f`, finding 3).
+    //       One function starts the child and records it, so no caller can hand back a watched Git without it.
+    crate::lock_holder_records::note_child_started(child.id());
     let binder: Option<Binder> = bind_while_the_caller_waits(watched, child.id());
     return Ok((child, binder));
 }
