@@ -748,6 +748,15 @@ Questions kept for the owner's return:
   since the rule is about what the typed command would destroy when it is asked.
   Is a stated limit right there,
   or is that window to be closed?
+  And from the same branch:
+  its `git clean` moves a nested repository it would delete to a saved copy and then runs,
+  where the rule of 2026-11-12 says the wrapper refuses with an opt-out and moves nothing aside,
+  and the answer of 2026-11-10 says a clean of ignored files deletes them and logs the command.
+  No record was found that decides the save.
+  Does a clean that would delete a nested repository save it aside as the branch does,
+  refuse with the opt-out,
+  or delete and log?
+  The branch keeps its save until an answer.
 - Added 2026-11-15T00:34:22-05:00 and amended 00:51:24,
   not blocking work:
   the cap on agents went from 24 to 20 at 00:32:16 and from 20 to 18 at 00:50:55,
@@ -1486,9 +1495,23 @@ and what it did.
   (`~/temp/agent/pi-runs/discarding-guard-reads-a-command-line-and-a-path-as-git-does-finished-in-a-fresh-run-prompt.md`,
   queued eighth,
   base `0b67e7ccae`).
-  The brief also asks which record decides that a clean moves a nested repository aside,
-  where the rule's words are that the wrapper moves nothing aside;
-  this session did not find that record tonight and did not search for it.
+  The branch's clean moves a nested repository aside to a saved copy,
+  where the rule's words are that the wrapper moves nothing aside.
+  Read at 00:58 in the branch's `SPEC.md`,
+  "Discarding commands"
+  (lines 18867 to about 19400 at `0b67e7ccae`):
+  the lines there that cite an owner's answer cite the one of 2026-11-10
+  (a clean of ignored files deletes them and logs the command)
+  and the one of 2026-11-12
+  ("Refuse with opt-out"),
+  and the save
+  (about lines 19300 to 19326)
+  is described under neither;
+  a search of this handover for a line with both a nested repository and an owner's answer found none.
+  So no record was found that decides the save.
+  The brief says so,
+  tells the fresh run to leave the save as it is,
+  and the question is kept for the owner.
 - **The review-brief writer for every kind of code file** (`e759dd56fc`),
   its second review,
   ended 00:38:05,
