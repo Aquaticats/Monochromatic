@@ -11405,11 +11405,13 @@ so no event is an exception.
   That refusal is the price of the ban: a shell alias holding a pipe, a function or a variable is run only through that
   opt-out.
   A stated limit, which no guard of the wrapper can close:
-  an alias value that names real Git by an absolute path
-  (`alias.x=/usr/bin/git worktree remove`, or the same words carried in a variable),
-  runs that program with no wrapper in between,
-  and whatever it does to a worktree happens outside every policy,
+  a plain alias whose value runs a program by absolute path
+  (`alias.x=/usr/bin/git worktree remove`),
+  and a program a `!` alias names by absolute path once the opt-out has run it,
+  run real Git with no wrapper in between,
+  and whatever they do to a worktree happens outside every policy,
   exactly as typing that absolute path would.
+  A `!` alias value that itself starts with an absolute path is refused rather than run.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
   repository configures and the wrapper reads `core.hooksPath` and `core.fsmonitor` that way (the commit warning,
