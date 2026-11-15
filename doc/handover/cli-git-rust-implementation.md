@@ -738,6 +738,21 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T02:20:24-05:00,
+  from this session's reading of the gate's images,
+  not blocking work:
+  three compilers build the wrapper.
+  The host's tasks use the lock's nightly
+  (`nightly-2026-11-15` since the daily update);
+  the container gate uses pacman's `rustc 1.99.1`,
+  by the recorded "Pacman for everything it has";
+  the release workflow installs `nightly` with no date.
+  So no test run uses the compiler a release is built with,
+  and the whole suite never runs under the lock's nightly unless an integration pass runs it on the host.
+  Is that the arrangement wanted,
+  or should the release workflow build with the lock's nightly,
+  or the gate test with it?
+
 - Added 2026-11-15T02:12:39-05:00,
   from two authors' reports of that hour,
   not blocking work:
@@ -1488,15 +1503,31 @@ weighed and queued.
   log written until 02:17:23:
   `9113 tests run: 9091 passed (6 slow), 22 failed, 28 skipped`,
   690 s.
-  Its log shows `Compiling zbus v6.3.0`;
-  which compiler the image used was not read from the log.
+  Its log shows `Compiling zbus v6.3.0`.
+  The log names no compiler,
+  so both gate images were asked at 02:19:55
+  (`podman run … rustc --version`):
+  each holds `rustc 1.99.1` and `git version 2.56.1` from pacman,
+  the image of the gate on `d7a2f6a013` as well as this one.
+  That is by a recorded decision:
+  `package/git-policy/cli/native-test-base.Containerfile` quotes the owner's "Pacman for everything it has" for these images.
+  So the gate never builds with the repository's nightly,
+  and this gate tested the dependency move alone.
+  The nightly move is covered by this session's Clippy runs on the host,
+  where `rustup show active-toolchain` in the main checkout answers `nightly-2026-11-15`,
+  and by nothing that runs tests yet.
+  The release workflow installs `nightly` with no date
+  (`.github/workflows/cargo-publish.yml`,
+  lines 155 and 492),
+  so a release is built with whatever nightly is newest that hour,
+  which is neither the lock's nor the gate's compiler.
   The 22 are the 21 that failed in each of the four gates before,
   and `owed_push`.
   `worktree::worktree_process_inside::…a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table`,
   which failed in the gate on `0.6.1-alpha.38`,
   passed here.
-  So one gate shows no failure that the update brought,
-  and Clippy of the three packages is clean on that tree.
+  So one gate shows no failure that the dependency move brought,
+  and Clippy of the three packages is clean on that tree under the new nightly.
 - **The landed removal's guard** (`8858f843ee`),
   its seventh review,
   ended 02:12:47,
