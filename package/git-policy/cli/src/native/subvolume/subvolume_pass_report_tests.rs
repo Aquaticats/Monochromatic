@@ -20,11 +20,13 @@ fn each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label() {
         losses: AttributeLosses { owner: 2, extended_attributes: 1, mode: 0, times: 3 },
         conflicts: vec![PathBuf::from("src/newer.rs")],
         left_out: vec![PathBuf::from("gone.txt"), PathBuf::from("gone2.txt"), PathBuf::from("gone3.txt"), PathBuf::from("gone4.txt")],
+        holder_records_left_out: vec![PathBuf::from(".git/cli-git-lock-holders/4242.0f3a")],
+        notices_carried: vec![PathBuf::from(".git/monochromatic-git-policy-cli/notices/push+main+0f3a.txt")],
         recopied: 5,
         ..SyncStats::default()
     };
     let lines: Vec<String> = what_a_pass_could_not_carry("copy", &stats);
-    assert_eq!(lines.len(), 6, "{lines:#?}");
+    assert_eq!(lines.len(), 8, "{lines:#?}");
     assert_eq!(lines[0], "copy: not recreated (a socket or device node): agent.sock");
     assert_eq!(lines[1], "copy: not recreated (a socket or device node): dev/null");
     assert_eq!(
@@ -33,5 +35,13 @@ fn each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label() {
     );
     assert_eq!(lines[3], "copy: kept the newer or differently typed entry src/newer.rs in the destination; it was not replaced");
     assert_eq!(lines[4], "copy: 4 entr(ies) absent from the destination were left out because they predate the catch-up");
-    assert_eq!(lines[5], "copy: 5 file(s) changed while they were copied and were copied again");
+    assert_eq!(
+        lines[5],
+        "copy: 1 record(s) of this program's own lock holders stayed in the source, because the destination lacks them and they are older than the cut-off: .git/cli-git-lock-holders/4242.0f3a"
+    );
+    assert_eq!(
+        lines[6],
+        "copy: carried 1 of this program's own notice(s) although the destination lacks them and they are older than the cut-off: .git/monochromatic-git-policy-cli/notices/push+main+0f3a.txt"
+    );
+    assert_eq!(lines[7], "copy: 5 file(s) changed while they were copied and were copied again");
 }

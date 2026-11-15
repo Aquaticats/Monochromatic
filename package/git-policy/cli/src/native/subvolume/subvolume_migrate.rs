@@ -25,6 +25,12 @@
 //! and all
 //!  of them are idempotent.
 //! The old tree is never deleted here.
+//! What the comparison of the two trees holds a migration to is what a person or Git put there;
+//! this program's
+//!  own bookkeeping is not a person's,
+//! so it never stops a migration,
+//! and `subvolume_wrapper_bookkeeping.rs` holds the
+//!  rule that tells the one from the other.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

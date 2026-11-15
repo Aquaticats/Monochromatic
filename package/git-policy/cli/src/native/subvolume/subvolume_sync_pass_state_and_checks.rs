@@ -119,6 +119,16 @@ pub struct SyncStats {
     /// Source entries the destination lacks that were left out because they are older than `created_since`;
     /// relative paths.
     pub left_out: Vec<PathBuf>,
+    /// The source records of the processes this program started that were left out because the destination lacks
+    ///  them and they are older than `created_since`.
+    /// They are kept apart from `left_out` because they hold nothing a person wrote:
+    /// relative paths.
+    pub holder_records_left_out: Vec<PathBuf>,
+    /// The source notices this program shows a person that were carried into the destination although it lacked them
+    ///  and they are older than `created_since`,
+    /// so what they say is not lost with the old tree;
+    /// relative paths.
+    pub notices_carried: Vec<PathBuf>,
     /// The first few files whose content was copied,
     /// relative paths,
     /// for the report.

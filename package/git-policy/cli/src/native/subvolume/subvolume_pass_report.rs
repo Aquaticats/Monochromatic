@@ -8,6 +8,12 @@
 //! times and
 //!  extended attributes the kernel refused,
 //! and the destination entries it kept or left out.
+//! Two of those kinds are this program's own bookkeeping,
+//!  and each is named with the reason the pass kept or carried it:
+//! the records of the processes it started,
+//!  left out,
+//! and the notices it wrote for the person,
+//! carried over despite the pass's cut-off.
 //! Why:
 //!  The migration and the conversion run the same pass over the same statistics,
 //! and a person reading either
@@ -24,6 +30,7 @@
 //! ```
 
 use crate::subvolume_sync::SyncStats;
+use std::path::PathBuf;
 
 /// What:
 ///  One line for each kind of entry a pass could not carry,
@@ -62,10 +69,42 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
     if !stats.left_out.is_empty() {
         lines.push(format!("{label}: {} entr(ies) absent from the destination were left out because they predate the catch-up", stats.left_out.len()));
     }
+    if !stats.holder_records_left_out.is_empty() {
+        lines.push(format!(
+            "{label}: {} record(s) of this program's own lock holders stayed in the source, because the destination lacks them and they are older than the cut-off: {}",
+            stats.holder_records_left_out.len(),
+            joined(&stats.holder_records_left_out)
+        ));
+    }
+    if !stats.notices_carried.is_empty() {
+        lines.push(format!(
+            "{label}: carried {} of this program's own notice(s) although the destination lacks them and they are older than the cut-off: {}",
+            stats.notices_carried.len(),
+            joined(&stats.notices_carried)
+        ));
+    }
     if stats.recopied > 0 {
         lines.push(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied));
     }
     return lines;
+}
+
+/// What:
+///  The paths of one kind, comma-separated for one line of a report.
+/// Why:
+///   Every kind that names its entries spells them the same way,
+/// so a person reads one shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = paths.join(', ');
+/// ```
+fn joined(paths: &[PathBuf]) -> String {
+    let mut shown: Vec<String> = Vec::new();
+    for path in paths {
+        shown.push(path.display().to_string());
+    }
+    return shown.join(", ");
 }
 
 /// Pass-report controls stay out of the release executable.

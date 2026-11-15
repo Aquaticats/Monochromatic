@@ -50,6 +50,11 @@
 //! or
 //!  an entry of another type that is not older than the source,
 //! is kept and listed.
+//! An update-only pass leaves out a source entry the destination lacks and that is older than its cut-off,
+//!  because that entry was deleted from the destination on purpose;
+//! this program's own bookkeeping there is the one exception,
+//! and
+//!  `subvolume_wrapper_bookkeeping.rs` holds the rule for it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -61,6 +66,7 @@ use crate::subvolume_anchor::Anchor;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync_attrs::preserve_on_descriptor;
+use crate::subvolume_wrapper_bookkeeping::{OwnBookkeeping, own_bookkeeping_of};
 use crate::worktree_copy_prune::{holds_only_private_stages, names_a_private_stage};
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -272,8 +278,31 @@ impl Pass<'_> {
             None => false,
         };
         if existing.is_none() && self.options.update_only && older_than_since {
-            self.stats.left_out.push(relative);
-            return Ok(());
+            // What a person or Git put there is what this cut-off holds the pass to; this program's own bookkeeping is
+            //  named once, by its writers, in `subvolume_wrapper_bookkeeping.rs`.
+            match own_bookkeeping_of(self.source, relative.as_path()) {
+                // A record of one of this program's own processes:
+                // it names that process and nothing a person wrote, and the checkout sweeps such records itself, so it
+                //  is left out and counted apart from a person's entries.
+                Some(OwnBookkeeping::LeftOut) => {
+                    self.stats.holder_records_left_out.push(relative.clone());
+                    return Ok(());
+                }
+                // A notice this program wrote for the person: carried over although it is older than the cut-off, so
+                //  what it says reaches the checkout instead of going with the old tree. A folder is carried silently,
+                //  because it holds no words of its own; every file it holds is judged here on its own.
+                Some(OwnBookkeeping::CarriedOver) => {
+                    if !metadata.file_type().is_dir() {
+                        self.stats.notices_carried.push(relative.clone());
+                    }
+                }
+                // A person's entry, or one this program cannot prove it wrote: left out, as it always was, so the
+                //  deletion of the old tree does not go without a word about it.
+                None => {
+                    self.stats.left_out.push(relative.clone());
+                    return Ok(());
+                }
+            }
         }
         let file_type: std::fs::FileType = metadata.file_type();
         if file_type.is_dir() {
@@ -347,6 +376,8 @@ pub fn sync_tree(
     pass.stats.unreadable.sort();
     pass.stats.conflicts.sort();
     pass.stats.conflicts.dedup();
+    pass.stats.holder_records_left_out.sort();
+    pass.stats.notices_carried.sort();
     return Ok(pass.stats);
 }
 

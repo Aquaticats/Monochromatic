@@ -128,6 +128,11 @@ pub mod subvolume_sync_pass_state_and_checks;
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_copy_one_entry;
 
+/// Which entries under a checkout's Git directory are this program's own bookkeeping,
+/// and what a tree pass does with one the destination lacks.
+#[cfg(target_os = "linux")]
+pub mod subvolume_wrapper_bookkeeping;
+
 /// The index locks the migration holds,
 /// marked with a token that names the migration.
 #[cfg(target_os = "linux")]

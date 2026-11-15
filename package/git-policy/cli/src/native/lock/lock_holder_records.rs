@@ -146,6 +146,22 @@ pub fn the_self_record_is_this_processs() -> bool {
 }
 
 /// What:
+///  The folder a repository's records live in,
+///  as a path below that repository's common Git directory.
+/// Why:
+///   A reader that names the folder without a repository in hand,
+///  such as the migration's comparison of two trees,
+///  spells it from here and not from a second copy of the name that could drift from this writer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// 'cli-git-lock-holders'
+/// ```
+pub(crate) fn folder_below_the_common_git_directory() -> &'static Path {
+    return Path::new(HOLDER_FOLDER);
+}
+
+/// What:
 ///  The folder a repository's records live in.
 /// Why:
 ///   Every worktree of a repository shares one common Git directory,
@@ -156,7 +172,7 @@ pub fn the_self_record_is_this_processs() -> bool {
 /// join(commonDir, 'cli-git-lock-holders')
 /// ```
 pub fn folder_of(common_dir: &Path) -> PathBuf {
-    return common_dir.join(HOLDER_FOLDER);
+    return common_dir.join(folder_below_the_common_git_directory());
 }
 
 /// What:
