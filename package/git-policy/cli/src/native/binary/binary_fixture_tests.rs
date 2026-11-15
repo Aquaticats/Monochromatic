@@ -209,6 +209,14 @@ fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
     }
 }
 
+
+/// Whether `socket` fits the name a Unix socket may take
+/// (a fixture under a long scratch path does not,
+/// and no service could listen there either).
+fn the_socket_name_fits(socket: &Path) -> bool {
+    return git_policy_cli::journald_native::Target::Path(socket.display().to_string()).address().is_some();
+}
+
 /// A fixture's service keeps running after the thread that started it has ended:
 /// a control that commits in two worktrees from
 ///  two threads starts the services from whichever thread gets there first,
@@ -228,6 +236,13 @@ fn a_fixture_service_outlives_the_thread_that_started_it() {
         return scope.spawn(|| { service.serve(&created, git_dir.as_path()); }).join().expect("the thread that starts the service ends");
     });
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(service.runtime.as_path(), std::fs::canonicalize(&git_dir).expect("canonical").as_path());
+    if !the_socket_name_fits(socket.as_path()) {
+        // Under a scratch path this long the service could not listen at all, so there is no service to outlive a thread.
+        eprintln!("the fixture's socket path {} has no room for a socket name; nothing to check here", socket.display());
+        drop(service);
+        remove(&created);
+        return;
+    }
     // The signal arrives as the thread ends, but the kernel delivers it asynchronously: give a killed service time to be gone.
     std::thread::sleep(std::time::Duration::from_millis(500));
     assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the service stopped with the thread that started it");
@@ -330,6 +345,14 @@ fn a_fixture_service_starts_after_an_earlier_service_that_is_still_dying() {
     let services: FixtureService = start_fixture_service(&created);
     let git_dir: PathBuf = created.root.join("repo").join(".git");
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(services.runtime.as_path(), git_dir.as_path());
+    if !the_socket_name_fits(socket.as_path()) {
+        // The stand-in answers at the address the earlier service held, and this path is longer than a socket name may be:
+        //  no service could hold it, so there is no dying service for this control to place.
+        eprintln!("the fixture's socket path {} has no room for a socket name; nothing to check here", socket.display());
+        drop(services);
+        remove(&created);
+        return;
+    }
     let dying: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("the stand-in listener");
     let lingering = std::thread::spawn(move || {
         std::thread::sleep(DYING_SERVICE_LINGER);
