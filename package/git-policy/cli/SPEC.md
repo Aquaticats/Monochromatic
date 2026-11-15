@@ -8178,18 +8178,13 @@ on the commit path:
   (`greeting_patience` in `src/native/service/service_client_reach_service.rs`):
   an attempt that lasted the whole start wait spent the entire wait inside one read of the address,
   so the start could only happen at the bound that ended it.
-- What a command already knows before that wait ends it at once instead,
+- What a command already knows before that wait ends it at once ends it at once,
   and the message names the cause and every way to change it
-  (`refuse_a_path_no_socket_address_can_carry` in `src/native/service/service_instance.rs`
-  and `service_commit_starts_the_server.rs`):
-  an address longer than one socket address can hold
-  (the runtime directory,
-  the folder of the sockets,
-  the instance and `.sock` take at most 107 bytes,
-  so the runtime directory may take 40),
-  which is counted on the spelling the commit's own connect uses and is asked before anything is created;
-  and a runtime directory this account cannot write,
+  (`service_commit_starts_the_server.rs`):
+  a runtime directory this account cannot write,
   which is where the address, the output and the notes live.
+  An address longer than one socket address can hold is no such cause:
+  it is the kernel's own name instead of a path (`### Where the service listens`).
   There is no longer a state a service manager could create and a command could not reach:
   the manager takes no part in an address,
   a start or a wait.
@@ -14367,6 +14362,151 @@ it never settles it on a guess.
 The note that names an instance's worktree,
 written beside the socket,
 holds the directory the same way.
+
+### Where the service listens
+
+One commit service runs per worktree,
+and its address is made from the runtime directory (`XDG_RUNTIME_DIR`) and the instance name of the worktree
+(`src/native/service/service_address_of_a_worktree.rs`):
+
+- A runtime directory whose socket path fits one socket address keeps the socket file:
+  `<runtime directory>/monochromatic-git-policy-cli/<instance>.sock`.
+  One socket address carries 107 bytes of name (`sun_path` less the zero that ends the name),
+  so this form serves a runtime directory of at most 40 bytes,
+  which is every session whose runtime directory is the one its login gave it.
+  The service is started with this address in its words (`--path <address>`),
+  and no socket unit names it, because this release writes none.
+- A runtime directory whose socket path does not fit is listened at under a Linux abstract name:
+  `@monochromatic-git-policy-cli/<user id>/<digest digits>/<instance>`,
+  where the digest is sixteen hexadecimal digits of the runtime directory's real path.
+  In pieces:
+  the service's own name,
+  the account,
+  the digest,
+  and the instance.
+  The service is started with this name in its words (`--abstract <name>`),
+  a client computes the same name for itself,
+  and both reach it whatever working directory they run in.
+  A name leaves nothing behind when its process dies,
+  so a killed service leaves no address to clear away.
+  Two other ways of naming a long address each lost:
+  an address relative to a held-open directory (`/proc/self/fd/<n>/<name>`) reaches a socket only from the process
+  that holds the descriptor,
+  so a socket unit cannot name it;
+  and a name relative to a working directory reaches it only from the directory the two processes share,
+  which the manager's own working directory is not.
+- The name is an abstract address and has no permission bits,
+  and what stands in for the directory's mode is the kernel's own word about who took a connection (`SO_PEERCRED`):
+  the service reads it before it says a word to any client,
+  and a client refuses a connection another account's process took (`ClientFailure::OtherAccount`).
+  The name carries the user id,
+  so two accounts never bind one name;
+  the name carries the digest of the directory's real path and never of its spelling,
+  so two spellings of one runtime directory are one service and two runtime directories are two,
+  exactly as two socket files are.
+- A system whose unix sockets have no abstract namespace has only the path form,
+  and a runtime directory that leaves no room for it is refused before anything is waited for,
+  with the length named,
+  the longest runtime directory that works,
+  and the setting that decides it (`ClientFailure::SocketPathTooLong`).
+
+### Machines with no way to reach the service
+
+A commit on a machine where no socket answers and no user service manager can be asked to start one
+(no runtime directory,
+no session bus,
+no executable of the wrapper's own to name in a unit)
+changes nothing and ends with exit `1` and a plain message for the platform:
+Linux without user services names `loginctl enable-linger` and the requirement of a systemd user manager,
+and Windows,
+BSD and other systems say that committing through the wrapper is not supported there yet.
+Run outside a repository,
+a commit ends with Git's own words and exit status for that question.
+A socket file nothing listens on and one that takes the connection and answers nothing are told apart,
+because only the second means a service stopped inside its own process:
+the message names the address and the seconds it waited
+(`ClientFailure::NothingAnswered`,
+and `ClientFailure::DidNotStart` where nothing listened at all).
+There is no other writer to fall back on:
+the service is the only writer,
+so a commit with no way to reach it changes nothing and stops.
+
+### Invocation capture
+
+At invocation,
+before any Git mutation,
+the wrapper records:
+the repository root,
+the worktree's Git directory and common directory,
+the real index path and the object directory,
+the ref storage format,
+the symbolic `HEAD` and its target,
+the conclusion in progress (`MERGE_HEAD`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD`,
+or none),
+the preparation base (the target's commit,
+or none for an unborn branch),
+and the time of invocation.
+One configuration listing read at that moment serves every later decision of the commit.
+A worktree whose `HEAD` leaves the recorded branch before the landing fails the commit with a plain message
+and the message the person typed saved in a file.
+Every name is bytes:
+the symbolic `HEAD` and its target are read from Git's answer unchanged,
+so a branch whose name holds a byte that is not UTF-8 is captured,
+recorded,
+prepared and moved as that name,
+and every message shows it in the `$'...'` form a shell reads back
+(`src/native/foundation/ref_name.rs`).
+The same holds for the arguments of the command:
+a message,
+a message file's name or a `--pathspec-from-file` name reaches real Git with the bytes the person typed
+(`src/native/commit/commit_args.rs`,
+`src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs`).
+
+The capture's own `rev-parse` report names the repository the caller selected
+(`--git-dir`,
+`--work-tree`,
+`--bare`,
+or the `GIT_DIR` and `GIT_WORK_TREE` variables),
+and the in-process layout reader answers only a plain layout,
+which is the one found from its own directory:
+a command line that names a repository is answered by Git,
+because a Git directory beside its work tree is not the one the reader would find.
+
+### Private preparation
+
+Preparation never mutates the real index,
+the worktree,
+the target ref,
+any other real ref,
+or shared reflogs.
+It uses:
+
+- a private commit index at
+  `<common-dir>/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-<id>/commit.index`,
+  in the commit's scratch directory,
+  which the service removes when the command's connection closes,
+  however the command ends,
+  and which a command that never handed it to a service leaves where the sweep of the repository scratch directory
+  removes it
+  (see "The commit's scratch directory",
+  below);
+- the real object store.
+  Every monochromatic-git-policy-cli Git command that writes or reads the private index's objects
+  (`read-tree`,
+  `add`,
+  `add --patch`,
+  `apply --cached --3way`,
+  `write-tree`,
+  `diff --cached`,
+  and the `cat-file --batch` candidate reads)
+  runs in the owning worktree with `GIT_INDEX_FILE` naming the private index,
+  and what it writes is an unreferenced loose object until the service moves the branch to a commit that names it.
+  A `git gc --prune=now` between preparation and landing can remove such an object:
+  the service then answers that the content is unavailable,
+  the wrapper prepares once more,
+  and a second loss ends the commit with a plain message that says what happened.
 
 ### Machines with no way to reach or start the service
 

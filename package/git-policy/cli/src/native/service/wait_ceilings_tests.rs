@@ -218,7 +218,16 @@ fn a_service_that_greeted_and_went_silent_ends_the_wait_under_the_silence_bound(
     let reach: &str = include_str!("service_client_reach_service.rs");
     assert!(reach.contains("if service_seen { config.heartbeat_silence }"), "a service that greeted is read against the silence a working service never keeps");
     assert!(reach.contains("Heard::Silent if service_seen => return Err(ClientFailure::ServiceSilent)"), "and that silence is the service that stopped");
-    assert!(reach.contains("StartAttempt::Greeted => continue"), "the command starts a fresh server itself, with no service manager to ask");
+    // What: A greeting a look could not read inside its own patience goes back to the round of the loop, and the loop's
+    //       bound is asked before anything else it does.
+    // Why:  The `continue` that was here skipped the bound and the pause, and a command spun for twelve hours at half a core
+    //       (2026-11-15, `service_client_reach_service.rs`'s own doc). This control reads the loop's text so that shape cannot
+    //       come back without failing here.
+    assert!(
+        reach.contains("StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => {}"),
+        "a start's answer goes back to the loop, which asks its bound first"
+    );
+    assert!(!reach.contains("StartAttempt::Greeted => continue"), "no start's answer skips the bound");
     assert!(!reach.contains("watch.restart"), "nothing asks a manager to restart a unit");
 }
 

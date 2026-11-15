@@ -1060,11 +1060,7 @@ fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
     let nobody = ClientConfig { start_wait: Duration::from_millis(300), ..config(name.as_str()) };
     assert_eq!(
         submit_quietly(&nobody, &sent),
-        Err(ClientFailure::DidNotStart {
-            unit: None,
-            answer: git_policy_cli::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent,
-            asked: git_policy_cli::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing,
-        }),
+        Err(ClientFailure::DidNotStart),
         "nothing listens and no manager can be asked, so nothing was told about the commit"
     );
     // A client that waited for a service it cannot start would sit out this wait, so a result is the proof that it did not.

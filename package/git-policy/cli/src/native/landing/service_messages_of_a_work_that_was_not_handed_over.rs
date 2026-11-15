@@ -40,12 +40,10 @@ use crate::service_messages::ClientFailure;
 /// const handed = (failure) => ({ kind: 'work-not-handed-over', reason: reasonOf(failure) });
 /// ```
 pub(crate) fn not_handed_over(failure: ClientFailure) -> ClientFailure {
-    if let Some(worded) = crate::service_messages_of_a_start_that_was_asked_and_did_not_come::work_not_handed_over(&failure) {
-        return worded;
-    }
     let reason: &str = match &failure {
         ClientFailure::NoActivation(_) => "this account cannot start the commit service on demand",
-        ClientFailure::ManagerDidNotAnswer { .. } => "the user service manager did not answer within the time one exchange is given",
+        ClientFailure::DidNotStart => "the commit service did not start: no service answered at its address, and its log names why",
+        ClientFailure::ServiceRecovering { .. } => "the commit service was running and answered nothing within the time a live service is given",
         ClientFailure::ServiceSilent => "the commit service stopped answering",
         ClientFailure::NoCommonVersion => "the commit service that is running was started from a newer release of this git wrapper",
         ClientFailure::OtherRelease => "a commit service started from another release of this git wrapper is still running",

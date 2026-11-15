@@ -67,7 +67,6 @@ fn samples() -> Vec<ClientFailure> {
             log: Some(std::path::PathBuf::from("/home/a/temp/agent/rt/monochromatic-git-policy-cli/3f9a.log")),
         },
         ClientFailure::ContentPruned,
-        ClientFailure::ManagerDidNotAnswer { waited: Duration::from_secs(20) },
         ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(4242), blocker: Some(String::from("a landing behind another program's index lock")) },
         ClientFailure::Interrupted { signal: libc::SIGTERM, sender: None, blocker: None },
         ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, sender: None, blocker: None },
@@ -79,84 +78,57 @@ fn samples() -> Vec<ClientFailure> {
     return all;
 }
 
-/// Compile-time proof that `samples` covers every variant:
-/// adding one breaks this match until a sample exists.
-fn variant_index(failure: &ClientFailure) -> usize {
-    return match failure {
-        ClientFailure::DidNotStart => 0,
-        ClientFailure::NoActivation(_) => 1,
-        ClientFailure::OtherAccount => 2,
-        ClientFailure::MayNotHaveLanded => 3,
-        ClientFailure::NoCommonVersion => 4,
-        ClientFailure::RepositoryFull(_) => 5,
-        ClientFailure::RepositoryReadOnly(_) => 6,
-        ClientFailure::BranchKeepsChanging { .. } => 7,
-        ClientFailure::ServiceSilent => 8,
-        ClientFailure::ServiceSilentAfterPreparing { .. } => 24,
-        ClientFailure::Refused => 9,
-        ClientFailure::IndexInUse(_) => 10,
-        ClientFailure::ReferenceLocked { .. } => 25,
-        ClientFailure::Unavailable => 11,
-        ClientFailure::ProgramMissing(_) => 12,
-        ClientFailure::CouldNotStart(_) => 13,
-        ClientFailure::UnitInTheWay(_) => 15,
-        ClientFailure::WorkNotHandedOver(_) => 14,
-        ClientFailure::BranchMoved { .. } => 16,
-        ClientFailure::BranchMovedMessageSaved { .. } => 17,
-        ClientFailure::OtherRelease => 18,
-        ClientFailure::BranchSwitched { .. } => 19,
-        ClientFailure::ContentPruned => 23,
-        ClientFailure::PermissionDenied(_) => 27,
-        ClientFailure::RepositoryFrozen(_) => 25,
-        ClientFailure::ConclusionStateChanged { .. } => 26,
-        ClientFailure::StepTooSlow => 22,
-        ClientFailure::StillWithService { .. } => 20,
-        ClientFailure::WithdrawalUnconfirmed { .. } => 21,
-        ClientFailure::SocketPathTooLong { .. } => 28,
-        ClientFailure::ServiceElsewhere { .. } => 29,
-        ClientFailure::Interrupted { .. } => 30,
-        ClientFailure::InterruptedNotKnown { .. } => 31,
-        ClientFailure::ServiceNotReading { .. } => 33,
-        ClientFailure::ServiceRecovering { .. } => 34,
+
+macro_rules! each_failure_variant {
+    ( $( $name:literal => $variant:pat ),* $(,)? ) => {
+        /// The name of `failure`'s variant.
+        fn variant_name(failure: &ClientFailure) -> &'static str {
+            return match failure {
+                $( $variant => $name, )*
+            };
+        }
+
+        /// Every name `variant_name` can give,
+        /// one for each variant of `ClientFailure`.
+        const VARIANT_NAMES: &[&str] = &[ $( $name ),* ];
     };
 }
 
 each_failure_variant! {
     "DidNotStart" => ClientFailure::DidNotStart,
-    "NothingAnswered" => ClientFailure::NothingAnswered,
-    "NoActivation" => ClientFailure::NoActivation,
-    "ManagerDidNotAnswer" => ClientFailure::ManagerDidNotAnswer,
+    "ServiceRecovering" => ClientFailure::ServiceRecovering { .. },
+    "NoActivation" => ClientFailure::NoActivation(..),
     "OtherAccount" => ClientFailure::OtherAccount,
     "MayNotHaveLanded" => ClientFailure::MayNotHaveLanded,
     "NoCommonVersion" => ClientFailure::NoCommonVersion,
     "OtherRelease" => ClientFailure::OtherRelease,
-    "RepositoryFull" => ClientFailure::RepositoryFull,
-    "RepositoryReadOnly" => ClientFailure::RepositoryReadOnly,
-    "PermissionDenied" => ClientFailure::PermissionDenied,
-    "RepositoryFrozen" => ClientFailure::RepositoryFrozen,
-    "BranchKeepsChanging" => ClientFailure::BranchKeepsChanging,
-    "BranchMoved" => ClientFailure::BranchMoved,
-    "ConclusionStateChanged" => ClientFailure::ConclusionStateChanged,
-    "BranchMovedMessageSaved" => ClientFailure::BranchMovedMessageSaved,
-    "BranchSwitched" => ClientFailure::BranchSwitched,
+    "RepositoryFull" => ClientFailure::RepositoryFull(..),
+    "RepositoryReadOnly" => ClientFailure::RepositoryReadOnly(..),
+    "PermissionDenied" => ClientFailure::PermissionDenied(..),
+    "RepositoryFrozen" => ClientFailure::RepositoryFrozen(..),
+    "BranchKeepsChanging" => ClientFailure::BranchKeepsChanging { .. },
+    "BranchMoved" => ClientFailure::BranchMoved { .. },
+    "ConclusionStateChanged" => ClientFailure::ConclusionStateChanged { .. },
+    "BranchMovedMessageSaved" => ClientFailure::BranchMovedMessageSaved { .. },
+    "BranchSwitched" => ClientFailure::BranchSwitched { .. },
     "ServiceSilent" => ClientFailure::ServiceSilent,
-    "ServiceNotReading" => ClientFailure::ServiceNotReading,
-    "ServiceSilentAfterPreparing" => ClientFailure::ServiceSilentAfterPreparing,
-    "StillWithService" => ClientFailure::StillWithService,
-    "WithdrawalUnconfirmed" => ClientFailure::WithdrawalUnconfirmed,
-    "Interrupted" => ClientFailure::Interrupted,
-    "InterruptedNotKnown" => ClientFailure::InterruptedNotKnown,
+    "ServiceNotReading" => ClientFailure::ServiceNotReading { .. },
+    "ServiceSilentAfterPreparing" => ClientFailure::ServiceSilentAfterPreparing { .. },
+    "StillWithService" => ClientFailure::StillWithService { .. },
+    "WithdrawalUnconfirmed" => ClientFailure::WithdrawalUnconfirmed { .. },
+    "Interrupted" => ClientFailure::Interrupted { .. },
+    "InterruptedNotKnown" => ClientFailure::InterruptedNotKnown { .. },
     "StepTooSlow" => ClientFailure::StepTooSlow,
     "Refused" => ClientFailure::Refused,
-    "IndexInUse" => ClientFailure::IndexInUse,
-    "ReferenceLocked" => ClientFailure::ReferenceLocked,
+    "IndexInUse" => ClientFailure::IndexInUse(..),
+    "ReferenceLocked" => ClientFailure::ReferenceLocked { .. },
     "Unavailable" => ClientFailure::Unavailable,
-    "ProgramMissing" => ClientFailure::ProgramMissing,
-    "CouldNotStart" => ClientFailure::CouldNotStart,
-    "SocketPathTooLong" => ClientFailure::SocketPathTooLong,
-    "ServiceElsewhere" => ClientFailure::ServiceElsewhere,
-    "UnitInTheWay" => ClientFailure::UnitInTheWay,
-    "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver,
+    "ProgramMissing" => ClientFailure::ProgramMissing(..),
+    "CouldNotStart" => ClientFailure::CouldNotStart(..),
+    "SocketPathTooLong" => ClientFailure::SocketPathTooLong { .. },
+    "ServiceElsewhere" => ClientFailure::ServiceElsewhere { .. },
+    "UnitInTheWay" => ClientFailure::UnitInTheWay(..),
+    "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver(..),
     "ContentPruned" => ClientFailure::ContentPruned,
 }
 
@@ -329,7 +301,7 @@ fn every_message_gives_an_action() {
 #[test]
 fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
-    assert!(render(&ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing }).contains(LOG_COMMAND));
+    assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
     // What: The failure that a program other than this release answers names the command that ends it on a machine with no
@@ -451,39 +423,6 @@ fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_lan
     }
 }
 
-/// What:
-///  The words for a manager that answered nothing give the step that ends it,
-///  and name the status command only for the reader whose answer it helps.
-/// Why:
-///  Run in a fixture with no service up,
-/// `git monochromatic-git-policy-cli service status` answers
-///  "The commit service of this worktree does not answer here ... if a commit fails,
-/// its message says what to do",
-///  which sends a reader of this message straight back to it;
-///  in a fixture with a service up it answers whether that service answers and names its unit.
-///  So the command is named under the one condition where the second answer is the true one,
-///  and the step every reader gets is the one that always works:
-/// run the commit again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // expect(render({ kind: 'manager-did-not-answer', waited: 20s })).toContain('was already running before this commit')
-/// ```
-#[test]
-fn a_manager_that_did_not_answer_names_the_status_command_only_for_a_reader_it_helps() {
-    let waited: Duration = Duration::from_secs(20);
-    let words: String = render(&ClientFailure::ManagerDidNotAnswer { waited });
-    assert!(words.contains("did not answer within the 20 seconds"), "the words name the time the exchange was given: {words}");
-    assert!(words.contains("says nothing about whether the manager is there"), "they do not claim the manager is absent: {words}");
-    assert!(words.contains("nothing of it was written") && words.contains("nothing that could land later by itself"), "they say what became of the commit: {words}");
-    assert!(words.contains("Run the commit again"), "the step that always works is named: {words}");
-    // One mention, in the sentence that says which reader it is for.
-    assert_eq!(words.matches(STATUS_COMMAND).count(), 1, "the status command is named once: {words}");
-    let named_at: usize = words.find(STATUS_COMMAND).expect("named");
-    let before: &str = &words[..named_at];
-    assert!(before.contains("was already running before this commit"), "the command is named for the reader whose service was already running: {words}");
-    assert!(!words.contains(LINGER_COMMAND), "an account with user services is not told to turn them on: {words}");
-}
 
 /// Queue notices count the commits ahead.
 #[test]

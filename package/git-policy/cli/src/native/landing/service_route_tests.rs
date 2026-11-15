@@ -55,7 +55,9 @@ fn the_program_and_the_runtime_directory_mean_a_route() {
     add_program(&machine);
     let route: Option<Route> = choose_route(&inputs(&machine));
     let Some(Route { address, host }) = route else { panic!("a route expected") };
-    assert_eq!(address, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
+    // What the route names is the address of this runtime directory, which the one function gives: a socket file for a
+    // path that fits one and the kernel's own name for one that does not (`service_address_of_a_worktree.rs`).
+    assert_eq!(address, crate::service_address_of_a_worktree::socket_address_of(machine.runtime.as_path(), crate::service_instance::instance_of(machine.git_dir.as_path()).as_str()));
     let named = host.expect("what starting needs comes with the route");
     assert_eq!(named.instance, crate::service_instance::instance_of(machine.git_dir.as_path()));
     assert_eq!(named.journal(), crate::service_journal_folder_of_an_instance::journal_of(&machine.root.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current), named.instance.as_str()));
@@ -67,12 +69,14 @@ fn the_program_and_the_runtime_directory_mean_a_route() {
 #[test]
 fn an_existing_socket_is_used_without_a_program() {
     let machine: Machine = machine("route-socket");
-    let socket: PathBuf = socket_for(machine.runtime.as_path(), machine.git_dir.as_path());
-    std::fs::create_dir_all(socket.parent().expect("the socket's folder")).expect("socket folder");
-    std::fs::write(socket.as_path(), b"").expect("a socket file");
-    assert_eq!(choose_route(&inputs(&machine)), Some(Route { address: Bind::Path(socket.clone()), host: None }));
-    std::fs::remove_file(socket.as_path()).expect("the socket file goes");
-    assert_eq!(choose_route(&inputs(&machine)), None, "neither a socket nor a program is no route");
+    let instance: String = crate::service_instance::instance_of(machine.git_dir.as_path());
+    let address: Bind = crate::service_address_of_a_worktree::socket_address_of(machine.runtime.as_path(), instance.as_str());
+    // The address this fixture's runtime directory has is the kernel's own name (its root is deeper than a socket path),
+    // and what says it is there is a listener on it.
+    let listener: std::os::unix::net::UnixListener = crate::service_server_socket_binding::bind(&address).expect("a listener at the address");
+    assert_eq!(choose_route(&inputs(&machine)), Some(Route { address: address.clone(), host: None }));
+    drop(listener);
+    assert_eq!(choose_route(&inputs(&machine)), None, "neither an address nor a program is no route");
     remove(machine.root.as_path());
 }
 

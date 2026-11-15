@@ -22,7 +22,6 @@
 //! stderr.write(render({ kind: 'not-installed' }));
 //! ```
 
-use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
 use std::path::Path;
 use std::time::Duration;
 
@@ -133,18 +132,15 @@ pub enum Platform {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientFailure {
-    /// The wait for the commit service ended with nothing greeting it,
-    /// and what it learned about the service manager's own answer is what says why:
-    /// a start that was never asked for leaves the service's log empty.
-    DidNotStart {
-        /// The unit this command asked the service manager about,
-        /// or nothing where no manager can be asked to start a service at all.
-        unit: Option<String>,
-        /// What the service manager last said about that unit.
-        answer: ManagerLastWords,
-        /// What this command asked the manager to do about it.
-        asked: RequestedStart,
-    },
+    /// What:
+    ///  The wait for the commit service ended with nothing greeting it,
+    ///  and no service was reached at the address.
+    /// Why:
+    ///  This branch asks no manager about a unit,
+    /// so there is no unit and no manager's answer to name:
+    /// the start is this command's own (`service_server_start_by_the_wrapper.rs`).
+    /// The sentence names the log, which is where a start of this program says why it did not come.
+    DidNotStart,
     /// A service is running at the address, took the connection, and has not greeted within the bound a live service's
     /// own recoveries are given: it is alive and still returning to work.
     ServiceRecovering {
@@ -157,12 +153,6 @@ pub enum ClientFailure {
     },
     /// The platform cannot start the service on demand.
     NoActivation(Platform),
-    /// An exchange with the user service manager ran out of the time it was given,
-    /// which says nothing about whether the manager is there.
-    ManagerDidNotAnswer {
-        /// The time that exchange was given.
-        waited: Duration,
-    },
     /// The service on the socket belongs to another account.
     OtherAccount,
     /// The service stopped before it confirmed the commit.
@@ -343,17 +333,15 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::DidNotStart { unit, answer, asked } => format!(
-            "The commit service did not start, so this commit was not made: {}. Its log shows why: `{LOG_COMMAND}`. \
-             Run the commit again after fixing that. {NOTHING_CHANGED}",
-            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(unit.as_deref(), answer, *asked)
+        ClientFailure::DidNotStart => format!(
+            "The commit service did not start, so this commit was not made: nothing answered at its address. Its log \
+             shows why: `{LOG_COMMAND}`. Run the commit again after fixing that. {NOTHING_CHANGED}"
         ),
         ClientFailure::ServiceRecovering { address, waited, log } => crate::service_messages_of_a_service_that_stopped::service_recovering(address.as_str(), *waited, log.as_deref()),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)
         ),
-        ClientFailure::ManagerDidNotAnswer { waited } => crate::service_messages_of_a_manager_that_did_not_answer::did_not_answer(*waited),
         ClientFailure::OtherAccount => format!(
             "Another account runs the commit service here, so this commit was not made. Use your own account, or ask \
              the other account to stop its service, then run the commit again. {NOTHING_CHANGED}"

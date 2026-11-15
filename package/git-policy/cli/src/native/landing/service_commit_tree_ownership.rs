@@ -53,10 +53,9 @@ pub(crate) fn the_service_never_took(result: &Result<Submitted, ClientFailure>) 
             // A service is there and has not greeted, so the request was never sent.
             | ClientFailure::ServiceRecovering { .. }
             // No service was reached at all, so nothing was written and nothing can be running.
-            | ClientFailure::DidNotStart { .. }
+            | ClientFailure::DidNotStart
             | ClientFailure::NoActivation(_)
-            // The manager never answered, so the service was never asked and no landing can read this tree.
-            | ClientFailure::ManagerDidNotAnswer { .. }
+            // No manager is asked to start a unit on this branch, so nothing reached a service and no landing can read this tree.
             | ClientFailure::OtherAccount
             | ClientFailure::NoCommonVersion
             | ClientFailure::OtherRelease
