@@ -48,9 +48,7 @@ use crate::service_server_own_worktree_question::own_worktree_gone_now;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
-use crate::service_protocol::{
-    FailureCode, RELEASE, ServiceMessage,
-};
+use crate::service_protocol::{RELEASE, ServiceMessage};
 use std::collections::HashMap;
 use std::os::unix::net::UnixListener;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -518,24 +516,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             for id in &admission.dropped {
                 crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
             }
-            for id in &admission.unavailable {
-                crate::service_error!("the request {id} could not be admitted to its group (the record of the landing thread cannot be written), so it is answered with a failure and not landed");
-            }
-            // A dropped request is not answered here; an unavailable one is answered with a failure; the rest are landed.
-            let mut unavailable: Vec<Queued> = Vec::new();
+            // A dropped request is not answered here, because its client was told; the rest are landed.
+            // Nothing can keep a request out of its group any more: the claim and the withdrawal are one decision under one
+            //  lock, so no drive stands between them (`service_busy.rs`, `begin_group`).
             let mut admitted: Vec<Queued> = Vec::new();
             for queued in queued_group {
                 if admission.dropped.contains(&queued.0.id) {
                     continue;
                 }
-                if admission.unavailable.contains(&queued.0.id) {
-                    unavailable.push(queued);
-                } else {
-                    admitted.push(queued);
-                }
-            }
-            for (request, stream, _) in &unavailable {
-                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable });
+                admitted.push(queued);
             }
             let group: Vec<Queued> = admitted;
             if group.is_empty() {

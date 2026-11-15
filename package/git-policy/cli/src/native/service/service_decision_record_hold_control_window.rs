@@ -1,27 +1,30 @@
 //! What:
 //!  The one instant of a request's decision a control may take hold of:
-//!  the moment the landing board is about to publish a request's decision as a file in the journal's
-//!  `busy` directory.
+//!  every reach of the board's record of a request's decision,
+//! whether it is about to publish the decision as a file in the journal's `busy` directory or to read it back.
 //! Why:
-//!  A control of the wait a commit bears before its group begins needs a write that does not return,
+//!  A control of the wait a commit bears before its group begins needs a step that does not return,
 //! and the state that makes one on this machine is a disk of the account's own taken by another program's work.
 //! The rules that bind every run forbid a probe that stalls a real drive
 //! (`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`),
-//! so a control holds this write instead of poisoning a disk.
+//! so a control holds this step instead of poisoning a disk.
+//!  Both reaches are held by one variable because the control's question is about the record, not about which
+//!  half of it the landing thread reaches:
+//! a hold that caught only the write would say nothing about a read of the same drive.
 //!  The point is compiled into the release executable and only the explicit variable arms it,
 //! as `service_fault.rs` does with its own,
 //! and a request that carries no variable reads one environment variable and goes on at once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! whereAControlHoldsTheRecord(); publishTheDecision(); // the publish, after the control's own pause
+//! whereAControlHoldsTheRecord(); publishOrReadTheDecision(); // the reach, after the control's own pause
 //! ```
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// Environment variable naming where a control holds the write of a request's decision:
+/// Environment variable naming where a control holds a reach of a request's decision:
 /// the board leaves `<path>.reached` there and goes on once `<path>.release` is there,
 /// or at `CONTROL_PARK_CEILING`.
 /// Why:
@@ -31,7 +34,7 @@ use std::time::{Duration, Instant};
 /// and nothing is decided by a sleep.
 pub const HOLD_VARIABLE: &str = "CLI_GIT_TEST_ONLY_DECISION_RECORD_HOLD";
 
-/// The longest a control's hold keeps the decision unwritten.
+/// The longest a control's hold keeps a reach of the decision from returning.
 /// Why:
 ///   A control that ended without releasing its hold must leave no thread of the service parked for good;
 /// a minute is longer than any control of one commit takes,
@@ -51,16 +54,19 @@ fn marker(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
 /// What:
 ///  Waits where a control says,
 /// when the variable arms one,
-///  before the decision of a request is published.
+///  before the board reaches its record of a request's decision,
+///  to publish it or to read it back.
 /// Why:
 ///   The hold is the control's,
-///  and the record written after it is the record the board would have written anyway:
-/// what a control changes while the board waits is when the record reaches the journal,
-/// never what it says.
+///  and what the board does after it is what it would have done anyway:
+/// what a control changes while the board waits is when the record is reached,
+/// never what it says,
+/// and a step a control holds that the landing thread no longer takes is the control's own sign that the commit
+///  no longer waits for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// whereAControlHoldsTheRecord(); publishTheDecision();
+/// whereAControlHoldsTheRecord(); publishOrReadTheDecision();
 /// ```
 pub(crate) fn the_decision_record_waits_where_a_control_says() {
     let named: Option<std::ffi::OsString> = std::env::var_os(HOLD_VARIABLE);

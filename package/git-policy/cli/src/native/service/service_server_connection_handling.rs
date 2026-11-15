@@ -186,13 +186,35 @@ fn note_from_the_board(board: &LandingBoard, request: Option<&str>, accepted: Op
     if waited_before_now < crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER {
         return (None, last);
     }
-    let Some(behind) = board.words_of_a_queue_wait(waited_before_now, None) else { return (None, last) };
-    // The words are the key: they carry no moment, so a connection is told them once.
-    if last.as_deref() == Some(behind.as_str()) {
+    let Some(id) = request else { return (None, last) };
+    // What: A request the landing thread has taken is told that it has taken it, and never that it has not.
+    // Why:  The claim is where the queue wait ends, so the words of that wait are false from then on;
+    //       a person told "not taken yet" about a request being landed looks for a queue that is not there
+    //       (`service_busy.rs`, `begin_group`).
+    let text: String = if board.is_in_flight(id) {
+        format!("monochromatic-git-policy-cli: {}.\n", board.words_of_a_taken_request())
+    } else {
+        let Some(behind) = board.words_of_a_queue_wait(id, waited_before_now, None) else { return (None, last) };
+        return say_once(text_of_the_queue(&behind), behind, last);
+    };
+    return say_once(text, String::from("taken"), last);
+}
+
+/// The line a waiting client reads about a queue it has not left:
+/// what the wait is in,
+/// as the board words it.
+fn text_of_the_queue(behind: &str) -> String {
+    return format!("monochromatic-git-policy-cli: the commit service has not taken this commit yet: {behind}.\n");
+}
+
+/// The message for words that carry no moment,
+/// said once:
+/// the words are the key, so a connection is told them the first time and never again.
+fn say_once(text: String, key: String, last: Option<String>) -> (Option<ServiceMessage>, Option<String>) {
+    if last.as_deref() == Some(key.as_str()) {
         return (None, last);
     }
-    let text: String = format!("monochromatic-git-policy-cli: the commit service has not taken this commit yet: {behind}.\n");
-    return (Some(ServiceMessage::Waiting { text: text.clone() }), Some(behind));
+    return (Some(ServiceMessage::Waiting { text }), Some(key));
 }
 
 impl NoteSource for StuckNotice {

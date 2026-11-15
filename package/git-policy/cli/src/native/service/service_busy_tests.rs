@@ -170,36 +170,6 @@ fn a_new_board_removes_what_an_earlier_service_left() {
     assert!(!second.is_in_flight("old"));
 }
 
-/// Fails closed (sol-1,
-/// P1):
-/// when the record of a withdrawal cannot be written,
-/// a withdrawal is never answered "withdrawn".
-/// The record's directory is made a directory no process may write,
-/// so every publication there fails.
-///  Admission is not a write any more,
-/// so the same directory admits the request at once:
-/// the landing thread's claim is memory,
-/// and the read of the record is a read.
-#[test]
-fn a_record_that_cannot_be_written_never_answers_withdrawn() {
-    crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let record: Arc<LandingBoard> = board();
-        use_on_this_thread(Arc::clone(&record));
-        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-        std::thread::sleep(A_MOMENT);
-        assert!(matches!(record.withdraw_early("works"), EarlyAnswer::Withdrawn(_)), "the control that must move");
-        // The directory stays readable (the step file can still be read) but takes no new file, as a full disk or a refused write leaves it.
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("make the directory read-only");
-        let answer: EarlyAnswer = record.withdraw_early("later");
-        let admission: GroupAdmission = record.begin_group(ids(&["later"]).as_slice());
-        std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
-        assert_eq!(answer, EarlyAnswer::Queued, "no cancellation was established, so none is confirmed");
-        assert_eq!(admission, GroupAdmission::default(), "a request is admitted on the landing thread's own claim, which needs no file");
-        record.end_group(ids(&["later"]).as_slice());
-    });
-}
-
 /// A withdrawal is a tombstone with the identity of a normal one (sol-1,
 /// P1):
 /// every copy of the request that reaches a group after
@@ -255,10 +225,6 @@ fn admission_and_early_withdrawal_never_both_succeed() {
         record.end_group(&[id]);
     }
 }
-
-/// One withdrawal's content, as a connection thread writes it:
-/// the word and the token of its maker.
-const A_WITHDRAWAL: &str = "withdrawn:a-token";
 
 /// A journal entry that says request `id` landed as batch `seq`,
 /// written the way the landing writes it.
@@ -330,7 +296,7 @@ fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
         release.send(()).expect("let W1 go on");
         let answer: EarlyAnswer = first.join().expect("W1");
         assert_eq!(answer, EarlyAnswer::Landed("1".repeat(40)), "W1 asks the journal again and finds the request");
-        assert!(!record.decision_path("r").exists(), "nobody acknowledged the decision, so W1 removes it");
+        assert!(record.withdrawal_of("r").is_none(), "nobody acknowledged the decision, so W1 removes it");
     });
 }
 
@@ -386,112 +352,44 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
     });
 }
 
-/// A staging file of a decision is removed whichever way the decision ends (sol-1 round 2,
-/// P2:
-/// a failed write returned before the
-/// removal and left it).
-/// The failure is injected inside the shared publish,
-/// after the staging file was made and written,
-/// so a
-/// publish that stopped removing its staging file leaves one behind and fails this control (round 3:
-/// the earlier control failed a
-/// closure of its own).
+/// What:
+///  An admission and a decision need no file of the record,
+///  and leave none:
+///  the directory the record used to keep is a plain file the filesystem refuses to open,
+///  and both still work.
+/// Why:
+///  The record was a write and then a read of the service's state directory,
+/// and both stood on the path a commit waits on
+/// (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`);
+/// this control fails if anything of the decision reaches for that directory again.
 #[test]
-fn a_decision_whose_write_fails_leaves_no_temporary_file() {
-    let directory: std::path::PathBuf = crate::test_support::fixture("service-busy-temporary");
-    let record: Arc<LandingBoard> = LandingBoard::new(directory.join("journal"), AT_ONCE);
-    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the write failed after the file was made")); })); });
-    for round in 0..5 {
-        assert!(record.decide("same", A_WITHDRAWAL).is_err(), "round {round}");
-    }
-    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
-    let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".partial"); }).count(); };
-    assert_eq!(leftovers(&record), 0, "a failed write leaves no temporary file");
-    assert!(!record.decision_path("same").exists(), "and decided nothing");
-    for round in 0..20 {
-        assert!(record.decide("same", A_WITHDRAWAL).is_ok(), "round {round}");
-    }
-    assert_eq!(leftovers(&record), 0, "a decision that wins or loses leaves no temporary file");
-}
-
-/// Request `r` has a confirmed withdrawal,
-/// and the retention removed its decision and paused before its confirmation (sol-1 round 3,
-/// P1 A).
-/// Withdrawer W1 wins a new decision and is stopped before its journal read;
-/// W2 meets that decision beside the old
-/// confirmation.
-/// W2 must not answer "withdrawn":
-/// the old confirmation belongs to the old decision.
-/// W1 then finds the request landed.
-#[test]
-fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision() {
+fn an_admission_and_a_decision_need_no_file_of_the_record() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-confirmation").join("journal");
-        let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let record: Arc<LandingBoard> = board();
         use_on_this_thread(Arc::clone(&record));
-        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        let _step = enter_step(String::from("git update-ref --stdin in /repo"));
         std::thread::sleep(A_MOMENT);
-        assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "the first withdrawal is confirmed");
-        // The retention's first removal, and its pause.
-        std::fs::remove_file(record.decision_path("r")).expect("the retention removed the decision");
-        let seen_by_w2: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::new(std::sync::Mutex::new(None));
-        let sink: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::clone(&seen_by_w2);
-        let other: Arc<LandingBoard> = Arc::clone(&record);
-        AFTER_THE_DECISION_IS_WON.with(|hook| {
-            *hook.borrow_mut() = Some(Box::new(move || {
-                // W2, on another thread with a board of its own view, meets W1's decision beside the old confirmation.
-                let board: Arc<LandingBoard> = Arc::clone(&other);
-                let answer: EarlyAnswer = std::thread::spawn(move || { return board.withdraw_early("r"); }).join().expect("W2");
-                *sink.lock().expect("lock") = Some(answer);
-                // The request lands before W1 asks the journal again.
-                record_landed(journal.as_path(), 1, "r");
-            }));
-        });
-        let first: EarlyAnswer = record.withdraw_early("r");
-        AFTER_THE_DECISION_IS_WON.with(|hook| { *hook.borrow_mut() = None; });
-        assert_eq!(*seen_by_w2.lock().expect("lock"), Some(EarlyAnswer::Queued), "the old confirmation is not W1's");
-        assert_eq!(first, EarlyAnswer::Landed("1".repeat(40)), "W1 finds the request in the journal");
-    });
-}
-
-/// The retention works from a listing and removes by what it still finds:
-/// a decision that replaced the one it listed (another token)
-/// stays,
-/// with its confirmation,
-/// while the pair it listed is forgotten (sol-1 round 3,
-/// P1 A:
-/// concurrent pruners from a stale listing).
-#[test]
-fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
-    crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-listing").join("journal");
-        let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
-        use_on_this_thread(Arc::clone(&record));
-        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-        std::thread::sleep(A_MOMENT);
-        for round in 0..(WITHDRAWALS_RETAINED + 1) {
-            assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        // Between the listing and the removals, the oldest request's pair is replaced by a decision of another withdrawal.
-        let replaced: std::path::PathBuf = record.decision_path("r0");
-        let replacement: String = format!("{WITHDRAWN}:another-token");
-        let target = replaced.clone();
-        AFTER_THE_LISTING.with(|hook| {
-            *hook.borrow_mut() = Some(Box::new(move || {
-                std::fs::remove_file(target.as_path()).expect("the old decision goes");
-                std::fs::write(target.as_path(), replacement.as_bytes()).expect("the new decision");
-            }));
-        });
-        record.end_group(&[]);
-        AFTER_THE_LISTING.with(|hook| { *hook.borrow_mut() = None; });
-        assert_eq!(std::fs::read_to_string(replaced).expect("the replacement stays"), format!("{WITHDRAWN}:another-token"));
+        let entries = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("the record's directory").count(); };
+        let before: usize = entries(&record);
+        // The directory takes no new file, as a full disk or a refused write leaves it, and the step record it already holds
+        //  is still read: the early answer needs that read and nothing else.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("make the directory read-only");
+        let admitted: GroupAdmission = record.begin_group(ids(&["admitted"]).as_slice());
+        let held: EarlyAnswer = record.withdraw_early("admitted");
+        let decided: EarlyAnswer = record.withdraw_early("decided");
+        let after: usize = entries(&record);
+        std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
+        assert_eq!(admitted, GroupAdmission::default(), "an admission needs no file");
+        assert_eq!(held, EarlyAnswer::Queued, "a request the landing thread holds is left to it");
+        assert!(matches!(decided, EarlyAnswer::Withdrawn(_)), "a withdrawal of any other request is decided with no file at all");
+        assert_eq!(before, after, "and neither of them leaves a file in the record's directory");
+        record.end_group(ids(&["admitted"]).as_slice());
     });
 }
 
 /// The memory of confirmed withdrawals is bounded:
-/// past the retention the oldest are forgotten,
-/// decision and confirmation together.
+/// past the retention the oldest are forgotten.
 #[test]
 fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
@@ -503,11 +401,12 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
         for round in 0..(WITHDRAWALS_RETAINED + 6) {
             assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
         }
+        assert_eq!(record.confirmed_withdrawals(), WITHDRAWALS_RETAINED + 6, "nothing is forgotten while the landing goes on");
         // The retention runs on the landing thread, between two groups.
         record.end_group(&[]);
-        let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
-        assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
-        assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_RETAINED, "a decision never outlives its confirmation, nor the other way");
+        assert_eq!(record.confirmed_withdrawals(), WITHDRAWALS_RETAINED);
+        assert!(record.withdrawal_of("r0").is_none(), "the oldest decision goes");
+        assert!(record.withdrawal_of(format!("r{}", WITHDRAWALS_RETAINED + 5).as_str()).is_some(), "the newest stays");
     });
 }
 
@@ -531,13 +430,11 @@ fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
                 withdrawn += 1;
             }
         }
-        let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
         assert_eq!(withdrawn, WITHDRAWALS_CEILING, "withdrawals past the bound are left to the landing thread");
-        assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_CEILING);
-        assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_CEILING);
+        assert_eq!(record.confirmed_withdrawals(), WITHDRAWALS_CEILING);
         // The landing thread's retention brings the memory back to the retained number, and withdrawals are answered again.
         record.end_group(&[]);
-        assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
+        assert_eq!(record.confirmed_withdrawals(), WITHDRAWALS_RETAINED);
         assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
     });
 }
@@ -591,76 +488,43 @@ fn a_step_record_that_is_a_named_pipe_is_not_read() {
     assert_eq!(said, None, "a pipe names no write the landing thread is inside");
 }
 
-/// How long the landing thread,
-/// paused between the check and the rename of a publish,
-/// gives the connection thread to finish its own
-///  publish of the same name:
-/// far above the microseconds a publish takes,
-/// so a connection thread that nothing holds back has
-///  finished,
-/// and a held one is still waiting.
-#[cfg(unix)]
-const TIME_FOR_THE_OTHER_PUBLISHER: Duration = Duration::from_millis(500);
-
-/// How long a control waits for a decision that is certain to come once the landing thread has let go:
-/// far above a publish,
-/// so
-///  only a decision that never comes ends the wait.
-#[cfg(unix)]
-const TIME_FOR_A_DECISION_TO_COME: Duration = Duration::from_secs(30);
-
-/// On a filesystem that answers neither an exclusive rename nor a hard link,
-/// two connection threads of one
-///  service race for the withdrawal of one request with the checked rename (a check,
-/// then a rename).
-/// The first is paused between its
-///  check and its rename;
-/// the second decides the same request meanwhile.
-/// Exactly one of them may see itself the winner,
-///  and the other reads what the winner wrote (the plan,
-/// "Safe file saving:
-/// the publish replaced",
-/// fact 1 and its settlement).
-/// A withdrawal of a request the landing thread holds never reaches this publish:
-/// the claim is one `Mutex` and it is read before the decision is tried.
+/// What:
+///  Two connection threads decide the withdrawal of one request at the same moment,
+///  and exactly one of them wins it.
+/// Why:
+///   The decision is one insert under the board's lock,
+/// and such a decision is the whole of what the publish of a file gave before it
+/// (`service_busy.rs`,
+/// `decide`);
+/// a control that saw both threads win would let two clients be told the withdrawal is theirs,
+/// and one of them would then be told the commit never lands while it might.
 #[cfg(unix)]
 #[test]
-fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision() {
-    use crate::private_storage::{BETWEEN_THE_CHECK_AND_THE_RENAME, THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH};
-    use std::cell::RefCell;
-    use std::rc::Rc;
+fn two_connection_threads_never_both_win_a_decision() {
     let record: Arc<LandingBoard> = board();
-    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Decision>>();
-    // What the connection thread decided, when it finished while the landing thread was paused.
-    let decided_while_paused: Rc<RefCell<Option<std::io::Result<Decision>>>> = Rc::new(RefCell::new(None));
-    THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
-    let pause_record: Arc<LandingBoard> = Arc::clone(&record);
-    let pause_result: Rc<RefCell<Option<std::io::Result<Decision>>>> = Rc::clone(&decided_while_paused);
-    let pause_receiver = Rc::new(receiver);
-    let later_receiver = Rc::clone(&pause_receiver);
-    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            let (shared_record, shared_sender) = (Arc::clone(&pause_record), sender.clone());
-            std::thread::spawn(move || {
-                THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
-                let _sent = shared_sender.send(shared_record.decide("request", "withdrawn:another-token"));
-            });
-            *pause_result.borrow_mut() = pause_receiver.recv_timeout(TIME_FOR_THE_OTHER_PUBLISHER).ok();
-        }));
-    });
-    let landing: Decision = record.decide("request", A_WITHDRAWAL).expect("the first withdrawal's decision");
-    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { *hook.borrow_mut() = None; });
-    let withdrawing: Decision = match decided_while_paused.borrow_mut().take() {
-        Some(early) => early,
-        None => later_receiver.recv_timeout(TIME_FOR_A_DECISION_TO_COME).expect("the second withdrawal's decision comes once the first has let go"),
-    }
-    .expect("the second withdrawal's decision");
-    let content: String = std::fs::read_to_string(record.decision_path("request")).expect("the decision file");
-    match (landing, withdrawing) {
-        (Decision::Won, Decision::Lost(read)) => assert_eq!(read, content, "the loser reads what the winner wrote"),
-        (Decision::Lost(read), Decision::Won) => assert_eq!(read, content, "the loser reads what the winner wrote"),
-        (Decision::Won, Decision::Won) => panic!("both threads saw themselves the winner; the file says `{content}`"),
-        (Decision::Lost(_), Decision::Lost(_)) => panic!("neither thread won; the file says `{content}`"),
+    for round in 0..200 {
+        let id: String = format!("decided-{round}");
+        let barrier: Arc<std::sync::Barrier> = Arc::new(std::sync::Barrier::new(2));
+        let mut deciding: Vec<std::thread::JoinHandle<Decision>> = Vec::new();
+        for token in ["first", "second"] {
+            let (shared_record, shared_barrier, shared_id, own) = (Arc::clone(&record), Arc::clone(&barrier), id.clone(), String::from(token));
+            deciding.push(std::thread::spawn(move || {
+                shared_barrier.wait();
+                return shared_record.decide(shared_id.as_str(), own.as_str());
+            }));
+        }
+        let mut won: usize = 0;
+        let mut lost: Vec<String> = Vec::new();
+        for thread in deciding {
+            match thread.join().expect("a deciding thread") {
+                Decision::Won => won += 1,
+                Decision::Lost(theirs) => lost.push(theirs),
+            }
+        }
+        assert_eq!(won, 1, "round {round}: exactly one thread decides a request");
+        assert_eq!(lost.len(), 1, "round {round}: and the other reads what the winner decided");
+        assert_eq!(record.withdrawal_of(id.as_str()).as_deref(), Some(lost[0].as_str()), "round {round}");
+        record.end_group(&[]);
     }
 }
 
@@ -673,18 +537,30 @@ fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_threa
 /// and the service that cannot name one says that instead of saying nothing
 /// (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
 #[test]
-fn a_wait_over_the_bound_names_the_write_the_landing_thread_was_last_inside() {
+fn a_wait_over_the_bound_names_the_write_it_was_in_when_the_group_began() {
     let record: Arc<LandingBoard> = board();
     let bound: Duration = crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER;
-    assert_eq!(record.words_of_a_queue_wait(bound - Duration::from_millis(1), Some(0)), None, "a wait inside the bound is named by the answered line alone");
-    let unrecorded: String = record.words_of_a_queue_wait(bound, Some(0)).expect("a wait at the bound is named");
+    assert_eq!(record.words_of_a_queue_wait("a-request", bound - Duration::from_millis(1), Some(0)), None, "a wait inside the bound is named by the answered line alone");
+    // The request is taken with nothing recorded, so the words say that.
+    assert_eq!(record.begin_group(ids(&["a-request"]).as_slice()), GroupAdmission::default());
+    let unrecorded: String = record.words_of_a_queue_wait("a-request", bound, Some(0)).expect("a wait at the bound is named");
     assert!(unrecorded.contains("had recorded no write"), "{unrecorded}");
     assert!(unrecorded.contains("nothing of its own batch was ahead of it"), "{unrecorded}");
+    // What: The landing's own writes must not rename the wait's cause.
+    // Why:  The cause is what the landing thread had left when the wait ended, at the take; read at the answer instead,
+    //       the words name the landing's own write, which the queue never stood behind.
+    record.note_the_write_it_left("git update-ref --stdin in /main-by-the-landing");
+    let still_unrecorded: String = record.words_of_a_queue_wait("a-request", bound, Some(0)).expect("a wait at the bound is named");
+    assert_eq!(still_unrecorded, unrecorded, "a write of the landing's own does not rename what its queue wait was in");
+    record.end_group(ids(&["a-request"]).as_slice());
+    // A request taken after a write of the previous group names that write, with how long it had been over.
     record.note_the_write_it_left("git update-ref --stdin in /repo");
-    let named: String = record.words_of_a_queue_wait(bound * 2, Some(3)).expect("a wait past the bound is named");
+    assert_eq!(record.begin_group(ids(&["another-request"]).as_slice()), GroupAdmission::default());
+    let named: String = record.words_of_a_queue_wait("another-request", bound * 2, Some(3)).expect("a wait past the bound is named");
     assert!(named.contains("git update-ref --stdin in /repo"), "{named}");
     assert!(!named.contains("had recorded no write"), "{named}");
     assert!(named.contains("3 commits of the service were still waiting"), "{named}");
-    let unknown: String = record.words_of_a_queue_wait(bound, None).expect("a wait at the bound is named");
+    let unknown: String = record.words_of_a_queue_wait("another-request", bound, None).expect("a wait at the bound is named");
     assert!(unknown.contains("is not known to the board"), "{unknown}");
+    record.end_group(ids(&["another-request"]).as_slice());
 }

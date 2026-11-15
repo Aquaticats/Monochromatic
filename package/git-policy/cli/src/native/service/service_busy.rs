@@ -26,45 +26,39 @@
 //! This record lets the thread that reads each connection (a) tell
 //!  the client what the service is stuck in,
 //! and (b) answer the withdrawal of a request that has not begun to land.
-//!  The requests the landing thread holds are kept in memory, one owner per item
-//! and no storage touched under the lock
+//!  Everything this record keeps is in memory, one owner per item and no storage reached under the lock
 //!  (`source_guard/service_lock_inventory_tests.rs`),
-//! because the file it used to keep them in was a write of the journal's drive between a request and its landing:
+//! because the files it used to keep it in were a write and a read of the journal's drive on the path a commit waits
+//! on:
 //!  two commits of 2026-11-15 waited 120,560 ms and 78,864 ms in the queue with nothing ahead of them while that
 //!  drive took 109,241 ms for a 4 KiB write-and-sync and the repository's drive answered in 10 ms
-//!  (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
-//!  Admission and cancellation are one decision per request:
-//!  the landing thread claims the request in memory before it lands it,
+//! (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`),
+//!  and the read that replaced the write held a commit 6,156 ms in the control of 2026-11-15 as well.
+//!  Admission and cancellation are one decision per request,
+//!  decided under the one lock:
+//!  the landing thread claims the request and records what the queue waited in at that moment,
 //! a connection thread that would withdraw a request the landing thread holds is told to leave it to the landing
 //!  thread,
-//! and a withdrawal of a request the landing thread does not hold publishes the file `<id>.decision` without
-//!  replacing it (`private_storage`:
-//!  `renameat2` with `RENAME_NOREPLACE`,
-//! or a hard link,
-//! either of which fails when the name exists and shows the file whole;
-//! on a
-//!  filesystem with neither,
-//! a checked rename,
-//! which is atomic but not exclusive),
+//! and a withdrawal of a request the landing thread does not hold is decided by whoever takes the identity first,
 //!  and exactly one withdrawal succeeds.
-//! A
-//!  request whose withdrawal file exists is dropped whenever a copy of it reaches a group,
+//!  A request whose withdrawal was decided is dropped whenever a copy of it reaches a group,
 //! as often as it comes,
 //! until the retention forgets it
 //!  (the same bounded memory a normal withdrawal has;
 //! only the landing thread forgets,
 //! between two groups).
-//! A `withdrawn` decision
-//!  carries the token of its maker and counts as a cancellation for anyone else only when the file `<id>.<token>.cancelled` exists.
+//! A withdrawal
+//!  carries the token of its maker and counts as a cancellation for anyone else only when it has been confirmed,
+//! after its maker asked the journal once more and found no batch naming the request.
 //! Anything that cannot be established,
-//! a file that cannot be made or read,
 //! a journal that cannot be read,
 //! is never
 //!  evidence of a cancellation:
 //! the withdrawal is left to the landing thread,
-//! and a request that cannot be admitted is answered
-//!  with a failure,
 //! never dropped silently and never landed on a decision that was not made.
+//!  Nothing of this record outlives the service:
+//! a request a finished batch names is answered `landed` from the journal,
+//! and one an open batch names waits for the recovery that settles it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -74,12 +68,11 @@
 //! ```
 
 pub use crate::service_busy_answers_and_name_checks::{EarlyAnswer, GroupAdmission};
-use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision, Naming, RecordedWithdrawal, WITHDRAWN, is_confirmation, is_plain, modified_and_path, withdrawal_token};
+use crate::service_busy_answers_and_name_checks::{Decision, Naming, is_plain};
 #[cfg(test)]
 use std::cell::RefCell;
 use crate::service_journal::{DONE_EXTENSION, DONE_RETAINED, OPEN_EXTENSION, parse_intent};
 use crate::service_messages::RESTART_COMMAND;
-use crate::private_storage::write_private_file_unsynced;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -90,9 +83,6 @@ const DIRECTORY: &str = "busy";
 
 /// The file that names the write the landing thread is inside.
 pub(crate) const STEP_FILE: &str = "step";
-
-/// The extension of the decision file of a request.
-const DECISION_EXTENSION: &str = "decision";
 
 /// How many withdrawals the record remembers:
 /// the same as the journal's count of finished records (`DONE_RETAINED`),
@@ -157,29 +147,50 @@ pub struct LandingBoard {
     /// The directory of the record.
     pub(crate) directory: PathBuf,
     /// Lock kept:
-    ///  the requests the landing thread has taken for the group it is landing and the last write it was inside,
-    ///  as the identities a connection thread must leave to it and the words a wait over the bound is told:
+    ///  the requests the landing thread has taken for the group it is landing and what the queue waited in when it
+    ///  took them,
+    ///  the last write it was inside,
+    ///  and the withdrawals the connection threads have decided:
     /// the landing thread claims each identity as it takes a group and gives it back when the group is over,
-    ///  and it writes down each write that ends beside them,
-    ///  a connection thread reads both while a request waits,
+    ///  a connection thread reads the claims and decides a withdrawal of a request the landing thread does not hold,
     ///  and no storage is touched under the lock.
     /// It is a lock and not a file because a file was the commit's own wait:
     ///  creating one per request put a write of the journal's drive between a commit and its landing,
-    ///  which took two commits 120,560 ms and 78,864 ms on 2026-11-15
-    ///  (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`),
-    ///  while the claims and the words of a landing die with the landing and nothing of them outlives the service.
+    ///  which took two commits 120,560 ms and 78,864 ms on 2026-11-15,
+    ///  and reading one back put a read of the same drive there, which held a commit 6,156 ms in the control of the
+    ///  same day (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`),
+    ///  while everything here dies with the landing and nothing of it outlives the service.
     held: std::sync::Mutex<TheLandingsOwn>,
 }
 
 /// What the landing thread owns in memory:
-/// the identities it holds for the group it lands,
-/// and the last write it was inside.
+/// the identities it holds for the group it lands and what the queue waited in when it took each,
+/// the last write it was inside,
+/// and the withdrawals that were decided.
 struct TheLandingsOwn {
     /// The requests the landing thread has taken and not yet given back.
-    group: Vec<String>,
+    group: Vec<Taken>,
     /// The command of the last write that ended,
     /// and when it ended.
     last: Option<TheWriteItWasInside>,
+    /// The withdrawals a connection thread decided,
+    /// oldest first,
+    /// with the moment each was confirmed.
+    withdrawals: Vec<WithdrawalDecided>,
+}
+
+/// One request the landing thread has taken,
+/// with what its queue wait was in at the moment it was taken.
+/// Why:
+///   The cause of a queue wait is what the landing thread was inside when the wait ended, which is when the request
+/// was taken;
+/// read later, after the group's own writes, the words would name the landing's own write and send whoever reads them
+///  to the wrong place.
+struct Taken {
+    /// The identity the requests of this group come by.
+    id: String,
+    /// The write the landing thread had last left when it took this request.
+    waited_in: Option<TheWriteItEndedBefore>,
 }
 
 /// One write the landing thread was inside,
@@ -189,6 +200,30 @@ struct TheWriteItWasInside {
     command: String,
     /// When the write ended.
     ended: Instant,
+}
+
+/// The same write, frozen at the moment a request was taken:
+/// its command,
+/// and how long it had been over when the landing thread took the request.
+struct TheWriteItEndedBefore {
+    /// The command, as the step record names it.
+    command: String,
+    /// How long the write had been over when the request was taken.
+    over_for: Duration,
+}
+
+/// One withdrawal a connection thread decided:
+/// the request,
+/// the token of the decision's maker,
+/// and when its maker confirmed it against the journal.
+struct WithdrawalDecided {
+    /// The identity of the request the withdrawal is for.
+    id: String,
+    /// The token of the withdrawer that decided it.
+    token: String,
+    /// When its maker confirmed it,
+    /// and nothing while it is provisional.
+    confirmed: Option<Instant>,
 }
 
 /// What:
@@ -213,72 +248,90 @@ fn record_text(path: &std::path::Path) -> Option<String> {
     return Some(text);
 }
 
-/// A decision file that is not a regular file is a failure of the winner's publish,
-/// and never an evidence of a cancellation.
-fn decision_read_failure() -> std::io::Error {
-    return std::io::Error::other("the decision another program published is not a regular file");
-}
-
 impl LandingBoard {
     /// A board for the service whose journal is `journal`,
     /// where a write counts as stuck after `slow_after`.
     /// Whatever an earlier
-    ///  service left in the record's directory is removed:
-    /// none of it describes a running thread,
-    /// and a normal withdrawal's memory
-    ///  does not outlive the service either.
+    ///  service left in the directory of the step record is removed:
+    /// a step it names describes a thread that no longer runs,
+    /// and nothing of this board's own memory outlives the service either.
     pub fn new(journal: PathBuf, slow_after: Duration) -> Arc<Self> {
         let directory: PathBuf = journal.join(DIRECTORY);
         let _removed = std::fs::remove_dir_all(directory.as_path());
         let _made = std::fs::create_dir_all(directory.as_path());
-        return Arc::new(Self { slow_after, journal, directory, held: std::sync::Mutex::new(TheLandingsOwn { group: Vec::new(), last: None }) });
-    }
-
-    /// The decision file of a request.
-    pub(crate) fn decision_path(&self, id: &str) -> PathBuf {
-        return self.directory.join(format!("{id}.{DECISION_EXTENSION}"));
-    }
-
-    /// The file that confirms the withdrawal of a request that carries `token`.
-    fn cancelled_path(&self, id: &str, token: &str) -> PathBuf {
-        return self.directory.join(format!("{id}.{token}.{CANCELLED_EXTENSION}"));
+        return Arc::new(Self {
+            slow_after,
+            journal,
+            directory,
+            held: std::sync::Mutex::new(TheLandingsOwn { group: Vec::new(), last: None, withdrawals: Vec::new() }),
+        });
     }
 
     /// What:
-    ///  Try to make the decision of `id` with the content `outcome`.
+    ///  Decide the withdrawal of `id` under the token of this maker,
+    ///  unless another maker decided it first.
     /// Why:
-    ///   The file is written whole beside its name and then published without replacing it,
-    /// so it never shows partly written,
-    /// and
-    ///  the publish fails when the name exists,
-    /// so exactly one side makes the decision (on a filesystem that has neither an exclusive
-    ///  rename nor hard links,
-    /// the checked rename is made one step to the threads of this service by an in-memory claim,
-    ///  `name_held_while_one_thread_publishes_it.rs`,
-    /// so the landing thread and a connection thread never both win;
-    /// only another
-    ///  program could still overwrite the file there,
-    /// as the owner was told when he kept that fallback,
-    /// 2026-11-07).
-    /// Any other failure is an error:
-    /// nothing was decided.
+    ///   The decision is one insert under the lock the board already holds,
+    /// so exactly one side makes it and nothing of a filesystem stands between two connection threads,
+    ///  which is what the exclusive publish of a file gave before it and cost the commit's own path.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// try { publishWithoutReplacing(temporary, decisionPath); return 'won'; } catch (exists) { return { lost: read(decisionPath) }; }
+    /// decide(id, token) // { won: true } | { lost: <the token that won> }
     /// ```
-    fn decide(&self, id: &str, outcome: &str) -> std::io::Result<Decision> {
-        let decision: PathBuf = self.decision_path(id);
-        // A control of the wait a commit bears holds the record here instead of stalling the disk the journal is on;
-        // nothing but the explicit test variable arms it (`service_decision_record_hold_control_window.rs`).
+    fn decide(&self, id: &str, token: &str) -> Decision {
+        // A control of the wait a commit bears holds the record here where a stalled drive would, and the landing
+        // thread no longer reaches it (`service_decision_record_hold_control_window.rs`);
+        // nothing but that control's own variable arms it.
         crate::service_decision_record_hold_control_window::the_decision_record_waits_where_a_control_says();
-        // Written whole beside its name and published without replacing (`private_storage`: the exclusive publish of the `tempfile`
-        //  crate, the checked rename where the filesystem has neither that nor hard links), removed whichever way it ends.
-        return match write_private_file_unsynced(decision.as_path(), outcome.as_bytes()) {
-            Ok(()) => Ok(Decision::Won),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(record_text(decision.as_path()).ok_or_else(decision_read_failure)?)),
-            Err(error) => Err(error),
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        if let Some(earlier) = owned.withdrawals.iter().find(|decided| { return decided.id == id; }) {
+            return Decision::Lost(earlier.token.clone());
+        }
+        owned.withdrawals.push(WithdrawalDecided { id: String::from(id), token: String::from(token), confirmed: None });
+        return Decision::Won;
+    }
+
+    /// Whether a withdrawal of `id` was decided at all,
+    /// and by which token.
+    #[cfg(test)]
+    fn withdrawal_of(&self, id: &str) -> Option<String> {
+        return self.held.lock().expect("the landing thread's own").withdrawals.iter().find(|decided| { return decided.id == id; }).map(|decided| { return decided.token.clone(); });
+    }
+
+    /// What:
+    ///  Confirm the decision of `id` under `token`,
+    ///  so any withdrawer may acknowledge it,
+    ///  and answer whether this decision was still the one to confirm.
+    /// Why:
+    ///   A decision is provisional until its maker has asked the journal once more;
+    /// a decision another maker took back or the retention forgot is not confirmed here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// confirm(id, token) // true when this token is still the decision for id
+    /// ```
+    fn confirm(&self, id: &str, token: &str) -> bool {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        let Some(found) = owned.withdrawals.iter_mut().find(|decided| { return decided.id == id && decided.token == token; }) else {
+            return false;
         };
+        found.confirmed = Some(Instant::now());
+        return true;
+    }
+
+    /// Whether the decision of `id` under `token` has been confirmed,
+    /// which is what lets a second withdrawer acknowledge it.
+    fn is_confirmed(&self, id: &str, token: &str) -> bool {
+        return self.held.lock().expect("the landing thread's own").withdrawals.iter().any(|decided| { return decided.id == id && decided.token == token && decided.confirmed.is_some(); });
+    }
+
+    /// Take the decision of `id` back,
+    /// while it still carries `token`,
+    /// so nobody can acknowledge a decision that was not confirmed.
+    fn take_back(&self, id: &str, token: &str) {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        owned.withdrawals.retain(|decided| { return !(decided.id == id && decided.token == token); });
     }
 
     /// What the journal says about `id`:
@@ -324,92 +377,45 @@ impl LandingBoard {
 
     /// What:
     ///  Take the requests of a group for landing:
-    /// claim each in memory before its record is read,
-    /// learn which a withdrawal took,
-    /// and which could not be
-    ///  decided.
+    /// claim each under the one lock with what its queue wait was in at that moment,
+    /// and learn which a withdrawal took.
     /// Why:
     ///   A request a withdrawal took is dropped,
     /// however many copies of it come;
-    /// one that cannot be decided is not landed on a
-    ///  decision that was not made;
-    /// and the claim is made first so that a withdrawal arriving after it is told to leave the request to the
-    ///  landing thread, while one that arrived before it is read here and dropped.
-    ///  Neither the claim nor the read is a write,
-    /// so a commit no longer waits for the journal's drive before its group begins.
+    /// and the claim and the look at the withdrawals are one hold of the lock,
+    /// so no drive and no other thread stands between them,
+    ///  and the moment the wait ends is the moment its cause is written down.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// for (const id of ids) { claim(id); const r = readRecord(id); if (r.unknown) unavailable.push(id); else if (r.withdrawn) dropped.push(id); }
+    /// for (const id of ids) { const taken = claim(id, lastWrite()); if (withdrawalOf(id)) dropped.push(id); }
     /// ```
     pub fn begin_group(&self, ids: &[String]) -> GroupAdmission {
         let mut admission: GroupAdmission = GroupAdmission::default();
+        let mut owned = self.held.lock().expect("the landing thread's own");
         for id in ids {
             if !is_plain(id.as_str()) {
                 continue;
             }
-            self.hold(id.as_str());
-            match self.recorded_withdrawal(id.as_str()) {
-                RecordedWithdrawal::None => {}
-                RecordedWithdrawal::Withdrawn => admission.dropped.push(id.clone()),
-                RecordedWithdrawal::Unknown => admission.unavailable.push(id.clone()),
+            if !owned.group.iter().any(|claimed| { return claimed.id == id.as_str(); }) {
+                // The write the landing thread had last left, frozen now, at the moment the queue wait ends.
+                let waited_in: Option<TheWriteItEndedBefore> = owned
+                    .last
+                    .as_ref()
+                    .map(|last| { return TheWriteItEndedBefore { command: last.command.clone(), over_for: last.ended.elapsed() }; });
+                owned.group.push(Taken { id: id.clone(), waited_in });
             }
-        }
-        // A request this group does not land is not the landing thread's to answer.
-        for id in admission.dropped.iter().chain(admission.unavailable.iter()) {
-            self.give_back(id.as_str());
+            if owned.withdrawals.iter().any(|decided| { return decided.id == id.as_str(); }) {
+                admission.dropped.push(id.clone());
+                owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
+            }
         }
         return admission;
     }
 
-    /// What:
-    ///  The withdrawal another thread published for `id`, when there is one.
-    /// Why:
-    ///   The record is the only thing a connection thread writes about a request,
-    /// so this read is what tells the landing thread that a request it was about to land was withdrawn while it
-    ///  waited.
-    /// A name that is not a regular file,
-    ///  or a record that is neither a withdrawal nor nothing,
-    /// is unknown and never a cancellation:
-    ///  a request is not landed on a decision that was not made.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const recordedWithdrawal = (id) => { try { return isWithdrawal(read(decision(id))) ? 'withdrawn' : 'unknown' } catch (missing) { return 'none' } catch { return 'unknown' } };
-    /// ```
-    fn recorded_withdrawal(&self, id: &str) -> RecordedWithdrawal {
-        match crate::private_storage::open_regular_file(self.decision_path(id).as_path()) {
-            Err(crate::private_storage::ReadRefusal::Missing) => return RecordedWithdrawal::None,
-            Err(_) => return RecordedWithdrawal::Unknown,
-            Ok(mut file) => {
-                let mut text: String = String::new();
-                if std::io::Read::read_to_string(&mut file, &mut text).is_err() {
-                    return RecordedWithdrawal::Unknown;
-                }
-                return if withdrawal_token(text.as_str()).is_some() { RecordedWithdrawal::Withdrawn } else { RecordedWithdrawal::Unknown };
-            }
-        }
-    }
-
     /// Whether this board holds `id` for the group the landing thread is landing.
     fn holds(&self, id: &str) -> bool {
-        return self.held.lock().expect("the landing thread's own").group.iter().any(|held| { return held == id; });
-    }
-
-    /// Take `id` for the landing thread,
-    /// once however many copies of it come.
-    fn hold(&self, id: &str) {
-        let mut owned = self.held.lock().expect("the landing thread's own");
-        if !owned.group.iter().any(|claimed| { return claimed == id; }) {
-            owned.group.push(String::from(id));
-        }
-    }
-
-    /// Give `id` back,
-    /// so a later withdrawal of it is decided by a connection thread again.
-    fn give_back(&self, id: &str) {
-        let mut owned = self.held.lock().expect("the landing thread's own");
-        owned.group.retain(|claimed| { return claimed != id; });
+        return self.held.lock().expect("the landing thread's own").group.iter().any(|held| { return held.id == id; });
     }
 
     /// What:
@@ -431,14 +437,14 @@ impl LandingBoard {
     }
 
     /// What:
-    ///  The words that name the step a commit waited in before its group began:
-    /// the last write the landing thread was inside and how long ago it ended,
-    /// or that the landing thread recorded no write at all.
+    ///  The words that name the step a commit's queue wait was in:
+    /// the write the landing thread had last left when it took the request,
+    /// and how long that write had been over then,
+    /// or that the landing thread had recorded no write at all.
     /// Why:
-    ///   The step record names the write the landing thread is inside now and is removed with it,
-    /// so a wait that outlasts that write would have nothing to name;
-    /// these words say which step the queue stood behind,
-    /// which is what the two commits of 2026-11-15 waited for and no line of the journal gave
+    ///   The cause is taken when the wait ends, which is when the landing thread claims the request:
+    /// read at the answer instead, the words would name the landing's own write, which is not what the queue stood
+    /// behind
     /// (`wait_ceilings.rs`,
     /// `A_QUEUE_WAIT_NAMED_AFTER`).
     /// They carry no moment of their own, so a waiting client is told them once and the client's own line carries the
@@ -446,32 +452,37 @@ impl LandingBoard {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const words = board.wordsOfTheStepAQueueWaitIsIn(); // 'the landing thread was last inside `…`' | 'the landing thread had recorded no write'
+    /// const words = board.wordsOfTheStepAQueueWaitIsIn(id); // 'the landing thread had last been inside `…`' | 'the landing thread had recorded no write'
     /// ```
-    pub fn words_of_the_step_a_queue_wait_is_in(&self) -> String {
-        return match self.held.lock().expect("the landing thread's own").last.as_ref() {
-            Some(last) => format!(
-                "the landing thread was last inside `{}`, which ended {} seconds before this answer",
-                last.command,
-                last.ended.elapsed().as_secs()
-            ),
-            None => String::from("the landing thread had recorded no write it was inside, so the wait was in the work before its first write"),
+    fn words_of_the_step_a_queue_wait_is_in(&self, id: &str) -> String {
+        let owned = self.held.lock().expect("the landing thread's own");
+        let found: Option<&TheWriteItEndedBefore> = owned
+            .group
+            .iter()
+            .find(|taken| { return taken.id == id; })
+            .and_then(|taken| { return taken.waited_in.as_ref(); });
+        let Some(waited_in) = found else {
+            return String::from("the landing thread had recorded no write it was inside, so the wait was in the work before its first write");
         };
+        return format!(
+            "the landing thread had last been inside `{}`, which had been over for {} seconds when it took this request",
+            waited_in.command,
+            waited_in.over_for.as_secs()
+        );
     }
 
     /// What:
-    ///  The sentence the service's log carries for a commit that waited `queued` for the landing thread to take its
-    ///  group,
-    ///  and nothing while that wait is inside the bound.
+    ///  The sentence the service's log carries for a commit whose queue wait passed the bound,
+    ///  and nothing while that wait is inside it.
     /// Why:
-    ///   A wait past this project's bound on a commit must name the step it is in, in the service's log,
+    ///   A wait past this project's bound on a commit must name the step it was in, in the service's log,
     /// and a service that cannot name one says so instead of saying nothing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const words = board.wordsOfAQueueWait(queued, behind); // undefined while queued < BOUND
+    /// const words = board.wordsOfAQueueWait(id, queued, behind); // undefined while queued < BOUND
     /// ```
-    pub fn words_of_a_queue_wait(&self, queued: Duration, behind: Option<usize>) -> Option<String> {
+    pub fn words_of_a_queue_wait(&self, id: &str, queued: Duration, behind: Option<usize>) -> Option<String> {
         if queued < crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER {
             return None;
         }
@@ -483,8 +494,24 @@ impl LandingBoard {
         return Some(format!(
             "a commit waited {} seconds for the landing thread to take its group, and {ahead}; {}",
             queued.as_secs(),
-            self.words_of_the_step_a_queue_wait_is_in()
+            self.words_of_the_step_a_queue_wait_is_in(id)
         ));
+    }
+
+    /// What:
+    ///  The words a waiting client is told about a request the landing thread has taken:
+    ///  that it has taken the commit and is landing it.
+    /// Why:
+    ///   A request the landing thread has taken is not one it has failed to take,
+    /// so the words of a queue wait would be false the moment the claim is made,
+    ///  and a person told them looks for a queue that is not there.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const words = board.wordsOfATakenRequest();
+    /// ```
+    pub fn words_of_a_taken_request(&self) -> String {
+        return String::from("the commit service has taken this commit, and the landing thread is landing it");
     }
 
     /// The group is landed (or given up):
@@ -492,13 +519,34 @@ impl LandingBoard {
     /// and each is in the journal if it landed.
     ///  A tombstone of a withdrawal stays.
     pub fn end_group(&self, ids: &[String]) {
-        self.prune_withdrawals();
+        let mut owned = self.held.lock().expect("the landing thread's own");
         for id in ids {
             if !is_plain(id.as_str()) {
                 continue;
             }
-            self.give_back(id.as_str());
+            owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
         }
+        let surplus: usize = owned.withdrawals.iter().filter(|decided| { return decided.confirmed.is_some(); }).count().saturating_sub(WITHDRAWALS_RETAINED);
+        if surplus == 0 {
+            return;
+        }
+        // The oldest confirmed withdrawals go first, and only while a decision still carries the token that was confirmed:
+        // one that replaced it has another token and stays.
+        let mut confirmed: Vec<(Instant, usize)> = owned
+            .withdrawals
+            .iter()
+            .enumerate()
+            .filter_map(|(at, decided)| { return decided.confirmed.map(|confirmed| { return (confirmed, at); }); })
+            .collect();
+        confirmed.sort();
+        let forgotten: Vec<usize> = confirmed.into_iter().take(surplus).map(|(_, at)| { return at; }).collect();
+        let mut kept: Vec<WithdrawalDecided> = Vec::with_capacity(owned.withdrawals.len());
+        for (at, decided) in std::mem::take(&mut owned.withdrawals).into_iter().enumerate() {
+            if !forgotten.contains(&at) {
+                kept.push(decided);
+            }
+        }
+        owned.withdrawals = kept;
     }
 
     /// Whether the request of this identity is in the group the landing thread is landing.
@@ -620,26 +668,21 @@ impl LandingBoard {
             return EarlyAnswer::Queued;
         }
         let token: String = new_token();
-        match self.decide(id, format!("{WITHDRAWN}:{token}").as_str()) {
-            Err(_) => return EarlyAnswer::Queued,
-            // Another withdrawer won. Its decision is acknowledged only when it has confirmed it, with the confirmation that carries
-            // the token of that decision; before that it is provisional, and may still be taken back (the journal may name the
-            // request when the winner asks again). A confirmation of an earlier decision of this request has another token.
-            Ok(Decision::Lost(content)) => {
-                let confirmed: bool = match withdrawal_token(content.as_str()) {
-                    Some(theirs) => self.cancelled_path(id, theirs).exists(),
-                    None => false,
-                };
-                return if confirmed { EarlyAnswer::Withdrawn(words) } else { EarlyAnswer::Queued };
+        match self.decide(id, token.as_str()) {
+            // Another withdrawer won. Its decision is acknowledged only when it has confirmed it;
+            // before that it is provisional and may still be taken back,
+            // and a decision of an earlier attempt has another token.
+            Decision::Lost(theirs) => {
+                return if self.is_confirmed(id, theirs.as_str()) { EarlyAnswer::Withdrawn(words) } else { EarlyAnswer::Queued };
             }
-            Ok(Decision::Won) => {}
+            Decision::Won => {}
         }
         #[cfg(test)]
         AFTER_THE_DECISION_IS_WON.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
         // The landing thread may have claimed the request between this thread's look at the claims and this decision:
         // the claim is the authority, so the decision is taken back and the landing thread answers the withdrawal.
         if self.holds(id) {
-            let _undone = std::fs::remove_file(self.decision_path(id));
+            self.take_back(id, token.as_str());
             return EarlyAnswer::Queued;
         }
         // The decision is ours, so the request cannot be admitted any more; what could have happened is that it was admitted,
@@ -647,90 +690,34 @@ impl LandingBoard {
         match self.naming(id) {
             Naming::No => {
                 // Confirmed: from now on any withdrawer may acknowledge it, and nothing removes it but the retention.
-                if std::fs::File::create_new(self.cancelled_path(id, token.as_str())).is_err() {
+                if !self.confirm(id, token.as_str()) {
                     // Not confirmed, and nobody may have acknowledged a decision that was not: it is taken back.
-                    let _undone = std::fs::remove_file(self.decision_path(id));
+                    self.take_back(id, token.as_str());
                     return EarlyAnswer::Queued;
                 }
                 return EarlyAnswer::Withdrawn(words);
             }
             // Never confirmed, so never acknowledged by anyone else: taken back.
             Naming::Landed(commit) => {
-                let _undone = std::fs::remove_file(self.decision_path(id));
+                self.take_back(id, token.as_str());
                 return EarlyAnswer::Landed(commit);
             }
             Naming::Open | Naming::Unknown => {
-                let _undone = std::fs::remove_file(self.decision_path(id));
+                self.take_back(id, token.as_str());
                 return EarlyAnswer::Queued;
             }
         }
     }
 
-    /// How many confirmed withdrawals the record holds;
-    /// the ceiling is reached when the directory cannot be listed,
-    /// so that a record that
-    ///  cannot be counted is not grown.
+    /// How many confirmed withdrawals the record holds,
+    /// which is what bounds it while the landing thread is stuck in a write and cannot forget any.
     fn confirmed_withdrawals(&self) -> usize {
-        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return usize::MAX };
-        return entries
-            .flatten()
-            .filter(is_confirmation)
-            .count();
-    }
-
-    /// What:
-    ///  Forget the oldest confirmed withdrawals once more than `WITHDRAWALS_RETAINED` are remembered.
-    /// Why:
-    ///   Only the landing thread calls this (from `end_group`),
-    /// so there is one pruner and no two work from the same listing.
-    /// A
-    ///  decision is removed only while it still carries the token of the confirmation being removed,
-    /// and before that
-    ///  confirmation:
-    /// a decision that replaced it has another token and stays,
-    /// and a confirmation left standing without its decision
-    ///  (a pause between the two removals) confirms nothing of any later decision,
-    /// which has a token of its own.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// for (const [id, token] of oldestConfirmations(surplus)) { if (read(decision(id)) === `withdrawn:${token}`) rm(decision(id)); rm(confirmation(id, token)); }
-    /// ```
-    fn prune_withdrawals(&self) {
-        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return };
-        let mut remembered: Vec<(SystemTime, PathBuf)> = entries
-            .flatten()
-            .filter(is_confirmation)
-            .filter_map(modified_and_path)
-            .collect();
-        if remembered.len() <= WITHDRAWALS_RETAINED {
-            return;
-        }
-        remembered.sort();
-        let surplus: usize = remembered.len() - WITHDRAWALS_RETAINED;
-        #[cfg(test)]
-        AFTER_THE_LISTING.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
-        for (_, confirmation) in remembered.into_iter().take(surplus) {
-            let Some(name) = confirmation.file_stem().and_then(std::ffi::OsStr::to_str) else { continue };
-            let Some((id, token)) = name.split_once('.') else { continue };
-            let decision: PathBuf = self.decision_path(id);
-            let names_this_token: bool = match record_text(decision.as_path()) {
-                Some(content) => withdrawal_token(content.as_str()) == Some(token),
-                None => false,
-            };
-            if names_this_token {
-                let _forgotten = std::fs::remove_file(decision);
-            }
-            let _also = std::fs::remove_file(confirmation);
-        }
+        return self.held.lock().expect("the landing thread's own").withdrawals.iter().filter(|decided| { return decided.confirmed.is_some(); }).count();
     }
 }
 
 #[cfg(test)]
 thread_local! {
-    /// A control may stop the retention on this thread between its listing and its removals,
-    /// where another decision can replace one.
-    pub(crate) static AFTER_THE_LISTING: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
     /// A control may stop a withdrawal on this thread between the moment it wins the decision and the moment it asks the journal again,
     ///  which is where the reviews found the window.
     pub(crate) static AFTER_THE_DECISION_IS_WON: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };

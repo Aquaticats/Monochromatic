@@ -177,11 +177,11 @@ pub fn enter_step(command: String) -> Option<StepGuard> {
 /// ```ts
 /// const words = wordsOfALongQueueWait(queued, behind); // board?.wordsOfAQueueWait(queued, behind)
 /// ```
-pub fn words_of_a_long_queue_wait(queued: Duration, behind: Option<usize>) -> Option<String> {
-    return on_the_landing_state((queued, behind), words_from_the_board);
+pub fn words_of_a_long_queue_wait(id: &str, queued: Duration, behind: Option<usize>) -> Option<String> {
+    return on_the_landing_state((String::from(id), queued, behind), words_from_the_board);
 }
 
 /// `words_of_a_long_queue_wait` with the state the caller runs in.
-fn words_from_the_board(state: &LandingState, (queued, behind): (Duration, Option<usize>)) -> Option<String> {
-    return state.board.borrow().as_ref()?.words_of_a_queue_wait(queued, behind);
+fn words_from_the_board(state: &LandingState, (id, queued, behind): (String, Duration, Option<usize>)) -> Option<String> {
+    return state.board.borrow().as_ref()?.words_of_a_queue_wait(id.as_str(), queued, behind);
 }

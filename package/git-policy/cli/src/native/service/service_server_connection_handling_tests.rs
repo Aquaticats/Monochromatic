@@ -726,3 +726,30 @@ fn a_connection_that_never_reached_the_queue_is_told_nothing_of_a_queue_wait() {
         assert_eq!(waiting.note().await, None, "and they are said once");
     });
 }
+
+/// What:
+///  A request the landing thread has taken is told that it has taken it,
+///  and never that it has not been taken.
+/// Why:
+///  The claim is where the queue wait ends, so the words of that wait are false from then on;
+/// a person told "the commit service has not taken this commit yet" about a commit the service is landing looks for a
+///  queue that is not there, and the notice of the write it is inside is the one that could tell them the truth
+///  (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
+#[test]
+fn a_request_the_landing_thread_has_taken_is_never_told_it_was_not() {
+    let (shared, _jobs) = shared_in("connection-taken-words");
+    let bound: Duration = crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER;
+    let past: Instant = Instant::now().checked_sub(bound * 2).expect("a moment past the bound");
+    // What the board holds while the landing goes on: the request is its own, and no write of it is recorded as stuck.
+    assert_eq!(shared.board.begin_group(&[String::from("taken-request")]), crate::service_busy::GroupAdmission::default());
+    let (told, key) = note_from_the_board(&shared.board, Some("taken-request"), Some(past), None);
+    let Some(ServiceMessage::Waiting { text }) = told else { panic!("a waiting client is told something: {told:?}") };
+    assert!(!text.contains("has not taken this commit yet"), "the words of a queue wait are not said of a request the landing thread has taken: {text}");
+    assert!(text.contains("has taken this commit"), "and the words of the take are: {text}");
+    assert_eq!(note_from_the_board(&shared.board, Some("taken-request"), Some(past), key.clone()).0, None, "they are said once");
+    // The request is given back when its group is over, and the queue words are the truth again.
+    shared.board.end_group(&[String::from("taken-request")]);
+    let (after, _) = note_from_the_board(&shared.board, Some("taken-request"), Some(past), None);
+    let Some(ServiceMessage::Waiting { text }) = after else { panic!("a waiting client is told something: {after:?}") };
+    assert!(text.contains("has not taken this commit yet"), "a request the board no longer holds is one it has not taken: {text}");
+}

@@ -11,7 +11,7 @@
 //! `begin_group`),
 //! so the commit's place in the queue waits for a write of the service's own bookkeeping on a drive the commit does
 //!  not otherwise touch.
-//! This control holds that write where the drive would
+//! This control holds every reach of that record, the write and the read that replaced it, where the drive would
 //! (`service_decision_record_hold_control_window.rs`,
 //! armed by its own variable only)
 //!  and asserts the one thing this project requires of a commit:
@@ -178,7 +178,7 @@ fn a_commit_is_answered_while_the_record_of_a_decision_is_held() {
     assert!(output.status.success(), "the measured commit failed: {}\n{log}", String::from_utf8_lossy(output.stderr.as_slice()));
     assert!(
         took < bound,
-        "the commit waited {} ms while the service was held inside the write of a request's decision record, and this project's bound on a commit is {} ms (twice real Git's {} ms, or five seconds): the service answered it with queued_ms={queued}. Its own log:{log}",
+        "the commit waited {} ms while the service was held inside the record of a request's decision (a write or a read of it), and this project's bound on a commit is {} ms (twice real Git's {} ms, or five seconds): the service answered it with queued_ms={queued}. Its own log:{log}",
         took.as_millis(),
         bound.as_millis(),
         git_ms.as_millis(),
