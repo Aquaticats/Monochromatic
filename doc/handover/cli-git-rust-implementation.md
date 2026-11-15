@@ -738,6 +738,20 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T02:49:35-05:00,
+  from the author of the push of a branch that is not checked out
+  (branch tip `cae78e1d7e`,
+  in review),
+  not blocking work:
+  the move of such a branch now writes a durable record before it moves the reference,
+  so that a kill between the two can be put right by the next command.
+  That record costs one flushed write,
+  13 ms at the median on this machine's btrfs,
+  on a path that took 120 ms before.
+  Is that cost wanted,
+  or the cheaper form without the directory flush,
+  in which a crash can lose the record of a reference that moved?
+
 - Added 2026-11-15T02:20:24-05:00,
   from this session's reading of the gate's images,
   not blocking work:
@@ -1489,6 +1503,125 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### A clean review starts integration pass 50; a review shows the lock watch can license the deletion of a live writer's lock, which is not in `main` (2026-11-15T02:49:35-05:00)
+
+Not final and not approved:
+what three reviews and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The controls of a refused service start** (`8784e0a823`),
+  their review,
+  ended 02:42:05:
+  both files read in full,
+  no defect found.
+  It ran the changed module's six tests
+  (a blocking full stream,
+  a nonblocking full stream,
+  a reader that makes room during the wait,
+  a partial write,
+  a closed reader,
+  the queue's bounds)
+  and two of the gate's controls of a refused start;
+  all passed.
+  So the review ran,
+  and the branch goes to a pass.
+- **Integration pass 50** is queued at the head for that one branch
+  (`~/temp/agent/pi-runs/integration-pass-50-with-a-log-line-that-leaves-its-thread-only-when-the-stream-holds-every-byte-prompt.md`).
+  Three of the gate's standing failures are what the branch began with.
+  The pass is the first to run the wrapper's tests under `nightly-2026-11-15` and `zbus` 6.3.0,
+  and its brief asks which compiler and library its build used.
+  It also asks for the three gate controls in the gate's newest image,
+  with the fix and,
+  as a positive control,
+  without;
+  and for the unit tests of `bin/`,
+  known red,
+  one time.
+  The release that carries it is `0.6.1-alpha.39`.
+- **The lock a killed Git left on a reference** (`6a506fc03f`),
+  its review,
+  ended 02:44:09,
+  eleven of eleven files and the call sites around them,
+  five things.
+  - The first,
+    reproduced through the production binder:
+    a watched folder that is renamed away and made again has the old inode's events delivered under the new folder's pathname;
+    the tracker joins them with the new folder's PID file and binds another Git's lock to the watched Git's identity;
+    after the watched Git is killed,
+    a later command clears that lock while its real holder still runs.
+    The control lock with no false binding was refused.
+    That is two writers under one lock,
+    the gravest thing a review of this work has reported.
+    **It is on a branch and not in `main`**:
+    `lock_watch.rs` and the binder are not released.
+  - A Git run under a ceiling is neither watched nor recorded
+    (reproduced);
+    the asynchronous runner never starts the binder
+    (mechanism reproduced,
+    consequence read);
+    a reference under a namespace named `objects` or `logs` is never watched
+    (reproduced);
+    the drain of the watch has no bound and can outlast its Git
+    (read).
+  All weighed as worth their fix.
+  The author is resumed with one rule put first:
+  a binding is a licence to delete,
+  so a watch may miss a lock and must never bind a wrong one;
+  what a binding claims is checked against the things themselves when it is written
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-for-a-reference-lock-answers-its-review-of-2026-11-15-prompt.md`,
+  queued fifth).
+  The start under a ceiling is also in the lock-holders author's task,
+  for the record of a child's start;
+  each brief names the other's part and expects a merge at `forwarding.rs`.
+- **The review-brief writer for a change to tests alone** (`a81284aa26`),
+  its sixth review,
+  ended 02:42:12,
+  twelve of twelve files,
+  nothing found in how a path is shown,
+  two things reproduced in the names two branches share:
+  a branch with nothing to review reserves the name and a reviewable branch after it is refused;
+  and two starters at once write one review folder,
+  so a reviewer whose worktree is one commit reads the brief and diff of another.
+  The author had named the second and left it.
+  Both weighed as worth their fix:
+  this session's starter makes one call per review,
+  so a guard inside one call guards nothing here.
+  The author is resumed,
+  its seventh run
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-sixth-review-of-2026-11-15-prompt.md`,
+  queued ninth).
+- **The push of a branch that is not checked out**,
+  its author's seventh run,
+  ended 02:42:04 at `cae78e1d7e`.
+  The four findings answered:
+  a person's file at a path the repair would write is left alone;
+  a failed worktree listing is not read as no worktree;
+  the move writes a durable record before `update-ref`,
+  swept at every command;
+  an index that agrees while the worktree holds the merge is reported as holding.
+  Seven controls,
+  each quoted failing with its fix out.
+  Cost:
+  +13.1 ms paired at the median over the rounds without a stall,
+  the price of the one durable write,
+  kept as a question for the owner.
+  It names one state it left open:
+  a worktree registered after the listing whose own `reset` read the old tip,
+  killed before the second listing.
+  914 tests pass on the merged tree.
+  Its review is queued third
+  (`main...cae78e1d7e`,
+  17 code files that are not tests).
+- Read at 02:46:49:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 02:38;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  15 runs going.
+  Neither resumed session is named by the credential scan.
+  The queue held 81 entries at 02:49:35.
 
 ##### The wrapper under the gate container's Git has no finding in its code and two in its tests; it goes back for those (2026-11-15T02:39:22-05:00)
 
