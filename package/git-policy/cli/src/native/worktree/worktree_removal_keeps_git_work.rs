@@ -85,7 +85,7 @@
 
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_ladder_target::checkout_environment;
-use crate::worktree_landed_registrations::registered_worktrees;
+use crate::worktree_landed_registrations::registrations_a_removal_takes;
 use crate::worktree_registration_proof::read_record_here;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -160,11 +160,40 @@ const NAMING_RECORD_FILES: [(&str, &str); 16] = [
     ("sequencer", "abort-safety"),
 ];
 
-/// One commit the worktree's own state names and no surviving reference does.
+/// What a name of a worktree being removed reaches.
+/// Why:
+///   A reference in a worktree can name a commit,
+///  a tag of a commit,
+///  or an object that is no commit at all,
+///  and every one of those dies with the worktree:
+///  a tag it named is peeled by Git, and a tree or a blob it named is as nameless after the removal as a commit would be.
+///  Reachability answers the question for a commit alone,
+///  so an object that is no commit is kept as it stands rather than dropped
+///  (a review of `5a2bd4bb6c`, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Reached = { kind: 'commit' } | { kind: 'other'; objectType: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Reached {
+    /// A commit,
+    /// which survival is a question of reachability for.
+    Commit,
+    /// A tree, a blob or a tag this program could not see through,
+    /// with the type Git gave it.
+    Other(String),
+}
+
+/// One object the worktree's own state names and no surviving name does.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Stranded {
-    /// The commit.
+    /// The object,
+    /// as its full name.
     commit: String,
+    /// What it is,
+    /// which decides the sentence and whether survival is asked at all.
+    reached: Reached,
     /// What names it here,
     /// as the person reads it.
     holder: String,
@@ -193,10 +222,11 @@ struct Stranded {
 /// which leaves the worktree kept rather than read as clear.
 pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: &Path, worktree: &Path, admin: &Path) -> Result<Vec<String>, String> {
     let mut places: Vec<(PathBuf, PathBuf)> = vec![(worktree.to_path_buf(), admin.to_path_buf())];
-    for one in registered_worktrees(common_dir).map_err(|reason| format!("nothing proves no worktree inside this one holds a commit of its own, so nothing is removed: {reason}"))? {
-        if one.worktree != worktree && one.worktree.starts_with(worktree) {
-            places.push((one.worktree, one.admin));
-        }
+    // Every registration this removal takes with the outer one, read strictly: a `gitdir` this program cannot read may
+    // name a worktree inside this one, so it is a reason rather than an entry to skip
+    // (a review of `5a2bd4bb6c`, finding 3).
+    for one in registrations_a_removal_takes(common_dir, worktree).map_err(|reason| format!("nothing proves no worktree inside this one holds Git work of its own, so nothing is removed: {reason}"))? {
+        places.push((one.worktree, one.admin));
     }
     let mut said: Vec<String> = Vec::new();
     let mut counted: usize = 0;
@@ -234,30 +264,44 @@ fn stranded_commits(context: &GitContext, common_dir: &Path, root: &Path, admin:
     let mut holders: Vec<Stranded> = Vec::new();
     // The detached `HEAD` first, so the sentence about the commit it names is the one a person reads for it.
     if let Some(commit) = detached_head(admin)? {
-        holders.push(Stranded { commit, holder: String::from("its detached HEAD") });
+        holders.push(Stranded { commit, reached: Reached::Commit, holder: String::from("its detached HEAD") });
     }
-    for (name, commit) in per_worktree_references(context, root, admin)? {
-        holders.push(Stranded { commit, holder: format!("the reference `{name}`") });
+    // A reference is asked what it reaches: this query peels an annotated tag, so a tag of a commit gives the commit and a
+    // tag of a tag gives what that reaches. A reference of a tree or a blob gives that object, which is kept as it stands.
+    let references: Vec<(String, String)> = per_worktree_references(context, root, admin)?;
+    let objects: Vec<String> = references.iter().map(|(_, object)| return object.clone()).collect();
+    for (object, reached) in objects_among(context, common_dir, root, objects.as_slice())? {
+        let holder: String = match references.iter().find(|(_, named)| return *named == object) {
+            Some((name, _)) => format!("the reference `{name}`"),
+            None => String::from("a reference of this worktree"),
+        };
+        holders.push(Stranded { commit: object, reached, holder });
     }
     for (commit, holder) in names_that_die_with_the_worktree(admin)? {
-        holders.push(Stranded { commit, holder });
+        holders.push(Stranded { commit, reached: Reached::Commit, holder });
     }
-    if holders.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut candidates: Vec<String> = Vec::new();
-    for held in &holders {
-        if !candidates.iter().any(|one| return *one == held.commit) {
-            candidates.push(held.commit.clone());
-        }
-    }
-    let stranded: Vec<String> = commits_nothing_survives(context, common_dir, root, candidates.as_slice())?;
-    let mut answer: Vec<Stranded> = Vec::new();
+    // One holder per object, the first name it has here.
+    let mut named: Vec<Stranded> = Vec::new();
     for held in holders {
-        if answer.iter().any(|one| return one.commit == held.commit) {
+        if named.iter().any(|one| return one.commit == held.commit) {
             continue;
         }
-        if stranded.iter().any(|one| return *one == held.commit) {
+        named.push(held);
+    }
+    // An object that is no commit is kept as it stands: nothing here can prove a tree or a blob survives, and one that
+    // dies with the worktree is as lost as a commit would be.
+    let candidates: Vec<String> = named.iter().filter(|held| return held.reached == Reached::Commit).map(|held| return held.commit.clone()).collect();
+    let stranded: Vec<String> = match candidates.is_empty() {
+        true => Vec::new(),
+        false => commits_nothing_survives(context, common_dir, root, candidates.as_slice())?,
+    };
+    let mut answer: Vec<Stranded> = Vec::new();
+    for held in named {
+        let doomed: bool = match held.reached {
+            Reached::Commit => stranded.iter().any(|one| return *one == held.commit),
+            Reached::Other(_) => true,
+        };
+        if doomed {
             answer.push(held);
         }
     }
@@ -302,17 +346,24 @@ fn detached_head(admin: &Path) -> Result<Option<String>, String> {
 
 /// What:
 ///  The references Git keeps in one worktree,
-///  with the commit each names.
+///  with the object each of them reaches.
 /// Why:
 ///   Those references live in the worktree's own Git directory and the removal deletes them,
-///  so a commit they alone name dies with it,
+///  so an object they alone name dies with it,
 ///  and a person's `refs/worktree/person-keep` is the ordinary way to be in that state.
+///  A reference can name a tag rather than the object a person made the tag for,
+///  and the field `%(*objectname)` is the object the reference reaches:
+///  Git peels the tag for it, however many tag objects stand in between
+///  (measured: `keep/probe-git-peeling.log` of the run that answered the review of `5a2bd4bb6c`).
+///  Reading `%(objectname)` alone named a tag object, which is no commit and was dropped, so the commit the tag held
+///  went unasked
+///  (that review, finding 1).
 ///  A Git directory holding no reference has none,
 ///  and asking Git there would cost a process for nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// perWorktreeReferences(context, root, admin) // [{ name, commit }]
+/// perWorktreeReferences(context, root, admin) // [{ name, reached }]
 /// ```
 fn per_worktree_references(context: &GitContext, root: &Path, admin: &Path) -> Result<Vec<(String, String)>, String> {
     if !admin.join("refs").is_dir() && !admin.join("packed-refs").exists() {
@@ -320,7 +371,8 @@ fn per_worktree_references(context: &GitContext, root: &Path, admin: &Path) -> R
     }
     let arguments: Vec<OsString> = [
         OsString::from("for-each-ref"),
-        OsString::from("--format=%(refname)%09%(objectname)"),
+        // `*objectname` is what the reference reaches, peeled through every tag; it is empty for a reference that is no tag.
+        OsString::from("--format=%(refname)%09%(objectname)%09%(*objectname)"),
         // Git's own list of the namespaces it keeps per worktree.
         OsString::from("refs/worktree"),
         OsString::from("refs/bisect"),
@@ -343,11 +395,17 @@ fn per_worktree_references(context: &GitContext, root: &Path, admin: &Path) -> R
     }
     let mut found: Vec<(String, String)> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        let Some((name, commit)) = line.split_once('\t') else { continue };
-        if commit.is_empty() {
+        let fields: Vec<&str> = line.split('\t').collect();
+        let [name, object, reached, ..] = fields.as_slice() else { continue };
+        // The peeled name where Git peeled the reference, and its own object where it did not.
+        let kind: &str = match reached.is_empty() {
+            true => object,
+            false => reached,
+        };
+        if kind.is_empty() {
             continue;
         }
-        found.push((name.to_owned(), commit.to_owned()));
+        found.push(((*name).to_owned(), kind.to_owned()));
     }
     return Ok(found);
 }
@@ -386,34 +444,45 @@ fn with_the_repository(context: &GitContext, common_dir: &Path) -> GitContext {
 ///  the walk it then does is bounded by the candidates,
 ///  while the surviving names are tips the answer excludes,
 ///  and walking the survivors first costs 6.9 s here where this costs 30 to 98 ms
-///  (`keep/measurement-cost-of-the-reflog-question.log` of the run that answered the review).
-///  A name that is missing or is no commit is no candidate:
-///  nothing can be lost that is not there, and a tree or a blob is no commit a removal strands.
+///  (`keep/measurement-cost-of-the-reflog-question.log` of the run that answered the earlier review).
+///  The surviving logs are read only when the surviving references leave something unanswered:
+///  an ordinary removal of a finished worktree is answered by the references alone,
+///  so the reading of the common `logs` tree is skipped for it
+///  (measured in `keep/measurement-cost-of-the-reflog-question.log` of the run that answered this review).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function commitsNothingSurvives(context, commonDir, root, candidates): string[]; // throws the reason
 /// ```
 fn commits_nothing_survives(context: &GitContext, common_dir: &Path, root: &Path, candidates: &[String]) -> Result<Vec<String>, String> {
-    // The two requests below carry their input on standard input, which this program feeds from a private file under the
+    // The requests below carry their input on standard input, which this program feeds from a private file under the
     // repository's own scratch directory, so the context has to name the repository it was started for.
     let owned: GitContext = with_the_repository(context, common_dir);
-    let existing: Vec<String> = commits_among(&owned, root, candidates)?;
-    if existing.is_empty() {
+    let first: Vec<String> = commits_no_named_revision_reaches(&owned, root, candidates, surviving_reference_names(&owned, root)?)?;
+    if first.is_empty() {
         return Ok(Vec::new());
     }
+    return commits_no_named_revision_reaches(&owned, root, first.as_slice(), surviving_log_names(common_dir)?);
+}
+
+/// What:
+///  Those of `candidates` that no tip in `surviving` reaches,
+///  and so no ancestor of one either.
+/// Why:
+///  One `rev-list` with the candidates as tips and the surviving names as exclusions answers the reachability question
+///  for all of them at once, and its output is bounded by the candidates rather than by the repository's history.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function commitsNoNamedRevisionReaches(context, root, candidates, surviving): string[]; // throws the reason
+/// ```
+fn commits_no_named_revision_reaches(context: &GitContext, root: &Path, candidates: &[String], surviving: Vec<String>) -> Result<Vec<String>, String> {
     let mut input: String = String::new();
-    for commit in &existing {
+    for commit in candidates {
         input.push_str(commit);
         input.push('\n');
     }
-    // Every name the removal leaves alone: a reference of the common directory, and a log under it.
-    for name in surviving_reference_names(&owned, root)? {
-        input.push('^');
-        input.push_str(name.as_str());
-        input.push('\n');
-    }
-    for name in surviving_log_names(common_dir)? {
+    for name in surviving {
         input.push('^');
         input.push_str(name.as_str());
         input.push('\n');
@@ -426,7 +495,7 @@ fn commits_nothing_survives(context: &GitContext, common_dir: &Path, root: &Path
         input: Some(input.into_bytes()),
         ..GitRequest::default()
     };
-    let output: GitOutput = run_git(&owned, &request).map_err(|error| return format!("nothing proves which commits no surviving name reaches ({error})"))?;
+    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("nothing proves which commits no surviving name reaches ({error})"))?;
     if output.code != Some(0) {
         return Err(format!(
             "nothing proves which commits no surviving name reaches ({})",
@@ -435,7 +504,7 @@ fn commits_nothing_survives(context: &GitContext, common_dir: &Path, root: &Path
     }
     let mut stranded: Vec<String> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        if existing.iter().any(|one| return one == line) && !stranded.iter().any(|one| return one == line) {
+        if candidates.iter().any(|one| return one == line) && !stranded.iter().any(|one| return one == line) {
             stranded.push(line.to_owned());
         }
     }
@@ -443,17 +512,25 @@ fn commits_nothing_survives(context: &GitContext, common_dir: &Path, root: &Path
 }
 
 /// What:
-///  Those of `candidates` that are commits this repository still holds.
+///  Those of `candidates` this repository still holds,
+///  each with what it is.
 /// Why:
 ///   A record can name an object a collection already took,
-///  and feeding a missing or non-commit object to `rev-list` ends the whole question in an error a person reads as a refusal.
+///  and feeding a missing object to `rev-list` ends the whole question in an error a person reads as a refusal.
+///  An object that is a commit is asked the survival question,
+///  while one that is a tree, a blob or a tag nothing peeled is kept as it stands:
+///  no reachability test answers for those, and they die with the worktree just as a commit would
+///  (a review of `5a2bd4bb6c`, finding 1, for the tag that was dropped here).
 ///  One `cat-file --batch-check` answers every candidate at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function commitsAmong(context, root, candidates): string[]; // throws the reason
+/// function objectsAmong(context, commonDir, root, candidates): [object, Reached][]; // throws the reason
 /// ```
-fn commits_among(context: &GitContext, root: &Path, candidates: &[String]) -> Result<Vec<String>, String> {
+fn objects_among(context: &GitContext, common_dir: &Path, root: &Path, candidates: &[String]) -> Result<Vec<(String, Reached)>, String> {
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut input: String = String::new();
     for commit in candidates {
         input.push_str(commit);
@@ -467,23 +544,27 @@ fn commits_among(context: &GitContext, root: &Path, candidates: &[String]) -> Re
         input: Some(input.into_bytes()),
         ..GitRequest::default()
     };
-    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("nothing proves which of the commits a record names this repository still holds ({error})"))?;
+    let owned: GitContext = with_the_repository(context, common_dir);
+    let output: GitOutput = run_git(&owned, &request).map_err(|error| return format!("nothing proves which of the objects a record names this repository still holds ({error})"))?;
     if output.code != Some(0) {
         return Err(format!(
-            "nothing proves which of the commits a record names this repository still holds ({})",
+            "nothing proves which of the objects a record names this repository still holds ({})",
             String::from_utf8_lossy(output.stderr.as_slice()).trim()
         ));
     }
-    let mut commits: Vec<String> = Vec::new();
+    let mut objects: Vec<(String, Reached)> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
         // `<name> <type> <size>`, and `<name> missing` for one that is gone.
         let fields: Vec<&str> = line.split_ascii_whitespace().collect();
         let [name, kind, ..] = fields.as_slice() else { continue };
-        if *kind == "commit" {
-            commits.push((*name).to_owned());
+        match *kind {
+            "commit" => objects.push(((*name).to_owned(), Reached::Commit)),
+            // Nothing is left to lose of an object this repository no longer holds.
+            "missing" => continue,
+            other => objects.push(((*name).to_owned(), Reached::Other(other.to_owned()))),
         }
     }
-    return Ok(commits);
+    return Ok(objects);
 }
 
 /// What:
@@ -603,16 +684,39 @@ fn names_that_die_with_the_worktree(admin: &Path) -> Result<Vec<(String, String)
         }
     }
     for name in NAMING_RECORDS {
-        let path: PathBuf = admin.join(name);
-        let Ok(text) = crate::private_storage::read_regular_file(path.as_path(), NAME_RECORD_LIMIT) else { continue };
-        push_object_names(&mut held, text.as_slice(), format!("the record `{name}`"));
+        let holder: String = format!("the record `{name}`");
+        let text: Vec<u8> = read_a_record_or_nothing(admin.join(name).as_path(), holder.as_str())?;
+        push_object_names(&mut held, text.as_slice(), holder);
     }
     for (directory, name) in NAMING_RECORD_FILES {
-        let path: PathBuf = admin.join(directory).join(name);
-        let Ok(text) = crate::private_storage::read_regular_file(path.as_path(), NAME_RECORD_LIMIT) else { continue };
-        push_object_names(&mut held, text.as_slice(), format!("the record `{directory}/{name}`"));
+        let holder: String = format!("the record `{directory}/{name}`");
+        let text: Vec<u8> = read_a_record_or_nothing(admin.join(directory).join(name).as_path(), holder.as_str())?;
+        push_object_names(&mut held, text.as_slice(), holder);
     }
     return Ok(held);
+}
+
+/// What:
+///  The bytes of one record of an operation that may be in progress,
+///  or nothing when the record is not there,
+///  and the reason nothing may be removed when it is there and cannot be read.
+/// Why:
+///  A record that cannot be read may hold the only surviving name of a commit,
+///  and answering "no record" for it deleted that name with the worktree
+///  (a review of `5a2bd4bb6c`, finding 2).
+///  Only a name that is not there is no name:
+///  every other refusal, from a permission to a named pipe to a record too large to read, is the reason the removal stops.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readARecordOrNothing(path: string, holder: string): Uint8Array; // empty when missing; throws otherwise
+/// ```
+fn read_a_record_or_nothing(path: &Path, holder: &str) -> Result<Vec<u8>, String> {
+    return match crate::private_storage::read_regular_file(path, NAME_RECORD_LIMIT) {
+        Ok(text) => Ok(text),
+        Err(crate::private_storage::ReadRefusal::Missing) => Ok(Vec::new()),
+        Err(refusal) => Err(format!("{holder} cannot be read ({}), so nothing proves which commit it holds", refusal_words(&refusal))),
+    };
 }
 
 /// What:
@@ -698,6 +802,8 @@ fn is_an_object_name(word: &str) -> bool {
 ///   The logs and the records of an operation sit at a depth Git chose,
 ///  and a worktree that never made one has no directory at all,
 ///  which is no reason to refuse anything.
+///  A name that went between the listing and its look is no file, while any other failure of the look may hide a log
+///  that names a commit, so it is the reason the removal stops rather than a name quietly passed over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -724,7 +830,10 @@ fn files_beneath(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
         match std::fs::symlink_metadata(path.as_path()) {
             Ok(metadata) if metadata.is_dir() => found.append(&mut files_beneath(path.as_path())?),
             Ok(_) => found.push(path),
-            Err(_) => continue,
+            // A name that went between the listing and this look names no file, and any other failure may hide a log
+            // that names a commit, which is the reason the removal stops.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
         }
     }
     return Ok(found);
@@ -748,12 +857,21 @@ fn sentence(root: &Path, stranded: &Stranded) -> String {
     // The path is quoted where it enters the command the person copies: a path with a space, a quote, a dollar sign
     // or a line break otherwise turns that command into another one.
     let quoted: String = crate::shell_quote::shell_quote(root.as_os_str().as_encoded_bytes());
-    return format!(
-        "{} names the commit {short}, and nothing else of this repository does, so a removal would leave nothing that names it and \
-         `git gc --prune=now` would take it. Give it a name that outlives the worktree first, with `git -C {quoted} branch <a name you \
-         choose> {short}`, then remove the worktree again",
-        stranded.holder
-    );
+    // A commit is given a branch, and a tree or a blob a tag, which is the name Git can hold for an object that is no commit.
+    return match &stranded.reached {
+        Reached::Commit => format!(
+            "{} names the commit {short}, and nothing else of this repository does, so a removal would leave nothing that names it and \
+             `git gc --prune=now` would take it. Give it a name that outlives the worktree first, with `git -C {quoted} branch <a name you \
+             choose> {short}`, then remove the worktree again",
+            stranded.holder
+        ),
+        Reached::Other(kind) => format!(
+            "{} names the {kind} {short}, which is no commit, and nothing here proves an object of that kind outlives the removal, so \
+             nothing was removed. Give it a name that outlives the worktree first, with `git -C {quoted} tag <a name you choose> {short}` \
+             (a tag may name an object of that kind), then remove the worktree again",
+            stranded.holder
+        ),
+    };
 }
 
 /// The controls of this question stay out of the release executable.
