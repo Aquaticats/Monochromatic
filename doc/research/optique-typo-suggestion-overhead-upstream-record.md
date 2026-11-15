@@ -857,6 +857,10 @@ That is the behavior change commit `1e53f52e02` announced.
    that shows the same effect with nothing but `@optique/core`.
   `optique-typo-suggestion-overhead-upstream-record.evidence.zip` left the tree on 2026-11-13.
   Its cited records are in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`.
+  The harness,
+  the check scripts,
+  the baked inputs and every raw record of both rounds
+  are among them.
   `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Answered here before asking upstream

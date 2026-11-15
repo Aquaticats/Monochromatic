@@ -27,6 +27,18 @@ fn global_flag() -> Arg {
         .help("Act on the machine-global toolchain (the plan and lock under the per-user config directory)");
 }
 
+/// The tool arguments `install` takes: the ids and requests it adds to the plan before installing.
+fn install_tools_arg() -> Arg {
+    return Arg::new("tool")
+        .num_args(0..)
+        .value_name("TOOL")
+        .help(
+            "A tool to install: a tool id the plan already holds, or a request the command adds to the plan first \
+             (`cargo:<crate>`, `npm:<package>`, `go:<module>`, each with an optional `@<version>`; the newest when none is \
+             given). Several tools are allowed; without one, every tool the plan holds is converged to the lock",
+        );
+}
+
 /// What:
 /// One toolchain verb as the grammar declares it:
 /// the name `clap` parses,
@@ -106,11 +118,13 @@ impl Verb {
 
 /// The `install` verb:
 /// every locked tool to its locked version,
-/// then the exposure directory.
+/// then the exposure directory,
+/// or the tools the command line names added to the plan first.
 fn install_command(verb: &Verb) -> Command {
     return verb
         .command()
-        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory; a plan entry the lock lacks is resolved and locked alone first, unless frozen")
+        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory; a plan entry the lock lacks is resolved and locked alone first, unless frozen; each TOOL is an id the plan holds or a request to add to the plan first")
+        .arg(install_tools_arg())
         .arg(
             Arg::new("frozen-lockfile")
                 .long("frozen-lockfile")

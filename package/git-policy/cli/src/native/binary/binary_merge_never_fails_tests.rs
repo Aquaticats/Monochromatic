@@ -617,7 +617,8 @@ fn a_merge_that_may_not_clear_the_lock_saves_itself_and_the_next_command_finishe
     let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
     assert_eq!(saved.code, Some(0), "a merge that may not clear the lock still exits 0: {said}");
     assert!(said.contains("saved on refs/cli-git/kept/"), "the side ref is named: {said}");
-    assert!(said.contains("the next git command in this worktree finishes the checkout"), "{said}");
+    assert!(said.contains("The next git command in this worktree finishes the checkout"), "{said}");
+    assert!(said.contains("This merge wrote nothing to your files"), "a merge that captured nothing claims no path it changed: {said}");
     let side: String = side_ref_of(said.as_str());
     let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
     assert_eq!(parents_of(&fixture, repo.as_path(), merged.as_str()).len(), 2, "the side ref names a merge commit");
