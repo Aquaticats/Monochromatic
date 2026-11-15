@@ -358,20 +358,6 @@ export async function removeClaimFolderOf(claim: string,): Promise<void> {
 }
 
 /**
- Takes a claim's owner folder away once it holds no claim.
-
- @param claim - where a message was
-
- @example
- ```ts
- await removeOwnerFolderOf('/runs/a-1/inbox/.claims/4242-123456/9a1b/m.txt',);
- ```
- */
-export async function removeOwnerFolderOf(claim: string,): Promise<void> {
-  await removeClaimFolderOf(claim,);
-}
-
-/**
  Reads what a path is, or answers the sentinel that says nothing is there.
 
  @param path - the path to read
@@ -547,7 +533,7 @@ async function publishKept({
       target,
     );
     await unlink(claim,);
-    await removeOwnerFolderOf(claim,);
+    await removeClaimFolderOf(claim,);
     return 'published';
   }
   catch (error) {

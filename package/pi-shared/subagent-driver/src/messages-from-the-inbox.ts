@@ -25,7 +25,7 @@ import {
   claimMessage,
   entryOrNothing,
   noteMessageNotTaken,
-  removeOwnerFolderOf,
+  removeClaimFolderOf,
 } from './claims-of-an-inbox.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
@@ -170,7 +170,7 @@ async function deliverClaimed({
  */
 async function unlinkClaimed(claim: string,): Promise<void> {
   await unlink(claim,);
-  await removeOwnerFolderOf(claim,);
+  await removeClaimFolderOf(claim,);
 }
 
 /**
