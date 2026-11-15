@@ -298,7 +298,10 @@ function testsFilesOf(material: ReviewMaterial,): readonly string[] {
  const git = gitTouching({ paths: [`${aSourceFolder()}/Cargo.toml`], },);
  ```
  */
-function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
+function gitTouching({ paths, removed = [], }: {
+  readonly paths: readonly string[];
+  readonly removed?: readonly string[];
+},): (
   request: { readonly words: readonly string[] },
 ) => Promise<CommandOutput> {
   return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
@@ -307,7 +310,17 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
      */
     // Git prints a listing it cannot quote with `-z`, so one NUL byte ends each name.
     const listed = (paths.length === 0) ? '' : `${paths.join('\0',)}\0`;
-    return answered((words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),);
+    /**
+     The paths the reviewed commit holds, which a removed path is not.
+     */
+    const held = paths.filter(function isHeld(path,) {
+      return !removed.includes(path,);
+    },);
+    /**
+     The held paths as git prints them with `-z`.
+     */
+    const heldListing = (held.length === 0) ? '' : `${held.join('\0',)}\0`;
+    return answered((words[0] === 'ls-tree') ? heldListing : ((words[1] === '--name-only') ? listed : 'a diff of them'),);
   };
 }
 
@@ -423,9 +436,10 @@ async function makeAFolder(): Promise<{
  const { brief, line } = await aBriefAndItsLine({ folder, paths: [aTestFileOfTheTable()], },);
  ```
  */
-async function aBriefAndItsLine({ folder, paths }: {
+async function aBriefAndItsLine({ folder, paths, removed = [], }: {
   readonly folder: string;
   readonly paths: readonly string[];
+  readonly removed?: readonly string[];
 },): Promise<{ readonly brief: string; readonly line: string }> {
   /**
    The review this change is read as.
@@ -435,7 +449,7 @@ async function aBriefAndItsLine({ folder, paths }: {
    What the writer answered.
    */
   const briefed = await writeReviewBrief({
-    git: gitTouching({ paths, },),
+    git: gitTouching({ paths, removed, },),
     checkoutFolder: '/repo',
     review,
     commit: aCommit(),
@@ -1246,6 +1260,23 @@ await describe({
                   if (row.namesAnUnlistedKind) {
                     expect([present, briefed.line.includes(aPathOfEachKind().U ?? '',),],).toEqual([present, true,],);
                   }
+                  // The same row with every path it holds removed: the kind of the change is the same, every file it reads is
+                  // named, and no sentence says every touched file is read while one is absent.
+                  const gone = await aBriefAndItsLine({
+                    folder: folder.path,
+                    paths,
+                    removed: paths,
+                  },);
+                  expect([present, gone.brief.includes('Every file the change touched is read above.',),],).toEqual([present, false,],);
+                  for (const file of material.files) {
+                    expect([present, file, gone.brief.split(file,).length - 1,],).toEqual([present, file, 1,],);
+                  }
+                  expect([present, gone.brief.includes('The code must meet these requirements:',),],).toEqual([present, row.asksTheCode,],);
+                  if (row.kind === 'code-and-build-decisions') {
+                    expect([present, gone.brief.includes('It must meet these requirements:',),],).toEqual([present, true,],);
+                  }
+                  expect([present, gone.line.includes('no list of this writer names are read as code',),],)
+                    .toEqual([present, row.namesAnUnlistedKind,],);
                 }
             /* oxlint-enable eslint/no-await-in-loop */
               },
@@ -1271,6 +1302,32 @@ await describe({
                 expect([brief.split(recordedAnswer,).length - 1,],).toEqual([1,],);
                 expect([brief.includes(`- \`${recordedAnswer}\``,),],).toEqual([true,],);
                 expect([brief.includes(`\`${recordedAnswer}\` is left out`,),],).toEqual([false,],);
+                expect([line.includes('2 files to read',),],).toEqual([true,],);
+              },
+            },),
+            it({
+              name: 'names a production file the change removed, and asks the code requirements for it, so a range that deletes code beside a test is not reviewed as a change to tests alone',
+              fn: async () => {
+                /**
+                 The contents of the one folder this test writes its brief into.
+                 */
+                await using folder = await makeAFolder();
+                /**
+                 The production file the change removed, and the test it changed.
+                 */
+                const removedCode = `${aSourceFolder()}/prod.ts`;
+                /**
+                 The brief this change writes, and the line it answers with.
+                 */
+                const { brief, line, } = await aBriefAndItsLine({
+                  folder: folder.path,
+                  paths: [removedCode, `${aSourceFolder()}/prod.unit.test.ts`,],
+                  removed: [removedCode,],
+                },);
+                expect([brief.includes(`- \`${removedCode}\``,),],).toEqual([true,],);
+                expect([brief.includes('The code must meet these requirements:',),],).toEqual([true,],);
+                expect([brief.includes('the change is to them alone',),],).toEqual([false,],);
+                expect([brief.includes('Every file the change touched is read above.',),],).toEqual([false,],);
                 expect([line.includes('2 files to read',),],).toEqual([true,],);
               },
             },),
