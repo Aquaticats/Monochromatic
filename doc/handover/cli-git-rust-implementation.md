@@ -738,52 +738,33 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T11:07:00-05:00,
+  from the author of the push of a branch that is not checked out
+  (branch tip `777c491325`,
+  review queued),
+  not blocking work,
+  in the author's words and not yet read into by the coordinating session:
+  after a push moves a branch that another worktree shows,
+  a command in that worktree waits up to five seconds for the showing checkout to be brought to the new tip;
+  when the wait runs out the command is let through,
+  the record is kept,
+  and the paths that still hold the old tip are named.
+  The rule that clears the record is "no path holds what the branch moved from",
+  not "agrees with `HEAD`",
+  because a person's own edit can never agree with `HEAD` without being discarded,
+  so the stricter rule would block every command in that worktree for good.
+  If the stricter rule is wanted,
+  the expiry has to fail the command instead.
+  Which gives?
+  Its report:
+  `~/temp/agent/push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-scratch/keep/report-seventh-review-answers.md`.
+
 - Added 2026-11-15T10:20:50-05:00,
   from integration pass 53,
   not blocking work:
   the automatic push of a branch that has never been pushed met no upstream.
   Does the push queue set an upstream for such a branch,
   or is a new branch pushed once by hand?
-
-- Added 2026-11-15T09:46:57-05:00,
-  from the author of the landed removal
-  (branch tip `5ca2149aea`,
-  in review),
-  not blocking work:
-  a shell alias (`!…`) can build a `git worktree remove` in ways no reader of its text can follow,
-  and the rule against self-invocation rules out making the alias's Git the wrapper.
-  The branch therefore refuses every `!` alias that is not one plain Git command line,
-  with the opt-out,
-  a harmless `!echo hello` among them.
-  This machine's Git configuration holds no alias today,
-  so nothing is stopped here.
-  Does that refusal stand,
-  or is a shell alias forwarded as it is
-  (which leaves the removal a shell alias builds unguarded)?
-
-- A proposal for `AGENTS.md`,
-  added 2026-11-15T09:46:57-05:00,
-  after a brief's suggestion collided with a record under `doc/planning/`:
-  the rule that says to grep `doc/decision/` before briefing work on a component names `doc/planning/` as well,
-  since accepted rules of the owner's live in both.
-  Not applied;
-  the file is the owner's.
-
-- Added 2026-11-15T08:06:19-05:00,
-  about the removal of a worktree,
-  not blocking work:
-  "Delete ignored, spare busy" of 2026-11-12 was asked about files Git ignores.
-  A review deleted,
-  by an unforced `git worktree remove`,
-  an independent repository inside an ignored folder,
-  with the only name of its commit.
-  Adopted meanwhile:
-  the removal refuses where it would delete a Git directory holding a commit no other repository names,
-  with the opt-out;
-  a plain ignored folder is deleted and logged as decided.
-  Does the owner's pick reach such a repository
-  (delete it as real Git does),
-  or does the adopted reading stand?
 
 - Added 2026-11-15T07:55:03-05:00,
   about the credentials shown to model providers,
@@ -971,15 +952,11 @@ Questions kept for the owner's return:
   since the rule is about what the typed command would destroy when it is asked.
   Is a stated limit right there,
   or is that window to be closed?
-  And from the same branch:
-  its `git clean` moves a nested repository it would delete to a saved copy and then runs,
-  where the rule of 2026-11-12 says the wrapper refuses with an opt-out and moves nothing aside,
-  and the answer of 2026-11-10 says a clean of ignored files deletes them and logs the command.
-  No record was found that decides the save.
-  Does a clean that would delete a nested repository save it aside as the branch does,
-  refuse with the opt-out,
-  or delete and log?
-  The branch keeps its save until an answer.
+  (The second half of this item,
+  the clean's save of a nested repository,
+  was answered on 2026-11-15:
+  "Delete and log",
+  under "Answers on waking, third round".)
 - Added 2026-11-14T23:58:21-05:00,
   from two authors' reports of that hour,
   none blocking work:
@@ -1638,6 +1615,333 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's brief writer for a change to tests alone answers its seventh review; its review is queued (2026-11-15T11:34:05-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The brief writer that takes a change touching tests alone**,
+  its author's eighth run,
+  ended 11:29:25 at `baed9b0a1b`:
+  the review's two findings held and are answered.
+  A dead owner's review folder is taken by one start alone
+  (the record is re-read under a ticket and moved aside by a rename only one start can do;
+  with the fix out both starts took it).
+  The owner record now names the review's unit,
+  and a takeover asks the service manager:
+  a unit that is active,
+  starting,
+  reloading or stopping keeps the folder;
+  one that is inactive,
+  failed or not there lets it be taken;
+  any other answer,
+  no answer among them,
+  keeps it.
+  198 suites pass and the linter is clean.
+  Left alone and named:
+  the queue can still start a unit after a takeover in one window,
+  which needs the launcher to read the claim.
+  Its review is queued eighth
+  (`main...baed9b0a1b`,
+  18 code files that are not tests).
+- **Three branches now meet in the review brief**:
+  this one
+  (a claim on the folder),
+  the coverage branch
+  (the folder written whole,
+  back with its author)
+  and the writer for every kind of code file
+  (the plan and the brief's text,
+  back with its author).
+  The coverage author's queued brief is told of this branch's owner record and to build no claim of its own.
+  Whichever reaches `main` second merges the first.
+- Read at 11:33:41:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### The review brief's coverage branch goes back with two findings: a reference that moves between two Git questions, and a folder written in parts (2026-11-15T11:28:14-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The driver's review brief that says what the change is** (`6e7021c03e`),
+  its fourth review,
+  ended 11:22:57,
+  17 of 17 files,
+  two things,
+  both reproduced by driving `writeReviewBrief`:
+  the writer pins the branch's tip and leaves `main` as a name,
+  so a merge that lands between its two Git questions makes a real change "nothing to review";
+  and a second write into a folder that already holds a review overwrites the diff and the record and can then fail at the brief,
+  leaving an old brief beside a new diff.
+- **Weighed**:
+  both go back.
+  This machine merges into `main` many times an hour and its runs are killed at any instruction,
+  so neither is a rare case here,
+  and both are cheap to close for good:
+  every name turned into a commit once and every later question asked of those commits;
+  a review folder written whole or not at all.
+  The author's fifth run is queued seventh
+  (`~/temp/agent/pi-runs/review-brief-coverage-answers-its-fourth-review-of-2026-11-15-prompt.md`).
+  The starter's stopgap stays until this branch is in `main`.
+- Read at 11:27:20:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### The released wrapper can land a commit with the empty tree when a file of its scratch goes: shown on `main`, fixed on a branch whose review is now second in line; the checkout migration's review finds two ways a person's file is lost (2026-11-15T11:18:47-05:00)
+
+Not final and not approved:
+what one author and two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The drawn shadow tree**,
+  its author's seventh run,
+  ended 11:13:14 at `5db0fbc6e9`.
+  Asked first whether `main` has the sixth review's first two findings:
+  - **The second, yes.**
+    The review's script against a wrapper built from `main`:
+    with the commit's private index gone from its scratch at a pause,
+    the commit landed with the empty tree,
+    exit 0,
+    and the tracked file left history.
+    That is in the release installed here.
+  - The first
+    (a merge's commit with one parent)
+    was not shown on `main`:
+    `main` has no pause at that place to hold,
+    and the author read the removal rule there and tried no unattended reproduction.
+  - On the branch,
+    before its change,
+    all three reproduced.
+  **The fix**:
+  the tree and the parents a commit is asked for are captured before Git builds,
+  and the built commit is held against them before the request is made and before the real repository's merge state is touched;
+  a difference is not landed,
+  one more build is made from the captures,
+  and a second difference is reported plainly.
+  Every entry of the scratch can go at any instant without changing what lands.
+  The sweep now takes a tree's claim whole before removing it,
+  and the maker claims it as it is made.
+  Not covered,
+  said in the code:
+  an amend's parents,
+  and `--fixup=reword:` and `--fixup=amend:`,
+  whose commit carries the base's tree by design.
+  Cost inside the machine's spread
+  (an ordinary commit 69.0 to 64.4 ms,
+  ratio's median 0.925).
+  Its review is queued second
+  (`main...5db0fbc6e9`,
+  17 code files that are not tests).
+- **Measured again for the empty tree**:
+  of the 145 commits on any ref since 08:20 today,
+  each with a tree of its own,
+  none has the empty tree;
+  with the morning's count,
+  none of the commits since 2026-11-01 has it.
+  What takes a file out of a live commit's scratch on `main` is the sweep for age or something outside the wrapper;
+  how often that can meet a commit is not measured.
+- **The checkout migration** (`311a65f852`),
+  its review,
+  ended 11:15:19,
+  seven of seven files,
+  three controls added to a copy of its tests,
+  all three failing:
+  a record replaced by a directory between the listing and the decision has its contents counted as vanished,
+  and the old tree is deleted with a person's file in neither tree;
+  an old notice now carried over is renamed over a file another command made at the destination during the copy;
+  and a notice in the spelling of an earlier release
+  (`cli-git push notice 1`)
+  is not known as the wrapper's own,
+  so the deletion is refused for it.
+  **Weighed**:
+  all three go back.
+  The first two are one thing,
+  a look and a later act on something that can have changed,
+  and the brief asks for the deciding look and the act to be of one opened thing,
+  for a publish that never replaces,
+  and for a table of every such place in the pass.
+  The author's second run is queued fourth.
+- **The landed removal's review** of `5ca2149aea`,
+  ended 11:16:22,
+  22 of 22 files,
+  six things,
+  all reproduced through the built wrapper.
+  Four are in the look for a repository inside an ignored folder
+  (a root with a byte that is not UTF-8;
+  a bare repository;
+  a query that climbs to the outer repository;
+  a FIFO at a nested `.git` that blocks without a bound),
+  and fall away with that look,
+  which the owner's answer of 10:59 takes out.
+  **Two stand**:
+  a per-worktree reference that names an annotated tag loses the tag object,
+  since only the peeled commit is kept among the objects the guard protects;
+  and an annotated tag held only by a per-worktree reflog loses the tag and its commit,
+  since every reflog name is taken for a commit.
+  The author's fifteenth run had started before the review ended;
+  the two go to it in a sixteenth,
+  when the fifteenth has ended.
+- Read at 11:17:25:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:10;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes.
+
+##### A warning written to a pipe nobody drains holds a stopped push for good: the stop's author goes back, and the wider thing gets a run of its own; the discarding guard and the unheld branch's push answer (2026-11-15T11:12:43-05:00)
+
+Not final and not approved:
+what one review and two authors report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The stop of a stopped push** (`67c565e1f4`),
+  its third review,
+  ended 11:06:05,
+  five of five files read:
+  no loss of data,
+  no doubled commit or merge and no overwritten lock found;
+  one thing,
+  reproduced at the boundary of `settle_locks`.
+  A stop that cannot sweep its locks says so through `warn`,
+  which writes to standard error with no bound;
+  with the caller's standard error a full pipe the write never returned,
+  the stop never returned,
+  and later pushes of the repository stay behind it.
+  The review could not run a named test under a disposable home
+  (`mise` answered `failed to decrypt sops file`),
+  the gap the review brief's own run has.
+- **Weighed**:
+  it goes back,
+  and it is one instance of something `main` has everywhere.
+  `warn` is called from 77 files of the package that are not tests
+  (counted on `main` at `522e865c9d`),
+  all through one function,
+  `foundation/diagnostic_log.rs` `write_line`.
+  A process that blocks on a full pipe is ordinary;
+  the harm is a blocked process that holds what another command waits for.
+  The record `doc/planning/cli-git-no-unbounded-waits.md` lists every kind of wait and no write to the wrapper's own standard error.
+  So two runs:
+  the stop's author,
+  fourth run,
+  queued fourth,
+  for the stop's own path
+  (nothing on it writes to a caller's pipe until the stop has given back what others wait on);
+  and a fresh run,
+  queued ninth,
+  for the wider thing
+  (a survey of every such write with what is held,
+  two reproductions,
+  one shape at the door,
+  a source guard):
+  `~/temp/agent/pi-runs/wrapper-write-to-a-pipe-its-caller-does-not-drain-never-holds-up-another-command-prompt.md`.
+- **The discarding guard**,
+  a fresh run,
+  ended 11:00:13 at `2f3e2785ed`:
+  one reading of a command line,
+  one spelling of a path,
+  one answer for edits a mark hides,
+  a pathspec file read once,
+  `HEAD` read as Git reads it;
+  the two windows stated as limits in the SPEC;
+  no measurable cost on 20,000 files;
+  221 and 143 named tests pass.
+  It left the save and its refusal of a shell alias alone,
+  and the owner decided both at 11:07
+  ("Answers on waking, third round"):
+  its second run is queued for them,
+  and the review of `2f3e2785ed` is queued
+  (42 code files).
+- **The push of a branch that is not checked out**,
+  ninth run,
+  ended 11:00:23 at `777c491325`:
+  the review's four reproductions failed as reported at the old tip;
+  the record of a moved branch now ends by handing itself on,
+  is deleted only on a proof read at that moment,
+  and a command that waits for it waits at most five seconds;
+  a kept record costs one file read where it cost a `worktree list`
+  (16.4 to 5.8 ms,
+  faster in 60 of 60 pairs).
+  Its question on which rule clears a record is kept for the owner.
+  Review queued
+  (21 code files).
+- Read at 11:10:36:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:04;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### Three more answers of the owner are acted on; the commit that does not wait behind the service's writes answers its review and has the slow start reproduced (2026-11-15T11:00:48-05:00)
+
+Not final and not approved:
+what the owner answered,
+what one author reports,
+and what the coordinating session queued.
+
+- **The owner's three answers of 10:59** are under "Owner decisions in force",
+  "Answers on waking, second round".
+  A shell alias is forwarded unguarded and an ignored repository is deleted as ignored:
+  both go the other way from the landed removal's tip `5ca2149aea`.
+  Its author's fifteenth run is queued second,
+  to take the refusals and the look out and to state the hole in `SPEC.md`
+  (`~/temp/agent/pi-runs/landed-removal-two-decisions-of-2026-11-15-shell-aliases-forwarded-and-ignored-repositories-deleted-prompt.md`).
+  A review of `5ca2149aea` had started before the answers and goes on;
+  what it finds in the parts that come out falls away with them.
+  The briefing rule in `AGENTS.md` names both folders since `73ee82f26d`.
+- **The commit that does not wait behind the service's writes**,
+  its author's second run,
+  ended 10:54:00 at `c024c12583`:
+  the review's three claims shown and answered
+  (a commit held 6,156 ms against a bound of 5,000 at the old tip and 46 ms at the new;
+  a taken request told it was not taken;
+  a wait's words naming the landing's own write).
+  **The slow start of `0.6.1-alpha.41` is reproduced and has its cause**:
+  with the removal of old finished batches' records held where the service's loop stands,
+  the first commit took 6,081 ms;
+  moved beside the loop,
+  226 ms.
+  The start's steps that must stay now name themselves in the journal and to the client when they pass one second.
+  Two arms interleaved:
+  a median ratio of 1.011.
+  Its review is queued fifth
+  (`main...c024c12583`,
+  11 code files that are not tests).
+- **Queued since the section before this one**:
+  the reviews of what the file holder and the address-space controls added after their reviewed commits,
+  each written by hand and told to run the controls
+  (fourth and fifth at 10:57);
+  the sighting of the gate's first-time failure is in the brief of the fresh run for the controls that fail only inside a suite.
+- Read at 10:57:32:
+  the main checkout shows its six changed files;
+  no failed start and no brief refused since the cap went to 20;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes;
+  Tctl 75.1 degrees.
+
 ##### The owner is back: the limits are lifted, the cap is 20, pass 54 is queued under the new rule; the gate on `0.6.1-alpha.42` failed 16; the masking's third review finds eight more (2026-11-15T10:53:13-05:00)
 
 Not final and not approved:
@@ -1686,7 +1990,17 @@ and what the coordinating session did.
   (open: the review of one assertion's message).
   Brief:
   `~/temp/agent/pi-runs/integration-pass-54-with-the-wrapper-under-the-gates-git-the-file-holder-and-the-address-space-controls-prompt.md`.
-  It should take ten of the gate's sixteen with it.
+  Eight of the gate's sixteen failures are the subject of two of its branches
+  (seven of the Git version and the file holder);
+  whether they pass in the gate's image is for the gate after the release to show.
+  Queued after it at 10:58:
+  the masking author's fourth run
+  (second in the queue)
+  and the Git-version author's run for the three sentences.
+  Measured for the masking's `\uXXXX` finding,
+  counts only:
+  of the 41 string tokens in Pi's two credential files none is written otherwise than `JSON.stringify` writes it,
+  so it meets nothing on this machine today.
 - **The review of the Git-version branch's two rewritten sentences**
   (ended 10:48:15,
   by reading)
@@ -36555,6 +36869,59 @@ between 10:46:27 and 10:48.
   Asked about the wrapper only;
   the driver,
   mpm and cargo keep the earlier rule.
+
+### Answers on waking, second round (2026-11-15, written here at 11:00:01-05:00)
+
+Three more questions through the question tool,
+answered between 10:57:32 and 10:59.
+Two of them reverse what the coordinating session had adopted meanwhile and what the landed removal's branch builds at `5ca2149aea`.
+
+- **A shell alias and the guard on a worktree's removal**:
+  "Forward them unguarded".
+  Every `!` alias is passed to real Git as it is;
+  all aliases keep working with no opt-out;
+  a `git <alias>` that ends in a worktree removal is not guarded,
+  and the SPEC states that hole.
+  The option not taken was the branch's refusal of every `!` alias the wrapper cannot read.
+- **An ignored folder that is itself a repository with commits of its own**:
+  "Delete as ignored".
+  The decision of 2026-11-12
+  ("Delete ignored, spare busy")
+  stays literal:
+  the nested repository goes with the worktree and the deletion is logged.
+  The owner was told that a review had deleted the only copy of a commit this way.
+  The reading adopted at 08:06:19
+  (refuse with the opt-out)
+  is withdrawn.
+- **The briefing rule in `AGENTS.md`**:
+  "Name both folders (Recommended)".
+  Applied in `73ee82f26d`:
+  the rule now says to grep `doc/decision/` and `doc/planning/`,
+  and `CLAUDE.md` is regenerated by file-enforcer.
+
+### Answers on waking, third round (2026-11-15, written here at 11:07:00-05:00)
+
+Two questions through the question tool,
+about the guard on discarding commands
+(`checkout`,
+`reset --hard`,
+`clean`,
+`restore`),
+whose author had ended at 11:00:13 with `2f3e2785ed`.
+
+- **A shell alias in the discarding guard**:
+  "Same answer: forward (Recommended)".
+  This guard also passes every `!` alias to real Git as it is,
+  and the SPEC states the hole once for both guards.
+- **A forced `git clean` that would delete a nested repository**:
+  "Delete and log (Recommended)".
+  The clean deletes it as real Git does and the wrapper logs the command and what went;
+  no saved copy.
+  The owner was shown the three records that disagreed
+  (the answer of 2026-11-10 on a clean of ignored files,
+  the rule of 2026-11-12 that the wrapper moves nothing aside,
+  and the morning's answer on the worktree removal)
+  and the branch's save.
 
 ### Answers after the restart (2026-11-04)
 
