@@ -168,6 +168,19 @@ pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
 /// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
 
+/// The words the journal and a waiting client know the write of a watch note by.
+pub const WATCH_NOTE_STEP: &str = "the write of the note of this worktree";
+
+/// How long the write of one watch note may take before the after-commit work goes on without it.
+/// Why:
+///  The note names this worktree to the service that starts next, so its look finds this service's records at once;
+/// without it that look finds them after `LOOK_AGAIN_AFTER` (5 s),
+/// which is the pause the loop already takes between looks,
+/// so a write slower than that buys the next service nothing and holds this one for nothing.
+///  It is also the client's own silence window (`HEARTBEAT_SILENCE`),
+/// the longest this service lets anything of its own wait without a word.
+pub const WATCH_NOTE_WRITE_CEILING: Duration = Duration::from_secs(5);
+
 /// The point at which the landing writes its note for the service that starts next,
 /// for a control that holds that write (`service_fault_hooks_test_support.rs`).
 /// The work loop writes the same note through `write_down` and never reaches this point,
@@ -422,6 +435,56 @@ impl ClaimWatch {
     /// the caller goes on
     /// with the work either way,
     /// because a failed note must not stop a backup.
+    pub async fn remember_off_the_worker(&mut self, git_dir: &Path) {
+        for known in self.known.iter().chain(self.unwritten.iter()) {
+            if known == git_dir {
+                return;
+            }
+        }
+        if refused_for_another_instance(self.instance.as_deref(), git_dir) {
+            return;
+        }
+        let Some(directory) = self.store.clone() else {
+            self.known.push(git_dir.to_path_buf());
+            return;
+        };
+        // What: The write goes through the service's one door, so no worker of the runtime waits in it.
+        // Why:  This runs in the after-commit work's task, and with one worker a synchronous write there is every
+        //       client of the service (`service_file_work_off_the_workers.rs`).
+        //       At the ceiling the note is left unwritten and the loop goes on: the look for records
+        //       (`LOOK_AGAIN_AFTER`) finds them anyway, and the note only saves the service that starts next one pause.
+        let beside: PathBuf = git_dir.to_path_buf();
+        let step: crate::service_file_work_off_the_workers::Step =
+            crate::service_file_work_off_the_workers::Step { what: WATCH_NOTE_STEP, ceiling: WATCH_NOTE_WRITE_CEILING };
+        let written: Option<Result<(), String>> =
+            crate::service_file_work_off_the_workers::off_the_workers(step, move || { return write_down(directory.as_path(), beside.as_path()); }).await;
+        match written {
+            Some(Ok(())) => {
+                self.known.push(git_dir.to_path_buf());
+            }
+            Some(Err(reason)) => {
+                crate::service_warn!("{} could not be kept for a restart, so it is tried again after a pause: {reason}", git_dir.display());
+                self.unwritten.push(git_dir.to_path_buf());
+                self.failures = self.failures.saturating_add(1);
+            }
+            None => {
+                crate::service_warn!(
+                    "{} was not kept for a restart within {WATCH_NOTE_WRITE_CEILING:?}, so this service goes on without its note: the look for records finds them anyway",
+                    git_dir.display()
+                );
+                self.unwritten.push(git_dir.to_path_buf());
+                self.failures = self.failures.saturating_add(1);
+            }
+        }
+    }
+
+    /// Keeps `git_dir` known without writing anything,
+    /// which is all a watch with no store can do.
+    pub fn remember_in_memory(&mut self, git_dir: &Path) {
+        self.known.push(git_dir.to_path_buf());
+    }
+
+    /// Writes `git_dir` down unless this process has done so, on the caller's own thread.
     pub fn remember(&mut self, git_dir: &Path) {
         for known in self.known.iter().chain(self.unwritten.iter()) {
             if known == git_dir {

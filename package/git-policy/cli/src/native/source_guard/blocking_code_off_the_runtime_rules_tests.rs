@@ -79,6 +79,25 @@ const STORAGE_CALLS: &[&str] = &[
     ".sync_data(",
 ];
 
+/// The synchronous helpers of this service that reach a file,
+/// each of which waits on the device it is given and therefore belongs on the blocking pool and never in a task:
+/// a task that calls one holds the worker it was polled on, and with one worker that is every client of the service
+/// (`doc/planning/git-policy-cli-full-tokio.md`, and the second review's third and fourth findings,
+/// which are answered by `service_file_work_off_the_workers.rs`).
+const BLOCKING_HELPERS: &[&str] = &[
+    "restored_within(",
+    "settle_open_batches(",
+    "landed_commits(",
+    "earlier_commits_landed(",
+    "prune_done(",
+    ".remember(",
+    "claim_batch(",
+    "write_intent(",
+    "mark_done(",
+    "write_down(",
+    "read_regular_file(",
+];
+
 /// The waits that block the thread they run on until something else moves,
 /// which on a worker is the task that would move it.
 const BLOCKING_WAITS: &[&str] = &["recv_timeout(", "thread::sleep(", "park_timeout(", "thread::park(", "futex::wait(", "Condvar"];
@@ -153,6 +172,16 @@ pub(super) const RULES: &[Rule] = &[
             // The project's own child wait is a future a task awaits, and a `select!` arm is awaited too, so only a
             // call that is neither is a wait that holds the worker.
             return !(joined.contains(".await") || joined.contains("=>"));
+        },
+    },
+    Rule {
+        id: "blocking-helper-on-a-task",
+        reason: "calls a synchronous helper that waits on a file from a worker, where a slow disk, a lock or a mount \
+                 holds the tasks that would end the wait; the service's door runs it on the blocking pool instead \
+                 (`service_file_work_off_the_workers.rs`)",
+        place: Place::OnATask,
+        matches: |line, _joined| {
+            return holds_any(line, BLOCKING_HELPERS);
         },
     },
     Rule {

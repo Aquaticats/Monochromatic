@@ -67,8 +67,10 @@ use tokio::sync::mpsc::UnboundedReceiver;
 /// ```
 async fn remember_awaiting(watch: ClaimWatch, git_dir: &Path) -> ClaimWatch {
     if watch.key().is_none() {
+        // A watch with no store writes nothing, so this is the one branch that reaches no file: it says so by the name it
+        // calls, and the guard of the door reads that name (`source_guard/blocking_code_off_the_runtime_rules_tests.rs`).
         let mut kept: ClaimWatch = watch;
-        kept.remember(git_dir);
+        kept.remember_in_memory(git_dir);
         return kept;
     }
     let unchanged: ClaimWatch = watch.clone();

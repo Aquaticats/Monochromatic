@@ -448,6 +448,9 @@ const POOL_CALLS: &[&str] = &[
     "run_blocking_job(",
     "run_blocking_job_within_the_budget(",
     "run_awaiting_blocking_job(",
+    // The service's own door: a job of the pool, awaited under a ceiling (`service_file_work_off_the_workers.rs`).
+    "off_the_workers(",
+    "run_a_job_once_awaited_no_longer_than(",
 ];
 
 /// Whether a line hands a closure to the blocking pool,
@@ -688,13 +691,14 @@ fn every_listed_exception_still_matches_code() {
 /// so a rule that stopped matching would fail here.
 #[test]
 fn each_rule_fires_on_its_own_forbidden_text() {
-    let samples: [(&str, &str); 8] = [
+    let samples: [(&str, &str); 9] = [
         ("thread-start", "let started = std::thread::Builder::new().spawn(move || work());"),
         ("blocking-sleep", "std::thread::sleep(POLL_PAUSE);"),
         ("unretried-start", "let output = command.output();"),
         ("unretried-built-start", "let output = git_command(real_git, arguments, overlay).output();"),
         ("storage-read-on-a-task", "let head = std::fs::read_to_string(git_dir.join(\"HEAD\"));"),
         ("blocking-wait-on-a-task", "let answered = replies.recv_timeout(ceiling);"),
+        ("blocking-helper-on-a-task", "let (retries, watch) = restored_within(ceiling, plan, watch, instance);"),
         ("plain-tokio-fs", "let metadata = tokio::fs::metadata(path).await;"),
         ("block-in-place", "let value = tokio::task::block_in_place(|| read_it());"),
     ];

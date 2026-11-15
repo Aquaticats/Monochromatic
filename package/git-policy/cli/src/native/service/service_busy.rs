@@ -146,6 +146,10 @@ pub struct LandingBoard {
     journal: PathBuf,
     /// The directory of the record.
     pub(crate) directory: PathBuf,
+    /// The place this service took in its journal,
+    /// which is what tells it whether any other service may land a request of the same journal
+    /// (`service_journal_holders.rs`).
+    place: Option<crate::service_journal_holders::HeldPlace>,
     /// Lock kept:
     ///  the requests the landing thread has taken for the group it is landing and what the queue waited in when it
     ///  took them,
@@ -300,10 +304,12 @@ impl LandingBoard {
         let directory: PathBuf = journal.join(DIRECTORY);
         let _removed = std::fs::remove_dir_all(directory.as_path());
         let _made = std::fs::create_dir_all(directory.as_path());
+        let place: Option<crate::service_journal_holders::HeldPlace> = crate::service_journal_holders::take_ones_place(journal.as_path());
         return Arc::new(Self {
             slow_after,
             journal,
             directory,
+            place,
             held: std::sync::Mutex::new(TheLandingsOwn { loop_begun: false, starting: None, group: Vec::new(), last: None, withdrawals: Vec::new() }),
         });
     }
@@ -452,6 +458,42 @@ impl LandingBoard {
             }
         }
         return admission;
+    }
+
+    /// What:
+    ///  Whether this service may promise that a request it does not hold will never land.
+    /// Why:
+    ///   The promise is one service's to keep only when no other service writes the same journal:
+    /// a decision kept in one service's memory is only as wide as that service,
+    ///  and production's one service per journal is not the only shape the journal carries
+    ///  (`service_journal_holders.rs`,
+    /// and `doc/planning/cli-git-resident-service.md` on the batch claim two services of one journal made necessary).
+    ///  A place this service could not take is `Unknown`, which is not a reason to promise.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const may = board.mayPromiseARequestNeverLands(); // holders(journal) === 'alone'
+    /// ```
+    pub fn may_promise_a_request_never_lands(&self) -> bool {
+        let _mine: Option<&crate::service_journal_holders::HeldPlace> = self.place.as_ref();
+        return crate::service_journal_holders::holders(self.journal.as_path()) == crate::service_journal_holders::Holders::Alone;
+    }
+
+    /// What:
+    ///  The words a client is told when this service cannot say whether its commit will land.
+    /// Why:
+    ///   A service that shares its journal with another cannot answer `Withdrawn` for a request it does not hold,
+    ///  and the words say why,
+    /// so the person reads a reason instead of a silence when their own ceiling ends the wait.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const words = wordsOfAJournalThisServiceShares();
+    /// ```
+    pub fn words_of_a_journal_this_service_shares(&self) -> String {
+        return String::from(
+            "monochromatic-git-policy-cli: another service writes this journal, so this one cannot say that the commit will never land: another service may be landing it now, and the result is not known here.\n",
+        );
     }
 
     /// Whether this board holds `id` for the group the landing thread is landing.
@@ -765,6 +807,14 @@ impl LandingBoard {
         if self.holds(id) {
             return EarlyAnswer::Queued;
         }
+        // What: A request this service does not hold is left to the landing thread when another service writes this journal.
+        // Why:  The promise that it will never land is one service's to keep only where one service writes the journal;
+        //       with two, the other may be landing it now, and the landing thread answers what it knows instead
+        //       (`may_promise_a_request_never_lands`).
+        if !self.may_promise_a_request_never_lands() {
+            return EarlyAnswer::Queued;
+        }
+
         match self.naming(id) {
             Naming::Landed(commit) => return EarlyAnswer::Landed(commit),
             Naming::Open | Naming::Unknown => return EarlyAnswer::Queued,

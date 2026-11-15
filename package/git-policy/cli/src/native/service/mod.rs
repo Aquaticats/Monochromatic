@@ -70,6 +70,14 @@ pub mod service_decision_record_hold_control_window;
 /// beside the landing loop.
 pub mod service_prune_old_records_beside_the_loop;
 
+/// The one door the service's tasks take to reach a file:
+/// a job of the blocking pool, awaited under a ceiling.
+pub mod service_file_work_off_the_workers;
+
+/// The services that write one journal,
+/// each known by the place it takes there.
+pub mod service_journal_holders;
+
 /// The one instant of the service's start a control may take hold of,
 /// so the first commit's wait after a start is measured without a drive made slow.
 pub mod service_start_step_hold_control_window;

@@ -596,8 +596,13 @@ fn a_second_service_of_one_journal_never_confirms_a_withdrawal_it_does_not_hold(
         // What: With the other service gone, the same withdrawal is confirmed at once.
         // Why:  Nothing else can land the request then, so the promise is this service's to keep, and a client is not
         //       made to wait for the answer it can have.
-        use_on_this_thread(Arc::clone(&withdrawing));
+        //       The step record holds its board, so it is let go before the board is, and the second service's own step
+        //       is what its early answer needs.
+        drop(_step);
         drop(landing);
+        use_on_this_thread(Arc::clone(&withdrawing));
+        let _mine = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
         let alone: EarlyAnswer = withdrawing.withdraw_early("request-in-flight");
         assert!(matches!(alone, EarlyAnswer::Withdrawn(_)), "with no other service of this journal, the withdrawal is confirmed: {alone:?}");
     });

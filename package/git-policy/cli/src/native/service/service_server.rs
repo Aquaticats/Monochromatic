@@ -244,16 +244,31 @@ fn start_the_after_commit_work_or_exit(
     restore_ceiling: Duration,
 ) {
     let work = async move {
-        // What: The plan and the watch of a service that stopped last are read here, in this task, before the loop waits.
-        // Why:  Only this work uses them, so a commit never waits for the reading of the service's state directory for its sake.
-        let (push_retries, mut watch): (PushRetries, ClaimWatch) =
-            crate::service_journal_restored_at_start::restored_within(restore_ceiling, plan_directory, watch_directory, instance);
+        // What: The plan and the watch of a service that stopped last are read here, in this task, before the loop waits,
+        //       through the door that runs file work on the blocking pool and awaits it under a ceiling.
+        // Why:  Only this work uses them, so a commit never waits for the reading of the service's state directory for its
+        //       sake, and no worker of the runtime waits for it either: with one worker such a wait is every client of this
+        //       service (`service_file_work_off_the_workers.rs`).
+        //       At the ceiling the read is left behind and this service starts without what it held, which is what
+        //       `restored_within` itself does at its own ceiling: the plan and the repositories are kept, written to as this
+        //       service works, and read again after a pause.
+        let restored: Option<(PushRetries, ClaimWatch)> = crate::service_file_work_off_the_workers::off_the_workers(
+            crate::service_file_work_off_the_workers::Step { what: RESTORE_STEP, ceiling: restore_ceiling + RESTORE_DOOR_MARGIN },
+            move || { return crate::service_journal_restored_at_start::restored_within(restore_ceiling, plan_directory, watch_directory, instance); },
+        )
+        .await;
+        let (push_retries, mut watch): (PushRetries, ClaimWatch) = match restored {
+            Some(pair) => pair,
+            None => (PushRetries::unread_from_environment(Path::new("")), ClaimWatch::unread(Path::new(""), None)),
+        };
         // What: The worktree this service serves is one of the repositories the loop looks at by itself.
         // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record
         //       whose wake was lost is found by the look even when no landing of this process wrote a note for it
         //       (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`).
-        if let Some(own) = own_git_dir.as_deref() {
-            watch.remember(own);
+        //       The note is written through the same door, and at its ceiling the loop goes on without it: the look finds the
+        //       records anyway, and the note is what saves it one pause.
+        if let Some(own) = own_git_dir {
+            watch.remember_off_the_worker(own.as_path()).await;
         }
         let mut wakes: UnboundedReceiver<Wake> = receiver;
         work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
@@ -263,6 +278,15 @@ fn start_the_after_commit_work_or_exit(
         std::process::exit(4);
     }
 }
+
+/// The words the journal uses for the reading of the plan and the watch at a start,
+/// which is the step the door's ceiling names.
+const RESTORE_STEP: &str = "the read of the plan and the watch at a start";
+
+/// How much longer the door waits for that read than the read itself waits for its thread:
+/// the read answers at its own ceiling,
+/// so the door's bound only catches a read that stopped answering before its thread was even made.
+const RESTORE_DOOR_MARGIN: Duration = Duration::from_secs(5);
 
 /// The name the journal and a waiting client know the recovery of an open batch by.
 const SETTLE_STEP: &str = "it settles the batch a killed service left open";
@@ -485,9 +509,20 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             if let Job::Withdraw(id, reply) = job {
                 match landed.get(id) {
                     Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true, landing: None }),
-                    None => {
+                    None if board.may_promise_a_request_never_lands() => {
                         withdrawn.insert(id.clone());
                         reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
+                    }
+                    // What: A request this service does not hold, with another service writing the same journal, is not
+                    //       answered "withdrawn": the other service may be landing it now.
+                    // Why:  The promise is one service's to keep only where one service writes the journal, and a service
+                    //       that cannot keep it says why and lets the client's own ceiling end the wait with the result not
+                    //       known, which is true (`service_journal_holders.rs`).
+                    None => {
+                        crate::service_log!(
+                            "the withdrawal of {id} is left unanswered: another service writes this journal, so this one cannot say that the commit will never land"
+                        );
+                        reply.send(&ServiceMessage::Waiting { text: board.words_of_a_journal_this_service_shares() });
                     }
                 }
             }
