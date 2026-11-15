@@ -28,7 +28,7 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
+use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, end_the_fills_clean, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
@@ -959,6 +959,9 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    // A run may ask for the ending the gate of 2026-11-15T06:00-05:00 met: the filling's own clean ended by a signal from
+    //  outside the runner's ceiling and quiet window, and the resolution after it refused.
+    end_the_fills_clean(&fixture);
     let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "stale", "../deeper/stale");
     let worktree: PathBuf = fixture.root.join("deeper/stale");
     assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));

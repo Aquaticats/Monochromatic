@@ -76,6 +76,12 @@ mod support_btrfs_controls;
 #[path = "binary_support_process_cpu_counters.rs"]
 mod support_process_cpu_counters;
 
+/// The filling of a new worktree's copied build state,
+/// what became of it,
+/// and the ending a control may give its clean.
+#[path = "binary_support_package_filling.rs"]
+mod support_package_filling;
+
 /// The hang guard:
 /// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]
@@ -121,6 +127,12 @@ mod fixture_guard;
 /// a thread that ends between the listing and its own read is no process that ended.
 #[path = "binary_support_process_cpu_counters_tests.rs"]
 mod process_cpu_counters_guard;
+
+/// The ending a run gives a filling's clean:
+/// it is the signal the runner words as one it did not send,
+/// and every other run reaches the real Cargo.
+#[path = "binary_support_package_filling_tests.rs"]
+mod package_filling_guard;
 
 /// Exact forwarding of arguments,
 ///  streams,
