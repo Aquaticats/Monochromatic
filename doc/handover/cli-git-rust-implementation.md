@@ -762,6 +762,13 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The masking of credentials, three limits its review confirmed by runs (tip `0d5184769c`, added 2026-11-14T19:51-05:00):
+    a value inside an encoded container (base64 of a whole file or object, hex, gzip),
+    base64 wrapped at 76 columns,
+    and a value under eight characters pass unmasked,
+    each needing its own decoder or a lower floor.
+    Accept each as a stated limit,
+    or have any of them covered before the rotation?
   - The landed removal's guard, its fifth answer (tip `2596b5d164`, added 2026-11-14T18:58-05:00):
     the guard now hands Git the path it judged,
     so Git's own messages quote that absolute path and not the word the person typed;
@@ -1309,6 +1316,89 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The masking of credentials is not ready: its review finds twelve things that stop it; it goes back to its author, and the rotation goes on waiting (2026-11-14T19:51:19-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The value of the secret environment never reaches a Pi run's model** (`0d5184769c`),
+  its review,
+  on Kimi,
+  ended 19:45:52.
+  Its file states the range `main...0d5184769c`,
+  eighteen of eighteen files read in full and all 5,320 lines of the diff.
+  It started no real Pi and no provider,
+  used stand-in values and a disposable store under a disposable `HOME`,
+  and drove Pi's own installed functions.
+  It confirms what holds:
+  ordinary tool results,
+  the error text of a tool that threw and the ordinary transcript of a request are masked through Pi's real hooks.
+- **What it found**,
+  twelve things that stop the change and one warning,
+  ten of the twelve reproduced:
+  - a value gets past the masking:
+    a tool result's `details` reach the feed and the session unmasked
+    (through Pi's real hooks);
+    a fresh run's own prompt,
+    steer or inbox message is persisted as sent and reaches Pi's compaction request,
+    where the author had named compaction as a gap for old sessions alone;
+    a tool call's arguments go into the feed,
+    by reading;
+    and a marker can itself hold another armed value;
+  - a value is never armed:
+    the `access` and `refresh` fields of Pi's own OAuth shape in `auth.json`;
+    a shell export followed by an inline comment;
+    a provider key that begins with `/`;
+  - a start goes ahead without knowing the masking stands:
+    a readiness request that gets no answer still lets the first prompt go;
+    a credential file that is there and cannot be parsed is listed and Pi starts all the same;
+  - something is lost or waits without end:
+    the rewrite of Pi's spare output file truncates before it writes;
+    a base name alone decides which file is rewritten,
+    so any file named `pi-output-…` can be;
+    and a FIFO at a credential source's path,
+    or named as spare output,
+    blocks without end.
+  The warning:
+  structured tool data with no value in it is dropped when the text beside it is masked.
+- **Weighed**:
+  all of it stands.
+  The first group alone means a value can still reach a session file,
+  the feed and a model request with this change in,
+  which is what the change is for.
+  The author is resumed at the head of the queue,
+  asked to start from the sinks,
+  every place a value could be written or sent,
+  and not from the list of Pi's hooks;
+  to read each source by its own grammar;
+  and to fail closed at every start
+  (`~/temp/agent/pi-runs/masking-of-secret-values-answers-its-review-of-2026-11-14-prompt.md`).
+  The lead from the Qwen attempt,
+  a loss in Pi's `_afterToolCall`,
+  is the first finding.
+- **What does not change**:
+  the owner's answers of the morning stand
+  (one rotation once the masking is merged and shown to hold;
+  runs go on starting;
+  the affected session files stay untouched).
+  The rotation is now at least one more author round and one more review away,
+  and until then every Pi run can still send a value it prints to its provider.
+  That is said to the owner in this round's message.
+- **Three limits the review confirms by runs**,
+  each the owner's to accept or not,
+  added to the kept list:
+  a value inside an encoded container
+  (base64 of a JSON object),
+  base64 wrapped at 76 columns,
+  and values under eight characters pass unmasked.
+- Read at 19:50:15:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going.
+  The resumed session is not named by the credential scan.
 
 ##### The cause of six of the gate's failures is found and fixed on a branch; ended runs had left 51 processes in 42 scopes, which are stopped (2026-11-14T19:44:30-05:00)
 
