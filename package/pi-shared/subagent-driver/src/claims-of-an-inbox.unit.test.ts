@@ -1369,7 +1369,12 @@ await describe({
              What the filesystem really reports.
              */
             const stats = await realLstat(path, options,);
-            if (((options as { readonly bigint?: boolean } | undefined)?.bigint) !== true) {
+            /**
+             Whether the caller asked for the exact read, which the patch below leaves alone.
+             */
+            const exact = (options !== undefined)
+              && ((options as { readonly bigint?: boolean }).bigint === true);
+            if (!exact) {
               if (path === claim) {
                 Object.assign(stats, { dev: DEVICE, ino: Number(claimedInode,), },);
               }
@@ -1381,31 +1386,34 @@ await describe({
           },
         },);
         syncBuiltinESMExports();
-        try {
-          const { watch, record, } = await watchOver({
-            folder: folder.path,
-            processFolder: '/proc',
-          },);
-          /**
-           Where the keep put the claimed message.
-           */
-          const kept = await keepMessage({
-            watch,
-            name: MESSAGE_NAME,
-            claim,
-            keptAs: 'failed',
-          },);
-          await record.close();
-          // The kept name of the other file is not this message's publication: the claim is published under a name of its own,
-          // and both messages are still readable.
-          expect(kept,).toBe(join(inbox, `.failed-${MESSAGE_NAME}.2`,),);
-          expect(await readFile(standing, 'utf8',),).toBe(standingText,);
-          expect(await readFile(kept, 'utf8',),).toBe(claimedText,);
-        }
-        finally {
-          Object.assign(fsPromises, { lstat: realLstat, },);
-          syncBuiltinESMExports();
-        }
+        /**
+         The real read, put back when the test's scope ends.
+         */
+        await using realFilesystem = {
+          async [Symbol.asyncDispose]() {
+            Object.assign(fsPromises, { lstat: realLstat, },);
+            syncBuiltinESMExports();
+          },
+        };
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        /**
+         Where the keep put the claimed message.
+         */
+        const kept = await keepMessage({
+          watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'failed',
+        },);
+        await record.close();
+        // The kept name of the other file is not this message's publication: the claim is published under a name of its own,
+        // and both messages are still readable.
+        expect(kept,).toBe(join(inbox, `.failed-${MESSAGE_NAME}.2`,),);
+        expect(await readFile(standing, 'utf8',),).toBe(standingText,);
+        expect(await readFile(kept, 'utf8',),).toBe(claimedText,);
       },
     },),
     it({
