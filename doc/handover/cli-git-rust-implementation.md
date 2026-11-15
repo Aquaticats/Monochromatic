@@ -1594,6 +1594,52 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The review brief writer for a change to tests alone is answered a sixth time and goes to review (2026-11-15T06:55:46-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The review brief writer takes a change that touches tests alone**,
+  its author's seventh run,
+  ended 06:51:03 at `b51b230eb2`,
+  `main` merged.
+  The sixth review's two findings are answered by one owner record for a review's folder,
+  taken only after there is something to review:
+  two branches whose names give one folder are both briefed and the second start is refused before it asks for a brief;
+  a starter that was killed leaves a record naming a dead process,
+  which the same branch takes again.
+  The controls fail with the fix taken out,
+  among them one that really kills a child.
+  The whole suite passes
+  (197 suites),
+  run four test files at a time,
+  because two runs at the default width failed in two different timing suites that each pass alone
+  (`drive-pi-subagent`,
+  `watch-pi-run`);
+  both failing outputs are kept.
+  No run owns those two timing suites.
+  Its review is queued eleventh
+  (`main...b51b230eb2`,
+  sixteen code files that are not tests).
+  It did not touch `review-brief.ts` or `material-of-a-review.ts`,
+  which the coverage branch changes.
+- The author used `env -u … HOME=…` inside one command and says so;
+  it printed no environment.
+- **The temperature**,
+  read at 06:55:24:
+  54.4 degrees,
+  budget 32.0 threads,
+  9.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:55:25:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:49;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 82 entries at 06:55:46.
+
 ##### Integration pass 50 is in `main` at a tip that holds pass 51, and `0.6.1-alpha.40` is dispatched; the masking answer goes to review with made-up values; the review brief's check goes back for four things (2026-11-15T06:52:18-05:00)
 
 Not final and not approved:
