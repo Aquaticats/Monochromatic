@@ -236,27 +236,43 @@ so a commit is answered while the record stays unwritten.
 
 ## The change
 
-The landing thread claims its group in memory,
-one `Mutex` over the identities of the group,
-on the lock inventory with its reason beside it
-(`source_guard/service_lock_inventory_tests.rs`),
-and reads only the record a connection thread publishes.
-The file is still the rendezvous between connection threads,
-so two withdrawers still publish one decision between
-them exactly once,
-with the same confirmation and retention;
-what changed is that the landing thread's own claim needs no file:
+The first change after the sighting moved the *write* of the decision off the landing thread and left a *read* of it
+there,
+and the review of it found the read to be the same dependence:
+the control that holds the record reports 6,141 ms while its write was held and 6,156 ms while its read was,
+with
+`queued_ms` 5,974 in both.
 
-- `begin_group` claims each identity and then reads `<id>.decision`;
-  a record that names the request drops it,
-  an unreadable record answers it with a failure,
-  and no record admits it.
+So every reach of that record is memory now,
+one `Mutex` over the identities,
+the last write a landing left,
+and the withdrawals decided,
+on the lock inventory with its reason beside it
+(`source_guard/service_lock_inventory_tests.rs`):
+
+- `begin_group` claims each identity and looks at the withdrawals under the same hold of the lock,
+  which is one decision with no drive and no other thread between the two halves:
+  a request a withdrawal took is dropped,
+  and the rest are landed.
+  Nothing can keep a request out of its group any more,
+  so `GroupAdmission` has no `unavailable` arm and the server
+  answers no request with a failure for that reason.
 - `withdraw_early` leaves a request the board holds to the landing thread,
-  and a withdrawal that wins the record between the claim and its own check takes the record back and goes to the
-  landing thread.
-- `end_group` gives the claims back and removes nothing:
-  there is no `landing` content any more.
-- The step record and the syncs are untouched.
+  decides a withdrawal of any other under the token of its maker,
+  takes that decision back when the claim or the journal says otherwise,
+  and confirms it in memory.
+- `end_group` gives the claims back and forgets the oldest confirmed withdrawals past `DONE_RETAINED`,
+  with their
+  confirmations in the same record,
+  so a confirmation cannot outlive the decision it belongs to.
+- The step record (`busy/step`) and the syncs are untouched.
+- Two controls whose subject the change removed are gone:
+  a staging file of a decision,
+  and a confirmation that outlives its decision.
+  What replaces the first is `an_admission_and_a_decision_need_no_file_of_the_record`,
+  which makes the record's own directory take no new file and shows an admission and a withdrawal still decided;
+  the second cannot happen,
+  because one record holds a decision and its confirmation together.
 
 ### What is durable when a commit is answered, and what is not
 
@@ -334,14 +350,70 @@ and the figure that matters is the one the control shows:
   which is the commit's and not bookkeeping.
   Taking those off the answer is a bigger change:
   the journal is what makes an answer durable.
-- The `begin_group` read of `<id>.decision` is a cached lookup of a name that usually does not exist.
-  A read does not join a filesystem transaction,
-  so it does not wait behind a stalled commit the way a write does.
+- Nothing of the record is read from the state directory any more,
+  so the note that a read does not join a filesystem
+  transaction needs no weight here.
 - The after-commit work of a round still drains its own records on the state directory's drive,
   on the work loop's task and on the slow lane,
   where no commit waits for it.
 - The two sightings' precise attribution stays unproven,
   and no run may stall a real drive to prove it.
+
+## What a start does before it reads its queue, and what it cost on 2026-11-15
+
+At 07:58:09 that day the main checkout's service was replaced by release `0.6.1-alpha.41`,
+and the first commit after it took 5,577 ms (`answerWaitMs` 4,706),
+where the five installs before it took 1,366 to 2,452 ms in all.
+The instance's journal carries `at_ms`:
+ready at 1794747489566,
+the rules warmed at 1794747489575,
+"removed the records of 10 old finished batches" at
+1794747493203,
+and the batch at 1794747494428.
+So 3,628 ms passed between the warm line and the removal line,
+where the two starts before took 106 ms (47 records) and 40 ms (13 records).
+The drive probe read the home drive at 23 ms and 2 ms on either side of that minute,
+so a stall of a few seconds is neither shown nor ruled out,
+and no line named the step,
+which is the same silence the two commits met.
+
+Each step the start took before the landing thread read its queue,
+and what a landing needs from it:
+
+- `start_acceptor_or_exit`:
+  the greeting.
+  Stays first,
+  or a waiting client reads a service that stopped.
+- `restored_within`:
+  the plan of pushes waiting for a new try,
+  and the repositories this instance was woken for.
+  Only the after-commit work uses them,
+  so it moved into that work's task.
+- `settle_open_batches`:
+  the recovery of a batch a killed service left open.
+  Stays:
+  a landing that overtook it would
+  move the branch on a batch whose own record is still open.
+- `prune_done`:
+  the removal of the records past `DONE_RETAINED`.
+  No landing reads them,
+  so it moved beside the loop.
+- `landed_commits`:
+  the newest finished records,
+  read into memory.
+  Stays:
+  an answer from memory is what stops a repeat
+  of a landed request from being landed twice.
+- `earlier_commits_landed`:
+  what an earlier release's helper finished,
+  which is the same answer for its clients.
+  Stays.
+
+What stays names itself:
+a step past `A_START_STEP_NAMED_AFTER` (one second) writes one line saying which step it was
+and how long,
+and a commit that waits past its own bound is told the step in the service's notice and in the client's
+own words.
 
 ## The controls that keep it from coming back
 
@@ -351,6 +423,13 @@ and the figure that matters is the one the control shows:
 - `service/service_server_connection_handling_tests.rs::
   a_request_that_waited_past_the_bound_is_told_what_the_wait_is_in`
 - `service/service_busy_tests.rs::admission_and_early_withdrawal_never_both_succeed`
-- `service/service_busy_tests.rs::a_record_that_cannot_be_written_never_answers_withdrawn`
+- `service/service_busy_tests.rs::an_admission_and_a_decision_need_no_file_of_the_record`
+- `service/service_busy_tests.rs::two_connection_threads_never_both_win_a_decision`
+- `service/service_busy_tests.rs::a_wait_over_the_bound_names_the_write_it_was_in_when_the_group_began`
+- `service/service_server_connection_handling_tests.rs::a_request_the_landing_thread_has_taken_is_never_told_it_was_not`
+- `binary/binary_a_first_commit_after_a_start_tests.rs::
+  a_first_commit_after_a_start_is_answered_while_the_old_records_are_removed`
+- `binary/binary_a_first_commit_after_a_start_tests.rs::
+  a_start_step_a_commit_waits_for_names_itself`
 - `source_guard/service_lock_inventory_tests.rs`,
   which now names `service/service_busy.rs` and checks the reason beside its lock

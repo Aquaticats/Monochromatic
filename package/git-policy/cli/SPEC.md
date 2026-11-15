@@ -7936,33 +7936,31 @@ on the commit path:
   The landing thread's record
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
   not begun to land.
-  Admission and cancellation are one decision per request.
-  The landing thread claims a request in memory before it lands it,
-  and a connection thread that would withdraw a request the landing thread holds leaves it to the landing thread:
-  the claim is one `Mutex` over the identities of the group and touches no storage,
-  because the file the claim used to be was a write of the journal's drive between a commit and its landing
-  (two commits waited 120,560 ms and 78,864 ms in the queue on 2026-11-15,
+  Admission and cancellation are one decision per request,
+  and the whole of it is in memory under one `Mutex`:
+  no file of the journal's drive stands on the path a commit waits on,
+  neither written nor read
+  (two commits waited 120,560 ms and 78,864 ms in the queue on 2026-11-15 while that drive stalled, and a read of the
+  same drive held a commit 6,156 ms in the control that replaced the write with it,
   `doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
-  A withdrawal of a request the landing thread does not hold publishes the file `<id>.decision` in the journal's `busy`
-  directory,
-  made with `link(2)` of a whole file,
-  which exactly one withdrawer can create,
-  the content `withdrawn:<token>`, the token being the maker's own,
-  and a request whose record names it is dropped.
-  A `withdrawn`
-  decision is provisional until its maker has checked the journal once more and created the file `<id>.<token>.cancelled` with the
-  token the decision carries;
+  The landing thread claims a request in memory and writes down, at that same moment, what the queue wait was in;
+  a connection thread that would withdraw a request the landing thread holds leaves it to the landing thread;
+  and a withdrawal of a request the landing thread does not hold is decided by whichever withdrawer takes the identity
+  first,
+  carrying the token of its maker.
+  A withdrawal
+  decision is provisional until its maker has checked the journal once more and confirmed it;
   only a decision whose own confirmation exists is acknowledged to a client or kept,
   and a maker that
   finds the request landed,
-  open or unknown removes its decision,
+  open or unknown takes its decision back,
   which nobody has acknowledged,
   so no observer reports a
   cancellation that is later undone.
   A confirmation belongs to one decision:
-  one that outlives its decision confirms nothing of the
+  it is stored with it and dies with it, so it can confirm nothing of the
   decision that replaces it.
-  A `withdrawn` decision with its confirmation stays as a tombstone,
+  A confirmed withdrawal stays as a tombstone,
   so every copy of the request that
   reaches a group is dropped (kept for `DONE_RETAINED`,
   the count of finished records the journal never goes below,
@@ -7972,7 +7970,10 @@ on the commit path:
   and while it is stuck in a write the record holds at most twice that number:
   past it the connection
   threads leave withdrawals to the landing thread,
-  which removes a decision only while it still carries the token of the confirmation it removes;
+  which removes the oldest confirmed decisions with their confirmations together;
+  nothing of this record outlives the service,
+  and what a restarted one finds is the journal, which answers `landed` for a request a finished batch names and leaves
+  one an open batch names to the recovery;
   the
   memory is cleared when the service starts like the service's own memory of withdrawals);
   a request the landing thread has given back at the end of its group is decided by the journal then,
@@ -17375,7 +17376,15 @@ and what answers the withdrawal of a request the client stopped waiting for (`se
 A service removes such a record only when both hold:
 it is older than `A_FINISHED_RECORD_IS_READ`,
 and it is beyond the newest `DONE_RETAINED` records of the journal.
-The removal runs when a service starts (`prune_done`) and never on the path a commit waits on.
+The removal runs when a service starts, beside the loop that lands commits
+(`service_prune_old_records_beside_the_loop.rs`),
+and never on the path a commit waits on:
+the records it takes are the ones past the newest `DONE_RETAINED`,
+which no landing reads,
+while the newest ones are read into memory before the first landing
+(`landed_commits`) because a repeat of a landed request must not land twice.
+The steps a start does take before it reads its queue each say which one they are, in the journal and to the client
+that waits, when they take longer than `A_START_STEP_NAMED_AFTER`.
 The age is the whole life of a client of the record (`service/wait_ceilings.rs`):
 the wait for the answer,
 inside which every resend of the request happens (`ANSWER_CEILING`),
