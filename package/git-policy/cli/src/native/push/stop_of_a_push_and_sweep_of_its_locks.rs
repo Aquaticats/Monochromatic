@@ -40,7 +40,9 @@
 //!  - the sweep of the locks, when the tree has gone: what is left of `STOP_CEILING`,
 //!    which covers
 //!  `SWEEP_AFTER_THE_STOP` less the one `POLL_PAUSE` a wait may overrun by,
-//!    and a sweep that does not run or does not answer inside it is kept as owed (below);
+//!    and a sweep that does not run or does not answer inside it is kept as owed (below):
+//!    the helper that awaits it measures the place of the blocking budget and the job to that one
+//!  instant, so a place that comes late leaves the job the rest of it and not a second one;
 //!  - the task `settle_locks` and `sweep_after_exit` may start:
 //!    its own waits are `STOP_CEILING` each,
 //!  and nobody waits for them,

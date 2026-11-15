@@ -502,6 +502,7 @@ pub enum TheAnswerOfAJobAwaited<T> {
 /// a job that outlasts it is
 ///  left behind with its place held until its work ends,
 /// as `blocking_jobs_within_the_budget.rs` holds every place.
+/// It is one ceiling for the place and the job together (`run_a_job_once_awaited_no_longer_than`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -523,7 +524,7 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 /// What:
 ///  Run `job` as a job of the blocking pool,
 /// with a place of the process's bound held while it runs,
-/// awaiting the place no longer than `ceiling` and then the job no longer than another `ceiling`.
+/// awaiting both the place and the job within one `ceiling`.
 /// Why:
 ///   A place is held by the job that took it until that job ends,
 /// so a job whose read outlasted its own ceiling leaves the place held with no end in sight
@@ -533,26 +534,39 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 ///  a service that never leaves its round runs no later push,
 /// no upkeep round and never exits idle
 /// (finding 4 of the review of `5686c7bb29`).
-/// The two waits are told apart because they mean different things:
-/// no place within the ceiling proves the job never started and changed nothing,
-/// while a job that outlasted its own ceiling may have done its work.
+/// A bound is one instant,
+/// taken once where the call begins,
+/// and both waits are measured to it:
+/// a place that comes
+///  late leaves the job the rest of the same ceiling,
+/// because a helper that reads the ceiling afresh in each wait hands a
+///  caller twice the bound it asked for
+/// (the review of `2da23e4478` measured a stop with a ceiling of one second answering
+///  after `1.351937327 s`).
+/// The two waits are still told apart because they answer different things:
+/// no place within the ceiling proves
+///  the job never started and changed nothing,
+/// while a job that outlasted its part of it may have done its work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answer = await runAJobOnceAwaitedNoLongerThan(ceiling, job);
+/// const deadline = performance.now() + ceilingMs; const place = await acquireUntil(deadline); if (!place) return 'notRun'; return await onceUntil(deadline, job);
 /// ```
 pub async fn run_a_job_once_awaited_no_longer_than<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T> {
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
     let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
-    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(&budget().places).acquire_owned()).await {
+    // The one instant both waits are measured to: a place that comes late leaves the job the rest of the ceiling and not
+    //  another one.
+    let deadline: tokio::time::Instant = tokio::time::Instant::now() + ceiling;
+    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout_at(deadline, Arc::clone(&budget().places).acquire_owned()).await {
         Ok(Ok(taken)) => taken,
         // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
         Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
     };
     #[cfg(test)]
     drop(_asking);
-    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {
+    return match tokio::time::timeout_at(deadline, run_a_job_holding_the_place(place, job)).await {
         Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
         // Only a refusal that promised the job will not run leaves the state as it was.
         Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
