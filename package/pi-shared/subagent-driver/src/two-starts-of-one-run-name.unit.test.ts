@@ -534,7 +534,8 @@ await describe({
             };
           }
           /**
-           What the unfixed code asked for between the two attempts: a forced removal of the path.
+           What the code this control was written against asked for between the two attempts: a forced removal of the path, which
+           takes the folder and every file the other start wrote in it.
            */
           if ((words[0] === 'worktree') && (words[1] === 'remove')) {
             await rm(worktree, {
@@ -548,12 +549,21 @@ await describe({
             };
           }
           /**
-           Whether this question is about the branch, which the other start made when it made the worktree.
+           The branch, which the other start made when it made the worktree, so a second add can take it.
            */
-          const aboutTheBranch = (words[0] === 'rev-parse');
+          if (words[0] === 'rev-parse') {
+            return {
+              status: seen.firstAdd ? 0 : 1,
+              stdout: seen.firstAdd ? 'refs/heads/feat/shared\n' : '',
+              stderr: '',
+            };
+          }
+          /**
+           A pruning of the registration a killed add may have left, and every later add, which makes the worktree.
+           */
           return {
-            status: aboutTheBranch && seen.firstAdd ? 0 : 1,
-            stdout: aboutTheBranch && seen.firstAdd ? 'refs/heads/feat/shared\n' : '',
+            status: 0,
+            stdout: '',
             stderr: '',
           };
         };
