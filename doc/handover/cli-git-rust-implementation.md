@@ -1670,6 +1670,103 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The masking fails its fourth review with four reproduced things and stays out of `main`; the commit service the wrapper starts itself answers on the manager and goes back with five claims; the driver's run kept out of the main checkout answers (2026-11-15T17:26:32-05:00)
+
+Not final and not approved:
+what one review and two authors report,
+how the coordinating session weighed each,
+and what it queued.
+
+- **The masking of secret values** (`feb531cd46`),
+  its fourth review,
+  ended 17:19:45:
+  33 of 33 files,
+  made-up values only,
+  four things,
+  each reproduced by a script.
+  Weighed:
+  - an append after the last identity check is lost at the rename:
+    this is the window the author's last report states as a limit,
+    so it is no new defect by itself;
+    it reaches further than stated because of the next one;
+  - a resumed run rewrites the original session of another run when Pi's answers carry no session path
+    (a fallback to `options.session` where the run had chosen its own copy):
+    a defect,
+    and the one that makes the window bite;
+  - a value the store declares and the driver's environment already holds is armed by neither pass,
+    so it is printed unmasked:
+    a defect in the thing the branch exists for;
+  - `export NAME=word\` continued on the next line arms a text Bash never exported:
+    the shell reader's class a second time.
+  **The masking is not merged and the owner's rotation still waits.**
+  The author's fifth run is queued second
+  (the fallback first,
+  then the limit said again as it then stands;
+  the names to arm taken from what the store declares and not from what one reader returned;
+  the shell reader held against real Bash over a made table and not hand-picked rows).
+  The counts of four reviews:
+  twelve,
+  ten,
+  eight,
+  four.
+- **The commit service the wrapper starts itself**,
+  its author's twelfth run,
+  ended 17:18:45 at `6bb47a824a`.
+  Its account:
+  of seventeen failing names thirteen pass with a measured cause each
+  (a fixture ending a service the wrapper then started again;
+  a fixture bound equal to the shipped ceiling;
+  six controls that encoded `main`'s manager and timings),
+  four stand open;
+  the review's five scripts show no defect at its tip.
+  **On the manager, which settles what was kept for the owner**:
+  a manager is asked where there is one,
+  as an enhancement,
+  and the detached start follows with no message where there is none;
+  what the branch removed is the manager watch with `zbus` and `bumpalo`,
+  not the enhancement.
+  That is the recorded decision
+  ("Remove systemd as a hard dependency.");
+  the question is withdrawn.
+  It did not merge `main`
+  (pass 54 arrived while it measured).
+  A breach it reports itself:
+  it ran `git remote set-url --push origin DISABLED` in its linked worktree,
+  which shares the repository's config;
+  read at 17:23:
+  no push URL is set and `origin` holds `main`'s tip.
+- **The review of that branch at `567ae37198`**
+  (ended 16:01,
+  built nothing)
+  listed 61 files where the queue line counted 78.
+  Measured now:
+  of the seventeen its brief left out,
+  fifteen are files the branch deletes,
+  which the brief writer does not list.
+  Its five claims went to the author's thirteenth run,
+  queued fifth,
+  a control first for each;
+  the two that signal a process by bare number are asked as one thing
+  (a handle the kernel ties to the process,
+  and only for what the command can prove it started).
+- **The driver's run that cannot write into the main checkout**,
+  its author's fifth run,
+  ended 17:21:05 at `0aaf6a11d7`:
+  the worktree's install now runs inside a capped unit of the run's own with the checkout read-only
+  (it ran in the launcher with the launcher's access);
+  the folders a unit may write are asked of Git for eight layouts and one that holds the checkout is refused;
+  the read's bound covers the open.
+  Review queued tenth
+  (15 code files that are not tests).
+  Until it is in `main`,
+  every Pi run on this machine can still write into the main checkout.
+- Read at 17:23:29:
+  six changed files in the main checkout;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  20 runs going,
+  none silent for twenty minutes.
+
 ##### The gate on `0.6.1-alpha.43` fails 3 of 9,148 where the gate before failed 16; each of the three has a run going (2026-11-15T17:22:53-05:00)
 
 Not final and not approved:
