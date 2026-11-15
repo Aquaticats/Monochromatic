@@ -521,6 +521,9 @@ await describe({
             await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
             // The range's right side is the object name the brief records, never the branch name, which moves on as soon as
             // anyone commits to it.
+            expect(asked.briefs.map(function rangeOf(brief,) {
+              return brief.range;
+            },),).toEqual([`${anIntegrationBranch()}...${aTip({ change: aChange(), },)}`,],);
             expect(asked.briefs,).toEqual([{
               review: aChange(),
               commit: aTip({ change: aChange(), },),
@@ -549,6 +552,9 @@ await describe({
               merges: [`${merge} 789abc ${aTip({ change: aChange(), },)}`,],
             },);
             await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
+            expect(asked.briefs.map(function rangeOf(brief,) {
+              return brief.range;
+            },),).toEqual([`${merge}^1...${aTip({ change: aChange(), },)}`,],);
             expect(asked.briefs,).toEqual([{
               review: aChange(),
               commit: aTip({ change: aChange(), },),
