@@ -217,8 +217,13 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
     },
     UnderACeiling {
         file: "conflict/discarded_nested_repository.rs",
-        call: "move || return std::fs::rename(from.as_path(), to.as_path())",
-        why: "the rename jobs of `work_within`, both the save and the put-back; no answer says the repository is in one of two places",
+        call: "return std::fs::rename(source.as_path(), destination.as_path());",
+        why: "the rename job of `work_within` that moves a repository into the saved copies; no answer leaves the move to the put-back, which says the repository may be at either place",
+    },
+    UnderACeiling {
+        file: "conflict/discarded_nested_repository.rs",
+        call: "return std::fs::rename(from.as_path(), to.as_path());",
+        why: "the rename job of `work_within` that puts a saved repository back (`move_back_within_a_ceiling`); a destination that is not there is a move that never happened",
     },
     UnderACeiling {
         file: "conflict/discarded_nested_repository.rs",
