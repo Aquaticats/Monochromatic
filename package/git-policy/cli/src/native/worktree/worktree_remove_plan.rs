@@ -4,7 +4,8 @@
 //!  and whether the person forced it.
 //! Why:
 //!  Only the plain form (one directory,
-//! one optional `-f` or `--force`,
+//! the force switches Git's own table reads,
+//! wherever in the words they stand,
 //! a non-empty name) is served;
 //! every other option changes what Git checks,
 //! so those stay with Git.
@@ -83,20 +84,42 @@ fn force_reading(token: &OsString) -> Option<bool> {
     if of(b"force") {
         return Some(true);
     }
+    // A word that stops at the `no-` with nothing after it names no option of Git's table at all: `--no-` is Git's usage
+    // answer, and reading it as a force turned off would judge a removal Git never makes (measured by the walk in
+    // `worktree_remove_plan_tests.rs`, which holds every spelling against real Git).
+    if long == b"no-" {
+        return None;
+    }
     if of(b"no-force") {
         return Some(false);
     }
     return None;
 }
 
-/// Whether a word asks Git to print this command's usage rather than remove a worktree.
+/// What:
+///  Whether a word asks Git to print this command's usage,
+///  which is an answer that removes nothing.
+/// Why:
+///   `-h` and `--help` are Git's own, at every length of the long name that still names it alone,
+///  and a cluster of this command's own short switches that holds the `h` reaches it too (`-fh`).
+///  A word that Git answers with its usage must not be read as a removal,
+///  or the guard would judge a worktree the command was never going to touch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// asksForUsage('-h') // true
+/// asksForUsage('-h') // true; asksForUsage('--hel') // true; asksForUsage('--quiet') // false
 /// ```
 fn asks_for_usage(token: &OsString) -> bool {
-    return matches!(token.as_encoded_bytes(), b"-h" | b"--help");
+    const NAMED: &str = "help";
+    // The short switches of this command, in the table Git declares for it: `f` for the force and `h` for the usage.
+    const SHORT: &[u8] = b"fh";
+    let word: &[u8] = token.as_encoded_bytes();
+    if let Some(cluster) = word.strip_prefix(b"-") {
+        let reads_it: bool = !cluster.is_empty() && cluster.iter().all(|byte: &u8| return SHORT.contains(byte)) && cluster.contains(&b'h');
+        return reads_it;
+    }
+    let Some(long) = word.strip_prefix(b"--") else { return false };
+    return !long.is_empty() && long.len() <= NAMED.len() && NAMED.as_bytes().starts_with(long);
 }
 
 /// What:
@@ -143,15 +166,21 @@ pub(crate) enum RemovalShape {
 /// What:
 ///  Read the words of a `git worktree remove` as Git reads them.
 /// Why:
-///  Git's parser takes the force switches before the one operand,
-///  an optional `--`,
-///  and then exactly one argument;
-///  anything else makes it print its usage and remove nothing,
+///   Git's `parse_options` reads the whole argument list:
+///  an option stands anywhere before a `--`,
+///  the `--` ends the options and is dropped,
+///  and the words that are not options are the arguments the command then counts.
+///  A command of `remove` with exactly one of those removes that worktree;
+///  any other count,
+///  or a word that asks for the usage,
+///  makes Git print its usage and remove nothing,
 ///  while a word this program does not know could still be an option a later Git accepts unforced.
 ///  Only the two answers Git itself gives,
 ///  a removal and its usage,
 ///  are read as final here;
 ///  the rest is the refusal the guard words.
+///  An option written after the operand was read as "nothing is removed" until a review of `d351b65746` showed
+///  that Git accepts it and deletes the worktree with no look at what it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,26 +192,26 @@ pub(crate) fn removal_shape(arguments: &[OsString], subcommand_index: usize) -> 
         return RemovalShape::NotARemoval;
     }
     let mut force: bool = false;
-    let mut rest: &[OsString] = &arguments[subcommand_index + 2..];
-    // The switches before the operand, as Git's parser takes them.
-    while let Some(first) = rest.first() {
-        let bytes: &[u8] = first.as_encoded_bytes();
-        if asks_for_usage(first) {
-            return RemovalShape::NotARemoval;
+    // Where each word that is not an option stands, in the order the person wrote them.
+    let mut operands: Vec<usize> = Vec::new();
+    let mut options_ended: bool = false;
+    for at in subcommand_index + 2..arguments.len() {
+        let bytes: &[u8] = arguments[at].as_encoded_bytes();
+        // The `--`, the single `-`, and every word that does not start with a `-` are arguments, in any position.
+        if options_ended || !bytes.starts_with(b"-") || bytes == b"-" {
+            operands.push(at);
+            continue;
         }
         if bytes == b"--" {
-            rest = &rest[1..];
-            break;
+            options_ended = true;
+            continue;
         }
-        match force_reading(first) {
-            Some(on) => {
-                force = on;
-                rest = &rest[1..];
-            }
+        if asks_for_usage(&arguments[at]) {
+            return RemovalShape::NotARemoval;
+        }
+        match force_reading(&arguments[at]) {
+            Some(on) => force = on,
             None => {
-                if !bytes.starts_with(b"-") {
-                    break;
-                }
                 // A wrapper control written where this command does not read it is the one option a person meets and
                 // can fix at once, so the words say where it goes; any other option is named as it stands.
                 return RemovalShape::Unprovable(match crate::wrapper_controls::control_meaning(bytes).is_some() {
@@ -194,13 +223,14 @@ pub(crate) fn removal_shape(arguments: &[OsString], subcommand_index: usize) -> 
             }
         }
     }
-    // One argument, which Git may still take after a `--`.
-    let [operand] = rest else { return RemovalShape::NotARemoval };
+    // Exactly one argument, wherever among the options it stood.
+    let [operand_at] = operands[..] else { return RemovalShape::NotARemoval };
+    let operand: &OsString = &arguments[operand_at];
     // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
     if operand.is_empty() {
         return RemovalShape::NotARemoval;
     }
-    return RemovalShape::Served { operand: operand.clone(), operand_at: arguments.len() - rest.len(), force };
+    return RemovalShape::Served { operand: operand.clone(), operand_at, force };
 }
 
 /// What:

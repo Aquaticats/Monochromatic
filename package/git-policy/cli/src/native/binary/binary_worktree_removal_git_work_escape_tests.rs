@@ -1530,3 +1530,48 @@ fn a_reference_or_a_reflog_that_names_a_tag_keeps_the_tag_and_what_it_names() {
     assert_eq!(commit_readable.code, Some(0), "and so does the commit it names: {}", stderr_of(&commit_readable));
     remove(&reflogged.fixture);
 }
+
+/// What:
+///  A removal whose option stands after the worktree's own path is judged like one whose option stands before it,
+///  and the words Git answers with its usage are left to Git.
+/// Why:
+///   Git's own reader takes an option anywhere before a `--`, so `git worktree remove <path> --no-force` is an unforced
+///  removal of that worktree;
+///  the plan read the words left after the operand as exactly one argument and called any other shape "not a removal",
+///  which forwarded the command with no look at the worktree,
+///  and an edit hidden behind `assume-unchanged` went with it (a review of `d351b65746`, finding 1).
+#[test]
+fn a_removal_whose_option_follows_the_path_is_judged_too() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-option-after-the-path");
+    let task: String = scene.task.display().to_string();
+    scene.hide_an_edit();
+    // The unforced removal the review wrote: refused, and the edit stays.
+    let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str(), "--no-force"]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "a removal whose option follows the path is refused: {said}");
+    assert!(said.contains("keeps Git work"), "{said}");
+    assert!(said.contains(TRACKED), "and the refusal names the edited file: {said}");
+    assert_eq!(
+        std::fs::read_to_string(scene.task.join(TRACKED)).expect("the edit is still there"),
+        "my edit, only here\n",
+        "and the edit stays"
+    );
+    // The control that this is a refusal and not a guard that refuses everything: the same words spelled before the
+    // path, and the same words forced, both end as Git ends them.
+    let before: Observed = scene.remove_with(&["worktree", "remove", "--no-force", task.as_str()]);
+    assert_eq!(before.code, Some(1), "the same words with the option first are refused too: {}", stderr_of(&before));
+    let forced: Observed = scene.remove_with(&["worktree", "remove", task.as_str(), "-f"]);
+    assert_eq!(forced.code, Some(0), "a forced removal follows the same words and goes: {}", stderr_of(&forced));
+    assert!(!scene.task.exists(), "and the forced one removed the worktree");
+    remove(&scene.fixture);
+
+    // A second worktree, for the words whose option stands after a `--`: Git reads them as two arguments, answers with
+    // its usage, and removes nothing, so nothing here is judged and Git's own answer is the one a person sees.
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-option-after-a-double-dash");
+    let task: String = scene.task.display().to_string();
+    scene.hide_an_edit();
+    let usage: Observed = scene.remove_with(&["worktree", "remove", task.as_str(), "--", "--no-force"]);
+    assert_eq!(usage.code, Some(129), "Git answers two arguments with its usage: {}", stderr_of(&usage));
+    assert!(scene.task.join(TRACKED).exists(), "and removes nothing");
+    remove(&scene.fixture);
+}

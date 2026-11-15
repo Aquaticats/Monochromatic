@@ -195,12 +195,18 @@ const PLACEHOLDER: &str = "{the directory}";
 fn force_spellings() -> Vec<String> {
     let name: &str = "force";
     let mut spellings: Vec<String> = Vec::new();
+    // The short letter in a cluster, as `-f` and `-ff` are.
     for letters in 1..=2 {
         spellings.push(format!("-{}", "f".repeat(letters)));
     }
+    // The long name at every length, and the negated name at every length: the last three of those end inside the `no-`
+    // itself, which Git's reader matches against no option at all, so the walk must see them too.
     for length in 1..=name.len() {
         spellings.push(format!("--{}", &name[..length]));
-        spellings.push(format!("--no-{}", &name[..length]));
+    }
+    let negated: String = format!("no-{name}");
+    for length in 1..=negated.len() {
+        spellings.push(format!("--{}", &negated[..length]));
     }
     return spellings;
 }
@@ -321,18 +327,16 @@ fn described(shape: &RemovalShape) -> String {
 fn every_spelling_of_the_removal_option_in_every_position_reads_as_git_reads_it() {
     let root: PathBuf = fixture("remove-plan-walk");
     let repository: PathBuf = crate::test_support::repository(root.as_path(), "repository");
+    // The tracked file every row edits, so a row's dirty worktree holds an edit Git itself sees.
+    std::fs::write(repository.join("tracked.txt"), "base\n").expect("the tracked file");
+    crate::test_support::git(repository.as_path(), &["add", "--", "tracked.txt"]);
+    crate::test_support::git(repository.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let mut walked: usize = 0;
     let mut disagreements: Vec<String> = Vec::new();
     let mut misspoken: Vec<String> = Vec::new();
-    let mut spellings: Vec<(String, Option<bool>)> = Vec::new();
-    for spelling in force_spellings() {
-        let off: bool = spelling.starts_with("--no-");
-        spellings.push((spelling, Some(!off)));
-    }
-    for spelling in usage_spellings() {
-        spellings.push((spelling, None));
-    }
-    for (index, (spelling, typed_force)) in spellings.iter().enumerate() {
+    let mut spellings: Vec<String> = force_spellings();
+    spellings.extend(usage_spellings());
+    for (index, spelling) in spellings.iter().enumerate() {
         for (position, words) in rows_with(spelling, PLACEHOLDER).into_iter().enumerate() {
             // A directory that needs quoting: a space, an apostrophe and a dollar sign, which Git reads as bytes.
             let worktree: PathBuf = root.join(format!("linked worktree {index} {position} 'quoted $odd"));
@@ -359,9 +363,20 @@ fn every_spelling_of_the_removal_option_in_every_position_reads_as_git_reads_it(
                 if !(*operand_at < arguments.len() && arguments[*operand_at] == *operand) {
                     misspoken.push(format!("{words:?}: the directory it names is not the word at {operand_at}"));
                 }
-                if *typed_force != Some(*force) {
-                    misspoken.push(format!("{words:?}: this program reads force={force} where the words carry {typed_force:?}"));
+                // The force the words carry, as Git shows it: the same words on a worktree holding an edit Git sees,
+                // which an unforced removal refuses and a forced one takes. Nothing here says which spelling is which.
+                let dirty: PathBuf = root.join(format!("dirty worktree {index} {position} 'quoted $odd"));
+                let dirty_operand: String = dirty.display().to_string();
+                crate::test_support::git(repository.as_path(), &["worktree", "add", "--quiet", "--detach", dirty_operand.as_str()]);
+                std::fs::write(dirty.join("tracked.txt"), "an edit Git sees\n").expect("the edit");
+                let elsewhere: Vec<String> = words.iter().map(|one| return one.replace(operand.to_string_lossy().as_ref(), dirty_operand.as_str())).collect();
+                // A worktree holding an edit Git sees is removed when the force is on and refused when it is off, so what
+                // Git did with it is the force these words carry.
+                let git_force: bool = git_removes(repository.as_path(), elsewhere.as_slice(), dirty.as_path());
+                if git_force != *force {
+                    misspoken.push(format!("{words:?}: this program reads force={force} and Git {}", if git_force { "removed the dirty worktree" } else { "refused it" }));
                 }
+                take_the_row_away(repository.as_path(), dirty.as_path());
             }
             take_the_row_away(repository.as_path(), worktree.as_path());
         }
