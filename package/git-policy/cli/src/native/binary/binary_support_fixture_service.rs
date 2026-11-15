@@ -591,13 +591,18 @@ impl FixtureService {
     /// The pipe closes when the last service holding it ends,
     /// so a copy whose service ended always ends,
     /// and the wait is the event a deciding read needs rather than a sleep of a guessed length.
-    ///  A copy that does not end before the bound means something still holds the service's stream:
-    /// the answer says so,
-    /// and a read made after it knows the log it sees may be incomplete.
+    ///  The answer is the whole meaning of the call:
+    /// `true` says every copy of the service's words has ended, so a read that decides anything may trust the file.
+    /// A copy that has not ended before the bound stays here for the next wait,
+    /// and so does one whose copier is gone without a word,
+    /// because "nothing left to wait for" is not "everything ended";
+    /// only a copy whose end was received is forgotten.
+    ///  One wait runs at a time,
+    /// so a second caller cannot find the copies taken out and answer for them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const settled = service.awaitCopies(10_000); // every copyEnded arrived
+    /// const settled = service.awaitCopies(10_000); // every copyEnded arrived; a give-up leaves the rest queued
     /// ```
     /// What:
     ///  Records the end of a copy of a service's stream that a control started itself,
@@ -616,18 +621,25 @@ impl FixtureService {
     }
 
     pub fn settle_the_service_log(&self, bound: std::time::Duration) -> bool {
-        let copies: Vec<std::sync::mpsc::Receiver<()>> = {
-            let mut held = self.log_copies.lock().expect("the fixture's log copies");
-            std::mem::take(&mut *held)
-        };
+        // The lock is held for the whole wait: a caller that found the copies taken out would answer that every copy
+        // ended while this one is still waiting for it.
+        let mut copies = self.log_copies.lock().expect("the fixture's log copies");
         let began: std::time::Instant = std::time::Instant::now();
-        for ended in copies {
-            let left: std::time::Duration = bound.saturating_sub(began.elapsed());
-            if !matches!(ended.recv_timeout(left), Ok(())) {
-                return false;
+        loop {
+            let reached: Result<(), std::sync::mpsc::RecvTimeoutError> = {
+                let Some(ended) = copies.first() else { return true };
+                ended.recv_timeout(bound.saturating_sub(began.elapsed()))
+            };
+            match reached {
+                // This copy ended, and its end is the only thing a wait may forget.
+                Ok(()) => {
+                    let _ended = copies.remove(0);
+                }
+                // A copy that has not ended, or whose copier is gone without a word, is not an end: it stays for the
+                // next wait, and the answer is that not every copy ended.
+                Err(_) => return false,
             }
         }
-        return true;
     }
 
     /// What:
