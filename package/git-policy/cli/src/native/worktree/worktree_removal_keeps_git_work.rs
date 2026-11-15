@@ -78,14 +78,25 @@
 //!  and one more namespace,
 //!  one more record and one more clearing path would need their own design and review.
 //!
+//! ## An object name is compared as Git compares it
+//!
+//!  Git prints every object name it prints in small hexadecimal letters,
+//!  and it reads a name in either case as the same object:
+//!  a record may hold `HEAD` in capitals, so every name read from a file is kept as Git prints names
+//!  (`as_git_prints_an_object_name`) and every comparison of one with a printed name is Git's comparison
+//!  (`the_same_object_name`).
+//!  A text comparison dropped a commit whose detached `HEAD` was written in capitals, the removal went ahead, and a
+//!  collection took it
+//!  (a review of `8858f843ee`, finding 3).
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const stranded = gitWorkARemovalWouldStrand(context, commonDir, worktree, admin); // string[] reasons, or the reason nothing was proven
+//! const stranded = gitWorkARemovalWouldStrand(context, commonDir, taken); // string[] reasons, or the reason nothing was proven
 //! ```
 
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_ladder_target::checkout_environment;
-use crate::worktree_landed_registrations::registrations_a_removal_takes;
+use crate::worktree_removal_worktrees_it_takes::Taken;
 use crate::worktree_registration_proof::read_record_here;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -207,8 +218,10 @@ struct Stranded {
 ///   The one question a removal asks before it deletes a worktree's own Git directory,
 ///  and the same answer serves the sweep,
 ///  the service's removal and the person's own command.
-///  The worktrees this repository registers inside `worktree` are asked too:
-///  the removal takes their files and their own Git directories with the outer one.
+///  The worktrees the removal takes are asked,
+///  all of them,
+///  from the one list the caller made (`worktree_removal_worktrees_it_takes`):
+///  a question that walked its own list would keep or miss a worktree the other questions do not know about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,21 +233,15 @@ struct Stranded {
 /// The words for a record,
 /// a reference or a Git answer this cannot read,
 /// which leaves the worktree kept rather than read as clear.
-pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: &Path, worktree: &Path, admin: &Path) -> Result<Vec<String>, String> {
-    let mut places: Vec<(PathBuf, PathBuf)> = vec![(worktree.to_path_buf(), admin.to_path_buf())];
-    // Every registration this removal takes with the outer one, read strictly: a `gitdir` this program cannot read may
-    // name a worktree inside this one, so it is a reason rather than an entry to skip
-    // (a review of `5a2bd4bb6c`, finding 3).
-    for one in registrations_a_removal_takes(common_dir, worktree).map_err(|reason| format!("nothing proves no worktree inside this one holds Git work of its own, so nothing is removed: {reason}"))? {
-        places.push((one.worktree, one.admin));
-    }
+pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: &Path, places: &[Taken]) -> Result<Vec<String>, String> {
     let mut said: Vec<String> = Vec::new();
     let mut counted: usize = 0;
-    for (root, own) in places {
-        for stranded in stranded_commits(context, common_dir, root.as_path(), own.as_path())? {
+    for one in places {
+        let (root, own) = (one.root.as_path(), one.admin.as_path());
+        for stranded in stranded_commits(context, common_dir, root, own)? {
             counted += 1;
             if said.len() < SHOWN_COMMITS {
-                said.push(sentence(root.as_path(), &stranded));
+                said.push(sentence(root, &stranded));
             }
         }
     }
@@ -283,7 +290,7 @@ fn stranded_commits(context: &GitContext, common_dir: &Path, root: &Path, admin:
     // One holder per object, the first name it has here.
     let mut named: Vec<Stranded> = Vec::new();
     for held in holders {
-        if named.iter().any(|one| return one.commit == held.commit) {
+        if named.iter().any(|one| return the_same_object_name(one.commit.as_str(), held.commit.as_str())) {
             continue;
         }
         named.push(held);
@@ -298,7 +305,7 @@ fn stranded_commits(context: &GitContext, common_dir: &Path, root: &Path, admin:
     let mut answer: Vec<Stranded> = Vec::new();
     for held in named {
         let doomed: bool = match held.reached {
-            Reached::Commit => stranded.iter().any(|one| return *one == held.commit),
+            Reached::Commit => stranded.iter().any(|one| return the_same_object_name(one.as_str(), held.commit.as_str())),
             Reached::Other(_) => true,
         };
         if doomed {
@@ -336,7 +343,9 @@ fn detached_head(admin: &Path) -> Result<Option<String>, String> {
     }
     let digits: usize = line.len();
     if (digits == SHA1_DIGITS || digits == SHA256_DIGITS) && line.bytes().all(|byte| return byte.is_ascii_hexdigit()) {
-        return Ok(Some(line.to_owned()));
+        // A record may hold the name in capital letters, and Git reads it as the same object: the name is kept as Git
+        // prints names, so every comparison below is Git's comparison.
+        return Ok(Some(as_git_prints_an_object_name(line)));
     }
     return Err(format!(
         "the record HEAD at {} names neither a branch nor a commit, so nothing proves which commit it holds and a removal could delete the only name of one",
@@ -504,8 +513,10 @@ fn commits_no_named_revision_reaches(context: &GitContext, root: &Path, candidat
     }
     let mut stranded: Vec<String> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        if candidates.iter().any(|one| return one == line) && !stranded.iter().any(|one| return one == line) {
-            stranded.push(line.to_owned());
+        // Git prints its own answer, and this is the one place a printed name meets a name read from a file: the
+        // comparison is Git's, whatever case each was written in.
+        if candidates.iter().any(|one| return the_same_object_name(one.as_str(), line)) && !stranded.iter().any(|one| return the_same_object_name(one.as_str(), line)) {
+            stranded.push(as_git_prints_an_object_name(line));
         }
     }
     return Ok(stranded);
@@ -558,10 +569,10 @@ fn objects_among(context: &GitContext, common_dir: &Path, root: &Path, candidate
         let fields: Vec<&str> = line.split_ascii_whitespace().collect();
         let [name, kind, ..] = fields.as_slice() else { continue };
         match *kind {
-            "commit" => objects.push(((*name).to_owned(), Reached::Commit)),
+            "commit" => objects.push((as_git_prints_an_object_name(name), Reached::Commit)),
             // Nothing is left to lose of an object this repository no longer holds.
             "missing" => continue,
-            other => objects.push(((*name).to_owned(), Reached::Other(other.to_owned()))),
+            other => objects.push((as_git_prints_an_object_name(name), Reached::Other(other.to_owned()))),
         }
     }
     return Ok(objects);
@@ -632,7 +643,7 @@ fn surviving_log_names(common_dir: &Path) -> Result<Vec<String>, String> {
         for line in String::from_utf8_lossy(text.as_slice()).lines() {
             for field in line.split_ascii_whitespace().take(2) {
                 if is_an_object_name(field) && field.bytes().any(|byte| return byte != b'0') {
-                    names.push(field.to_owned());
+                    names.push(as_git_prints_an_object_name(field));
                 }
             }
         }
@@ -679,7 +690,7 @@ fn names_that_die_with_the_worktree(admin: &Path) -> Result<Vec<(String, String)
                 if field.bytes().all(|byte| return byte == b'0') {
                     continue;
                 }
-                held.push((field.to_owned(), holder.clone()));
+                held.push((as_git_prints_an_object_name(field), holder.clone()));
             }
         }
     }
@@ -775,9 +786,44 @@ fn log_holder(admin: &Path, path: &Path) -> String {
 fn push_object_names(held: &mut Vec<(String, String)>, text: &[u8], holder: String) {
     for word in String::from_utf8_lossy(text).split_ascii_whitespace() {
         if is_an_object_name(word) && word.bytes().any(|byte| return byte != b'0') {
-            held.push((word.to_owned(), holder.clone()));
+            held.push((as_git_prints_an_object_name(word), holder.clone()));
         }
     }
+}
+
+/// What:
+///  An object name written the way Git writes every name it prints,
+///  for every comparison this question makes.
+/// Why:
+///  Git prints object names in small hexadecimal letters,
+///  while a record Git wrote may hold the same name in capital letters,
+///  and Git itself reads both as the same object:
+///  a detached `HEAD` written in capitals was dropped from the stranded set because the comparison was text,
+///  the removal went ahead, and a collection took the commit
+///  (a review of `8858f843ee`, finding 3).
+///  Names written by this program's own sentences keep the small form Git prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asGitPrintsAnObjectName = (name: string) => name.toLowerCase();
+/// ```
+fn as_git_prints_an_object_name(name: &str) -> String {
+    return name.to_ascii_lowercase();
+}
+
+/// What:
+///  Whether two object names are the same object,
+///  whatever case each was written in.
+/// Why:
+///  This is the comparison Git makes of two names,
+///  and it is used wherever a name read from a file meets a name Git printed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theSameObjectName(one, other) // one.toLowerCase() === other.toLowerCase()
+/// ```
+fn the_same_object_name(one: &str, other: &str) -> bool {
+    return one.eq_ignore_ascii_case(other);
 }
 
 /// What:

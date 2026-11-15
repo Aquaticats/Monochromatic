@@ -138,6 +138,10 @@ pub mod worktree_remove_notices;
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 
+/// The worktrees one removal takes:
+///  the one it names and every worktree registered inside it.
+pub mod worktree_removal_worktrees_it_takes;
+
 /// The path Git itself resolves a worktree's name to,
 /// and the comparison it makes between two paths.
 pub mod worktree_path_as_git_resolves_it;

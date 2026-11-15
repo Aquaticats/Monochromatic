@@ -15,7 +15,8 @@
 //! expect(gitWorkRefusal(hostilePath, reasons)).toContain(`remove ${shellQuote(hostilePath)}`)
 //! ```
 
-use super::git_work_refusal;
+use super::{Judged, answers_with, git_work_refusal, the_removal_it_judges};
+use crate::forwarded_command::{ResolvedCommand, Route};
 use std::path::{Path, PathBuf};
 
 /// A path holding every hostile byte the review names,
@@ -66,4 +67,64 @@ fn the_sentence_names_the_worktree_as_it_stands() {
     let report: String = git_work_refusal(target, &[String::from("a reason")]);
     assert!(report.starts_with("monochromatic-git-policy-cli: /mnt/a plain path keeps Git work"), "{report}");
     assert!(report.contains("`git worktree --no-enforce-worktree remove '/mnt/a plain path'`"), "{report}");
+}
+
+/// What:
+///  The words a `!` alias is judged by are the words its shell runs,
+///  and the directory is the one Git starts that shell in.
+/// Why:
+///  For `alias.rmwt='!git worktree remove'` the caller's words start with `rmwt`,
+///  so a guard reading them forwarded the removal past itself
+///  (a review of `8858f843ee`, finding 1).
+///  Git's own `rev-parse` names the top of the working tree, which is where the shell runs.
+#[test]
+fn a_shell_alias_is_judged_by_the_words_its_shell_runs() {
+    let command: ResolvedCommand = ResolvedCommand {
+        arguments: vec![std::ffi::OsString::from("rmwt"), std::ffi::OsString::from("../task")],
+        subcommand_index: 0,
+        subcommand: Some(std::ffi::OsString::from("rmwt")),
+        route: Route::ShellAlias,
+        shell_command: Some(vec![std::ffi::OsString::from("worktree"), std::ffi::OsString::from("remove"), std::ffi::OsString::from("../task")]),
+    };
+    let judged: Judged = the_removal_it_judges(&command, &crate::test_support::git_context()).expect("the words can be read").expect("a removal was read");
+    assert_eq!(judged.words, vec![std::ffi::OsString::from("worktree"), std::ffi::OsString::from("remove"), std::ffi::OsString::from("../task")]);
+    assert_eq!(judged.subcommand_index, 0, "the subcommand stands at the front of the shell's words");
+}
+
+/// What:
+///  A shell alias whose command this crate cannot read is left to Git.
+/// Why:
+///  No words are read for `!sh -c 'git worktree remove "$1"'`,
+///  and guessing one would judge a command nobody runs.
+#[test]
+fn a_shell_alias_with_no_readable_git_command_is_left_to_git() {
+    let command: ResolvedCommand = ResolvedCommand {
+        arguments: vec![std::ffi::OsString::from("rmwt"), std::ffi::OsString::from("task")],
+        subcommand_index: 0,
+        subcommand: Some(std::ffi::OsString::from("rmwt")),
+        route: Route::ShellAlias,
+        shell_command: None,
+    };
+    assert!(matches!(the_removal_it_judges(&command, &crate::test_support::git_context()), Ok(None)), "no words are read for this alias");
+}
+
+/// What:
+///  The options a Git this guard starts carries are the caller's configuration and nothing that moves it.
+/// Why:
+///  A forwarded relative `-C` was applied a second time, so the query failed and a valid removal was refused
+///  (a review of `8858f843ee`, finding 4);
+///  `-c core.ignorecase=true` still has to reach the question it decides.
+#[test]
+fn the_options_that_carry_are_configuration_and_never_movement() {
+    let globals: Vec<std::ffi::OsString> = ["-C", "repository", "-c", "core.ignorecase=true", "--no-pager", "--git-dir", "/elsewhere/.git", "--config-env=core.abbrev=HOME"]
+        .map(std::ffi::OsString::from)
+        .to_vec();
+    assert_eq!(
+        answers_with(globals.as_slice()),
+        vec![
+            std::ffi::OsString::from("-c"),
+            std::ffi::OsString::from("core.ignorecase=true"),
+            std::ffi::OsString::from("--config-env=core.abbrev=HOME"),
+        ]
+    );
 }

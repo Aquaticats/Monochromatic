@@ -96,8 +96,13 @@ pub(crate) fn forward_action(
         TypedRemoval::Refused(words) => return Action::Exit { code: REJECTED_EXIT_CODE, stdout: String::new(), stderr: words },
         TypedRemoval::AsWritten { picked } => picked,
         TypedRemoval::Of { operand_at, target } => {
-            if forwarded_arguments.len() == command.arguments.len() {
-                forwarded_arguments[operand_at] = target.as_os_str().to_os_string();
+            // The operand is written into the words this program forwards only where those are the words judged: a `!`
+            // alias runs its own command in Git's shell, and the wrapper hands Git the caller's words untouched.
+            if let Some(at) = operand_at
+                && forwarded_arguments.len() == command.arguments.len()
+                && at < forwarded_arguments.len()
+            {
+                forwarded_arguments[at] = target.as_os_str().to_os_string();
             }
             Some(target)
         }

@@ -37,6 +37,7 @@ use crate::worktree_clean_content_attribute_sources::for_context;
 use crate::worktree_clean_stat_verdicts::ASSUME_VALID;
 use crate::worktree_clean_tree_walk::{ContentTarget, paths_whose_content_differs};
 use crate::worktree_clean::{StatEntry, stored_stats};
+use crate::worktree_removal_worktrees_it_takes::Taken;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -85,7 +86,28 @@ const INDEX_LIMIT: u64 = 256 << 20;
 ///
 /// The words for an index or a file this cannot read,
 /// which leaves the worktree kept rather than read as clear.
-pub(crate) fn hidden_edits_beneath(context: &GitContext, worktree: &Path, admin: &Path, common_dir: &Path) -> Result<Vec<String>, String> {
+pub(crate) fn hidden_edits_beneath(context: &GitContext, places: &[Taken], common_dir: &Path) -> Result<Vec<String>, String> {
+    let mut said: Vec<String> = Vec::new();
+    for one in places {
+        let mut edits: Vec<String> = hidden_edits_in_one(context, one.root.as_path(), one.admin.as_path(), common_dir)?;
+        said.append(&mut edits);
+    }
+    return Ok(said);
+}
+
+/// What:
+///  The tracked edits one worktree hides from Git behind a mark,
+///  as the sentences a person reads.
+/// Why:
+///  The worktree's own index says which entries are marked and its files say whether their bytes differ,
+///  so this is asked of one worktree at a time and the caller asks it of every worktree the removal takes
+///  (`worktree_removal_worktrees_it_takes`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hiddenEditsInOne(context, worktree, admin, commonDir) // string[]; throws the reason
+/// ```
+fn hidden_edits_in_one(context: &GitContext, worktree: &Path, admin: &Path, common_dir: &Path) -> Result<Vec<String>, String> {
     let hash_length: usize = repository_hash_length(common_dir).ok_or_else(|| return String::from("the repository configuration cannot be read, so no marked entry can be compared with its file"))?;
     let format: ObjectFormat = if hash_length == SHA256_DIGITS { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     // One open file gives both the bytes and the time, so the time belongs to the bytes that were read.
@@ -123,7 +145,7 @@ pub(crate) fn hidden_edits_beneath(context: &GitContext, worktree: &Path, admin:
     for path in differing {
         counted += 1;
         if said.len() < SHOWN_PATHS {
-            said.push(sentence(path.as_slice()));
+            said.push(sentence(worktree, path.as_slice()));
         }
     }
     if counted > said.len() {
@@ -166,16 +188,19 @@ fn refusal_words(refusal: &crate::private_storage::ReadRefusal) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// sentence(path) // 'the tracked file base.txt is marked ..., and its bytes are not ...'
+/// sentence(worktree, path) // 'the tracked file base.txt in /a/b is marked ..., and its bytes are not ...'
 /// ```
-fn sentence(path: &[u8]) -> String {
+fn sentence(worktree: &Path, path: &[u8]) -> String {
     let shown: String = String::from_utf8_lossy(path).into_owned();
+    // The worktree the edit is in is named too: a removal of an outer worktree takes the worktrees registered inside it,
+    // and a sentence that named only the file left a person looking for it in the directory they typed.
+    let inside: String = worktree.display().to_string();
     // The path is quoted where it enters the command the person copies: a name with a space, a quote, a dollar sign
     // or a line break otherwise turns that command into another one.
     let quoted: String = crate::shell_quote::shell_quote(path);
     return format!(
-        "the tracked file {shown} is marked assume-unchanged or skip-worktree, and its bytes are not the ones its index entry \
-         names, so no command of Git sees that edit. Commit it, move it somewhere else, or remove the mark \
+        "the tracked file {shown} in {inside} is marked assume-unchanged or skip-worktree, and its bytes are not the ones its \
+         index entry names, so no command of Git sees that edit. Commit it, move it somewhere else, or remove the mark \
          (`git update-index --no-assume-unchanged -- {quoted}`, or `--no-skip-worktree`), and remove the worktree again"
     );
 }

@@ -299,10 +299,14 @@ pub enum OperandWorktree {
 /// ```ts
 /// function listedByGit(context, commonDir): ListedWorktree[]; // throws the reason
 /// ```
-fn listed_by_git(context: &crate::transaction_git::GitContext, common_dir: &Path) -> Result<Vec<ListedWorktree>, String> {
+fn listed_by_git(context: &crate::transaction_git::GitContext, common_dir: &Path, answers_with: &[OsString]) -> Result<Vec<ListedWorktree>, String> {
     // `-z` keeps a path with a newline or a quote in it one record, and porcelain keeps the format Git documents.
-    let arguments: Vec<OsString> = ["worktree", "list", "--porcelain", "-z"].map(OsString::from).to_vec();
-    let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(common_dir, arguments.as_slice());
+    // It starts in the common Git directory, which the caller's `-C` chain already reached, and carries the caller's
+    // configuration options and no option that moves it: a forwarded relative `-C` failed here
+    // (a review of `8858f843ee`, finding 4).
+    let mut arguments: Vec<OsString> = answers_with.to_vec();
+    arguments.extend(["worktree", "list", "--porcelain", "-z"].map(OsString::from));
+    let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest { without_prefix: true, ..crate::transaction_git::GitRequest::new(common_dir, arguments.as_slice()) };
     let output = match crate::transaction_git::run_git(context, &request) {
         Ok(finished) => finished,
         Err(error) => return Err(format!("Git cannot list the worktrees of this repository ({error})")),
@@ -377,8 +381,9 @@ pub fn git_worktree_for_operand(
     operand: &OsStr,
     start: &Path,
     fold_case: bool,
+    answers_with: &[OsString],
 ) -> Result<OperandWorktree, String> {
-    let listed: Vec<ListedWorktree> = listed_by_git(context, common_dir)?;
+    let listed: Vec<ListedWorktree> = listed_by_git(context, common_dir, answers_with)?;
     // Git's first step: the whole operand as the last components of a listed path, at a directory boundary.
     let mut by_suffix: Vec<&ListedWorktree> = Vec::new();
     for one in &listed {

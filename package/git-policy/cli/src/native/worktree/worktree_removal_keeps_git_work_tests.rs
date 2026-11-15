@@ -13,6 +13,7 @@
 //! ```
 
 use super::{NAMING_RECORD_FILES, NAMING_RECORDS, detached_head, git_work_a_removal_would_strand};
+use crate::worktree_removal_worktrees_it_takes::the_worktrees_it_takes;
 use crate::test_support::{fixture, git, git_context, git_text, repository};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -35,7 +36,10 @@ impl Fixture {
     /// What a removal of the linked worktree would leave named by nothing.
     fn stranded(&self) -> Result<Vec<String>, String> {
         let context: GitContext = git_context();
-        return git_work_a_removal_would_strand(&context, self.common.as_path(), self.worktree.as_path(), self.admin.as_path());
+        // The list of what this removal takes is made once, here as in the guard: a registration it cannot read is the
+        // reason nothing is removed, before any question is asked.
+        let taken = the_worktrees_it_takes(self.common.as_path(), self.worktree.as_path(), self.admin.as_path())?;
+        return git_work_a_removal_would_strand(&context, self.common.as_path(), taken.as_slice());
     }
 
     /// Commit one more file on the worktree's checked-out branch.
@@ -454,4 +458,22 @@ fn an_unreadable_registration_is_the_reason_nothing_is_removed() {
     assert!(reason.contains("the registration in"), "the reason names the registration: {reason}");
     assert!(reason.contains("may name a worktree inside the one being removed"), "and why it stops the removal: {reason}");
     std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o644)).expect("the registration is readable again");
+}
+
+/// What:
+///  A detached `HEAD` written in capital letters names the same commit as the small one.
+/// Why:
+///  Git reads a name in either case as the same object and prints small letters,
+///  and a text comparison dropped the commit the capital name held: the removal went ahead and a collection took it
+///  (a review of `8858f843ee`, finding 3).
+#[test]
+fn a_detached_head_in_capitals_names_the_commit_git_prints() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-uppercase-head");
+    let commit: String = fixture.detach_and_commit();
+    assert!(commit.chars().any(|letter| return letter.is_ascii_alphabetic()), "the commit has letters to capitalise");
+    let head: PathBuf = fixture.admin.join("HEAD");
+    std::fs::write(head.as_path(), format!("{}\n", commit.to_uppercase())).expect("a capital HEAD");
+    let said: Vec<String> = fixture.stranded().expect("the record can be read");
+    assert_eq!(said.len(), 1, "the capital name holds one commit: {said:?}");
+    assert!(said[0].contains(&commit[..12]), "and the sentence names it as Git prints it: {}", said[0]);
 }
