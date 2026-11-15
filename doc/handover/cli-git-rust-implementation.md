@@ -1605,6 +1605,55 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A review that read and ran nothing sends the commit behind the service's writes back with three claims (2026-11-15T07:29:43-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The commit that does not wait behind the service's writes to another drive** (`70486fc752`),
+  its review,
+  ended 07:24:48,
+  eight of eight files and the diff,
+  three things,
+  all by reading;
+  it ran nothing.
+  By the reading adopted here,
+  such a review clears nothing and its findings are claims that need a control first:
+  the landing thread still opens and reads `<id>.decision` on the service's own drive for every request,
+  with no bound,
+  before the group's landing begins;
+  a request the landing thread has taken is still said to be "not taken yet";
+  and the line that says what a queue wait was in names the commit's own last write.
+  **Weighed**:
+  the first,
+  if a control shows it,
+  means the branch's sentence is not yet true,
+  a read of that drive on the waiting path being the same dependence the write was;
+  the second and third are what a waiting person reads,
+  which the branch added.
+  The author is resumed,
+  its second run,
+  with a control for each claim first
+  (`~/temp/agent/pi-runs/commit-does-not-wait-behind-the-services-writes-answers-its-review-of-2026-11-15-prompt.md`,
+  queued seventh).
+- **The temperature**,
+  read at 07:28:58:
+  55.9 degrees,
+  budget 32.0 threads,
+  12.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:29:02:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 87 entries at 07:29:43.
+
 ##### The gate on `0.6.1-alpha.40` fails 18 of 9,124, every one a standing failure; two authors answer; a reading about the held push's holder gets a run (2026-11-15T07:17:57-05:00)
 
 Not final and not approved:
