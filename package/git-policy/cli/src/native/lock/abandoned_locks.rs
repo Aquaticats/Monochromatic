@@ -61,6 +61,9 @@ const MOST_ENTRIES: usize = 8192;
 /// which hold no lock at all.
 const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
+/// The folder of the common Git directory that holds each linked worktree's own administrative directory.
+const LINKED_WORKTREES_FOLDER: &str = "worktrees";
+
 /// What:
 ///  What one pass removed.
 /// Why:
@@ -224,6 +227,29 @@ fn is_a_lock_name(name: &str) -> bool {
 }
 
 /// What:
+///  Whether a lock file stands where the command that made this pass will meet it.
+/// Why:
+///  A command meets the locks of the Git directory of the worktree it runs in and of the shared common directory;
+///  a linked worktree's own administrative directory is that worktree's state,
+///  which its own commands meet and no other worktree's command waits for.
+///  So a lock in another worktree is kept or cleared by the same proof everywhere,
+///  and is named only to the commands that run there:
+///  an add printed a standing line about another add's `index.lock` in the gate on `0.6.1-alpha.34`,
+///  where its own worktree's command had nothing to do with that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// standsInTheWay('/r/.git/worktrees/held/index.lock', '/r/.git', '/r/.git'); // false
+/// ```
+fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
+    if !lock.starts_with(common_dir.join(LINKED_WORKTREES_FOLDER).as_path()) {
+        return true;
+    }
+    // A linked worktree's own administrative directory is its own state: this command meets it only when it runs there.
+    return git_dir.as_os_str() != common_dir.as_os_str() && lock.starts_with(git_dir);
+}
+
+/// What:
 ///  Judge every lock of the Git directories `roots`,
 ///  remove the ones whose holder is proven gone,
 ///  and say what was removed.
@@ -250,7 +276,11 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
             None => {
                 // A lock whose holder looks gone and whose number no record explains is the one a person must hear about:
                 //  it cannot release itself, and nothing here may remove it.
-                if let Some(line) = standing_lock_line(lock.as_path(), common_dir.as_path()) {
+                //  Words stay where the person is: a lock of another linked worktree's own state is that worktree's,
+                //  and a command of this one neither waits for it nor reports it.
+                if stands_in_the_way(lock.as_path(), first.as_path(), common_dir.as_path())
+                    && let Some(line) = standing_lock_line(lock.as_path(), common_dir.as_path())
+                {
                     outcome.unexplained.push(line);
                 }
                 outcome.standing.push(lock.clone());
@@ -379,3 +409,8 @@ pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsStrin
     record_this_process(common.as_path());
     clear_abandoned_locks_telling(roots_of_git_directory(git_dir.as_path()).as_slice(), &mut std::io::stderr());
 }
+
+/// Controls of the answer that decides which locks are named stay out of the release executable.
+#[cfg(test)]
+#[path = "abandoned_locks_tests.rs"]
+mod tests;

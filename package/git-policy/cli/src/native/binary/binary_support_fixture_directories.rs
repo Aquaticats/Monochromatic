@@ -183,7 +183,14 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     let wrapper: PathBuf = root.join("wrapper/monochromatic-git-policy-cli");
     link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
-    return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()), service_launch: std::sync::Mutex::new(ServiceLaunch::default()) };
+    return Fixture {
+        root,
+        wrapper,
+        service: std::sync::Mutex::new(None),
+        service_environment: std::sync::Mutex::new(Vec::new()),
+        service_launch: std::sync::Mutex::new(ServiceLaunch::default()),
+        socket_folders: std::sync::Mutex::new(crate::support_socket_folders::SocketFolders::default()),
+    };
 }
 
 /// How many times a removal that finds the directory still gaining entries is tried,
