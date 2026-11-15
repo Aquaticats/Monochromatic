@@ -156,6 +156,7 @@ export async function writeReviewBrief({
         files: material.files,
         filesOfCode: material.filesOfCode,
         filesLeftOut: material.filesLeftOut,
+        filesRemoved: material.filesRemoved,
         focus,
         reviewsFolder,
         runsFolder,
@@ -167,6 +168,7 @@ export async function writeReviewBrief({
         source,
         files: material.files,
         filesLeftOut: material.filesLeftOut,
+        filesRemoved: material.filesRemoved,
         focus,
         reviewsFolder,
         runsFolder,
@@ -203,10 +205,12 @@ export async function writeReviewBrief({
    */
   const unlisted = sentenceOfFilesOfAnUnlistedKind({ files: material.filesOfAnUnlistedKind, },);
   /**
-   How many files the reviewer is given.
+   How many files the reviewer is given: the ones it reads in full and the ones the change removed, which it reads in the diff.
    */
   const fileCount = material.files
-    .length;
+    .length
+    + material.filesRemoved
+      .length;
   /**
    The count as the line says it, so a line about one file says one file.
    */

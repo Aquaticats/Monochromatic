@@ -436,15 +436,12 @@ async function makeAFolder(): Promise<{
  const { brief, line } = await aBriefAndItsLine({ folder, paths: [aTestFileOfTheTable()], },);
  ```
  */
-async function aBriefAndItsLine({ folder, paths, removed = [], }: {
+async function aBriefAndItsLine({ folder, paths, removed = [], review = `row-${paths.length}`, }: {
   readonly folder: string;
   readonly paths: readonly string[];
   readonly removed?: readonly string[];
+  readonly review?: string;
 },): Promise<{ readonly brief: string; readonly line: string }> {
-  /**
-   The review this change is read as.
-   */
-  const review = `row-${paths.length}`;
   /**
    What the writer answered.
    */
@@ -673,7 +670,7 @@ await describe({
              */
             const answers = new Map<string, string>([
               ['diff', `diff --git a/${aSourceFolder()}/gate.rs b/${aSourceFolder()}/gate.rs`],
-              ['ls-tree', `${aSourceFolder()}/gate.rs`],
+              ['ls-tree', `${aSourceFolder()}/gate.rs\0${aSourceFolder()}/gate_tests.rs\0`],
             ],);
             /**
              A git that answers the reading's questions.
@@ -702,8 +699,10 @@ await describe({
               commit: aCommit(),
             },);
             expect(material.diff,).toContain(aSourceFolder(),);
-            expect(material.kind,).toBe('code-and-build-decisions',);
-            expect(codeFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`,],);
+            // The range changed code and the test that checks it, so it is a change to tests that lists both, and the file the
+            // commit dropped is gone from the list of what a reviewer can open.
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`, `${aSourceFolder()}/gate_tests.rs`,],);
             expect(asked,).toContainEqual([
               'diff',
               ranges[0],
@@ -714,7 +713,7 @@ await describe({
               'diff',
               '--name-only',
               '-z',
-              '--diff-filter=AM',
+              '--no-renames',
               ranges[0],
               '--',
               aSourceFolder(),
@@ -1237,7 +1236,7 @@ await describe({
                     expect([present, left.path, brief.split(left.path,).length - 1,],).toEqual([present, left.path, 1,],);
                     expect([present, brief.indexOf(left.path,) > leftOutAt,],).toEqual([present, true,],);
                   }
-                  expect([present, brief.includes('Every file the change touched is read above.',),],)
+                  expect([present, brief.includes('No file the change touched is left out.',),],)
                     .toEqual([present, material.filesLeftOut.length === 0,],);
               // The requirements are the kind of change the row is, and the code's are asked whenever the row reads code.
                   if (row.kind === 'code-and-build-decisions') {
@@ -1266,14 +1265,19 @@ await describe({
                     folder: folder.path,
                     paths,
                     removed: paths,
+                    review: `gone-${present}`,
                   },);
-                  expect([present, gone.brief.includes('Every file the change touched is read above.',),],).toEqual([present, false,],);
+                  expect([present, gone.brief.includes('No file the change touched is left out.',),],)
+                    .toEqual([present, material.filesLeftOut.length === 0,],);
                   for (const file of material.files) {
                     expect([present, file, gone.brief.split(file,).length - 1,],).toEqual([present, file, 1,],);
                   }
-                  expect([present, gone.brief.includes('The code must meet these requirements:',),],).toEqual([present, row.asksTheCode,],);
                   if (row.kind === 'code-and-build-decisions') {
                     expect([present, gone.brief.includes('It must meet these requirements:',),],).toEqual([present, true,],);
+                  }
+                  else {
+                    expect([present, gone.brief.includes('The code must meet these requirements:',),],).toEqual([present, row.asksTheCode,],);
+                    expect([present, gone.brief.includes('the change is to them alone',),],).toEqual([present, !row.asksTheCode,],);
                   }
                   expect([present, gone.line.includes('no list of this writer names are read as code',),],)
                     .toEqual([present, row.namesAnUnlistedKind,],);
@@ -1327,7 +1331,8 @@ await describe({
                 expect([brief.includes(`- \`${removedCode}\``,),],).toEqual([true,],);
                 expect([brief.includes('The code must meet these requirements:',),],).toEqual([true,],);
                 expect([brief.includes('the change is to them alone',),],).toEqual([false,],);
-                expect([brief.includes('Every file the change touched is read above.',),],).toEqual([false,],);
+                expect([brief.split(removedCode,).length - 1,],).toEqual([1,],);
+                expect([brief.includes('the change diff is where they are read',),],).toEqual([true,],);
                 expect([line.includes('2 files to read',),],).toEqual([true,],);
               },
             },),
@@ -1387,7 +1392,8 @@ await describe({
                   .toString('latin1',);
                 expect(pathsInAListing({ listing: `${notUtf8}\0`, },),)
                   .toEqual([String.raw`package/a/src/\xe9.unit.test.ts`,],);
-                expect(pathsInAListing({ listing: 'package/a/src/a\\b.rs\0', },),).toEqual([String.raw`package/a/src/a\x5cb.rs`,],);
+                expect(pathsInAListing({ listing: 'package/a/src/a\\b.rs\0', },),).toEqual([String.raw`package/a/src/a\\b.rs`,],);
+                expect(pathsInAListing({ listing: `package/a/src/it's.rs\0`, },),).toEqual([String.raw`package/a/src/it\'s.rs`,],);
                 expect(pathsInAListing({ listing: 'package/a/src/a\nb.rs\0', },),).toEqual([String.raw`package/a/src/a\x0ab.rs`,],);
                 expect(pathsInAListing({ listing: 'package/a/src/a\tb.rs\0', },),).toEqual([String.raw`package/a/src/a\x09b.rs`,],);
                 expect(pathsInAListing({ listing: 'package/a/src/a`b.rs\0', },),).toEqual([String.raw`package/a/src/a\x60b.rs`,],);

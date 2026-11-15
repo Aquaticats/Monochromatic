@@ -11,10 +11,17 @@
  changes. A range that holds only notes, only material, or nothing at all is answered as nothing to review, and the line the
  writer prints says which files it changed and why a review reads none of them.
 
- Every path of the range is in exactly one of `files` and `filesLeftOut`, which is what makes a brief list a file and never also
- say it is left out. A file of a kind no extension list names is code wherever it is read, beside a test or not: it is in
- `filesOfCode`, so the brief asks the project's requirements for it, and in `filesOfAnUnlistedKind`, so the line prints the
+ Every path of the range is in exactly one of `files`, `filesRemoved` and `filesLeftOut`, which is what makes a brief list a file
+ and never also say it is left out. A file of a kind no extension list names is code wherever it is read, beside a test or not: it
+ is in `filesOfCode`, so the brief asks the project's requirements for it, and in `filesOfAnUnlistedKind`, so the line prints the
  notice. The brief and the line take those answers and add nothing of their own.
+
+ A path the reviewed commit no longer holds is still a path the range touched, and its kind is the kind its name says: a removed
+ code file makes the change one to code, and the brief names it as removed and says the change's diff is where it is read, because
+ a reviewer cannot open it. So a row's read kinds are in `files` where a reviewer can open them and in `filesRemoved` where the
+ change removed them, while its left-out kinds are left out either way. A rename is two paths, the old name removed and the new one
+ read, because the listing asks git not to fold a rename. A path whose type changed, a file become a symlink for instance, is held
+ by the reviewed commit, so it is read like any other file of its kind.
 
  - no file: nothing-a-review-reads; reads none; leaves out none
  - T: tests-and-fixtures; reads T; leaves out none
@@ -148,14 +155,21 @@ export type ReviewPlan = {
   readonly kind: 'code-and-build-decisions' | 'tests-and-fixtures' | 'nothing-a-review-reads';
 
   /**
-   The files the reviewer is given, in the order git named them, without the files it leaves out.
+   The files the reviewer is given, in the order git named them, without the files it leaves out and without the files the change
+   removed, which the reviewed commit no longer holds.
    */
   readonly files: readonly string[];
 
   /**
-   The code among those files, in the order given, a file of a kind no list names being code wherever it is read. This is what
-   decides the requirements the brief asks: the project's own for the code whenever it is not empty, and for a change to tests the
-   tests-and-code sentence rather than the tests-alone one.
+   The files the change removed, in the order git named them: a review reads them in the change's diff. They are the kind their
+   path says, so a removed code file still makes the change one to code.
+   */
+  readonly filesRemoved: readonly string[];
+
+  /**
+   The code among all the files this review reads, the removed ones included, in the order given, a file of a kind no list names
+   being code wherever it is read. This is what decides the requirements the brief asks: the project's own for the code whenever it
+   is not empty, and for a change to tests the tests-and-code sentence rather than the tests-alone one.
    */
   readonly filesOfCode: readonly string[];
 
@@ -192,10 +206,16 @@ export type ReviewPlan = {
  */
 export function planOfAChange({
   paths,
-  kinds
+  kinds,
+  removed
 }: {
   readonly paths: readonly string[];
   readonly kinds: readonly KindOfAFileAReviewReads[];
+
+  /**
+   The paths among those the reviewed commit no longer holds, which a review reads only in the change's diff.
+   */
+  readonly removed: readonly string[];
 },): ReviewPlan {
   /**
    Every changed path with the kind it was handed in with, in the order git named them.
@@ -210,16 +230,48 @@ export function planOfAChange({
     };
   },);
   /**
-   The paths of the kinds given, in the order git named them.
+   The paths of the kinds given that the reviewed commit holds, in the order git named them.
+
+   @param wanted - the kinds to keep
+
+   @returns the paths of those kinds a reviewer can open
+   */
+  function pathsOf(wanted: readonly KindOfAFileAReviewReads[],): readonly string[] {
+    return changed
+      .filter(function isWanted(entry,) {
+        return wanted.includes(entry.kind,) && (!removed.includes(entry.path,));
+      },)
+      .map(function pathOf(entry,) {
+        return entry.path;
+      },);
+  }
+  /**
+   The paths of the kinds given, whether a reviewer can open them or the change removed them, in the order git named them.
 
    @param wanted - the kinds to keep
 
    @returns the paths of those kinds
    */
-  function pathsOf(wanted: readonly KindOfAFileAReviewReads[],): readonly string[] {
+  function readPathsOf(wanted: readonly KindOfAFileAReviewReads[],): readonly string[] {
     return changed
       .filter(function isWanted(entry,) {
         return wanted.includes(entry.kind,);
+      },)
+      .map(function pathOf(entry,) {
+        return entry.path;
+      },);
+  }
+  /**
+   The paths of the kinds given that the change removed, in the order git named them.
+
+   @param wanted - the kinds to keep
+
+   @returns the paths of those kinds the reviewed commit no longer holds
+   */
+  function removedPathsOf(wanted: readonly KindOfAFileAReviewReads[],): readonly string[] {
+    return changed
+      .filter(function isWanted(entry,) {
+        return wanted.includes(entry.kind,) && removed.includes(entry.path,);
       },)
       .map(function pathOf(entry,) {
         return entry.path;
@@ -254,7 +306,7 @@ export function planOfAChange({
         };
       },);
   }
-  if ((pathsOf([
+  if ((readPathsOf([
     'a-test',
     'a-fixture',
   ],)
@@ -269,15 +321,22 @@ export function planOfAChange({
         'a-unlisted-kind',
         'material-a-test-may-read',
       ],),
-      filesOfCode: pathsOf([
+      filesRemoved: removedPathsOf([
+        'a-test',
+        'a-fixture',
+        'code',
+        'a-unlisted-kind',
+        'material-a-test-may-read',
+      ],),
+      filesOfCode: readPathsOf([
         'code',
         'a-unlisted-kind',
       ],),
-      filesOfAnUnlistedKind: pathsOf(['a-unlisted-kind',],),
+      filesOfAnUnlistedKind: readPathsOf(['a-unlisted-kind',],),
       filesLeftOut: leftOutOf(['a-note',],),
     };
   }
-  if ((pathsOf([
+  if ((readPathsOf([
     'code',
     'a-unlisted-kind',
   ],)
@@ -289,11 +348,15 @@ export function planOfAChange({
         'code',
         'a-unlisted-kind',
       ],),
-      filesOfCode: pathsOf([
+      filesRemoved: removedPathsOf([
         'code',
         'a-unlisted-kind',
       ],),
-      filesOfAnUnlistedKind: pathsOf(['a-unlisted-kind',],),
+      filesOfCode: readPathsOf([
+        'code',
+        'a-unlisted-kind',
+      ],),
+      filesOfAnUnlistedKind: readPathsOf(['a-unlisted-kind',],),
       filesLeftOut: leftOutOf([
         'material-a-test-may-read',
         'a-note',
@@ -303,6 +366,7 @@ export function planOfAChange({
   return {
     kind: 'nothing-a-review-reads',
     files: [],
+    filesRemoved: [],
     filesOfCode: [],
     filesOfAnUnlistedKind: [],
     filesLeftOut: [],

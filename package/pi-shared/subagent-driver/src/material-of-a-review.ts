@@ -164,8 +164,16 @@ export type AReviewReads = {
   readonly files: readonly string[];
 
   /**
-   The code among those files, in the order given, a file of a kind no list names being code wherever it is read. Its presence is
-   what makes a change to tests ask the project's requirements as well as the breaks under the tests.
+   The files the change removed, each a path from the top of the checkout, in the order git named them: a review reads them in the
+   change's diff, because the reviewed commit no longer holds them. They are read as the kind their path says, so a removed code
+   file is code the brief asks the project's requirements for.
+   */
+  readonly filesRemoved: readonly string[];
+
+  /**
+   The code among the files this review reads, in the order given, a removed file and a file of a kind no list names being code
+   wherever they are read. Its presence is what makes a change to tests ask the project's requirements as well as the breaks under
+   the tests.
    */
   readonly filesOfCode: readonly string[];
 
@@ -626,7 +634,9 @@ export async function materialOfAReview({
           'diff',
           '--name-only',
           '-z',
-          '--diff-filter=AM',
+          // A rename is two names, the one taken away and the one put in its place, and a removal is a name too: the kind of a
+          // change follows every path the range touched, not only the ones a reviewer can open.
+          '--no-renames',
           range,
           '--',
           source,
@@ -659,29 +669,33 @@ export async function materialOfAReview({
     },),
   },),);
   /**
-   The touched paths the reviewed commit holds.
+   The touched paths the reviewed commit no longer holds, which a review reads in the change's diff: a removal is something the
+   range does to the repository, and its kind is that of the path it removed.
    */
-  const readable = touched.filter(function isHeldByTheCommit(path,) {
-    return held.has(path,);
+  const removed = touched.filter(function isNotHeldByTheCommit(path,) {
+    return !held.has(path,);
   },);
   /**
    The diff of every range, in the order the ranges were given.
    */
   const diff = diffs.join('\n',);
   /**
-   What this review reads and what it leaves out, which is the table of `plan-of-a-review.ts` for the kinds this change holds.
+   What this review reads, what it reads only in the diff, and what it leaves out, which is the table of `plan-of-a-review.ts`
+   for the kinds every touched path has.
    */
   const plan = planOfAChange({
-    paths: readable,
-    kinds: readable.map(function kindOf(path,) {
+    paths: touched,
+    kinds: touched.map(function kindOf(path,) {
       return kindOfAChangedPath(path,);
     },),
+    removed,
   },);
   if (plan.kind === 'code-and-build-decisions') {
     return {
       diff,
       kind: 'code-and-build-decisions',
       files: plan.files,
+      filesRemoved: plan.filesRemoved,
       filesOfCode: plan.filesOfCode,
       filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
       filesLeftOut: plan.filesLeftOut,
@@ -692,6 +706,7 @@ export async function materialOfAReview({
       diff,
       kind: 'tests-and-fixtures',
       files: plan.files,
+      filesRemoved: plan.filesRemoved,
       filesOfCode: plan.filesOfCode,
       filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
       filesLeftOut: plan.filesLeftOut,
@@ -702,7 +717,7 @@ export async function materialOfAReview({
     kind: 'nothing-a-review-reads',
     whyNothingIsRead: whyNothingIsRead({
       source,
-      changed: readable,
+      changed: touched,
     },),
   };
 }

@@ -39,6 +39,7 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'SUBJECT',
   'FILES',
   'LEFT_OUT',
+  'REMOVED',
   'REQUIREMENTS',
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
@@ -128,6 +129,9 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
  ```
  */
 export function filesToListItems({ files }: { readonly files: readonly string[] },): string {
+  if (files.length === 0) {
+    return 'Nothing the change added or changed is to be read in full: every file it removed is read in the change diff.';
+  }
   /**
    The list, one path to a line.
    */
@@ -163,11 +167,38 @@ export function leftOutParagraphOf({ filesLeftOut }: {
   readonly filesLeftOut: readonly LeftOutFile[];
 },): string {
   if (filesLeftOut.length === 0) {
-    return 'Every file the change touched is read above.';
+    return 'No file the change touched is left out.';
   }
   return `These files are left out, with the reason:\n${filesLeftOut.map(function asALeftOutItem(file,) {
     return `- \`${file.path}\` is left out: ${file.why}.`;
   },)
+    .join('\n',)}`;
+}
+
+/**
+ Reads the paragraph a brief gives the files the change removed, which a review reads in the change's diff because the reviewed
+ commit no longer holds them.
+
+ @param filesRemoved - the files the change removed, in the order git named them
+
+ @returns the paragraph, or an empty string when the change removed no file the review reads
+
+ @example
+ ```ts
+ const paragraph = removedParagraphOf({ filesRemoved: ['package/a/src/prod.ts'], },);
+ ```
+ */
+export function removedParagraphOf({ filesRemoved }: {
+  readonly filesRemoved: readonly string[];
+},): string {
+  if (filesRemoved.length === 0) {
+    return '';
+  }
+  return `These files were removed by the change, and the change diff is where they are read:\n${filesRemoved.map(
+    function asARemovedItem(path,) {
+      return `- \`${path}\``;
+    },
+  )
     .join('\n',)}`;
 }
 
@@ -183,6 +214,8 @@ export function leftOutParagraphOf({ filesLeftOut }: {
  @param files - the files the reviewer reads, from the top of the checkout
 
  @param filesLeftOut - the files the review leaves out, each with the reason
+
+ @param filesRemoved - the files the change removed, which the review reads in its diff
 
  @param requirements - the requirements the change is judged by, as the brief reads them
 
@@ -207,6 +240,7 @@ export function reviewBriefValues({
   source,
   files,
   filesLeftOut,
+  filesRemoved,
   requirements,
   focus,
   reviewsFolder,
@@ -218,6 +252,7 @@ export function reviewBriefValues({
   readonly source: string;
   readonly files: readonly string[];
   readonly filesLeftOut: readonly LeftOutFile[];
+  readonly filesRemoved: readonly string[];
   readonly requirements: string;
   readonly focus: string;
   readonly reviewsFolder: string;
@@ -236,6 +271,7 @@ export function reviewBriefValues({
     SUBJECT: subjectOfAReview({ source, },),
     FILES: filesToListItems({ files, },),
     LEFT_OUT: leftOutParagraphOf({ filesLeftOut, },),
+    REMOVED: removedParagraphOf({ filesRemoved, },),
     REQUIREMENTS: requirements,
     REPRODUCTIONS_FOLDER: reproductionsFolderOfAReview({
       reviewsFolder,
@@ -262,6 +298,8 @@ export function reviewBriefValues({
 
  @param filesLeftOut - the files the review leaves out, each with the reason
 
+ @param filesRemoved - the files the change removed, which the review reads in its diff
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -285,6 +323,7 @@ export function briefOfAReview({
   source,
   files,
   filesLeftOut,
+  filesRemoved,
   focus,
   reviewsFolder,
   runsFolder,
@@ -295,6 +334,7 @@ export function briefOfAReview({
   readonly source: string;
   readonly files: readonly string[];
   readonly filesLeftOut: readonly LeftOutFile[];
+  readonly filesRemoved: readonly string[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -308,6 +348,7 @@ export function briefOfAReview({
       source,
       files,
       filesLeftOut,
+      filesRemoved,
       requirements: WHAT_A_CHANGE_TO_CODE_MUST_MEET,
       focus,
       reviewsFolder,
@@ -334,6 +375,8 @@ export function briefOfAReview({
 
  @param filesLeftOut - the files the review leaves out, each with the reason
 
+ @param filesRemoved - the files the change removed, which the review reads in its diff
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -358,6 +401,7 @@ export function briefOfAChangeToTests({
   files,
   filesOfCode,
   filesLeftOut,
+  filesRemoved,
   focus,
   reviewsFolder,
   runsFolder,
@@ -369,6 +413,7 @@ export function briefOfAChangeToTests({
   readonly files: readonly string[];
   readonly filesOfCode: readonly string[];
   readonly filesLeftOut: readonly LeftOutFile[];
+  readonly filesRemoved: readonly string[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -383,6 +428,7 @@ export function briefOfAChangeToTests({
         source,
         files,
         filesLeftOut,
+        filesRemoved,
         requirements: (filesOfCode.length > 0) ? WHAT_TESTS_AND_THEIR_CODE_MUST_MEET : WHAT_A_CHANGE_TO_TESTS_MUST_PROVE,
         focus,
         reviewsFolder,

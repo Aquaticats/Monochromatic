@@ -5,8 +5,9 @@
  the name: the closing quote defeats every suffix list, and a name copied from it points nowhere. `-z` cannot quote, and reading
  it one character per byte keeps every byte of a name, including bytes that are not UTF-8, which a text reading would replace.
 
- A brief is text, so a name is shown as its UTF-8 text when its bytes are that, and with reversible `\\x` escapes where they are
- not, or where a character would break the brief's own line.
+ A brief is text, so a name is shown as its UTF-8 text when its bytes are that, and escaped where they are not or where a
+ character would break the brief's own line: a byte that prints is shown as itself, the backslash as `\\` and the apostrophe as
+ `\'`, so the name is a `$'...'` word a shell gives back byte for byte.
 
  @module
  */
@@ -25,6 +26,32 @@ const LAST_PRINTABLE_BYTE = 126;
  The byte a backslash is, which a brief's line would take for the start of an escape.
  */
 const BACKSLASH_BYTE = 92;
+
+/**
+ Says whether a character is one a brief cannot carry as it is.
+
+ @param character - one character of a name's text
+
+ @returns whether it is a control character, the delete character, the backslash, the apostrophe or the backtick, each of which
+ would end or change the brief's own line, its code span or the shell word it names
+
+ @example
+ ```ts
+ const breaksTheBrief = breaksTheBrief('a',);
+ ```
+ */
+function breaksTheBrief(character: string,): boolean {
+  return (character < ' ')
+    || (character === '\u007F')
+    || (character === '\\')
+    || (character === '\'')
+    || (character === '`');
+}
+
+/**
+ The byte an apostrophe is, which would end the `$'...'` word a brief sends a reader to.
+ */
+const APOSTROPHE_BYTE = 39;
 
 /**
  The byte a backtick is, which would end the code span a brief quotes a path with.
@@ -60,9 +87,13 @@ export function pathsInAListing({ listing }: { readonly listing: string }): read
 /**
  The bytes of one name, read as text when they are text.
 
- A name's bytes are the name: bytes that form UTF-8 are shown as that text, and any that do not are shown with `\x` escapes, as
- are the characters that would break the brief's own grammar (a newline, a tab, a backslash, a backtick). The escape is
- reversible, so the name a reviewer reads is the file's name and not a rendering of it that points nowhere.
+ A name's bytes are the name. Bytes that form UTF-8 are shown as that text; a name whose bytes are not UTF-8, or that holds a
+ character the brief's own line or code span cannot carry, is shown escaped: a byte that prints as itself is shown as itself, the
+ backslash as `\\`, the apostrophe as `\'`, and every other byte as `\xNN`.
+
+ The escapes obey the grammar the brief sends a reader to: `$'...'`, where the apostrophe and the backslash are the two characters
+ that would otherwise end or change the word. A name shown escaped is therefore the file's own bytes when a shell reads it as that
+ word, for every byte a name may hold.
 
  @param byteCharacters - the name as Git printed it, one character per byte
 
@@ -93,30 +124,45 @@ function shownNameOf({ byteCharacters }: { readonly byteCharacters: string }): s
     'utf8',
   )
     .equals(bytes,);
+  /**
+   Whether the name is text and holds nothing the brief cannot carry, which is the one case it needs no shell word for.
+   */
+  const needsNoShellWord = isText && (!Array.from(text,)
+    .some(breaksTheBrief,));
+  if (needsNoShellWord) {
+    // A name of text with nothing the brief cannot carry is its own name, and needs no shell word to be read.
+    return text;
+  }
   if (isText) {
+    // Every character the brief cannot carry is escaped, and so are the two a `$'...'` word would end or change.
     return Array.from(text,)
       .map(function escaped(character,) {
-        /**
-         The characters that would end or break the brief's own line, and the two the brief quotes a path with.
-         */
-        const breaksTheBrief = (character < ' ') || (character === '\u007F')
-          || (character === '\\')
-          || (character === '`');
-        return breaksTheBrief ? `\\x${hexOf(character.codePointAt(0,) ?? 0,)}` : character;
+        if (character === '\\') {
+          return String.raw`\\`;
+        }
+        if (character === '\'') {
+          return `\\'`;
+        }
+        return breaksTheBrief(character,) ? `\\x${hexOf(character.codePointAt(0,) ?? 0,)}` : character;
       },)
       .join('',);
   }
-  // A byte that is not part of a UTF-8 text is shown as itself when it is printable ASCII, and as its number otherwise, so a
-  // reviewer sees the name's bytes and can put them back together.
+  // A byte that is not part of a UTF-8 text is shown as itself when it prints, and as its number otherwise, so a reviewer sees
+  // the name's bytes and a shell gives them back.
   return Array.from(bytes,)
     .map(function escaped(byte,) {
-    /**
-     Whether the byte prints as itself: the space through the tilde, but not the backslash or the backtick, which a brief's own
-     line and code span use.
-     */
-      const printable = ((byte >= FIRST_PRINTABLE_BYTE) && (byte <= LAST_PRINTABLE_BYTE)
-        && (byte !== BACKSLASH_BYTE)
-        && (byte !== BACKTICK_BYTE));
+      if (byte === BACKSLASH_BYTE) {
+        return String.raw`\\`;
+      }
+      if (byte === APOSTROPHE_BYTE) {
+        return `\\'`;
+      }
+      /**
+       Whether the byte prints as itself: the space through the tilde, but not the backtick, which is escaped above.
+       */
+      const printable = (byte >= FIRST_PRINTABLE_BYTE)
+        && (byte <= LAST_PRINTABLE_BYTE)
+        && (byte !== BACKTICK_BYTE);
       return printable ? String.fromCodePoint(byte,) : `\\x${hexOf(byte,)}`;
     },)
     .join('',);

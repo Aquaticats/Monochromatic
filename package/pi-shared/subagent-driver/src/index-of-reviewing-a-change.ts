@@ -87,6 +87,7 @@ export {
   briefOfAReview,
   filesToListItems,
   leftOutParagraphOf,
+  removedParagraphOf,
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
   reviewBriefValues,

@@ -570,7 +570,15 @@ and a file of an extension no list names is read as code and named in the line).
 Every brief names the files the change touched that it does not read,
 with the reason,
 so a note or a data file never decides for the files beside it,
-and every path is in exactly one of the files read and the files left out.
+and every path is in exactly one of the files read,
+the files removed and the files left out.
+A file the change removed is read in its diff:
+the brief names it as removed,
+its kind still decides what the change is,
+so a range that deletes production code beside its test is a change to code and tests and is asked the code's requirements,
+and the line counts it among the files to read.
+A rename is two paths, the old name removed and the new one read,
+and a path whose type changed is a file the commit holds, read like any other of its kind.
 The files of a change of code are the code the ranges touched,
 in every language this repository is written in or renders,
 and the manifests and tool configurations that decide how that code is built,

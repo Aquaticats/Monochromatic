@@ -10,7 +10,8 @@
  also holds code: both briefs then ask the project's requirements, because a reviewer reads the code as well.
 
  Every brief also names the files the change touched that it does not read, with the reason, so a line of prose beside a test is
- never the reason a test goes unreviewed.
+ never the reason a test goes unreviewed, and the files the change removed, which are read in its diff because the commit no longer
+ holds them.
 
  The backticks around code in the prose are escaped, because the text is a template literal; every other character is the brief
  exactly as a reviewer reads it. `review-brief.ts` fills it, and its test reads the placeholders out of this text so a
@@ -47,6 +48,12 @@ Read each of these files in full before you answer:
  The paragraph that says what the change also touched and this review does not read, with the reason for each such file.
  */
 const THE_FILES_LEFT_OUT: string = `@LEFT_OUT@`;
+
+/**
+ The paragraph that says which files the change removed, which the review reads in the change's diff because the commit no longer
+ holds them.
+ */
+const THE_FILES_REMOVED: string = `@REMOVED@`;
 
 /**
  The requirements the change is judged by, which `review-brief.ts` fills: the project's own for the code, whether the change is
@@ -90,6 +97,7 @@ export const REVIEW_OF_A_CHANGE_TEMPLATE: string = `${THE_RULES_AND_WHERE_THE_RE
 
 ${THE_CHANGE_AND_THE_FILES_TO_READ}
 ${THE_FILES_LEFT_OUT}
+${THE_FILES_REMOVED}
 ${WHAT_THE_CHANGE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
 ${WHAT_TO_LOOK_HARDEST_AT}
@@ -104,6 +112,7 @@ export const REVIEW_OF_A_CHANGE_TO_TESTS_TEMPLATE: string = `${THE_RULES_AND_WHE
 
 ${THE_CHANGE_AND_THE_FILES_TO_READ}
 ${THE_FILES_LEFT_OUT}
+${THE_FILES_REMOVED}
 ${WHAT_THE_CHANGE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
 ${THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS}

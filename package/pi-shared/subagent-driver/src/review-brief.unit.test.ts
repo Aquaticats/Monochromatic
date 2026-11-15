@@ -23,6 +23,7 @@ import {
   briefOfAReview,
   filesToListItems,
   leftOutParagraphOf,
+  removedParagraphOf,
   placeholdersIn,
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
@@ -160,6 +161,7 @@ function aBriefRequest(): {
   readonly source: string;
   readonly files: readonly string[];
   readonly filesLeftOut: readonly LeftOutFile[];
+  readonly filesRemoved: readonly string[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -171,6 +173,7 @@ function aBriefRequest(): {
     source: aSourceFolder(),
     files: [aReviewedFile(),],
     filesLeftOut: [],
+    filesRemoved: [],
     focus: FOCUS_OF_A_CHANGE_REVIEW,
     reviewsFolder: aReviewsFolder(),
     runsFolder: aRunsFolder(),
@@ -232,12 +235,29 @@ await describe({
       ],
     },),
     describe({
+      name: removedParagraphOf.name,
+      children: [
+        it({
+          name: 'names every file the change removed and says the change diff is where it is read, and says nothing when the change removed no file the review reads',
+          fn: async () => {
+            expect(removedParagraphOf({ filesRemoved: [], },),).toBe('',);
+            expect(removedParagraphOf({ filesRemoved: [`${aSourceFolder()}/prod.ts`,], },),).toContain(
+              `- \`${aSourceFolder()}/prod.ts\``,
+            );
+            expect(removedParagraphOf({ filesRemoved: [`${aSourceFolder()}/prod.ts`,], },),).toContain(
+              'the change diff is where they are read',
+            );
+          },
+        },),
+      ],
+    },),
+    describe({
       name: leftOutParagraphOf.name,
       children: [
         it({
           name: 'says every changed file is read when none is left out, and names each file it leaves out with the reason, so a note beside a test is named rather than taking the review away',
           fn: async () => {
-            expect(leftOutParagraphOf({ filesLeftOut: [], },),).toBe('Every file the change touched is read above.',);
+            expect(leftOutParagraphOf({ filesLeftOut: [], },),).toBe('No file the change touched is left out.',);
             /**
              The note beside the changed test.
              */
