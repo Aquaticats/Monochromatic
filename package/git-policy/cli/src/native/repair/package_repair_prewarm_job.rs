@@ -148,74 +148,129 @@ fn target_of(staging: &Path) -> PathBuf {
 const TARGET_SUFFIX: &str = ".target";
 
 /// What:
-///  The marker that says the staging copy and the clean's target beside it are this job's own.
+///  The staging name a filling of this workspace works in:
+/// the usual name, then the token of the process filling it and the instant it asked.
 /// Why:
-///   The two names are this job's by convention,
-/// and a directory at one of them is this job's only when a filling of it said so:
-/// the marker is written before anything is cloned or cleaned,
-/// so a filling that was killed leaves the proof its successor needs.
+///   A name only its maker can have is a folder only its maker can be in.
+/// Two fillings of one workspace never meet, so nothing has to decide who may clean under a shared name, and nothing
+/// has to ask a lock whether the writer of a marker still lives: the three facts a marker wrote and read at different
+/// instants are gone (the review of `a7a6958f9d`, first and second findings; `AGENTS.md`, rule `NLK`).
+/// The token names the maker by its process and the identity of its birth, as every record of a live process in this
+/// package does (`process_identity.rs`), so a leftover is recognised by a maker that is gone.
+/// The instant keeps two fillings of one process apart: one process fills many workspaces, and a workspace can be filled
+/// twice in it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const markerOf = (staging) => `${staging}${MARKER_SUFFIX}`;
+/// const stagingOfThisRun = (usual) => `${usual}.${currentCopyOwner().token()}.${nanos().toString(16)}`;
 /// ```
-fn marker_of(staging: &Path) -> PathBuf {
-    let mut named: OsString = staging.as_os_str().to_os_string();
-    named.push(MARKER_SUFFIX);
-    return PathBuf::from(named);
+fn a_staging_name_of_this_runs_own(usual: &Path) -> Result<PathBuf, String> {
+    let owner: crate::worktree_copy_owner::CopyOwner = match crate::worktree_copy_owner::current_copy_owner() {
+        Ok(owner) => owner,
+        Err(refusal) => return Err(format!("this process cannot name itself, so nothing beside {} was filled ({})", usual.display(), refusal.0)),
+    };
+    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let named: OsString = format!("{}.{}.{:x}", usual.display(), owner.token(), since_the_epoch.as_nanos()).into();
+    return Ok(PathBuf::from(named));
 }
 
-/// What the marker of the staging name is suffixed with,
-/// beside the staging directory.
-const MARKER_SUFFIX: &str = ".owner";
-
-/// The text a marker carries,
-/// so a person who finds one knows which program wrote it and what it claims.
-pub(crate) const MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
-The directory whose name is this file's name without '.owner' is its staging copy, \
-and the '.target' directory beside it is the target its clean deletes from. \
-Both are the wrapper's own and are removed or published when the filling ends.\n";
-
 /// What:
-///  Whether a marker is this job's:
-/// the exact text its own filling wrote,
-/// read only from a name that holds a regular file,
-/// through an open that cannot wait.
+///  The maker a name at the end of a string names,
+/// when the name is one this release chose:
+/// a token, then the instant the filling asked,
+/// after whatever the name stands beside.
 /// Why:
-///   The name alone is a convention anyone can type,
-/// and only the text this job writes is proof that it made the directories the name is derived from.
-/// The marker is published whole by an exclusive write,
-/// so a file at that name either holds that text or is somebody else's.
-/// A named pipe at that name would hold a plain read for ever,
-/// because opening one for reading waits for a writer that may never come,
-/// and one foreign object at the name would then stop the service's filling with no end
-/// (SPEC.md,
-/// "Every wait has a bound").
-/// `read_regular_file` opens without waiting and reads only what the descriptor proves is a file,
-/// so a pipe,
-/// a socket or a link is somebody else's and answers at once.
+///   The token is what a leftover is judged by,
+/// and a name that does not end in one (a person's directory, an older release's names, the usual name itself) is nobody's
+/// to remove.
+/// A token never holds a dot (`CopyOwner::token`), so the two last parts of a maker name are the token and the instant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const markerClaims = (marker) => readRegularFile(marker, MARKER_TEXT.length + 1)?.equals(MARKER_TEXT) ?? false;
+/// const makerAtTheEndOf = (name) => { const [token, instant] = name.split('.').slice(-2); return /^[0-9a-f]+$/.test(instant) ? CopyOwner.fromToken(token) : undefined };
 /// ```
-fn marker_claims(marker: &Path) -> bool {
-    let limit: u64 = (MARKER_TEXT.len() as u64).saturating_add(1);
-    return matches!(crate::private_storage::read_regular_file(marker, limit), Ok(text) if text == MARKER_TEXT);
+fn the_maker_at_the_end_of(name: &std::ffi::OsStr) -> Option<crate::worktree_copy_owner::CopyOwner> {
+    use std::os::unix::ffi::OsStrExt;
+    let bytes: &[u8] = name.as_bytes();
+    // A target directory carries the staging name's maker and one more suffix.
+    let named: &[u8] = bytes.strip_suffix(TARGET_SUFFIX.as_bytes()).unwrap_or(bytes);
+    let at: usize = named.iter().rposition(|byte| *byte == b'.')?;
+    let (before, instant) = (named.get(..at)?, named.get(at + 1..)?);
+    // The instant is the hexadecimal count a filling wrote: anything else ends no maker's name.
+    if instant.is_empty() || !instant.iter().all(u8::is_ascii_hexdigit) {
+        return None;
+    }
+    let token_at: usize = before.iter().rposition(|byte| *byte == b'.')?;
+    let token: &str = std::str::from_utf8(before.get(token_at + 1..)?).ok()?;
+    return crate::worktree_copy_owner::CopyOwner::from_token(token);
 }
 
 /// What:
-///  The three names one filling of one workspace works in.
+///  The maker a name of this workspace's usual names names,
+/// and nothing for any other name.
+/// Why:
+///  The usual name is a prefix this workspace's names begin with, and a name that begins differently is another
+///  workspace's, which this filling has no business in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const makerOfThisWorkspacesName = (name, usualName) => name.startsWith(`${usualName}.`) ? makerAtTheEndOf(name) : undefined
+/// ```
+fn the_maker_of_this_workspaces_name(name: &std::ffi::OsStr, usual_name: &std::ffi::OsStr) -> Option<crate::worktree_copy_owner::CopyOwner> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut prefix: Vec<u8> = usual_name.as_bytes().to_vec();
+    prefix.push(b'.');
+    if !name.as_bytes().starts_with(prefix.as_slice()) {
+        return None;
+    }
+    return the_maker_at_the_end_of(name);
+}
+
+/// What:
+///  Remove the staging names and the clean's targets of this workspace whose maker is gone.
+/// Why:
+///   A filling that was killed leaves the name it made, and only a maker that is gone leaves it to be cleaned.
+/// A name whose maker lives is that filling's and is left exactly as it is, and so is every name no filling of this
+/// release chose: a person's directory, an older release's, and the usual name itself, which nothing of this release
+/// makes and nothing removes ("never discard user data").
+/// The question is the package's own liveness question (`worktree_copy_owner::token_owner_is_dead`), which answers
+/// "not dead" for a maker the platform will not report on, so nothing is removed on a guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of readdir(parent)) if (makerOf(name)?.isDead()) { rm(`${name}`, {recursive:true, force:true}); rm(`${name}.target`, ...) }
+/// ```
+fn remove_the_leftovers_of_makers_that_are_gone(usual: &Path) {
+    let (Some(parent), Some(usual_name)) = (usual.parent(), usual.file_name()) else { return };
+    let Ok(entries) = std::fs::read_dir(parent) else { return };
+    for entry in entries.flatten() {
+        let name: OsString = entry.file_name();
+        let Some(maker) = the_maker_of_this_workspaces_name(name.as_ref(), usual_name) else { continue };
+        let path: PathBuf = entry.path();
+        let dead: bool = matches!(crate::worktree_copy_owner::token_owner_is_dead(Some(maker.token().as_str()), path.as_path()), Ok(true));
+        if !dead {
+            continue;
+        }
+        if let Err(reason) = remove_if_any(path.as_path()) {
+            debug(TAG, format!("{reason}; a staging copy a filling that is gone left stays for the next filling").as_str());
+        }
+        if let Err(reason) = remove_if_any(target_of(path.as_path()).as_path()) {
+            debug(TAG, format!("{reason}; the clean's target of a filling that is gone stays for the next filling").as_str());
+        }
+    }
+}
+
+/// What:
+///  The names one filling of one workspace works in:
+/// a staging directory that is this filling's alone, and the target the clean deletes from beside it.
 /// Why:
 ///   The staging copy is what the source's build state is cloned into and published from,
-/// the target directory is what the clean deletes from,
-/// and the marker is the proof a later filling needs before it removes either.
-/// A workspace whose usual names another directory holds is filled under names of this run's own,
-/// so filling it never means deleting somebody's work.
+/// and the target directory is what the clean deletes from, so the clean never reaches a worktree's own.
+/// Both carry the maker, so a name only this filling can have is a folder only this filling can be in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TheNames = { staging: string; target: string; marker?: string };
+/// type TheNames = { staging: string; target: string };
 /// ```
 struct TheNames {
     /// The directory the source's build state is cloned into,
@@ -223,380 +278,37 @@ struct TheNames {
     staging: PathBuf,
     /// The target directory the clean deletes from.
     target: PathBuf,
-    /// The marker that says the two names are this job's,
-    /// when this run claimed the usual ones.
-    marker: Option<PathBuf>,
-    /// The claim on the usual names,
-    /// held for as long as this filling lives and dropped with this value.
-    /// Why:
-    ///  The marker file alone says only that some filling wrote it, and a second filling of one workspace would read the
-    /// holder's marker as its own and remove what the holder is still filling
-    ///  (the review of `fc620ef950`, F1). The claim is the kernel's own answer to whether the filling that wrote the
-    /// marker still lives, and it is released when that filling ends, however it ends.
-    /// Nothing when the names are this run's own or the add's staged state: no other filling can name them.
-    /// It is read by nothing: the lock it holds for the life of this value is the whole of it, as the hold on a landing's
-    /// copy is (`landing/service_land_copy.rs`, `PrivateCopy`).
-    _claim: Option<std::fs::File>,
 }
 
 /// What:
-///  Take the names one workspace is filled under:
-/// the usual ones when nothing is there or when this job's own marker claims what is,
-/// and names of this run's own when another file or directory holds the usual ones.
+///  The names this filling works in,
+/// with the names of fillings of this workspace that are gone given back first.
 /// Why:
-///   The usual name is where a killed filling's leftovers sit,
-/// and only the marker this job wrote proves they are its own,
-/// so nothing at those names is removed without that proof and the filling still happens.
-/// Two fillings of one workspace can run at once when a worktree is removed and added again at the
-/// same path while its first record is still queued,
-/// and then the second one removes the first one's staging copy and the first one reports a failure;
-/// the loser touches nothing but directories this job made.
-/// Another command can create the marker name between this run's look at it and its own exclusive
-/// write of it,
-/// and that write then answers that somebody's file is there:
-/// this run writes nothing there and stages under names of its own.
+///   A name of this filling's own cannot collide with another filling's, so taking the names removes nothing that
+/// anybody holds; what is removed is what fillings that ended left behind, and only when their maker is gone.
 ///
 /// # Errors
 ///
-/// Leftovers this job's marker claims that cannot be removed,
-/// and a marker that cannot be written.
+/// A process that cannot name itself, which fills nothing.
 fn names_for(destination: &Path) -> Result<TheNames, String> {
     let usual: PathBuf = staging_of(destination);
-    let usual_target: PathBuf = target_of(usual.as_path());
-    let marker: PathBuf = marker_of(usual.as_path());
-    return match claim_the_usual_names(marker.as_path())? {
-        TheClaimOnTheUsualNames::Ours { held, leftovers } => {
-            if leftovers {
-                // A filling of this same workspace ended without giving its names back, and no other filling holds them:
-                //  what is there is that filling's own and this one's to remove.
-                remove_if_any(usual.as_path())?;
-                remove_if_any(usual_target.as_path())?;
-            } else if usual.exists() || usual_target.exists() {
-                // The names hold something no filling of this job wrote, so this run leaves it exactly as it is found and
-                //  stages under names of its own; the marker this run made goes back with it.
-                let _given_back = std::fs::remove_file(marker.as_path());
-                return Ok(names_of_this_runs_own(usual.as_path()));
-            }
-            Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker), _claim: Some(held) })
-        }
-        // Another filling of this same workspace lives and holds the usual names: this one stages under names of its own
-        //  and leaves that filling everything, its marker included.
-        TheClaimOnTheUsualNames::AnotherFillingLives => Ok(names_of_this_runs_own(usual.as_path())),
-        // A file at the marker name is somebody's own, and nothing here removes it: this run stages under its own names.
-        TheClaimOnTheUsualNames::SomebodysFile => Ok(names_of_this_runs_own(usual.as_path())),
-    };
-}
-
-/// What a filling's ask for one workspace's usual names came to.
-/// Why:
-///  Three answers need three names: the names are this filling's, another filling lives and must be left everything, or a
-///  file somebody else wrote holds the marker name and is never removed.
-#[derive(Debug)]
-enum TheClaimOnTheUsualNames {
-    /// This filling holds the claim.
-    Ours {
-        /// The open marker the claim is held on; the claim ends when it is dropped.
-        held: std::fs::File,
-        /// Whether the marker was already here, which makes what the usual names hold a filling that died.
-        leftovers: bool,
-    },
-    /// Another filling of this workspace holds the claim, so the usual names are its own while it lives.
-    AnotherFillingLives,
-    /// The marker name holds a file this job did not write.
-    SomebodysFile,
+    remove_the_leftovers_of_makers_that_are_gone(usual.as_path());
+    let staging: PathBuf = a_staging_name_of_this_runs_own(usual.as_path())?;
+    return Ok(TheNames { staging: staging.clone(), target: target_of(staging.as_path()) });
 }
 
 /// What:
-///  Claim one workspace's usual names, or learn that another filling lives or that a file there is somebody's own.
-/// Why:
-///   Two fillings of one workspace can run at once when a worktree is removed and added again at the same path while its
-/// first record is still queued, and only one of them may be the filling that cleans and publishes under the usual names.
-///  A marker file is not a claim: it says that some filling wrote it and nothing about whether that filling is alive, so
-///  the second filling read the first one's marker as proof and removed the staging copy the first one was filling.
-///  The claim is an exclusive `flock` on the marker, which the kernel refuses while the first filling holds it and
-///  releases when that filling ends, however it ends (`0.6.1-alpha.38`'s `earlier_log_lines_journal_held_and_recorded.rs`
-/// holds its journal the same way). A later filling that takes the claim found either no marker (the names are free) or
-///  this job's own text with nobody holding it, which proves the filling that wrote it is gone and what it left is this
-///  job's to remove.
-/// The create is the exclusive publish the marker always used, so exactly one filling makes it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const claim = tryCreateAndLock(marker); // ours, or refused when another filling holds it
-/// ```
-fn claim_the_usual_names(marker: &Path) -> Result<TheClaimOnTheUsualNames, String> {
-    loop {
-        match create_the_marker_and_hold_it(marker) {
-            Ok(held) => return Ok(TheClaimOnTheUsualNames::Ours { held, leftovers: false }),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(format!("{} could not be written, so nothing of this workspace was filled ({error})", marker.display())),
-        }
-        // A name somebody already made is held by the filling that lives there, or is left over from one that died: the
-        //  kernel's own lock says which, and the name may have been given back while this call opened it.
-        let opened: std::fs::File = match open_the_marker(marker) {
-            Ok(opened) => opened,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(format!("{} could not be read, so nothing of this workspace was filled ({error})", marker.display())),
-        };
-        match hold_the_marker_now(&opened) {
-            Ok(false) => return Ok(TheClaimOnTheUsualNames::AnotherFillingLives),
-            Ok(true) => {}
-            Err(error) => return Err(format!("{} could not be held, so nothing of this workspace was filled ({error})", marker.display())),
-        }
-        if !names_the_file_the_name_holds(marker, &opened) {
-            // The filling that held the name gave it back while this call opened it: ask again for a name that is free.
-            continue;
-        }
-        return Ok(if reads_as_the_markers_text(&opened) {
-            TheClaimOnTheUsualNames::Ours { held: opened, leftovers: true }
-        } else {
-            TheClaimOnTheUsualNames::SomebodysFile
-        });
-    }
-}
-
-/// What:
-///  The three names a filling of one workspace uses when another file or directory holds the usual
-/// ones:
-/// a staging name of this run's own,
-/// its target beside it,
-/// and no marker,
-/// because this run wrote none.
-/// Why:
-///   A run that removes only names it chose itself cannot delete somebody else's work,
-/// and a marker this run did not write is never its to remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesOfThisRunsOwn = (usual) => { const staging = anOwnName(usual); return { staging, target: targetOf(staging) }; };
-/// ```
-fn names_of_this_runs_own(usual: &Path) -> TheNames {
-    let own: PathBuf = a_name_of_this_runs_own(usual);
-    let own_target: PathBuf = target_of(own.as_path());
-    return TheNames { staging: own, target: own_target, marker: None, _claim: None };
-}
-
-/// What:
-///  A staging name for a workspace whose usual name another directory holds:
-/// the usual name,
-/// this process and the moment it asked.
-/// Why:
-///   Nothing may be removed that this job cannot prove it made,
-/// and a name no other run has taken yet is proof enough:
-/// the clone refuses a destination that exists,
-/// and this run removes only the names it chose.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const anOwnName = (usual) => `${usual}-${process.pid}-${nanos.toString(16)}`;
-/// ```
-fn a_name_of_this_runs_own(usual: &Path) -> PathBuf {
-    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
-    let nanos: u128 = since_the_epoch.as_nanos();
-    let mut named: OsString = usual.as_os_str().to_os_string();
-    named.push(format!("-{}-{nanos:x}", std::process::id()));
-    return PathBuf::from(named);
-}
-
-/// What a run's exclusive write of one marker came to.
-/// Why:
-///   The marker is removed when the filling ends,
-///   and removing the name is this run's only when the write that made it was this run's:
-/// a name somebody else took is theirs,
-/// whatever it holds.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum TheMarkersAnswer {
-    /// This run created the marker,
-    /// so it is this run's to remove.
-    WrittenByThisRun,
-    /// Another writer had the name already,
-    /// so this run wrote nothing there.
-    WrittenByAnother,
-}
-
-/// What:
-///  Write the marker that claims the two names of one workspace,
-/// and say whether it is this run's.
-/// Why:
-///   An exclusive write makes two fillings of one workspace agree on one marker instead of replacing
-/// each other's,
-/// and the answer says which of them made it:
-/// `AlreadyExists` means another command's file is at that name,
-/// which may be a person's own note,
-/// so this run neither treats it as its claim nor removes it later.
-///
-/// # Errors
-///
-/// A marker that cannot be written,
-/// because what the names might hold can then no longer be told from somebody's work.
-fn write_marker(marker: &Path) -> Result<TheMarkersAnswer, String> {
-    return match crate::private_storage::write_private_file_unsynced(marker, MARKER_TEXT) {
-        Ok(()) => Ok(TheMarkersAnswer::WrittenByThisRun),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(TheMarkersAnswer::WrittenByAnother),
-        Err(error) => Err(format!("{} could not be written, so nothing of this workspace was filled ({error})", marker.display())),
-    };
-}
-
-/// What:
-///  Make the marker exclusively and hold the claim on it in the same open,
-///  so exactly one filling of one workspace can be the one that made it.
-/// Why:
-///  The marker is published whole and never over an existing name (`write_then_publish`), which is what makes the create
-///  exclusive; the claim is taken on the descriptor that create returned, so no other filling can hold the marker between
-///  this one making it and this one claiming it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const held = open(marker, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600); lock(held); writeAll(held, MARKER_TEXT)
-/// ```
-#[cfg(unix)]
-fn create_the_marker_and_hold_it(marker: &Path) -> std::io::Result<std::fs::File> {
-    use std::io::Write;
-    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-    let mut held: std::fs::File = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(crate::private_storage::PRIVATE_FILE_MODE)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(marker)?;
-    // The claim is this fill's own descriptor, so the lock cannot be held by anybody else's open of the name.
-    let _held_now: bool = hold_the_marker_now(&held)?;
-    held.write_all(MARKER_TEXT)?;
-    held.flush()?;
-    // The mode the file was made with, which the umask may have widened: the marker is this job's own file.
-    let _made_private = held.set_permissions(std::fs::Permissions::from_mode(crate::private_storage::PRIVATE_FILE_MODE));
-    return Ok(held);
-}
-
-/// A platform without `flock` cannot hold the names exclusive,
-/// so a filling there never claims them and stages under its own (the marker's own text is still what the add relies on).
-#[cfg(not(unix))]
-fn create_the_marker_and_hold_it(_marker: &Path) -> std::io::Result<std::fs::File> {
-    return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
-}
-
-/// What:
-///  Open the marker a filling found at the usual names,
-///  refusing a link, so what is read and locked is the file the name holds.
-/// Why:
-///  The marker is only ever read while it is held or about to be: a link there would make the claim cover another file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// open(marker, O_RDWR | O_NOFOLLOW)
-/// ```
-#[cfg(unix)]
-fn open_the_marker(marker: &Path) -> std::io::Result<std::fs::File> {
-    use std::os::unix::fs::OpenOptionsExt;
-    return std::fs::OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOFOLLOW).open(marker);
-}
-
-/// A platform without `flock` cannot hold the names exclusive, so it cannot even read one as a claim.
-#[cfg(not(unix))]
-fn open_the_marker(marker: &Path) -> std::io::Result<std::fs::File> {
-    return std::fs::OpenOptions::new().read(true).open(marker);
-}
-
-/// What:
-///  Take the claim on an open marker if nobody holds it, and say whether this call holds it now.
-/// Why:
-///  The claim must be taken without waiting: a filling that would wait for another one to end is a filling that waits for
-///  work nobody waits for, so a marker somebody holds is answered as "another filling lives".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// flock(fd, LOCK_EX | LOCK_NB) // false when EWOULDBLOCK
-/// ```
-#[cfg(unix)]
-fn hold_the_marker_now(marker: &std::fs::File) -> std::io::Result<bool> {
-    use std::os::fd::AsRawFd;
-    // SAFETY: the descriptor is open for this call, and `flock` touches no memory of this process.
-    let taken: i32 = unsafe { libc::flock(marker.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if taken == 0 {
-        return Ok(true);
-    }
-    let error: std::io::Error = std::io::Error::last_os_error();
-    return if error.raw_os_error() == Some(libc::EWOULDBLOCK) { Ok(false) } else { Err(error) };
-}
-
-/// A platform without `flock` cannot hold a name exclusive, so nothing there is ever claimed.
-#[cfg(not(unix))]
-fn hold_the_marker_now(_marker: &std::fs::File) -> std::io::Result<bool> {
-    return Ok(false);
-}
-
-/// What:
-///  Whether the name `marker` still holds the file `opened`.
-/// Why:
-///   The filling that held the name may have given it back while this call opened it, so the descriptor alone does not say
-///  the name is this call's: a name that is gone, or that another filling has made again, is asked for again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// lstat(marker).ino === fstat(opened).ino
-/// ```
-#[cfg(unix)]
-fn names_the_file_the_name_holds(marker: &Path, opened: &std::fs::File) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    let (Ok(held), Ok(named)) = (opened.metadata(), std::fs::symlink_metadata(marker)) else { return false };
-    return (named.dev(), named.ino()) == (held.dev(), held.ino());
-}
-
-/// A platform without `flock` never claims a name, so no name is ever read through it.
-#[cfg(not(unix))]
-fn names_the_file_the_name_holds(_marker: &Path, _opened: &std::fs::File) -> bool {
-    return false;
-}
-
-/// What:
-///  Whether an open marker holds this job's own text,
-/// which is the proof a filling needs before it removes what a dead one left.
-/// Why:
-///  A file somebody wrote is never read as this job's, whatever its name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const text = readAll(fd, MARKER_TEXT.length + 1); return text === MARKER_TEXT
-/// ```
-#[cfg(unix)]
-fn reads_as_the_markers_text(opened: &std::fs::File) -> bool {
-    use std::io::{Read, Seek, SeekFrom};
-    let mut read: std::fs::File = match opened.try_clone() {
-        Ok(copy) => copy,
-        Err(_unreadable) => return false,
-    };
-    if read.seek(SeekFrom::Start(0)).is_err() {
-        return false;
-    }
-    let mut text: Vec<u8> = Vec::new();
-    let limit: u64 = (MARKER_TEXT.len() as u64).saturating_add(1);
-    if std::io::Read::take(&mut read, limit).read_to_end(&mut text).is_err() {
-        return false;
-    }
-    return text == MARKER_TEXT;
-}
-
-/// A platform without `flock` never claims a name, so this is asked of nothing.
-#[cfg(not(unix))]
-fn reads_as_the_markers_text(_opened: &std::fs::File) -> bool {
-    return false;
-}
-
-/// What:
-///  Give the two names back when the filling of one workspace ends,
+///  Give the one name back when the filling of one workspace ends,
 /// whatever it came to.
 /// Why:
-///   The target directory is the clean's and the marker is the claim's,
-/// and both are removed here rather than on the failing paths alone,
-/// so a successful filling leaves no directory of this job's behind for every build directory it fills.
-/// The marker goes after the target,
-/// so a filling that is killed in between leaves the proof its successor needs;
-/// and the claim on the usual names is held until this value is dropped, so no other filling can be between the two
-/// removals.
+///   The target directory is the clean's, and it is removed here rather than on the failing paths alone,
+/// so a successful filling leaves no directory of its own behind for every build directory it fills.
+/// The staging name is not removed here: a published copy is renamed away, and a staging copy that could not be finished
+/// is removed by the step that failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeIfAny(target); removeFile(marker, { force: true });
+/// removeIfAny(names.target);
 /// ```
 fn give_back(names: &TheNames) {
     if let Err(reason) = remove_if_any(names.target.as_path()) {
@@ -604,11 +316,32 @@ fn give_back(names: &TheNames) {
         //  workspace clears it.
         debug(TAG, format!("{reason}; the filling is done and the directory stays for the next one").as_str());
     }
-    let Some(marker) = names.marker.as_ref() else { return };
-    match std::fs::remove_file(marker.as_path()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => debug(TAG, format!("{} could not be removed after the filling ({error})", marker.display()).as_str()),
+}
+
+/// What:
+///  Give back the state the add moved aside,
+/// whose record named it,
+/// and nothing when that name is not one a filling of this job made.
+/// Why:
+///   The add staged it under a name carrying its maker and handed the name in the work item, so the record is the proof;
+/// and once the worktree has its build directory there is nothing to publish it under, so it is the wrapper's to remove
+/// ("a name only its maker can have is a folder only its maker can be in", and the record says which one this job may
+/// give back).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const giveBackTheStagedState = (staging) => { if (!makerAtTheEndOf(basename(staging))) return; removeIfAny(staging); removeIfAny(`${staging}.target`); };
+/// ```
+fn give_back_the_staged_state(staging: &Path) {
+    if staging.file_name().and_then(the_maker_at_the_end_of).is_none() {
+        debug(TAG, format!("{} is not a name this job staged, so it is left exactly as it is found", staging.display()).as_str());
+        return;
+    }
+    if let Err(reason) = remove_if_any(staging) {
+        debug(TAG, format!("{reason}; the staged state stays for the next filling").as_str());
+    }
+    if let Err(reason) = remove_if_any(target_of(staging).as_path()) {
+        debug(TAG, format!("{reason}; the clean's target of the staged state stays for the next filling").as_str());
     }
 }
 
@@ -616,11 +349,12 @@ fn give_back(names: &TheNames) {
 ///  Remove a directory this job made when a step failed or a build got there first.
 /// Why:
 ///   The names belong to this job alone,
-/// and a caller removes only the names this run chose for itself, or the usual names while it holds the claim on them,
-/// so what they hold was made by this filling or by an earlier filling of the same workspace that ended, and nothing a
-/// person or a build made.
+/// and a caller removes only a name this filling made, or a name of this workspace whose maker is gone
+/// (`remove_the_leftovers_of_makers_that_are_gone`),
+/// so what they hold was made by this filling or by a filling of the same workspace that ended, and nothing a person or a
+/// build made.
 /// Every call passes one of those two kinds:
-///  the usual staging and target in `names_for` and in `give_back_what_a_killed_filling_left` (only under the claim),
+///  a leftover of a maker that is gone in `names_for`, in `fill_one` and in `stage_the_worktrees_own_state`,
 ///  the staging of the names this filling took in `fill_the_staging`,
 ///  and the target of those names in `give_back`.
 ///
@@ -789,10 +523,15 @@ pub(crate) enum Filled {
 /// ```
 async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     // A destination that exists is a build that got there first: the worktree keeps everything it made. A filling of this
-    //  workspace that was killed after it published left its marker and an empty staging copy beside that directory, and
-    //  this job's marker is the proof those names are its own, so the next filling gives them back.
+    //  workspace that was killed after it published left its own name and an empty staging copy beside that directory, and
+    //  a name whose maker is gone is nobody's: this filling gives those names back.
     if entry.to.exists() {
-        give_back_what_a_killed_filling_left(entry);
+        remove_the_leftovers_of_makers_that_are_gone(staging_of(entry.to.as_path()).as_path());
+        // The state the add moved aside has no destination to be published under any more, so it is given back here:
+        //  the record that carries its name is the proof it is this job's, and nothing will read it again.
+        if let Some(staged) = entry.staged_in.as_ref() {
+            give_back_the_staged_state(staged.as_path());
+        }
         return Ok(Filled::Kept);
     }
     make_the_destinations_own_directory(entry)?;
@@ -814,41 +553,25 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
 ///  The names a filling of the worktree's own staged state works in,
 /// or nothing when the add staged none.
 /// Why:
-///   The add moves the copied build state to the staging name in one rename before the add answers,
+///   The add moves the copied build state to a name of its own making in one rename before the add answers,
 /// so a build that starts at once finds no build directory and compiles everything itself.
 /// This run cleans that state out of the way it always does,
 /// and publishes it back only where the worktree still has no build directory of its own.
-/// The marker the add wrote is the proof the directory is the wrapper's own,
-/// so anything without it is somebody's work and is never removed.
+/// The name carries the maker the add recorded, and a name that carries none was not staged by this wrapper: it is
+/// somebody's work and is left exactly as it is found.
 ///
 /// # Errors
 ///
-/// A staging name this job's own marker does not claim.
+/// A staging name no filling of this job made.
 fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
     if !staging.exists() {
         return Ok(None);
     }
-    let marker: PathBuf = marker_of(staging);
-    if !marker_claims(marker.as_path()) {
+    let Some(_maker) = staging.file_name().and_then(the_maker_at_the_end_of) else {
         return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
-    }
-    // What:
-    //  The add staged this state under the usual names, so a filling of it holds the claim on those names like any other.
-    // Why:
-    //  Two fillings of one workspace can run at once, and one of them may have been handed the add's staged state while
-    //  the other takes the usual names by `names_for`; the claim is what stops both from cleaning and publishing one
-    //  directory at the same time (the review of `fc620ef950`, F1).
-    let held: std::fs::File = match claim_the_usual_names(marker.as_path())? {
-        TheClaimOnTheUsualNames::Ours { held, .. } => held,
-        // Another filling holds these names: this look does nothing and the names are its.
-        TheClaimOnTheUsualNames::AnotherFillingLives => return Ok(None),
-        // The mark the add wrote is gone and something else holds the name: this job's staged state is not there.
-        TheClaimOnTheUsualNames::SomebodysFile => {
-            return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
-        }
     };
     let target: PathBuf = target_of(staging);
-    return Ok(Some(TheNames { staging: staging.to_path_buf(), target, marker: Some(marker), _claim: Some(held) }));
+    return Ok(Some(TheNames { staging: staging.to_path_buf(), target }));
 }
 
 /// What:
@@ -876,15 +599,13 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     if !destination.exists() {
         return Ok(Staged::Nothing);
     }
-    // The staging name sits beside the build directory it takes, so the rename stays inside the worktree's own subvolume:
+    // The staging names sit beside the build directory they take, so the rename stays inside the worktree's own subvolume:
     // btrfs refuses to rename a directory out of a subvolume, and a worktree of this repository is one.
-    let staging: PathBuf = staging_of(destination);
-    let marker: PathBuf = marker_of(staging.as_path());
-    if marker_claims(marker.as_path()) {
-        // A killed add left the names it claimed; the state is already out of the worktree.
-        return Ok(if staging.exists() { Staged::Staged(staging) } else { Staged::Nothing });
-    }
-    if staging.exists() || marker.exists() {
+    let usual: PathBuf = staging_of(destination);
+    // What a filling of this workspace that is gone left behind goes first, so the names this add makes are its own.
+    remove_the_leftovers_of_makers_that_are_gone(usual.as_path());
+    let staging: PathBuf = a_staging_name_of_this_runs_own(usual.as_path())?;
+    if staging.exists() {
         return Err(format!(
             "{} already holds something this wrapper did not stage, so the copied build state is left where it is; the worktree's first build would reuse it, so run `cargo clean --offline --package <member>` in {} instead",
             staging.display(),
@@ -898,26 +619,12 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     {
         return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
     }
-    match write_marker(marker.as_path())? {
-        TheMarkersAnswer::WrittenByThisRun => {}
-        TheMarkersAnswer::WrittenByAnother => {
-            return Err(format!(
-                "{} was taken by another writer, so the copied build state is left where it is; run `cargo clean --offline --package <member>` in {} instead",
-                marker.display(),
-                destination.display()
-            ));
-        }
-    }
     return match std::fs::rename(destination, staging.as_path()) {
         Ok(()) => Ok(Staged::Staged(staging)),
-        Err(error) => {
-            // Nothing moved, so the marker claims a name nothing is in; take it back and say the state stays where it is.
-            let _taken_back = std::fs::remove_file(marker.as_path());
-            Err(format!(
-                "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
-                destination.display()
-            ))
-        }
+        Err(error) => Err(format!(
+            "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
+            destination.display()
+        )),
     };
 }
 
@@ -925,7 +632,14 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
 ///
 /// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
 /// because the names stand beside the build directory they take, inside the worktree.
-pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 3] = ["*.monochromatic-prewarm/", "*.monochromatic-prewarm.target/", "*.monochromatic-prewarm.owner"];
+pub(crate) const EXCLUDED_STAGING_PATTERNS: [&str; 4] = [
+    // The names of this release: a staging name, its clean's target, and the same names carrying a filling's maker.
+    "*.monochromatic-prewarm.*/",
+    // The names of earlier releases: the usual name and its target, and the marker a marker-based release wrote.
+    "*.monochromatic-prewarm/",
+    "*.monochromatic-prewarm.target/",
+    "*.monochromatic-prewarm.owner",
+];
 
 /// What:
 ///  Name this job's staging patterns in the repository's exclude file,
@@ -978,48 +692,6 @@ pub(crate) enum Staged {
     Staged(PathBuf),
     /// The worktree held no build state of its own to move.
     Nothing,
-}
-
-/// What:
-///  Remove the staging copy, its target directory and the marker a filling of this workspace left behind
-///  when it was killed after it published,
-/// and nothing at all when this job's own marker is not there.
-/// Why:
-///   A publish is one rename that leaves no trace of the filling that made it,
-/// so a kill between the publish and the giving back of the names strands an empty directory and its marker for ever:
-/// every later filling of that workspace answers `Filled::Kept` at the destination and never looks at the names again.
-/// The marker is what proves the names are this job's own,
-/// so anything else standing there is somebody's work and stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const giveBackWhatAKilledFillingLeft = (destination) => { const staging = stagingOf(destination); const marker = markerOf(staging); if (!markerClaims(marker)) return; removeIfAny(staging); removeIfAny(targetOf(staging)); removeFileIfPresent(marker); };
-/// ```
-fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
-    let staging: PathBuf = match entry.staged_in.as_ref() {
-        Some(staged) => staged.clone(),
-        None => staging_of(entry.to.as_path()),
-    };
-    let marker: PathBuf = marker_of(staging.as_path());
-    // What:
-    //  The names are given back only by a filling that holds the claim on them, so a filling that lives beside this one
-    //  keeps everything it is filling.
-    // Why:
-    //  The marker proves a filling wrote it and says nothing about whether that filling still lives, and a second filling
-    //  that read it as proof removed what the first one was publishing (the review of `fc620ef950`, F1).
-    let leftovers: std::fs::File = match claim_the_usual_names(marker.as_path()) {
-        Ok(TheClaimOnTheUsualNames::Ours { held, leftovers: true }) => held,
-        Ok(TheClaimOnTheUsualNames::Ours { leftovers: false, .. }) => return,
-        Ok(TheClaimOnTheUsualNames::AnotherFillingLives | TheClaimOnTheUsualNames::SomebodysFile) => return,
-        // A marker that cannot be claimed is one this job cannot prove is its own, so nothing is removed.
-        Err(_unclaimed) => return,
-    };
-    let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker), _claim: Some(leftovers) };
-    if let Err(reason) = remove_if_any(names.staging.as_path()) {
-        // Nothing of the worktree depends on this directory; the next filling of the same workspace tries again.
-        debug(TAG, format!("{reason}; a staging copy a killed filling left stays for the next one").as_str());
-    }
-    give_back(&names);
 }
 
 /// What:

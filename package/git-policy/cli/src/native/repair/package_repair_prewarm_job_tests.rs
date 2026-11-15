@@ -28,6 +28,40 @@ fn entry_of(root: &Path) -> PrewarmEntry {
     };
 }
 
+
+/// What:
+///  A maker that is gone: an owner whose process id names nothing this system runs.
+/// Why:
+///   A name a filling of this job left is removed only when its maker is gone, so a control of that removal writes such a
+///  name, and no process of this system carries the number it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aMakerThatIsGone = () => ({ pid: 4294967294, birthIdentity: 'linux:1', pidNamespace: undefined });
+/// ```
+fn a_maker_that_is_gone() -> crate::worktree_copy_owner::CopyOwner {
+    return crate::worktree_copy_owner::CopyOwner { pid: i64::from(u32::MAX) - 1, birth_identity: String::from("linux:1"), pid_namespace: None };
+}
+
+/// What:
+///  The staging name and the clean's target of a filling of this workspace that is gone,
+/// with what that filling had cloned in it.
+/// Why:
+///   This is the state a kill leaves: a name of its own beside the build directory, and the target its clean used.
+/// A later filling may remove them, and only because their maker is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aLeftoverOfAFillingThatIsGone = (usual) => { const left = `${usual}.${aMakerThatIsGone().token()}.1`; mkdir(left); write(`${left}/a-file`); mkdir(`${left}.target`); return left };
+/// ```
+fn a_leftover_of_a_filling_that_is_gone(usual: &Path) -> PathBuf {
+    let leftover: PathBuf = PathBuf::from(format!("{}.{}.1", usual.display(), a_maker_that_is_gone().token()));
+    std::fs::create_dir_all(leftover.join("left-by-a-filling-that-is-gone")).expect("the staging name a filling left");
+    std::fs::write(leftover.join("left-by-a-filling-that-is-gone/a-file"), b"what it cloned").expect("a file it cloned");
+    std::fs::create_dir_all(super::target_of(leftover.as_path()).as_path()).expect("the clean's target");
+    return leftover;
+}
+
 /// What:
 ///  The staging directory sits beside the build directory it fills,
 /// so publishing it is one rename,
@@ -93,13 +127,11 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
     std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
-    let staged: PathBuf = staging_of(entry.to.as_path());
-    std::fs::create_dir_all(staged.join("left-by-a-killed-run")).expect("a staging directory an earlier run left");
-    super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker an earlier run left");
+    let leftover: PathBuf = a_leftover_of_a_filling_that_is_gone(staging_of(entry.to.as_path()).as_path());
     let failed: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     assert!(failed.is_err(), "a clean that could not run is reported: {failed:?}");
-    assert!(!staged.exists(), "the staging directory this job's marker claims is removed");
-    assert!(!super::marker_of(staged.as_path()).exists(), "and the marker goes with it");
+    assert!(!leftover.exists(), "the staging name a filling that is gone left is removed");
+    assert!(!super::target_of(leftover.as_path()).exists(), "and the clean's target goes with it");
     assert!(!entry.to.exists(), "and nothing is published under the worktree's name");
     remove(root.as_path());
 }
@@ -125,14 +157,12 @@ fn a_filling_killed_after_it_published_leaves_nothing_of_its_own() {
     let entry: PrewarmEntry = entry_of(root.as_path());
     std::fs::create_dir_all(entry.to.as_path()).expect("the build directory the killed filling published");
     std::fs::write(entry.to.join("kept"), b"a build's own artifact").expect("the file");
-    let staged: PathBuf = staging_of(entry.to.as_path());
-    std::fs::create_dir_all(staged.as_path()).expect("the staging directory the publish left empty");
-    super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker the killed filling wrote first");
+    let leftover: PathBuf = a_leftover_of_a_filling_that_is_gone(staging_of(entry.to.as_path()).as_path());
     let filled: Filled = super::fill_one_in_a_control(&fill_of_nowhere(), &entry).expect("a filled destination is kept");
     assert_eq!(filled, Filled::Kept, "the worktree keeps what the build made");
     assert_eq!(std::fs::read(entry.to.join("kept")).expect("the file"), b"a build's own artifact");
-    assert!(!staged.exists(), "the staging directory the killed filling left is given back: {}", staged.display());
-    assert!(!super::marker_of(staged.as_path()).exists(), "and the marker that claimed it goes with it");
+    assert!(!leftover.exists(), "the staging name the filling that is gone left is given back: {}", leftover.display());
+    assert!(!super::target_of(leftover.as_path()).exists(), "and the clean's target goes with it");
     remove(root.as_path());
 }
 
@@ -164,7 +194,12 @@ fn a_staged_state_the_add_moved_aside_is_cleaned_and_published() {
         panic!("the state is moved aside");
     };
     assert!(!entry.to.exists(), "the worktree's build directory is out of the way before the add answers");
-    assert_eq!(staged_in, staging_of(entry.to.as_path()), "the state waits beside the build directory it was taken from");
+    assert!(
+        staged_in.to_string_lossy().starts_with(staging_of(entry.to.as_path()).to_string_lossy().as_ref()),
+        "the state waits beside the build directory it was taken from, under a name of the add's own: {}",
+        staged_in.display()
+    );
+    assert!(super::the_maker_at_the_end_of(staged_in.file_name().expect("a staging name")).is_some(), "the name carries the maker that staged it");
     assert!(!entry.to.exists(), "and out of the build directory itself");
     let working: PrewarmEntry = PrewarmEntry { staged_in: Some(staged_in.clone()), from: None, ..entry.clone() };
     let cargo: PathBuf = root.join("cargo");
@@ -174,7 +209,6 @@ fn a_staged_state_the_add_moved_aside_is_cleaned_and_published() {
     assert_eq!(filled, Filled::Published);
     assert!(entry.to.join("debug/copied").is_file(), "the cleaned copy is published under the worktree's build directory name");
     assert!(!staged_in.exists(), "and the staging name is given back");
-    assert!(!super::marker_of(staged_in.as_path()).exists(), "with the marker that claimed it");
     remove(root.as_path());
 }
 
@@ -212,27 +246,33 @@ fn a_build_that_got_there_first_keeps_its_own_and_the_staged_state_is_given_back
 }
 
 /// What:
-///  A staging name another writer holds is never renamed over or removed,
-/// and the worktree says so instead of leaving state a build would trust wrongly.
+///  A directory at the usual staging name is never renamed over or removed,
+///  and the add stages the state under a name of its own.
 /// Why:
-///   The names are the job's by convention, and only this job's own marker proves what stands there is its own;
-/// anything else is somebody's work.
+///   The usual name is a prefix every filling's name begins with, and no filling or add works in it: an add's name carries
+/// its maker, so a directory another writer holds at the usual name is somebody's work, is left exactly as it is, and the
+/// rename that publishes the state never replaces anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// mkdirSync(staging); expect(stageTheWorktreesOwnState(destination)).toThrow(); expect(existsSync(destination)).toBe(true)
+/// mkdirSync(usual); const staged = stageTheWorktreesOwnState(destination); expect(staged).not.toBe(usual); expect(existsSync(usual)).toBe(true)
 /// ```
 #[test]
-fn a_staging_name_another_writer_holds_is_never_renamed_over() {
+fn a_directory_at_the_usual_staging_name_is_never_renamed_over() {
     let root: PathBuf = fixture("prewarm-staged-taken-name");
     let entry: PrewarmEntry = entry_of(root.as_path());
     std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
     let git_directory: PathBuf = root.join("git-directory");
-    let staging: PathBuf = staging_of(entry.to.as_path());
-    std::fs::create_dir_all(staging.as_path()).expect("somebody else\'s directory at the staging name");
-    let refused: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
-    assert!(refused.is_err(), "a name this wrapper did not take is refused: {refused:?}");
-    assert!(entry.to.join("debug").is_dir(), "the copied state stays where it is");
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(usual.join("keep-me")).expect("somebody else's directory at the usual name");
+    std::fs::write(usual.join("keep-me/a-file"), b"someone's work").expect("the file");
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the state is moved aside under a name of its own");
+    let Staged::Staged(staged_in) = staged else {
+        panic!("the state is moved aside");
+    };
+    assert_ne!(staged_in, usual, "the state was renamed over the name another writer holds");
+    assert_eq!(std::fs::read(usual.join("keep-me/a-file")).expect("the other writer's file"), b"someone's work", "the other writer's directory is left exactly as it is");
+    assert!(!entry.to.exists(), "the copied state is out of the way before the add answers");
     remove(root.as_path());
 }
 
@@ -679,42 +719,34 @@ fn cargo_that_succeeds(root: &Path) -> PathBuf {
 }
 
 /// What:
-///  A directory at the staging name that this filling did not make,
-/// and a file at the marker name that is not this job's,
-/// are never removed,
+///  A directory at the usual staging name,
+/// which no filling of this release works in,
+/// is never removed,
 /// and the worktree is filled anyway.
 /// Why:
-///   The staging and marker names are this job's by convention,
-///   not by proof:
-/// only the text this job writes at the marker name says a directory there is its own leftover.
-/// Anything else at those names is somebody's work,
-/// which "never discard user data" forbids deleting,
-/// so the filling stages under a name of its own and leaves what it found alone.
+///   A filling works under a name of its own (`a_staging_name_of_this_runs_own`), so the usual name is a prefix and not a
+/// place: a directory there is somebody's work, which "never discard user data" forbids deleting, and nothing of this
+/// release opens it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(usual); writeSync(`${usual}/keep-me/a-file`, 'someone\'s work'); expect(fillOne()).toBe('published'); expect(readSync(`${usual}/keep-me/a-file`)).toBe('someone\'s work')
+/// ```
 #[test]
-fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed() {
-    // What a stranger leaves at each of the two names.
-    const STRANGERS: [&str; 2] = ["staging", "marker"];
-    for stranger in STRANGERS {
-        let root: PathBuf = fixture(format!("prewarm-stranger-{stranger}").as_str());
-        let entry: PrewarmEntry = entry_of(root.as_path());
-        std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-        std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
-        std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
-        let staged: PathBuf = staging_of(entry.to.as_path());
-        std::fs::create_dir_all(staged.join("keep-me")).expect("a directory this filling did not make");
-        std::fs::write(staged.join("keep-me/a-file"), b"someone's work").expect("the file");
-        let marker: PathBuf = super::marker_of(staged.as_path());
-        if stranger == "marker" {
-            // A file at the marker name that does not hold this job's text claims nothing.
-            std::fs::write(marker.as_path(), b"a person's own note").expect("a file this filling did not make");
-        }
-        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
-        let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
-        assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({stranger})");
-        assert_eq!(std::fs::read(staged.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
-        assert_eq!(std::fs::read(marker.as_path()).unwrap_or_default(), if stranger == "marker" { b"a person's own note".to_vec() } else { Vec::new() }, "a file this filling did not make is never removed ({stranger})");
-        remove(root.as_path());
-    }
+fn a_directory_at_the_usual_staging_name_is_never_removed() {
+    let root: PathBuf = fixture("prewarm-stranger-at-the-usual-name");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.as_ref().expect("the source's build directory").join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(usual.join("keep-me")).expect("a directory this filling did not make");
+    std::fs::write(usual.join("keep-me/a-file"), b"someone's work").expect("the file");
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
+    assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
+    assert_eq!(std::fs::read(usual.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
+    remove(root.as_path());
 }
 
 /// What:
@@ -851,60 +883,71 @@ fn an_entry_with_a_source_build(root: &Path) -> PrewarmEntry {
 }
 
 /// What:
-///  A named pipe at the marker name,
-///  which this filling did not make,
-///  never holds the filling:
-///  the copy is published under names of this run's own and the pipe stays where it is.
+///  A named pipe at a name of a filling that is gone never holds the filling,
+///  and one at the usual name never does either:
+///  the copy is published and the pipe stays where it is.
 /// Why:
-///   The marker name is this job's by convention,
-/// and anyone can put anything there.
-/// A reader-less pipe blocks a plain read inside `open` for ever,
-/// so one foreign object at that name would hold the service's filling with no end
-/// (the owner's "nothing should ever wait forever or indefinitely"),
-/// and the worktree would keep waiting for a build directory nothing fills.
+///   A name beside a build directory is somewhere anybody can put anything, and this release opens none of them: the
+/// leftovers of fillings that are gone are removed by their names, and the usual name is a prefix no filling works in.
+/// A reader-less pipe blocks a plain read inside `open` for ever, so one foreign object at a name would hold the
+/// service's filling with no end (the owner's "nothing should ever wait forever or indefinitely"), and the worktree
+/// would keep waiting for a build directory nothing fills.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(leftoverName); mkfifo(usual); expect(fillOne()).toBe('published'); expect(isFifo(leftoverName)).toBe(true)
+/// ```
 #[test]
-fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
-    let root: PathBuf = fixture("prewarm-marker-pipe");
+fn a_named_pipe_at_a_name_beside_the_build_directory_never_holds_the_filling() {
+    let root: PathBuf = fixture("prewarm-pipe-beside-the-destination");
     let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
-    let staged: PathBuf = staging_of(entry.to.as_path());
-    let marker: PathBuf = super::marker_of(staged.as_path());
-    named_pipe_at(marker.as_path());
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(usual.parent().expect("the directory the names live in")).expect("the directory the names live in");
+    let leftover: PathBuf = PathBuf::from(format!("{}.{}.1", usual.display(), a_maker_that_is_gone().token()));
+    named_pipe_at(leftover.as_path());
+    named_pipe_at(usual.as_path());
     let covered: PathBuf = root.clone();
     let waiting: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
         let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
         return super::fill_one_in_a_control(&fill, &entry);
     });
-    let filled: Result<Filled, String> = waiting.expect("the filling must not wait on a named pipe at the marker name");
-    assert_eq!(filled, Ok(Filled::Published), "the copy is published under names of this run's own");
-    assert!(marker.exists(), "the named pipe this filling did not make is left where it is");
+    let filled: Result<Filled, String> = waiting.expect("the filling must not wait on a named pipe beside the build directory");
+    assert_eq!(filled, Ok(Filled::Published), "the copy is published under a name of this filling's own");
+    assert!(leftover.exists(), "the name of a filling that is gone holds a pipe, which is nobody's directory to remove");
+    assert!(usual.exists(), "the pipe at the usual name is left where it is");
     remove(covered.as_path());
 }
 
 /// What:
-///  A file another command has at the marker name is never removed,
-///  and the worktree is filled under names of this run's own.
+///  A file at a name of a filling that is gone is never removed,
+///  and the worktree is filled under a name of this filling's own.
 /// Why:
-///   The marker is how a filling proves the usual names are its own, so a file there that does not hold this job's own
-/// text is somebody's:
-/// this run reads it, removes nothing, and stages under a name it chose for itself.
-///  The file is read through the claim (`names_for`), which is the only place that decides whether the usual names are free:
-///  a name this job did not make is never its to remove ("never discard user data").
+///   The leftovers of fillings that are gone are directories; a file at such a name is a person's own, and "never discard
+/// user data" forbids deleting it. The filling reads none of those names and removes none that is not a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeSync(leftoverName, 'a person\'s own note'); expect(fillOne()).toBe('published'); expect(readSync(leftoverName)).toBe('a person\'s own note')
+/// ```
 #[test]
-fn a_file_that_holds_the_marker_name_is_never_removed() {
-    /// What the other command wrote at the marker name.
+fn a_file_at_a_name_of_a_filling_that_is_gone_is_never_removed() {
+    /// What the other command wrote at that name.
     const ANOTHER_COMMANDS_FILE: &[u8] = b"a person's own note";
-    let root: PathBuf = fixture("prewarm-marker-held-by-another");
+    let root: PathBuf = fixture("prewarm-file-at-a-leftovers-name");
     let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
-    let staged: PathBuf = staging_of(entry.to.as_path());
-    let marker: PathBuf = super::marker_of(staged.as_path());
-    // The directory the usual names live in, which the filling makes before it asks for them.
-    std::fs::create_dir_all(entry.to.parent().expect("the build directory's own directory")).expect("the build directory's own directory");
-    std::fs::write(marker.as_path(), ANOTHER_COMMANDS_FILE).expect("the other command's file");
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(usual.parent().expect("the directory the names live in")).expect("the directory the names live in");
+    let at_a_leftovers_name: PathBuf = PathBuf::from(format!("{}.{}.1", usual.display(), a_maker_that_is_gone().token()));
+    std::fs::write(at_a_leftovers_name.as_path(), ANOTHER_COMMANDS_FILE).expect("the other command's file");
     let covered: PathBuf = root.clone();
     let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
-    assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under names of this run's own");
-    assert_eq!(std::fs::read(marker.as_path()).expect("the other command's file is still there"), ANOTHER_COMMANDS_FILE, "a file this filling did not write is never removed");
+    assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under a name of this filling's own");
+    assert_eq!(
+        std::fs::read(at_a_leftovers_name.as_path()).expect("the other command's file is still there"),
+        ANOTHER_COMMANDS_FILE,
+        "a file this filling did not make is never removed"
+    );
     remove(covered.as_path());
 }
 
