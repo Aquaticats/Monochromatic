@@ -61,6 +61,9 @@ pub mod service_retry;
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
 
+/// The wait a landing gives the note that names its repository to the next service.
+pub mod service_claim_watch_note_within_a_ceiling;
+
 /// Whether a Git directory is the repository of the instance whose journal a note is written into.
 pub mod service_claim_watch_whose_repository_it_is;
 
@@ -78,6 +81,16 @@ pub mod service_messages_of_a_start_that_cannot_come;
 /// The words for a manager that answered nothing in the time one exchange is given,
 /// which says nothing about whether it is there.
 pub mod service_messages_of_a_manager_that_did_not_answer;
+
+/// The words for a wait that ended without a greeting,
+/// built from the unit the manager was asked about,
+/// what it answered,
+/// and what this command asked it to do.
+pub mod service_messages_of_a_start_that_was_asked_and_did_not_come;
+
+/// The words for work a hand-off could not hand to the commit service,
+/// in the words of what stopped it.
+pub mod service_messages_of_a_work_that_was_not_handed_over;
 
 /// The sentence a platform without a user service manager leaves the person,
 /// used by every failure that needed one.
