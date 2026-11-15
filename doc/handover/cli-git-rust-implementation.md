@@ -1640,6 +1640,157 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The third of the three gate controls is settled: its failure was the control's own, like the other two, and the machine's memory is excluded; its review is queued (2026-11-15T13:01:41-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The three controls that failed for the first time in a gate**,
+  their author's second run,
+  ended 12:57:01 at `8182b750e7`
+  (its merge of `main`,
+  `a93d20e344`,
+  is inside that tip).
+  The third control,
+  which the first run could not reproduce,
+  is reproduced and explained:
+  the control read what a filling's clean had displaced while the filling still ran,
+  because its wait counted records standing in `pending`,
+  `claimed` and `recovering` and a filling the drain runs stands in `held`;
+  the control's own teardown then ended the clean with `SIGKILL`,
+  which is the "stopped by signal 9" line the gate printed.
+  With a clean made to take eight seconds,
+  the reader that did not wait failed two runs of three.
+  The reader now waits while the record stands in any of the four states,
+  and the control's failure says where the record stands and what the service said.
+  **This corrects the first run's report**,
+  which left the machine's memory as a possible cause.
+  It found no fault in `package_repair_cargo_lock.rs`.
+  102 of 102 tests of the three controls' modules pass in the newest gate image;
+  Clippy is clean.
+- Its review is queued eleventh
+  (`main...8182b750e7`,
+  3 code files that are not tests).
+- Read at 13:01:18:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:54;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
+##### Four wrapper reviews at once: the fix for the empty-tree commit leaves a door open, the push branch loses its repair record six ways, and two guards are stepped around; three authors go back and one waits for its run to end (2026-11-15T12:58:11-05:00)
+
+Not final and not approved:
+what four reviews and one author report,
+how the coordinating session weighed them,
+what it queued,
+and one thing it deferred.
+
+- **The drawn shadow tree, which carries the fix for the commit with the empty tree** (`5db0fbc6e9`),
+  its seventh review,
+  ended 12:50:22,
+  17 of 17 files,
+  three things,
+  each reproduced in a disposable copy with a pause at one instruction:
+  - where the tree that was asked for cannot be captured,
+    the expected tree becomes `None` and the guard is skipped,
+    so `build_with_git` again hands back a commit with the empty tree
+    (the review did not drive the branch update after it);
+  - a scratch tree whose removal already owns the claim is handed out for use;
+  - the pool's sweep lets its claim go before it removes,
+    and a live fill loses its staging tree.
+  **So the next pass does not carry this branch**,
+  and `main` with the installed release keeps the window its author showed.
+  Counted again at 12:58:11:
+  of 201 commits on every ref since 08:20 today,
+  none has the empty tree.
+  The author's eighth run is queued first:
+  "could not tell" is never "nothing to check"
+  (one answer with three cases,
+  and a build whose scratch went is built again);
+  one function removes a tree for all three sweeps;
+  a control that removes the scratch at each instruction of a build.
+- **The push of a branch that is not checked out** (`777c491325`),
+  its eighth review,
+  ended 12:51:39,
+  21 of 21 files,
+  eight things,
+  each reproduced against real disposable repositories.
+  The record that promises a checkout's repair is deleted when the branch moved on,
+  when a read failed,
+  when a patch failed,
+  and when a cleanup was refused;
+  two commands take over one dead repair owner;
+  the fast-forward in another worktree runs although its record could not be written;
+  the startup gate names paths that still hold the old tip and clears the commit;
+  one query has no ceiling in all.
+  After seven of them a later commit records an older tree over a merge.
+  The author's tenth run is queued fourth,
+  with four of the eight put as one sentence
+  (a record ends on proof and on nothing else,
+  through one function that takes the proof).
+  **The author's question for the owner stays open and was not answered in the brief**:
+  the gate is asked only to keep the author's own rule
+  (a path at the old tip that no person edited is brought forward singly),
+  and to say which state is left when that cannot be done inside the bound.
+- **The discarding guard** (`2f3e2785ed`),
+  its first review of the whole range,
+  ended 12:53:06,
+  41 files read,
+  three things,
+  each reproduced with the built executable:
+  a forced `git mv` whose destination is an absolute path inside the worktree overwrites an untracked file;
+  `git checkout-index --force --prefix=` pointing outside the worktree,
+  absolute or with `..`,
+  overwrites a file there;
+  and a repository put at a path the guard had already saved is deleted with no copy.
+  The third rests on the saving aside that the owner's answer of 11:07 removes
+  ("Delete and log").
+  **Deferred, and why**:
+  the author's second run,
+  for the owner's two decisions,
+  is going
+  (its branch stands at `186e370de9`),
+  and one agent gets one thing.
+  The two findings that stand go to the author in a third run when the second has ended,
+  with whatever that run's report changes.
+- **The add that never skips the Cargo repair** (`edaabb664f`),
+  its tenth review,
+  ended 12:54:29,
+  13 of 13 files.
+  **It built and ran nothing of the package**:
+  two things by reading
+  (a fallback target recorded as the usual one,
+  so recovery deletes another command's folder;
+  a worktree removed and made again at one path gives two owners two lease files for the same names),
+  and one with Cargo's own behaviour shown
+  (full metadata fails offline where the clean succeeds).
+  They go back as claims,
+  a control first for each.
+  The author's eleventh run is queued sixth.
+- **The shared wait of the binary controls**,
+  a fresh run,
+  ended 12:50:50 at `e12b36fd81`:
+  the wait keeps a bound of its own and says how a command ended;
+  the whole binary suite before and after,
+  compared by name,
+  differs in one control that went from failing to passing and in five new ones.
+  Its review is queued tenth
+  (`main...e12b36fd81`,
+  2 code files that are not tests).
+- Read at 12:54:58:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:49;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes;
+  integration pass 54 is one of them.
+
 ##### The commit that does not wait behind the service's writes: its review finds the slow work arrived on the runtime's only worker, and a withdrawal one service cannot see; the author goes back (2026-11-15T12:51:15-05:00)
 
 Not final and not approved:
