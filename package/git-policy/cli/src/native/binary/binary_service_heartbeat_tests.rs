@@ -609,7 +609,10 @@ fn a_manager_that_cannot_be_asked_leaves_the_wait_to_the_start_wait() {
     let held = std::thread::spawn(move || { return service.accept().map(|(stream, _)| { return stream; }); });
     let (answered, _notices) = client(unaskable).join().expect("client thread");
     assert!(
-        matches!(answered, Err(ClientFailure::DidNotStart { answer: None, start_asked: false, .. })),
+        matches!(
+            answered,
+            Err(ClientFailure::DidNotStart { answer: git_policy_cli::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent, asked: git_policy_cli::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing, .. })
+        ),
         "a manager that could not be asked is not a start that was refused: {answered:?}"
     );
     drop(UnixStream::connect_addr(&SocketAddr::from_abstract_name(name.as_bytes()).expect("name")));

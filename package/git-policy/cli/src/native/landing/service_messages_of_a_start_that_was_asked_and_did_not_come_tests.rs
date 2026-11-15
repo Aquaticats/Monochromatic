@@ -1,7 +1,7 @@
 //! Controls for the clause a command reads when its wait for the commit service ended:
-//!  every state of the wait has its own words,
-//!  each names the unit this command asked about,
-//!  and none of them says a start was asked for when none was.
+//!  every answer of the manager and every request of this command has its own words,
+//!  the unit this command asked about is named,
+//!  and no cell claims something the wait did not learn.
 
 use super::*;
 
@@ -9,33 +9,36 @@ use super::*;
 const UNIT: &str = "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service";
 
 /// What:
-///  Each state of the wait reads as itself:
-///  a start that was asked for and one that was not are never told alike.
+///  Every state of the wait reads as itself,
+///  and the two answers that are not states are never told alike.
 /// Why:
-///  The two have different next steps,
-///  and a reader sent after the wrong one is what left the merges of 2026-11-14T20:51-05:00 unexplained.
+///  A unit the manager reports as `activating` is one whose start is under way,
+///  and a manager that answered it holds no such unit answered every poll:
+///  a sentence that read either as "nothing asked" or as "no answer" sends a reader after the wrong fault.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(theStartThatDidNotCome(unit, 'failed', true)).toContain('was asked to start');
+/// expect(didNotStart(unit, { kind: 'state', text: 'activating' }, 'nothing')).toContain('under way');
 /// ```
 #[test]
 fn every_state_of_the_wait_reads_as_itself() {
-    let asked_and_failed: String = the_start_that_did_not_come(Some(UNIT), Some("failed"), true);
-    assert!(asked_and_failed.contains(UNIT), "the unit is named: {asked_and_failed}");
-    assert!(asked_and_failed.contains("was asked to start"), "the start is named as asked for: {asked_and_failed}");
-    assert!(asked_and_failed.contains("is failed"), "the manager's own word is carried: {asked_and_failed}");
-    let quietly_inactive: String = the_start_that_did_not_come(Some(UNIT), Some("inactive"), false);
-    assert!(quietly_inactive.contains(UNIT), "the unit is named: {quietly_inactive}");
-    assert!(quietly_inactive.contains("nothing asked it to start"), "no start is claimed: {quietly_inactive}");
-    let asked_and_silent: String = the_start_that_did_not_come(Some(UNIT), None, true);
-    assert!(asked_and_silent.contains("was asked to start"), "the start is named as asked for: {asked_and_silent}");
-    assert!(asked_and_silent.contains("gave no answer"), "the silence is named: {asked_and_silent}");
-    let unreachable: String = the_start_that_did_not_come(Some(UNIT), None, false);
-    assert!(unreachable.contains(UNIT), "the unit is named: {unreachable}");
-    assert!(unreachable.contains("could not be asked"), "the manager's silence is named: {unreachable}");
-    let no_manager_at_all: String = the_start_that_did_not_come(None, None, false);
-    assert!(no_manager_at_all.contains("no service manager"), "a wait with no manager says so: {no_manager_at_all}");
+    let activating: String = did_not_start(Some(UNIT), &ManagerLastWords::State(String::from("activating")), RequestedStart::Nothing);
+    assert!(activating.contains(UNIT), "the unit is named: {activating}");
+    assert!(activating.contains("under way"), "a start the manager reports is said to be under way: {activating}");
+    assert!(activating.contains("asked it for nothing itself"), "and what this command asked is said: {activating}");
+    let not_held: String = did_not_start(Some(UNIT), &ManagerLastWords::NotHeld, RequestedStart::Start);
+    assert!(not_held.contains(UNIT), "the unit is named: {not_held}");
+    assert!(not_held.contains("holds no such unit"), "the manager's own answer is carried: {not_held}");
+    assert!(not_held.contains("asked it to start"), "and the start this command asked for: {not_held}");
+    assert!(!not_held.contains("no answer"), "and never that the manager was silent: {not_held}");
+    let silent: String = did_not_start(Some(UNIT), &ManagerLastWords::Silent, RequestedStart::Start);
+    assert!(silent.contains("gave no answer"), "a manager that answered nothing says so: {silent}");
+    let failed: String = did_not_start(Some(UNIT), &ManagerLastWords::State(String::from("failed")), RequestedStart::ResetAndStart);
+    assert!(failed.contains("forget that"), "the reset this command asked for is named: {failed}");
+    let restarted: String = did_not_start(Some(UNIT), &ManagerLastWords::State(String::from("active")), RequestedStart::Restart);
+    assert!(restarted.contains("to restart"), "the restart this command asked for is named: {restarted}");
+    let no_manager: String = did_not_start(None, &ManagerLastWords::Silent, RequestedStart::Nothing);
+    assert!(no_manager.contains("no service manager"), "a wait with no manager says so: {no_manager}");
 }
 
 /// What:
@@ -51,13 +54,14 @@ fn every_state_of_the_wait_reads_as_itself() {
 /// ```
 #[test]
 fn no_clause_names_how_the_service_works() {
-    for clause in [
-        the_start_that_did_not_come(Some(UNIT), Some("failed"), true),
-        the_start_that_did_not_come(Some(UNIT), Some("inactive"), false),
-        the_start_that_did_not_come(Some(UNIT), None, true),
-        the_start_that_did_not_come(Some(UNIT), None, false),
-        the_start_that_did_not_come(None, None, false),
-    ] {
+    let mut clauses: Vec<String> = Vec::new();
+    for answer in [ManagerLastWords::State(String::from("activating")), ManagerLastWords::State(String::from("inactive")), ManagerLastWords::NotHeld, ManagerLastWords::Silent] {
+        for asked in [RequestedStart::Nothing, RequestedStart::Start, RequestedStart::ResetAndStart, RequestedStart::Restart] {
+            clauses.push(did_not_start(Some(UNIT), &answer, asked));
+        }
+    }
+    clauses.push(did_not_start(None, &ManagerLastWords::Silent, RequestedStart::Nothing));
+    for clause in clauses {
         for forbidden in crate::service_messages::DENYLIST {
             assert!(!clause.to_lowercase().contains(forbidden), "{forbidden:?} is a word the person is never told: {clause}");
         }

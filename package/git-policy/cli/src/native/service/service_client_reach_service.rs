@@ -9,6 +9,61 @@
 //! the steps have their own file
 //!  so the submit loop stays readable.
 //!
+//! What the wait learns, and what it says when it ends
+//! (`service_messages_of_a_start_that_was_asked_and_did_not_come.rs`):
+//!  every answer of the manager at a poll,
+//!  what this command does about it,
+//!  what it remembers,
+//!  and the words a person reads at the ceiling.
+//! Two facts are remembered,
+//!  and every sentence is one clause each:
+//!  the manager's last answer
+//!  (`State` with its own word,
+//!  `NotHeld`,
+//!  `Silent`),
+//!  and what this command asked the manager to do
+//!  (`Nothing`,
+//!  `Start`,
+//!  `ResetAndStart`,
+//!  `Restart`).
+//! "Asked" means a call this command made of the manager,
+//!  never a connection:
+//!  connecting to the socket of a socket-activated unit is what asks the manager to start it,
+//!  the client cannot tell whose connection asked,
+//!  and the manager's own `activating` is the fact that a start is under way,
+//!  so no sentence claims who started the unit.
+//! The cells, with the words each produces
+//!  (`<u>` is the unit this command asked about):
+//!
+//! - `activating`, nothing asked:
+//!   "the service manager says <u> is activating, so a start of it is under way, and this command asked it for nothing itself".
+//!   This is the cell a socket-activated start leaves,
+//!   and it read "nothing asked it to start that unit" before.
+//! - `activating`, after a start was asked for a unit the manager held no such unit for:
+//!   the same "a start of it is under way",
+//!   "and this command asked it to start <u>".
+//! - `inactive`:
+//!   a start is asked at once,
+//!   and the sentence says the manager's word and that this command asked for the start.
+//! - not held:
+//!   a start is asked,
+//!   and the sentence says the manager answered that it holds no such unit
+//!   and that this command asked for the start.
+//! - `failed`:
+//!   the failed state is forgotten and a start asked, once,
+//!   and a second `failed` answer ends the wait with that cell's words.
+//! - `active` with nothing greeting:
+//!   one restart is asked at the ceiling,
+//!   and the sentence says the unit is active and that this command asked for the restart.
+//! - `deactivating`, or any other state:
+//!   nothing is asked,
+//!   and the manager's word is what the person reads.
+//! - unreachable:
+//!   nothing is asked and the wait ends at the start wait,
+//!   and the sentence says the manager gave no answer and that this command asked for nothing itself.
+//! - no manager can be asked at all (`start_watch` absent):
+//!   "no service manager could be asked about this worktree's commit service, so nothing started it".
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const reader = await reachCurrent(config, notices, announced, trace, serviceSeen);
@@ -17,6 +72,7 @@
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, ManagerAnswer, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
 use crate::commit_timing::ReachTrace;
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
 use crate::service_protocol::{
     PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire,
 };
@@ -68,8 +124,11 @@ pub(crate) fn reach(
     let mut repairs: u32 = 0;
     let mut restarts: u32 = 0;
     // What the manager last answered about the unit, which the notice names and the restart is decided on: nothing until it
-    //  is asked.
-    let mut last_state: Option<String> = None;
+    //  is asked. The answer itself is kept, not only its state word: a manager that answered that it holds no such unit
+    //  answered every poll, and folding that into "nothing" is what made a wait read as a manager that was silent.
+    let mut last_answer: Option<ManagerAnswer> = None;
+    // What this command asked the manager to do about the unit, which the words at the end name: nothing until it asks.
+    let mut requested: RequestedStart = RequestedStart::Nothing;
     // Whether anything took a connection at the address, which is the one fact that tells an address nothing listens on from
     //  one whose connections nothing answers.
     let mut connected: bool = false;
@@ -122,7 +181,7 @@ pub(crate) fn reach(
         {
             last_asked = Some(Instant::now());
             let answer: ManagerAnswer = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
-            last_state = answer.state().map(String::from);
+            last_answer = Some(answer.clone());
             // What: A unit the manager answers `inactive` for, and one it holds no such unit for, is asked to start at
             //       once, then again after each start wait while it stays that way.
             // Why:  The client's connection was refused, so nothing of this worktree listens and nothing is starting it: an
@@ -156,6 +215,7 @@ pub(crate) fn reach(
             {
                 let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
                 last_start_request = Some(Instant::now());
+                requested = RequestedStart::Start;
             }
             cannot_ask = answer == ManagerAnswer::Unreachable;
             // What: A unit the manager calls `failed` is asked to be reset and started, once, and the wait goes on.
@@ -177,6 +237,7 @@ pub(crate) fn reach(
                 let _socket_forgotten = (watch.reset)(watch.bus.as_path(), watch.socket_unit.as_str());
                 let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
                 last_start_request = Some(Instant::now());
+                requested = RequestedStart::ResetAndStart;
                 failed_answers = 0;
             }
             failed_answers = if answer.state() == Some("failed") { failed_answers + 1 } else { 0 };
@@ -194,11 +255,12 @@ pub(crate) fn reach(
         if !*announced && started.elapsed() >= START_NOTICE_GRACE {
             *announced = true;
             let address: String = crate::service_server::address_text(&config.address);
-            let who: String = match (&config.start_watch, last_state.as_deref()) {
+            let who: String = match (&config.start_watch, last_answer.as_ref()) {
                 (None, _) => String::from("and no service manager can be asked to start it"),
-                (Some(watch), Some(state)) => format!("the service manager says {} is {state}", watch.unit),
-                (Some(watch), None) if cannot_ask => format!("and the service manager could not be asked about {}", watch.unit),
-                (Some(watch), None) => format!("and the service manager holds no {}, so it was asked to start it", watch.unit),
+                (Some(watch), Some(ManagerAnswer::State(state))) => format!("the service manager says {} is {state}", watch.unit),
+                (Some(watch), Some(ManagerAnswer::NotHeld)) => format!("and the service manager holds no {}, so it was asked to start it", watch.unit),
+                (Some(watch), Some(ManagerAnswer::Unreachable)) => format!("and the service manager could not be asked about {}", watch.unit),
+                (Some(watch), None) => format!("and the service manager gave no answer about {} yet", watch.unit),
             };
             let _written = writeln!(notices, "{}", starting_notice(address.as_str(), who.as_str()));
         }
@@ -222,7 +284,7 @@ pub(crate) fn reach(
         if let Some(watch) = config.start_watch.as_ref()
             && restarts == 0
             && !service_seen
-            && last_state.as_deref() == Some("active")
+            && last_answer.as_ref().and_then(ManagerAnswer::state) == Some("active")
             && started.elapsed() >= config.start_ceiling
         {
             restarts += 1;
@@ -230,7 +292,8 @@ pub(crate) fn reach(
             last_start_request = Some(Instant::now());
             let _written = writeln!(notices, "{}", restarting_notice(watch.unit.as_str(), started.elapsed()));
             started = Instant::now();
-            last_state = None;
+            last_answer = None;
+            requested = RequestedStart::Restart;
             continue;
         }
         match &config.start_watch {
@@ -243,8 +306,8 @@ pub(crate) fn reach(
             Some(watch) if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling => {
                 return Err(ClientFailure::DidNotStart {
                     unit: Some(watch.unit.clone()),
-                    answer: last_state.clone(),
-                    start_asked: last_start_request.is_some(),
+                    answer: manager_last_words(last_answer.as_ref()),
+                    asked: requested,
                 });
             }
             Some(_) => {}
@@ -300,9 +363,30 @@ fn greeting_patience_without_a_manager(config: &ClientConfig, started: Instant) 
 fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) -> ClientFailure {
     if !connected {
         // No manager can be asked here (`start_watch` is absent), so no unit was named to anyone and none answered.
-        return ClientFailure::DidNotStart { unit: None, answer: None, start_asked: false };
+        return ClientFailure::DidNotStart { unit: None, answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing };
     }
     return ClientFailure::NothingAnswered { address: crate::service_server::address_text(&config.address), waited };
+}
+
+/// What:
+///  The last answer of the service manager as the words at the end name it,
+///  keeping "it holds no such unit" and "it gave no answer" apart.
+/// Why:
+///   A unit the manager unloaded is one it answered every poll that it holds no such unit for,
+///   and a manager whose exchange failed is one that answered nothing:
+///   the two have different next steps,
+///   and the wait records the answer itself so the words can say which happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// managerLastWords(lastAnswer) // 'state' | 'not-held' | 'silent'
+/// ```
+fn manager_last_words(answer: Option<&ManagerAnswer>) -> ManagerLastWords {
+    return match answer {
+        None | Some(ManagerAnswer::Unreachable) => ManagerLastWords::Silent,
+        Some(ManagerAnswer::NotHeld) => ManagerLastWords::NotHeld,
+        Some(ManagerAnswer::State(state)) => ManagerLastWords::State(state.clone()),
+    };
 }
 
 /// What:

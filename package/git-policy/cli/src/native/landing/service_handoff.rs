@@ -348,10 +348,10 @@ pub(crate) fn not_handed_over(failure: ClientFailure) -> ClientFailure {
     // Why:  "The commit service did not start" left the merges of 2026-11-14T20:51:03-05:00 and 2026-11-14T20:58:58-05:00
     //       with nothing to read: the service's log holds nothing when nothing asked for a start, so the record now carries
     //       which unit the wait asked the manager about and what that manager last answered.
-    if let ClientFailure::DidNotStart { unit, answer, start_asked } = &failure {
+    if let ClientFailure::DidNotStart { unit, answer, asked } = &failure {
         return ClientFailure::WorkNotHandedOver(format!(
             "the commit service did not start: {}",
-            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::the_start_that_did_not_come(unit.as_deref(), answer.as_deref(), *start_asked)
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(unit.as_deref(), answer, *asked)
         ));
     }
     let reason: &str = match &failure {

@@ -192,7 +192,7 @@ fn the_events_name_the_route_that_explains_the_exit() {
 #[test]
 fn every_failure_a_command_decides_names_itself() {
     let failures: Vec<ClientFailure> = vec![
-        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: Some(String::from("failed")), start_asked: true },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::State(String::from("failed")), asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::ResetAndStart },
         ClientFailure::NothingAnswered { address: String::from("an address"), waited: Duration::from_secs(10) },
         ClientFailure::NoActivation(Platform::LinuxWithoutUserServices),
         ClientFailure::OtherAccount,

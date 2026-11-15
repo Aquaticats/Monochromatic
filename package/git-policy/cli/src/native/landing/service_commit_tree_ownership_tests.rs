@@ -50,7 +50,7 @@ fn an_unanswered_submission_keeps_the_tree_and_a_definite_refusal_does_not() {
     for refused in [
         ClientFailure::StillWithService { minutes: 20, blocker: None },
         ClientFailure::Refused,
-        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: None, start_asked: false },
+        ClientFailure::DidNotStart { unit: None, answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent, asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing },
         ClientFailure::NoActivation(crate::service_provision::platform_without_manager()),
         // The manager was never answered, so the request was never sent and no landing can read this tree.
         ClientFailure::ManagerDidNotAnswer { waited: std::time::Duration::from_secs(20) },

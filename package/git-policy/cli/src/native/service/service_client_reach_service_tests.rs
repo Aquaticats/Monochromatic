@@ -390,7 +390,14 @@ fn a_manager_that_cannot_be_asked_names_itself_and_asks_for_no_start() {
     let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
         .expect_err("nothing answers and no manager can start anything");
     let asked_of_the_manager: Vec<String> = asked();
-    assert_eq!(failure, ClientFailure::DidNotStart { unit: Some(unit.clone()), answer: None, start_asked: false });
+    assert_eq!(
+        failure,
+        ClientFailure::DidNotStart {
+            unit: Some(unit.clone()),
+            answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent,
+            asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing,
+        }
+    );
     assert!(
         !asked_of_the_manager.iter().any(|call| { return call.starts_with("start "); }),
         "no start is asked for where nothing can be asked: {asked_of_the_manager:?}"
@@ -400,7 +407,10 @@ fn a_manager_that_cannot_be_asked_names_itself_and_asks_for_no_start() {
     assert!(!said.contains("holds no"), "and never that it holds no such unit: {said:?}");
     let rendered: String = crate::service_messages::render(&failure);
     assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
-    assert!(rendered.contains("could not be asked"), "and that the manager could not be asked: {rendered}");
+    // The failure says what the manager did, which is to answer nothing, and what this command asked, which is nothing:
+    //  the two clauses of the words a wait that ends without a greeting prints.
+    assert!(rendered.contains("gave no answer"), "and that the manager answered nothing: {rendered}");
+    assert!(rendered.contains("asked it for nothing itself"), "and that nothing of this command asked for a start: {rendered}");
     let reason: String = match crate::service_handoff::not_handed_over(failure) {
         ClientFailure::WorkNotHandedOver(reason) => reason,
         other => panic!("work that was not handed over says so: {other:?}"),
@@ -878,7 +888,14 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
     let mut announced: bool = false;
     let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing listens, so nothing is reached");
     // No manager can be asked here, so no unit was named to one and none answered.
-    assert_eq!(failure, ClientFailure::DidNotStart { unit: None, answer: None, start_asked: false });
+    assert_eq!(
+        failure,
+        ClientFailure::DidNotStart {
+            unit: None,
+            answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent,
+            asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing,
+        }
+    );
 }
 
 

@@ -22,6 +22,7 @@
 //! stderr.write(render({ kind: 'not-installed' }));
 //! ```
 
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
 use std::path::Path;
 use std::time::Duration;
 
@@ -131,11 +132,10 @@ pub enum ClientFailure {
         /// The unit this command asked the service manager about,
         /// or nothing where no manager can be asked to start a service at all.
         unit: Option<String>,
-        /// What the service manager last answered about that unit,
-        /// or nothing where it gave no answer.
-        answer: Option<String>,
-        /// Whether the manager was asked to start that unit during this wait.
-        start_asked: bool,
+        /// What the service manager last said about that unit.
+        answer: ManagerLastWords,
+        /// What this command asked the manager to do about it.
+        asked: RequestedStart,
     },
     /// Something accepted the connection at the service's address and nothing answered;
     /// no service manager could be asked to start or restart it.
@@ -333,10 +333,10 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::DidNotStart { unit, answer, start_asked } => format!(
+        ClientFailure::DidNotStart { unit, answer, asked } => format!(
             "The commit service did not start, so this commit was not made: {}. Its log shows why: `{LOG_COMMAND}`. \
              Run the commit again after fixing that. {NOTHING_CHANGED}",
-            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::the_start_that_did_not_come(unit.as_deref(), answer.as_deref(), *start_asked)
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(unit.as_deref(), answer, *asked)
         ),
         ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
         ClientFailure::NoActivation(platform) => format!(

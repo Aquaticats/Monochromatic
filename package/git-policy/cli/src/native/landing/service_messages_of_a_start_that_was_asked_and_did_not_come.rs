@@ -1,51 +1,140 @@
 //! What:
-//!  The clause a command reads when its wait for the commit service ended and the wait's own facts are the
-//!  reason:
-//!  which unit the user service manager was asked about,
-//!  what it last answered,
-//!  and whether it was asked to start that unit.
+//!  The words for a wait that ended without a greeting,
+//!  built from two facts the wait kept:
+//!  what the service manager last said about the unit,
+//!  and what this command asked the manager to do about it.
 //! Why:
-//!  "The commit service did not start" alone said nothing about the wait that ended.
-//!  A start that was never asked for leaves the service's own log empty,
-//!  so the remedy that message names shows nothing,
-//!  and that is what left the merges of 2026-11-14T20:51:03-05:00 and 2026-11-14T20:58:58-05:00 unexplained:
-//!  their service had retired and stopped its own socket,
-//!  the manager had unloaded the unit,
-//!  and the client read the manager's "it holds no such unit" as "the manager cannot be asked"
-//!  (`service_client_reach_service.rs`).
-//!  The facts belong in the message because they separate a manager that could not be reached from a start
-//!  that was asked for and did not come up,
-//!  which have two different next steps.
+//!  "The commit service did not start" alone said nothing about the wait that ended,
+//!  and the first attempt at naming it kept one fact too few:
+//!  a state word of the manager,
+//!  which is `None` for a manager that answered it holds no such unit,
+//!  and a flag of whether this command had asked for a start,
+//!  which is false for a unit the manager is already starting.
+//!  Both sentences that came out of those two facts were false in their own cell:
+//!  a unit the manager reported `activating` was worded "nothing asked it to start",
+//!  though a connection to a socket-activated unit is what asks it to start,
+//!  and a manager that kept answering that it holds no such unit was worded as one that gave no answer.
+//!  So the words are composed from the two facts themselves,
+//!  one clause each,
+//!  and every clause follows from what was remembered
+//!  (`service_client_reach_service.rs`, the table in its module doc).
 //!  They live beside the rendering of every failure rather than inside it,
 //!  because that file is at the line bound the repository linter enforces (`rust/max-lines`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // landing/serviceMessagesOfAStartThatWasAskedAndDidNotCome.ts
-//! export const theStartThatDidNotCome = (unit, answer, startAsked): string => ...;
+//! export const didNotStart = (unit, answer, asked): string => `${whatTheManagerSaid(unit, answer)}, and ${whatThisCommandAsked(unit, asked)}.`;
 //! ```
 
 /// What:
-///  The clause for a wait that ended without a greeting,
-///  built from the unit this command asked about,
-///  the service manager's last answer about it,
-///  and whether a start was asked for.
+///  What the service manager last said about the unit this command asked after.
 /// Why:
-///  Each state has one next step,
-///  so each has its own words,
-///  and none of them claims a start was asked for when none was.
+///  A state word and the two answers that are not states are three different next steps,
+///  and folding them into one made a manager that answered every poll read as one that answered none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// theStartThatDidNotCome(unit, answer, startAsked) // 'the service manager could not be asked to start cli-git@3f9a.service …'
+/// type ManagerLastWords = { kind: 'state', text: string } | { kind: 'not-held' } | { kind: 'silent' };
 /// ```
-pub(crate) fn the_start_that_did_not_come(unit: Option<&str>, answer: Option<&str>, start_asked: bool) -> String {
-    return match (unit, answer, start_asked) {
-        (None, _, _) => String::from("no service manager could be asked about this worktree's commit service, so nothing started it"),
-        (Some(named), Some(state), true) => format!("the service manager was asked to start {named} and last said that unit is {state}"),
-        (Some(named), Some(state), false) => format!("the service manager says {named} is {state}, and nothing asked it to start that unit"),
-        (Some(named), None, true) => format!("the service manager was asked to start {named} and gave no answer about it afterwards"),
-        (Some(named), None, false) => format!("the service manager could not be asked to start {named}, so nothing started the commit service"),
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ManagerLastWords {
+    /// The manager named the unit's state, in its own word (`active`,
+    /// `activating`,
+    /// `inactive`,
+    /// `failed`,
+    /// ...).
+    State(String),
+    /// The manager answered that it holds no such unit,
+    /// which is what a unit that stopped and was unloaded leaves.
+    NotHeld,
+    /// The manager gave no answer: the exchange with it failed,
+    /// or it was never asked.
+    Silent,
+}
+
+/// What:
+///  What this command asked the service manager to do about the unit during its wait.
+/// Why:
+///  A person reads whether anything of this command asked for a start,
+///  which is not the same as whether a start is under way:
+///  a connection to the socket of a socket-activated unit asks for one,
+///  and the client cannot tell which connection asked,
+///  so the words say what this command asked and leave who started the unit to the manager's own state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RequestedStart = 'nothing' | 'start' | 'reset-then-start' | 'restart';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RequestedStart {
+    /// No call of this command asked the manager for anything.
+    Nothing,
+    /// This command asked the manager to start the unit,
+    /// which a unit it holds no such unit for needs to be loaded again.
+    Start,
+    /// This command asked the manager to forget that the unit failed and then to start it.
+    ResetAndStart,
+    /// This command asked the manager to stop the unit and start it again.
+    Restart,
+}
+
+/// What:
+///  The clause for a wait that ended without a greeting.
+/// Why:
+///  Two clauses, one per remembered fact,
+///  so the sentence can be checked against the table cell it came from,
+///  and no cell says something the wait did not learn.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// didNotStart(unit, answer, asked) // 'the service manager says cli-git@3f9a.service is activating, so a start of it is under way, and this command asked it for nothing itself'
+/// ```
+pub(crate) fn did_not_start(unit: Option<&str>, answer: &ManagerLastWords, asked: RequestedStart) -> String {
+    let Some(named) = unit else {
+        return String::from("no service manager could be asked about this worktree's commit service, so nothing started it");
+    };
+    return format!("{}, and {}", what_the_manager_said(named, answer), what_this_command_asked(named, asked));
+}
+
+/// What:
+///  What the manager last said, in a clause.
+/// Why:
+///  A unit the manager reports as `activating` is one whose start is under way,
+///  and saying so is the fact that keeps a stuck start from reading as a start nobody asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// whatTheManagerSaid(unit, answer) // 'the service manager says cli-git@3f9a.service is activating, so a start of it is under way'
+/// ```
+fn what_the_manager_said(unit: &str, answer: &ManagerLastWords) -> String {
+    return match answer {
+        ManagerLastWords::State(state) if state == "activating" => {
+            format!("the service manager says {unit} is activating, so a start of it is under way")
+        }
+        ManagerLastWords::State(state) => format!("the service manager says {unit} is {state}"),
+        ManagerLastWords::NotHeld => format!("the service manager answered that it holds no such unit, {unit}"),
+        ManagerLastWords::Silent => format!("the service manager gave no answer about {unit}"),
+    };
+}
+
+/// What:
+///  What this command asked the manager for, in a clause.
+/// Why:
+///  "itself" carries the one thing the client knows and the reader needs:
+///  what this command asked,
+///  never what any other connection or person asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// whatThisCommandAsked(unit, asked) // 'this command asked it to start cli-git@3f9a.service'
+/// ```
+fn what_this_command_asked(unit: &str, asked: RequestedStart) -> String {
+    return match asked {
+        RequestedStart::Nothing => String::from("this command asked it for nothing itself"),
+        RequestedStart::Start => format!("this command asked it to start {unit}"),
+        RequestedStart::ResetAndStart => format!("this command asked it to forget that {unit} failed and then to start it"),
+        RequestedStart::Restart => format!("this command asked it to restart {unit}"),
     };
 }
 
