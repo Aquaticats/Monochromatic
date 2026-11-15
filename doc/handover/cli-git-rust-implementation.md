@@ -1615,6 +1615,88 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three reviews, all with findings: both mpm-shadow branches lose data a lock or a person still names, and the journal branch misreports two entries; all three authors go back (2026-11-15T11:49:08-05:00)
+
+Not final and not approved:
+what three reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **mpm-shadow's removal of old versions** (`45c0b46705`),
+  its review,
+  ended 11:42:47,
+  15 of 15 files,
+  five things,
+  each reproduced
+  (the fifth at one of its call sites):
+  - a bounded child whose grandchild holds a pipe keeps the request past its deadline;
+  - recovery deletes trees pending deletion before it has read any lock,
+    so a version a current lock names is deleted;
+  - a removal interrupted in its usual way leaves a doubly prefixed name that is read as another version,
+    so the lock does not match and the remainder is deleted;
+  - recovery deletes the only complete archive while its replacement is still downloading,
+    and says it put the archives back;
+  - eight entry points pass no deadline at all,
+    so a postinstall program that never exits holds an install,
+    and a commit hook that runs it,
+    for good.
+- **mpm-shadow's stale launchers** (`d6f52428e3`),
+  its review,
+  ended 11:42:59,
+  13 of 13 files,
+  six things,
+  five reproduced:
+  - a publish that gave up waiting for the guard overwrites another publish,
+    a race the code's comments accept;
+  - a late install of the same tool puts an older launch record back;
+  - two seconds of contention on the records' lock fail the install,
+    and a commit hook with it;
+  - a link folder that cannot be listed is taken as proof that no link reaches a launcher,
+    which is then retired and leaves a dangling link;
+  - retirement unlinks an alias a person made,
+    proving the target and not the entry;
+  - and,
+    by reading,
+    the proof of a launcher's record reads without the bounded reader.
+- **The journal branch** (`ce1b113d79`),
+  its review,
+  ended 11:44:23,
+  eight of eight files,
+  two things,
+  both reproduced:
+  the fallback to standard error writes every entry with the service's identifier,
+  whoever it was recorded for;
+  and an entry that was dropped is answered as sent.
+  The review saw two `fixture_guard` tests fail in a broader run and set them aside as not of the changed lines;
+  the author is asked which they are.
+- **Weighed**:
+  all thirteen go back.
+  None of the mpm code in question is in `main`
+  (both cleanup branches are unmerged),
+  so nothing released does these things.
+  The briefs ask for shapes and walks,
+  not items:
+  one reader of the store's names that takes them apart with the constants that built them,
+  asked together with the locks before anything is deleted;
+  a request type with no "no deadline" value;
+  three answers
+  (these, none, could not tell)
+  wherever a removal rests on what reaches something;
+  a writer that gave up a guard leaves its change for the next install and does not write.
+  Queued:
+  the journal author's sixth run sixth,
+  the removal author's fourth ninth,
+  the stale launchers' third tenth.
+  The two mpm authors are each told the other branch exists and touches the runner and the publishing.
+- Read at 11:47:21:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:41;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes.
+
 ##### The landed removal has the owner's two decisions built and goes on to the two tag findings; the file holder's words get two more wordings (2026-11-15T11:42:31-05:00)
 
 Not final and not approved:
