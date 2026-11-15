@@ -1683,9 +1683,10 @@ and what it did.
   **Weighed**:
   both go back,
   both small.
-  The first cannot happen on this machine's filesystems,
-  whose inode numbers are small,
-  and its fix is one option of one call.
+  The first is far from this machine's numbers:
+  files written within the hour before 09:05 on the btrfs that holds both the run folders and the repository carry inode numbers of 742,143,321 and 20,758,558,
+  against 2^53 at 9,007,199,254,740,992.
+  Its fix is one option of one call.
   The author's eighth run is queued twelfth.
 - **The driver's silent tool command** (`6b86edc7f6`),
   its first review,
