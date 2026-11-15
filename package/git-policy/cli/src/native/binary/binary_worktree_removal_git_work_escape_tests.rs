@@ -1297,3 +1297,159 @@ fn a_relative_c_removes_like_real_git_and_still_guards() {
     assert!(!scene.task.exists(), "and the worktree is gone");
     remove(&scene.fixture);
 }
+
+/// What:
+///  A `!` alias whose own Git command carries a global option is judged,
+///  an alias whose text names a removal but cannot be read is refused,
+///  and one whose text names no removal is left to Git.
+/// Why:
+///  The reader of a shell command declined an inner command that had a global option of its own, so the removal was
+///  forwarded as the person typed it and the alias deleted a detached commit the direct route refused
+///  (a review of `dfd6fab13e`, finding 1).
+///  An alias the guard cannot read is not shown to be harmless, so a text that names a removal is refused with the way
+///  out, and one that names none is Git's.
+#[test]
+fn an_alias_whose_command_carries_a_global_option_is_judged_and_one_that_cannot_be_read_is_refused() {
+    // An inner `-C` and an inner `-c`: both change where and how the removal runs, and both are followed.
+    for (name, globals) in [("removal-alias-inner-c-directory", "-C {repo}"), ("removal-alias-inner-c-config", "-c core.ignorecase=false -C {repo}")] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let task: String = scene.task.display().to_string();
+        scene.detach_and_commit();
+        let spelled: String = globals.replace("{repo}", scene.repo.to_str().expect("a UTF-8 fixture path").as_ref());
+        run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", format!("!git {spelled} worktree remove").as_str()]);
+        let refused: Observed = scene.remove_with(&["--no-worktree-copy", "rmwt", task.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{name}: the alias is judged: {said}");
+        assert!(said.contains("detached HEAD"), "{name}: and names the commit it would destroy: {said}");
+        assert!(scene.task.exists(), "{name}: and nothing was removed");
+        remove(&scene.fixture);
+    }
+
+    // A text that names a removal and cannot be read as one Git command line is refused, with the way out.
+    for (name, value) in [
+        ("removal-alias-pipe", "!git worktree remove \"$1\" | cat"),
+        ("removal-alias-two-commands", "!true; git worktree remove"),
+        ("removal-alias-substitution", "!git worktree remove $(printf %s)"),
+    ] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let task: String = scene.task.display().to_string();
+        scene.detach_and_commit();
+        run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", value]);
+        let refused: Observed = scene.remove_with(&["rmwt", task.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{name}: an unreadable alias that names a removal is refused: {said}");
+        assert!(said.contains("names a removal of a worktree"), "{name}: and says why: {said}");
+        assert!(said.contains("--no-enforce-worktree"), "{name}: and prints the way out: {said}");
+        assert!(scene.task.exists(), "{name}: and nothing was removed");
+        // The way out hands the alias to Git as real Git runs it: the guard asks nothing about it, and what the shell
+        // then does and ends with is Git's and the shell's own.
+        let escaped: Observed = scene.remove_with(&["--no-enforce-worktree", "rmwt", task.as_str()]);
+        assert!(!stderr_of(&escaped).contains("monochromatic-git-policy-cli:"), "{name}: the opt-out is not asked about: {}", stderr_of(&escaped));
+        remove(&scene.fixture);
+    }
+
+    // A text that names no removal at all is Git's, and a person's own alias keeps working.
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-alias-names-none");
+    let said: Observed = scene.remove_with(&["-c", "alias.hello=!echo hello", "hello"]);
+    assert_eq!(said.code, Some(0), "an alias that names no removal runs: {}", stderr_of(&said));
+    assert!(stderr_of(&said).contains("hello") || !String::from_utf8_lossy(said.stdout.as_slice()).is_empty(), "and does what it says");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  A nested worktree whose name is not UTF-8 keeps the outer worktree,
+///  a UTF-8 one keeps it too,
+///  and with the nested checkout gone the outer removal goes.
+/// Why:
+///  The registration's `gitdir` bytes were decoded lossily, the path with the replacement character did not exist, and
+///  the live registration was read as one Git had pruned: the outer removal then deleted the nested checkout and the
+///  only name of its detached commit
+///  (a review of `dfd6fab13e`, finding 2).
+#[test]
+fn a_nested_worktree_whose_name_is_not_utf8_keeps_the_outer_worktree() {
+    use std::os::unix::ffi::OsStringExt as _;
+    for (name, nested_name) in [
+        ("removal-non-utf8-nested", b"inner-\xff".to_vec()),
+        ("removal-utf8-nested-control", b"inner-plain".to_vec()),
+    ] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let outer: String = scene.task.display().to_string();
+        std::fs::write(scene.task.join(".gitignore"), "/inner*\n").expect("the ignore file");
+        run_direct(&scene.fixture, scene.task.as_path(), &["add", ".gitignore"]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=ignore the nested checkouts"]);
+        let nested: PathBuf = scene.task.join(std::ffi::OsString::from_vec(nested_name));
+        // Real Git registers the checkout, whose own name carries the byte, so the record holds it too.
+        let mut add: Command = Command::new("/usr/bin/git");
+        add.arg("worktree").arg("add").arg("--quiet").arg("--detach").arg(nested.as_os_str()).arg("main");
+        hermetic(&mut add, &scene.fixture, wrapper_first_path(&scene.fixture).as_os_str());
+        add.current_dir(scene.repo.as_path());
+        let added = add.output().expect("Git starts");
+        assert!(added.status.success(), "{name}: the nested worktree is registered: {}", String::from_utf8_lossy(added.stderr.as_slice()));
+        std::fs::write(nested.join("only-here.txt"), "made here\n").expect("a file in the nested worktree");
+        run_direct(&scene.fixture, nested.as_path(), &["add", "only-here.txt"]);
+        run_direct(&scene.fixture, nested.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+        let named: std::process::Output = git(&scene.fixture, nested.as_path(), &["rev-parse", "HEAD"]);
+        let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+        let refused: Observed = scene.remove_with(&["--no-worktree-copy", "worktree", "remove", outer.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{name}: the nested worktree keeps the outer one: {said}");
+        assert!(said.contains(&commit[..12]), "{name}: and its commit is named: {said}");
+        assert!(nested.exists(), "{name}: and its checkout stays");
+        // The control: that nested checkout gone, nothing of its own is left inside, and the outer removal goes.
+        std::fs::remove_dir_all(nested.as_path()).expect("the nested checkout goes");
+        run_direct(&scene.fixture, scene.repo.as_path(), &["worktree", "prune", "--expire=now"]);
+        let removed: Observed = scene.remove_with(&["--no-worktree-copy", "worktree", "remove", outer.as_str()]);
+        assert_eq!(removed.code, Some(0), "{name}: with nothing of its own left inside, the outer removal goes: {}", stderr_of(&removed));
+        assert!(!scene.task.exists(), "{name}: and the outer checkout is gone");
+        remove(&scene.fixture);
+    }
+}
+
+/// What:
+///  A commit only the worktree's own `FETCH_HEAD` names keeps the worktree,
+///  the refusal says `FETCH_HEAD` names it,
+///  and a plain fetch leaves a commit a reference also names, which the removal may take.
+/// Why:
+///  `FETCH_HEAD` was left out of the naming records on the reasoning that what it names came from elsewhere,
+///  and a commit made here and fetched by its object name is named by nothing else:
+///  the removal ended 0 and a collection took it
+///  (a review of `dfd6fab13e`, finding 3).
+///  The project's rule decides the case: a record that holds the only name of a commit keeps the worktree.
+#[test]
+fn a_commit_only_fetch_head_names_keeps_the_worktree() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-fetch-head-only");
+    let task: String = scene.task.display().to_string();
+    let tree_object: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let tree: String = String::from_utf8_lossy(tree_object.stdout.as_slice()).trim().to_owned();
+    let made: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["commit-tree", tree.as_str(), "-p", "HEAD", "-m", "a commit only a fetch names"]);
+    let commit: String = String::from_utf8_lossy(made.stdout.as_slice()).trim().to_owned();
+    run_direct(&scene.fixture, scene.task.as_path(), &["fetch", "--quiet", ".", commit.as_str()]);
+    let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "a commit only FETCH_HEAD names is refused: {said}");
+    assert!(said.contains("FETCH_HEAD"), "the refusal says FETCH_HEAD names it: {said}");
+    assert!(said.contains(&commit[..12]), "and names the commit: {said}");
+    assert!(scene.task.exists(), "and the worktree stays");
+    // A record is no root of a collection, so the sentence's remedy comes first, and then the object must survive one.
+    run_direct(&scene.fixture, scene.task.as_path(), &["branch", "keep-the-commit", commit.as_str()]);
+    run_direct(&scene.fixture, scene.task.as_path(), &["gc", "--prune=now"]);
+    let readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", commit.as_str()]);
+    assert_eq!(readable.code, Some(0), "and the commit survives a collection once named: {}", stderr_of(&readable));
+    remove(&scene.fixture);
+
+    // The control: a plain fetch leaves the commit named by a reference too, and the removal goes.
+    let fetched: Scene = a_repository_with_a_recorded_worktree("removal-fetch-head-ref");
+    let upstream: PathBuf = fetched.fixture.root.join("upstream");
+    std::fs::create_dir_all(upstream.as_path()).expect("the upstream directory");
+    run_direct(&fetched.fixture, upstream.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(upstream.join("upstream.txt"), "upstream work\n").expect("a file upstream");
+    run_direct(&fetched.fixture, upstream.as_path(), &["add", "upstream.txt"]);
+    run_direct(&fetched.fixture, upstream.as_path(), &["commit", "--quiet", "--message=upstream work"]);
+    run_direct(&fetched.fixture, fetched.repo.as_path(), &["remote", "add", "origin", upstream.to_str().expect("a UTF-8 fixture path")]);
+    run_direct(&fetched.fixture, fetched.task.as_path(), &["fetch", "--quiet", "origin"]);
+    let fetched_task: String = fetched.task.display().to_string();
+    let removed: Observed = fetched.remove_with(&["worktree", "remove", fetched_task.as_str()]);
+    assert_eq!(removed.code, Some(0), "a plain fetch leaves a reference naming what it fetched: {}", stderr_of(&removed));
+    assert!(!fetched.task.exists(), "so the removal goes");
+    remove(&fetched.fixture);
+}
