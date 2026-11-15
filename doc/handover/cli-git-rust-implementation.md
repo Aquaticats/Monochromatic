@@ -1639,6 +1639,59 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `0.6.1-alpha.41` fails 13 of 9,125: pass 52's three library tests pass; the filling unit is restarted (2026-11-15T08:17:41-05:00)
+
+Not final and not approved:
+what the gate printed and what the coordinating session read from it.
+
+- **The gate** on `d28b29240c` ended 08:17:21:
+  9,125 run,
+  9,112 passed,
+  13 failed,
+  28 skipped,
+  751 s,
+  under the CPU budget and the power-saver profile as the two gates before it
+  (`~/temp/agent/gate/keep/failing-tests-of-the-gate-on-d28b29240c-against-the-four-gates-before-it.txt`;
+  panics in `panics-of-the-failing-tests-of-the-gate-on-d28b29240c-2026-11-15T075908.txt`).
+  All owed steps of this release are done.
+- **Against the gate on `0.6.1-alpha.40`**
+  (18 failed):
+  - the three library tests of pass 52 pass
+    (`a_lane_that_panics…`,
+    `a_step_left_running_on_the_runtime…`,
+    `a_server_that_takes_the_connection…`);
+  - three of the five controls of the long runtime directory pass,
+    with nothing changed in them
+    (`service_provision_refusals_before_the_wait::tests::` three times).
+    In the gate before,
+    each of them stopped on a tag that "does not fit 7 bytes",
+    in threads numbered 106734 and up;
+    in this gate the tests near them carry five-digit numbers.
+    That fits the review of that branch,
+    which found the room these controls leave depends on the width of the process number;
+    this gate did not show it by itself.
+    The branch is with its author;
+  - `owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it` fails,
+    as in two of the four gates before,
+    on its fixture's removal
+    (`DirectoryNotEmpty`);
+    it has a run that owns it.
+- **What stands**,
+  12 that failed in each of the four gates before:
+  seven of the Git version
+  (with its author for its test helper),
+  two of the long runtime directory
+  (with its author),
+  one of the record of another boot
+  (review queued),
+  and two that the lock-holders branch answers
+  (review queued).
+- **The unit that fills free places** was restarted between two of its rounds at 08:15:31,
+  at level 17,
+  as `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T081531`
+  for another eight hours;
+  the unit before it had been due to end at about 09:00.
+
 ##### The lock-holders folder answers its four findings and goes to review; the push of a branch that is not checked out goes back with four races (2026-11-15T08:15:00-05:00)
 
 Not final and not approved:
