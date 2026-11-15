@@ -1530,6 +1530,63 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit-service fix has both claims shown to hold, a table of answers, and a real manager in a container; it goes to review again (2026-11-15T04:07:32-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The commit service of a unit the manager no longer holds**,
+  its author's second run,
+  ended 04:02:53 at `78750dd149`,
+  `main` with `0.6.1-alpha.38` and `zbus` 6.3.0 merged.
+  - Both claims of the review that had not run were given a control and both held;
+    each control was committed red.
+  - The table is in the module's doc:
+    the manager's last answer
+    (a state,
+    not held,
+    silent)
+    against what this command asked
+    (nothing,
+    a start,
+    a reset and start,
+    a restart),
+    with the sentence of each cell.
+    "Asked" means an explicit call of this command and never a connection,
+    since the client cannot tell whose connection made a socket start its unit;
+    for `activating` the sentence says a start is under way and that this command asked for nothing itself.
+  - The leg left unproved before:
+    in a `podman` container with its own manager on a private bus,
+    no network,
+    the manager answers "not loaded" for a stopped unit and starts it when asked by name;
+    with both units stopped,
+    a merge through the wrapper handed its work over,
+    the remote held the merge and the unit was active.
+    The binary from before the fix showed the original sighting there.
+  - `zbus` 6.3.0 changes nothing the client decides on:
+    the builds with 6.2.1 and 6.3.0 printed the same 32 lines in the container.
+  - Clippy 0;
+    both guards;
+    the changed modules 72 of 72;
+    the binary controls of a start 64 of 67,
+    the three being reds already standing.
+  It noticed that a `target/debug` binary it ran held code older than its build,
+  and could not tie it to a commit;
+  it used that run only for what it showed.
+  Its review is queued second
+  (`main...78750dd149`,
+  ten code files that are not tests).
+- A container named `serene_driscoll` that two reports mention as not theirs was gone when read at 04:08
+  (`podman ps --all` listed none).
+- Read at 04:07:07:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 03:59;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 04:07:32.
+
 ##### The wrapper under the gate container's Git bounds every process its tests start and goes to review again (2026-11-15T03:59:40-05:00)
 
 Not final and not approved:
