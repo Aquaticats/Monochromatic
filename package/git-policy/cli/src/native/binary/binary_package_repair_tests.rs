@@ -780,7 +780,7 @@ const LATE_MEMBER: &str = "extra";
 /// ```
 fn kept_lock_copies(repo: &Path) -> Vec<Vec<u8>> {
     let mut found: Vec<Vec<u8>> = Vec::new();
-    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join(git_policy_cli::package_repair_cargo_lock::DISPLACED_DIRECTORY)];
+    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join("monochromatic-git-policy-cli-displaced-locks")];
     while let Some(directory) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(directory) else { continue };
         for entry in entries.flatten() {
@@ -829,18 +829,9 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
     assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
     assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
-    // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
-    // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
-    // (`package_repair_cargo_lock.rs`).
+    // The repair never writes that file: the resolution the clean needed was made in a mirror of the workspace, so nothing
+    //  of the person's was displaced and nothing has to be kept or put back (`package_repair_cargo_clean_in_mirror.rs`).
     let kept: Vec<Vec<u8>> = kept_lock_copies(repo.as_path());
-    assert_eq!(kept.len(), 1, "the bytes the clean displaced were not kept: {kept:?}");
-    let written: &[u8] = kept[0].as_slice();
-    assert_ne!(written, before.as_slice(), "the kept copy is the checked-out lock itself, so no rewrite was kept");
-    let late_member_line: String = format!("name = \"{LATE_MEMBER}\"");
-    assert!(
-        String::from_utf8_lossy(written).contains(late_member_line.as_str()),
-        "the kept copy is not the lock the clean wrote: {}",
-        String::from_utf8_lossy(written)
-    );
+    assert!(kept.is_empty(), "no copy of a lock was displaced, because none was written: {kept:?}");
     remove(&fixture);
 }

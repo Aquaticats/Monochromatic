@@ -45,7 +45,7 @@ use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_request::RepairRequest;
 use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting};
-use crate::package_repair_cargo_lock::{read_lock, restore_lock};
+use crate::package_repair_cargo_clean_in_mirror::{MirrorClean, clean_in_a_mirror};
 use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
 use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting};
@@ -55,7 +55,8 @@ use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "package_repair_cargo_jobs.rs"]
 mod jobs;
-use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
+pub(crate) use self::jobs::CargoTool;
+use self::jobs::{look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
 /// The hand-over of the filling to the commit service and the line the add answers for it,
 /// kept in a file of its own to stay under the file-size limit.
 #[path = "package_repair_cargo_hand_over.rs"]
@@ -289,10 +290,9 @@ enum Done {
     /// the text says why.
     Skipped,
     /// The members were cleaned at the add's own location,
-    /// and the build directory they were cleaned in was the worktree's;
-    /// the line is what the person reads about the lock bytes the clean displaced,
-    /// if any.
-    Cleaned(Option<String>),
+    /// in a mirror of the workspace,
+    /// so the worktree's own `Cargo.lock` was read and never written and nothing of the person's was displaced.
+    Cleaned,
     /// The workspace's build directory is to be filled by the commit service,
     /// which also cleans the worktree's own crates out of the copy,
     /// so nothing was cleaned here.
@@ -391,39 +391,28 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
             }
         }
     }
-    let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
-    // "The lock could not be read" and "the checkout has no lock" are two answers, and only the second may let the restore treat
-    //  what the clean left as the clean's own: with the first, a clean that rewrote the lock smaller would have the restore take the
-    //  tracked file away as a file the clean had created, and the worktree would be left with its Cargo.lock deleted.
-    //  So a lock that cannot be read stops this workspace's clean here, before anything is written, and the line names the file and
-    //  what stands there; the copy the worktree already holds is what a build then reuses, exactly as when a clean fails.
-    // A repair that was killed between placing a resolution and putting a person's bytes back left them at a kept name with a
-    //  note beside them; this clean is the next command that looks, so it puts them back when the lock still holds that
-    //  resolution, and names them otherwise.
-    let mut put_back: String = String::new();
-    if let Some(directory) = kept_in {
-        for said in crate::package_repair_cargo_lock::put_back_what_a_killed_placement_left(workspace.root.as_path(), directory) {
-            put_back.push_str(said.as_str());
-            put_back.push(' ');
-        }
-    }
-    let lock_before: Option<Vec<u8>> = match read_lock(workspace.root.as_path()) {
-        Ok(bytes) => bytes,
-        Err(reason) => {
-            debug(TAG, format!("{reason}; nothing of this workspace was cleaned").as_str());
-            return workspace_failed(manual.as_str(), format!("{reason}, so nothing of this workspace was cleaned and the lock is left exactly as it is found"));
-        }
-    };
-    let run: ToolRun = timed_clean_awaiting(tool, &command).await;
-    // The bytes the clean displaced are kept before the checked-out lock comes back, and the line says where they are
-    //  (`package_repair_cargo_lock.rs`).
-    let displaced: Option<String> = match (restore_lock(workspace.root.as_path(), lock_before.as_deref(), kept_in), put_back.is_empty()) {
-        (said, true) => said,
-        (Some(said), false) => Some(format!("{put_back}{said}")),
-        (None, false) => Some(put_back.trim_end().to_owned()),
+    // The clean resolves the workspace, and that resolution writes `Cargo.lock`, which is the person's file. Both Cargo runs are
+    //  taken in a mirror of the workspace instead (package_repair_cargo_clean_in_mirror.rs): the worktree's own lock is read and
+    //  never written, no step displaces it, and nothing has to be put back. The clean deletes from the worktree's own build and
+    //  target directories, named here, which are the artifacts the workspace's own clean would delete.
+    let run: ToolRun = match clean_in_a_mirror(MirrorClean {
+        tool: CargoTool { program: tool.program.clone(), limits: tool.limits },
+        worktree: destination_root.to_path_buf(),
+        workspace: workspace.root.clone(),
+        members: workspace.members.clone(),
+        build_directory: workspace.build_directory.clone(),
+        target_directory: workspace.target_directory.clone(),
+        locked: false,
+        kept_in: kept_in.map(Path::to_path_buf),
+        job: crate::package_repair_workspace_mirror::a_name_of_this_job(),
+    })
+    .await
+    {
+        Ok(run) => run,
+        Err(reason) => return workspace_failed(manual.as_str(), reason),
     };
     return match run.end {
-        ToolEnd::Succeeded => Done::Cleaned(displaced),
+        ToolEnd::Succeeded => Done::Cleaned,
         ToolEnd::Failed(reason) => workspace_failed(manual.as_str(), reason),
         ToolEnd::TimedOut => workspace_failed(manual.as_str(), String::from("it showed no sign of work for the quiet window and was stopped")),
         ToolEnd::CeilingReached(ceiling) => workspace_failed(manual.as_str(), crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, ceiling)),
@@ -479,7 +468,7 @@ async fn timed_read_workspace_awaiting(name: &str, tool: &CargoTool, directory: 
 /// const run = await runToolAwaiting(cargo, command, limits);
 /// endWork('cargoClean', began);
 /// ```
-async fn timed_clean_awaiting(tool: &CargoTool, command: &ToolCommand) -> ToolRun {
+pub(crate) async fn time_the_clean_awaiting(tool: &CargoTool, command: &ToolCommand) -> ToolRun {
     let began: Instant = begin_work();
     let run: ToolRun = run_tool_awaiting(tool.program.as_path(), command, tool.limits).await;
     end_work("cargoClean", began);
@@ -587,27 +576,20 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         });
     }
     let mut cleaned: usize = 0;
-    let mut displaced: Vec<String> = Vec::new();
     let mut handed_over: Vec<PrewarmEntry> = Vec::new();
     for outcome in done {
         match outcome {
             Done::Skipped => {}
-            Done::Cleaned(said) => {
-                cleaned += 1;
-                if let Some(line) = said {
-                    displaced.push(line);
-                }
-            }
+            // The clean ran in a mirror of the workspace, so the worktree's own lock is as the person left it and there is no
+            //  displaced copy to name (`package_repair_cargo_clean_in_mirror.rs`).
+            Done::Cleaned => cleaned += 1,
             Done::HandedOver(entry) => handed_over.push(entry),
             Done::Failed(finding) => findings.push(finding),
         }
     }
     if cleaned > 0 {
         let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
-        // A clean that displaced a lock keeps those bytes, and the line says where they are: a worktree that is clean again may
-        //  still hold a command's newer lock under its Git directory (`package_repair_cargo_lock.rs`).
-        let kept: String = if displaced.is_empty() { String::new() } else { format!("; {}", displaced.join("; ")) };
-        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}{kept}"), millis: started.elapsed().as_millis() } });
+        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}"), millis: started.elapsed().as_millis() } });
     }
     if !handed_over.is_empty() {
         findings.push(hand_the_filling_over(request, handed_over.as_slice(), common_dir.as_deref()).await);

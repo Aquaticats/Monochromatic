@@ -44,6 +44,16 @@ pub mod package_repair_pnpm;
 #[cfg(target_os = "linux")]
 pub mod package_repair_cargo;
 
+/// A mirror of one workspace,
+/// which is the only place this repair lets Cargo read and write a `Cargo.lock`.
+#[cfg(target_os = "linux")]
+pub mod package_repair_workspace_mirror;
+
+/// One workspace resolved and cleaned inside its mirror,
+/// so the person's own lock is read and never written.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_clean_in_mirror;
+
 /// The hand-over of a new worktree's Cargo build directories to the commit service,
 /// so the add does not wait for the clone that fills them.
 #[cfg(target_os = "linux")]

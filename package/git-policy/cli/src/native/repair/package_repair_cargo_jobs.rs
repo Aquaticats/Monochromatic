@@ -40,11 +40,11 @@ use std::time::Instant;
 /// type CargoTool = { program: string; limits: { windowMs: number; ceilingMs: number } };
 /// ```
 #[derive(Clone)]
-pub(super) struct CargoTool {
+pub(crate) struct CargoTool {
     /// The Cargo program found on the person's search path.
-    pub(super) program: PathBuf,
+    pub(crate) program: PathBuf,
     /// The quiet window and the ceiling of one run.
-    pub(super) limits: ToolLimits,
+    pub(crate) limits: ToolLimits,
 }
 
 /// What:

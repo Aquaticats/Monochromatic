@@ -39,12 +39,11 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::package_repair_cargo::{locked_clean_arguments, manual_command};
+use crate::package_repair_cargo::{CargoTool, locked_clean_arguments, manual_command};
+use crate::package_repair_cargo_clean_in_mirror::{MirrorClean, clean_in_a_mirror};
 /// The lock file the filling's report names,
 /// and the faces that read it and put the checked-out bytes back over a resolution's.
-use crate::package_repair_cargo_lock::{
-    LOCK_FILE, Placed, forget_what_a_placement_kept, place_the_resolution, put_back_what_a_killed_placement_left, read_lock, restore_only_the_cleans_own,
-};
+use crate::package_repair_cargo_lock::LOCK_FILE;
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE, decode};
 use crate::package_repair_prewarm_claim::{TheClaim, TheLease, claim_the_names};
@@ -339,15 +338,10 @@ fn give_back(names: &TheNames) {
             Err(error) => debug(TAG, format!("{} could not be removed after the filling ({error})", marker.display()).as_str()),
         }
     }
-    // The lease goes last, while this filling still holds it: a filling that takes the names after this point makes its own
-    //  lease file, so the name it finds gone is nobody's. A lease file that cannot be removed is a debug line only: the next
-    //  filling creates the name again and locks it.
-    if let Some(lease) = names.lease.as_ref()
-        && let Err(error) = std::fs::remove_file(lease.path())
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        debug(TAG, format!("{} could not be removed after the filling ({error})", lease.path().display()).as_str());
-    }
+    // The lease file stays where it is. Unlinking it while the lock is still held let two fillings hold "the lease" at once: a
+    //  taker that opened the name before the unlink locked the inode the name no longer pointed at, while a taker after it made a
+    //  fresh file and locked that, and both believed they held the names. The file holds no bytes of anybody's, one per build
+    //  directory, and the next holder locks it as it stands (`claim_the_names`).
 }
 
 /// What:
@@ -391,7 +385,7 @@ const LOCK_FLAG: &str = "--locked";
 /// ```ts
 /// const endReason = (end) => end.kind === 'failed' ? end.reason : end.kind === 'timedOut' ? 'it showed no sign of work for its quiet window and was stopped' : ceilingReason(Tool.cargo, end.ceiling);
 /// ```
-fn end_reason(end: &ToolEnd) -> String {
+pub(crate) fn end_reason(end: &ToolEnd) -> String {
     return match end {
         ToolEnd::Succeeded => String::from("it succeeded"),
         ToolEnd::Failed(reason) => reason.clone(),
@@ -447,191 +441,6 @@ async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> 
         ],
     };
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
-}
-
-/// The manifest a workspace is read from,
-/// which the mirror of a workspace copies rather than links.
-const MANIFEST_FILE: &str = "Cargo.toml";
-
-/// The directory under the Git directory that holds one resolution's mirror of one workspace.
-const RESOLUTIONS_DIRECTORY: &str = "monochromatic-git-policy-cli-lock-resolutions";
-
-/// What:
-///  The bytes Cargo resolves for a workspace whose `Cargo.lock` a `--locked` clean refused,
-///  made in a mirror of that workspace instead of in the worktree.
-/// Why:
-///   A `--locked` clean refuses a lock that no longer matches its manifest,
-/// and the resolution that makes it match is a write to `Cargo.lock`,
-/// which is the person's file:
-/// a write of theirs made at any moment before Cargo's own would be truncated by it,
-/// and no step taken from outside the writer can bring those bytes back.
-///  So the resolution is made where the person's file is not:
-/// a mirror of the workspace below the worktree root,
-/// whose directories on the way are this job's and whose every other entry is a link to the real one,
-/// with the workspace's manifest and lock copied into it.
-/// Cargo resolves the same manifests with the same lock bytes and writes `Cargo.lock` in the mirror,
-/// whether or not there is any to read,
-/// and the bytes placed in the worktree afterwards are the ones the workspace itself would have
-/// resolved (`place_the_resolution`).
-/// A mirror that cannot be made,
-/// a resolution that fails,
-/// and a resolution that writes no lock all answer an error,
-/// and the caller gives that workspace up rather than touch the person's file.
-///
-/// # Errors
-///
-/// No Git directory to keep a mirror under,
-/// a workspace outside the worktree,
-/// a mirror that cannot be made or read,
-/// and a Cargo that failed or wrote no lock.
-async fn resolve_the_workspace_elsewhere(fill: &Fill, entry: &PrewarmEntry) -> Result<Vec<u8>, String> {
-    let Some(kept_in) = fill.kept_in.as_ref() else {
-        return Err(format!(
-            "the {LOCK_FILE} of {} would have to be resolved, and no Git directory was named to resolve it outside the worktree",
-            entry.root.display()
-        ));
-    };
-    // The mirror is this filling's own: two fillings of one workspace never share it, so neither can remove the folder under
-    //  the other's Cargo (`a_name_of_this_filling`).
-    let root: PathBuf = the_resolutions_mirror_root(kept_in, entry.root.as_path()).join(fill.filling.as_str());
-    // A mirror a killed resolution left is this job's own, and it is rebuilt rather than trusted.
-    let _cleared = std::fs::remove_dir_all(root.as_path());
-    let mirrored: PathBuf = match mirror_the_workspace(fill.worktree.as_path(), entry.root.as_path(), root.as_path()) {
-        Ok(mirrored) => mirrored,
-        Err(reason) => {
-            let _abandoned = std::fs::remove_dir_all(root.as_path());
-            return Err(reason);
-        }
-    };
-    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
-    let command: ToolCommand = ToolCommand { arguments, directory: mirrored.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
-    // The mirror is this job's own, so a lock of it that cannot be read is a failure of this step and not a person's file:
-    //  the same answer as one that was never written.
-    let resolved: Option<Vec<u8>> = match read_lock(mirrored.as_path()) {
-        Ok(bytes) => bytes,
-        Err(reason) => {
-            let _mirror_cleared = std::fs::remove_dir_all(root.as_path());
-            return Err(format!("{reason}, so the workspace of {} was not resolved", entry.root.display()));
-        }
-    };
-    let _mirror_cleared = std::fs::remove_dir_all(root.as_path());
-    return match (run.end, resolved) {
-        (ToolEnd::Succeeded, Some(bytes)) => Ok(bytes),
-        (ToolEnd::Succeeded, None) => Err(format!("Cargo resolved the workspace of {} and wrote no {LOCK_FILE} in the mirror it was given", entry.root.display())),
-        (end, _) => Err(format!("the workspace of {} could not be resolved outside the worktree ({})", entry.root.display(), end_reason(&end))),
-    };
-}
-
-/// The most bytes of one workspace path's hexadecimal form that go into one directory name.
-/// Why:
-///   A file system refuses a name longer than 255 bytes,
-/// and a workspace path of ordinary depth is longer than that once it is written in hexadecimal,
-///  so the text is split into names that each fit and that read back as one path when they are joined.
-const NAME_BYTES: usize = 200;
-
-/// What:
-///  The directory under the Git directory that holds one workspace's resolution mirror.
-/// Why:
-///   The workspace's own path decides it,
-/// so two workspaces of one worktree never write over each other,
-/// and the path survives as bytes whatever the text encoding of a name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const root = chunk(hexOfPath(workspace), 200).reduce((path, piece) => join(path, piece), join(keptIn, RESOLUTIONS_DIRECTORY));
-/// ```
-/// What:
-///  This filling's own name,
-///  as its process and the moment it asked.
-/// Why:
-///   One mirror for one filling is what keeps two fillings of one workspace from deleting each other's folder while a Cargo
-/// runs in it,
-/// and a name no other filling has is proof enough that the folder is this one's to remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const aNameOfThisFilling = () => `${process.pid}-${nanos().toString(16)}`;
-/// ```
-fn a_name_of_this_filling() -> String {
-    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
-    return format!("{}-{:x}", std::process::id(), since_the_epoch.as_nanos());
-}
-
-fn the_resolutions_mirror_root(kept_in: &Path, workspace: &Path) -> PathBuf {
-    let hex: String = crate::path_bytes_in_records::hex_of_path(workspace);
-    let mut directory: PathBuf = kept_in.join(RESOLUTIONS_DIRECTORY);
-    for piece in hex.as_bytes().chunks(NAME_BYTES) {
-        directory = directory.join(String::from_utf8_lossy(piece).into_owned());
-    }
-    return directory;
-}
-
-/// What:
-///  Lay out a mirror of one workspace below a root of this job's own,
-///  and answer the mirror's own directory.
-/// Why:
-///   A path dependency is written relative to the manifest that names it,
-/// and workspaces of this repository climb out of their own root,
-/// so the mirror keeps the same place below the worktree root:
-/// every directory on the way is this job's and every other entry is a link to the real one.
-/// The workspace's own manifest and lock are copies,
-/// which is what makes Cargo write its resolution into the mirror.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mirrored = mirrorTheWorkspace(worktree, workspace, root); // links for every sibling, copies at the leaf
-/// ```
-fn mirror_the_workspace(worktree: &Path, workspace: &Path, root: &Path) -> Result<PathBuf, String> {
-    let Some(relative) = workspace.strip_prefix(worktree).ok() else {
-        return Err(format!("{} is not inside the worktree {}", workspace.display(), worktree.display()));
-    };
-    let steps: Vec<std::ffi::OsString> = relative.iter().map(std::ffi::OsStr::to_os_string).collect();
-    let mut real: PathBuf = worktree.to_path_buf();
-    let mut mirrored: PathBuf = root.to_path_buf();
-    for depth in 0..=steps.len() {
-        let leaf: bool = depth == steps.len();
-        if let Err(error) = std::fs::create_dir_all(mirrored.as_path()) {
-            return Err(format!("{} could not be made ({error})", mirrored.display()));
-        }
-        let listing = match std::fs::read_dir(real.as_path()) {
-            Ok(listing) => listing,
-            Err(error) => return Err(format!("{} could not be read ({error})", real.display())),
-        };
-        for entry in listing.flatten() {
-            let name: std::ffi::OsString = entry.file_name();
-            // The entry the mirror walks into is the directory this step made, and the leaf's manifest and lock are copies.
-            if !leaf && Some(name.as_os_str()) == Some(steps[depth].as_os_str()) {
-                continue;
-            }
-            if name == std::ffi::OsStr::new(".git") {
-                continue;
-            }
-            if leaf && (name == std::ffi::OsStr::new(MANIFEST_FILE) || name == std::ffi::OsStr::new(LOCK_FILE)) {
-                continue;
-            }
-            let named: PathBuf = mirrored.join(name.as_os_str());
-            if let Err(error) = std::os::unix::fs::symlink(entry.path(), named.as_path()) {
-                return Err(format!("{} could not be linked into the mirror ({error})", named.display()));
-            }
-        }
-        if leaf {
-            for name in [MANIFEST_FILE, LOCK_FILE] {
-                let from: PathBuf = real.join(name);
-                if !from.is_file() {
-                    continue;
-                }
-                let to: PathBuf = mirrored.join(name);
-                if let Err(error) = std::fs::copy(from.as_path(), to.as_path()) {
-                    return Err(format!("{} could not be copied into the mirror ({error})", to.display()));
-                }
-            }
-            break;
-        }
-        real = real.join(steps[depth].as_os_str());
-        mirrored = mirrored.join(steps[depth].as_os_str());
-    }
-    return Ok(mirrored);
 }
 
 /// What:
@@ -1171,92 +980,42 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
         let _removed = remove_if_any(names.staging.as_path());
         return Ok(Filled::Kept);
     }
-    // Cargo resolves the worktree's workspace for this clean even though it deletes only from directories of this job's
-    //  own, and that rewrites a `Cargo.lock` that no longer matches its manifest or creates one that is missing. This job
-    //  runs after the add returned, when the person may be working in the worktree, so the clean itself must never write
-    //  that lock (`--locked`): a lock it refuses is resolved by Cargo first, and the checked-out lock goes back only when
-    //  the file still holds exactly the bytes that resolution wrote (`package_repair_cargo_lock.rs`).
-    // A repair that was killed between placing a resolution and putting a person's bytes back left them at a kept name with a
-    //  note beside them; this is the next command that looks, so it puts them back when the lock still holds that resolution,
-    //  and names them otherwise.
-    if let Some(directory) = fill.kept_in.as_ref() {
-        for said in put_back_what_a_killed_placement_left(entry.root.as_path(), directory) {
-            debug(TAG, format!("{}: {said}", entry.root.display()).as_str());
-        }
-    }
-    let lock_before: Option<Vec<u8>> = match read_lock(entry.root.as_path()) {
-        Ok(bytes) => bytes,
-        // Something that is not a regular file stands at the lock's name. It is the person's, so it is not read, not
-        //  written over and not removed: this workspace gives way and says what stands there.
-        Err(reason) => {
-            let _removed = remove_if_any(names.staging.as_path());
-            return Err(format!(
-                "{reason}, so nothing of this workspace was cleaned and the copy of it was removed. {} Nothing was placed over that file \
-                 and nothing of it was removed.",
-                what_to_do_next(entry, LOCK_FILE),
-            ));
-        }
-    };
+    // The clean is given `--locked`, so it never writes the worktree's lock: a lock it refuses is what sends this step to a
+    // mirror of the workspace, where Cargo resolves and writes a lock of its own and the person's file is never written,
+    // renamed or exchanged. Nothing of theirs is displaced, so no kill can strand their bytes and nothing has to be put back.
     let mut run: ToolRun = clean_the_copy(fill, entry, names).await;
     if !matches!(run.end, ToolEnd::Succeeded) {
-        // A `--locked` clean refuses a lock that no longer matches its manifest, and making it match means writing that lock.
-        //  The resolution is made where the person's file is not, and its bytes are placed with a step that hands back whatever
-        //  stood there, so a write of theirs made at any moment before the placement is in this run's hands and not under it.
-        let resolution: Vec<u8> = match resolve_the_workspace_elsewhere(fill, entry).await {
-            Ok(bytes) => bytes,
+        run = match clean_in_a_mirror(MirrorClean {
+            tool: CargoTool { program: fill.cargo.clone(), limits: fill.limits },
+            worktree: fill.worktree.clone(),
+            workspace: entry.root.clone(),
+            members: entry.members.clone(),
+            build_directory: names.staging.clone(),
+            target_directory: names.target.clone(),
+            locked: true,
+            kept_in: fill.kept_in.clone(),
+            job: fill.filling.clone(),
+        })
+        .await
+        {
+            Ok(in_the_mirror) => in_the_mirror,
             Err(reason) => {
                 let _removed = remove_if_any(names.staging.as_path());
                 return Err(format!(
                     "{reason}, so nothing of this workspace was cleaned and the copy of it was removed. {} A write of yours to that file is \
-                     never replaced: one the repair meets while it resolves is handed back and the repair gives way.",
+                     never replaced: the resolution is made in a mirror of the workspace, so your file is never written.",
                     what_to_do_next(entry, LOCK_FILE),
                 ));
             }
         };
-        match place_the_resolution(entry.root.as_path(), &resolution, lock_before.as_deref(), fill.kept_in.as_deref()) {
-            Placed::Placed { displaced } => {
-                run = clean_the_copy(fill, entry, names).await;
-                match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), resolution.as_slice()) {
-                    None => {}
-                    Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
-                }
-                // The bytes the placement displaced are this filling's own copy of what stood at the lock. They go only when the lock holds
-                //  them again, which is what the restore does; anything else, a restore that could not write or a kill before it, leaves them
-                //  where they are, and the line names them rather than deleting a person's only copy.
-                if let Some(kept) = displaced.as_ref() {
-                    let back: bool = matches!(read_lock(entry.root.as_path()), Ok(Some(bytes)) if Some(bytes.as_slice()) == lock_before.as_deref());
-                    if back {
-                        forget_what_a_placement_kept(kept.as_path());
-                    } else {
-                        debug(
-                            TAG,
-                            format!(
-                                "{}: the bytes the resolution displaced are kept at {}, beside the lock the repair resolved",
-                                entry.root.display(),
-                                kept.display()
-                            )
-                            .as_str(),
-                        );
-                    }
-                }
-            }
-            Placed::GaveWay(reason) => {
-                let _removed = remove_if_any(names.staging.as_path());
-                return Err(format!(
-                    "{reason}, so nothing of this workspace was cleaned and the copy of it was removed. {} The repair gave way rather than \
-                     replace a write of yours: the file is exactly as you left it.",
-                    what_to_do_next(entry, LOCK_FILE),
-                ));
-            }
-        }
     }
     if !matches!(run.end, ToolEnd::Succeeded) {
         let _removed = remove_if_any(names.staging.as_path());
         let reason: String = end_reason(&run.end);
         return Err(format!(
             "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The clean itself \
-             never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved in a mirror of the workspace, and the resolution's \
-             bytes are placed with the step that hands back whatever stood there, so a write of yours is never replaced. {}",
+             never writes the worktree's {LOCK_FILE}: a lock it refuses is resolved in a mirror of the workspace, so a write of yours is never \
+             replaced and nothing of yours is moved. {}",
             entry.from.as_deref().unwrap_or(names.staging.as_path()).display(),
             what_to_do_next(entry, reason.as_str()),
         ));
@@ -1323,7 +1082,7 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
         limits: environment.limits(),
         kept_in: Some(item.git_dir.clone()),
         worktree: item.repository.clone(),
-        filling: a_name_of_this_filling(),
+        filling: crate::package_repair_workspace_mirror::a_name_of_this_job(),
     };
     let mut published: usize = 0;
     let mut kept: usize = 0;
