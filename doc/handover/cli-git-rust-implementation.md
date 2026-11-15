@@ -1559,6 +1559,95 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The removal guard goes back for three findings and has two held for the landed removal's branch; the review brief's coverage goes back for a placeholder taken as finished (2026-11-15T04:37:15-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **Removal refuses a worktree a process works in** (`f8509847f6`),
+  its seventh review,
+  ended 04:30:55,
+  23 of 23 files,
+  five things,
+  four of them by a script against the built wrapper.
+  - Reproduced:
+    on the subvolume route the last look comes before the deletion listing and the destroy follows with no look;
+    with the listing held and a nested worktree registered and edited meanwhile,
+    the removal returned 0 and the edit was gone,
+    and the removal's own log named the file as changed and then as deleted.
+  - Read:
+    on the plain forwarded route the wrapper recovers pending worktree copies after its last look and before Git.
+  - Reproduced:
+    a nested registration whose `gitdir` cannot be read is skipped,
+    and the removal deletes the nested edit.
+  - Reproduced:
+    an alias whose value is `!git worktree remove` goes past the guard,
+    which reads the caller's words.
+  - Reproduced:
+    the guard never asks about the target's own Git work;
+    an edit hidden by `--assume-unchanged` or `--skip-worktree`,
+    and a commit on a detached `HEAD` no reference names,
+    go with an unforced removal.
+- **Weighed**:
+  all five are real.
+  The first three are this branch's and go back to its author,
+  its tenth run:
+  the last look is the last thing the wrapper does before the destroy,
+  on every route;
+  what could not be read was not proved absent.
+- **The last two are held,
+  on purpose**.
+  The landed removal's branch
+  (`dfd6fab13e`,
+  in review)
+  carries exactly those two things:
+  one place that says which command an invocation is and where it runs,
+  aliases and `!` aliases included,
+  and the questions about a target's own hidden edits and stranded commits.
+  Two readings of an alias in one program would come to disagree.
+  So the order is:
+  the landed removal is reviewed and reaches `main` first;
+  then this branch merges it and sends its guard's questions through that one reading,
+  with this review's scripts for the two findings as the controls.
+  The author is told so and asked to say where its guard takes the words it decides on.
+  **Integration pass 41 as briefed is superseded by this order**:
+  its brief names the removal guard at an older tip,
+  and a new brief is written when the landed removal's review is in.
+- **The review brief's coverage check** (`bfe448b896`),
+  its second review,
+  ended 04:32:14,
+  15 of 15 files;
+  the first review's six things are answered.
+  Two new ones reproduced:
+  a `review.md` that a reviewer wrote early and marked as unfinished is accepted as a completed review once the reviewer is killed;
+  and a review already written that does not cover its change is skipped by the starter,
+  which then answers 0 where the save command answers 1.
+  Both worth their fix.
+  One thing decides the first:
+  every agent's report in this repository is marked "not final and not approved",
+  finished reviews included,
+  so that marking cannot be what tells a placeholder from a finished review.
+  The author is asked for a line of its own with fixed words for "this review's runs are still going" and one for "complete",
+  given by the brief's template and read by the check
+  (`~/temp/agent/pi-runs/review-brief-coverage-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued sixth,
+  its third run).
+  This session's hand-written briefs have asked reviewers for such an early file since 02:23;
+  until the branch is in `main`,
+  each review's first lines are read by hand,
+  as before.
+- Read at 04:35:33:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:30;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  Neither resumed session is named by the credential scan.
+  The queue held 81 entries at 04:37:15.
+
 ##### The commit-service fix is reviewed clean and starts integration pass 51; the address-space controls and the lock-holders folder are answered and go to review (2026-11-15T04:31:37-05:00)
 
 Not final and not approved:
