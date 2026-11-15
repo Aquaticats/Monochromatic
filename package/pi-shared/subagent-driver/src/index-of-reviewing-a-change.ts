@@ -12,12 +12,20 @@ export {
   type ReviewReading,
   ReviewReadingError,
   codeFilesAmong,
+  filesOfAnUnlistedKindAmong,
   materialOfAReview,
   outputOfGit,
   rangeOfABranch,
   readingIn,
   testsAndFixturesAmong,
 } from './material-of-a-review.ts';
+export {
+  CODE_FILE_EXTENSIONS,
+  LEFT_OUT_FILE_EXTENSIONS,
+  type WhatAReviewDoesWithAFile,
+  extensionOfAPath,
+  whatAReviewDoesWithAFile,
+} from './which-files-a-review-reads.ts';
 export {
   CHANGE_DIFF_FILE_NAME,
   DEFAULT_REVIEWS_FOLDER_IN_HOME,
@@ -82,7 +90,10 @@ export {
   retryWordsOfAReview,
   startReviews,
 } from './reviews-of-finished-branches.ts';
-export { writeReviewBrief, } from './writing-a-review-brief.ts';
+export {
+  sentenceOfFilesOfAnUnlistedKind,
+  writeReviewBrief,
+} from './writing-a-review-brief.ts';
 export {
   keepFailedOutput,
   reportOnStandardError,

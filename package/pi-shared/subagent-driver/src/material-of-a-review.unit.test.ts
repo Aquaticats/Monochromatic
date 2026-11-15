@@ -1,6 +1,6 @@
 /**
  What a review of a change reads: the range that names what changed, the diff of it under the reviewed source folder, and the
- code files a reviewer is given. Every git answer here is handed in by the test, so no checkout, worktree or process is involved.
+ files a reviewer is given. Every git answer here is handed in by the test, so no checkout, worktree or process is involved.
 
  @module
  */
@@ -12,6 +12,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   type CommandOutput,
+  CODE_FILE_EXTENSIONS,
+  LEFT_OUT_FILE_EXTENSIONS,
   type ReviewMaterial,
   ReviewGitError,
   codeFilesAmong,
@@ -153,31 +155,39 @@ function aFixturePath(): string {
 }
 
 /**
- A source file whose language a review does not read: the shim package's own `.cjs` implementation.
+ The shim package's own CommonJS source and the type file beside it, which a review reads because both extensions are code: the
+ change of `7ec2fd422d` held these, their test and their note, and a range that changed them was once answered "nothing to
+ review".
 
- @returns the path, from the top of the checkout
+ @returns their paths, from the top of the checkout
 
  @example
  ```ts
- const source = aSourceFileNoReviewReads();
+ const files = shimSourceAndItsTypes();
  ```
  */
-function aSourceFileNoReviewReads(): string {
-  return `${aSourceFolder()}/index.cjs`;
+function shimSourceAndItsTypes(): readonly string[] {
+  return [
+    `${aSourceFolder()}/index.cjs`,
+    `${aSourceFolder()}/index.d.cts`,
+  ];
 }
 
 /**
- The type file beside that source, which a review does not read either.
+ The source files of extensions in neither list of the files a review reads.
 
- @returns the path, from the top of the checkout
+ @returns their paths, from the top of the checkout
 
  @example
  ```ts
- const types = aTypeFileNoReviewReads();
+ const files = filesOfAnUnlistedKind();
  ```
  */
-function aTypeFileNoReviewReads(): string {
-  return `${aSourceFolder()}/index.d.cts`;
+function filesOfAnUnlistedKind(): readonly string[] {
+  return [
+    `${aSourceFolder()}/thing.zig`,
+    `${aSourceFolder()}/other.zig`,
+  ];
 }
 
 /**
@@ -389,9 +399,46 @@ await describe({
           },
         },),
         it({
-          name: 'leaves a source file whose language a review does not read out of both lists, so a change of one is never named as something to read',
+          name: 'keeps a `.cjs` source and its `.d.cts` types out of the tests list, because both are the code of a change and not the tests beside it',
           fn: async () => {
-            expect(testsAndFixturesAmong({ paths: [aSourceFileNoReviewReads(), aTypeFileNoReviewReads(),], },),).toEqual([],);
+            expect(testsAndFixturesAmong({ paths: [...shimSourceAndItsTypes(), aTestFilePath(),], },),).toEqual([aTestFilePath(),],);
+          },
+        },),
+        it({
+          name: 'keeps the files of a kind no list names among the files a review reads, because a review reads them as code rather than drop them',
+          fn: async () => {
+            expect(codeFilesAmong({ paths: [...filesOfAnUnlistedKind(), aTestFilePath(),], },),).toEqual(filesOfAnUnlistedKind(),);
+          },
+        },),
+        it({
+          name: 'keeps one changed file of every code extension this repository tracks, so no language it is written in is dropped from a review',
+          fn: async () => {
+            /**
+             One path per code extension, named the way a file of it is named here.
+             */
+            const paths = [...CODE_FILE_EXTENSIONS].map(function aPathOfTheExtension(extension,) {
+              return `${aSourceFolder()}/a-file${extension}`;
+            },);
+            expect(codeFilesAmong({ paths, },),).toEqual(paths,);
+          },
+        },),
+        it({
+          name: 'leaves one changed file of every left-out extension out of the files a review reads, so a note, a data file, generated output and a picture are never read as the code of a change',
+          fn: async () => {
+            /**
+             One path per left-out extension, named the way a file of it is named here. The two container-file endings are left out
+             of this list because a path that ends with one is a build decision by name, whatever the rest of its name says, and
+             the test above covers that reading.
+             */
+            const paths = [...LEFT_OUT_FILE_EXTENSIONS]
+              .filter(function isNoBuildFileNameEnding(extension,) {
+                return (!extension.endsWith('.Containerfile',)) && (!extension.endsWith('.Dockerfile',));
+              },)
+              .map(function aPathOfTheExtension(extension,) {
+                return `${aSourceFolder()}/a-file${extension}`;
+              },);
+            expect(paths.length,).toBeGreaterThan(0,);
+            expect(codeFilesAmong({ paths, },),).toEqual([],);
           },
         },),
       ],
@@ -557,29 +604,75 @@ await describe({
           },
         },),
         it({
-          name: 'answers nothing for a change of a source file whose language a review does not read beside its test, because a review of the test alone would leave that source unread',
+          name: 'reads a change of a `.cjs` source and its `.d.cts` types beside their test and their note as code, which is the change of `7ec2fd422d` that a range names and that was once answered "nothing to review"',
           fn: async () => {
-            expect((await materialOfAReview({
-              git: gitTouching({
-                paths: [aSourceFileNoReviewReads(), aTypeFileNoReviewReads(), `${aSourceFolder()}/index.unit.test.ts`,],
-              },),
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [...shimSourceAndItsTypes(), `${aSourceFolder()}/index.unit.test.ts`, aNotePath(),], },),
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).kind,).toBe('nothing-a-review-reads',);
+            },);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            expect(codeFilesOf(material,),).toEqual(shimSourceAndItsTypes(),);
           },
         },),
         it({
-          name: 'answers nothing for a range that changes nothing under the source folder, so no review is started for it',
+          name: 'names the files of a kind no list names beside the files to read, so the line the writer prints can say a kind it does not know was read as code',
           fn: async () => {
-            expect((await materialOfAReview({
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [...filesOfAnUnlistedKind(), `${aSourceFolder()}/gate.rs`,], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            expect((material.kind === 'code-and-build-decisions') ? material.filesOfAnUnlistedKind : [],)
+              .toEqual(filesOfAnUnlistedKind(),);
+          },
+        },),
+        it({
+          name: 'answers nothing for a range that changes nothing under the source folder, with words that say the ranges change no file there, so no review is started for it',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
               git: gitTouching({ paths: [], },),
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).kind,).toBe('nothing-a-review-reads',);
+            },);
+            expect(material.kind,).toBe('nothing-a-review-reads',);
+            expect((material.kind === 'nothing-a-review-reads') ? material.whyNothingIsRead : '',)
+              .toBe(`it changes no file under ${aSourceFolder()}`,);
+          },
+        },),
+        it({
+          name: 'answers nothing for a change of a note alone, with words that name the note and the rule a review reads a change by, so a refusal says why',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [aNotePath(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('nothing-a-review-reads',);
+            expect((material.kind === 'nothing-a-review-reads') ? material.whyNothingIsRead : '')
+              .toBe('a review reads the code of a change, the files that decide its build, or its tests and fixtures alone, '
+                + `and it changes \`${aNotePath()}\``,);
           },
         },),
         it({

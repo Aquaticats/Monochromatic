@@ -1,7 +1,7 @@
 /**
  The writer of review briefs against disposable folders: a change of tests and fixtures alone gets a brief that lists each
- changed test and asks for a break planted under it, a change of code is described as it always was, and a range that changes
- nothing a review reads is refused with words that say so.
+ changed test and asks for a break planted under it, a change of code is described as it was, a range that changes nothing a
+ review reads is refused with words that say why, and a file of a kind no list names is read as code and named in the line.
 
  Every git answer here is handed in by the test, so no checkout or worktree is involved, and every folder is one the test made and
  throws away. Nothing starts a run.
@@ -130,19 +130,52 @@ function aFixtureFile(): string {
 }
 
 /**
- The shim package's own source and type file, whose language a review does not read.
+ The shim package's own CommonJS source and the type file beside it, which a review reads because both extensions are code: the
+ change of `7ec2fd422d` held these, their test and their note, and was answered "nothing to review" before the extensions were
+ measured.
 
  @returns their paths, from the top of the checkout
 
  @example
  ```ts
- const source = sourceFilesNoReviewReads();
+ const files = shimSourceAndItsTypes();
  ```
  */
-function sourceFilesNoReviewReads(): readonly string[] {
+function shimSourceAndItsTypes(): readonly string[] {
   return [
     `${aSourceFolder()}/index.cjs`,
     `${aSourceFolder()}/index.d.cts`,
+  ];
+}
+
+/**
+ The note beside the code, which a review reads no part of.
+
+ @returns the file's path, from the top of the checkout
+
+ @example
+ ```ts
+ const note = aNoteFile();
+ ```
+ */
+function aNoteFile(): string {
+  return `${aSourceFolder()}/README.md`;
+}
+
+/**
+ The source files of extensions in neither list of the files a review reads, which a review reads as code rather than drop.
+
+ @returns their paths, from the top of the checkout
+
+ @example
+ ```ts
+ const files = filesOfAnUnlistedKind();
+ ```
+ */
+function filesOfAnUnlistedKind(): readonly string[] {
+  return [
+    `${aSourceFolder()}/thing.zig`,
+    `${aSourceFolder()}/other.zig`,
   ];
 }
 
@@ -335,12 +368,12 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a range that changes nothing under the source folder, in words that say so and never say tests, and writes no brief',
+          name: 'refuses a range that changes nothing under the source folder, in words that say the ranges change no file there and never say tests, and writes no brief',
           fn: async () => {
             await using written = await writeAChangeThrough([],);
             expect(written.briefed,).toEqual({
               written: false,
-              line: `nothing to review under ${aSourceFolder()} in ${aRange()}`,
+              line: `nothing to review under ${aSourceFolder()} in ${aRange()}: it changes no file under ${aSourceFolder()}`,
             },);
             expect(written.briefed.line.toLowerCase(),).not.toContain('test',);
             /**
@@ -354,13 +387,73 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a change of a source file whose language a review does not read beside its test, because a brief of the test alone would hide the change itself',
+          name: 'refuses a change of a note alone, in words that name the note and say what a review does read, so a refusal no longer reads as an empty review',
           fn: async () => {
-            await using written = await writeAChangeThrough([...sourceFilesNoReviewReads(), aTestFile(),],);
-            expect(written.briefed,).toEqual({
-              written: false,
-              line: `nothing to review under ${aSourceFolder()} in ${aRange()}`,
-            },);
+            await using written = await writeAChangeThrough([aNoteFile(),],);
+            expect(written.briefed.written,).toBe(false,);
+            expect(written.briefed.line,).toBe(
+              `nothing to review under ${aSourceFolder()} in ${aRange()}: a review reads the code of a change, the files that `
+                + `decide its build, or its tests and fixtures alone, and it changes \`${aNoteFile()}\``,
+            );
+          },
+        },),
+        it({
+          name: 'refuses a change of a note beside a test, naming both, because a review of that test alone would leave the note and its own change unread',
+          fn: async () => {
+            await using written = await writeAChangeThrough([aNoteFile(), aTestFile(),],);
+            expect(written.briefed.line,).toContain(`\`${aNoteFile()}\``,);
+            expect(written.briefed.line,).toContain(`\`${aTestFile()}\``,);
+          },
+        },),
+        it({
+          name: 'writes a brief that names a shim\'s `.cjs` source and its `.d.cts` types beside their test, which a range that changes them was once answered "nothing to review" for',
+          fn: async () => {
+            await using written = await writeAChangeThrough([...shimSourceAndItsTypes(), aTestFile(), aNoteFile(),],);
+            expect(written.briefed.written,).toBe(true,);
+            expect(written.briefed.line,).toContain('2 files to read',);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: written.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            for (const file of shimSourceAndItsTypes()) {
+              expect(brief,).toContain(`- \`${file}\``,);
+            }
+            expect(brief,).not.toContain(`- \`${aTestFile()}\``,);
+            expect(written.briefed.line,).not.toContain('no list of this writer',);
+          },
+        },),
+        it({
+          name: 'reads and names the files of a kind no list of its own names, saying in the line it prints that they are read as code and where their extensions belong, so no kind is dropped silently',
+          fn: async () => {
+            await using written = await writeAChangeThrough(filesOfAnUnlistedKind(),);
+            expect(written.briefed.written,).toBe(true,);
+            expect(written.briefed.line,).toContain('2 files to read',);
+            expect(written.briefed.line,).toContain(
+              `are read as code: ${filesOfAnUnlistedKind().map(function inBackticks(path,) {
+                return `\`${path}\``;
+              },)
+                .join(', ',)}`,
+            );
+            expect(written.briefed.line,).toContain('src/which-files-a-review-reads.ts',);
+            /**
+             The brief the writer wrote, which names those files among the files to read.
+             */
+            const brief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: written.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            for (const file of filesOfAnUnlistedKind()) {
+              expect(brief,).toContain(`- \`${file}\``,);
+            }
           },
         },),
       ],

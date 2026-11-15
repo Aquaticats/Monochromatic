@@ -563,7 +563,8 @@ review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/b
 What the reviewer reads depends on what the ranges changed under the source folder.
 
 A range that holds code or a build decision is reviewed as the change itself.
-The files are the `.rs` and `.ts` code the ranges touched,
+The files are the code the ranges touched,
+in every language this repository is written in or renders,
 and the manifests and tool configurations that decide how that code is built,
 checked or run,
 such as `Cargo.toml`,
@@ -573,8 +574,33 @@ such as `Cargo.toml`,
 `nextest.toml`,
 and `Containerfile`,
 without their tests and test stand-ins,
-without a lockfile or another file a tool writes and nobody reads whole,
+without a note, a data file, what a tool wrote, a picture, a sound or a font,
+which a review cannot judge as the change,
 and without a file the reviewed commit does not hold.
+
+Which extension is code is not guessed from one package's folders.
+The two lists in `src/which-files-a-review-reads.ts` were measured against what this repository tracks:
+on 2026-11-14 `git ls-files` named 23845 files in 89 extensions,
+16053 of them code in 24 extensions
+(`.ts`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.js`, `.rs`, `.kt`, `.kts`, `.slint`, `.qml`,
+`.html`, `.css`, `.xml`, `.c`, `.cpp`, `.sh`, `.ps1`, `.bat`, `.sql`, `.hbs`, `.pro`, `.tf` and `.spvasm`),
+and 7792 left out in 64,
+with each group's kind named beside its list.
+That is why a change of a shim's `index.cjs` and `index.d.cts` is reviewed:
+neither extension is a language a review was believed to read,
+and a range that changed them, their test and their note was answered `nothing to review` on 2026-11-14.
+
+An extension in neither list is a kind this writer does not know.
+A review reads such a file as code rather than drop it,
+listing it among the files to read,
+and the line the command prints names it and says where its extension belongs in those lists:
+
+```text
+review-a-change: 2 files to read, brief at <reviews>/a-change/brief.md; its worktree starts at abc1234. Its folder is <reviews>/a-change. Files of a kind no list of this writer names are read as code: package/a/src/thing.zig. Those extensions belong in `src/which-files-a-review-reads.ts`, so the next change of one is named there.
+```
+
+A file of an unlisted extension that the test rule below claims is read as a test instead,
+and the brief says the change is to tests.
 
 A range whose change is tests and fixtures alone has no code to judge,
 so the reviewer reads those files instead:
@@ -591,17 +617,23 @@ the test run by name,
 and whether it fails.
 A test that still passes with the break in is a finding.
 
-A change that leaves neither under the source folder,
+A change that leaves nothing to read under the source folder,
 which is a change of notes alone,
 of a lockfile,
-or of a language no review reads such as a `.cjs` file,
+of pictures alone,
+or of nothing at all,
 writes nothing,
-prints `nothing to review under <source> in <ranges>`,
+prints one line,
 and exits `1`:
 a reviewer given no file reports nothing,
 which reads as a clean review although nothing was reviewed.
-A change of a `.cjs` source and its test is answered so too:
-a review of the test alone would leave the change itself unread.
+The line says why nothing is read:
+that the ranges change no file under the source folder,
+or which files they changed and the rule a review reads a change by:
+
+```text
+nothing to review under <source> in <ranges>: a review reads the code of a change, the files that decide its build, or its tests and fixtures alone, and it changes <path>
+```
 
 ### `start-reviews-of-finished-branches`
 
