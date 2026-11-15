@@ -1530,6 +1530,76 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The long-runtime-directory controls go back to their author: one still fails by the width of a process number, and two let a one-byte change through (2026-11-15T03:30:00-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The long-runtime-directory controls** (`a7f7bfd1df`,
+  tests,
+  their shared support and the image's file list;
+  the brief written by hand),
+  their review,
+  ended 03:24:29,
+  eight of eight files.
+  It built the source in a folder of its own and ran 26 named controls in four arrangements:
+  a home of two characters and of two hundred,
+  a process number of two digits and of seven,
+  inside a process-number namespace.
+  All 26 passed in three of the four;
+  three of five planted one-byte changes were caught;
+  two controls at once chose separate folders;
+  with every candidate folder too long the controls said so plainly.
+  Three things reproduced:
+  - with a home of 200 characters and process number 10,
+    the link the linked-spelling control makes comes to exactly 107 bytes with the socket's suffix,
+    a path address,
+    while the directory itself is abstract,
+    so the control fails;
+    with a seven-digit process number it passes;
+  - the control of the parent's choice never tries a limit equal to the first choice,
+    so `>` changed to `>=` passes;
+  - the control of the folder's name reads the name's length and not its bytes,
+    so `>=` changed to `>` passes.
+- **Weighed**:
+  all three worth their fix.
+  The first is the requirement the branch exists for,
+  one path further in than the change reached.
+  The author is resumed,
+  its second run,
+  asked to list every path whose side of the socket limit a control depends on and to fix each there,
+  and to test every comparison of the helpers at its boundary by what the result is
+  (`~/temp/agent/pi-runs/long-runtime-directory-controls-answer-their-review-of-2026-11-15-prompt.md`,
+  queued second).
+  Five of the gate's standing failures wait on this branch.
+- **Noticed by the review and not entered as findings**,
+  given to the author to weigh:
+  two binary controls outside the range also fail with a 200-character home;
+  the changed controls leave their empty per-process parent folder behind.
+  The review also says its first Cargo launches wrote build output outside its own folder,
+  into the machine's shared build directory,
+  before it set both target variables;
+  it did not walk or delete that directory.
+- **The review's folder holds 6,953 MiB**,
+  of which 4,727 MiB are its two build trees
+  (`mutation-target`,
+  `isolated-test-target`).
+  They are kept for now,
+  because the author's first step runs the review's reproductions against those built binaries;
+  they are deleted once the author's answer is in.
+  The drive that holds the scratch root had 1,997 GiB free of 3,727 at 03:30.
+- Read at 03:29:07:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 03:11;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The resumed session is not named by the credential scan.
+  The queue held 81 entries at 03:30:00.
+
 ##### The push of a branch that is not checked out goes back to its author: its new record can keep a stale worktree stale, and a commit there reverses a published merge (2026-11-15T03:12:30-05:00)
 
 Not final and not approved:
