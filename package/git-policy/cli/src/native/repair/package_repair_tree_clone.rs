@@ -73,7 +73,7 @@ async fn run_a_clone_step<S: Clone + Send + 'static, T: Send + 'static>(places: 
         //  inert unless the fixture's service was started naming it, and a clone a person waits for never asks for it.
         PlacesOfAClone::SlowWork => {
             crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::INSIDE_A_CLONE_STEP);
-            run_a_slow_job_or_no_place(state, work).await
+            run_a_slow_job_or_no_place("a build directory being cloned", state, work).await
         }
     };
 }

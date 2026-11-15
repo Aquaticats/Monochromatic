@@ -589,7 +589,8 @@ pub enum EmptiedTrash {
 /// ```
 pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest, ceiling: Duration) -> EmptiedTrash {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
-    let opened_trash: Option<HeldTrash> = match run_a_slow_job_or_no_place(opened, prepare_trash_removal).await {
+    let preparing: String = format!("the trash {} being prepared", manifest.name);
+    let opened_trash: Option<HeldTrash> = match run_a_slow_job_or_no_place(preparing.as_str(), opened, prepare_trash_removal).await {
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
         Ok(Err(reason)) => return EmptiedTrash::Kept(TrashLeft::kept(reason)),
@@ -597,9 +598,10 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         //  queued again for a later look and nothing of it failed.
         Err(BlockingJobError::NoPlaceWithinTheCeiling) => {
             return EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
-                "the directories of the trash {} were not examined, because no place of slow work came within {:?}",
+                "the directories of the trash {} were not examined, because no place of slow work came within {:?}; {} holds the places of slow work",
                 manifest.name,
-                crate::wait_ceilings::PLACE_WAIT_CEILING
+                crate::wait_ceilings::PLACE_WAIT_CEILING,
+                crate::blocking_jobs_within_the_budget::the_slow_places_that_are_held()
             )));
         }
         // Nothing was opened and nothing was removed, and the reason the system gave is why.
@@ -631,7 +633,9 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     //  and a pass over a manifest of many entries is work a worker must not do either.
     //  A listing that gets no place or no answer removes nothing and answers that it is tried again.
     let entries_named: Vec<std::ffi::OsString> = (0..manifest.entries.len()).map(|index| { return std::ffi::OsString::from(entry_name(index)); }).collect();
+    let listing: String = format!("the entries of the trash {} being listed", manifest.name);
     let still_there: Vec<bool> = match crate::blocking_jobs_within_the_budget::run_a_slow_job_once_awaited_no_longer_than(
+        listing.as_str(),
         crate::wait_ceilings::TRASH_LISTING_CEILING,
         (Arc::clone(&held.trash), entries_named),
         which_entries_are_still_there,
@@ -713,9 +717,10 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         if without_a_place > 0 {
             // No place came for these entries, so nothing of them was examined: the item is queued again for a later look.
             return EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
-                "{without_a_place} entries of the trash {} were not examined, because no place of slow work came within {:?}",
+                "{without_a_place} entries of the trash {} were not examined, because no place of slow work came within {:?}; {} holds the places of slow work",
                 manifest.name,
-                crate::wait_ceilings::PLACE_WAIT_CEILING
+                crate::wait_ceilings::PLACE_WAIT_CEILING,
+                crate::blocking_jobs_within_the_budget::the_slow_places_that_are_held()
             )));
         }
         removed += gone;
@@ -726,15 +731,17 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
             return EmptiedTrash::Kept(TrashLeft::kept(left_behind.join("; ")));
         }
     }
-    return match run_a_slow_job_or_no_place(held, settle_trash_removal).await {
+    let settling: String = format!("the trash {} being settled", manifest.name);
+    return match run_a_slow_job_or_no_place(settling.as_str(), held, settle_trash_removal).await {
         Ok(Ok(())) => EmptiedTrash::Emptied,
         Ok(Err(left)) => EmptiedTrash::Kept(left),
         // No place of slow work came within the ceiling, so the directory was not settled: the entries are gone and the item
         //  is queued again for a later look, which settles it.
         Err(BlockingJobError::NoPlaceWithinTheCeiling) => EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
-            "the entries of the trash {} are gone and its directory was not settled, because no place of slow work came within {:?}",
+            "the entries of the trash {} are gone and its directory was not settled, because no place of slow work came within {:?}; {} holds the places of slow work",
             manifest.name,
-            crate::wait_ceilings::PLACE_WAIT_CEILING
+            crate::wait_ceilings::PLACE_WAIT_CEILING,
+            crate::blocking_jobs_within_the_budget::the_slow_places_that_are_held()
         ))),
         // The entries are gone and the directory above them stays, which the words say.
         Err(refused) => EmptiedTrash::Kept(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),

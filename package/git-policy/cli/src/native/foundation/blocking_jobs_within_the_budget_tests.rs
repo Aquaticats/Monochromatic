@@ -380,7 +380,7 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
         (semaphore, taken)
     };
     let held: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(taken);
-    let will_not_run: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &never, &held);
+    let will_not_run: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &never, &held, None);
     assert_eq!(will_not_run, BlockingJobError::NoThreadToStart);
     let said: String = will_not_run.to_string();
     assert!(said.contains("will not run"), "the step cannot run, and the message says so: {said}");
@@ -396,7 +396,7 @@ fn a_refused_thread_start_says_whether_the_step_will_run_or_already_has() {
         (semaphore, other_taken)
     };
     let other: Arc<crate::the_place_of_one_blocking_job::ThePlaceOfOneJob> = crate::the_place_of_one_blocking_job::ThePlaceOfOneJob::holding(other_taken);
-    let started: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &would_run, &other);
+    let started: BlockingJobError = a_refused_thread_start(BlockingJobError::MayStillRunAfterItsThreadWasRefused, &would_run, &other, None);
     assert_eq!(started, BlockingJobError::StartedAfterItsThreadWasRefused);
     let started_text: String = started.to_string();
     assert!(started_text.contains("has started"), "the job started on another thread, and the message says so: {started_text}");
@@ -549,7 +549,7 @@ fn a_slow_job_whose_waiter_was_dropped_keeps_the_place_of_slow_work() {
     let (release, held) = std::sync::mpsc::channel::<()>();
     let held_until_released: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(held));
     let first: tokio::task::JoinHandle<Result<(), BlockingJobError>> = crate::lazy_runtime::spawn_on_runtime(async move {
-        return run_a_slow_job_within_the_budget(move || {
+        return run_a_slow_job_within_the_budget("a control's slow job", move || {
             let _said = told.send(());
             let _ = held_until_released.lock().expect("the control's release").recv();
         })
@@ -562,7 +562,7 @@ fn a_slow_job_whose_waiter_was_dropped_keeps_the_place_of_slow_work() {
     let started: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let told_started: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&started);
     let second: tokio::task::JoinHandle<Result<(), BlockingJobError>> = crate::lazy_runtime::spawn_on_runtime(async move {
-        return run_a_slow_job_within_the_budget(move || {
+        return run_a_slow_job_within_the_budget("a control's slow job", move || {
             told_started.store(true, Ordering::SeqCst);
         })
         .await;

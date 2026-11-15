@@ -371,6 +371,66 @@ where
 /// made by the first slow job that needs one.
 static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
 
+/// What holds each place of slow work now, and since when:
+/// the number that identifies the entry, the operation's words, and the instant it took the place.
+static THE_SLOW_PLACES_HELD: OnceLock<std::sync::Mutex<Vec<(u64, String, std::time::Instant)>>> = OnceLock::new();
+
+/// The number the next place of slow work is registered under.
+static THE_NEXT_SLOW_PLACE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// What:
+///  Record that one place of slow work is taken,
+///  by the operation `name` says and from now.
+/// Why:
+///   A look that finds no place of slow work must tell the journal which operation holds them and since when,
+///  and a caller whose look was dropped cannot say it: the place belongs to the job (`ThePlaceOfOneJob`).
+/// The entry is taken away when the place goes back (`forget_a_slow_place`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = noteASlowPlace('the trash abc being prepared'); // { number, name, since }
+/// ```
+pub(crate) fn note_a_slow_place(name: &str) -> crate::the_place_of_one_blocking_job::TheSlowPlaceHeld {
+    let number: u64 = THE_NEXT_SLOW_PLACE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let register = THE_SLOW_PLACES_HELD.get_or_init(|| { return std::sync::Mutex::new(Vec::new()); });
+    register.lock().expect("the places of slow work held").push((number, String::from(name), std::time::Instant::now()));
+    return crate::the_place_of_one_blocking_job::TheSlowPlaceHeld { number, name: String::from(name), since: std::time::Instant::now() };
+}
+
+/// Take the entry of one place of slow work away, because that place went back.
+pub(crate) fn forget_a_slow_place(number: u64) {
+    let Some(register) = THE_SLOW_PLACES_HELD.get() else { return };
+    register.lock().expect("the places of slow work held").retain(|entry| { return entry.0 != number; });
+}
+
+/// What:
+///  The words saying which operations hold the places of slow work now,
+///  and for how long each has held one.
+/// Why:
+///   A trash whose look found no place of slow work is left for a later look,
+///  and the person reading the journal must know what holds the places:
+/// a storage operation that never came back holds them for good, which is the limit doing its work.
+///  Nothing of this is read on a path that has a place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theSlowPlacesThatAreHeld(); // 'the trash abc being prepared, for 132 s; nothing else'
+/// ```
+pub fn the_slow_places_that_are_held() -> String {
+    let Some(register) = THE_SLOW_PLACES_HELD.get() else { return String::from("no place of slow work is held") };
+    let held: std::sync::MutexGuard<'_, Vec<(u64, String, std::time::Instant)>> = register.lock().expect("the places of slow work held");
+    if held.is_empty() {
+        return String::from("no place of slow work is held");
+    }
+    let mut said: Vec<String> = Vec::new();
+    for (_number, name, since) in held.iter() {
+        let mut words: String = name.clone();
+        words.push_str(format!(", for {} s", since.elapsed().as_secs()).as_str());
+        said.push(words);
+    }
+    return said.join("; ");
+}
+
 /// How many of the process's places stay free of slow work:
 /// 2.
 /// Why:
@@ -450,12 +510,12 @@ fn the_places_slow_work_may_take() -> Arc<Semaphore> {
 /// ```ts
 /// const slow = await slowPlaces.acquire(); try { return await runBlockingJobWithinTheBudget(job); } finally { slow.release(); }
 /// ```
-pub async fn run_a_slow_job_within_the_budget<T, J>(job: J) -> Result<T, BlockingJobError>
+pub async fn run_a_slow_job_within_the_budget<T, J>(name: &str, job: J) -> Result<T, BlockingJobError>
 where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
-    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(crate::wait_ceilings::PLACE_WAIT_CEILING).await {
+    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(crate::wait_ceilings::PLACE_WAIT_CEILING, name).await {
         Ok(taken) => taken,
         Err(no_place) => return Err(no_place),
     };
@@ -475,7 +535,7 @@ where
 /// ```ts
 /// const slow = await within(ceiling, slowPlaces.acquire()); // thePlaceOfOneJob(slow)
 /// ```
-async fn take_a_place_of_slow_work(ceiling: Duration) -> Result<Arc<ThePlaceOfOneJob>, BlockingJobError> {
+async fn take_a_place_of_slow_work(ceiling: Duration, name: &str) -> Result<Arc<ThePlaceOfOneJob>, BlockingJobError> {
     let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(slow_places()).acquire_owned()).await {
         Ok(Ok(taken)) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
@@ -483,7 +543,7 @@ async fn take_a_place_of_slow_work(ceiling: Duration) -> Result<Arc<ThePlaceOfOn
         // No place came within the ceiling, so nothing ran.
         Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
     };
-    return Ok(ThePlaceOfOneJob::holding(slow));
+    return Ok(ThePlaceOfOneJob::holding_a_named_place(slow, name));
 }
 
 /// What:
@@ -499,8 +559,8 @@ async fn take_a_place_of_slow_work(ceiling: Duration) -> Result<Arc<ThePlaceOfOn
 /// ```ts
 /// const slow = await slowPlaces.acquire(PLACE_WAIT_CEILING); try { return await runAJobOrNoPlace(state, work); } finally { slow.release(); }
 /// ```
-pub async fn run_a_slow_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
-    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(crate::wait_ceilings::PLACE_WAIT_CEILING).await {
+pub async fn run_a_slow_job_or_no_place<S: Send + 'static, T: Send + 'static>(name: &str, state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(crate::wait_ceilings::PLACE_WAIT_CEILING, name).await {
         Ok(taken) => taken,
         Err(no_place) => return Err(no_place),
     };
@@ -675,8 +735,8 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 /// ```ts
 /// const answer = await runASlowJobOnceAwaitedNoLongerThan(ceiling, state, work); // { ran } | noPlace | noAnswer
 /// ```
-pub async fn run_a_slow_job_once_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
-    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(ceiling).await {
+pub async fn run_a_slow_job_once_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(name: &str, ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
+    let slow: Arc<ThePlaceOfOneJob> = match take_a_place_of_slow_work(ceiling, name).await {
         Ok(taken) => taken,
         // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
         Err(_no_place) => return TheAnswerOfAJobAwaited::NotRun,

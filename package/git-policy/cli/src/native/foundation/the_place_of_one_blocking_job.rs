@@ -40,14 +40,45 @@ pub(crate) struct ThePlaceOfOneJob {
     /// The place,
     /// until one of the two holders gives it back.
     place: Mutex<Option<OwnedSemaphorePermit>>,
+    /// What the place is held for, when it is a place of slow work:
+    /// the words a look reads when no slow place comes, and the number that takes them away when the place goes back.
+    named: Mutex<Option<TheSlowPlaceHeld>>,
+}
+
+/// What one place of slow work is held for, for as long as it is held.
+/// Why:
+///  A look that finds no place of slow work must say which operation holds them and since when,
+/// and no caller can say it: the place belongs to the job.
+pub(crate) struct TheSlowPlaceHeld {
+    /// The number this place's register entry carries,
+    /// which the register removes when the place goes back.
+    pub(crate) number: u64,
+    /// The operation,
+    /// in the words the caller gave.
+    pub(crate) name: String,
+    /// When the operation took the place.
+    pub(crate) since: std::time::Instant,
+}
+
+impl Drop for TheSlowPlaceHeld {
+    fn drop(&mut self) {
+        crate::blocking_jobs_within_the_budget::forget_a_slow_place(self.number);
+    }
 }
 
 impl ThePlaceOfOneJob {
     /// The place of one job,
     /// shared by the frame that waits for it and the job itself.
     pub(crate) fn holding(place: OwnedSemaphorePermit) -> Arc<ThePlaceOfOneJob> {
-        return Arc::new(ThePlaceOfOneJob { place: Mutex::new(Some(place)) });
+        return Arc::new(ThePlaceOfOneJob { place: Mutex::new(Some(place)), named: Mutex::new(None) });
     }
+
+    /// A place of slow work,
+    /// and the words saying which operation holds it.
+    pub(crate) fn holding_a_named_place(place: OwnedSemaphorePermit, name: &str) -> Arc<ThePlaceOfOneJob> {
+        return Arc::new(ThePlaceOfOneJob { place: Mutex::new(Some(place)), named: Mutex::new(Some(crate::blocking_jobs_within_the_budget::note_a_slow_place(name))) });
+    }
+
 
     /// What:
     ///  Gives the place back to the process,
@@ -64,6 +95,9 @@ impl ThePlaceOfOneJob {
     pub(crate) fn give_it_back(&self) {
         let given = self.place.lock().expect("lock").take();
         drop(given);
+        // The words go with the place, so a look never reads a holder that has given its place back.
+        let named = self.named.lock().expect("the words of a held place").take();
+        drop(named);
     }
 }
 

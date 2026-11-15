@@ -216,7 +216,7 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
             let manifest: Arc<TrashManifest> = Arc::clone(&self.manifest);
             let remove: Arc<RemoveOne> = Arc::clone(&self.remove);
             let entry: usize = *index;
-            let removal = run_a_slow_job_within_the_budget(move || {
+            let removal = run_a_slow_job_within_the_budget("an entry of a trash being removed", move || {
                 return remove_one(inside.as_path(), trash.as_ref(), manifest.as_ref(), remove.as_ref(), entry);
             })
             .await;

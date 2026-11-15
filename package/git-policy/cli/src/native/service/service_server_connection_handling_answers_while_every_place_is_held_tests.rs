@@ -444,7 +444,7 @@ fn two_commits_are_both_routed_while_every_slow_place_is_held() {
         let still_held = Arc::clone(&the_places_are_held);
         stuck.push(
             crate::lazy_runtime::spawn_on_runtime(async move {
-                let _answer = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || {
+                let _answer = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget("a control's slow job", move || {
                     let _said = told_one.send(());
                     let _ = still_held.lock().expect("the control's release").recv();
                 })

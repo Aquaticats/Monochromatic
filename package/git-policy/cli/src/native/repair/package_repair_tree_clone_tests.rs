@@ -284,7 +284,7 @@ fn a_clone_takes_the_places_slow_work_may_take_and_leaves_one_free_for_a_person(
     runtime.block_on(async move {
         let (holding, held) = tokio::sync::oneshot::channel::<()>();
         let holder = tokio::spawn(async move {
-            let _outcome = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || {
+            let _outcome = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget("a control's slow clone", move || {
                 let _told = holding.send(());
                 std::thread::sleep(HELD_SLOW);
             })

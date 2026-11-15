@@ -240,7 +240,7 @@ fn spawn_warm(repository_root: PathBuf, first: bool, changed: Vec<String>) {
         return;
     }
     let started = spawn_on_runtime(async move {
-        let _ended = run_a_slow_job_within_the_budget(move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
+        let _ended = run_a_slow_job_within_the_budget("the service rules being warmed", move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
         RUNNING.store(false, Ordering::SeqCst);
     });
     if started.is_none() {
