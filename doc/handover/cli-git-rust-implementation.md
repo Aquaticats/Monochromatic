@@ -1615,6 +1615,70 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal has the owner's two decisions built and goes on to the two tag findings; the file holder's words get two more wordings (2026-11-15T11:42:31-05:00)
+
+Not final and not approved:
+what one author and one review report,
+and what the coordinating session queued.
+
+- **The landed removal**,
+  its author's fifteenth run,
+  ended 11:36:51 at `177112aac1`:
+  both decisions of 10:59 are built.
+  Every `!` alias is forwarded with no judgement,
+  no refusal and no opt-out asked;
+  a plain alias
+  (a word list Git expands)
+  is still judged,
+  as the decision's words leave it.
+  The look for a repository inside an ignored folder is out with its bounds;
+  the deletion is logged by the line the automatic route already printed,
+  which names each ignored directory and each repository with its branch tips.
+  The SPEC states that a shell alias that removes a worktree is not looked at,
+  and why.
+  An ordinary removal costs 35.0 ms,
+  2.8 ms less than at `5ca2149aea` and 17.2 ms more than `main`'s 17.8 ms,
+  which is the guard's own work.
+  Clippy clean;
+  882 `worktree::` tests and 39 binary removal controls pass.
+  Named and left:
+  a removal a person types prints no log line,
+  before and after;
+  only the automatic route does.
+- **Its sixteenth run** is queued third,
+  for the two findings of the review of `5ca2149aea` that stand in code it kept:
+  an annotated tag named only by a per-worktree reference,
+  or only by a per-worktree reflog,
+  is lost on removal.
+  The brief asks for the guard's question to be of objects of any kind and not of commits,
+  with a walk of every kind of name that dies with a worktree through every kind of object it can hold.
+- **The review of what the file holder added after `3c43b9142a`**,
+  ended 11:36:55,
+  two of two files read,
+  the module's tests run
+  (17 of 17),
+  no message a test depends on.
+  Two wordings:
+  the control of the unreadable descriptor table names the wrong miss
+  (a process that changes into the worktree is found there;
+  the miss is one that opens a file in it);
+  and the summaries of the age rule leave out two cases that keep the worktree
+  (an unreadable worktree age,
+  and equal ages).
+  Both are doc lines and messages,
+  so by the owner's rule they do not hold the branch,
+  which is in pass 54;
+  the author's fourth run is queued for them.
+- Read at 11:41:31:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:33;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The driver's brief writer for a change to tests alone answers its seventh review; its review is queued (2026-11-15T11:34:05-05:00)
 
 Not final and not approved:
