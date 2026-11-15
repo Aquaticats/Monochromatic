@@ -371,9 +371,7 @@ pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
     // What: The records are read by the number the lock names, never out of a bounded listing of the folder.
     // Why:  A lookup that stopped at a bound would answer "no record" for a lock whose record is there, and the lock would
     //       stand although the repository holds the proof that its holder is gone (a review of `4e9b9fff1d`, finding 3).
-    if records_of_number(common_dir, pid).is_none() {
-        return None;
-    }
+    records_of_number(common_dir, pid)?;
     let identities: Vec<String> = identities_recorded(common_dir, pid);
     if identities.is_empty() {
         return None;

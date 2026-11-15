@@ -420,24 +420,24 @@ pub fn clear_abandoned_locks(roots: &[LockRoot], git_dir: &Path, common_dir: &Pa
     //       records live in the common directory while a lock of the worktree's state lives in the Git directory.
     // Why:  A pass that read the records out of the Git directory wrote them in the common one and could not explain the
     //       lock it was meant to clear (a review of `4e9b9fff1d`, finding 1).
-    let common_dir: PathBuf = common_dir.to_path_buf();
+    let record_folder_of: PathBuf = common_dir.to_path_buf();
     // What: The records are read first, so the walk below is the sight of the locks a removal is decided on.
     // Why:  A record removed on a walk older than its reading loses the proof of a lock made in between.
-    let records: Vec<Record> = every_record(common_dir.as_path());
+    let records: Vec<Record> = every_record(record_folder_of.as_path());
     #[cfg(test)]
     crate::abandoned_lock_pass_fault_hooks_test_support::after_the_records_are_read();
     let searched: Walked = walked(roots);
     let candidates: Vec<PathBuf> = searched.locks;
     for lock in &candidates {
-        match proving::clear_one(lock.as_path(), common_dir.as_path()) {
+        match proving::clear_one(lock.as_path(), record_folder_of.as_path()) {
             Some(clearance) => outcome.cleared.push(clearance),
             None => {
                 // A lock whose holder looks gone and whose number no record explains is the one a person must hear about:
                 //  it cannot release itself, and nothing here may remove it.
                 //  Words stay where the person is: a lock of another linked worktree's own state is that worktree's,
                 //  and a command of this one neither waits for it nor reports it.
-                if stands_in_the_way(lock.as_path(), git_dir, common_dir.as_path())
-                    && let Some(line) = standing_lock_line(lock.as_path(), common_dir.as_path())
+                if stands_in_the_way(lock.as_path(), git_dir, record_folder_of.as_path())
+                    && let Some(line) = standing_lock_line(lock.as_path(), record_folder_of.as_path())
                 {
                     outcome.unexplained.push(line);
                 }
@@ -450,7 +450,7 @@ pub fn clear_abandoned_locks(roots: &[LockRoot], git_dir: &Path, common_dir: &Pa
     //  A walk that stopped at its own bounds has not seen every lock, so a record that no standing lock of it names may
     //  still explain one below the bound: nothing is removed then.
     if searched.complete {
-        remove_records_no_one_needs(common_dir.as_path(), records.as_slice(), pids_named_by_standing_locks(outcome.standing.as_slice()).as_slice());
+        remove_records_no_one_needs(record_folder_of.as_path(), records.as_slice(), pids_named_by_standing_locks(outcome.standing.as_slice()).as_slice());
     }
     return outcome;
 }
