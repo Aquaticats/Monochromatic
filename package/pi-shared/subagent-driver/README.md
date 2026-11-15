@@ -1009,10 +1009,12 @@ the launcher that builds the session's environment asks it, once, before it make
   because the driver reads those answers to tell whether work of the run's still runs,
   and text cut inside a JSON string cannot be read back.
   A `silence` line is written once for each stretch in which the run said nothing,
-  naming the command it sat in and how long it had said nothing;
-  a `silence-ended` line names the command the driver ended past the second stated time,
-  whether Pi took the message that told the agent,
-  and why it did not when it did not.
+  naming every command it sat in and how long each had said nothing;
+  a `silence-ended` line names the commands the driver ended past the second stated time,
+  what Pi answered the abort with,
+  whether the session settled,
+  what it answered the message that told the agent,
+  and why a step that was asked did not go through.
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
