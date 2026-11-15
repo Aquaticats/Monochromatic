@@ -175,6 +175,16 @@ so any line a run in a scope leaves there came from a service of that run.
   that stream is the journal whenever the run was given the journal,
   and the file beside the fixture is what a failure quotes
   (`service_log`).
+- A log file that cannot be written keeps its words
+  (`binary_support_fixture_service_log.rs`):
+  the copier keeps the same bytes in this process whatever the file does,
+  `service_log` hands them on with the reason the file holds none,
+  and one line on this process's standard error names the file and the reason,
+  written only after asking,
+  by `systemd.exec(5)`'s reading of `$JOURNAL_STREAM`,
+  whether that stream is the journal's.
+  A review of 2026-11-14 found the earlier code turning the failed open into nothing,
+  so one failure of logging cost a failure every word of its service.
 - `source_guard::service_journal_isolation_tests` fails when a source compiled for tests only
   gives a child `Stdio::inherit`,
   names the journal's trigger outside the three lines whose reasons say why,
@@ -183,6 +193,65 @@ so any line a run in a scope leaves there came from a service of that run.
 - `binary_fixture_tests.rs` holds the two controls of the support:
   the start command removes the trigger and names an address nothing listens at,
   and a fixture service's `started release=` line is in the fixture's own log.
+
+### The rule as the guard states it
+
+The guard's invariant is what a child is given,
+not which token the source spells:
+
+- no start of a child passes `Stdio::inherit`;
+- every start of a child accounts for the child's standard error,
+  either with a setter of its own,
+  or with `output()`'s capture,
+  or by an inventory entry that names the child and the reason it may inherit;
+- a start of this wrapper's service is never excused,
+  and neither is a start whose command names a program of this wrapper
+  from inside a shell's script;
+- a start whose program the guard cannot name needs an entry of its own,
+  so a helper that builds a command is a gap that is written down rather than a silence.
+
+`source_guard/service_journal_isolation_starts_tests.rs` is the reader that makes this checkable.
+It masks strings,
+characters and comments;
+splits a source at every `;` outside parentheses and brackets,
+and at a block's closing brace;
+reads the clause that ends a start together with the clauses of the binding it is called on
+(the receiver of `command.spawn()`,
+or the command handed to `spawn_owned(&mut command)`);
+and excludes a `fn` definition,
+a thread's `.spawn(…)`,
+`wait_with_output()`,
+and an `output()` that captures both streams.
+It says where it is coarse:
+a command a *helper* of another function builds is a start whose program it cannot name,
+and that is exactly what the inventory's `no name` entries mark.
+
+Measured over this crate's sources compiled for tests only at 2026-11-14T22:00-05:00,
+with the reader itself:
+
+- 171 starts of a child inherit the run's standard error;
+- 52 of them are the counted entries:
+  29 shell starts in fifteen entries,
+  21 starts whose program the reader cannot name in twelve entries,
+  a `/usr/bin/timeout`,
+  and a script a test wrote;
+- the other 119 are children of the programs the list names
+  (`sleep`,
+  `true`,
+  `mkfifo`,
+  `cp`,
+  `tar`,
+  `sha1sum`,
+  `tee`,
+  `cat`,
+  `talk`,
+  this machine's own Git,
+  this crate's own test binary,
+  and the scripts the tests write);
+- and every counted entry is checked against the source,
+  so a new start of a shell or of an unnamed command fails the guard until someone writes why it stays.
+  No entry can allow a start of the service,
+  or a shell whose script names this wrapper.
 
 Nothing in the release program changes:
 the installed service decides where its lines go by the same two readings,
@@ -228,6 +297,39 @@ and what each reports with the change taken out:
   a control that stands a receiving socket in still gets the entries,
   because the address it names is set after `service_command`.
 
+- `fixture_guard::a_service_s_log_survives_a_log_file_that_cannot_be_written`
+  fails with the memory that keeps the words taken out of the copier,
+  which is the review's first finding:
+
+  ```text
+  the words of the service were lost with the file that could not hold them: the fixture's service log file holds nothing (Is a directory (os error 21)); what its services said is kept here (0 bytes kept):
+  ```
+
+- `fixture_guard::the_note_names_the_file_and_the_failure_and_the_reading_is_the_stream_s_own`
+  holds the note and the reading that decides whether it is written at all.
+- `source_guard::service_journal_isolation_tests::the_rule_fails_on_a_start_that_sets_nothing`
+  is the review's second finding as a control:
+  a `/bin/sh` start with `.status()` and nothing else must be a finding,
+  and it is a finding with the reason `no entry with a reason covers them`.
+- The same rule over the crate's own sources,
+  in `no_test_source_gives_a_child_the_streams_of_the_run`,
+  fails on a leaking start added to a test file:
+
+  ```text
+  left: ["binary/binary_fixture_tests.rs: 1 start(s) of /bin/sh inherit the run's standard error and no entry with a reason covers them"]
+  ```
+
+  and passes it again when the rule is taken back to the token check,
+  which is the review's finding in one line.
+- The review's own two scripts,
+  run against this branch:
+  `log_open_failure.rs` passes,
+  and prints the note and the words
+  (`the fixture's service log … took nothing (Is a directory (os error 21)); what its services said is kept here (37 bytes kept): service-start-failed: fixture marker`);
+  `guard_default_inheritance.rs` fails at the test the review ran,
+  naming its own file:
+  `default_inherited_service.rs: 1 start(s) of /bin/sh inherit the run's standard error and no entry with a reason covers them`.
+
 The measured before and after,
 both in a unit whose standard error was the journal,
 each reading the journal for that unit's own entries:
@@ -272,6 +374,24 @@ each reading the journal for that unit's own entries:
   and the disposable fixture root under the build directory.
   Neither is the journal,
   and neither is changed here.
+- The 119 children of programs the inventory names still inherit the run's standard error:
+  a `sleep`,
+  `true`,
+  `mkfifo`,
+  `cp`,
+  `tar`,
+  `sha1sum`,
+  `tee`,
+  `cat`,
+  `talk`,
+  this machine's own Git,
+  this crate's own test binary,
+  or a script a test wrote.
+  None of them is this wrapper's service and none can run it,
+  so what they write is the test's own tool's words;
+  a run that puts the journal on the test's standard error shows the test's own output there whatever this package does.
+  Making all of them explicit is a change of 119 call sites and of what a test's output shows,
+  and it is not this branch's.
 - A refused service start can lose its own explanation:
   `service_error!` hands the line to
   `service_log_lines_off_the_calling_thread`,
@@ -283,6 +403,15 @@ each reading the journal for that unit's own entries:
   while a refusal that creates its journal directory first wrote its line every time.
   The control `service_mode::a_git_that_is_the_wrapper_is_refused` fails on this for main's own support as well,
   which is how it was told apart from this branch.
+
+- Two more tests of this package are red on this host with `main`'s own support:
+  `fault_limits::a_service_that_ends_before_it_listens_leaves_a_recoverable_repository`
+  (the limit it measures one MiB under still lets the service run)
+  and `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
+  (a `cli-git-lock-holders` folder is left in the common directory).
+  Both were run alone and with `main`'s own `binary/` support put back,
+  and both fail there too,
+  so neither is this branch's.
 
 ## Upstream filing
 

@@ -112,8 +112,9 @@ pub(crate) const INHERITING_PROGRAMS: &[(&str, &str)] = &[
 ///    so the guard's reader cannot name its program:
 ///    the entry is what makes the gap visible,
 ///    and the count fails when the source gains one more.
+///
 ///  Giving these children a standard error of their own is what removes an entry,
-/// and the count is what keeps an entry from covering a start that was added later.
+///  and the count is what keeps an entry from covering a start that was added later.
 pub(crate) const INHERITING_STARTS: &[(&str, &str, usize, &str)] = &[
     // A shell whose script this control writes out, which names no program of the wrapper and writes nothing of its own.
     ("binary/binary_forwarding_tests.rs", "/bin/sh", 1, "the script sends `kill` to a process the control started"),

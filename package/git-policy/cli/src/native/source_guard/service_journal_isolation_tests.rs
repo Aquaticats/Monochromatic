@@ -340,7 +340,7 @@ fn why_a_finding(start: &Start) -> Option<&'static str> {
 fn entries_that_no_longer_match(counted: &std::collections::BTreeMap<(String, String), usize>, sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for ((relative, what), count) in counted {
-        let allowed_by_program: bool = INHERITING_PROGRAMS.iter().any(|(program, _)| *program == *what);
+        let allowed_by_program: bool = INHERITING_PROGRAMS.iter().any(|(program, _)| { return *program == *what; });
         if allowed_by_program {
             continue;
         }
