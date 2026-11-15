@@ -1958,6 +1958,91 @@ records no fan speed),
 and dropping fan
 columns (loses the link between a temperature change and a fan speed change).
 
+### CPU held under 80 degrees while the owner sleeps (asked 2026-11-15T04:51-05:00, open until the owner says they are awake)
+
+Not final and not approved:
+an instruction of the owner's,
+what the coordinating session of the cli-git work did for it,
+and what it measured.
+It is a stopgap for one night and changes no decision recorded under "User decisions".
+
+- **The owner's words**:
+  "I need to go to sleep for a few hours.
+  Keep CPU temp lower than 80 degrees until I say I've finished sleeping for today.
+  I know that's kinda hard to control but I believe you can do it."
+- **Before**:
+  at 04:51 `k10temp` read Tctl 85.9,
+  Tccd1 88.9 and Tccd2 72.1,
+  with a one-minute load of 17.7 and 17 agent runs going.
+  The limit is taken as the hottest of the three readings.
+- **Two levers are in use**,
+  both to be undone when the owner says they are awake.
+  - **A CPU budget that follows the temperature.**
+    The user unit `keep-the-cpu-temperature-under-80-degrees-while-the-owner-sleeps-20261115T050345.service`,
+    in `temperatureguard.slice` so that its own quota never holds it back,
+    reads the sensor every four seconds and writes `cpu.max` of every top-level control group under the user's service manager except `session.slice` and its own slice.
+    One budget in threads is shared among those groups by what each used;
+    it is cut by three tenths at 77 degrees,
+    by one thread at 74,
+    and grows under 69 while a group is held back.
+    It stops no process.
+    On `SIGTERM` it writes every quota back to what it found
+    (seen twice:
+    `app.slice` back at `max`,
+    `piwork3285273.slice` back at its own `200000 100000`).
+    Script and samples:
+    `~/temp/agent/cpu-temperature-kept-under-80-degrees-while-the-owner-sleeps-2026-11-15/`,
+    samples in `keep/samples-of-the-temperature-and-the-budget.csv`.
+  - **The power profile**,
+    switched at 05:06:16 from `balanced` to `power-saver` through the desktop's own service
+    (`net.hadess.PowerProfiles`,
+    property `ActiveProfile`;
+    tuned then reports `powersave-bazzite`,
+    energy preference `power`,
+    boost still on).
+    To put it back:
+    `busctl --system set-property net.hadess.PowerProfiles /net/hadess/PowerProfiles net.hadess.PowerProfiles ActiveProfile s balanced`.
+- **What the samples show**:
+  the budget alone did not hold the limit.
+  With the profile at `balanced`,
+  a budget of 5.7 threads still read Tctl 84.0 and Tccd1 83.9 at 05:04:54:
+  a few cores at boost on one chiplet are hot whatever the total.
+  With `power-saver`,
+  51 samples from 05:06:20 to 05:09:42 read at most 61.9 degrees while the budget grew to 23 threads and 19 were in use.
+- **Where the limit was not held**,
+  said plainly:
+  from the request until the first quota at 04:53;
+  four samples of the controller at or over 80
+  (04:54:27 at 80.6,
+  its first reading;
+  05:03:46 at 83.9;
+  05:04:54 at 84.0;
+  05:04:58 at 82.3).
+  The reading of 05:03:46 was this session's own doing:
+  it restarted the controller to correct it,
+  the stopping instance put the quotas back,
+  and the seconds without a quota were enough.
+  A restart must therefore keep the quotas in place:
+  end the old instance with `SIGKILL`,
+  which writes nothing back,
+  and give the new one the original values on its command line
+  (`<group>=<quota>_<period>` after the samples' folder).
+- **Two mistakes of the first minutes**,
+  corrected:
+  the controller asked how many threads its own unit may use,
+  was told one,
+  and held all work to one and a half threads from 04:55 to 04:59;
+  and its first way of sharing the budget left a fifth of it with idle groups.
+- **What it costs the work**:
+  every run is slower while this lasts,
+  and timings measured in this window are not comparable with others.
+- **To end it**,
+  when the owner says they are awake:
+  stop the unit with `systemctl --user stop`,
+  read `cpu.max` of `app.slice` back as `max`,
+  set the profile to `balanced`,
+  and record the night's highest reading from the samples.
+
 ## Commits so far
 
 - `6bb8cc9a7d`,
