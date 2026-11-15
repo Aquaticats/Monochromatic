@@ -738,6 +738,18 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T05:45:58-05:00,
+  from the author of the review brief's coverage check
+  (branch tip `0e676c38da`,
+  in review),
+  not blocking work:
+  when a finished review does not cover its change
+  (no range stated,
+  or fewer files read than listed),
+  does the starter start that review again by itself,
+  or leave it to whoever reads the reviews,
+  as now?
+
 - Added 2026-11-15T05:22:17-05:00,
   from the author of mpm-shadow's removal of old versions
   (branch tip `e9af93e68a`,
@@ -1582,6 +1594,330 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Integration pass 50 reports fit at a tip that lacks pass 51 and goes back to take `main`; a second test file of the masking author hung (2026-11-15T05:58:04-05:00)
+
+Not final and not approved:
+what one pass reports and what the coordinating session did.
+
+- **Integration pass 50** ended 05:52:24 at `962135bcb9`
+  (the log line that leaves its thread only when the stream holds every byte)
+  and reports fit:
+  the merge was clean;
+  the three gate controls pass in the gate's own image with the merged source and fail there without it,
+  with the gate's own panics;
+  library suite 7,899 of 7,902,
+  binary suite 1,213 of 1,215,
+  every failure on both gate lists and none on neither.
+  One of the gate's names,
+  `service_provision::a_runtime_directory_no_address_can_hold_is_refused_at_once`,
+  is renamed by the branch,
+  so a later gate cannot fail it under that name.
+  **Not merged**:
+  its tip holds `main` to `7ee64c07ea`,
+  and `main` has since taken pass 51,
+  six commits that touch the wrapper.
+  By the rule every pass's brief carries,
+  a branch is fit only at a tip that holds `main` as it stands.
+  The pass is resumed at the head of the queue to merge `main` and do the whole round again
+  (`~/temp/agent/pi-runs/integration-pass-50-takes-main-as-it-stands-with-pass-51-in-it-prompt.md`).
+  Integration pass 52,
+  next in the queue,
+  starts from a `main` that holds pass 51.
+- From the pass's report,
+  a thing no run owns:
+  `bin/native-gate-main-tip.unit.test.ts` builds a throwaway checkout through the installed wrapper,
+  so with the session bus address unset,
+  as the rules require,
+  it fails,
+  and with it set it would leave commit-service units of throwaway repositories in the user's manager.
+- **The masking author's command hung a second time**:
+  after the third test file was ended at 05:31,
+  its loop went on to the fourth,
+  `node src/secret-value-masking-extension.unit.test.ts`,
+  which then sat 26 minutes with no CPU time used.
+  The round's check for silent runs showed it at 05:57;
+  the process was ended at 05:57:20.
+  The author already holds the note that a control which hangs must be made to fail within a bound.
+- **The release**:
+  the workflow run 43706095626 ended in success at about 05:53 and its version commit is in `main`
+  (`04054f11e8` merges it);
+  the release itself was not yet listed at 05:58:17,
+  and the package's wait for it is running.
+- Read at 05:57:05:
+  55.1 degrees,
+  budget 32.0 threads,
+  5.9 in use;
+  no lock word,
+  no failed start,
+  no launcher that outlived a run,
+  no leftover process;
+  17 runs going.
+  The queue held 83 entries at 05:58:04.
+
+##### Integration pass 51 is in `main` and `0.6.1-alpha.39` is dispatched; what stopped the service manager for three minutes is found: a review's stand-in Git (2026-11-15T05:53:33-05:00)
+
+Not final and not approved:
+what one pass and two authors report,
+a cause found,
+and what the coordinating session did.
+
+- **Integration pass 51 reports fit and is merged** as `50a05dc552` (05:51:07):
+  the commit service of a unit the manager no longer holds is asked to start by name.
+  Its tip `ad54c15981` held `main` to `7ee64c07ea`;
+  the four commits `main` had beyond it touch no file of the wrapper and no lock.
+  What the pass showed:
+  - against a real manager in a container,
+    the wrapper at the merged tip handed a merge's push over and left the unit loaded and active;
+    a wrapper built from `main` before the merge printed the wait,
+    declined the hand-over with "the commit service did not start" and left the remote behind `HEAD`.
+    The arrangement tells the two apart.
+  - library suite 7,900 of 7,903,
+    binary suite 1,208 of 1,215.
+    Of the 22 tests the gate on `7edb782568` failed,
+    8 fail on this machine and 14 pass.
+    Failing and on no gate list:
+    `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`
+    (the lock-holders folder,
+    with its author),
+    and `child_bound::a_git_step_past_its_bound_fails_the_commit_and_names_the_class`,
+    which failed in the suite after 27.0 s and passed alone in 7.5 s.
+    No run owns the second.
+  - it met its own subject live at 05:35:
+    the installed `0.6.1-alpha.38` printed the wait for a unit the manager did not hold,
+    in its own worktree.
+  **Release `0.6.1-alpha.39` dispatched** at 05:51:35 through the repository's workflow
+  (run 43706095626).
+  The install on this machine,
+  the sample commit,
+  the container gate and the fuzz sidecar's type check follow.
+- **What stopped the user's service manager from 05:23:38 to 05:26:43 is found.**
+  The review of the lock-holders folder built a stand-in Git whose script ran
+  `wrapper=$PPID; ( sleep 0.2; kill -CONT "$wrapper" ) & kill -STOP "$wrapper"`
+  (written 05:23:10).
+  The number was the manager's:
+  process 5289 was in state `T` with no tracer.
+  The reviewer looked for the manager at 05:26:22,
+  read its status at 05:26:30 and sent `kill -CONT 5289` at 05:26:41;
+  the manager's journal begins again at 05:26:43.
+  Found by searching the commands of the 29 runs whose feeds were written in those minutes,
+  none of them named by the credential scan
+  (`find-the-commands-of-runs-that-stop-or-freeze-a-process-in-a-window-of-time.ts`,
+  kept in the scripts' folder).
+  Integration pass 51 saw the same state from its side.
+  The review's reproduction as it stands delays its parent with `strace` and stops nothing,
+  so its author can run it.
+  **Against a repeat**:
+  the rules every Pi brief carries say now that a run signals only a process it started,
+  by the number its own command got back,
+  never a number from `$PPID`,
+  and that a probe which stops its parent runs in a process namespace of its own
+  (`1b899ad61c`;
+  the namespace command was run here first and showed its own three processes and no others).
+  The CPU pressure of 05:23:49 was a neighbour in time and no cause.
+- **The drawn shadow tree**,
+  its author's sixth run,
+  ended 05:45:07 at `2c9848ce0a`:
+  both of the review's findings reproduced and answered
+  (a partly removed shadow is recognised at the three points a build reads it,
+  for 52.9 µs against 4.5 µs per attempt;
+  the service keeps the connection its answer went out on until the client holds its own claim).
+  Its review is queued eighth
+  (`main...2c9848ce0a`,
+  fifteen code files that are not tests).
+- **The commit that waited behind the service's writes to another drive**,
+  a fresh run,
+  ended 05:46:51 at `70486fc752`.
+  The two slow commits of 2026-11-15 00:54 and 00:57 waited inside one step that is no Git child:
+  the landing board wrote a decision file into the service's state directory,
+  on the home drive,
+  before its group was landed.
+  Which of two writes held the first is not established,
+  because the service wrote no line in those minutes;
+  a wait past five seconds now names its step.
+  The fix claims the group in memory.
+  Control:
+  5,975 ms queued with the write held,
+  0 ms at the fix.
+  Cost with nothing slow:
+  median ratio 0.986 over 25 interleaved pairs.
+  Its review is queued ninth
+  (`main...70486fc752`,
+  eight code files that are not tests).
+- **The temperature**,
+  read at 05:49:40:
+  56.9 degrees,
+  budget 32.0 threads,
+  13.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 05:49:40:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 05:36;
+  one entry in the file of entries taken out of the queue,
+  the one already handled;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  The queue held 82 entries at 05:53:33.
+
+##### A review dropped from the queue without a word is found and put back; three reviews send the lock-holders folder, the stop of a push and the bounded Git helper back (2026-11-15T05:45:58-05:00)
+
+Not final and not approved:
+a miss of this session's checks,
+what four reviews and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **A queued review was taken out of the queue at 05:22:40 and nothing said so.**
+  The starter's change of 02:22 worked as written the first time it was exercised:
+  the package's brief writer refused the range of the long runtime directory's answer
+  (`main...0bcc1fc7fc`,
+  "nothing to review under `package/git-policy/cli/src/native`":
+  the range changes tests,
+  their support and the image's file list alone),
+  the entry was kept in
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/entries-taken-out-of-the-queue-because-their-brief-could-not-be-written.jsonl`,
+  and the queue went on.
+  But the script that starts several entries passes on only some of the starter's lines,
+  and "BRIEF NOT WRITTEN" was not among them,
+  so the journal held only the task runner's "ERROR task failed",
+  which this session's check did not look for.
+  Found at 05:44 by counting those lines:
+  69 in the filling unit's journal,
+  68 of them the known jam of 02:12 and this one.
+  **Done**:
+  the line is passed on now;
+  each round reads the kept file's line count
+  (one);
+  and the review is written by hand,
+  as the same branch's earlier review was,
+  with its range,
+  its diff and the eight files it changes,
+  and queued second
+  (`~/temp/agent/change-reviews/git-policy-cli-long-runtime-directory-controls-answer-after-their-review-a-change-to-tests-their-support-and-the-image/`).
+  Five gate failures wait on that branch.
+  This session had queued that entry itself;
+  its own check of the range counts code files differently from the package's.
+- **The lock-holders folder** (`429503238b`),
+  its fourth review,
+  ended 05:37:40,
+  eleven of eleven files,
+  four things,
+  each reproduced:
+  a child killed before its identity is recorded leaves a lock nobody can prove abandoned,
+  and the next commit fails with `File exists`;
+  one record under the usual name hides a contradicting record,
+  and a lock is unlinked on half a proof;
+  with `GIT_INDEX_FILE` elsewhere,
+  every `.lock` file beside that index is a candidate,
+  and a person's `important.lock` was unlinked;
+  a FIFO at the record's path holds a Git start before its ceiling begins.
+  All worth their fix.
+  The code of the last three is new on the branch
+  (`records_of_number`,
+  `write_a_record_line_once` and that `lock_roots` are absent from `main`).
+  **The first may be in the released wrapper**:
+  `main` also calls `note_child_started` after a spawn
+  (`invocation/forwarding.rs`,
+  line 299),
+  and the author is asked to run the review's arm against that path and say so plainly.
+  Read on `main` at 05:47:
+  `run_real_git_naming` spawns the child,
+  then calls `note_child_started`,
+  and `note` in `lock/lock_holder_records.rs` gives up at line 337 when the child's identity cannot be read,
+  with nothing returned to the caller.
+  So the order the review faults is in the released code.
+  And `main`'s proof keeps such a lock:
+  `proved_gone_writer` in `lock/lock_holder_record_reads.rs` answers nothing when no record names the process number
+  ("no record at all is unknown, and keeps it"),
+  so the next command meets the lock,
+  waits its bounded wait and reports it.
+  So by reading,
+  all three links of the review's sequence are in the released code.
+  It needs a Git killed between taking its lock and the wrapper's read of its identity,
+  which the review opened with a 100 ms delay planted in the parent;
+  how often that happens unplanted is not known.
+  The author's brief says this and asks for the review's arm run against `main` first,
+  and for a fix that covers every place the wrapper starts a Git.
+  The author is resumed,
+  its fourth run
+  (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-fourth-review-of-2026-11-15-prompt.md`,
+  queued sixth).
+  Two gate failures wait on it.
+- **The stop of a stopped push** (`374f34c4b9`),
+  its review,
+  ended 05:34:48,
+  two of two files,
+  two things,
+  both reproduced:
+  with the ceiling spent and no runtime worker,
+  the killed child's last handle and the sweep of its locks are dropped with a future that is never polled
+  (a zombie and a staging file left;
+  the same fixture before the change reaped and swept),
+  so the branch brought it;
+  and the inline sweep stands outside the whole-stop bound.
+  The author is resumed,
+  its second run
+  (`~/temp/agent/pi-runs/push-stopped-at-its-window-answers-its-review-of-2026-11-15-prompt.md`,
+  queued fifth),
+  and asked whether the second was there before its range.
+- **The wrapper under the gate container's Git** (`f6aaf6d9e5`),
+  its fourth review,
+  ended 05:34:16,
+  three of three files,
+  one thing,
+  reproduced:
+  the bounded helper of the tests writes its input before its bounded wait begins,
+  so a megabyte given to a child that never reads holds it.
+  **Weighed**:
+  no test reaches it
+  (one caller passes input,
+  lines of at most 262 characters,
+  to real Git;
+  the others pass none),
+  and this session first meant to dismiss it and send the branch to a pass.
+  It did not:
+  the helper's doc says "Nothing waits without a bound",
+  a hung test file held a run for six hours this night,
+  and a finding this session would still have fixed is an open finding,
+  which by the reading adopted at 04:25:14 keeps a branch from a pass.
+  The author is resumed for that one thing,
+  its fifth run
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-answers-its-fourth-review-of-2026-11-15-prompt.md`,
+  queued third).
+  Seven gate failures wait on it.
+- **The review brief's coverage**,
+  its author's third run,
+  ended 05:32:06 at `0e676c38da`:
+  a review file is finished only with a completion line of fixed words;
+  an already-written review that does not cover its change no longer slips past;
+  the record of what a review read is written before its brief;
+  198 suites pass.
+  Its review is queued ninth
+  (`main...0e676c38da`,
+  sixteen code files that are not tests).
+  Adopted from its open questions,
+  labelled,
+  open to veto:
+  a file carrying both the "still going" and the "complete" line counts as unfinished;
+  a review folder older than the completion line is answered as having none.
+  Its third question is kept for the owner.
+- **The temperature**,
+  read at 05:36:32:
+  58.5 degrees,
+  budget 32.0 threads,
+  18.4 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 05:36:33:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start since 05:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  No resumed session is named by the credential scan.
+  The queue held 84 entries at 05:45:58.
+
 ##### Four runs sat for hours inside one command each and nothing noticed; a commit of an unmerged branch ran twelve hours; three reviews are routed and pass 52 queued (2026-11-15T05:33:25-05:00)
 
 Not final and not approved:
@@ -1658,8 +1994,10 @@ and what the coordinating session queued.
   It followed the end of the wall-clock run's unit at 05:23:04 by a minute.
   `systemctl --user list-units --all` took 19 ms at 05:27:30,
   and three starts have succeeded since.
-  Looked into at 05:36,
-  and the cause is still not found:
+  Looked into at 05:36 without finding the cause,
+  which was found at 05:51 and is in the section of 2026-11-15T05:53:33-05:00
+  (a review's stand-in Git stopped the manager with a signal);
+  what the first look read:
   - the manager's own journal lines stop at 05:23:38 and begin again at 05:26:43,
     three minutes and five seconds,
     with six units started in that one second,
