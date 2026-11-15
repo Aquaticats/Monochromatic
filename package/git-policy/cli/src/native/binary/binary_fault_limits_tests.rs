@@ -780,7 +780,12 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
 ///  `mebibytes_of_the_search_step_and_one_thread_pair` above the search's answer,
 ///  where the plan leaves two workers whatever the build's mapped size is
 ///  (`runtime_plan::workers_by_address_space`),
-///  and that case carries the landing.
+///  and that case carries the landing: this control asserts that the commit there landed, and not only that some case of
+///  the sweep did,
+///  because a refused case above the boundary is what this control exists to catch.
+///  Measured on this host at 2026-11-15T08:39-05:00 in a scope held to `CPUQuota=400%`: the commit at the search's answer
+///  and at 1, 4, 5, 6, 7, 8 and 10 mebibytes above it landed every time, three rounds each,
+///  so the room this control adds is one a commit lands at and not a coin flip.
 ///  Measured on this host at 2026-11-14T23:10-05:00 in a scope held to `CPUQuota=400%`, by halving over one mebibyte:
 ///  the search answered 50 MiB while a commit first landed at 49 MiB + 180 KiB,
 ///  so the largest case of the sweep stood 180 KiB above the threshold.
@@ -797,6 +802,13 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
     let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true, None);
     assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
+    // The case above the boundary carries the landing, so a refusal there fails here and is not counted as one more
+    //  refusal of the sweep: the totals below would hide it while any case of the sweep landed.
+    assert!(
+        above.landed,
+        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which one lands ({lands_at} MiB), and the commit there did not: what the service wrote: {}",
+        above.log
+    );
     let landed: usize = swept_landed + usize::from(above.landed);
     let refused: usize = swept_refused + usize::from(!above.landed);
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
