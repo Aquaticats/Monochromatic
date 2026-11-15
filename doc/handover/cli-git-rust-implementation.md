@@ -1615,6 +1615,93 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A warning written to a pipe nobody drains holds a stopped push for good: the stop's author goes back, and the wider thing gets a run of its own; the discarding guard and the unheld branch's push answer (2026-11-15T11:12:43-05:00)
+
+Not final and not approved:
+what one review and two authors report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The stop of a stopped push** (`67c565e1f4`),
+  its third review,
+  ended 11:06:05,
+  five of five files read:
+  no loss of data,
+  no doubled commit or merge and no overwritten lock found;
+  one thing,
+  reproduced at the boundary of `settle_locks`.
+  A stop that cannot sweep its locks says so through `warn`,
+  which writes to standard error with no bound;
+  with the caller's standard error a full pipe the write never returned,
+  the stop never returned,
+  and later pushes of the repository stay behind it.
+  The review could not run a named test under a disposable home
+  (`mise` answered `failed to decrypt sops file`),
+  the gap the review brief's own run has.
+- **Weighed**:
+  it goes back,
+  and it is one instance of something `main` has everywhere.
+  `warn` is called from 77 files of the package that are not tests
+  (counted on `main` at `522e865c9d`),
+  all through one function,
+  `foundation/diagnostic_log.rs` `write_line`.
+  A process that blocks on a full pipe is ordinary;
+  the harm is a blocked process that holds what another command waits for.
+  The record `doc/planning/cli-git-no-unbounded-waits.md` lists every kind of wait and no write to the wrapper's own standard error.
+  So two runs:
+  the stop's author,
+  fourth run,
+  queued fourth,
+  for the stop's own path
+  (nothing on it writes to a caller's pipe until the stop has given back what others wait on);
+  and a fresh run,
+  queued ninth,
+  for the wider thing
+  (a survey of every such write with what is held,
+  two reproductions,
+  one shape at the door,
+  a source guard):
+  `~/temp/agent/pi-runs/wrapper-write-to-a-pipe-its-caller-does-not-drain-never-holds-up-another-command-prompt.md`.
+- **The discarding guard**,
+  a fresh run,
+  ended 11:00:13 at `2f3e2785ed`:
+  one reading of a command line,
+  one spelling of a path,
+  one answer for edits a mark hides,
+  a pathspec file read once,
+  `HEAD` read as Git reads it;
+  the two windows stated as limits in the SPEC;
+  no measurable cost on 20,000 files;
+  221 and 143 named tests pass.
+  It left the save and its refusal of a shell alias alone,
+  and the owner decided both at 11:07
+  ("Answers on waking, third round"):
+  its second run is queued for them,
+  and the review of `2f3e2785ed` is queued
+  (42 code files).
+- **The push of a branch that is not checked out**,
+  ninth run,
+  ended 11:00:23 at `777c491325`:
+  the review's four reproductions failed as reported at the old tip;
+  the record of a moved branch now ends by handing itself on,
+  is deleted only on a proof read at that moment,
+  and a command that waits for it waits at most five seconds;
+  a kept record costs one file read where it cost a `worktree list`
+  (16.4 to 5.8 ms,
+  faster in 60 of 60 pairs).
+  Its question on which rule clears a record is kept for the owner.
+  Review queued
+  (21 code files).
+- Read at 11:10:36:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:04;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### Three more answers of the owner are acted on; the commit that does not wait behind the service's writes answers its review and has the slow start reproduced (2026-11-15T11:00:48-05:00)
 
 Not final and not approved:
