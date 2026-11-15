@@ -1358,6 +1358,54 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The renamed subvolume's second review reads and does not run: four claims, the weightiest that removing a directory's last worktree hides its leftover from the scan; the author builds a control for each first (2026-11-14T23:12:51-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The renamed subvolume left with no owner** (`944cc6abca`),
+  its second review,
+  ended 23:07:47,
+  nine of nine files and the diff.
+  It ran nothing:
+  under its disposable home `mise` could not decrypt its settings,
+  and it says so.
+  The project's rule for a review is to run and not only read,
+  so its four findings are taken as claims with lines named,
+  and its silence on everything else is no clean reading.
+- **The four**:
+  a marked leftover under a parent whose path is not UTF-8 is queued under a changed path,
+  the refusal standing on the unmarked path alone;
+  removing the last linked worktree of a directory removes the only way the scan finds the leftover,
+  since the scan visits the parents of worktrees registered now;
+  a queue record under its older file name is no proof and gets no wake;
+  and commands at once ask for more than the three wakes allowed and lose the count.
+- **Weighed**:
+  the second matters most and comes from the last round's narrowing of the scan,
+  which this session's weighing of the first review asked for;
+  the most ordinary removal there is must be inside the branch's sentence.
+  The first and third are a rule applied on one path and not on its twin.
+  The fourth costs wakes and loses nothing.
+  The author is resumed
+  (`~/temp/agent/pi-runs/renamed-subvolume-left-with-no-owner-answers-its-second-review-of-2026-11-14-prompt.md`,
+  queued fifth),
+  asked for a control of each claim before any change,
+  and to change nothing where a control shows a claim does not hold.
+- **For the next review of this branch**:
+  it must build.
+  Other reviews of this evening built under a disposable home by naming the key file to `mise` or by passing `--skip-tools`;
+  the package's rules file for briefs is where that belongs,
+  and no run has it yet.
+- Read at 23:12:09:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  23 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 70 entries at 23:12:51.
+
 ##### The run kept out of the main checkout goes back: its dependencies are linked before the unit that confines it exists; one finding is again the project's own decision (2026-11-14T23:08:11-05:00)
 
 Not final and not approved:
