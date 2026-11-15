@@ -605,11 +605,11 @@ and the brief says the change is to tests.
 A range whose change is tests and fixtures alone has no code to judge,
 so the reviewer reads those files instead.
 Which names and folders mark a test or a fixture were measured the same way as the extensions,
-from `git ls-files` on 2026-11-14:
-5493 tracked files are tests,
+from `git ls-files` on 2026-11-15:
+5513 tracked files are tests,
 by a `_tests.rs`, `.test.ts` or `Test.kt` name,
 or by a folder named `tests`, `test`, `androidTest` or `__tests__` at any depth;
-1539 are fixtures the tests read,
+1545 are fixtures the tests read,
 by a folder named `fixture`, `fixtures`, `test-fixture`, `test_support`, `testdata`, `golden`, `snapshots`,
 `__snapshots__`, `expected` or `dictionary`,
 by a `-fixture`, `.fixture.` or `stand-in-` part of a path,

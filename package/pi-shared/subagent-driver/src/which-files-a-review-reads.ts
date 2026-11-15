@@ -12,7 +12,7 @@
 
  A test or a fixture is not a kind of extension, but it is a rule this module keeps, and it is measured the same way: a test is
  written in the language of the code it tests, so its extension says `code`, and which names and folders mark it is counted here
- with the extensions: of the 23847 files the tree held, 5493 are tests and 1539 are fixtures. A file only tests read is material
+ with the extensions: of the 24010 files the tree held on 2026-11-15, 5513 are tests and 1545 are fixtures. A file only tests read is material
  beside them, whatever its extension, so the fixture lists name folders and suffixes rather than extensions, and
  `whatAChangeToTestsReads` says what a review of a change to tests does with a file whose folder no list names. The two rules cannot be apart: a kind read as code needs its tests known as tests, or a change to tests
  alone is reviewed as though it were the change. The test rule is asked first, so a `.rs` file under `tests/` is a test and not
@@ -274,8 +274,8 @@ export function whatAReviewDoesWithAFile({ path, }: { readonly path: string },):
 }
 
 /**
- The name suffixes a test's own file name ends with, which mark it whatever folder it sits in: 1791 `_tests.rs` files, 3370
- `.test.ts` files (3333 of them `.unit.test.ts` and 7 `.expensive.unit.test.ts`), and 143 `Test.kt` files. The other suffixes are
+ The name suffixes a test's own file name ends with, which mark it whatever folder it sits in: 1810 `_tests.rs` files, 3371
+ `.test.ts` files (most of them `.unit.test.ts`), and 143 `Test.kt` files. The other suffixes are
  the same families in a flavour this repository has none of yet, listed so the first one is a test rather than code.
 
  A test is marked by the name it carries because a test is written in the language of the code it tests: its extension says
@@ -332,7 +332,7 @@ export const FIXTURE_FOLDER_NAMES: ReadonlySet<string> = new Set([
 /**
  The parts of a path that mark material only tests read: 13 `stand-in-` files, 17 whose name holds `.fixture.`, 1071 holding
  `-fixture` (the fixture modules of the e2e suites and of the packages that record answers for their tests, which the
- `test-fixture` folders are already among), and the 139 files of a fuzz target's `seed/` corpus under a `*.fuzz` package.
+ `test-fixture` folders are already among), and the 145 files of a fuzz target's `seed/` corpus under a `*.fuzz` package.
 
  A part is matched anywhere in the path because a fixture is named for what it records rather than for where it sits, and a file
  named `commit-shape-log-fixture.ts` is a fixture in any folder.
