@@ -1639,6 +1639,115 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three reviews with findings (the lock-holders folder, the empty last answer, the silent tool command); the review brief answers; level 17 held its eight hours (2026-11-15T09:02:15-05:00)
+
+Not final and not approved:
+what three reviews and one author report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The lock-holders folder** (`3ac1254a73`),
+  its fifth review,
+  ended 08:56:34,
+  16 of 16 files,
+  three things,
+  each reproduced against the built wrapper,
+  none a repeat:
+  - a symbolic link among `.git/worktrees` is followed,
+    and a `HEAD.lock` in a folder outside the repository was unlinked;
+  - a pass in the main worktree removes the record a linked worktree's `index.lock` needs and leaves the lock,
+    and a commit there then fails on it;
+  - a wrapper killed between starting Git and recording it leaves a lock no record explains,
+    and a commit then fails on it.
+- **Weighed**:
+  all three go back.
+  For the third,
+  a suggestion marked as one:
+  the process about to be Git writes its own record between `fork` and `exec`,
+  since a parent that writes after the start always has a window and a child held for its parent deadlocks.
+  The author is asked whether `main` has the second and third.
+  It is also told of the process its last run left.
+  Its fifth run is queued second
+  (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-fifth-review-of-2026-11-15-prompt.md`).
+- **The driver's run whose last answer is empty** (`f50acb1bf3`),
+  its seventh review,
+  ended 08:55:30,
+  20 of 20 files,
+  two things,
+  both reproduced,
+  both in how a message is kept aside,
+  nothing in what such a run is asked to do:
+  two files whose inode numbers differ above 2^53 are taken for one and the claimed message is removed
+  (`lstat` without exact numbers);
+  a publication cut short and then an orphan's recovery give one message two kept names.
+  **Weighed**:
+  both go back,
+  both small.
+  The first cannot happen on this machine's filesystems,
+  whose inode numbers are small,
+  and its fix is one option of one call.
+  The author's eighth run is queued twelfth.
+- **The driver's silent tool command** (`6b86edc7f6`),
+  its first review,
+  ended 08:55:49,
+  9 of 9 files,
+  four things,
+  each reproduced against stand-ins that speak Pi's protocol:
+  a recovery prompt nobody answers lets the run end `idle`;
+  ends that come out of order take the wrong call out of the tally,
+  because calls are matched by the tool's name and not by their identity;
+  ending one command that is due ends a peer whose longer bound has not run out,
+  because the abort is of the whole operation;
+  an abort nobody answers is recorded as an ending.
+  **Weighed**:
+  all four go back.
+  The author's second run is queued seventh.
+  Until this branch is in `main` the round's own check for silent runs stays.
+- **The review brief that says what the change under review is**,
+  its author's fourth run,
+  ended 08:58:33 at `6e7021c03e`:
+  four findings answered with controls that fail with their fix out
+  (a review file is put in place by a link that only one writer wins;
+  a range is of the tip and not of the branch's name;
+  spans are compared byte for byte);
+  the fifth stays the owner's question of 05:45:58.
+  199 suites pass.
+  The line the starter prints for an unfinished review now names the review and says that none was started.
+  Its review is queued ninth
+  (`main...6e7021c03e`,
+  seventeen code files that are not tests).
+  **Adopted,
+  open to veto**,
+  for the author's second open question:
+  a dot name a killed writer left in a review's folder stays,
+  since nothing reads it and removing a live writer's would be worse.
+- **The drive probe at level 17** ended at about 09:00 after its eight hours without two slow readings in a row,
+  so the level stands.
+  Since the snapshot cleanup ended at 01:45:02:
+  434 readings,
+  27 of them a second or more,
+  one on the home drive
+  (1,361 ms)
+  and 26 on the repository's drive
+  (longest 14,842 ms).
+  The next probe at level 17 was started at 09:02 for another eight hours
+  (background task `ba4wnljg6`).
+- **The temperature**,
+  read at 08:59:55:
+  53.5 degrees,
+  budget 32.0 threads,
+  8.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:59:56:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:46;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  None of the three resumed sessions is named by the credential scan.
+  The queue held 86 entries at 09:02:15.
+
 ##### mpm-shadow: an install that removes no version goes back with four findings and one stated limit; the removal of old versions answers and goes to review (2026-11-15T08:47:49-05:00)
 
 Not final and not approved:
