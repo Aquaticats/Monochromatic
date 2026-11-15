@@ -204,6 +204,9 @@ fn a_tree_whose_request_arrived_is_let_go_at_the_landing() {
     let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
     stock.note_ready(drawn.clone());
     let handed: PathBuf = stock.hand_out().expect("the service answers with the tree");
+    // The stock's renewal beat once as the entry was made, and its thread stops with the answer:
+    // giving it the moment to finish is what makes the age below the one the sweep reads.
+    std::thread::sleep(Duration::from_millis(50));
     age_tree(handed.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
     // Held by the service, so no sweep takes it, however old the clock says it is.
     let before: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn_of(template.common_dir.as_path(), template.git_dir.as_path(), SystemTime::now());

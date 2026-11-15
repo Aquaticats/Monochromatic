@@ -624,6 +624,43 @@ pub(crate) fn may_be_handed_a_tree(template: &ShadowTemplate, carry_conclusion: 
 /// ```
 pub fn the_shadow_holds_what_a_build_needs(tree: &Path, template: &ShadowTemplate, base: &crate::transaction_journal::Base) -> bool {
     use crate::transaction_journal::RefFormat;
+    if !the_shadow_holds_what_a_creation_makes(tree, template) {
+        return false;
+    }
+    // A reftable repository's shadow is Git's own tables, which no loose file and no packed file of ours stands for.
+    if template.ref_format == RefFormat::Reftable {
+        return true;
+    }
+    if !std::fs::symlink_metadata(tree.join("packed-refs")).is_ok_and(|metadata| { return metadata.is_file(); }) {
+        return false;
+    }
+    if matches!(base, crate::transaction_journal::Base::Unborn) {
+        return true;
+    }
+    // The ref `HEAD` names is a loose file this attempt wrote, unless `HEAD` is detached and names the commit itself.
+    let Ok(head) = std::fs::read(tree.join("HEAD")) else { return false };
+    let text: String = String::from_utf8_lossy(head.as_slice()).trim().to_string();
+    let Some(name) = text.strip_prefix("ref: ") else { return true };
+    return std::fs::symlink_metadata(tree.join(name.trim())).is_ok_and(|metadata| { return metadata.is_file(); });
+}
+
+/// What:
+///  Whether the shadow still holds the entries a creation makes,
+///  which are the entries every later write of the commit is written on top of.
+/// Why:
+///  It is the question a write that failed is asked,
+///  where the ref store of the attempt may be exactly what could not be written (`a_shadow_from_the_handed_tree`):
+///  `HEAD` and `config` as files,
+///  the `objects` tree down to the `alternates` file that reaches the real object store,
+///  and `refs` as a directory.
+///  A tree that has lost any of them is one a removal reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = (tree) => hasFile('HEAD') && hasFile('config') && hasDir('objects') && hasDir('objects/info')
+///   && hasFile('objects/info/alternates') && hasDir('refs');
+/// ```
+pub fn the_shadow_holds_what_a_creation_makes(tree: &Path, template: &ShadowTemplate) -> bool {
     let is_a_file: &dyn Fn(&Path) -> bool = &|path: &Path| { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_file(); }); };
     let is_a_directory: &dyn Fn(&Path) -> bool = &|path: &Path| { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_dir(); }); };
     if !is_a_directory(tree) || !is_a_file(&tree.join("HEAD")) || !is_a_file(&tree.join("config")) {
@@ -636,21 +673,9 @@ pub fn the_shadow_holds_what_a_build_needs(tree: &Path, template: &ShadowTemplat
     if !is_a_directory(&tree.join("refs")) {
         return false;
     }
-    // A reftable repository's shadow is Git's own tables, which no loose file and no packed file of ours stands for.
-    if template.ref_format == RefFormat::Reftable {
-        return true;
-    }
-    if !is_a_file(&tree.join("packed-refs")) {
-        return false;
-    }
-    if matches!(base, crate::transaction_journal::Base::Unborn) {
-        return true;
-    }
-    // The ref `HEAD` names is a loose file this attempt wrote, unless `HEAD` is detached and names the commit itself.
-    let Ok(head) = std::fs::read(tree.join("HEAD")) else { return false };
-    let text: String = String::from_utf8_lossy(head.as_slice()).trim().to_string();
-    let Some(name) = text.strip_prefix("ref: ") else { return true };
-    return is_a_file(&tree.join(name.trim()));
+    // A reftable repository's shadow is Git's own tables, which no entry of a creation stands for beyond these.
+    let _ = template;
+    return true;
 }
 
 /// What:
@@ -786,7 +811,7 @@ fn a_shadow_from_the_handed_tree(
         Err(error) => {
             // A failure whose tree still holds what this build was given is the repository's or the volume's, and it is the
             //  commit's to report; a tree that has lost an entry is one a removal reached, and the commit takes another.
-            if the_shadow_holds_what_a_build_needs(drawn, template, &capture.base) {
+            if the_shadow_holds_what_a_creation_makes(drawn, template) {
                 return Err(error);
             }
             crate::diagnostic_log::debug(
