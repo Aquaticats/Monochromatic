@@ -1639,6 +1639,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The process that holds a file open in a worktree: its review reproduces the miss the owner's open question is about; the doc goes back, the code stays (2026-11-15T09:26:29-05:00)
+
+Not final and not approved:
+what one review reports,
+what the coordinating session read to weigh it,
+and what was queued.
+
+- **The review** of `3c43b9142a`,
+  ended 09:20:57,
+  read the one code file of the range in full
+  (the queue line of 08:42 also counted one),
+  found nothing against the control or against the hole the author closed,
+  and reports one thing,
+  reproduced with a stand-in process table:
+  a process of this account older than the worktree,
+  whose working folder is elsewhere and whose table of open files cannot be read,
+  is answered "outside",
+  though it may have opened a file there after the worktree was made.
+- **Read**:
+  that is the rule,
+  and the rule is the question kept for the owner at 03:06:17
+  (a hidden process younger than the worktree keeps it;
+  an older one is the named miss;
+  the other answer refuses every removal on this desktop).
+  `main` already applies the same age rule to a working folder it cannot read
+  (`started_before` in `worktree/worktree_process_inside.rs`),
+  and before this branch it answered "holds nothing" for every process whose table it could not read.
+  The branch narrows a hole `main` has.
+- **Weighed**:
+  the code stays until the owner answers.
+  Two sentences go back,
+  for saying more than the code can keep:
+  the doc of `started_before` says a process older than the worktree "is outside it",
+  which is a bet and not a proof,
+  and the comment on an unreadable table does not say what the rule leaves.
+  The author's second run changes those words alone
+  (`~/temp/agent/pi-runs/process-holding-a-file-open-in-a-worktree-states-the-miss-its-age-rule-leaves-prompt.md`,
+  queued second at 09:26:29);
+  the review after it reads the delta with the limit stated,
+  as adopted at 09:22:40.
+- **For the owner's question of 03:06:17**,
+  one more fact:
+  a review has now reproduced the miss for open files as well as for a working folder,
+  and the sentence in released code that calls an older process "outside" is on `main` too.
+- **The temperature**,
+  read at 09:25:24:
+  56.0 degrees,
+  budget 32.0 threads,
+  13.4 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:25:27:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
 ##### The wrapper under the gate container's Git: a sixth review finds two more things in the test helper; both are limits, and the doc is what goes back (2026-11-15T09:22:40-05:00)
 
 Not final and not approved:
