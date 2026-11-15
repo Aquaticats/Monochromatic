@@ -1641,6 +1641,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's launcher that ends with its run answers its four findings; the main checkout is back to its six changed files (2026-11-15T16:33:12-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued and measured.
+
+- **The launcher that ends when its run has ended**,
+  its author's third run,
+  ended 16:28:28 at `35d724bdbe`:
+  the four findings answered.
+  Its review is queued fifteenth
+  (`main...35d724bdbe`,
+  38 code files that are not tests).
+  From its report,
+  kept:
+  - a start whose batch the manager cannot describe now settles as `batch-state-unread` and stays where it is,
+    so a filling starts nothing for that entry until a manager answers;
+  - a wrapper process whose working folder is a run's worktree still counts as the run's own work,
+    bounded at thirty minutes,
+    because a second rule for what a run's own work is "needs a decision";
+  - its worktree's package links were broken at the start
+    (the wrapper had given up relinking the package state);
+    `pnpm install --offline --frozen-lockfile` failed with `ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION`
+    (`TARBALL_URL_MISMATCH`),
+    and the same without `--offline` restored them in 4.2 s and changed no tracked file;
+  - it named two processes as leaked holders of a lock,
+    1152579 and 3806443,
+    and did not signal them.
+    Looked at 16:34:
+    neither exists any more.
+- **The main checkout shows six changed files again** (16:32:58).
+  The run whose edits stood there took them out after the note of 16:20.
+- Read at 16:32:59:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 16:19;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes
+  (the run that sat in a named pipe goes on).
+
 ##### The backlog of the two hours, routed: ten reviews read, eight authors sent back, sixteen answers queued for review or held for the pass, and what waits on what (2026-11-15T16:28:15-05:00)
 
 Not final and not approved:
