@@ -395,12 +395,6 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
     //  immediately before the destroy. A process can enter the worktree, and a nested worktree can be added inside it, in
     //  that window, and a removal on the early answer deleted an edit made there (a review of this change, finding 5).
     let again: Option<TheLookAgain<'_>> = the_look_again(real_git, overlay, facts);
-    if let Some(look) = &again
-        && let Err(why) = crate::worktree_remove::LastLook::ask(look)
-    {
-        let _closed = writeln!(std::io::stderr(), "monochromatic-git-policy-cli: refusing to remove the worktree {}: {why}", facts.remove_plan.as_ref().expect("a removal plan").target.display());
-        return ForwardedRun::Ran(1);
-    }
     #[cfg(target_os = "linux")]
     if let Some(finished) = remove_by_subvolume(real_git, overlay, facts, again.as_ref()) {
         return finished;
@@ -418,6 +412,19 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
         }
         _ => None,
     };
+    // The look is the last thing before Git is started: the listing above starts a Git of its own, and a process that
+    //  entered the worktree, or a worktree registered inside it, can arrive while that listing runs. Real Git's own run is
+    //  the part this program cannot look inside, which is why nothing of this program's comes after this answer but Git.
+    if let Some(look) = &again
+        && let Err(why) = crate::worktree_remove::LastLook::ask(look)
+    {
+        let _closed = writeln!(
+            std::io::stderr(),
+            "monochromatic-git-policy-cli: refusing to remove the worktree {}: {why}",
+            facts.remove_plan.as_ref().expect("a removal plan").target.display()
+        );
+        return ForwardedRun::Ran(1);
+    }
     let finished: ForwardedRun = run_settled(real_git, arguments, overlay, facts);
     if let (Some((common, begun)), ForwardedRun::Ran(0)) = (&about_to_go, &finished) {
         reach_test_fault(AFTER_DELETION);
