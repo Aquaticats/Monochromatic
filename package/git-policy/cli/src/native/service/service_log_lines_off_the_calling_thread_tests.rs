@@ -72,3 +72,56 @@ fn a_stream_nobody_drains_holds_no_caller() {
     drop(reader);
     drop(filled);
 }
+
+/// What:
+///  A line handed over just before the process ends is in the stream when the end waits for it,
+///  and a stream nobody drains holds the end for its bound and no longer.
+/// Why:
+///   `std::process::exit` ends the thread where it stands,
+/// so before the end waited for it,
+/// a refusal's one line was out of the queue and gone in most runs:
+/// the `service_mode` controls of 2026-11-14 read no byte at all from such a start,
+/// and the wrapper owed the person a reason.
+///  The second arm is the promise the queue was built on:
+/// a stream that never drains costs the process one bounded wait at its end,
+/// and is never waited for per line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [reader, writer] = pipe(); giveTheThread(writer); hand(line); expect(writeWhatWaits(bound)).toBe(true); expect(readNonBlocking(reader)).toContain(line);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
+    let (mut reader, writer) = std::io::pipe().expect("a pipe");
+    give_the_thread(Box::new(writer));
+    let line: &str = "the last line before this process ends\n";
+    assert!(hand(line), "the queue has room for one line");
+    assert!(write_what_waits(WAIT_BEFORE_AN_EXIT), "the line reached the stream within the bound");
+    // The stream is read the moment nothing is waiting to write it, so a non-blocking read has the whole line or nothing.
+    // SAFETY: `fcntl` takes a descriptor this process owns and an integer command, and writes no memory here.
+    let flags: std::ffi::c_int = unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETFL) };
+    assert!(flags >= 0, "the read end's flags are readable");
+    // SAFETY: the same descriptor, with the flags it already had plus the one that makes a read return instead of waiting.
+    let set: std::ffi::c_int = unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_SETFL, flags | libc::O_NONBLOCK) };
+    assert_eq!(set, 0, "the read end is made non-blocking");
+    let mut text: String = String::new();
+    let _taken = std::io::Read::read_to_string(&mut reader, &mut text);
+    assert_eq!(text, line, "what the end waited for is what the stream holds");
+
+    // The arm that proves the bound: a stream already full, and a line the thread takes and stands in.
+    let capacity: usize = one_pipe_s_holding();
+    let (reader, writer) = std::io::pipe().expect("a pipe");
+    let mut filled: Box<dyn Write + Send> = Box::new(writer.try_clone().expect("a second write end"));
+    filled.write_all(vec![b'.'; capacity].as_slice()).expect("the stream fills");
+    give_the_thread(Box::new(writer));
+    assert!(hand("a line nobody can read\n"), "the queue has room");
+    let began: std::time::Instant = std::time::Instant::now();
+    let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+    assert!(!written, "a stream nobody drains is not written, and the end is told so rather than waiting forever");
+    assert!(began.elapsed() < WAIT_BEFORE_AN_EXIT.saturating_mul(8), "the end waited its bound ({} ms) and no longer: {:?}", WAIT_BEFORE_AN_EXIT.as_millis(), began.elapsed());
+    // The stream is closed behind the standing write, so the thread that waits there ends with this stream rather than
+    //  with the process.
+    drop(reader);
+    drop(filled);
+}
