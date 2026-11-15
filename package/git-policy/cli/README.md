@@ -619,9 +619,21 @@ Read-only commands,
   When a merge push's own command says it failed but the remote took it,
   the push ends with status 0, moves your branch to the merge it made, and says where the remote is,
   which merge it holds, and where your branch is;
-  that holds when the remote moved past the merge before the wrapper looked again.
+  that holds when the remote moved past the merge before the wrapper looked again,
+  and it holds for the push the wrapper makes by itself after a commit,
+  which asks the remote before it answers a failure that names no rejection:
+  the answer comes from the remote's own history and never from what the push command said.
+  That look is one fetch and one ancestry read in the commit service's own work,
+  so no commit of yours waits on it (11.5 ms at the median in a local fixture).
   A branch checked out nowhere that a worktree takes while its reference moves is finished by the next
-  command there when a kill interrupts the repair, because the repair leaves a record behind.
+  command there when a kill interrupts the repair, because the repair leaves a record behind,
+  and so is one whose repair another program's index lock refused:
+  a writer that keeps that record and goes on says it left it,
+  so the service that wrote it never holds it for the whole of its own life.
+  That record is finished only when the worktree that has the branch shows the tip it was moved to
+  in its index and in its files, or holds changes that are yours, which are left to you and named:
+  a file still holding the tip the branch moved from is the move's own leftover and is brought to the branch,
+  and a file holding anything else is yours.
    Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;

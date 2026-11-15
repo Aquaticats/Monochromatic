@@ -9390,11 +9390,23 @@ in-process reader can) gives every value of the multi-valued keys.
   because sibling worktrees that keep pushing are contention and not a conflict.
   A merge push whose own command reported a failure can have landed all the same
   (a kill or a connection dropped after the remote took it):
-  the next attempt then finds the remote's tip contains that very merge
+  what landed is decided by the remote's own history and never by what the push command said,
+  so the merge is looked for in the remote tip's history
   (a post-receive hook or another push can have moved the remote past it),
   and the run answers zero after moving the pushed branch as the successful path does,
-  with a line that names the remote's tip, the merge it contains, and where the branch is
-  (`published_on_the_remote` and `the_pushed_branch_follows_awaiting` in `integrate_and_push_awaiting`).
+  with one sentence that names the remote's tip, the merge it contains, and where the branch is
+  (`the_remote_holds_the_merge_awaiting` and `the_published_merge_report` in
+  `src/native/push/auto_push_reconcile_published.rs`).
+  An explicit push makes that look on its next attempt, and an automatic push makes it before it
+  answers a failure that carries no rejection, because it used to answer such a failure at once:
+  the remote held the merge, the command said it failed, and the branch stayed behind
+  (a review of commit `cae78e1d7e`,
+  finding 1).
+  The automatic arm's look is one fetch and one ancestry read, and it runs in the resident commit
+  service's own work, never on a command's path: the command that ran the push returned long before it
+  ended, so no commit waits on it.
+  It costs 11.5 ms at the median in a local fixture (10.2 to 15.4 ms over 60 rounds), against a single
+  Git query's 2.3 ms measured in the same rounds.
   The merge is computed without reading or writing the local branch,
   the index,
   the worktree or the untracked files,
@@ -9440,6 +9452,26 @@ in-process reader can) gives every value of the multi-valued keys.
   `settle_merges` in `src/native/invocation/startup_gate.rs`).
   A record whose branch never reached the merge is removed by that sweep,
   because the compare-and-swap is what decided the move.
+  A record is finished when every worktree that has its branch checked out shows the tip the branch was
+  moved to, in its index and in its files, or holds changes that are a person's own, which are left to
+  them and named.
+  No single comparison answers that:
+  the branch tip alone is not the answer, because the tip moves before any checkout does;
+  the index alone is not, because a `git reset` moves the index without the files;
+  and one path is not, because a checkout can hold the merge's content on one path and the old tip's on
+  another
+  (a review of commit `cae78e1d7e`,
+  finding 3).
+  Any later command in a worktree that has the branch checked out may finish the record, once the process
+  that wrote it is gone or has said it left the record:
+  liveness alone stops a later command only because a live writer may be repairing that checkout at that
+  instant, which is a moment inside the advance and not the record's whole life,
+  and the resident service outlives every record it writes,
+  so a writer that keeps its record and goes on publishes it again with `ownerLeftIt` set and the next
+  command finishes it however long that writer lives
+  (`leave_the_branch_move_to_anyone` in `src/native/push/auto_push_branch_move_record.rs`;
+  a review of commit `cae78e1d7e`,
+  finding 2).
   A worktree whose folder is gone still appears in that listing
   (Git marks it prunable) and holds no branch a person can commit in:
   it is not a worktree to move,
@@ -9497,6 +9529,21 @@ in-process reader can) gives every value of the multi-valued keys.
   The repair a reference-only move makes writes only what it proves is the move's own content,
   path by path, by `read-tree -u -m` between the pushed tip and the merge,
   and a kill inside it leaves the record to the next command, which runs the same repair.
+  The repair's answer rests on three readings, never one:
+  the branch the checkout shows and that branch's tip,
+  the index against that tip,
+  and every path of the move in the worktree.
+  The index is asked first: one that disagrees with the branch is the state a switch carried over or the
+  state before the move wrote anything, and the two-way `read-tree -u -m` writes it as it always did.
+  Once the index agrees, the files are asked:
+  a path of the move whose stored entry is the old tip's is this record's own leftover, and the branch's
+  own entry is written over it by one `git checkout <branch> -- <those paths>`, which writes the index and
+  the file together;
+  a path whose entry is the merge's while the branch shown lacks it is named;
+  and a path that holds neither the old tip's entry nor the merge's is a person's, is left exactly as it
+  is, and is named with the step that writes the branch's own files there
+  (`the_files_of_the_move_brought_awaiting` in `src/native/push/auto_push_reconcile_branch_checkout.rs`,
+  and the questions it asks in `src/native/push/auto_push_reconcile_branch_checkout_files.rs`).
   A merge settle never writes a worktree file of its own:
   it carries the branch it landed and removes the record the killed repair left,
   so a path a person staged, staged and unstaged again, or edited keeps its bytes

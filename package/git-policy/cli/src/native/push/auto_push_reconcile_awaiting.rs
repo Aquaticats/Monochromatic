@@ -423,15 +423,21 @@ pub async fn integrate_and_push_awaiting(
             //      The look is one fetch and one ancestry read, and it runs in the resident commit service's own work,
             //      never on a command's path: a person's command returned before this push started
             //      (`service_work.rs`: "The command that ran the push returned long before it ended").
-            if let Ok(remote_tip_now) = (fetch_remote_tip_awaiting(git, &destination)).await? {
-                if let Some(merge) = (the_remote_holds_the_merge_awaiting(git, &merge_oid, &remote_tip_now)).await? {
-                    debug(
-                        TAG,
-                        &format!("{remote}/{short} at {remote_tip_now} contains the merge {merge} the automatic push made, so the failure it reported is not one"),
-                    );
-                    let followed: String = the_pushed_branch_follows_awaiting(git, plan, &local, &merge).await;
-                    return Ok(Integrated::Finished(the_published_merge_report(plan, &remote_tip_now, &merge, followed.as_str())));
+            let fetched = (fetch_remote_tip_awaiting(git, &destination)).await?;
+            let held = match fetched {
+                Ok(remote_tip_now) => {
+                    let found = (the_remote_holds_the_merge_awaiting(git, &merge_oid, &remote_tip_now)).await?;
+                    Some((remote_tip_now, found))
                 }
+                Err(_) => None,
+            };
+            if let Some((remote_tip_now, Some(merge))) = held {
+                debug(
+                    TAG,
+                    &format!("{remote}/{short} at {remote_tip_now} contains the merge {merge} the automatic push made, so the failure it reported is not one"),
+                );
+                let followed: String = the_pushed_branch_follows_awaiting(git, plan, &local, &merge).await;
+                return Ok(Integrated::Finished(the_published_merge_report(plan, &remote_tip_now, &merge, followed.as_str())));
             }
             return Ok(Integrated::Finished(pushed));
         }

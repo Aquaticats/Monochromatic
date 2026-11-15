@@ -179,7 +179,7 @@ pub(crate) async fn move_the_ref_only_awaiting(
             //  command from finishing the checkout (a review of commit `cae78e1d7e`, its finding 2).
             match leave_the_branch_move_to_anyone(record.as_path(), &movement) {
                 Ok(()) => {}
-                Err(error) => debug(TAG, &format!("the record {} could not be left to a later command ({error})", record.display())),
+                Err(leaving) => debug(TAG, &format!("the record {} could not be left to a later command ({leaving})", record.display())),
             }
             return Ok(NowhereMove::Answered(Advanced::HoldersUnreadable {
                 reason: format!("the worktrees that may have {branch_ref} checked out could not be read after the branch moved: {error}"),
@@ -202,7 +202,7 @@ pub(crate) async fn move_the_ref_only_awaiting(
         //  (a review of commit `cae78e1d7e`, its finding 2).
         match leave_the_branch_move_to_anyone(record.as_path(), &movement) {
             Ok(()) => {}
-            Err(error) => debug(TAG, &format!("the record {} could not be left to a later command ({error})", record.display())),
+            Err(leaving) => debug(TAG, &format!("the record {} could not be left to a later command ({leaving})", record.display())),
         }
     } else {
         // The repair has run and told what it left, so the record has nothing more to finish: a record kept would only
