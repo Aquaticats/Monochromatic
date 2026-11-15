@@ -855,9 +855,20 @@ await describe({
             /**
              Each name's bytes: an `a`, the byte, and `.ts`, so every name is a code file.
              */
-            const names = byteValues.map(function nameFor(byte,) {
+            const namesOfTextBytes = byteValues.map(function nameFor(byte,) {
               return Buffer.from([0x61, byte, 0x2E, 0x74, 0x73,],);
             },);
+            /**
+             Each name's bytes again with a byte that is not UTF-8 at the end, so every byte sits inside a name that is not text,
+             where ANSI-C quoting and the code span around it are what the brief has to get right.
+             */
+            const namesOfBytesOnly = byteValues.map(function nameFor(byte,) {
+              return Buffer.from([0x61, byte, 0xFF, 0x2E, 0x74, 0x73,],);
+            },);
+            /**
+             Every name this test asks for.
+             */
+            const names = [...namesOfTextBytes, ...namesOfBytesOnly,];
             /**
              The first commit, which writes every name.
              */
