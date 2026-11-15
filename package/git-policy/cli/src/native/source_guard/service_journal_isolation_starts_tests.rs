@@ -25,6 +25,8 @@
 //! for (const statement of statements(masked(source))) for (const terminal of terminals(statement)) starts.push(read(statement, terminal));
 //! ```
 
+use std::collections::{BTreeMap, BTreeSet};
+
 /// Where a start's standard error goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StandardError {
@@ -50,6 +52,22 @@ pub enum Terminal {
     Spawn,
     /// `spawn_owned(...)`, the support that starts a child in a group of its own.
     SpawnOwned,
+    /// A call to a function of this crate that ends in starting a child,
+    /// which this reader follows rather than names
+    /// (`status_retrying`, `git`, `run`, `observe`, …).
+    Followed,
+}
+
+/// What a function of this crate that starts a child gives that child.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Shape {
+    /// Whether the function captures standard output and standard error itself,
+    /// as `output()` does.
+    pub captures: bool,
+    /// Whether the function gives the child a standard error of its own.
+    pub sets_error: bool,
+    /// Whether the function gives the child all three streams of its own.
+    pub sets_all: bool,
 }
 
 /// One start of a child as this reader sees it.
@@ -77,6 +95,8 @@ pub struct Start {
     /// Whether the start's clause names the wrapper's service mode,
     /// which makes it a start of the service itself.
     pub runs_the_service: bool,
+    /// The helper this start is a call to, when the reader followed one.
+    pub followed: Option<String>,
 }
 
 /// What:
@@ -223,57 +243,39 @@ struct Clause {
 /// splitAtSemicolonsOutsideBrackets(maskedLines)
 /// ```
 fn clauses(masked: &str, raw: &str) -> Vec<Clause> {
-    let masked_lines: Vec<&str> = masked.lines().collect();
-    let raw_lines: Vec<&str> = raw.lines().collect();
+    // Every boundary is a boundary: one line may hold several statements, and reading only the first would put the rest of
+    // the line in the wrong clause.
     let mut found: Vec<Clause> = Vec::new();
+    let bytes: &[u8] = masked.as_bytes();
     let mut depth: i32 = 0;
-    let mut first: Option<usize> = None;
-    let mut buffer: Vec<usize> = Vec::new();
-    for (index, line) in masked_lines.iter().enumerate() {
-        let number: usize = index + 1;
-        if first.is_none() {
-            first = Some(number);
-        }
-        buffer.push(index);
-        let mut ended: bool = false;
-        for byte in line.bytes() {
-            match byte {
-                b'(' | b'[' => depth += 1,
-                b')' | b']' => depth -= 1,
-                b';' if depth <= 0 => {
-                    ended = true;
-                    break;
-                }
-                // A block closes a statement that ends with its last expression and no `;`, so a `}` at the outside
-                // level ends the clause too; a struct literal's `}` only ends it early, which costs nothing.
-                b'}' if depth <= 0 => {
-                    ended = true;
-                    break;
-                }
-                _ => {}
+    let mut from: usize = 0;
+    let mut at: usize = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'(' | b'[' => depth += 1,
+            b')' | b']' => depth -= 1,
+            // A block closes a statement that ends with its last expression and no `;`, so a `}` at the outside level ends
+            // the clause too; a struct literal's `}` only ends it early, which costs nothing.
+            b';' | b'}' if depth <= 0 => {
+                found.push(clause_of(masked, raw, from, at + 1));
+                from = at + 1;
             }
+            _ => {}
         }
-        if ended {
-            found.push(clause(first.unwrap_or(number), number, &masked_lines, &raw_lines, buffer.as_slice()));
-            buffer.clear();
-            first = None;
-        }
+        at += 1;
     }
-    if !buffer.is_empty() {
-        found.push(clause(first.unwrap_or(1), masked_lines.len(), &masked_lines, &raw_lines, buffer.as_slice()));
+    if from < masked.len() {
+        found.push(clause_of(masked, raw, from, masked.len()));
     }
     return found;
 }
 
-/// The clause made of `lines`, which are indices into both listings.
-fn clause(first: usize, last: usize, masked_lines: &[&str], raw_lines: &[&str], lines: &[usize]) -> Clause {
-    let mut masked: Vec<&str> = Vec::new();
-    let mut raw: Vec<&str> = Vec::new();
-    for index in lines {
-        masked.push(masked_lines.get(*index).copied().unwrap_or(""));
-        raw.push(raw_lines.get(*index).copied().unwrap_or(""));
-    }
-    return Clause { first, last, masked: masked.join("\n"), raw: raw.join("\n") };
+/// The clause between the byte offsets `from` and `to` of both listings,
+/// with the lines it starts and ends on.
+fn clause_of(masked: &str, raw: &str, from: usize, to: usize) -> Clause {
+    let first: usize = masked[..from].matches('\n').count() + 1;
+    let last: usize = first + masked[from..to].matches('\n').count();
+    return Clause { first, last, masked: masked[from..to].to_owned(), raw: raw.get(from..to).unwrap_or("").to_owned() };
 }
 
 /// What:
@@ -344,14 +346,30 @@ pub fn program_name(program: &str) -> &str {
 /// const receiver = /(?<![\w)\]}])([a-z_][a-z0-9_]*)\s*$/u.exec(clause.slice(0, at))?.[1] ?? null;
 /// ```
 fn receiver_of(masked: &str, at: usize) -> Option<String> {
-    let before: &str = masked[..at].trim_end();
+    let before: &str = masked[..at.min(masked.len())].trim_end();
     let name: String = before.chars().rev().take_while(|letter| { return letter.is_alphanumeric() || *letter == '_'; }).collect::<Vec<char>>().into_iter().rev().collect();
     if name.is_empty() {
         return None;
     }
     let head: &str = &before[..before.len() - name.len()];
     let trimmed: &str = head.trim_end();
-    if trimmed.ends_with(')') || trimmed.ends_with(']') || trimmed.ends_with('}') || trimmed.ends_with('&') {
+    // The name is a binding this clause configures only when it stands as an expression of its own: after `=`, `(`, `[`,
+    // `,`, `;`, `{`, `}`, `&`, `return` or `let`, or at the start. `fixture.root.join(…)` and `answer.join()` name no binding
+    // of the chain, and following them would read another clause's command as this clause's.
+    let bare: bool = trimmed.is_empty()
+        || trimmed.ends_with('=')
+        || trimmed.ends_with('(')
+        || trimmed.ends_with('[')
+        || trimmed.ends_with(',')
+        || trimmed.ends_with(';')
+        || trimmed.ends_with(':')
+        || trimmed.ends_with('{')
+        || trimmed.ends_with('}')
+        || trimmed.ends_with('&')
+        || trimmed.ends_with("return")
+        || trimmed.ends_with("let")
+        || trimmed.ends_with("mut");
+    if !bare {
         return None;
     }
     return Some(name);
@@ -371,10 +389,15 @@ fn receiver_of(masked: &str, at: usize) -> Option<String> {
 /// const followed = terminal.kind === 'spawn_owned' ? commandArgument(masked, at) : receiverOf(masked, at);
 /// ```
 fn binding_followed(masked: &str, terminal: &FoundTerminal) -> Option<String> {
+    if terminal.kind == Terminal::Followed {
+        // A followed call is made on the binding the chain configures (`command.status_retrying()`), so its clauses say what
+        // the child is given and whether the words name the service.
+        return receiver_of(masked, terminal.offset);
+    }
     if terminal.kind != Terminal::SpawnOwned {
         return receiver_of(masked, terminal.offset);
     }
-    let open_relative: usize = masked[terminal.offset..].find('(')?;
+    let open_relative: usize = masked.get(terminal.offset..)?.find('(')?;
     let open: usize = terminal.offset + open_relative;
     let argument: &str = masked[open + 1..].trim_start();
     let rest: &str = argument.strip_prefix("&mut ").or_else(|| { return argument.strip_prefix('&'); }).unwrap_or(argument);
@@ -408,6 +431,265 @@ fn runs_the_service(raw: &str) -> bool {
     return quoted;
 }
 
+
+/// What:
+///  The names of this crate's functions that start a child,
+///  with what each gives that child,
+///  read from the sources the caller hands in.
+/// Why:
+///   A list of terminal names misses the next name
+/// (a review of 2026-11-14, finding 4: `.status_retrying()` starts a child and the reader passed it).
+/// A function that returns `Child`, `Output` or `ExitStatus` has started a child,
+/// and so has one that ends in a call to such a function,
+///  which is what the loop below follows until nothing new is found.
+///  The shape of the body says what the child is given:
+/// a body that captures,
+///  or that sets a standard error,
+///  needs no setter at the call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = new Map(); for (const fn of functions) if (returnsChild(fn)) names.set(fn.name, shapeOf(fn.body)); untilStable(() => alsoNamesThatCallThese())
+/// ```
+pub fn read_names(sources: &[String]) -> Names {
+    // The functions are read once: a crate of thousands of functions is no place for a rescan per pass.
+    let mut all: Vec<Function> = Vec::new();
+    for source in sources {
+        all.extend(functions(mask(source).as_str()));
+    }
+    let mut names: Names = Names { starts: BTreeMap::new(), commands: BTreeSet::new() };
+    for function in &all {
+        let returned: &str = return_type(function.signature.as_str());
+        if mentions_a_child(returned) {
+            names.starts.insert(function.name.clone(), shape_of_body(function.body.as_str()));
+        }
+        if mentions_identifier(returned, "Command") {
+            let _added: bool = names.commands.insert(function.name.clone());
+        }
+    }
+    return names;
+}
+
+/// What:
+///  The masked body of the function `name` in `source`,
+///  or nothing when the source does not define it with a body.
+/// Why:
+///  A rule about one launcher reads that launcher's body and nothing else,
+/// so a setting beside it in the same file neither satisfies the rule nor hides a loss.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bodyOf = (source, name) => functions(mask(source)).find((fn) => fn.name === name)?.body
+/// ```
+pub fn function_body(source: &str, name: &str) -> Option<String> {
+    return functions(mask(source).as_str()).into_iter().find(|function| { return function.name == name; }).map(|function| { return function.body; });
+}
+
+/// Every name `masked` calls,
+/// as a method (`.name(`) or as a free call (`name(`),
+/// with the offset the name starts at.
+fn called_names(masked: &str) -> Vec<(usize, String)> {
+    return called_names_at_depth(masked, true);
+}
+
+/// Every name `masked` calls at the outside level,
+/// with the offset the name starts at.
+/// A call inside an argument list is no method of the chain:
+/// `Command::new("sh").arg(script.as_path())` names `as_path`, and `as_path` is no start.
+fn called_names_at_top_level(masked: &str) -> Vec<(usize, String)> {
+    return called_names_at_depth(masked, false);
+}
+
+/// The calls of `masked`,
+/// each with how deep in brackets it sits,
+/// or only those at the outside level.
+fn called_names_at_depth(masked: &str, every_depth: bool) -> Vec<(usize, String)> {
+    let bytes: &[u8] = masked.as_bytes();
+    let mut found: Vec<(usize, String)> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut start: usize = 0;
+    while start < bytes.len() {
+        match bytes[start] {
+            b'(' => {
+                let mut name_end: usize = start;
+                while name_end > 0 && is_word_byte(bytes[name_end - 1]) {
+                    name_end -= 1;
+                }
+                if name_end < start {
+                    let name: &str = &masked[name_end..start];
+                    let first: u8 = bytes[name_end];
+                    if first.is_ascii_alphabetic() || first == b'_' {
+                        if every_depth || depth == 0 {
+                            found.push((name_end, name.to_owned()));
+                        }
+                    }
+                }
+                depth += 1;
+            }
+            // A block's braces are no brackets: a call in a function body is still at the outside level.
+            b'[' => depth += 1,
+            b')' | b']' => depth -= 1,
+            _ => {}
+        }
+        start += 1;
+    }
+    return found;
+}
+
+/// What:
+///  The names this crate's sources give to a start and to a command,
+///  and what each start gives its child.
+/// Why:
+///   A name alone is no proof:
+/// `new`,
+/// `wait`,
+/// `kill` and `finish` are names of many types,
+/// so a call counts as a start only when the function's return type says it hands back a started child,
+///  and a method call counts only when the binding it is called on was built as a command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Names = { starts: Map<string, Shape>; commands: Set<string> }
+/// ```
+pub struct Names {
+    /// The functions whose return type is a started child, with what each gives it.
+    pub starts: BTreeMap<String, Shape>,
+    /// The functions whose return type is a `Command`.
+    pub commands: BTreeSet<String>,
+}
+
+/// The return type of a signature:
+/// what stands after `->`,
+/// or nothing when the function returns nothing.
+fn return_type(signature: &str) -> &str {
+    return match signature.find("->") {
+        Some(at) => &signature[at + 2..],
+        None => "",
+    };
+}
+
+/// Whether a return type names a started child:
+/// a `Child`,
+/// an `Output` or an `ExitStatus`.
+fn mentions_a_child(returned: &str) -> bool {
+    for word in ["Child", "Output", "ExitStatus"] {
+        if mentions_identifier(returned, word) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// One function of a masked source:
+/// its name,
+/// its signature,
+/// and its body.
+struct Function {
+    name: String,
+    signature: String,
+    body: String,
+}
+
+/// Every function a masked source defines,
+/// with the body's own text.
+fn functions(masked: &str) -> Vec<Function> {
+    let mut found: Vec<Function> = Vec::new();
+    let bytes: &[u8] = masked.as_bytes();
+    let mut at: usize = 0;
+    while let Some(start) = find(bytes, at, b"fn ") {
+        at = start + 3;
+        let after: &str = &masked[at..];
+        let name: String = after.trim_start().chars().take_while(|letter| { return letter.is_alphanumeric() || *letter == '_'; }).collect();
+        if name.is_empty() {
+            continue;
+        }
+        // The signature runs from the name to the body's `{`, and a declaration without a body ends at `;`.
+        let name_at: usize = at + after.len() - after.trim_start().len();
+        let Some(open) = masked[name_at..].find('{') else { continue };
+        let Some(close) = masked[name_at..].find(';') else { continue };
+        if close < open {
+            continue;
+        }
+        let body_start: usize = name_at + open;
+        let Some(body_end) = matching_brace(masked, body_start) else { continue };
+        found.push(Function {
+            name,
+            signature: masked[name_at..body_start].to_owned(),
+            body: masked[body_start + 1..body_end].to_owned(),
+        });
+        at = body_end;
+    }
+    return found;
+}
+
+/// The offset of the `}` that closes the `{` at `open`,
+/// or nothing when the source does not close it.
+fn matching_brace(masked: &str, open: usize) -> Option<usize> {
+    let bytes: &[u8] = masked.as_bytes();
+    let mut depth: i32 = 0;
+    let mut at: usize = open;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(at);
+                }
+            }
+            _ => {}
+        }
+        at += 1;
+    }
+    return None;
+}
+
+/// What a body gives the child it starts.
+fn shape_of_body(body: &str) -> Shape {
+    return Shape {
+        captures: body.contains(".output("),
+        sets_error: body.contains(".stderr("),
+        sets_all: body.contains(".stdin(") && body.contains(".stdout(") && body.contains(".stderr("),
+    };
+}
+
+/// The first start name `body` calls, when it calls one.
+fn called_start_name(body: &str, shapes: &BTreeMap<String, Shape>) -> Option<String> {
+    let mut best: Option<(usize, String)> = None;
+    for name in shapes.keys() {
+        let Some(at) = call_offset(body, name.as_str()) else { continue };
+        let longer: bool = best.as_ref().is_none_or(|(_, found)| { return name.len() > found.len(); });
+        if longer {
+            best = Some((at, name.clone()));
+        }
+    }
+    return best.map(|(_, name)| { return name; });
+}
+
+/// The offset of a call to `name` in `masked`,
+/// as a method (`.name(`) or a free call (`name(`),
+/// or nothing when it is no call there.
+fn call_offset(masked: &str, name: &str) -> Option<usize> {
+    let bytes: &[u8] = masked.as_bytes();
+    let needle: &[u8] = name.as_bytes();
+    let mut at: usize = 0;
+    while let Some(start) = find(bytes, at, needle) {
+        at = start + 1;
+        let before_ok: bool = start == 0 || !is_word_byte(bytes[start - 1]);
+        let after: usize = start + needle.len();
+        let after_ok: bool = after < bytes.len() && bytes[after] == b'(';
+        if before_ok && after_ok {
+            let method: bool = start > 0 && bytes[start - 1] == b'.';
+            let head: &str = &masked[..start];
+            let path_call: bool = method || head.trim_end().ends_with("::") || head.trim_end().ends_with(":") || head.trim_end().ends_with('=') || head.trim_end().ends_with('(') || head.trim_end().ends_with(',') || head.trim_end().ends_with("return") || head.trim_end().is_empty();
+            if path_call {
+                return Some(start);
+            }
+        }
+    }
+    return None;
+}
+
 /// What:
 ///  Every start of a child in `raw`,
 ///  with the standard error it gives the child and the program it names.
@@ -420,38 +702,32 @@ fn runs_the_service(raw: &str) -> bool {
 /// const starts = readStarts(source); for (const start of starts) judge(start);
 /// ```
 pub fn starts(raw: &str) -> Vec<Start> {
+    return starts_following(raw, &read_names(&[String::from(raw)]));
+}
+
+/// What:
+///  Every start of a child in `raw`,
+///  following the functions of this crate that the caller names as starts.
+/// Why:
+///  A start may be a call to a helper the crate defines (`status_retrying`, `git`, `run`),
+/// and the reader then needs the crate's own names to see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const starts = startsFollowing(text, crateStartNames(allSources))
+/// ```
+pub fn starts_following(raw: &str, names: &Names) -> Vec<Start> {
     let masked: String = mask(raw);
     let found: Vec<Clause> = clauses(masked.as_str(), raw);
     let mut all: Vec<Start> = Vec::new();
     for (index, clause) in found.iter().enumerate() {
-        for terminal in terminals(clause.masked.as_str()) {
-            let mut chain: Clause = clause.clone();
-            let mut chain_raw: String = clause.raw.clone();
-            let mut chain_masked: String = clause.masked.clone();
-            if let Some(name) = binding_followed(clause.masked.as_str(), &terminal) {
-                let word: String = name.clone();
-                let mut masked_pieces: Vec<String> = Vec::new();
-                let mut raw_pieces: Vec<String> = Vec::new();
-                for earlier in found[..index].iter().rev() {
-                    let mentions: bool = mentions_identifier(earlier.masked.as_str(), word.as_str());
-                    if mentions {
-                        masked_pieces.push(earlier.masked.clone());
-                        raw_pieces.push(earlier.raw.clone());
-                    }
-                    if binds_identifier(earlier.masked.as_str(), word.as_str()) {
-                        break;
-                    }
-                }
-                masked_pieces.reverse();
-                raw_pieces.reverse();
-                masked_pieces.push(chain_masked);
-                raw_pieces.push(chain_raw);
-                chain_masked = masked_pieces.join("\n");
-                chain_raw = raw_pieces.join("\n");
-                chain.first = found[..index].iter().rev().find(|earlier| { return mentions_identifier(earlier.masked.as_str(), word.as_str()); }).map_or(clause.first, |earlier| { return earlier.first; });
-                chain.last = clause.last;
-            }
-            let standard_error: StandardError = if terminal.kind == Terminal::Output || chain_masked.contains(".stderr(") {
+        // The clause's own chain, following the binding a call is made on, is what says whether a method call is a
+        // start at all and whether the child is given a standard error.
+        let chain_for_the_walk: (String, String) = chain_of(found.as_slice(), index, clause, None);
+        for terminal in terminals(clause, chain_for_the_walk.0.as_str(), names) {
+            let (chain_masked, chain_raw): (String, String) = chain_of(found.as_slice(), index, clause, Some(&terminal));
+            let helper: Shape = terminal.name.as_deref().and_then(|name| { return names.starts.get(name).copied(); }).unwrap_or(Shape { captures: false, sets_error: false, sets_all: false });
+            let standard_error: StandardError = if terminal.kind == Terminal::Output || chain_masked.contains(".stderr(") || helper.captures || helper.sets_error {
                 StandardError::Given
             } else {
                 StandardError::Inherited
@@ -467,11 +743,80 @@ pub fn starts(raw: &str) -> Vec<Start> {
                 standard_error,
                 chain: chain_raw,
                 runs_the_service: serves,
+                followed: terminal.name.clone(),
             });
-            let _ = &mut chain;
         }
     }
     return all;
+}
+
+/// What:
+///  The masked and raw text of a clause together with the clauses of the binding its terminal is called on,
+///  or with the clauses of the binding its first call names when no terminal is given.
+/// Why:
+///   A command is configured in clauses of its own before the clause that starts it,
+/// so the setters are there and not where the call is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [masked, raw] = chainOf(found, index, clause, terminal)
+/// ```
+fn chain_of(found: &[Clause], index: usize, clause: &Clause, terminal: Option<&FoundTerminal>) -> (String, String) {
+    let binding: Option<String> = match terminal {
+        Some(found_terminal) => binding_followed(clause.masked.as_str(), found_terminal),
+        None => first_called_binding(clause.masked.as_str()),
+    };
+    let Some(name) = binding else {
+        return (clause.masked.clone(), clause.raw.clone());
+    };
+    let mut masked_pieces: Vec<String> = Vec::new();
+    let mut raw_pieces: Vec<String> = Vec::new();
+    for earlier in found[..index].iter().rev() {
+        if mentions_identifier(earlier.masked.as_str(), name.as_str()) {
+            masked_pieces.push(earlier.masked.clone());
+            raw_pieces.push(earlier.raw.clone());
+        }
+        if binds_identifier(earlier.masked.as_str(), name.as_str()) {
+            break;
+        }
+    }
+    masked_pieces.reverse();
+    raw_pieces.reverse();
+    // The binding is a child when the first thing its own clause does is start it: `let child = command.spawn()`.
+    // What the clause then calls is called on that child, and following it would read another clause's command.
+    if let Some(earliest) = raw_pieces.first() {
+        let masked_earliest: &str = masked_pieces.first().map(String::as_str).unwrap_or("");
+        let starts_it: bool = called_names_at_top_level(masked_earliest).first().is_some_and(|(_, name)| {
+            return STARTING_METHODS.contains(&name.as_str()) || name == "spawn_owned" || name == "exec";
+        });
+        let _ = earliest;
+        if starts_it {
+            return (clause.masked.clone(), clause.raw.clone());
+        }
+    }
+    let mut masked: String = masked_pieces.join("\n");
+    let mut raw: String = raw_pieces.join("\n");
+    if !masked.is_empty() {
+        masked.push('\n');
+        raw.push('\n');
+    }
+    masked.push_str(clause.masked.as_str());
+    raw.push_str(clause.raw.as_str());
+    return (masked, raw);
+}
+
+/// The binding the first call in `masked` is made on,
+/// when it is made on a bare binding,
+/// or nothing.
+fn first_called_binding(masked: &str) -> Option<String> {
+    for (offset, _) in called_names_at_top_level(masked) {
+        // A method's receiver is the text before its dot, which `receiver_of` reads from the dot's offset.
+        let at: usize = if offset >= 1 && masked.as_bytes().get(offset - 1) == Some(&b'.') { offset - 1 } else { offset };
+        if let Some(name) = receiver_of(masked, at) {
+            return Some(name);
+        }
+    }
+    return None;
 }
 
 /// A terminal call found in a clause:
@@ -479,11 +824,35 @@ pub fn starts(raw: &str) -> Vec<Start> {
 struct FoundTerminal {
     kind: Terminal,
     offset: usize,
+    /// The helper's name, when this terminal is a call to a function of this crate.
+    name: Option<String>,
 }
 
-/// The terminals of a masked clause,
-/// in the order they appear.
-fn terminals(masked: &str) -> Vec<FoundTerminal> {
+/// The methods that start a command,
+/// read as raw terminals above:
+/// a chain that reaches one has ended the command's life, and a method after it is called on the child.
+const STARTING_METHODS: &[&str] = &["spawn", "status", "output"];
+
+/// The methods that hand back a value of the command's own and end its chain:
+/// a read of its arguments or environment is no command to configure further.
+const COMMAND_GETTERS: &[&str] = &["get_args", "get_envs", "get_current_dir", "as_std", "into_std"];
+
+/// The methods of a command that configure it and start nothing:
+/// the standard library's `std::process::Command` setters and getters,
+/// read from its documentation.
+/// A chain that ends in any other method has started that command's child,
+/// which is how this reader finds a start the crate names something else (`status_retrying`).
+const CONFIGURING_METHODS: &[&str] = &[
+    "arg", "args", "arg0", "env", "envs", "env_clear", "env_remove", "current_dir", "stdin", "stdout", "stderr", "process_group", "pre_exec", "before_exec", "uid", "gid", "groups",
+    "kill_on_drop",
+];
+
+/// The terminals of a clause:
+/// a raw start (`output`, `status`, `spawn`, `spawn_owned`) when the clause holds one,
+/// and otherwise the method that ends a command this clause builds,
+/// when that method is not one of the command's configuration calls.
+fn terminals(clause: &Clause, chain_masked: &str, names: &Names) -> Vec<FoundTerminal> {
+    let masked: &str = clause.masked.as_str();
     let mut found: Vec<FoundTerminal> = Vec::new();
     for word in [".output(", ".status(", ".spawn()", "spawn_owned("] {
         let mut from: usize = 0;
@@ -498,10 +867,54 @@ fn terminals(masked: &str) -> Vec<FoundTerminal> {
             if word == "spawn_owned(" && is_definition(masked, at) {
                 continue;
             }
-            found.push(FoundTerminal { kind: terminal_of(word), offset: at });
+            found.push(FoundTerminal { kind: terminal_of(word), offset: at, name: None });
         }
     }
-    found.sort_by_key(|terminal| { return terminal.offset; });
+    if !found.is_empty() {
+        found.sort_by_key(|terminal| { return terminal.offset; });
+        return found;
+    }
+    // The chain is walked from its first call: a clause that starts with a command this crate builds, and whose methods
+    // are that command's configuration calls until one is not, has started the command's child at that method. The walk
+    // reads the chain, because the command is built in the binding's own clauses, and the terminal is looked for in this
+    // clause so the finding still names the line it is on.
+    let calls: Vec<(usize, String)> = called_names_at_top_level(chain_masked);
+    let chain_bytes: &[u8] = chain_masked.as_bytes();
+    let mut command: bool = false;
+    let mut at_the_build: bool = true;
+    for (offset, name) in calls.iter() {
+        // A definition's own name is no call of the chain: `fn f() {` starts one.
+        if is_definition(chain_masked, *offset) {
+            continue;
+        }
+        let method_call: bool = *offset >= 1 && chain_bytes[*offset - 1] == b'.';
+        if at_the_build {
+            at_the_build = false;
+            // A name this crate gives to a command *and* to a started child is ambiguous, and an ambiguous name builds no
+            // command here: `quiet` is a command in one file and a child in another, and its call is no proof of either.
+            let gives_a_command: bool = names.commands.contains(name.as_str()) && !names.starts.contains_key(name.as_str());
+            let built_here: bool = name == "service_command" || (!method_call && gives_a_command);
+            let new_of_command: bool = name == "new" && chain_masked[..*offset].ends_with("Command::");
+            command = built_here || new_of_command || (method_call && gives_a_command);
+            continue;
+        }
+        if !command || !method_call {
+            command = false;
+            continue;
+        }
+        // A method that starts the command, or that hands back a value of its own, ends its chain: what a later method is
+        // called on is the child or the value, not the command.
+        if STARTING_METHODS.contains(&name.as_str()) || COMMAND_GETTERS.contains(&name.as_str()) || name == "exec" {
+            break;
+        }
+        if CONFIGURING_METHODS.contains(&name.as_str()) {
+            continue;
+        }
+        let call: String = format!(".{name}(");
+        let Some(in_clause) = masked.find(call.as_str()) else { break };
+        found.push(FoundTerminal { kind: Terminal::Followed, offset: in_clause, name: Some(name.clone()) });
+        break;
+    }
     return found;
 }
 
@@ -515,19 +928,22 @@ fn terminal_of(word: &str) -> Terminal {
     };
 }
 
-/// Whether the call at `at` is the name in a `fn` definition rather than a call.
+/// What:
+///  Whether the call at `at` is the name in a `fn` definition rather than a call.
+/// Why:
+///   `fn spawn_owned(` names the support and starts nothing,
+///  and the head of a definition is the few characters before its name:
+/// the name directly follows `fn`,
+///  so the text before the call ends with `fn`.
+///  Reading the whole line would refuse a call that happens to sit on a line whose start is a definition.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isDefinition = (masked, at) => /fn$/u.test(masked.slice(0, at).trimEnd())
+/// ```
 fn is_definition(masked: &str, at: usize) -> bool {
-    let head: &str = &masked[..at];
-    let Some(line_start) = head.rfind('\n') else {
-        return definition_head(head);
-    };
-    return definition_head(&head[line_start + 1..]);
-}
-
-/// Whether the text before a call reads `fn …` or `pub fn …`.
-fn definition_head(head: &str) -> bool {
-    let trimmed: &str = head.trim_start();
-    return trimmed.starts_with("fn ") || trimmed.starts_with("pub fn ") || trimmed.starts_with("pub(crate) fn ") || trimmed.starts_with("const fn ");
+    let head: &str = &masked[..at.min(masked.len())];
+    return head.trim_end().ends_with("fn");
 }
 
 /// Whether `masked` mentions `name` as one identifier.
@@ -642,4 +1058,17 @@ fn the_service_support_is_read_as_a_start_of_the_service() {
     let found = starts(source);
     assert_eq!(found.len(), 1);
     assert!(found[0].runs_the_service, "the support that builds a service start names it");
+}
+
+
+/// A temporary reading of one clause's chain for a probe of the reader itself.
+pub fn debug_chain(text: &str) -> Vec<(usize, String, String)> {
+    let masked: String = mask(text);
+    let found: Vec<Clause> = clauses(masked.as_str(), text);
+    let mut out = Vec::new();
+    for (index, clause) in found.iter().enumerate() {
+        let chain = chain_of(found.as_slice(), index, clause, None);
+        out.push((clause.first, clause.masked.clone(), chain.0));
+    }
+    return out;
 }

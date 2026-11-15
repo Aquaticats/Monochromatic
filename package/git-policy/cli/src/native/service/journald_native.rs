@@ -499,6 +499,25 @@ impl Sink {
     /// try { socket.send(datagram) } catch { stderr.write(prefix + line) ?? count(dropped) }
     /// ```
     pub fn deliver(&self, priority: Priority, message: &str, fields: &[(&str, String)], line: &str, stderr: &mut dyn Write) -> Delivery {
+        return self.deliver_as(IDENTIFIER, priority, message, fields, line, stderr);
+    }
+
+    /// What:
+    ///  The same delivery under the identifier the caller names,
+    ///  which is how an entry of the service keeps the name it has always been found by.
+    /// Why:
+    ///   Code that runs inside the service may record an entry under the wrapper's own identifier
+    /// (`merge_second_pass_report::journal_merged` records a merged file under the client's name),
+    ///  and an entry routed through the service's sink must keep that name.
+    ///  The socket,
+    ///  the stream and the fallback are this sink's,
+    ///  so the road stays the one the sink decides.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// deliverAs('monochromatic-git-policy-cli', priority, message, fields, line, stderr)
+    /// ```
+    pub fn deliver_as(&self, identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)], line: &str, stderr: &mut dyn Write) -> Delivery {
         let lost: u64 = self.lost.load(Ordering::Relaxed);
         if let Some(socket) = self.native.as_ref()
             && let Some(address) = self.address.as_ref()
@@ -507,7 +526,7 @@ impl Sink {
             if lost > 0 {
                 all.push((LOST_FIELD, lost.to_string()));
             }
-            if socket.send_to_addr(datagram(priority, message, all.as_slice()).as_slice(), address).is_ok() {
+            if socket.send_to_addr(datagram_as(identifier, priority, message, all.as_slice()).as_slice(), address).is_ok() {
                 self.forgive(lost);
                 return Delivery::Native;
             }

@@ -329,13 +329,36 @@ pub fn service_command() -> Command {
     command
         .args(git_policy_cli::service_main::SERVICE_WORDS)
         .env_remove("XDG_RUNTIME_DIR")
-        .env_remove("DBUS_SESSION_BUS_ADDRESS")
-        .env_remove(git_policy_cli::journald_native::STREAM_VARIABLE)
-        .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, NOBODY_JOURNAL_ADDRESS)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .env_remove("DBUS_SESSION_BUS_ADDRESS");
+    keep_the_journal_off(&mut command);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     return command;
+}
+
+/// What:
+///  Give `command` the two settings that keep a test's service off this machine's journal:
+///  the trigger removed (`$JOURNAL_STREAM`),
+///  and the address its entries would go to a name nothing listens at.
+/// Why:
+///   Both of the wrapper's roads to `/run/systemd/journal/socket` are decided by these two:
+/// the service's own sink takes the native path only when the trigger names its standard error,
+///  and its target is the address this variable names;
+/// the sender the wrapper uses as a client (`client_journal`) reads the address,
+///  and the service never reaches it at all (`client_journal::record_entry_as` routes a service's entry through the sink).
+///  A variable each launcher must remember is the shape that failed once
+/// (`FixtureService::serve` forgot it, a review of 2026-11-14 found),
+///  so every launcher calls this one function,
+///  and the guard reads the sources to see that it does.
+///  A control that needs its own receiver sets the address after this call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// command.envDelete('JOURNAL_STREAM'); command.env('CLI_GIT_TEST_ONLY_JOURNAL_SOCKET', NOBODY_JOURNAL_ADDRESS);
+/// ```
+pub fn keep_the_journal_off(command: &mut Command) -> &mut Command {
+    return command
+        .env_remove(git_policy_cli::journald_native::STREAM_VARIABLE)
+        .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, NOBODY_JOURNAL_ADDRESS);
 }
 
 /// The path of the executable that runs as the service when started with the service mode words.
@@ -506,6 +529,9 @@ impl FixtureService {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::from(crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+        // Its own `env_clear` above is why this comes here and not with the arguments: a launcher that starts from an empty
+        // environment must put the journal's two settings back, and this is the one place that does it.
+        keep_the_journal_off(&mut command);
         for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
             command.env(name, value);
         }
@@ -547,7 +573,13 @@ impl FixtureService {
                 }
             } else if let Some(status) = ended {
                 children.remove(&key);
-                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", git_policy_cli::service_server::address_text(&address));
+                // The words are quoted here and not pointed at: the fixture's cleanup removes the file this failure names, and
+                //  the copier no longer copies them to the test's own standard error (a review of 2026-11-14, finding 3).
+                panic!(
+                    "the fixture's commit service ended ({status}) before it listened at {}; what it wrote was: {}",
+                    git_policy_cli::service_server::address_text(&address),
+                    crate::support_fixture_service_log::service_log(fixture.root.as_path())
+                );
             }
             // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds
             //  its socket. The fixture ends the wait on the service's own silence, never on the clock, because six

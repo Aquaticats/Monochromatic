@@ -666,6 +666,25 @@ pub fn set_context(release: &str, instance: Option<&str>) {
 /// logEntry('warning', 'cannot listen', [['CLI_GIT_REQUEST_ID', id]])
 /// ```
 pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> Delivery {
+    return log_entry_as(crate::journald_native::IDENTIFIER, priority, line, fields);
+}
+
+/// What:
+///  Writes one entry of a priority under the identifier the caller names,
+///  with the fields,
+///  the masking and the time `log_entry` gives.
+/// Why:
+///   Code that runs inside the service may record an entry under the wrapper's own identifier
+/// (`client_journal::record_entry_as`),
+///  and it must go where the service's entries go,
+///  the sink's socket or the sink's stream,
+///  never to the machine's journal socket through the client's own sender.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// logEntryAs('monochromatic-git-policy-cli', 'warning', 'word-level merge: a.md', [])
+/// ```
+pub fn log_entry_as(identifier: &str, priority: Priority, line: &str, fields: &[(&str, String)]) -> Delivery {
     let at_ms: u128 = wall_millis();
     // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
     //  that no longer looks like userinfo.
@@ -694,7 +713,7 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     //  FIFO drops is what the stream would have dropped anyway (`journald_native.rs`).
     if sink().on_stream() || in_service() {
         let mut never_waits: StreamWriter = StreamWriter::stderr();
-        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut never_waits);
+        return sink().deliver_as(identifier, priority, message.as_str(), all.as_slice(), text.as_str(), &mut never_waits);
     }
     // The wrapper's own standard error, where a person reads it, is written by a thread of its own, for the same reason: a
     //  command that waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12
@@ -703,7 +722,7 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) {
         Delivery::Stderr
     } else {
-        sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr())
+        sink().deliver_as(identifier, priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr())
     };
 }
 

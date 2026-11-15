@@ -25,7 +25,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use super::support::{Fixture, FixtureService, fixture, git, repository, service_log, start_fixture_service};
 use git_policy_cli::service_fault::QUEUED_DIRECTORY_VARIABLE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::{OsStr, OsString};
@@ -48,6 +48,11 @@ const OTHER: &str = "g.txt";
 
 /// The number of lines the file has.
 const LINES: usize = 9;
+
+/// The line the two commits of the merged-entry control edit,
+/// each in a different word of it,
+/// so the service merges words rather than taking either side.
+const MERGED_AT: usize = 5;
 
 /// How many arrivals at the marker the control releases in advance,
 /// after the first it holds:
@@ -550,5 +555,66 @@ fn a_commit_the_service_sent_back_still_has_the_private_index_of_the_attempt_it_
     assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "sent back\nholder\nbase\n");
     assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&[(1, "the edit")]), "the person's file is intact");
     assert_eq!(finish(holder).code, Some(0), "the holder landed too");
+    remove_settled(&scene.fixture);
+}
+
+/// What:
+///  A merged-file entry the service records lands where the fixture keeps it,
+///  and the sender the wrapper uses as a client receives nothing of it.
+/// Why:
+///   A reviewer of 2026-11-14 found the road after the streams were closed:
+/// the service's own sink was kept off this machine's journal by `$JOURNAL_STREAM` and the nobody address,
+///  and code that runs inside the service recorded a merged file through `client_journal`,
+///  whose road is `/run/systemd/journal/socket` whenever no test address is named.
+///  A fixture's service names its own address (`give_service_environment`),
+/// and this control gives it a stand-in of the control's:
+/// the entry must appear in the fixture's log, which is the service's own keeping,
+///  and never at the stand-in that the client's sender would have used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stand = bindJournalStandIn(); give(service, TEST_SOCKET_VARIABLE, '@' + stand.name); const [one, two] = run(scene, first, second, late);
+/// expect(serviceLog(root)).toContain('word-level merge'); expect(stand.received).toEqual([])
+/// ```
+#[test]
+fn a_merged_entry_the_service_records_lands_in_the_fixture_and_not_at_the_client_s_target() {
+    use std::os::linux::net::SocketAddrExt;
+    let name: String = format!("cli-git-test-service-merge-{}-{}", std::process::id(), MERGED_AT);
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract address");
+    let stand_in = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
+    let fixture: Fixture = fixture("replay-merged-entry");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(FILE), lines_with(&[])).expect("the file");
+    std::fs::write(repo.join(OTHER), "other\n").expect("the other file");
+    git(&fixture, &repo, &["add", "--", FILE, OTHER]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    let markers: PathBuf = fixture.root.join("markers");
+    std::fs::create_dir(&markers).expect("markers");
+    let queued: PathBuf = fixture.root.join("queued");
+    std::fs::create_dir(&queued).expect("queued");
+    super::support::give_service_environment(&fixture, QUEUED_DIRECTORY_VARIABLE, queued.to_str().expect("UTF-8"));
+    // The address the client's sender would use, so anything it sends is caught here instead of the machine's journal.
+    super::support::give_service_environment(&fixture, git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{name}").as_str());
+    let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
+    let scene: Scene = Scene { fixture, repo, service, markers, queued };
+    let first: [(usize, &str); 1] = [(MERGED_AT, "one TWO three")];
+    let second: [(usize, &str); 1] = [(MERGED_AT, "one two THREE")];
+    let late: [(usize, &str); 1] = [(MERGED_AT, "one two THREE")];
+    let (one, two) = run(&scene, &first, &second, &late);
+    assert_eq!(one.code, Some(0), "{}", one.stderr);
+    assert_eq!(two.code, Some(0), "{}", two.stderr);
+    let landed: String = show(&scene, &format!("HEAD:{FILE}"));
+    assert!(landed.contains("one TWO THREE"), "the service merged the two edits word by word: {landed}");
+    let said: String = service_log(scene.fixture.root.as_path());
+    assert!(said.contains("word-level merge"), "the merged entry is in the fixture's own keeping: {said}");
+    stand_in.set_read_timeout(Some(Duration::from_millis(500))).expect("a read timeout");
+    let mut buffer: Vec<u8> = vec![0; 8192];
+    let mut received: Vec<String> = Vec::new();
+    while let Ok(length) = stand_in.recv(buffer.as_mut_slice()) {
+        received.push(String::from_utf8_lossy(&buffer[..length]).into_owned());
+    }
+    assert!(received.is_empty(), "nothing reached the client's target: {received:?}");
     remove_settled(&scene.fixture);
 }

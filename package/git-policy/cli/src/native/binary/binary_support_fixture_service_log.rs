@@ -205,6 +205,28 @@ fn record_failure(root: &Path, path: &Path, reason: &str) {
 }
 
 /// What:
+///  Forget what the services of `root` said, when that root is made fresh.
+/// Why:
+///   The words of every service of a fixture root are kept until that root's fixture ends,
+/// whichever service started when:
+/// a root may serve several worktrees,
+/// and a start must never take away what an earlier service of the same root said.
+///  So the memory is cleared here,
+/// where a fixture root is created anew,
+/// and never when another pipe is made for a root that already has one
+/// (a review of 2026-11-14, finding 2: the second pipe of a root whose log file could not be made discarded the first
+/// service's words).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetTheLogOf(root) // called by the fixture that makes the root
+/// ```
+pub fn forget_the_log_of(root: &Path) {
+    let mut all = kept().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _gone = all.remove(root);
+}
+
+/// What:
 ///  The writing end of a pipe whose other end copies what a service writes on standard error into
 ///  `SERVICE_LOG_FILE` under `root`,
 ///  and into this process's memory whatever the file does.
@@ -226,12 +248,9 @@ pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<OwnedFd> {
     let (mut reader, writer): (std::io::PipeReader, std::io::PipeWriter) = std::io::pipe()?;
     let path: PathBuf = root.join(SERVICE_LOG_FILE);
     {
-        // A fixture root that is fresh holds no log file, so nothing of an earlier fixture under the same name is kept;
-        // a root that already holds one keeps the words of the services it served before, as the file does.
+        // The words of the services this root already served stay: a root may serve several worktrees, and a pipe is no
+        // reason to take away what an earlier service of the same root said. A fresh root forgets them where it is made.
         let mut all = kept().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !path.exists() {
-            let _gone = all.remove(root);
-        }
         let _entry = all.entry(root.to_path_buf()).or_insert_with(|| { return KeptHere { bytes: Vec::new(), file_failure: None }; });
     }
     let key: PathBuf = root.to_path_buf();

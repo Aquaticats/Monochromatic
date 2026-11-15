@@ -177,6 +177,8 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
         panic!("fresh fixture: {error}; {}", missing_fixture_root_report(directory));
     }
     let root: PathBuf = std::fs::canonicalize(&created).expect("canonical fixture");
+    // A root of the same name and process is a new fixture: what its services said before belongs to a fixture that ended.
+    crate::support_fixture_service_log::forget_the_log_of(root.as_path());
     for subdirectory in ["wrapper", "bin", "home"] {
         std::fs::create_dir(root.join(subdirectory)).expect("fixture directory");
     }

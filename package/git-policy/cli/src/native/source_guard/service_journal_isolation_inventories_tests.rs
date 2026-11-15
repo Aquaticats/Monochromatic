@@ -92,8 +92,31 @@ pub(crate) const INHERITING_PROGRAMS: &[(&str, &str)] = &[
     // A test process of this crate's own, and a program under a name the control chose.
     ("crate::test_support::this_test_binary().expect(\"test binary\")", "another run of this crate's own test binary, never the wrapper"),
     ("test_binary", "another run of this crate's own test binary, never the wrapper"),
+    // A program this machine does not have, started to prove that a refused start is retried and then reported.
+    ("\"/nonexistent-cli-git-program\"", "no such program exists: the start fails at once and writes nothing"),
     ("program", "the program of a script this crate's tests wrote, which names no program of the wrapper"),
     ("program.as_path()", "the program of a script this crate's tests wrote, which names no program of the wrapper"),
+];
+
+/// What:
+///  The helpers that collect their child's output,
+///  by name,
+///  with the reason their own body cannot show it.
+/// Why:
+///   The reader reads a helper's shape from the body that starts the child,
+///  and these helpers start it one call further on:
+/// `output_retrying` hands the start to `OutputStart::start`,
+///  which runs `Command::output`.
+///  A helper whose shape no entry and no body gives is read as inheriting,
+///  which is the safe direction (`fail closed`),
+///  so this list is what a helper like this needs to be read as the capture it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const CAPTURING_HELPERS: [string, string][] = [['output_retrying', 'it starts through OutputStart::start, which runs Command::output']];
+/// ```
+pub(crate) const CAPTURING_HELPERS: &[(&str, &str)] = &[
+    ("output_retrying", "it hands the start to `OutputStart::start`, which runs `Command::output`: the child's words are collected by the test"),
 ];
 
 /// What:
@@ -136,6 +159,10 @@ pub(crate) const INHERITING_STARTS: &[(&str, &str, usize, &str)] = &[
     ("push/bounded_push_awaiting_tests.rs", "no name", 1, "the helper `shell(...)` runs a script that traps a signal, prints a ready line the control reads through its own pipe, and execs `sleep`"),
     ("push/bounded_push_tests.rs", "no name", 1, "the helper `shell(...)` runs a script that execs `sleep`, with the output the control reads through its own pipe"),
     ("push/bounded_query_tests.rs", "no name", 1, "the helper `shell(...)` runs `sleep`, with its input the pipe the control feeds"),
+    // A call on the value a start handed back, which the reader followed to a command in the same file: the start itself is
+    // read where it is written, and what this call does with its result starts nothing.
+    ("commit/commit_preparation_tests.rs", "no name", 1, "a call on the values of a context's overlay, followed to a command in the same file"),
+    ("binary/binary_service_pruned_tests.rs", "no name", 1, "a call on the handle of a thread the control joined, followed to a command in the same file"),
     // A start whose command a support or a helper of this crate builds, so the reader cannot name its program.
     ("binary/binary_support_fixture_service.rs", "no name", 2, "the two bodies of the process-lifetime spawner: the command and its streams are the caller's, and the support adds only a process group and the parent-death signal"),
     ("testing/test_support.rs", "no name", 1, "the body of the older `spawn_owned`: the command and its streams are the caller's"),
@@ -150,3 +177,78 @@ pub(crate) const INHERITING_STARTS: &[(&str, &str, usize, &str)] = &[
     ("binary/binary_service_landing_support.rs", "/usr/bin/timeout", 1, "a `cp --archive` under a time bound: a copy that says nothing when it works"),
     ("landing/service_land_client_gone_tests.rs", "script.as_path()", 1, "a script this control writes: it opens the index lock, waits for a release file and removes the lock"),
 ];
+
+/// What:
+///  The roads to `/run/systemd/journal/socket` in the release program,
+///  by the file that holds each,
+///  with what decides that a process started by a test does not take it.
+/// Why:
+///   The task is that no line of a test's service reaches this machine's journal,
+/// and a reviewer of 2026-11-14 found a second road after the first was closed:
+/// the service's own sink (`journald_native`) and the sender the wrapper uses as a client (`client_journal`).
+///  A rule that lists the roads is what keeps the next one from being written in silence:
+/// the name of the socket and the constructor of its target appear only in these files,
+///  and each reason says what stops a test's process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const ROADS_TO_THE_SOCKET: [string, string, string][] = [['service/journald_native.rs', 'Target::journal()', 'only when $JOURNAL_STREAM names the process its own standard error']];
+/// ```
+pub(crate) const ROADS_TO_THE_SOCKET: &[(&str, &str, &str)] = &[
+    (
+        "service/journald_native_socket_target.rs",
+        "JOURNAL_SOCKET",
+        "the constant and the constructor of the target: they name the socket and start nothing",
+    ),
+    (
+        "service/journald_native.rs",
+        "Target::journal()",
+        "the service's sink takes the native road only when `$JOURNAL_STREAM` names its own standard error, and a control's service is given neither that variable nor the journal as its stream",
+    ),
+    (
+        "service/client_journal.rs",
+        "Target::journal()",
+        "the sender the wrapper uses as a client: `record_entry_as` routes a service's entry through the service's sink, and `send_entry_as` refuses inside the service, so only a process that is not the service reaches this",
+    ),
+];
+
+/// What:
+///  The sender functions of the release program,
+///  by the file that holds them,
+///  with the reason each is the only one.
+/// Why:
+///   Two `send_to_addr` calls are the two roads;
+///  a third would be a road nobody listed,
+///  so this rule fails on one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const SENDERS: [string, string][] = [['service/journald_native.rs', 'the sink'], ['service/client_journal.rs', 'the client sender']];
+/// ```
+pub(crate) const SENDERS: &[(&str, &str)] = &[
+    ("service/journald_native.rs", "the service's own sink, whose native road its standard error decides"),
+    ("service/client_journal.rs", "the sender the wrapper uses as a client, which refuses inside the service"),
+];
+
+/// What:
+///  The functions of the test support that start a service,
+///  by file and by name,
+///  each of which must keep the journal off the command it starts.
+/// Why:
+///   A variable each launcher must remember is the shape that failed once
+/// (`FixtureService::serve` forgot it),
+///  so each launcher's own body is read for the one call that sets it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const SERVICE_LAUNCHERS: [string, string][] = [['binary/binary_support_fixture_service.rs', 'serve']];
+/// ```
+pub(crate) const SERVICE_LAUNCHERS: &[(&str, &str)] = &[
+    ("binary/binary_support_fixture_service.rs", "service_command"),
+    ("binary/binary_support_fixture_service.rs", "serve"),
+    ("binary/binary_service_upgrade_tests.rs", "start_old_service"),
+    ("binary/binary_service_upgrade_one_executable_tests.rs", "activate"),
+];
+
+/// The call each of the functions above makes, which keeps the journal off the service it starts.
+pub(crate) const KEEPS_THE_JOURNAL_OFF: &str = "keep_the_journal_off(";

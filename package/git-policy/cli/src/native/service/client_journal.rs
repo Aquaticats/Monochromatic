@@ -8,6 +8,11 @@
 //! its standard error is the person's terminal or an agent's capture,
 //! which is gone when the
 //!  command ends.
+//!  A process that *is* the service records through the service's own sink instead
+//! (`record_entry_as`),
+//! and this sender refuses inside the service altogether,
+//! so the machine's journal socket is unreachable from a service by this road
+//! (a review of 2026-11-14, finding 1: the fixture's main service still sent entries there).
 //! A decision the person was told about once (an add that took the slow way and why) is then recoverable
 //!  afterwards only from the journal (`journalctl --identifier=monochromatic-git-policy-cli`).
 //! The socket is unconnected and non-blocking,
@@ -22,7 +27,8 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::journald_native::{CLIENT_IDENTIFIER, Priority, TEST_SOCKET_VARIABLE, Target, datagram_as};
+use crate::journald_native::{CLIENT_IDENTIFIER, Delivery, Priority, TEST_SOCKET_VARIABLE, Target, datagram_as};
+use crate::service_timing::in_service;
 use std::os::unix::net::UnixDatagram;
 
 /// Tag used for diagnostics from this module.
@@ -76,6 +82,13 @@ pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]
 /// const sent = recordEntryAs('cli-git-service', { priority: 'warning', message, fields });
 /// ```
 pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+    // A process that is this wrapper's service records through the service's own sink: its standard error, or the datagram
+    // its stream decides, and never the client's sender, whose road is the machine's journal socket. The identifier stays
+    // the caller's, so an entry keeps the name a person finds it by.
+    if in_service() {
+        let _delivered: Delivery = crate::service_timing::log_entry_as(identifier, priority, message, fields);
+        return true;
+    }
     let Some(found) = target() else { return false };
     return send_entry_as(&found, identifier, priority, message, fields);
 }
@@ -105,6 +118,12 @@ pub fn send_entry(target: &Target, priority: Priority, message: &str, fields: &[
 /// const sent = sendEntryAs(target, 'cli-git-service', 'warning', message, fields);
 /// ```
 pub fn send_entry_as(target: &Target, identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+    // The refusal a reviewer asked for: inside the service this sender sends nothing at all, whichever target it is handed,
+    // so a road to the machine's journal socket cannot be opened from the service by a caller that forgot the route above.
+    if in_service() {
+        debug(TAG, format!("the service records its own entries: nothing is sent to {target:?} by the client's sender").as_str());
+        return false;
+    }
     let Some(address) = target.address() else {
         debug(TAG, format!("the journal address {target:?} does not fit a socket name; no entry is sent").as_str());
         return false;

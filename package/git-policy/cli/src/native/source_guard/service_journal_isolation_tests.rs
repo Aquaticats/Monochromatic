@@ -45,9 +45,11 @@ mod inventories;
 /// A child module, so the guard's own file carries it wherever the guard's file is read from.
 #[path = "service_journal_isolation_starts_tests.rs"]
 mod starts_reader;
-use inventories::{ALLOWED_TRIGGER_LINES, INHERITING_PROGRAMS, INHERITING_STARTS};
+use inventories::{
+    ALLOWED_TRIGGER_LINES, CAPTURING_HELPERS, INHERITING_PROGRAMS, INHERITING_STARTS, KEEPS_THE_JOURNAL_OFF, ROADS_TO_THE_SOCKET, SENDERS, SERVICE_LAUNCHERS,
+};
 
-use starts_reader::{Start, StandardError, program_name, starts};
+use starts_reader::{Start, StandardError, program_name};
 use crate::source_scan_tests::{classified_sources, real_roots, source_root};
 
 /// Text that gives a child the streams of the process running the tests:
@@ -121,6 +123,22 @@ fn source_text(relative: &str) -> String {
 fn test_only_sources() -> Vec<String> {
     let found = classified_sources(source_root().as_path(), real_roots().as_slice()).expect("the module tree of this crate");
     return found.into_iter().filter(|file| return file.test_only).map(|file| return file.path).collect();
+}
+
+/// What:
+///  The sources the release program is built from, by path relative to `src/native`.
+/// Why:
+///  The reader needs the crate's own helpers to follow a start this crate spells its own way
+/// (`status_retrying`, `git`, `observe`),
+/// and those live in the release sources as well as in the test support.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const releaseSources = () => classifiedSources().filter((file) => !file.testOnly).map((file) => file.path)
+/// ```
+fn release_sources() -> Vec<String> {
+    let found = classified_sources(source_root().as_path(), real_roots().as_slice()).expect("the module tree of this crate");
+    return found.into_iter().filter(|file| return !file.test_only).map(|file| return file.path).collect();
 }
 
 /// What:
@@ -262,8 +280,19 @@ fn no_test_source_but_the_listed_lines_names_the_journal_s_trigger() {
 fn start_findings(sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut counted: std::collections::BTreeMap<(String, String), usize> = std::collections::BTreeMap::new();
+    let mut everything: Vec<String> = Vec::new();
+    for relative in release_sources() {
+        everything.push(source_text(relative.as_str()));
+    }
+    for (_, text) in sources {
+        everything.push(text.clone());
+    }
+    let mut names: starts_reader::Names = starts_reader::read_names(everything.as_slice());
+    for (helper, _why) in CAPTURING_HELPERS {
+        let _read: Option<starts_reader::Shape> = names.starts.insert(String::from(*helper), starts_reader::Shape { captures: true, sets_error: false, sets_all: false });
+    }
     for (relative, text) in sources {
-        for start in starts(text.as_str()) {
+        for start in starts_reader::starts_following(text.as_str(), &names) {
             if start.standard_error == StandardError::Given {
                 continue;
             }
@@ -429,6 +458,131 @@ fn the_fixture_service_log_writes_nothing_the_run_owns_but_a_line_that_asks() {
     let before_the_write: &str = &log_support[..log_support.find("std::io::stderr()").expect("the write")];
     let function_start: usize = before_the_write.rfind("fn ").expect("the function that writes");
     assert!(before_the_write[function_start..].contains("stderr_is_the_journal()"), "the write sits in a function that asks first");
+}
+
+
+/// What:
+///  The release program reaches `/run/systemd/journal/socket` only by the roads listed,
+///  and only where the listed reason says what stops a process a test started.
+/// Why:
+///   A reviewer of 2026-11-14 found a second road after the streams were closed:
+/// the service's own sink was kept off the machine's journal, and the sender the wrapper uses as a client
+/// (`client_journal`) still opened the socket from inside a service.
+///  A rule that names the roads, and the one place each is chosen, is what makes the next one a decision.
+///  The reading is textual and reads release code only:
+/// the socket's name and the constructor of its target appear in the listed files and nowhere else,
+///  and a `send_to_addr` stands only in the two senders.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [file, word] of roads) expect(linesHolding(read(file), word)).not.toHaveLength(0);
+/// expect(otherReleaseFilesHolding('journal/socket')).toEqual([]);
+/// ```
+#[test]
+fn the_journal_socket_is_reached_only_by_the_roads_the_inventory_names() {
+    // Every release line that names the socket or builds its address must be one the inventory names, for its own file.
+    let words: [&str; 2] = ["/run/systemd/journal/socket", "Target::journal()"];
+    let mut found: Vec<String> = Vec::new();
+    for relative in release_sources() {
+        let text: String = source_text(relative.as_str());
+        for word in words {
+            for (number, line) in lines_holding(text.as_str(), word) {
+                if line.trim_start().starts_with("//") {
+                    continue;
+                }
+                let named: bool = ROADS_TO_THE_SOCKET.iter().any(|(file, listed, _)| { return *file == relative && line.contains(listed); });
+                if !named {
+                    found.push(format!("{relative}:{number}: {line}"));
+                }
+            }
+        }
+    }
+    // Every road the inventory names must still be there: a reason for a line that went is no reason.
+    for (file, word, _) in ROADS_TO_THE_SOCKET {
+        assert!(source_text(file).contains(word), "the road {word} in {file} is still needed; remove it from the list when the line goes");
+    }
+    assert_eq!(found, Vec::<String>::new(), "a road to the machine's journal socket that no entry names");
+}
+
+/// What:
+///  Each road is chosen in the file the inventory names,
+///  `send_to_addr` stands only in the two senders,
+///  the client sender refuses inside the service,
+///  and the code that records an entry from inside a service routes it through the service's sink.
+/// Why:
+///   The roads rule above says where;
+/// this one says what decides there,
+/// so a file that keeps its `Target::journal()` but loses the condition that stops a test's process fails.
+///  The condition is read as the words that carry it, and the runtime controls hold the behaviour:
+/// `client_journal_tests` for the refusal and the route,
+/// and the fixture's merged-words control for a service's entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(recordEntryAsText).toContain('if in_service()'); expect(sendEntryAsText).toContain('if in_service()');
+/// ```
+#[test]
+fn the_client_sender_refuses_inside_the_service_and_a_service_s_entry_goes_to_the_sink() {
+    let client: String = source_text("service/client_journal.rs");
+    let record: String = starts_reader::function_body(client.as_str(), "record_entry_as").expect("the recorder's body");
+    let send: String = starts_reader::function_body(client.as_str(), "send_entry_as").expect("the sender's body");
+    assert!(record.contains("in_service()"), "the recorder routes a service's entry through the sink: {record}");
+    assert!(record.contains("log_entry_as("), "a service's entry goes through the service's sink: {record}");
+    assert!(send.contains("in_service()"), "the client's sender refuses inside the service: {send}");
+    assert!(!send.contains("datagram_as(") || send.contains("return false"), "the sender names the datagram only after the refusal");
+    for (file, _why) in SENDERS {
+        let text: String = source_text(file);
+        let sends: usize = lines_holding(text.as_str(), "send_to_addr(").len();
+        assert!(sends > 0, "{file} is still a sender; remove it from the list when it sends nothing");
+    }
+    let mut senders: Vec<String> = Vec::new();
+    for relative in release_sources() {
+        if SENDERS.iter().any(|(file, _)| { return *file == relative; }) {
+            continue;
+        }
+        let text: String = source_text(relative.as_str());
+        if !lines_holding(text.as_str(), "send_to_addr(").is_empty() {
+            senders.push(relative);
+        }
+    }
+    assert_eq!(senders, Vec::<String>::new(), "a sender the inventory does not name: {senders:?}");
+}
+
+/// What:
+///  Every launcher that starts a service in a test keeps the journal off the command it starts.
+/// Why:
+///   The variable that keeps it off is the shape that failed once:
+/// the fixture's main service launcher was written by hand, cleared its environment and never set it.
+///  A rule about each launcher's own body is what makes a launcher that forgets it fail here,
+///  and a file-level rule is what makes a new launcher in a new file fail too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [file, name] of SERVICE_LAUNCHERS) expect(bodyOf(read(file), name)).toContain('keep_the_journal_off(');
+/// ```
+#[test]
+fn every_service_launcher_keeps_the_journal_off_the_service_it_starts() {
+    let mut missing: Vec<String> = Vec::new();
+    for (file, name) in SERVICE_LAUNCHERS {
+        let text: String = source_text(file);
+        let body: String = starts_reader::function_body(text.as_str(), name).unwrap_or_else(|| { return panic!("{file} no longer defines {name}; remove it from the list when the launcher goes") });
+        if !body.contains(KEEPS_THE_JOURNAL_OFF) {
+            missing.push(format!("{file}: {name}"));
+        }
+    }
+    assert_eq!(missing, Vec::<String>::new(), "a launcher that starts a service without keeping the journal off it");
+    // A test-only source that can start the service names one of the two ways that keep the journal off it.
+    let mut unnamed: Vec<String> = Vec::new();
+    for relative in test_only_sources() {
+        let text: String = source_text(relative.as_str());
+        if !text.contains("SERVICE_PROGRAM") && !text.contains("service_executable()") && !text.contains("service_command()") {
+            continue;
+        }
+        if !text.contains(KEEPS_THE_JOURNAL_OFF) && !text.contains("service_command()") && !text.contains("hermetic(") {
+            unnamed.push(relative);
+        }
+    }
+    assert_eq!(unnamed, Vec::<String>::new(), "a file that starts a service and keeps the journal off it by no named way");
 }
 
 /// What:
@@ -605,4 +759,36 @@ fn a_start_the_reader_cannot_name_needs_its_own_entry() {
     let found: Vec<String> = start_findings(helper_built.as_slice());
     assert_eq!(found.len(), 1, "a start the reader cannot name must be a finding: {found:?}");
     assert!(found[0].contains("no name"), "{found:?}");
+}
+
+
+
+/// What:
+///  A start this crate spells its own way is a start:
+///  `.status_retrying()` on a command that names the service mode, with no setter, is read and refused.
+/// Why:
+///   A reviewer of 2026-11-14 found the reader listing four terminal names and passing this one,
+///  although it ends in `Command::status` and inherits the run's standard error.
+///  A list of names misses the next name;
+///  a chain that ends in a method which is no configuration call is a start whatever the name,
+///  which is what this control holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(startsFollowing(retryingSource).map((start) => start.standardError)).toEqual(['inherited']); expect(startFindings([['a.rs', retryingSource]])).toHaveLength(1);
+/// ```
+#[test]
+fn a_start_that_retries_is_still_a_start() {
+    let source: String = String::from(
+        "fn start() {\n    let mut command = Command::new(SERVICE_PROGRAM);\n    command.args(SERVICE_WORDS);\n    let status = command.status_retrying().expect(\"service starts\");\n}\n",
+    );
+    let names: starts_reader::Names = starts_reader::read_names(&[source.clone()]);
+    let found: Vec<Start> = starts_reader::starts_following(source.as_str(), &names);
+    assert_eq!(found.len(), 1, "the retrying start is read: {found:?}");
+    assert_eq!(found[0].standard_error, StandardError::Inherited, "it sets no standard error: {found:?}");
+    assert!(found[0].runs_the_service, "its words name the service mode: {found:?}");
+    let listing: Vec<(String, String)> = vec![(String::from("a.rs"), source)];
+    let findings: Vec<String> = start_findings(listing.as_slice());
+    assert_eq!(findings.len(), 1, "the rule refuses it: {findings:?}");
+    assert!(findings[0].contains("runs this wrapper's service"), "{findings:?}");
 }

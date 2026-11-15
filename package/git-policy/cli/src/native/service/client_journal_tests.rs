@@ -84,3 +84,41 @@ fn an_entry_can_carry_the_services_identifier() {
     let second: usize = socket.recv(buffer.as_mut_slice()).expect("an entry");
     assert_eq!(parsed(&buffer[..second]).get("SYSLOG_IDENTIFIER").map(String::as_str), Some("monochromatic-git-policy-cli"));
 }
+
+/// What:
+///  Inside the service the client's sender sends nothing at all,
+///  and an entry recorded there goes through the service's own sink under the identifier the caller names.
+/// Why:
+///   A reviewer of 2026-11-14 found the road after the streams were closed:
+/// the service's own sink was kept off this machine's journal,
+///  and code that runs inside the service still called this module's sender,
+///  which with no test address names `/run/systemd/journal/socket` and looks at nothing else.
+///  So the guard's reason is a route and a refusal:
+/// a service's entry takes the sink,
+///  and the sender it might have used refuses,
+/// even when a caller hands it a target itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(inService()).toBe(true); expect(sendEntry(standIn, ...)).toBe(false); expect(entriesOf(() => recordEntryAs(CLIENT_IDENTIFIER, ...))[0].message).toContain('word-level merge')
+/// ```
+#[test]
+fn a_service_s_entry_takes_the_sink_and_the_client_s_sender_refuses_inside_the_service() {
+    use crate::service_timing::capture::{Captured, entries_of};
+    let (socket, target) = receiver("service-route");
+    let entries: Vec<Captured> = entries_of(|| {
+        // A capture is what makes this process read as the service here (`service_timing::in_service`).
+        assert!(in_service(), "this control runs as the service");
+        assert!(!send_entry(&target, Priority::Warning, "sent by the client's sender", &[]), "the sender refuses inside the service");
+        let fields: [(&str, String); 1] = [("CLI_GIT_WORD_MERGE_FILE", String::from("a.md"))];
+        assert!(record_entry_as(CLIENT_IDENTIFIER, Priority::Warning, "word-level merge: a.md", &fields), "the recorder answers yes when the sink took it");
+    });
+    // The entry is one of the service's own, under the identifier the caller named.
+    let recorded: &Captured = entries.iter().find(|entry| { return entry.message.contains("word-level merge"); }).expect("the entry the service recorded");
+    assert_eq!(recorded.priority, Priority::Warning);
+    assert!(recorded.fields.iter().any(|(name, value)| { return name == "CLI_GIT_WORD_MERGE_FILE" && value == "a.md"; }), "{recorded:?}");
+    // Nothing reached the stand-in the sender was handed.
+    socket.set_read_timeout(Some(std::time::Duration::from_millis(200))).expect("a read timeout");
+    let mut buffer: Vec<u8> = vec![0; 4096];
+    assert!(socket.recv(buffer.as_mut_slice()).is_err(), "the client's sender sent nothing inside the service");
+}

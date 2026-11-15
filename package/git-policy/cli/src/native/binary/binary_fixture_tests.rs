@@ -3,9 +3,9 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, SERVICE_LOG_FILE, ServiceLaunch, NOBODY_JOURNAL_ADDRESS, fixture, log_file_failure_note, missing_fixture_root_report,
-    give_service_environment, names_the_stream, remove, remove_patiently, repository, service_command, service_log, service_runtime, service_is_serving, settle_fixture, spawn_owned,
-    start_fixture_service,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, SERVICE_LOG_FILE, ServiceLaunch, NOBODY_JOURNAL_ADDRESS, fixture, kept_stderr_pipe, log_file_failure_note,
+    missing_fixture_root_report, give_service_environment, names_the_stream, remove, remove_patiently, repository, service_command, service_log, service_runtime, service_is_serving,
+    settle_fixture, spawn_owned, start_fixture_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -604,4 +604,82 @@ fn the_note_names_the_file_and_the_failure_and_the_reading_is_the_stream_s_own()
     assert!(!names_the_stream(Some("12:34"), 13, 34), "another device is another stream");
     assert!(!names_the_stream(None, 12, 34), "a run with no variable is no journal to the reading");
     assert!(!names_the_stream(Some("not a pair"), 12, 34), "a value that is no pair names no stream");
+}
+
+/// What:
+///  Every service of one fixture root keeps its words until that root's fixture ends,
+///  whichever service started when,
+///  even when the log file cannot be made.
+/// Why:
+///   A reviewer of 2026-11-14 found the second pipe of a root discarding the first service's words:
+/// with the file unmade the words lived in memory alone,
+///  and the next start saw no file and removed the whole entry.
+///  A root may serve several worktrees,
+/// so the words of every service of it are kept together as the file they could not be written to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod(root, 0o500); writePipe('first-marker'); await first; writePipe('second-marker'); await second; expect(log).toContain('first-marker') && expect(log).toContain('second-marker')
+/// ```
+#[test]
+fn every_service_of_a_fixture_root_keeps_its_words_when_the_log_file_cannot_be_made() {
+    let created: Fixture = fixture("service-log-two-services");
+    // A root this process may not write into: every open of `service.log` fails with EACCES, and no file is ever there.
+    std::fs::set_permissions(created.root.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("a root the log cannot be written into");
+    let write = |marker: &str| {
+        let writer = kept_stderr_pipe(created.root.as_path()).expect("a pipe for a service's words");
+        let mut file = std::fs::File::from(writer);
+        std::io::Write::write_all(&mut file, format!("{marker}\n").as_bytes()).expect("the words enter the pipe");
+    };
+    let wait = |marker: &str| {
+        let began = Instant::now();
+        while !service_log(created.root.as_path()).contains(marker) {
+            assert!(began.elapsed() < SERVICE_LOG_PATIENCE, "the words {marker} never arrived: {}", service_log(created.root.as_path()));
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    };
+    write("first-service-marker");
+    wait("first-service-marker");
+    write("second-service-marker");
+    wait("second-service-marker");
+    let said: String = service_log(created.root.as_path());
+    assert!(said.contains("first-service-marker"), "the first service's words are still there: {said}");
+    assert!(said.contains("second-service-marker"), "and the second service's: {said}");
+    assert!(said.contains("holds nothing"), "the failure of the file is still told: {said}");
+    std::fs::set_permissions(created.root.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("a root this process may remove");
+    remove(&created);
+}
+
+/// What:
+///  A service that ends before it listens shows what it wrote, in the failure that says it ended.
+/// Why:
+///   A reviewer of 2026-11-14 found the panic saying the words were in the test's output while it included none of them,
+///  and the fixture's cleanup then removed the file they were in.
+///  A start that fails is the one case where those words are the whole diagnosis,
+/// so the failure carries them and does not point at a place they are not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// launch({ prefix: ['/usr/bin/sh', '-c', 'printf "the-start-said-why" >&2; exit 3'] }); expect(() => serve()).toThrow(/the-start-said-why/)
+/// ```
+#[test]
+fn a_service_that_ends_before_it_listens_shows_what_it_wrote() {
+    let created: Fixture = fixture("service-ends-with-words");
+    std::fs::create_dir_all(created.root.join("repo").join(".git")).expect("a Git directory to serve");
+    *created.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: vec![
+            std::ffi::OsString::from("/usr/bin/sh"),
+            std::ffi::OsString::from("-c"),
+            std::ffi::OsString::from("printf 'the-start-said-why\\n' >&2; exit 3"),
+        ],
+        ..ServiceLaunch::default()
+    };
+    let services: FixtureService = start_fixture_service(&created);
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { services.serve(&created, created.root.join("repo").join(".git").as_path()); }));
+    let said: String = match outcome {
+        Ok(()) => panic!("the fixture reported a listening service although the service ended"),
+        Err(payload) => payload.downcast_ref::<String>().cloned().or_else(|| { return payload.downcast_ref::<&str>().map(ToString::to_string); }).unwrap_or_default(),
+    };
+    assert!(said.contains("the-start-said-why"), "the failure quotes what the service wrote: {said}");
+    remove(&created);
 }
