@@ -354,6 +354,10 @@ fn a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder() {
     let _killed = new_holder.kill();
     let _reaped = new_holder.wait();
     // The new holder is killed while it holds the lock; its own record and the file it wrote explain it.
+    //  This volume gives two files written microseconds apart one birth stamp most of the time, so the order the
+    //  PID-file proof asks for is made, as a file system of a finer clock would give it: the control states the hard
+    //  case of the branch rather than the machine's luck.
+    write_the_pid_file_after_the_lock(lock.as_path(), new_pid);
     let holders: std::path::PathBuf = crate::lock_holder_records::folder_of(common.as_path());
     std::fs::create_dir_all(holders.as_path()).expect("the record folder");
     std::fs::write(holders.join("a-new-holder-record"), crate::lock_holder_records::record_text(&[("child", new_pid, new_identity)])).expect("the new holder's record");
@@ -364,4 +368,33 @@ fn a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder() {
     assert_eq!(named_by_the_pid_file, i32::try_from(new_pid).ok(), "the new lock keeps a PID file naming its own holder");
     assert!(second.is_some(), "after the new holder is killed its lock is provable and removable: {second:?}");
     assert!(!stands, "the new holder's lock is gone after the second clearance");
+}
+
+/// What:
+///  Make the PID file beside `lock` name `pid` with a birth time strictly after the lock's.
+/// Why:
+///  The PID-file proof needs the order of the two births, and this volume gives two files written
+///  microseconds apart one stamp most of the time;
+///  a control that means to see that proof states the order instead of waiting for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let attempt = 0; attempt < 100; attempt++) { rm(pidFile); await sleep(2); write(pidFile); if (born(pidFile) > born(lock)) return }
+/// ```
+fn write_the_pid_file_after_the_lock(lock: &Path, pid: i64) {
+    let pid_file: std::path::PathBuf = crate::stale_ref_lock_walk::pid_file_beside(lock);
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let _ = std::fs::remove_file(pid_file.as_path());
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        std::fs::write(pid_file.as_path(), format!("pid {pid}\n")).expect("the PID file");
+        let lock_born = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
+        let pid_born = std::fs::symlink_metadata(pid_file.as_path()).ok().and_then(|metadata| { return metadata.created().ok(); });
+        if let (Some(lock_at), Some(pid_at)) = (lock_born, pid_born)
+            && pid_at > lock_at
+        {
+            return;
+        }
+        assert!(began.elapsed() < std::time::Duration::from_secs(5), "this file system cannot show that {} was born after {}", pid_file.display(), lock.display());
+    }
 }
