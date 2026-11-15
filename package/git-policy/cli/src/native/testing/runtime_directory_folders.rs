@@ -89,8 +89,8 @@ fn fresh_folder_token() -> String {
 ///   Every folder of one thread shares the token,
 /// so a control that asks for one folder twice is answered with the folder it made.
 fn this_threads_folder_token() -> String {
-    return THREAD_FOLDERS.with(|folders| {
-        let mut folders = folders.borrow_mut();
+    return THREAD_FOLDERS.with(|thread_folders| {
+        let mut folders = thread_folders.borrow_mut();
         if folders.token.is_empty() {
             folders.token = fresh_folder_token();
         }
@@ -189,25 +189,24 @@ pub(crate) fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf 
         };
         panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
     }
+    // The longest place that fits is the folder's place; a name another run took there moves this thread to another
+    // token rather than to a shorter place, so the place a control asks for is the place it gets.
+    let place: &Path = fitting.first().expect("a place that fits was found above").as_path();
+    std::fs::create_dir_all(place).expect("a place this account offers");
     for _attempt in 0..FOLDER_TOKEN_ATTEMPTS {
-        let name: String = format!("{prefix}{}", this_threads_folder_token());
-        for place in &fitting {
-            let folder: PathBuf = place.join(name.as_str());
-            if this_thread_made(folder.as_path()) {
+        let folder: PathBuf = place.join(format!("{prefix}{}", this_threads_folder_token()));
+        if this_thread_made(folder.as_path()) {
+            return folder;
+        }
+        match std::fs::create_dir(folder.as_path()) {
+            Ok(()) => {
+                this_thread_made_folder(folder.as_path());
                 return folder;
             }
-            std::fs::create_dir_all(place.as_path()).expect("a place this account offers");
-            match std::fs::create_dir(folder.as_path()) {
-                Ok(()) => {
-                    this_thread_made_folder(folder.as_path());
-                    return folder;
-                }
-                // A folder another run made is not shared, so this thread takes another token.
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => break,
-                Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
-            }
+            // A folder another run made is not shared, so this thread takes another token.
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => this_thread_takes_another_token(),
+            Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
         }
-        this_thread_takes_another_token();
     }
     panic!("no folder was left for this thread: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made");
 }
