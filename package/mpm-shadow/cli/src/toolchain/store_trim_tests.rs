@@ -912,3 +912,29 @@ fn keeps_a_version_whose_downloads_an_install_is_unpacking() {
     );
     drop(held);
 }
+
+/// What:
+/// The pass an install runs ends by removing the archives of a version this root no longer has,
+/// so the archives a removal kept for an install are not left on the disk for ever.
+/// Why:
+/// The removal keeps them, and nothing else reads a downloads directory whose version is gone,
+/// so a call that is not made here means a leak nobody clears.
+#[test]
+fn the_install_pass_removes_the_archives_of_a_version_that_is_gone() {
+    let rig = crate::toolchain::fakes::Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    // The sample lock names `bin`, whose versions live under `<root>/bin`.
+    let orphan: PathBuf = crate::toolchain::store_versions::downloads_of(&root, "bin", "0.1.0");
+    fs::create_dir_all(&orphan).expect("make the orphan's downloads");
+    fs::write(orphan.join("bin-0.1.0.tar.gz"), b"old").expect("write the archive");
+    crate::toolchain::fixtures::age_file(&orphan.join("bin-0.1.0.tar.gz"), Duration::from_secs(2 * 60 * 60));
+    rig.runner.answer(
+        "git -C",
+        &format!("worktree {}\nHEAD 0000\n\n", rig.scope.root.display()),
+        0,
+    );
+
+    crate::toolchain::store_trim::trim_after_install(&rig.context(), &[("bin".to_string(), "1.2.3".to_string())]);
+
+    assert!(!orphan.exists(), "the pass left the archives of a version this root does not have");
+}
