@@ -56,6 +56,20 @@
 //!  So a hidden process of this account keeps the worktree only while its age is shorter than the worktree's,
 //!  or while either age cannot be read,
 //!  and the reason names the process.
+//!  A refused read of the files a process holds open is never none either:
+//!  a program can keep its working folder readable and stop every other reader of its descriptor table
+//!  (measured on this host with a password manager that runs from login:
+//! its working folder read as the account's home folder,
+//! and its descriptor table refused with `EACCES`),
+//!  so a file it holds in a worktree would be invisible.
+//!  That answer is bounded the way a hidden folder is:
+//!  the process keeps the worktree only while its age is shorter than the worktree's,
+//!  and the reason names the process.
+//!  The bound is weaker here than for a folder,
+//!  because a program can open a file in a worktree long after it started,
+//!  and what it leaves is a program that hid its descriptor table after the worktree was made:
+//!  without the bound every walk of this host stops at the password manager that runs from login,
+//!  which keeps every worktree and removes none.
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
@@ -80,7 +94,9 @@
 use std::path::Path;
 use std::time::Duration;
 
-/// What a read of a process's working folder showed.
+/// What the reads of one process showed:
+/// where it works,
+/// and what it holds open.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkingFolder {
     /// It is the worktree or a folder below it.
@@ -88,10 +104,15 @@ pub enum WorkingFolder {
     /// Its working folder is elsewhere,
     /// and it holds a file open inside the worktree.
     OpenFile,
-    /// It could not be read,
+    /// Its working folder could not be read,
     /// and the process is this account's,
     /// so nothing proves it is outside the worktree.
     Unreadable,
+    /// Its working folder is elsewhere,
+    /// and the files it holds open could not be read,
+    /// and the process is this account's,
+    /// so nothing proves it holds none inside the worktree.
+    OpenFilesUnreadable,
 }
 
 /// One process that keeps a worktree.
@@ -125,6 +146,10 @@ impl WorkingProcess {
             WorkingFolder::OpenFile => format!("process {} has a file open in it, though its working folder is elsewhere", self.pid),
             WorkingFolder::Unreadable => format!(
                 "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
+                self.pid
+            ),
+            WorkingFolder::OpenFilesUnreadable => format!(
+                "process {} belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it",
                 self.pid
             ),
         };
@@ -161,24 +186,64 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
             Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
             Ok(_elsewhere) => {
                 // A folder outside the worktree can still hold a file open in it, and that process is working there.
-                if holds_a_file_inside(entry.path().as_path(), root, git_dir) {
-                    return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile });
+                match open_files_in(entry.path().as_path(), root, git_dir) {
+                    OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
+                    OpenFiles::Outside => {}
+                    // A descriptor table this account may not read hides what the process holds, so the process is
+                    // judged by the same age a hidden working folder is.
+                    OpenFiles::Unreadable => {
+                        if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
+                            return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
+                        }
+                    }
                 }
             }
             // The process went while it was being read, so it cannot be working in the worktree any more.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_refused) => {
-                if !owned_by_this_account(entry.path().as_path()) {
-                    continue;
+                if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
+                    return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
                 }
-                if started_before(started_ago(proc_root, pid, uptime), worktree_age) {
-                    continue;
-                }
-                return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
             }
         }
     }
     return None;
+}
+
+/// What a read of one process's open files showed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OpenFiles {
+    /// A descriptor names a file of the worktree.
+    Inside,
+    /// Every descriptor was read and none names one.
+    Outside,
+    /// The descriptor table,
+    /// or one descriptor's target,
+    /// could not be read,
+    /// so nothing proves what it holds.
+    Unreadable,
+}
+
+/// What:
+///  Whether a process this account could not see into may still be working in the worktree.
+/// Why:
+///   Two reads can be refused for the same reason,
+///  a working folder and a descriptor table,
+///  and both are judged by the same two facts:
+///  another account's process is not this account's to wait for,
+///  and a process that started before the worktree was made cannot have changed into it.
+///  An age that cannot be read excuses nothing,
+///  so the worktree stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// couldBeWorkingInside(entry, procRoot, pid, uptime, worktreeAge) // boolean
+/// ```
+fn could_be_working_inside(entry: &Path, proc_root: &Path, pid: u32, uptime: Option<Duration>, worktree_age: Option<Duration>) -> bool {
+    if !owned_by_this_account(entry) {
+        return false;
+    }
+    return !started_before(started_ago(proc_root, pid, uptime), worktree_age);
 }
 
 /// What:
@@ -190,30 +255,43 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
 ///  The worktree's Git directory is left out because this program's own commit service
 ///  holds its marker file there for as long as it lives,
 ///  and a rule that counted it would keep every landed worktree a service runs for.
-///  A descriptor directory this account cannot read says nothing,
-///  and its process's working folder could not be read either,
-///  which the caller has already decided by the process's age.
+///  A process that ended while it was being read is not inside:
+///  the kernel closed its descriptors with it,
+///  and a descriptor that went between the listing and its link is no descriptor any more.
+///  A table or a link that could not be read for another reason says nothing,
+///  and none is never the answer to a read that did not happen:
+///  a program can stop every other reader seeing its descriptors while it runs
+///  (a `PR_SET_DUMPABLE` 0 call between the two reads),
+///  and the wrapper removed a worktree under such a program when a refused read answered none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holdsAFileInside(entry, worktree, gitDir) // boolean
+/// openFilesIn(entry, worktree, gitDir) // 'inside' | 'outside' | 'unreadable'
 /// ```
-fn holds_a_file_inside(entry: &Path, worktree: &Path, git_dir: &Path) -> bool {
-    let Ok(descriptors) = std::fs::read_dir(entry.join("fd")) else {
-        return false;
+fn open_files_in(entry: &Path, worktree: &Path, git_dir: &Path) -> OpenFiles {
+    let descriptors: std::fs::ReadDir = match std::fs::read_dir(entry.join("fd")) {
+        Ok(found) => found,
+        // The process went while it was being read, and its descriptors went with it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return OpenFiles::Outside,
+        Err(_refused) => return OpenFiles::Unreadable,
     };
-    for descriptor in descriptors.flatten() {
-        let Ok(target) = std::fs::read_link(descriptor.path()) else {
-            continue;
+    for descriptor in descriptors {
+        let Ok(descriptor) = descriptor else {
+            return OpenFiles::Unreadable;
+        };
+        let target: std::path::PathBuf = match std::fs::read_link(descriptor.path()) {
+            Ok(found) => found,
+            // The descriptor closed between the listing and the read, so it holds no file now.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_refused) => return OpenFiles::Unreadable,
         };
         // The kernel appends this to a path whose file is already deleted, and the file itself is what a removal takes.
         let named: &Path = without_deleted_suffix(target.as_path());
-        if !named.starts_with(worktree) || named.starts_with(git_dir) {
-            continue;
+        if named.starts_with(worktree) && !named.starts_with(git_dir) {
+            return OpenFiles::Inside;
         }
-        return true;
     }
-    return false;
+    return OpenFiles::Outside;
 }
 
 /// What:

@@ -149,30 +149,48 @@ fn a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere: &Path, p
 }
 
 /// What:
-///  A process older than the worktree whose descriptor table cannot be read keeps the worktree.
+///  A process younger than the worktree whose descriptor table cannot be read keeps the worktree,
+///  and one older than it does not.
 /// Why:
-///   The age of a process excuses a working folder it could not have changed into,
-///  and it excuses nothing about a file:
-///  a program that started before the worktree was made can open a file in it at any moment since,
-///  so a refused look at its descriptor table is the one look that could have shown that file,
-///  and what the read could not see is a process that may be inside, never none.
+///   A refused look at the files a program holds is never none,
+///  so the read answers that the process may hold a file there;
+///  and that answer is bounded the way a hidden working folder is:
+///  a process that started before the worktree was made cannot have changed into it.
+///  The bound is what keeps the walk from stopping at every program that hides its own memory,
+///  a password manager that runs from login above all:
+///  measured on this host,
+///  its working folder read as the account's home folder while its descriptor table was refused,
+///  and an unbounded answer kept every worktree a walk looked at.
 #[test]
-fn a_process_older_than_the_worktree_whose_descriptor_table_cannot_be_read_keeps_it() {
+fn a_process_whose_descriptor_table_cannot_be_read_keeps_the_worktree_only_before_the_worktree_is_older_than_it() {
     let root: PathBuf = fixture("process-descriptors-hidden");
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::create_dir(elsewhere.as_path()).expect("a folder the process was started in");
     let pid: u32 = 5353;
-    // Up for a thousand seconds and started at the second, so it is far older than a folder made five seconds ago.
-    let table: PathBuf = saying_it_started(a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere.as_path(), pid), pid, 1_000, 100);
-    let found: Option<WorkingProcess> =
-        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(5)));
+    let table: PathBuf = a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere.as_path(), pid);
+    // Up for a thousand seconds and started at the 99 900th tick, so the process is a second old: younger than a
+    // folder made ten seconds ago, and older than one made half a second ago.
+    let table: PathBuf = saying_it_started(table, pid, 1_000, 99_900);
+    let younger: Option<WorkingProcess> =
+        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(10)));
+    let older: Option<WorkingProcess> =
+        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_millis(500)));
     // The permission is given back before the fixture goes, which needs to list the directory it holds.
     use std::os::unix::fs::PermissionsExt as _;
     let descriptors: PathBuf = table.join(pid.to_string()).join("fd");
     std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the descriptor directory is readable again");
-    assert!(found.is_some(), "a refused read of the files a process holds is never none: {found:?}");
+    assert_eq!(
+        younger,
+        Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable }),
+        "a refused read of the files a process holds is never none"
+    );
+    assert_eq!(
+        younger.expect("the process whose files could not be read").why(),
+        "process 5353 belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it"
+    );
+    assert_eq!(older, None, "a process older than the worktree cannot have changed into it");
 }
 
 /// What:
