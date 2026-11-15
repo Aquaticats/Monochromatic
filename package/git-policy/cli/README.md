@@ -1015,7 +1015,8 @@ Read-only commands,
      which names the volumes and words the way on by what the tree in front of it is,
      and `--force` removes everything around a volume and still leaves it.
      A tree whose only trouble is entries missing from it is the shape a removal left:
-     the wrapper writes a record of the worktree, its registration and its path before it deletes the first
+     the wrapper writes a record of the worktree,
+     its registration and its path before it deletes the first
      entry,
      and the same unforced command reads it and finishes the removal,
      so a command killed in that pass costs the person one more run of what they typed.
@@ -2447,6 +2448,14 @@ the two tools that rewrite link layouts in place are the commit service's work w
   It also downloads the tools the worktree's lock names that are not installed yet,
    and can retire tool copies another checkout still links (both accepted by the owner),
    and its summary of what was installed is part of the success line.
+  The install answers only for the launcher names your `toolchain.lock.json` declares,
+   so a launcher record for any other name is a copy of an older release's layout:
+  it is removed,
+   with the launcher beside it,
+  instead of being reported as package state that was never relinked.
+  A record a relink had set aside when it was stopped is put back by the next one,
+   and one whose name holds another record by then is kept rather than replaced or discarded:
+  one line in that worktree's Git directory names the file and the `mv` command that puts it back.
 
 What the hand-over costs you:
 for as long as the service has not run the record,
@@ -2459,6 +2468,38 @@ When no service can be reached at all (a session with no user service manager,
  such as a container),
  the add relinks the worktree itself,
  which is what every release before this one did.
+
+When a relink does not finish:
+the service tries a tool that failed again on its next round (the record allows three tries),
+ so two installers meeting in one `node_modules` costs a wait rather than the relink.
+A record whose tries run out leaves one line for the next command in that worktree,
+ which says how many times the record allows a try,
+what the last try failed with,
+and the command that finishes
+ the job,
+ and says that something only you can change has to come first,
+because the wrapper already ran that command:
+
+```text
+monochromatic-git-policy-cli: the package state of <worktree> was not relinked, so its links still name the checkout it was copied from. The wrapper tried 3 times and gave up. The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE. Running the same command again would fail the same way, so something only you can change has to come first; after that, `pnpm --dir <worktree> install --offline --frozen-lockfile` or `cd -- <worktree> && mise run toolchain:install` finishes the job.
+```
+
+The line waits in that worktree's own Git directory,
+so only a command run there shows it,
+and one command shows it once.
+When that directory cannot be proved to be the worktree the record is about,
+or refuses the words (a read-only administrative directory),
+the line waits in the Git directory of the worktree whose command added the new one instead,
+so a command there shows it;
+it is never left in a Git directory this wrapper made again,
+which no command in that checkout would read.
+A record whose service was killed on every try has no answer to quote,
+and its line says no answer was kept for it and that the commit service's journal holds the rest,
+rather than guessing at what happened.
+If the service is killed between writing that line and giving the record up,
+the next round writes the same line again,
+so you may read it twice;
+you never read a different one.
 
 Nothing runs for `--no-worktree-copy` or `--no-checkout`.
 `--quiet` silences the one line that reports success;
@@ -5418,7 +5459,8 @@ because nothing else can make it:
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
   so a repository with both lists leaves them to the service;
-- a service that takes no connection within its bound, or a look at the processes that gives no answer.
+- a service that takes no connection within its bound,
+  or a look at the processes that gives no answer.
   The request's look is made within 250 ms (`wait_ceilings.rs`,
   `WARM_SCAN_CEILING`) and its connection within 250 ms (`WARM_REQUEST_CONNECT_CEILING`),
   so a process stuck in the kernel and a service whose queue of unaccepted connections is full,
