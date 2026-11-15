@@ -71,9 +71,13 @@ pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::
 /// so a control that reads the bytes a clean displaced must read first whether the filling ran:
 /// at the gate of 2026-11-15T06:00-05:00 this control failed with
 /// `the bytes the clean displaced were not kept: []`
-/// for a filling whose clean the machine ended by a signal,
-/// and the fill's own reason, which the service did write, never reached the person.
-/// The sentence names where the record stands and quotes the service's words about this worktree,
+/// for a filling that was still in the queue when it looked,
+/// and the fill's own reason, which the service wrote a moment later, never reached the person.
+///  So a record the queue still holds is waited for, within `SERVICE_WORK_PATIENCE`,
+/// because the states that mean "still to come" are not the three the commit cases wait on:
+/// a filling the drain holds stands in `held` while it runs,
+/// and a control that counted only `pending`, `claimed` and `recovering` read an empty folder in that window.
+/// The sentence then names where the record stands and quotes the service's words about this worktree,
 /// which is the whole of what a reader needs to know why nothing is there.
 ///
 /// In TS you'd write (pseudocode):
@@ -82,33 +86,87 @@ pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::
 /// ```
 pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::path::Path, worktree: &std::path::Path) -> Option<String> {
     let work: std::path::PathBuf = git_policy_cli::service_work::work_directory(git_dir);
-    // A record the consumer settled in `done` is a filling that ran to its end, whichever handler answered it.
-    if stands_in(work.as_path(), git_policy_cli::work_item::DONE, worktree) {
+    let began: std::time::Instant = std::time::Instant::now();
+    // A record the queue still holds is a filling that may yet run: it is waited for, and a wait that ends with the record
+    //  still open says so instead of claiming a verdict it did not see.
+    let standing: Standing = loop {
+        let standing: Standing = where_the_filling_stands(work.as_path(), worktree);
+        if !matches!(standing, Standing::Open(_)) || began.elapsed() >= crate::support_observation::SERVICE_WORK_PATIENCE {
+            break standing;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    if matches!(standing, Standing::Done) {
         return None;
     }
-    let standing: &str = [
-        git_policy_cli::work_item::FAILED,
-        git_policy_cli::work_item::PENDING,
-        git_policy_cli::work_item::RECOVERING,
-        git_policy_cli::work_item::CLAIMED,
-    ]
-    .into_iter()
-    .find(|state| { return stands_in(work.as_path(), state, worktree); })
-    .unwrap_or(NAMED_NOWHERE);
+    let where_it_stands: String = match standing {
+        Standing::Done => String::from(git_policy_cli::work_item::DONE),
+        Standing::GivenUp(state) => String::from(state),
+        Standing::Open(state) => format!("{state}, where it was still to come after the wait for its filling"),
+        Standing::Nowhere => String::from(NAMED_NOWHERE),
+    };
     let said: String = match the_services_words(fixture, worktree) {
         Some(words) => format!("the service said: {words}"),
         None => String::from("the service wrote nothing about it in its log"),
     };
     return Some(format!(
-        "the filling of {} did not run to its end, so no byte was ever displaced for this control to read: its record stands in {standing}, and \
-         {said}. The build directory the filling publishes was left as it was carried, and the next add fills it",
-        worktree.display()
+        "the filling of {} did not run to its end, so no byte was ever displaced for this control to read: its record stands in {where_it_stands} of {}, \
+         whose queue holds {}, and {said}. The build directory the filling publishes was left as it was carried, and the next add fills it",
+        worktree.display(),
+        work.display(),
+        crate::support_observation::work_listing(work.as_path()),
     ));
+}
+
+/// What:
+///  Where one worktree's filling stands in its queue.
+pub enum Standing {
+    /// Its record settled in `done`: the service ran the filling to its end.
+    Done,
+    /// Its record stands where the queue keeps work it gave up on, named.
+    GivenUp(&'static str),
+    /// Its record stands in a state that may yet run, named.
+    Open(&'static str),
+    /// No record of this worktree's filling is in the queue at all.
+    Nowhere,
 }
 
 /// The word a filling's record is given when no state of the work directory holds it.
 /// It is not a state of the queue: no record there means the add handed nothing over, which is its own answer.
 const NAMED_NOWHERE: &str = "no state of the work directory";
+
+/// What:
+///  The state of the work directory that holds this worktree's prewarm record now.
+/// Why:
+///   A record the queue holds in `pending`, `claimed`, `recovering` or `held` is work that may yet run,
+/// and `held` is where a filling the drain is running stands,
+/// so a reader that wants to know how a filling ended waits while any of them holds it.
+/// A record in `failed` is the consumer's answer that the work was given up,
+/// and one that no state holds was never handed over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standing = states.find((state) => standsIn(work, state, worktree)) ?? 'nowhere';
+/// ```
+fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path) -> Standing {
+    if stands_in(work, git_policy_cli::work_item::DONE, worktree) {
+        return Standing::Done;
+    }
+    if stands_in(work, git_policy_cli::work_item::FAILED, worktree) {
+        return Standing::GivenUp(git_policy_cli::work_item::FAILED);
+    }
+    for state in [
+        git_policy_cli::work_item::HELD,
+        git_policy_cli::work_item::PENDING,
+        git_policy_cli::work_item::RECOVERING,
+        git_policy_cli::work_item::CLAIMED,
+    ] {
+        if stands_in(work, state, worktree) {
+            return Standing::Open(state);
+        }
+    }
+    return Standing::Nowhere;
+}
 
 /// What:
 ///  Whether the work directory holds this worktree's prewarm record in `state` now.

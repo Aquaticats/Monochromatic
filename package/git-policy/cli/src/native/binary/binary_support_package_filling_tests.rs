@@ -17,7 +17,7 @@
 use super::support::{
     ENDED_WITH_SIGKILL, Fixture, SERVICE_LOG_FILE, a_filling_that_did_not_run_to_its_end, end_the_fills_clean_within, executable, fixture,
 };
-use git_policy_cli::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use git_policy_cli::work_item::{DONE, FAILED, HELD, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::PathBuf;
 use std::process::Command;
@@ -160,10 +160,56 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
     assert!(said.contains("could not be filled"), "the sentence quotes the service's own reason: {said}");
     assert!(said.contains("stopped by signal 9"), "and how the clean ended: {said}");
     // The same record settled in `done` is a filling that ran to its end, and a control reads its bytes.
-    std::fs::create_dir_all(state_directory(work.as_path(), git_policy_cli::work_item::DONE).as_path()).expect("the done state");
-    std::fs::rename(state_directory(work.as_path(), FAILED).join(id.as_str()), state_directory(work.as_path(), git_policy_cli::work_item::DONE).join(id.as_str())).expect("the record settles");
+    std::fs::create_dir_all(state_directory(work.as_path(), DONE).as_path()).expect("the done state");
+    std::fs::rename(state_directory(work.as_path(), FAILED).join(id.as_str()), state_directory(work.as_path(), DONE).join(id.as_str())).expect("the record settles");
     assert!(
         a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).is_none(),
         "a record that settled in done is a filling that ran to its end"
     );
+}
+
+/// What:
+///  A filling the queue still holds is waited for, not called a failure:
+///  a record in `held` that settles in `done` while the reader waits is a filling that ran.
+/// Why:
+///   A filling the drain is running stands in `held`, which the wait a commit control uses does not count, so a reader that
+/// read that state as an answer would call a working filling a failure, which is the window the gate of
+/// 2026-11-15T06:00-05:00 met.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// move(record, 'held'); after(200, () => move(record, 'done')); expect(reader()).toBeUndefined();
+/// ```
+#[test]
+fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
+    let fixture: Fixture = fixture("filling-held-then-done");
+    let git_dir: PathBuf = fixture.root.join("repo/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the repository's Git directory");
+    let worktree: PathBuf = fixture.root.join("deeper/stale");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Prewarm,
+        repository: worktree.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from(git_policy_cli::package_repair_prewarm::PREWARM_REFERENCE),
+        oid: String::from("89abcdef0123456789abcdef0123456789abcdef"),
+        parent: String::from("[]"),
+        created: git_policy_cli::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("the record is queued");
+    let id: String = item.id();
+    std::fs::create_dir_all(state_directory(work.as_path(), HELD).as_path()).expect("the held state");
+    std::fs::rename(state_directory(work.as_path(), PENDING).join(id.as_str()), state_directory(work.as_path(), HELD).join(id.as_str())).expect("the drain holds it");
+    let settling: PathBuf = state_directory(work.as_path(), DONE);
+    let held: PathBuf = state_directory(work.as_path(), HELD).join(id.as_str());
+    let settler = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::fs::create_dir_all(settling.as_path()).expect("the done state");
+        std::fs::rename(held.as_path(), settling.join(id.as_str())).expect("the record settles");
+    });
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    settler.join().expect("the thread that settles the record ends");
+    assert!(said.is_none(), "a filling the queue held while it ran and settled in done did not fail: {said:?}");
 }
