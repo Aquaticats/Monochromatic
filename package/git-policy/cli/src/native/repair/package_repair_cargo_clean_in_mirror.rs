@@ -1,5 +1,6 @@
 //! What:
-//!  One workspace resolved and cleaned inside a mirror of it,
+//!  One workspace cleaned inside a mirror of it,
+//!  resolved as that clean resolves it,
 //!  so the person's `Cargo.lock` is read and never written.
 //! Why:
 //!   A `--locked` clean fails on a lock that no longer matches its manifest,
@@ -8,10 +9,16 @@
 //! Cargo has no option that names another lock (`cargo clean --help`,
 //! and no `-Z lockfile-path` in this toolchain),
 //! so the write is taken somewhere the person's file is not (`package_repair_workspace_mirror.rs`).
-//! The resolution and the clean both run in the mirror,
-//! and the clean deletes from the directories this repair names,
+//! The clean runs in the mirror without `--locked`,
+//! so the resolution it makes for itself writes the mirror's own lock and nothing else,
+//! and it deletes from the directories this repair names,
 //! which are the same artifacts the workspace's own clean deletes
 //! (measured on this host on 2026-11-14 in the mirror module's note).
+//! No separate resolution runs first:
+//! `cargo metadata` without `--no-deps` reads every dependency's manifest,
+//! which an offline machine only has when the dependency's archive or extracted source is there,
+//! so a full resolution failed on workspaces whose own clean succeeds,
+//! and `--no-deps` is not the same thing because it resolves nothing and so writes no lock.
 //! Nothing of the person's moves: no placement, no restore, no copy left under the Git directory.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +26,7 @@
 //! const run = await cleanInAMirror({ tool, worktree, workspace, members, buildDirectory, targetDirectory, locked, keptIn, job, step });
 //! ```
 
-use crate::package_repair_cargo::{CargoTool, clean_arguments, locked_clean_arguments, time_the_clean_awaiting};
+use crate::package_repair_cargo::{CargoTool, clean_arguments, time_the_clean_awaiting};
 use crate::package_repair_command::{ToolCommand, ToolRun};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, TARGET_DIRECTORY_VARIABLE};
 use crate::package_repair_workspace_mirror::{mirror_the_workspace, remove_the_mirror, the_mirror_root};
@@ -38,7 +45,7 @@ use std::path::PathBuf;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MirrorClean = { tool: CargoTool; worktree: PathBuf; workspace: PathBuf; members: Vec<String>; buildDirectory: PathBuf; targetDirectory: PathBuf; locked: bool; keptIn: Option<PathBuf>; job: String; step: Option<&'static str> };
+/// type MirrorClean = { tool: CargoTool; worktree: PathBuf; workspace: PathBuf; members: Vec<String>; buildDirectory: PathBuf; targetDirectory: PathBuf; keptIn: Option<PathBuf>; job: String };
 /// ```
 pub(crate) struct MirrorClean {
     /// The Cargo that resolves and cleans, and the bounds it runs under.
@@ -55,9 +62,6 @@ pub(crate) struct MirrorClean {
     /// The target directory the clean deletes from,
     /// chosen for the same reason.
     pub(crate) target_directory: PathBuf,
-    /// Whether the clean is given `--locked`,
-    /// which the filling wants because the mirror was resolved first.
-    pub(crate) locked: bool,
     /// The Git directory the mirror may live under,
     /// or nothing when none is known,
     /// in which case this step cannot run at all.
@@ -71,12 +75,14 @@ pub(crate) struct MirrorClean {
 ///  clean the named directories from there,
 ///  and answer the clean's run.
 /// Why:
-///   Both Cargo runs see the person's manifests and the person's lock bytes,
-/// and neither can write the person's file:
-/// the mirror's own `Cargo.lock` is what the resolution writes and the clean reads.
+///   The clean sees the person's manifests and the person's lock bytes,
+/// and cannot write the person's file:
+/// the mirror's own `Cargo.lock` is what the clean's resolution writes and what a later clean reads.
+/// One Cargo run is what a clean needs, and no more:
+/// a full `cargo metadata` before it needed every dependency's manifest, which an offline home may not have,
+/// and failed on workspaces whose own clean succeeds.
 /// A mirror that cannot be made,
-/// a resolution that fails,
-/// and no Git directory to keep the mirror under all answer a reason,
+/// and no Git directory to keep the mirror under both answer a reason,
 /// and the caller gives that workspace up rather than run Cargo in the worktree.
 ///
 /// # Errors
@@ -106,18 +112,10 @@ pub(crate) async fn clean_in_a_mirror(clean: MirrorClean) -> Result<ToolRun, Str
             return Err(reason);
         }
     };
-    let resolving: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
-    let resolution: ToolCommand = ToolCommand { arguments: resolving, directory: mirrored.clone(), set: Vec::new() };
-    let resolved: ToolRun = crate::package_repair_command::run_tool_awaiting(clean.tool.program.as_path(), &resolution, clean.tool.limits).await;
-    if !matches!(resolved.end, crate::package_repair_command::ToolEnd::Succeeded) {
-        remove_the_mirror(root.as_path());
-        return Err(format!(
-            "the workspace of {} could not be resolved outside the worktree ({})",
-            clean.workspace.display(),
-            crate::package_repair_prewarm_job::end_reason(&resolved.end)
-        ));
-    }
-    let arguments: Vec<OsString> = if clean.locked { locked_clean_arguments(clean.members.as_slice()) } else { clean_arguments(clean.members.as_slice()) };
+    // One run: the clean itself, resolved as Cargo resolves any clean, in the mirror where its lock may be written.
+    //  `--locked` is not passed here, and no resolution runs before it: this is the run the workspace's own clean would
+    //  make, with the person's files replaced by copies the repair owns.
+    let arguments: Vec<OsString> = clean_arguments(clean.members.as_slice());
     let command: ToolCommand = ToolCommand {
         arguments,
         directory: mirrored.clone(),

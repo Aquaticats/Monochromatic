@@ -63,7 +63,6 @@ fn a_clean_in_a_mirror_removes_the_artifacts_and_leaves_the_persons_lock_alone()
         members: vec![String::from("own")],
         build_directory: build.clone(),
         target_directory: target.clone(),
-        locked: true,
         kept_in: Some(git_dir.clone()),
         job: String::from("a-controls-job"),
     }))
@@ -133,7 +132,6 @@ fn the_lock_the_mirror_writes_is_not_the_persons_file() {
         members: vec![String::from("own")],
         build_directory: root.join("build"),
         target_directory: root.join("target"),
-        locked: true,
         kept_in: Some(git_dir.clone()),
         job: String::from("a-controls-job"),
     }))
@@ -204,11 +202,13 @@ fn a_mirror_clean_in_a_home_without_the_dependencys_source_cleans_the_workspace(
     if !tool.is_file() {
         panic!("no cargo on the search path, so this control cannot show what it exists to show");
     }
-    let Some(real_home): Option<PathBuf> = std::env::var_os("CARGO_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| return PathBuf::from(home).join(".cargo")))
-    else {
-        panic!("no Cargo home to borrow the registry index from, so this control cannot show what it exists to show");
+    let borrowed: Option<PathBuf> = std::env::var_os("CARGO_HOME").map(PathBuf::from);
+    let real_home: PathBuf = match borrowed {
+        Some(home) => home,
+        None => match std::env::var_os("HOME").map(|home| return PathBuf::from(home).join(".cargo")) {
+            Some(home) => home,
+            None => panic!("no Cargo home to borrow the registry index from, so this control cannot show what it exists to show"),
+        },
     };
     let root: PathBuf = fixture("clean-in-a-mirror-without-the-dependency");
     let worktree: PathBuf = root.join("worktree");
@@ -271,7 +271,6 @@ fn a_mirror_clean_in_a_home_without_the_dependencys_source_cleans_the_workspace(
         members: vec![String::from("own")],
         build_directory: build.clone(),
         target_directory: target.clone(),
-        locked: false,
         kept_in: Some(git_dir.clone()),
         job: String::from("a-controls-job"),
     }))

@@ -402,7 +402,6 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         members: workspace.members.clone(),
         build_directory: workspace.build_directory.clone(),
         target_directory: workspace.target_directory.clone(),
-        locked: false,
         kept_in: kept_in.map(Path::to_path_buf),
         job: crate::package_repair_workspace_mirror::a_name_of_this_job(),
     })

@@ -11,6 +11,12 @@ use std::path::PathBuf;
 /// so a control reaches the clean and never runs a build.
 const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";
 
+/// The names one filling of a control works in, taken in the directory they live in.
+fn names_in(staging: &Path) -> TheNames {
+    let parent: &Path = staging.parent().expect("a directory the names live in");
+    return TheNames { directory: super::TheDirectory::of(parent).expect("the directory"), staging: staging.to_path_buf(), target: target_of(staging), marker: None, lease: None };
+}
+
 /// Join one name onto a directory, for a closure that must not capture the fixture root twice.
 fn join_file(directory: &Path, name: &str) -> PathBuf {
     return directory.join(name);
@@ -436,10 +442,10 @@ fn publishing_a_staging_copy_never_replaces_a_directory() {
     let staged: PathBuf = staging_of(destination.as_path());
     std::fs::create_dir_all(staged.as_path()).expect("the staging copy");
     std::fs::write(staged.join("a-dependency-build"), b"dependency").expect("the file");
-    assert_eq!(super::publish(staged.as_path(), destination.as_path()), Ok(true), "a directory nothing had is published");
+    assert_eq!(super::publish(&names_in(staged.as_path()), destination.as_path()), Ok(true), "a directory nothing had is published");
     assert_eq!(std::fs::read(destination.join("a-dependency-build")).expect("the published file"), b"dependency");
     std::fs::create_dir_all(staged.as_path()).expect("a second staging copy");
-    assert_eq!(super::publish(staged.as_path(), destination.as_path()), Ok(false), "a directory that exists is not replaced");
+    assert_eq!(super::publish(&names_in(staged.as_path()), destination.as_path()), Ok(false), "a directory that exists is not replaced");
     assert_eq!(std::fs::read(destination.join("a-dependency-build")).expect("the kept file"), b"dependency");
     remove(root.as_path());
 }
@@ -1100,7 +1106,7 @@ fn a_lease_a_filling_gives_back_is_not_taken_twice() {
         .write(true)
         .open(crate::package_repair_prewarm_claim::lease_of(staging.as_path()))
         .expect("the lease file is there to open");
-    super::give_back(&super::TheNames { staging: staging.clone(), target: super::target_of(staging.as_path()), marker: None, lease: Some(lease) });
+    super::give_back(&super::TheNames { directory: super::TheDirectory::of(staging.parent().expect("a parent")).expect("the directory"), staging: staging.clone(), target: super::target_of(staging.as_path()), marker: None, lease: Some(lease) });
     use std::os::unix::io::AsRawFd as _;
     // SAFETY: the descriptor belongs to `opened`, which outlives the call.
     let locked: libc::c_int = unsafe { libc::flock(opened.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
