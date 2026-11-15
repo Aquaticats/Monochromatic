@@ -61,7 +61,7 @@ use crate::lazy_runtime::run_on_runtime;
 /// The stop of a push and the sweep of the locks it leaves,
 /// and the pause between two looks at a running push.
 use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
-pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
+pub use crate::stop_of_a_push_and_sweep_of_its_locks::{WhatAStopWouldSay, settle_locks, stop_push, sweep_after_exit};
 /// The parts of a stop's bound its own work is kept, which a control of the ceiling reads.
 #[cfg(test)]
 pub(crate) use crate::stop_of_a_push_and_sweep_of_its_locks::{REAP_AFTER_THE_KILL, SWEEP_AFTER_THE_STOP};
@@ -514,8 +514,11 @@ pub async fn run_bounded_push_awaiting(
         push_minimum_rate_bytes(environment),
     )
     .await?;
+    // What the stop would have said is carried out here instead of being written inside it: a line written while the push's
+    //  place is held waits for a reader that may have stopped draining, and the attempt is shown after the place is given back.
+    let mut stop_words: String = String::new();
     if ended.is_err() {
-        stop_push(child, grace, locks).await;
+        stop_words = stop_push(child, grace, locks).await.warnings();
     }
     // A push that ends in the pause between two looks can still have printed past the cap. Its output is the log a person
     //  reads, not Git's answer, so the attempt keeps the push's own status; but the text kept is the head of it, and passing
@@ -528,6 +531,12 @@ pub async fn run_bounded_push_awaiting(
             shown_text.push('\n');
         }
         shown_text.push_str(shortened_output_line().as_str());
+    }
+    if !stop_words.is_empty() {
+        if !shown_text.is_empty() {
+            shown_text.push('\n');
+        }
+        shown_text.push_str(stop_words.as_str());
     }
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
     for report in &waits {

@@ -318,7 +318,8 @@ async fn run_bounded_git_held(
                 // The command never got its request, so it is stopped here and the failure names why. The stop is the one every
                 //  stopped query gets: asked to end, forced past the grace, and bounded, so a child the kernel does not release is
                 //  handed to the sweep instead of being waited for.
-                stop_push(adopt(started), grace, locks).await;
+                // The stop writes nothing: its words are said here, where the stop has returned and holds nothing of its own.
+                stop_push(adopt(started), grace, locks).await.say();
                 return Err(SingleFlightError::Start(std::io::Error::other(error)));
             }
         },
@@ -332,7 +333,7 @@ async fn run_bounded_git_held(
         Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref())).await {
             Ok(outcome) => outcome?,
             Err(_passed) => {
-                stop_push(child, grace, locks).await;
+                stop_push(child, grace, locks).await.say();
                 return Err(SingleFlightError::Ceiling {
                     arguments: arguments.to_owned(),
                     seconds: total.as_secs(),
@@ -374,7 +375,8 @@ async fn run_bounded_git_held(
             stderr: read_back(&mut stderr, cap)?,
         }),
         Err(cause) => {
-            stop_push(child, grace, locks).await;
+            // The stop writes nothing: its words are said here, where the stop has returned and holds nothing of its own.
+            stop_push(child, grace, locks).await.say();
             Err(match cause {
                 // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.
                 StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {

@@ -91,7 +91,7 @@ fn a_lock_named_by_an_ended_member_stays_with_its_pid_file() {
     let member: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -105,7 +105,7 @@ fn a_lock_named_by_a_running_process_stays() {
     let (member, mut child): (TreeMember, Child) = running_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     child.kill().expect("end sleep");
     child.wait().expect("reap sleep");
@@ -118,7 +118,7 @@ fn a_lock_with_content_and_no_pid_file_stays() {
     let repo: Repo = repo("stopped-locks-content");
     let ledger: LockLedger = ledger_of(&repo);
     std::fs::write(lock_of(&repo, "main"), "0123456789012345678901234567890123456789\n").expect("lock with content");
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -130,7 +130,7 @@ fn an_empty_lock_with_a_pid_file_is_decided_by_the_pid_file() {
     let ledger: LockLedger = ledger_of(&repo);
     std::fs::write(lock_of(&repo, "main"), "").expect("empty lock");
     write_pid_file(pid_file_of(&repo, "main").as_path(), i32::try_from(std::process::id()).expect("pid"));
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -145,7 +145,7 @@ fn only_regular_lock_files_are_candidates() {
     let plain: PathBuf = repo.git_dir.join("refs").join("remotes").join("origin").join("main");
     std::fs::write(plain.as_path(), "").expect("empty ref");
     std::fs::create_dir(lock_of(&repo, "directory")).expect("directory named like a lock");
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(plain.exists());
     assert!(lock_of(&repo, "directory").is_dir());
     remove(repo.root.as_path());
@@ -159,7 +159,7 @@ fn the_empty_ledger_removes_nothing() {
     let member: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -206,7 +206,7 @@ fn a_live_foreign_writers_empty_lock_stays() {
     let ledger: LockLedger = ledger_of(&repo);
     // The foreign writer takes the lock after the child started, and never writes a pid file.
     std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's empty lock");
-    let removed: Vec<PathBuf> = ledger.sweep();
+    let removed: Vec<PathBuf> = ledger.sweep().removed;
     assert_eq!(removed, Vec::<PathBuf>::new(), "a lock nothing ties to the stopped child was removed");
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
@@ -224,7 +224,7 @@ fn a_lock_made_after_a_pid_file_that_names_an_ended_member_stays() {
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
     std::thread::sleep(Duration::from_millis(50));
     std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's lock, made after the pid file");
-    let removed: Vec<PathBuf> = ledger.sweep();
+    let removed: Vec<PathBuf> = ledger.sweep().removed;
     assert_eq!(removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
     remove(repo.root.as_path());
@@ -245,7 +245,7 @@ fn locks_that_are_not_reference_locks_stay() {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
         std::fs::write(path, "").expect("empty lock");
     }
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     for path in &others {
         assert!(path.exists(), "{path:?}");
     }
@@ -280,7 +280,7 @@ fn a_lock_whose_pid_file_names_an_ended_childs_number_stays_without_a_claim() {
     let member: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock the child held");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -303,7 +303,7 @@ fn in_a_container_view_a_pid_file_older_than_the_lock_vouches_for_nothing() {
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
     std::thread::sleep(Duration::from_millis(50));
     std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's lock, made after the pid file");
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -321,7 +321,7 @@ fn in_a_container_view_a_lock_named_by_an_ended_member_stays() {
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
     std::thread::sleep(Duration::from_millis(50));
     let ledger: LockLedger = container_ledger_of(&repo);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -335,7 +335,7 @@ fn in_a_container_view_a_number_outside_the_tree_proves_nothing() {
     let outsider: TreeMember = ended_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock");
     write_pid_file(pid_file_of(&repo, "main").as_path(), outsider.pid);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -348,7 +348,7 @@ fn in_a_container_view_a_running_member_keeps_its_lock() {
     let (member, mut child): (TreeMember, Child) = running_member();
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     child.kill().expect("end sleep");
     child.wait().expect("reap sleep");
@@ -361,7 +361,7 @@ fn in_a_container_view_a_lock_without_a_pid_file_stays() {
     let repo: Repo = repo("stopped-locks-container-no-pid");
     let ledger: LockLedger = container_ledger_of(&repo);
     std::fs::write(lock_of(&repo, "main"), "").expect("the lock");
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -380,7 +380,7 @@ fn a_young_lock_of_a_stopped_child_waits_out_the_margin() {
     std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the child's lock");
     write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
     let ledger: LockLedger = LockLedger::before_start(&command).with_judge(patient);
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new(), "a lock inside the margin is left without a word");
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new(), "a lock inside the margin is left without a word");
     assert!(lock_of(&repo, "main").exists());
     remove(repo.root.as_path());
 }
@@ -404,7 +404,7 @@ fn a_lock_whose_pid_file_names_a_running_member_is_not_claimed() {
     std::fs::remove_file(pid_file_of(&repo, "main")).expect("the pid file goes first");
     child.kill().expect("kill the member");
     child.wait().expect("reap the member");
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new(), "a number in a pid file is no claim");
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new(), "a number in a pid file is no claim");
     assert!(lock.exists());
     remove(repo.root.as_path());
 }
@@ -424,7 +424,7 @@ fn a_lock_whose_pid_file_went_first_stays_and_is_named() {
     std::fs::remove_file(pid_file_of(&repo, "main")).expect("the pid file goes first");
     child.kill().expect("kill the holder");
     child.wait().expect("reap the holder");
-    assert_eq!(ledger.sweep(), Vec::<PathBuf>::new());
+    assert_eq!(ledger.sweep().removed, Vec::<PathBuf>::new());
     assert!(lock.exists());
     remove(repo.root.as_path());
 }

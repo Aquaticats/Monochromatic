@@ -35,7 +35,9 @@ pub async fn wait_until_exit_or_stop(mut owned: OwnedChild, mut stop: Option<Sto
     return tokio::select! {
         biased;
         () = arm.stop_told() => {
-            crate::bounded_push::stop_push(owned, crate::bounded_push::STOP_GRACE, crate::stopped_git_locks::LockLedger::none()).await;
+            // The stop writes nothing: its words are said here. This path is the commit step's own, which the owner chose to
+            //  keep waiting for its output, so a line of it waits no longer than the step already does.
+            crate::bounded_push::stop_push(owned, crate::bounded_push::STOP_GRACE, crate::stopped_git_locks::LockLedger::none()).await.say();
             Err(crate::child_watch::ended_by_the_stop(what))
         }
         finished = owned.wait() => finished,

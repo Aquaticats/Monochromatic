@@ -49,7 +49,8 @@ fn the_stop_of_a_push_that_ignores_the_request_lets_other_tasks_run() {
     std::io::BufReader::new(started.stdout.take().expect("the piped output")).read_line(&mut ready).expect("the ready line");
     assert_eq!(ready, "ready\n");
     let ((), ticks): ((), u32) = with_a_ticker_beside(async move {
-        stop_push(adopt(started), Duration::from_millis(300), locks).await;
+        let said: WhatAStopWouldSay = stop_push(adopt(started), Duration::from_millis(300), locks).await;
+        said.say();
     });
     assert!(ticks > 0, "the stop of the push held the thread: the task beside it never ran");
 }

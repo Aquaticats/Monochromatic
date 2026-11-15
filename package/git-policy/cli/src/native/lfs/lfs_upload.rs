@@ -277,7 +277,8 @@ async fn await_upload(
         Ok(status) => UploadEnd::Finished(outcome_of(status)),
         Err(cause) => {
             // The upload is ended with the grace every stopped child gets, and what it started goes with it.
-            stop_push(child, STOP_GRACE, locks).await;
+            // The stop writes nothing: its words are said here, where the stop has returned and holds nothing of its own.
+            stop_push(child, STOP_GRACE, locks).await.say();
             UploadEnd::Stopped(cause)
         }
     };

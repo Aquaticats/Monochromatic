@@ -62,8 +62,6 @@
 //! for (const lock of ledger.sweep(tree)) log(`removed ${lock}`);
 //! ```
 
-/// The diagnostic log of the wrapper.
-use crate::diagnostic_log::warn;
 /// The Git directories a command works in.
 use crate::git_directory_roots::roots_of_command;
 /// How reference locks are judged.
@@ -75,8 +73,6 @@ use std::path::{Path, PathBuf};
 /// The command whose children are stopped.
 use std::process::Command;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What every Git lock file's name ends with.
 pub(crate) const LOCK_SUFFIX: &str = ".lock";
@@ -168,23 +164,47 @@ impl LockLedger {
     /// so the proof,
     /// the notice and the conditional removal are the same everywhere.
     ///
+    /// What the sweep found and what it would say are handed back together:
+    /// it writes nothing itself,
+    /// because a line
+    ///  written here waits for room in whatever stream the caller holds (a pipe, maybe one nobody drains),
+    /// and the caller is the
+    ///  only one that knows where such a line may be said.
+    ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function sweep(tree: TreeMember[]): string[];
+    /// function sweep(tree: TreeMember[]): { removed: string[]; notice: string };
     /// ```
-    pub fn sweep(&self) -> Vec<PathBuf> {
+    pub fn sweep(&self) -> SweptLocks {
         let judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
         let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
-        let notice: String = outcome.notice();
-        if !notice.is_empty() {
-            warn(TAG, notice.trim_end());
-        }
         let mut removed: Vec<PathBuf> = Vec::new();
         for found in &outcome.cleared {
             removed.push(found.lock.clone());
         }
-        return removed;
+        return SweptLocks { removed, notice: outcome.notice() };
     }
+}
+
+/// What one sweep of a ledger found:
+/// the locks it removed,
+/// and the words it would have said about the rest.
+/// Why:
+///   The sweep runs inside a stop's bound,
+/// sometimes on a blocking-pool thread whose place other steps wait for,
+/// so it
+///  may not write to a stream a reader can stop draining:
+/// the caller of the stop says the words where it holds nothing
+///  (`push/stop_of_a_push_and_sweep_of_its_locks.rs`,
+/// `WhatAStopWouldSay`).
+#[derive(Debug, Default)]
+pub struct SweptLocks {
+    /// The lock files it removed.
+    pub removed: Vec<PathBuf>,
+    /// What it found about the locks it left,
+    /// in the words a person reads,
+    /// and nothing when it left none.
+    pub notice: String,
 }
 
 /// The process number a pid file names,

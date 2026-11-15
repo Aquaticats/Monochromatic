@@ -51,6 +51,21 @@
 //!   the child of a stop is reaped here or kept in the abandoned list here,
 //!   and the ledger is swept here or kept as owed here,
 //!  so neither ever lives only inside a future the runtime may refuse to start or cancel before its first poll.
+//! What the stop says,
+//!  and who says it:
+//!   nothing between the moment it begins and the moment `stop_push` returns writes to standard error or standard output,
+//!  because such a line is one `write_all` on a stream the caller holds (a pipe, maybe one nobody drains) and the stop's
+//!  timers cannot interrupt it (the review of `67c565e1f4` reproduced a stop that never returned that way).
+//!  Two lines it would have written become words instead:
+//!   the owed sweep (`keep_the_sweep_owed`) and the sweep's own notice (`lock/stopped_git_locks.rs`, `SweptLocks`),
+//!  and the note that no worker could be given a task;
+//!   `stop_push` returns them as `WhatAStopWouldSay`,
+//!   the push's attempt carries the warnings into the notice a person reads and the service journals (after the push's
+//!  place is given back),
+//!   and a caller with no attempt of its own says them once the stop has returned.
+//!  The task a stop may start says its own lines at its end, when it holds no place of the blocking budget, no lock and
+//!  no claim; the abandoned-child list keeps a child and says nothing.
+//!  The push's own child never holds the caller's streams: `bounded_push.rs` gives it an anonymous scratch file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -147,6 +162,103 @@ pub(crate) const SWEEP_AFTER_THE_STOP: Duration = Duration::from_millis(200);
 /// and so a
 ///  control can say how many sweeps a run owed.
 static OWED_SWEEPS: Mutex<Vec<LockLedger>> = Mutex::new(Vec::new());
+
+/// What:
+///  What a stop would have said while it held the push's place,
+///  handed back as words instead of written on the way.
+/// Why:
+///   A line written on the way out is one `write_all` on standard error
+/// (`foundation/diagnostic_log.rs`),
+/// and it waits for
+///  room in whatever stream the caller holds:
+/// a pipe whose reader has stopped draining,
+/// which the stop's own timers cannot
+///  interrupt.
+/// A stop that must answer inside its ceiling cannot be held by its own words,
+/// and a reader that
+///  stopped reading must not hold the push's place and every later push of that repository behind it
+/// (the review of
+///  `67c565e1f4` reproduced a stop that never returned from exactly this).
+/// What the stop would say, it returns;
+/// its caller says it where it holds nothing another push waits on.
+/// No line is a
+///  `Display` of an error printed on the way either:
+/// the attempt's own text is built by the caller of the stop.
+#[derive(Debug, Default)]
+#[must_use]
+pub struct WhatAStopWouldSay {
+    /// One entry per line, in the order the stop would have said them.
+    lines: Vec<ALineOfAStop>,
+}
+
+/// One line a stop would say, and how loudly it would say it.
+#[derive(Debug)]
+enum ALineOfAStop {
+    /// A line only a verbose run shows, which the stop would have said with `debug`.
+    Note(String),
+    /// A line a person must read, which the stop would have said with `warn`.
+    Warning(String),
+}
+
+impl WhatAStopWouldSay {
+    /// Take a line a verbose run would show.
+    fn note(&mut self, line: String) {
+        self.lines.push(ALineOfAStop::Note(line));
+    }
+
+    /// Take a line a person must read.
+    fn note_a_warning(&mut self, line: String) {
+        self.lines.push(ALineOfAStop::Warning(line));
+    }
+
+    /// Whether the stop had nothing to say.
+    pub fn is_empty(&self) -> bool {
+        return self.lines.is_empty();
+    }
+
+    /// What:
+    ///  The warnings as one text block,
+    /// for a place that shows an attempt's words.
+    /// Why:
+    ///   The push's attempt is what a person reads and what the service journals,
+    /// and it is built after the stop has
+    ///  given back the push's place:
+    /// the notice and the `pushed` line carry these words without any write being made
+    ///  while the place is held.
+    /// The notes of a verbose run are not put in an attempt's output, which a person reads as
+    ///  Git's own answer.
+    pub fn warnings(&self) -> String {
+        let mut said: String = String::new();
+        for line in &self.lines {
+            let ALineOfAStop::Warning(text) = line else {
+                continue;
+            };
+            if !said.is_empty() {
+                said.push('\n');
+            }
+            said.push_str(text);
+        }
+        return said;
+    }
+
+    /// What:
+    ///  Say every line here, with the volume the stop would have used.
+    /// Why:
+    ///   Only a caller that holds nothing another push waits on says these:
+    /// no place of the blocking budget, no lock of
+    ///  the repository and no claim of the push's record.
+    /// A stop's own path never calls this,
+    /// because a reader that stopped
+    ///  draining would hold everything the stop has still to give back.
+    pub fn say(&self) {
+        for line in &self.lines {
+            match line {
+                ALineOfAStop::Note(text) => debug(TAG, text),
+                ALineOfAStop::Warning(text) => warn(TAG, text),
+            }
+        }
+    }
+}
 
 /// How many sweeps of stopped pushes this process owes a judgement.
 pub fn sweeps_owed() -> usize {
@@ -278,13 +390,11 @@ impl Drop for HandedOver {
         if let Some(unreleased) = sweep.child {
             keep_abandoned(unreleased);
         }
-        keep_the_sweep_owed(sweep.locks, NO_TASK_TOOK_THE_SWEEP);
+        // No word is written here: a `Drop` runs wherever the last holder lets go, which is a place that may not write.
+        //  The ledger is recorded, and the next fetch or push of that repository judges what it holds.
+        record_the_sweep_owed(sweep.locks);
     }
 }
-
-/// What a sweep owed says when no task took it,
-/// so nothing was even started.
-const NO_TASK_TOOK_THE_SWEEP: &str = "the runtime gave the task no worker";
 
 /// What a sweep owed says when its job was given no thread and will not run.
 const THE_SWEEP_WAS_GIVEN_NO_THREAD: &str = "the blocking pool gave the job no thread";
@@ -305,13 +415,23 @@ const THE_SWEEP_DID_NOT_ANSWER: &str = "the job did not answer inside the bound"
 /// nothing says so unless this line
 ///  is written,
 /// and a person who reads a stop and then silence cannot tell an empty sweep from a missing one.
-fn keep_the_sweep_owed(locks: LockLedger, why: &str) {
+fn keep_the_sweep_owed(said: &mut WhatAStopWouldSay, locks: LockLedger, why: &str) {
     let roots: Vec<String> = locks.roots().iter().map(|root| { return root.display().to_string(); }).collect();
     let of: String = if roots.is_empty() { String::from("that repository") } else { roots.join(", ") };
-    warn(
-        TAG,
-        &format!("the locks of a stopped push were not judged inside the bound of its stop ({why}); the next fetch or push of {of} judges them"),
-    );
+    said.note_a_warning(format!(
+        "the locks of a stopped push were not judged inside the bound of its stop ({why}); the next fetch or push of {of} judges them"
+    ));
+    record_the_sweep_owed(locks);
+}
+
+/// Record `locks` as a sweep this process owes,
+/// without a word about it.
+/// Why:
+///   A place that may not write still owes the record:
+/// the ledger is what `sweeps_owed` counts and what a
+///  diagnostic can name,
+/// and the judgement before the next fetch or push of that repository is what clears the locks.
+fn record_the_sweep_owed(locks: LockLedger) {
     if let Ok(mut owed) = OWED_SWEEPS.lock() {
         owed.push(locks);
     }
@@ -348,8 +468,8 @@ fn keep_the_sweep_owed(locks: LockLedger, why: &str) {
 /// ```ts
 /// void Promise.race([child.exited, delay(ceiling)]).then(() => locks.sweep(tree));
 /// ```
-pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
-    return start_the_sweep_task(AStopHandedToATask { child: Some(child), tree, locks });
+pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger, said: &mut WhatAStopWouldSay) -> Option<tokio::task::JoinHandle<()>> {
+    return start_the_sweep_task(AStopHandedToATask { child: Some(child), tree, locks }, said);
 }
 
 /// What:
@@ -360,13 +480,17 @@ pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) 
 /// and the runtime may refuse to start it,
 ///  so
 /// what it works on cannot travel only inside its future (`HandedOver`).
-fn start_the_sweep_task(sweep: AStopHandedToATask) -> Option<tokio::task::JoinHandle<()>> {
+fn start_the_sweep_task(sweep: AStopHandedToATask, said: &mut WhatAStopWouldSay) -> Option<tokio::task::JoinHandle<()>> {
     let handed: Arc<HandedOver> = HandedOver::of(sweep);
     let for_the_task: Arc<HandedOver> = Arc::clone(&handed);
     let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime(async move {
         let Some(AStopHandedToATask { child, tree, locks }) = for_the_task.take() else {
             return;
         };
+        // What this task would say is said by the task itself, at its end: by then it holds no place of the blocking budget,
+        //  no lock of the repository and no claim of the push's record, so a reader that stopped draining holds this task and
+        //  nothing a later push waits for.
+        let mut words: WhatAStopWouldSay = WhatAStopWouldSay::default();
         // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
         let _earlier: usize = reap_abandoned_children();
         if let Some(uncollected) = child {
@@ -381,7 +505,7 @@ fn start_the_sweep_task(sweep: AStopHandedToATask) -> Option<tokio::task::JoinHa
                     if let Some(left) = owned.into_std_when_unreaped() {
                         keep_abandoned(left);
                     }
-                    debug(TAG, "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel for the next round to collect, and its locks to the stale-lock judgement");
+                    words.note(String::from("the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel for the next round to collect, and its locks to the stale-lock judgement"));
                 }
             }
         }
@@ -390,20 +514,25 @@ fn start_the_sweep_task(sweep: AStopHandedToATask) -> Option<tokio::task::JoinHa
         //  stale-lock judgement every later push and fetch makes.
         let gone: bool = wait_until_gone(tree.as_slice(), STOP_CEILING).await;
         if !gone {
-            debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
+            words.note(String::from("a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement"));
         }
         // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks, and even here
         //  where nobody waits for it its job is awaited no longer than a stop's ceiling: a job that does not answer leaves the
         //  ledger owed rather than a task waiting for good.
         let owed_if_no_answer: LockLedger = locks.clone();
-        match run_a_job_once_awaited_no_longer_than(STOP_CEILING, move || { locks.sweep(); }).await {
-            TheAnswerOfAJobAwaited::Ran(_removed) => {}
-            TheAnswerOfAJobAwaited::NotRun => keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_WAS_GIVEN_NO_THREAD),
-            TheAnswerOfAJobAwaited::NoAnswer => keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_DID_NOT_ANSWER),
+        match run_a_job_once_awaited_no_longer_than(STOP_CEILING, move || { return locks.sweep(); }).await {
+            TheAnswerOfAJobAwaited::Ran(swept) => {
+                if !swept.notice.is_empty() {
+                    words.note_a_warning(swept.notice.trim_end().to_owned());
+                }
+            }
+            TheAnswerOfAJobAwaited::NotRun => keep_the_sweep_owed(&mut words, owed_if_no_answer, THE_SWEEP_WAS_GIVEN_NO_THREAD),
+            TheAnswerOfAJobAwaited::NoAnswer => keep_the_sweep_owed(&mut words, owed_if_no_answer, THE_SWEEP_DID_NOT_ANSWER),
         }
+        words.say();
     });
     if started.is_none() {
-        debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
+        said.note(String::from("the runtime has no worker to sweep a stopped push's locks"));
     }
     // The last holder that goes settles what no task took, so the answer is the same where the runtime refused the task:
     //  nothing of the stop is left inside a future nobody polls.
@@ -555,6 +684,10 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 /// and a sweep that did not run is
 ///  recorded here,
 /// so neither travels only inside a task the runtime may refuse to start.
+/// It writes nothing on the way:
+/// everything it would say is handed back (`WhatAStopWouldSay`),
+/// because a line written
+///  while the push's place is held waits for a reader that may have stopped draining.
 /// Why:
 ///   Git's own signal handling ends the helpers it started and removes its lock files,
 ///  and a push that ignores the request cannot outlive the kill.
@@ -562,7 +695,7 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 /// which fail every later Git command on the same refs,
 /// so once the push and
 ///  what it started are gone the locks they hold are swept.
-pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger) {
+pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger) -> WhatAStopWouldSay {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
     let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
     let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
@@ -611,7 +744,9 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     }
     let tree_left: Duration = escalation_deadline.saturating_sub(asked.elapsed());
     let sweep_left: Duration = bound_left(asked.elapsed());
-    let _sweeper = settle_locks(tree, claimed_ledger, tree_left, sweep_left).await;
+    let mut said: WhatAStopWouldSay = WhatAStopWouldSay::default();
+    let _sweeper = settle_locks(tree, claimed_ledger, tree_left, sweep_left, &mut said).await;
+    return said;
 }
 
 /// What:
@@ -634,15 +769,27 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
 /// A sweep that does not run or does not answer inside that removes nothing now and is kept as owed
 ///  (`keep_the_sweep_owed`),
 /// so a stop answers inside its bound whether the blocking pool moves or not.
+/// `said` takes every line it would have written,
+/// and the sweep's own notice comes back with it
+///  (`SweptLocks`):
+/// nothing here is written,
+/// because a write waits for a reader that may have stopped draining and the
+///  stop may not be held by its own words.
 /// Returns the
 ///  task,
 /// if one was started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// waitForTree(tree, treeLeft); if (allEnded(tree)) { sweepWithin(sweepLeft); return undefined; } return sweepAfterExit(tree, locks);
+/// waitForTree(tree, treeLeft); if (allEnded(tree)) { said.push(...sweepWithin(sweepLeft)); return undefined; } return sweepAfterExit(tree, locks, said);
 /// ```
-pub async fn settle_locks(tree: Vec<TreeMember>, locks: LockLedger, tree_left: Duration, sweep_left: Duration) -> Option<tokio::task::JoinHandle<()>> {
+pub async fn settle_locks(
+    tree: Vec<TreeMember>,
+    locks: LockLedger,
+    tree_left: Duration,
+    sweep_left: Duration,
+    said: &mut WhatAStopWouldSay,
+) -> Option<tokio::task::JoinHandle<()>> {
     let waited: Instant = Instant::now();
     wait_for_tree(tree.as_slice(), tree_left).await;
     if !tree.iter().any(still_running) {
@@ -651,20 +798,25 @@ pub async fn settle_locks(tree: Vec<TreeMember>, locks: LockLedger, tree_left: D
         //  it leaves it owed rather than waited for.
         let inside: Duration = sweep_left.saturating_sub(waited.elapsed());
         let owed_if_no_answer: LockLedger = locks.clone();
-        return match run_a_job_once_awaited_no_longer_than(inside, move || { locks.sweep(); }).await {
-            TheAnswerOfAJobAwaited::Ran(_removed) => None,
+        return match run_a_job_once_awaited_no_longer_than(inside, move || { return locks.sweep(); }).await {
+            TheAnswerOfAJobAwaited::Ran(swept) => {
+                if !swept.notice.is_empty() {
+                    said.note_a_warning(swept.notice.trim_end().to_owned());
+                }
+                None
+            }
             TheAnswerOfAJobAwaited::NotRun => {
-                keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_WAS_GIVEN_NO_THREAD);
+                keep_the_sweep_owed(said, owed_if_no_answer, THE_SWEEP_WAS_GIVEN_NO_THREAD);
                 None
             }
             TheAnswerOfAJobAwaited::NoAnswer => {
-                keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_DID_NOT_ANSWER);
+                keep_the_sweep_owed(said, owed_if_no_answer, THE_SWEEP_DID_NOT_ANSWER);
                 None
             }
         };
     }
     // The push was collected and the tree is still running: the task waits for the tree alone.
-    return start_the_sweep_task(AStopHandedToATask { child: None, tree, locks });
+    return start_the_sweep_task(AStopHandedToATask { child: None, tree, locks }, said);
 }
 
 /// The sweep's wait and its bound are controlled in the test module.
