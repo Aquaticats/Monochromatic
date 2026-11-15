@@ -1330,6 +1330,160 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The control of two adds at once fails on a one-millisecond tick and has its fix; the run kept out of the main checkout answers its third review; both go to review (2026-11-14T22:33:22-05:00)
+
+Not final and not approved:
+what two authors report,
+and what the coordinating session queued.
+
+- **An add finishes while another add's real Git holds the index lock**,
+  a fresh run,
+  ended 22:28:25 at `98fcc243fa`.
+  By its report the two gate failures are one state,
+  word for word:
+  the wrapper's arm for a lock whose PID file names a live process,
+  printed for a lock in another linked worktree's administrative directory.
+  The cause is measured:
+  real Git creates the lock and then its PID file 150 to 208 µs apart
+  (eight traced runs in the gate's image),
+  birth times advance in ticks of about one millisecond,
+  and the PID file's birth fell one tick later in 62 of 2,000 back-to-back pairs in the gate's container and 13 of 2,000 on this machine.
+  The arm that prints the line is in `main` since `0866ecf950` of 2026-11-13,
+  so only the six gates of 2026-11-14 could show it:
+  two failed and four passed.
+  The fix:
+  a lock in another linked worktree's administrative directory is never named by this worktree's command,
+  while an abandoned one there is still cleared and a live one in the command's own worktree is still named.
+  The control passes seven of seven,
+  with the lock module 23 of 23 at four CPUs.
+  Its review is queued second
+  (`main...98fcc243fa`,
+  two code files).
+- **A Pi run cannot write into the main checkout**,
+  its author's fourth run,
+  ended 22:30:22 at `49afd371a4`,
+  its report whole.
+  The one folder a run's tools make inside the checkout is `.cache`
+  (measured in a capped unit with the checkout read-only);
+  it is now made before the unit and named as a folder the unit must write.
+  The launcher's reads outside its unit open without blocking,
+  refuse what is not an ordinary file and are bounded at 30 s;
+  a marker that is a named pipe is refused before anything is made.
+  The two messages about a removed worktree no longer say nothing was lost.
+  Four controls quoted failing before their fixes;
+  build,
+  type check and lint clean;
+  201 unit tests passing.
+  It reports one slip of its own:
+  a probe took its `PATH` with `mise exec -- printenv PATH`,
+  a form its brief forbids,
+  the value going to a scratch file it then deleted and to no tool result.
+  Its review is queued third
+  (`main...49afd371a4`,
+  fourteen code files).
+- Read at 22:32:57:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  22 runs going.
+  The queue held 70 entries at 22:33:22.
+
+##### The filling unit is restarted between two of its rounds, for eight hours more, with no entry lost (2026-11-14T22:32:37-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- The filling unit started at 15:55:07 would have ended at 23:55:07.
+  A round takes an entry off the queue and then starts its launcher,
+  so a stop between those two steps loses the entry.
+  `restart-the-filling-unit-between-two-of-its-rounds.ts`,
+  beside the other queue scripts,
+  waits until the unit's last journal line is between 60 and 140 s old
+  (inside the sleep after a round's work,
+  by rounds of about 195 s)
+  and only then stops it and starts the next.
+- It stopped `…-20261114T155507` at 22:32:27,
+  its last line 69 s old,
+  and started `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T223227` in the same second,
+  which ends about 06:32 on 2026-11-15.
+- The check for lost entries,
+  run at 22:32:37 across both units:
+  138 names queued today,
+  69 entries in the queue,
+  one name printed,
+  the known rename;
+  none doubled.
+
+##### The check for lost queue entries printed six reviews as missing that had run; its matching is corrected and no entry is lost (2026-11-14T22:29:38-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read and corrected.
+
+- The check that every entry queued today is in the queue or was started,
+  last run at 17:48:53,
+  was run at 22:28:56 and printed seven names as missing.
+- **Six were reviews that had run**:
+  each has a run folder `review-<name>-1`,
+  and five of their reports are already acted on.
+  A review of a range is queued under its bare name and runs as `review-<name>`;
+  the check knew that only for entries whose queue command it could read,
+  and since 20:56 this session queues through one-off scripts whose output carries the name alone.
+  The check now counts both spellings,
+  with the reason written at the line.
+- **The seventh is the entry renamed in the queue at about 18:25**
+  (its name counted one review too many);
+  it ran under its corrected name and ended at 20:26:49.
+- Run again at 22:29:38:
+  138 names queued today,
+  72 entries in the queue,
+  one name printed,
+  that rename;
+  none doubled.
+  The whole output is kept in `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/missing-entry-check-of-2026-11-14T2229.txt`.
+
+##### The driver's empty last answer is answered, with claims read on every look and taken only on proof, and goes to review (2026-11-14T22:28:33-05:00)
+
+Not final and not approved:
+what one author reports,
+and what the coordinating session queued.
+
+- **A driver run whose last answer is empty is asked to go on and never ends as finished**,
+  its author's fifth run,
+  ended 22:23:35 at `179075366e`,
+  its report whole.
+  All four of its fourth review's scripts reproduced against its old tip.
+  Changed:
+  claims of inbox messages are read on every look and once more before the summary,
+  so a message a dead driver had claimed is kept under `.orphaned-<name>` and named in `inboxNotTaken`;
+  a claim is taken only on proof that its owner is gone
+  (no process record,
+  or a different start),
+  never on a record that cannot be read;
+  a driver that cannot read its own start claims nothing;
+  the test helper waits for its child's exit from the moment it is spawned and reaps it on every path.
+  Four controls committed before the fix and quoted failing against the old code;
+  build,
+  type check and lint clean;
+  190 passing suite lines.
+  Cost:
+  one `readdir` per 300 ms look and one `/proc/<pid>/stat` per claim held.
+  Left by its design for a person:
+  a malformed claim,
+  and a claim whose owner's start is unknown while its number names something.
+- Its review is queued second
+  (`main...179075366e`,
+  22 code files,
+  the range being the whole branch).
+  It runs the driver from the main checkout for every Pi unit once merged,
+  so its merge follows a clean review and a look at what else `main` then holds of the driver.
+- Read at 22:28:07:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  21 runs going.
+  The queue held 72 entries at 22:28:33.
+
 ##### The journal change is answered and goes to review; its author met a commit service that stopped answering and two commits taken back (2026-11-14T22:22:48-05:00)
 
 Not final and not approved:
