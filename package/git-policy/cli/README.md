@@ -616,6 +616,9 @@ Read-only commands,
   That last write replaces only files it can prove are the move's own:
   an edit you stage or make in the moment the branch moves is kept byte for byte,
   and the report names the files and the step that brings them to the branch when you decide to.
+  The write is the patch between the two tips applied path by path with `git apply`, which refuses a
+  path whose file no longer holds what the branch moved from, so nothing you stage or edit in that
+  instant is replaced even by the write that was going to write it.
   When a merge push's own command says it failed but the remote took it,
   the push ends with status 0, moves your branch to the merge it made, and says where the remote is,
   which merge it holds, and where your branch is;
@@ -634,6 +637,12 @@ Read-only commands,
   in its index and in its files, or holds changes that are yours, which are left to you and named:
   a file still holding the tip the branch moved from is the move's own leftover and is brought to the branch,
   and a file holding anything else is yours.
+  A command is let through only when no file this move wrote still holds what the branch moved from,
+  so a commit it makes cannot record that older tree; if another command is repairing that checkout it waits
+  for it, at most 5 seconds, and then goes on and says so, keeping the record for the next command.
+  A record whose branch nobody has checked out stays until a command in a worktree that later shows the
+  branch brings it to the tip, or until the branch moves again, and it costs one read of that worktree's
+  `HEAD` per command and no Git start.
    Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;
