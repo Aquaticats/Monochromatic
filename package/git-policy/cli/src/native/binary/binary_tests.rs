@@ -66,6 +66,11 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
+/// The wait that reads what the commit service did after a command,
+/// and what one empty reading of a repository's queue is worth.
+#[path = "binary_support_observation_tests.rs"]
+mod observation_guard;
+
 /// The one place a control says that it needs a btrfs fixture root,
 /// and what it does where there is none.
 #[path = "binary_support_btrfs_controls.rs"]

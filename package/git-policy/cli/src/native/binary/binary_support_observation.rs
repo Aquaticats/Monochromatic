@@ -18,6 +18,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use crate::support_program_names_and_time_bound::TIME_BOUND_SECONDS;
+use git_policy_cli::work_item::{CLAIMED, PENDING, RECOVERING};
 
 /// The signal that ends `timeout --signal=KILL` itself when the bound was hit:
 ///  it kills
@@ -335,6 +336,38 @@ pub fn work_listing(work: &Path) -> String {
         .join(" ");
 }
 
+/// How long a wait for the after-commit work pauses before it reads the queue again.
+const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+
+/// What:
+///  How many records of a work directory mean work that has not settled,
+/// read so that a record moving between those states cannot slip between two listings.
+/// Why:
+///   A record is in exactly one of `pending`,
+/// `recovering` and `claimed` until it is settled,
+/// and a claim moves it `pending` to `recovering` to `claimed` by two renames with a stamp between them,
+/// so three listings taken one after another are three different moments.
+/// A record that leaves `recovering` between the second and the third is in none of them although it was in the queue
+///  all along: one sighting of the package repair read a queue as settled and the service ran the relink it held three
+/// milliseconds later
+/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`, 2026-11-14).
+/// `claimed` is listed last,
+/// so a record the earlier listings missed is either still there,
+/// or it left `claimed` for `done` or `failed`, which is settled work.
+/// The one case left is a claim that failed and put its record back in `pending` after it was listed,
+/// which the second reading of `settle_service_work_read_with` catches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outstanding = (work) => ['recovering', 'pending', 'claimed'].reduce((sum, state) => sum + entriesOf(work, state).length, 0);
+/// ```
+fn work_outstanding(work: &Path) -> usize {
+    return [RECOVERING, PENDING, CLAIMED]
+        .iter()
+        .map(|state| { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); })
+        .sum();
+}
+
 /// What:
 ///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
 /// Why:
@@ -348,16 +381,44 @@ pub fn work_listing(work: &Path) -> String {
 /// a record whose handler answered with a retry keeps its claim until that lease ends,
 /// so a control that waits here cannot see such a record settle.
 /// A control that means to read one attempt of such a record reads that instead
-/// (`observe_without_waiting_for_the_after_commit_work`).
+/// (`observe_without_waiting_for_the_after_commit_work`),
+/// and a control that means to read what one step of the work did waits for that step's own record
+/// (`wait_for_pnpm_runs`),
+/// because no reading of a queue says what a service has not reached yet.
 pub fn settle_service_work(directory: &Path) {
+    return settle_service_work_read_with(directory, &work_outstanding);
+}
+
+/// What:
+///  `settle_service_work` with the reading of the queue given,
+/// so a control proves what one empty reading is worth.
+/// Why:
+///   The reading is where the answer comes from,
+/// and no control can make a claim straddle a listing on a real filesystem:
+/// the two renames of `pending` to `recovering` to `claimed` sit microseconds apart.
+/// A reading that answers no work is asked again after `SETTLE_PAUSE`,
+/// so a queue that is empty once because a record was between two of its listings is not taken for work that settled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settleServiceWorkReadWith(dir, (work) => outstanding(work)); // empty twice, a pause apart, is settled
+/// ```
+pub fn settle_service_work_read_with(directory: &Path, outstanding: &dyn Fn(&Path) -> usize) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
     };
     let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
-    let open = |state: &str| -> usize { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); };
     let began: std::time::Instant = std::time::Instant::now();
-    while open("pending") + open("claimed") + open("recovering") > 0 {
+    let mut a_reading_found_nothing: bool = false;
+    loop {
+        if outstanding(work.as_path()) > 0 {
+            a_reading_found_nothing = false;
+        } else if a_reading_found_nothing {
+            return;
+        } else {
+            a_reading_found_nothing = true;
+        }
         assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::thread::sleep(SETTLE_PAUSE);
     }
 }
