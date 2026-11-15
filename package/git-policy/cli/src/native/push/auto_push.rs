@@ -135,9 +135,9 @@ pub struct AutoPushResult {
     /// a drive that is not mounted and a directory that is no repository alike.
     pub push_addresses: Vec<String>,
     /// What:
-    ///  The reference the push wrote to on the remote,
-    ///  when it named one,
-    ///  and nothing when Git matched the branches itself or nothing was pushed.
+    ///  The references the push wrote to on the remote,
+    ///  when it named them,
+    ///  and none when Git matched the branches itself or nothing was pushed.
     /// Why:
     ///  Git's status line names the reference the push updated,
     /// which is the branch's upstream and not always the branch's own name
@@ -147,7 +147,11 @@ pub struct AutoPushResult {
     /// and calls a delivered push one that reached nowhere
     /// (the fifth review of issue 6293,
     /// finding 1).
-    pub destination_ref: Option<String>,
+    /// A push may name several destinations,
+    /// and the remote may refuse one and take another:
+    /// what arrived is read for every one of them (the sixth review,
+    /// finding 1).
+    pub destination_refs: Vec<String>,
 }
 
 /// What:
@@ -415,7 +419,7 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
     };
     if upstream.is_none() && !query_succeeds(git, &["remote", "get-url", "origin"])? {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new(), push_addresses: Vec::new(), destination_ref: None }));
+        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new(), push_addresses: Vec::new(), destination_refs: Vec::new() }));
     }
     return Ok(match &upstream {
         Some(_upstream_ref) => match named_push(git, branch_ref)? {
@@ -576,7 +580,8 @@ pub fn push_once(
         0 => Vec::new(),
         _ => push_addresses_of(git, sent.remote.as_str()),
     };
-    return reported(attempt, delivered, &stop, pushed_ref.as_str(), sent.targets.first().map(String::as_str), note.as_str(), push_addresses, err);
+    let targets: Vec<&str> = sent.targets.iter().map(String::as_str).collect();
+    return reported(attempt, delivered, &stop, pushed_ref.as_str(), targets.as_slice(), note.as_str(), push_addresses, err);
 }
 
 /// What:
@@ -630,7 +635,7 @@ pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, br
 /// ```ts
 /// const reported = (attempt, delivered, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, destination_ref: Option<&str>, note: &str, push_addresses: Vec<String>, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePushStops, branch_ref: &str, destination_refs: &[&str], note: &str, push_addresses: Vec<String>, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
     let failed: bool = attempt.exit_code != 0 && !delivered;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
@@ -670,26 +675,29 @@ pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePus
         },
         shown,
         push_addresses,
-        destination_ref: destination_ref.map(str::to_owned),
+        destination_refs: destination_refs.iter().map(|reference| { return (*reference).to_owned(); }).collect(),
     });
 }
 
 impl AutoPushResult {
     /// What:
-    ///  The reference a failed push's output is read by:
-    /// the one the push wrote to,
+    ///  The references a failed push's output is read by:
+    /// the ones the push wrote to,
     /// and the branch's own reference when the push named none
     /// (a `matching` push updates the branch's own name).
     /// Why:
     ///  A delivered push is never called failed,
-    /// so the reading must name the reference Git printed in its status line.
+    /// so the reading must name every reference Git printed in a status line.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// result.destinationOr(branchRef)
+    /// result.destinationsOr(branchRef)
     /// ```
-    pub fn destination_or<'a>(&'a self, branch_ref: &'a str) -> &'a str {
-        return self.destination_ref.as_deref().unwrap_or(branch_ref);
+    pub fn destinations_or(&self, branch_ref: &str) -> Vec<String> {
+        return match self.destination_refs.is_empty() {
+            true => vec![String::from(branch_ref)],
+            false => self.destination_refs.clone(),
+        };
     }
 }
 

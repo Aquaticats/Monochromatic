@@ -115,7 +115,7 @@ impl FailedPushByAddress {
 /// arrivedSomewhere(output, destinationRef) // failedPushByAddress({ output, destinationRef, configured: [] }).arrived
 /// ```
 pub fn arrived_somewhere(output: &str, destination_ref: &str) -> bool {
-    return read(output, destination_ref).1;
+    return read(output, &[destination_ref]).1;
 }
 
 /// What:
@@ -129,7 +129,25 @@ pub fn arrived_somewhere(output: &str, destination_ref: &str) -> bool {
 /// failedPushByAddress({ output, destinationRef, configured })
 /// ```
 pub fn failed_push_by_address(output: &str, destination_ref: &str, configured: &[String]) -> FailedPushByAddress {
-    let (attempted, arrived): (Vec<AttemptedAddress>, bool) = read(output, destination_ref);
+    return failed_push_by_address_for(output, &[destination_ref], configured);
+}
+
+/// What:
+///  Everything the reading of one failed push gives,
+///  for every reference the push named.
+/// Why:
+///   A push may be configured with several `remote.<name>.push` refspecs for one branch,
+/// and the remote may then refuse one and take another;
+/// the commit is backed up wherever one of them arrived,
+/// so a reading that looked only at the first called such a delivery one that reached nowhere
+/// (the sixth review of issue 6293, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// failedPushByAddressFor({ output, destinationRefs, configured })
+/// ```
+pub fn failed_push_by_address_for(output: &str, destination_refs: &[&str], configured: &[String]) -> FailedPushByAddress {
+    let (attempted, arrived): (Vec<AttemptedAddress>, bool) = read(output, destination_refs);
     let failing: Option<String> = address_git_failed_at(output, configured);
     return FailedPushByAddress { attempted, arrived, failing };
 }
@@ -146,8 +164,8 @@ pub fn failed_push_by_address(output: &str, destination_ref: &str, configured: &
 /// ```ts
 /// const read = (output, ref) => { let current; for (const line of output.split('\n')) { ... } }
 /// ```
-fn read(output: &str, destination_ref: &str) -> (Vec<AttemptedAddress>, bool) {
-    let destination: &str = short_name(destination_ref);
+fn read(output: &str, destination_refs: &[&str]) -> (Vec<AttemptedAddress>, bool) {
+    let destinations: Vec<&str> = destination_refs.iter().map(|reference| { return short_name(reference); }).collect();
     let mut attempted: Vec<AttemptedAddress> = Vec::new();
     let mut arrived: bool = false;
     for line in output.lines() {
@@ -161,7 +179,8 @@ fn read(output: &str, destination_ref: &str) -> (Vec<AttemptedAddress>, bool) {
             continue;
         }
         let Some(refused_or_sent) = status_of(line) else { continue };
-        if destination_of(line).as_deref() != Some(destination) {
+        let named: Option<String> = destination_of(line);
+        if !named.is_some_and(|one| { return destinations.contains(&one.as_str()); }) {
             continue;
         }
         if refused_or_sent == Status::Arrived {

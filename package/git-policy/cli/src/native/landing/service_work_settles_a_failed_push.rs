@@ -17,7 +17,7 @@
 //! ```
 
 use crate::service_work::Verdict;
-use crate::push_attempts_of_a_failed_push::{FailedPushByAddress, failed_push_by_address};
+use crate::push_attempts_of_a_failed_push::{FailedPushByAddress, failed_push_by_address_for};
 use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
 use crate::service_work_failed_push_verdict::{SettledFailedPush, verdict_of_a_failed_push};
 use crate::auto_push::AutoPushResult;
@@ -43,12 +43,14 @@ pub(crate) async fn answer(
     newest: &WorkItem,
     git: &PushGit,
 ) -> Verdict {
-    // What: The reference this reading looks for is the one the push wrote to.
+    // What: The references this reading looks for are the ones the push wrote to.
     // Why:  Git's status line names the reference it updated (`... <oid> -> main` for a local `topic`), so looking for the local
-    //       name found no line and called a delivered push one that reached nowhere, with a final notice that said the commit was
-    //       saved only here (the fifth review of issue 6293, finding 1).
-    let destination: &str = failed.destination_or(newest.branch_ref.as_str());
-    let read: FailedPushByAddress = failed_push_by_address(failed.shown.as_str(), destination, failed.push_addresses.as_slice());
+    //       name found no line and called a delivered push one that reached nowhere (the fifth review of issue 6293, finding 1);
+    //       and a push may name several destinations, of which the remote may refuse one and take another, so every one is read
+    //       (the sixth review, finding 1).
+    let destinations: Vec<String> = failed.destinations_or(newest.branch_ref.as_str());
+    let references: Vec<&str> = destinations.iter().map(String::as_str).collect();
+    let read: FailedPushByAddress = failed_push_by_address_for(failed.shown.as_str(), references.as_slice(), failed.push_addresses.as_slice());
     let branch_is_gone: bool = branch_exists_awaiting(git, newest.branch_ref.as_str()).await == Some(false);
     let settled: SettledFailedPush = verdict_of_a_failed_push(failed, read, newest.branch_ref.as_str(), newest.repository.as_path(), branch_is_gone);
     return match settled {

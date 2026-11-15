@@ -182,6 +182,33 @@ fn only_the_recorded_refs_own_status_line_reports_an_arrival() {
 }
 
 /// What:
+///  A push configured with two destination refspecs, of which the remote refuses the first and takes the second,
+///  reports the arrival.
+/// Why:
+///  The sixth review of issue 6293 (finding 1):
+/// the reading looked only at the first destination, found the rejection,
+/// and called a commit the second destination held one that reached nowhere.
+/// Git prints one status line for each destination in the lane of the address that answered them.
+#[test]
+fn a_push_that_delivered_to_the_second_of_two_destinations_reports_the_arrival() {
+    let delivered_twice: &str = "To /srv/remote-0.git\n ! [remote rejected] topic -> a (pre-receive hook declined)\n * [new branch]      topic -> b\nfatal: 'DISABLED' does not appear to be a git repository\n";
+    let addresses: Vec<String> = configured(&["/srv/remote-0.git", "DISABLED"]);
+    let read: FailedPushByAddress = failed_push_by_address_for(
+        delivered_twice,
+        &["refs/heads/a", "refs/heads/b"],
+        addresses.as_slice(),
+    );
+    assert!(read.arrived, "the second destination took the commit: {delivered_twice}");
+    assert_eq!(read.arrived_at(), vec!["/srv/remote-0.git"], "and the address that took it is the one named");
+    assert_eq!(read.failing.as_deref(), Some("DISABLED"), "the address Git failed at is still the one it names");
+    // The same output read for the refused destination alone is no arrival, which is the reading that was made for every push.
+    assert!(
+        !failed_push_by_address_for(delivered_twice, &["refs/heads/a"], addresses.as_slice()).arrived,
+        "the refused destination alone arrived nowhere"
+    );
+}
+
+/// What:
 ///  The arrival question the reconcile asks is answered by the same reading.
 /// Why:
 ///  The reconcile moves the local branch to the merge it published,

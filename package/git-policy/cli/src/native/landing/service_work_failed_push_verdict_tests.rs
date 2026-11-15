@@ -22,7 +22,7 @@ const TWO_ADDRESSES: [&str; 2] = ["/srv/receives.git", "/srv/answers.git"];
 /// The client of a push that exits `exit_code` with `shown` from a remote with `addresses`.
 fn failed(exit_code: i64, shown: &str, addresses: &[&str]) -> AutoPushResult {
     let configured: Vec<String> = addresses.iter().map(|address| { return (*address).to_owned(); }).collect();
-    return AutoPushResult { outcome: AutoPushOutcome::Failed, exit_code, shown: shown.to_owned(), push_addresses: configured, destination_ref: None };
+    return AutoPushResult { outcome: AutoPushOutcome::Failed, exit_code, shown: shown.to_owned(), push_addresses: configured, destination_refs: Vec::new() };
 }
 
 /// What:
@@ -131,6 +131,30 @@ fn a_host_that_does_not_answer_at_the_second_address_keeps_the_plan() {
     let SettledFailedPush::Unreached(Verdict::Retry(said)) = settled else { panic!("a failure that may pass is retried, not {settled:?}") };
     assert!(said.contains("/srv/receives.git"), "the retry's words say where the commit is: {said}");
     assert!(said.contains("https://unreachable-host.invalid/repo.git"), "and which address failed: {said}");
+}
+
+/// What:
+///  A push that delivered to the second of two destinations settles as a delivery,
+///  and never as a push that reached nowhere.
+/// Why:
+///  The sixth review of issue 6293 (finding 1):
+/// the verdict was handed the first destination alone,
+/// so a refusal there settled a commit the second destination held as a failure of the push.
+#[test]
+fn a_delivery_to_the_second_of_two_destinations_settles_as_a_delivery() {
+    let delivered_twice: &str = "To /srv/receives.git\n ! [remote rejected] topic -> a (pre-receive hook declined)\n * [new branch]      topic -> b\nfatal: 'DISABLED' does not appear to be a git repository\n";
+    let mut result: AutoPushResult = failed(1, delivered_twice, &TWO_ADDRESSES);
+    result.destination_refs = vec![String::from("refs/heads/a"), String::from("refs/heads/b")];
+    let references: Vec<String> = result.destinations_or("refs/heads/topic");
+    let read: FailedPushByAddress = {
+        let borrowed: Vec<&str> = references.iter().map(String::as_str).collect();
+        let configured: Vec<String> = TWO_ADDRESSES.iter().map(|address| { return (*address).to_owned(); }).collect();
+        crate::push_attempts_of_a_failed_push::failed_push_by_address_for(delivered_twice, borrowed.as_slice(), configured.as_slice())
+    };
+    let settled: SettledFailedPush = verdict_of_a_failed_push(result, read, "refs/heads/topic", Path::new("/srv/repo"), false);
+    let SettledFailedPush::Reached(said) = settled else { panic!("a commit the second destination holds is a delivery, not {settled:?}") };
+    assert!(said.contains("/srv/receives.git"), "the words name the address that holds it: {said}");
+    assert!(!said.contains("was not made"), "and never say the push was not made: {said}");
 }
 
 /// What:
