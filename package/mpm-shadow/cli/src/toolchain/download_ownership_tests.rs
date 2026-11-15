@@ -96,10 +96,13 @@ fn an_install_does_not_write_under_a_removal_that_holds_the_right() {
 
 /// What:
 /// A removal claim a killed remover left does not block an install for good:
-/// the claim names its maker, and a claim whose maker has ended is cleared before the right is taken again.
+/// the claim names its maker,
+/// and a claim whose maker has ended is cleared before the right is taken again.
 /// Why:
 /// The review of this change showed one kill leaving the claim behind and every later install of that version waiting
-/// two seconds and failing, for ever, with nothing to point at but an internal file.
+/// two seconds and failing,
+/// for ever,
+/// with nothing to point at but an internal file.
 #[test]
 fn a_claim_a_killed_remover_left_does_not_block_an_install() {
     let directory = scratch();

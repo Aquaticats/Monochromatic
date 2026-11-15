@@ -203,75 +203,165 @@ The claimed name exists so that only a copy this run has compared is ever at a n
 ## Every name a removal leaves, and who puts it right
 
 A removal judges at one instant and acts at another,
-and a process can be killed between the two, so every name it writes carries what proves at the instant of the act that
+and a process can be killed between the two,
+so every name it writes carries what proves at the instant of the act that
 the act is still the one judged,
 and every name a kill can leave has a later pass that puts it right and a rule that says when it may.
 This is the list of those names for one version.
 A name the list does not explain means the list is wrong.
 
-- **The recovery marker**, `<store>/.mpm-shadow-removal-unfinished`.
-  Owns it: the pass that starts a removal in that root; its presence means "a removal in this root is not finished".
-  What proves it at the act: nothing about the marker itself, and that is why it is written first:
-  the write is checked before any move, and a removal that cannot write it removes nothing and says why.
-  A kill leaves it, which is the point.
-  Who puts it right: any later sync runs the pass because of it; it is removed only when no tombstone and no claim is
-  under the root and the locks were read, because a pass that could not list the worktrees cannot know what is still
+- **The recovery marker**,
+  `<store>/.mpm-shadow-removal-unfinished`.
+  Owns it:
+  the pass that starts a removal in that root;
+  its presence means "a removal in this root is not finished".
+  What proves it at the act:
+  nothing about the marker itself,
+  and that is why it is written first:
+  the write is checked before any move,
+  and a removal that cannot write it removes nothing and says why.
+  A kill leaves it,
+  which is the point.
+  Who puts it right:
+  any later sync runs the pass because of it;
+  it is removed only when no tombstone and no claim is
+  under the root and the locks were read,
+  because a pass that could not list the worktrees cannot know what is still
   there and must leave the trigger for the next one.
-- **The downloads claim**, `<store>/downloads/<tool>/.<version>.download-removal`.
-  Owns it: the command that is removing that version's archives, by an exclusive create before it judges anything; its
+- **The downloads claim**,
+  `<store>/downloads/<tool>/.<version>.download-removal`.
+  Owns it:
+  the command that is removing that version's archives,
+  by an exclusive create before it judges anything;
+  its
   content is the maker's process number and start time.
-  What proves it at the act: the maker lives (number and start time together), so a claim whose maker has ended is
-  stale and is removed before the right is taken again; a claim that cannot be read is stale only once it is older than
-  the wait an install gives it, because a live remover writes its number within microseconds of creating the file.
-  A kill leaves a claim naming a dead maker, which the next remover removes.
-  Who puts it right: `take_removal_right`, which never blocks for good on a dead maker, and the install that waits for
-  a live one, for at most two seconds and then with a sentence saying what holds it.
-- **The downloads tombstone**, `<store>/downloads/<tool>/.mpm-shadow-removing.<version>`.
-  Owns it: the removal that holds the downloads claim for that version; the rename into that name is what takes the
+  What proves it at the act:
+  the maker lives (number and start time together),
+  so a claim whose maker has ended is
+  stale and is removed before the right is taken again;
+  a claim that cannot be read is stale only once it is older than
+  the wait an install gives it,
+  because a live remover writes its number within microseconds of creating the file.
+  A kill leaves a claim naming a dead maker,
+  which the next remover removes.
+  Who puts it right:
+  `take_removal_right`,
+  which never blocks for good on a dead maker,
+  and the install that waits for
+  a live one,
+  for at most two seconds and then with a sentence saying what holds it.
+- **The downloads tombstone**,
+  `<store>/downloads/<tool>/.mpm-shadow-removing.<version>`.
+  Owns it:
+  the removal that holds the downloads claim for that version;
+  the rename into that name is what takes the
   archives out of use.
-  What proves it at the act: the claim under it is still held by this removal, and no claim of that version is left
+  What proves it at the act:
+  the claim under it is still held by this removal,
+  and no claim of that version is left
   under the tool directory.
-  A kill leaves the tombstone, with the version either still at its name or moved later.
-  Who puts it right: `finish_removals` deletes it, and it must not delete one whose version is still claimed: that
-  claim is either a live removal using the archives or one the pass is about to give back with the version, and giving
+  A kill leaves the tombstone,
+  with the version either still at its name or moved later.
+  Who puts it right:
+  `finish_removals` deletes it,
+  and it must not delete one whose version is still claimed:
+  that
+  claim is either a live removal using the archives or one the pass is about to give back with the version,
+  and giving
   a version back restores its downloads tombstone with it.
-- **The version claim**, `<store>/<tool>/.mpm-shadow-claimed.<version>.<pid>.<start time>.<attempt>.claimed`.
-  Owns it: the maker, by its process number and start time in the name.
-  What proves it at the act: the maker lives; a claim whose maker has ended is given back.
+- **The version claim**,
+  `<store>/<tool>/.mpm-shadow-claimed.<version>.<pid>.<start time>.<attempt>.claimed`.
+  Owns it:
+  the maker,
+  by its process number and start time in the name.
+  What proves it at the act:
+  the maker lives;
+  a claim whose maker has ended is given back.
   A kill leaves the claim.
-  Who puts it right: `give_back_claimed`, which renames it to the version's name when the maker has ended and the name
-  is free, and says one line; a claim whose name is taken stays and the line names where it is.
-- **The version tombstone**, `<store>/<tool>/.mpm-shadow-removing.<version>`.
-  Owns it: this removal, because only a copy compared with the one judged reaches that name.
-  What proves it at the act: the comparison of the moved copy with the judged inode and write time, before the rename.
-  A kill leaves the tombstone, or half of it while the delete runs.
-  Who puts it right: `finish_removals` deletes what is left, because nothing else may use a version the store has
+  Who puts it right:
+  `give_back_claimed`,
+  which renames it to the version's name when the maker has ended and the name
+  is free,
+  and says one line;
+  a claim whose name is taken stays and the line names where it is.
+- **The version tombstone**,
+  `<store>/<tool>/.mpm-shadow-removing.<version>`.
+  Owns it:
+  this removal,
+  because only a copy compared with the one judged reaches that name.
+  What proves it at the act:
+  the comparison of the moved copy with the judged inode and write time,
+  before the rename.
+  A kill leaves the tombstone,
+  or half of it while the delete runs.
+  Who puts it right:
+  `finish_removals` deletes what is left,
+  because nothing else may use a version the store has
   already taken out of its name.
-- **The install's owner file**, `<store>/downloads/<tool>/<version>/.mpm-shadow-downloading.<pid>.<start time>`.
-  Owns it: the install writing that version's archive, which creates it before its first byte.
-  What proves it at the act: the maker lives; a dead owner is what a killed install leaves and keeps nothing.
+- **The install's owner file**,
+  `<store>/downloads/<tool>/<version>/.mpm-shadow-downloading.<pid>.<start time>`.
+  Owns it:
+  the install writing that version's archive,
+  which creates it before its first byte.
+  What proves it at the act:
+  the maker lives;
+  a dead owner is what a killed install leaves and keeps nothing.
   A kill leaves the owner file.
-  Who puts it right: a removal ignores a dead owner and takes the whole directory, owner file included.
-- **A flat download an earlier layout left**, `<store>/downloads/<tool>-<version>-<file>`.
-  Owns it: nobody now, which is exactly why the act has to prove the file is the one judged: the removal moves it to a
-  hidden name of its own, compares the write time with the one the scan measured, and puts it back when they differ.
-  What proves it at the act: that comparison, after the move.
-  A kill leaves either the file at its own name or under the hidden name the pass chose, which no scan lists.
-  Who puts it right: nobody, and nothing is lost: the file was a leftover or another install's, and the hidden name
-  still holds it for a person, in the window between the move and the delete.
+  Who puts it right:
+  a removal ignores a dead owner and takes the whole directory,
+  owner file included.
+- **A flat download an earlier layout left**,
+  `<store>/downloads/<tool>-<version>-<file>`.
+  Owns it:
+  nobody now,
+  which is exactly why the act has to prove the file is the one judged:
+  the removal moves it to a
+  hidden name of its own,
+  compares the write time with the one the scan measured,
+  and puts it back when they differ.
+  What proves it at the act:
+  that comparison,
+  after the move.
+  A kill leaves either the file at its own name or under the hidden name the pass chose,
+  which no scan lists.
+  Who puts it right:
+  nobody,
+  and nothing is lost:
+  the file was a leftover or another install's,
+  and the hidden name
+  still holds it for a person,
+  in the window between the move and the delete.
 - **The version directory at its own name**.
-  Owns it: whoever writes there; the scan's write time and, on Unix, the inode are what tell the judged copy from a
+  Owns it:
+  whoever writes there;
+  the scan's write time and,
+  on Unix,
+  the inode are what tell the judged copy from a
   later one.
-  What proves it at the act: the write time re-read before the move, and the inode and write time of the moved copy
+  What proves it at the act:
+  the write time re-read before the move,
+  and the inode and write time of the moved copy
   compared after it.
-  A kill before the claim leaves the version whole; after it, the claim is the record.
-  Who puts it right: the claim rules above.
-- **The `current` link of a root whose version goes**, and the forwarding link of a root that keeps none.
-  Owns it: the root.
-  What proves it at the act: the link is read at the instant, and settled before any version goes; a link that cannot
-  be read is not "nothing to do": the plan's forward names what an emptied root must point at, and it is written.
+  A kill before the claim leaves the version whole;
+  after it,
+  the claim is the record.
+  Who puts it right:
+  the claim rules above.
+- **The `current` link of a root whose version goes**,
+  and the forwarding link of a root that keeps none.
+  Owns it:
+  the root.
+  What proves it at the act:
+  the link is read at the instant,
+  and settled before any version goes;
+  a link that cannot
+  be read is not "nothing to do":
+  the plan's forward names what an emptied root must point at,
+  and it is written.
   A kill after the settle leaves a link naming a version that is still there (the versions go after it).
-  Who puts it right: the next install points it at the newest finished version, and the forwarding link it wrote is
+  Who puts it right:
+  the next install points it at the newest finished version,
+  and the forwarding link it wrote is
   what keeps a root with no finished version usable in the meantime.
 
 ## What it says

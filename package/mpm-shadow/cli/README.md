@@ -1117,6 +1117,12 @@ The cleanup's work limit is looked at between the versions of the inventory and 
 the
 two calls it cannot cut are one version's size walk and one directory's delete,
 and the doc says what each leaves.
+A removal writes its root's recovery marker first and knows the write worked:
+a removal that cannot write it removes
+nothing and says why.
+A flat download an earlier layout left is proved by its inode and write time after it is moved aside,
+and put back when
+another install published a new archive at that name.
 Before it moves a version aside it compares what it moved with the version it judged,
 so a version another command publishes at that name while the pass runs is put back and kept;
 the name it moves the version to carries that version and the process that took it,
@@ -1128,6 +1134,9 @@ the install creates its owner file with an exclusive create before its first byt
 a removal takes its own claim the same way before it judges anything,
 and each looks for the other's name afterwards,
 so one of the two always backs off and no archive of an install in progress is taken.
+A claim names its maker by process number and start time,
+so a claim a killed remover left is provable stale and is cleared by the next install or removal instead of blocking
+it for good.
 An install that is downloading or unpacking a version's archives keeps them:
 a file written inside the hour before is an install's own,
 and the archives of a version this root no longer has are removed once nothing has touched them for that long.

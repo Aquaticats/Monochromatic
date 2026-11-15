@@ -424,10 +424,24 @@ fn descendants_of(root: u32, deadline: Instant) -> Vec<u32> {
 /// the program itself included when it was not reaped in time.
 /// Why:
 /// A program held in an uninterruptible call keeps running after its SIGKILL is queued,
-/// and the caller must be told about the one process the command was about, not only about what it started;
+/// and the caller must be told about the one process the command was about,
+/// not only about what it started;
 /// a program that was reaped is gone and is not named.
+fn running_members(tree: &[u32]) -> Vec<u32> {
+    let mut alive: Vec<u32> = Vec::new();
+    for pid in tree {
+        if is_running(*pid) {
+            alive.push(*pid);
+        }
+    }
+    return alive;
+}
+
+/// What:
+/// The processes of a stopped program that are still running,
+/// the program itself included when it was not reaped in time.
 pub(crate) fn still_running(tree: &[u32], leader: u32, reaped: bool) -> Vec<u32> {
-    let mut alive: Vec<u32> = tree.iter().copied().filter(|pid| return is_running(*pid)).collect();
+    let mut alive: Vec<u32> = running_members(tree);
     if !reaped && is_running(leader) {
         alive.push(leader);
     }

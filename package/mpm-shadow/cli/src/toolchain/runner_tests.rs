@@ -166,9 +166,11 @@ fn a_stopped_programs_descendant_does_not_go_on_writing() {
 /// and does not name it when it was.
 /// Why:
 /// The review of this change found the answer built from the program's descendants alone:
-/// a program in an uninterruptible call keeps running after its SIGKILL is queued, and the command then said it had
+/// a program in an uninterruptible call keeps running after its SIGKILL is queued,
+/// and the command then said it had
 /// been stopped.
-/// That state cannot be made here (it needs a stalled device or file system, which this run may not hang),
+/// That state cannot be made here (it needs a stalled device or file system,
+/// which this run may not hang),
 /// so this control drives the one function that decides the answer instead.
 #[test]
 fn a_stopped_program_that_was_not_reaped_is_named() {

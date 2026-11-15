@@ -63,8 +63,11 @@ const OWNERSHIP_POLL: Duration = Duration::from_millis(20);
 
 /// How many times taking a removal claim clears a stale one and tries again.
 /// Why:
-/// Each attempt clears one dead holder; more than a few at once means something is writing claims this call cannot
-/// read, and the answer then is no, not an endless loop.
+/// Each attempt clears one dead holder;
+/// more than a few at once means something is writing claims this call cannot
+/// read,
+/// and the answer then is no,
+/// not an endless loop.
 const CLAIM_ATTEMPTS: u32 = 8;
 
 /// What:
@@ -258,7 +261,8 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
 /// A removal moves the archives aside before it takes the version,
 /// so between those two steps the only record of it is the downloads claim;
 /// another pass must not finish the tombstone the removal is about to restore.
-/// The claim names its maker, so one a kill left answers no and its tombstone is finished by the pass.
+/// The claim names its maker,
+/// so one a kill left answers no and its tombstone is finished by the pass.
 pub(crate) fn removal_held(root: &Path, tool: &str, version: &str) -> bool {
     let claim: PathBuf = removal_claim_of(root, tool, version);
     if fs::symlink_metadata(&claim).is_err() {
@@ -271,10 +275,12 @@ pub(crate) fn removal_held(root: &Path, tool: &str, version: &str) -> bool {
 /// Whether a live command still holds the removal claim at `claim`,
 /// clearing a claim whose maker has ended before answering.
 /// Why:
-/// A claim left by a kill names its maker, and a later process can prove it gone:
+/// A claim left by a kill names its maker,
+/// and a later process can prove it gone:
 /// answering "held" for ever would let one kill block every later install of that version,
 /// and answering "free" for a live holder would put two commands on one directory.
-/// A claim that cannot be read counts as held while it is young, because its holder writes its number immediately
+/// A claim that cannot be read counts as held while it is young,
+/// because its holder writes its number immediately
 /// after creating the file.
 fn claim_is_held(claim: &Path) -> bool {
     match claim_holder(claim) {
@@ -290,7 +296,8 @@ fn claim_is_held(claim: &Path) -> bool {
 /// Whether the removal claim was written less than `OWNERSHIP_WAIT` ago.
 /// Why:
 /// A claim is created empty and then given its holder's number;
-/// a claim read in between says nothing, and the age is what tells that in-progress write from a claim a kill left
+/// a claim read in between says nothing,
+/// and the age is what tells that in-progress write from a claim a kill left
 /// before it could be given a holder at all.
 fn claim_is_young(claim: &Path) -> bool {
     let Ok(metadata) = fs::symlink_metadata(claim) else {

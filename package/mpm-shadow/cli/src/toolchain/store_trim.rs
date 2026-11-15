@@ -323,7 +323,8 @@ pub struct TrimCandidate {
     /// When it was last written.
     pub written: SystemTime,
     /// The numbers that name the entry,
-    /// as the scan read them: what proves at the act that it is the entry that was judged.
+    /// as the scan read them:
+    /// what proves at the act that it is the entry that was judged.
     pub naming: EntryNaming,
     /// Whether this is a download file and not a version directory.
     pub leftover: bool,
@@ -690,14 +691,25 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
     return outcome;
 }
 
+/// Whether the entry `metadata` describes is the file the scan judged:
+/// its write time and the numbers that name it.
+/// Why:
+/// A write time alone tells two files written in the same file-system tick apart only as finely as the clock,
+/// so the inode is what proves the entry at a name is the one that was judged.
+fn is_the_judged_file(metadata: &fs::Metadata, candidate: &TrimCandidate) -> bool {
+    return metadata.modified().ok() == Some(candidate.written) && EntryNaming::of(metadata) == candidate.naming;
+}
+
 /// What:
 /// Removes a flat download an earlier layout left,
 /// by moving it to a hidden name of its own first and deleting it only when what moved is the file the scan measured.
 /// Why:
-/// Nothing writes these names any more, but an install can still publish an archive at one of them
+/// Nothing writes these names any more,
+/// but an install can still publish an archive at one of them
 /// (`downloads/<tool>-<version>-<file>`),
 /// and a check and then a delete would take the new archive from an install that landed in between:
-/// the move is one atomic step, so whatever stood at the name is in hand and can be compared with the one judged,
+/// the move is one atomic step,
+/// so whatever stood at the name is in hand and can be compared with the one judged,
 /// and anything else goes back.
 fn remove_leftover(candidate: &TrimCandidate) -> Removal {
     let name: String = file_name_text(&candidate.directory);
@@ -708,9 +720,10 @@ fn remove_leftover(candidate: &TrimCandidate) -> Removal {
         Err(error) => return Removal::Kept(format!("it cannot be moved aside: {error}")),
     }
     let moved: Option<fs::Metadata> = fs::symlink_metadata(&set_aside).ok();
-    let judged_still_there: bool = moved.as_ref().is_some_and(|metadata| {
-        return metadata.modified().ok() == Some(candidate.written) && EntryNaming::of(metadata) == candidate.naming;
-    });
+    let judged_still_there: bool = match &moved {
+        Some(metadata) => is_the_judged_file(metadata, candidate),
+        None => false,
+    };
     if !judged_still_there {
         // What: a file another run published after the scan goes back to the name it had.
         // Why: it is not the file that was judged, and the install that wrote it is about to unpack it.
@@ -1195,7 +1208,8 @@ fn claimed_versions(root: &Path, tools: &BTreeSet<String>) -> BTreeSet<String> {
 /// or `None` for a tombstone of a version directory.
 /// Why:
 /// A downloads tombstone sits in `<root>/downloads/<tool>/` and a version's in `<root>/<tool>/`,
-/// and only the first is tied to a claim under the tool directory: the second is a version the store has already
+/// and only the first is tied to a claim under the tool directory:
+/// the second is a version the store has already
 /// taken out of its name and nothing else may use.
 fn downloads_tombstone(root: &Path, marker: &Path) -> Option<(String, String)> {
     // A downloads tombstone sits under `<root>/downloads/<tool>/`, and a version's under `<root>/<tool>/`.
@@ -1217,7 +1231,8 @@ fn downloads_tombstone(root: &Path, marker: &Path) -> Option<(String, String)> {
 /// Renames the downloads tombstone of `version` back to the directory it was made from,
 /// when one is there.
 /// Why:
-/// The archives were moved aside before the version, so a removal that is given back needs them back too,
+/// The archives were moved aside before the version,
+/// so a removal that is given back needs them back too,
 /// and the name it was moved to is the only record of where they are.
 fn give_back_downloads(root: &Path, tool: &str, version: &str) -> Result<(), String> {
     let downloads: PathBuf = downloads_of(root, tool, version);

@@ -80,7 +80,9 @@ fn a_link_that_could_not_be_settled_keeps_the_version_it_names() {
 /// A loser root whose `current` link is absent is still forwarded to the winner before its version goes.
 /// Why:
 /// The review of this change showed the link step returning "leave it" because it could not read a link that was not
-/// there, before it looked at the plan's forward: the root was left with neither a finished version nor `current`,
+/// there,
+/// before it looked at the plan's forward:
+/// the root was left with neither a finished version nor `current`,
 /// and every launcher and record that follows that root stopped working.
 #[test]
 fn a_loser_root_without_a_current_is_forwarded() {

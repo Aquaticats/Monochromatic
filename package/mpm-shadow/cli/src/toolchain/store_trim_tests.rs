@@ -1023,7 +1023,8 @@ fn an_inventory_past_its_deadline_stops_and_says_so() {
 /// What:
 /// A recovery gives a claimed version back and its archives with it.
 /// Why:
-/// The removal moves the archives aside before the version, so a kill between the two leaves the version under its
+/// The removal moves the archives aside before the version,
+/// so a kill between the two leaves the version under its
 /// claim and the archives under their tombstone;
 /// the review of this change showed the version restored and the tombstone pass then deleting the archives,
 /// which leaves the version without the files it was installed with.
@@ -1058,7 +1059,8 @@ fn a_recovery_gives_a_version_back_with_its_downloads() {
 /// A removal moves the archives aside before it takes the version,
 /// and in that window the downloads claim is the only record of it;
 /// the review showed a concurrent pass deleting the tombstone there and the removal's restore then finding nothing
-/// to put back, so the version it kept had no archives.
+/// to put back,
+/// so the version it kept had no archives.
 #[test]
 fn a_downloads_tombstone_a_live_removal_holds_is_not_deleted() {
     let fixture = Fixture::new();
@@ -1122,7 +1124,9 @@ fn claimed_name_made_by(version: &str, maker: ProcessIdentity) -> String {
 
 /// What:
 /// A flat download another install replaced after the plan was made is not deleted:
-/// the removal moves it aside, compares its write time with the one judged, and puts it back.
+/// the removal moves it aside,
+/// compares its write time with the one judged,
+/// and puts it back.
 /// Why:
 /// The review showed a new archive published over a planned flat download being deleted,
 /// because that branch removed the file without checking that it was still the one the scan measured.
@@ -1166,10 +1170,14 @@ fn a_flat_download_replaced_after_the_plan_is_not_deleted() {
 }
 
 /// What:
-/// A pass that could not read the locks keeps the recovery marker, because it could look at nothing.
+/// A pass that could not read the locks keeps the recovery marker,
+/// because it could look at nothing.
 /// Why:
-/// The review showed the worktree list failing, then no tool directory named, no claim scan and no tombstone scan,
-/// and the marker deleted: a later sync with nothing to install returns early and the claimed version stays hidden.
+/// The review showed the worktree list failing,
+/// then no tool directory named,
+/// no claim scan and no tombstone scan,
+/// and the marker deleted:
+/// a later sync with nothing to install returns early and the claimed version stays hidden.
 #[test]
 fn an_unreadable_lock_keeps_the_recovery_marker() {
     let rig = crate::toolchain::fakes::Rig::new();
@@ -1192,7 +1200,8 @@ fn an_unreadable_lock_keeps_the_recovery_marker() {
 /// What:
 /// A removal that cannot write its recovery marker removes nothing and says why.
 /// Why:
-/// The marker is what makes a later sync look at the root, so destructive work must not start without it;
+/// The marker is what makes a later sync look at the root,
+/// so destructive work must not start without it;
 /// the review showed the version deleted although the marker could not be written.
 #[test]
 fn a_marker_that_cannot_be_written_stops_the_removal() {

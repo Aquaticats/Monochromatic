@@ -345,13 +345,17 @@ fn partition_kept(ctx: &Context, copies: Vec<LoserCopy>) -> (Vec<LoserCopy>, Vec
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CurrentAfterRemoval {
-    /// The link does not name a version this run removes, so it is left as it is.
+    /// The link does not name a version this run removes,
+    /// so it is left as it is.
     Leave,
-    /// The link names a version this run removes, and this version of the same root stays.
+    /// The link names a version this run removes,
+    /// and this version of the same root stays.
     Point(PathBuf, String),
-    /// The root keeps no finished version, so its link forwards to the winner's `current`.
+    /// The root keeps no finished version,
+    /// so its link forwards to the winner's `current`.
     Forward(PathBuf, PathBuf),
-    /// The root keeps no finished version and there is nothing to forward to, so its link goes.
+    /// The root keeps no finished version and there is nothing to forward to,
+    /// so its link goes.
     Remove(PathBuf),
 }
 
@@ -405,7 +409,8 @@ fn running_version_of(root: &Path, tool: &LockedTool) -> Option<String> {
 /// The link may name a version this run removes while the root keeps an older one,
 /// and the two answers that matter are the version that stays and the forward to the winner.
 /// A link that names nothing this run removes stays as it is:
-/// it may be another run's newer install, and that run owns its link.
+/// it may be another run's newer install,
+/// and that run owns its link.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
