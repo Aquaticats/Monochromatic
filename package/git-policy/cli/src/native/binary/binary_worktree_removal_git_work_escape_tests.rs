@@ -1535,16 +1535,16 @@ fn a_repository_inside_an_ignored_folder_keeps_the_outer_worktree() {
     remove(&scene.fixture);
 
     // The line the record draws, part two: a repository with no commit holds nothing to lose.
-    let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignored-empty-repository");
-    let outer: String = scene.task.display().to_string();
-    std::fs::write(scene.task.join(".gitignore"), "/inner/\n".as_bytes()).expect("the ignore file");
-    run_direct(&scene.fixture, scene.task.as_path(), &["add", ".gitignore"]);
-    run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=ignore the nested folder"]);
-    let inner: PathBuf = scene.task.join("inner");
-    std::fs::create_dir_all(inner.as_path()).expect("the nested folder");
-    run_direct(&scene.fixture, inner.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    let removed: Observed = scene.remove_with(&["worktree", "remove", outer.as_str()]);
-    assert_eq!(removed.code, Some(0), "a repository with no commit holds nothing to lose: {}", stderr_of(&removed));
-    assert!(!scene.task.exists(), "and the outer worktree goes");
-    remove(&scene.fixture);
+    let empty: Scene = a_repository_with_a_recorded_worktree("removal-ignored-empty-repository");
+    let empty_outer: String = empty.task.display().to_string();
+    std::fs::write(empty.task.join(".gitignore"), "/inner/\n".as_bytes()).expect("the ignore file");
+    run_direct(&empty.fixture, empty.task.as_path(), &["add", ".gitignore"]);
+    run_direct(&empty.fixture, empty.task.as_path(), &["commit", "--quiet", "--message=ignore the nested folder"]);
+    let empty_inner: PathBuf = empty.task.join("inner");
+    std::fs::create_dir_all(empty_inner.as_path()).expect("the nested folder");
+    run_direct(&empty.fixture, empty_inner.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let removed_empty: Observed = empty.remove_with(&["worktree", "remove", empty_outer.as_str()]);
+    assert_eq!(removed_empty.code, Some(0), "a repository with no commit holds nothing to lose: {}", stderr_of(&removed_empty));
+    assert!(!empty.task.exists(), "and the outer worktree goes");
+    remove(&empty.fixture);
 }
