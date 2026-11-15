@@ -13,7 +13,7 @@
 //! ```
 
 /// The bounded query under test and the grace it answers within.
-use super::{FIXTURE_GIT_BOUND, PIPE_GRACE, QueryAnswer, QueryEnding, real_git_within};
+use super::{FIXTURE_GIT_BOUND, PIPE_GRACE, QueryAnswer, QueryEnding, REAPING, real_git_within};
 /// The disposable fixture directory and its removal.
 use crate::test_support::{fixture, remove};
 /// `OsString` is owned operating-system text, which a query's arguments are.
@@ -78,6 +78,38 @@ fn a_query_whose_descendant_holds_its_pipe_answers_at_its_bound_and_says_so() {
     assert!(
         elapsed < bound + PIPE_GRACE + Duration::from_millis(500),
         "the answer waited past its bound of {bound:?} and its grace of {PIPE_GRACE:?}: {elapsed:?}"
+    );
+    remove(root.as_path());
+}
+
+/// An input larger than a pipe holds, written to a query that never reads it,
+/// does not hold the answer past the bound:
+///  the bound ends the query,
+/// the write that the ending broke is part of that ending,
+/// and the answer says so.
+///  The bound is long enough that the machine's speed cannot be what fails this control:
+/// the defect it guards against never returns at all,
+/// and the answer it asks for arrives within the bound, the reaping window and five seconds of slack
+/// whatever else the host is doing.
+#[test]
+fn an_input_a_query_never_reads_does_not_hold_the_answer_past_its_bound() {
+    let root: PathBuf = fixture("real-git-within-stdin");
+    let bound: Duration = Duration::from_secs(2);
+    // A pipe holds 64 KiB by default, so this input fills one many times over.
+    let input: Vec<u8> = vec![b'x'; 1024 * 1024];
+    let words: Vec<OsString> = shell_arguments("exec /bin/sleep 60");
+    let began: Instant = Instant::now();
+    let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), Some(input.as_slice()), bound);
+    let elapsed: Duration = began.elapsed();
+    assert_eq!(
+        answer.ending,
+        QueryEnding::AtTheBound,
+        "a query that never reads its input and never ends by itself is ended by the bound; the answer came back after {elapsed:?}"
+    );
+    assert!(!answer.held_open, "nothing of this query outlives its ending: {answer:?}");
+    assert!(
+        elapsed < bound + REAPING + Duration::from_secs(5),
+        "the answer waited past its bound of {bound:?}, its reaping window of {REAPING:?} and five seconds of slack: {elapsed:?}"
     );
     remove(root.as_path());
 }
