@@ -115,7 +115,8 @@ fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
 }
 
 /// What:
-///  The same table, saying the machine was up for `uptime_seconds` and the process started at `start_ticks`.
+///  The same table,
+/// saying the machine was up for `uptime_seconds` and the process started at `start_ticks`.
 /// Why:
 ///   The ages are the whole question for whatever the read could not see,
 ///  and a fixture writes both numbers instead of waiting for a process to be born.
