@@ -738,6 +738,24 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T07:55:03-05:00,
+  about the credentials shown to model providers,
+  not blocking work:
+  the masking has had two reviews,
+  twelve findings and then ten,
+  none of the second among the first.
+  Masking finds a value after it is already inside the run and has to close every road out;
+  the reviews keep finding roads.
+  The owner's answer of 2026-11-14 was one rotation after the masking is merged and shown to hold,
+  and that is still the plan here.
+  Two things the owner may want to change in it:
+  rotate now and again later,
+  since every run until the merge still shows values;
+  and whether a run should be started without the values in its reach at all
+  (an environment and a home that do not hold them),
+  with masking as the second line.
+  The second is a new piece of work nobody has been given.
+
 - Added 2026-11-15T07:17:57-05:00,
   from the author of the stop of a stopped push
   (branch tip `2da23e4478`,
@@ -1604,6 +1622,94 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The credential masking is not ready: its second review finds ten more roads; the twelve-hour commit has its cause, on its branch alone (2026-11-15T07:55:03-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The credential masking** (`0f8b0387a9`),
+  its second review,
+  ended 07:48:39,
+  27 of 27 files,
+  ten things,
+  each reproduced with made-up values,
+  a stand-in Pi and Pi's own installed functions;
+  no real Pi,
+  provider or credential file was used.
+  A value still reaches a provider or a kept file:
+  a resumed session's old messages in a compaction request;
+  standard error cut at the hold-back boundary;
+  a value as an object's key;
+  a `toJSON` method the mask keeps;
+  the details of a tool result that was withheld.
+  A run starts or ends as clean although something was not covered:
+  an age identity that cannot be read;
+  a shell assignment the reader cannot give;
+  a session rewrite that fails after the feed is closed.
+  Somebody else's data is lost:
+  an entry appended while the session is replaced;
+  a file in the output folder that Pi never made.
+  **So the masking is not merged,
+  the canary is not run,
+  and the owner's rotation still waits.**
+- **Weighed**:
+  all ten are worth their fix.
+  Two reviews found twenty-two roads between them and the second found none of the first's again:
+  each fix held,
+  and the list of roads was complete neither time.
+  The author is resumed,
+  its third run,
+  and asked for three shapes in place of ten answers:
+  the mask works on what will be serialised and hands back plain data;
+  one matcher for every stream holds back whatever may still become a match;
+  every source and every kept place has three answers,
+  and "could not" stops the run or makes its end not clean
+  (`~/temp/agent/pi-runs/value-of-the-secret-environment-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued fourth).
+- **The commit service started by the wrapper itself**,
+  its author's tenth run,
+  ended 07:51:49 at `d26f339e8e`.
+  The commit that ran twelve hours has its cause,
+  shown by a bounded rerun
+  (99,475 `connect` calls in about seven seconds):
+  the loop that reaches the service took one arm,
+  `StartAttempt::Greeted => continue`,
+  past its bound and its pause,
+  and a look's patience fell to one millisecond while the answer was read for a second.
+  Fixed,
+  with a control that fails at its own ten seconds without the fix.
+  **That arm is not in `main`**:
+  a search of `main` finds no `StartAttempt::Greeted` and no `start_seamed`;
+  both are in files the branch adds.
+  The review's five scripts no longer reproduce,
+  and its six findings are answered.
+  The branch stands 431 commits behind `main` and a merge stops at fifteen conflicts,
+  among them `landing/service_messages.rs`,
+  which pass 51 also rewrote.
+  The author is resumed,
+  its eleventh run,
+  for that merge and the whole round after it
+  (`~/temp/agent/pi-runs/commit-service-started-by-the-wrapper-takes-main-as-it-stands-prompt.md`,
+  queued thirteenth);
+  its review follows.
+- **The temperature**,
+  read at 07:53:20:
+  54.3 degrees,
+  budget 32.0 threads,
+  8.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:53:20:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:47;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
+  The queue held 86 entries at 07:55:03.
 
 ##### Integration pass 52 is in `main` and `0.6.1-alpha.41` is dispatched; the driver's notice of a silent tool command is built and goes to review (2026-11-15T07:48:14-05:00)
 
