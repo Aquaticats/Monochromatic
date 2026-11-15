@@ -11,6 +11,10 @@
 //!  because a boot that ended ended every process in it;
 //!  an identity of another PID namespace or another machine answers unknown,
 //!  and nothing is ever cleared on an unknown.
+//!  So does a text whose parts are not the kinds a writer of this release leaves,
+//!  because a part read as another of the reader's own would name a boot that has ended
+//!  (`service_index_identity.rs`,
+//!  `holder_state_in`).
 //!  The spelling,
 //! the parts and the judgement are the commit service's own
 //!  (`service_index_identity.rs`),
