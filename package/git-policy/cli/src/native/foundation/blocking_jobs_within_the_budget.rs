@@ -150,6 +150,21 @@ pub fn hold_blocking_jobs_to(cap: usize) {
 }
 
 /// What:
+///  How many places of this process's bound on blocking jobs are free right now,
+/// for a control that needs a place to come late.
+/// Why:
+///   A place is taken at the first poll of the job that asks for it and not when that job is started,
+/// so a control that asked
+///  straight after starting the job measured a free place as a late one and passed without testing anything;
+/// waiting on the place
+///  itself is the seam, and a clock would let the control pass without the place being taken.
+/// Nothing of the shipped code reads this.
+#[cfg(test)]
+pub(crate) fn free_places_in_this_control() -> usize {
+    return budget().places.available_permits();
+}
+
+/// What:
 ///  Runs `job` on the blocking pool while one of the process's places is held.
 /// Why:
 ///  The bound of the owner's "job limit" is this call:

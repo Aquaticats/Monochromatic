@@ -63,6 +63,7 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 /// The parts of a stop's bound its own work is kept, which a control of the ceiling reads.
+#[cfg(test)]
 pub(crate) use crate::stop_of_a_push_and_sweep_of_its_locks::{REAP_AFTER_THE_KILL, SWEEP_AFTER_THE_STOP};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.

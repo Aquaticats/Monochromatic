@@ -568,3 +568,79 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
     let _let_go = release.send(());
     assert!(!took_the_reserve, "a second slow job took the place the gate keeps for the work a person waits for");
 }
+
+//region One ceiling is one deadline
+
+/// What:
+///  A place that comes late leaves the job the rest of the same ceiling, and the answer comes by the one deadline.
+/// Why:
+///   `run_a_job_once_awaited_no_longer_than` awaited the place no longer than `ceiling` and then the job no longer than
+///  another `ceiling`,
+/// so one call could spend a caller's bound twice.
+/// The review of `2da23e4478` reproduced a stop
+///  with a ceiling of one second answering after `1.351937327 s` because the place of its sweep came late
+/// ("a late
+///  sweep permit makes `stop_push` spend its remaining budget twice").
+/// A bound is one instant, taken once where the call begins,
+/// so
+///  both waits are measured to it.
+/// The place here is freed by the ceiling of the job that holds it and the only blocking thread is held for the whole
+/// call, so neither the lateness of the place nor the queued job is a sleep that hopes.
+#[test]
+fn a_place_that_comes_late_leaves_the_job_the_rest_of_the_one_ceiling() {
+    // The place the call waits for is freed by the ceiling of the job that holds it.
+    const THE_PLACE_IS_FREED_AFTER: Duration = Duration::from_millis(400);
+    // The whole ceiling of the call under the control.
+    const CEILING: Duration = Duration::from_millis(1000);
+    // What a call that ends by its one deadline may take past it: the timers it starts and the machine's own lateness.
+    // A call that spends the ceiling twice takes about `CEILING + THE_PLACE_IS_FREED_AFTER`, well past this.
+    const SLACK: Duration = Duration::from_millis(250);
+    // The longest the control lets a holder it releases keep it.
+    const HOLD_BOUND: Duration = Duration::from_secs(20);
+    // The places the control gives the process: one for the held thread and one for the place that comes late.
+    const THE_PLACES: usize = 2;
+    crate::lazy_runtime::cap_workers(1);
+    hold_blocking_jobs_to(THE_PLACES);
+    // The job that owns the only blocking thread and one place.
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let (release, releasing) = std::sync::mpsc::channel::<()>();
+    let thread_holder: tokio::task::JoinHandle<TheAnswerOfAJobAwaited<()>> = crate::lazy_runtime::spawn_on_runtime(async move {
+        return run_a_job_once_awaited_no_longer_than(HOLD_BOUND, move || {
+            let _told = holding.send(());
+            let _ = releasing.recv_timeout(HOLD_BOUND);
+        })
+        .await;
+    })
+    .expect("the runtime has a worker, so the only blocking thread can be held");
+    assert!(held.recv_timeout(PATIENCE).is_ok(), "the only blocking thread is held before the control asks for a place");
+    // The job that owns the second place while it waits behind that thread: its own ceiling is what frees the place.
+    let place_holder: tokio::task::JoinHandle<TheAnswerOfAJobAwaited<u8>> = crate::lazy_runtime::spawn_on_runtime(async move {
+        return run_a_job_once_awaited_no_longer_than(THE_PLACE_IS_FREED_AFTER, || { panic!("the queued job must not reach the held thread"); }).await;
+    })
+    .expect("the runtime has a worker, so the second place can be held");
+    // The place is taken at the first poll of the job that asks for it and not when that job is started, so the control
+    //  waits on the place itself; a clock would let it pass with the place still free.
+    let asking: std::time::Instant = std::time::Instant::now();
+    while free_places_in_this_control() > 0 {
+        assert!(asking.elapsed() < PATIENCE, "both places are taken before the call under the control asks for one");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    // The call under the control: the place it waits for comes late, and the job it queues reaches no thread.
+    let began: std::time::Instant = std::time::Instant::now();
+    let answered: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async { return run_a_job_once_awaited_no_longer_than(CEILING, fn_seven).await; }).expect("the runtime");
+    let took: Duration = began.elapsed();
+    let _let_go = release.send(());
+    run_on_runtime(async {
+        let _thread: Result<_, _> = tokio::time::timeout(HOLD_BOUND, thread_holder).await;
+        let _place: Result<_, _> = tokio::time::timeout(HOLD_BOUND, place_holder).await;
+    })
+    .expect("the runtime releases both holders");
+    assert!(matches!(answered, TheAnswerOfAJobAwaited::NoAnswer), "the job never reached a thread, so nothing of it is read");
+    assert!(took >= THE_PLACE_IS_FREED_AFTER, "the place came late, which is what the control needs: {took:?}");
+    assert!(
+        took < CEILING + SLACK,
+        "the call spent its ceiling once waiting for the place and again waiting for the job: {took:?}, ceiling {CEILING:?}"
+    );
+}
+
+//endregion

@@ -340,3 +340,84 @@ fn a_stop_answers_inside_its_bound_while_the_blocking_pool_cannot_sweep() {
 }
 
 //endregion
+
+//region A place that comes late is inside the same bound
+
+/// What:
+///  A place of the blocking budget that comes late leaves the sweep the rest of the stop's bound, so the stop answers
+///  inside it.
+/// Why:
+///   The inline sweep is awaited for what is left of `STOP_CEILING`,
+/// and the helper that awaited it spent that duration
+///  twice once,
+/// a place of the budget and then the job,
+/// so a place that came late let the stop pass its ceiling: the review
+///  of `2da23e4478` measured `1.351937327 s` under a ceiling of one second.
+/// The place is freed by the ceiling of the job that holds it and the only blocking thread is held for the whole stop,
+/// so what the control catches is the doubled wait and not the machine's lateness.
+#[test]
+fn a_place_that_comes_late_does_not_let_the_stop_pass_its_ceiling() {
+    const CEILING: Duration = Duration::from_millis(1000);
+    const GRACE: Duration = Duration::from_millis(25);
+    // The place the sweep waits for is freed by the ceiling of the job that holds it.
+    const THE_PLACE_IS_FREED_AFTER: Duration = Duration::from_millis(400);
+    // What a stop that ends by its ceiling may take past it, as in the control beside this one.
+    const SLACK: Duration = Duration::from_millis(250);
+    const HOLD_BOUND: Duration = Duration::from_secs(20);
+    // The places the control gives the process: one for the held thread and one for the place that comes late.
+    const THE_PLACES: usize = 2;
+    crate::lazy_runtime::cap_workers(1);
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(THE_PLACES);
+    let _rules = crate::stop_waits_while_a_member_cannot_be_interrupted::rules_for_this_thread(
+        crate::stop_waits_while_a_member_cannot_be_interrupted::ControlRules { blocked: held_for_ever, ceiling: CEILING },
+    );
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let (release, releasing) = std::sync::mpsc::channel::<()>();
+    let thread_holder: tokio::task::JoinHandle<crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited<()>> = crate::lazy_runtime::spawn_on_runtime(async move {
+        return crate::blocking_jobs_within_the_budget::run_a_job_once_awaited_no_longer_than(HOLD_BOUND, move || {
+            let _told = holding.send(());
+            let _ = releasing.recv_timeout(HOLD_BOUND);
+        })
+        .await;
+    })
+    .expect("the runtime has a worker, so the only blocking thread can be held");
+    assert!(held.recv_timeout(HOLD_BOUND).is_ok(), "the only blocking thread is held before the stop asks for a place");
+    let place_holder: tokio::task::JoinHandle<crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited<()>> = crate::lazy_runtime::spawn_on_runtime(async move {
+        return crate::blocking_jobs_within_the_budget::run_a_job_once_awaited_no_longer_than(THE_PLACE_IS_FREED_AFTER, || {
+            panic!("the queued job must not reach the held thread");
+        })
+        .await;
+    })
+    .expect("the runtime has a worker, so the second place can be held");
+    // The place is taken at the first poll of the job that asks for it, so the control waits on the place itself:
+    //  a stop that asked before that poll would find the place free and test nothing.
+    let asking: Instant = Instant::now();
+    while crate::blocking_jobs_within_the_budget::free_places_in_this_control() > 0 {
+        assert!(asking.elapsed() < HOLD_BOUND, "the second place is taken before the stop asks for one");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    // The child answers the polite stop, so the stop reaches its sweep with the whole of its bound still to spend.
+    let child: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a child that accepts the polite stop");
+    let owed_before: usize = sweeps_owed();
+    let began: Instant = Instant::now();
+    let answered = crate::lazy_runtime::run_on_runtime(async {
+        return tokio::time::timeout(HOLD_BOUND, stop_push(adopt(child), GRACE, LockLedger::none())).await;
+    })
+    .expect("the runtime runs the bounded outer control");
+    let took: Duration = began.elapsed();
+    let owed_after: usize = sweeps_owed();
+    let _let_go = release.send(());
+    crate::lazy_runtime::run_on_runtime(async {
+        let _thread: Result<_, _> = tokio::time::timeout(HOLD_BOUND, thread_holder).await;
+        let _place: Result<_, _> = tokio::time::timeout(HOLD_BOUND, place_holder).await;
+    })
+    .expect("the runtime releases both holders");
+    assert!(answered.is_ok(), "the stop answered, and the control's own bound is not what it met: {took:?}");
+    assert!(
+        took < CEILING + SLACK,
+        "the stop spent what was left of its bound once waiting for a place and again waiting for the job: {took:?}, ceiling {CEILING:?}"
+    );
+    assert!(owed_after > owed_before, "the sweep the pool could not run is recorded as owed ({owed_before} before, {owed_after} after)");
+}
+
+//endregion
