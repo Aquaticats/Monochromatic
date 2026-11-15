@@ -935,3 +935,8 @@ mod commit_while_a_decision_record_is_held;
 /// measured for the record against a control arm with the service's record write put back.
 #[path = "binary_commit_cost_beside_the_service_record_write_tests.rs"]
 mod commit_cost_beside_the_service_record_write;
+
+/// What the first commit after a start waits for:
+/// the removal of old finished records, and a start step that does stand between a commit and its landing.
+#[path = "binary_a_first_commit_after_a_start_tests.rs"]
+mod a_first_commit_after_a_start;

@@ -168,6 +168,14 @@ pub struct LandingBoard {
 /// the last write it was inside,
 /// and the withdrawals that were decided.
 struct TheLandingsOwn {
+    /// Whether the loop that lands the commits has begun:
+    /// a step a start takes beside that loop is no step a commit waits for,
+    /// so it is not the words a wait is told.
+    loop_begun: bool,
+    /// The step the service's start is inside,
+    /// and when it began,
+    /// while no commit can be landed.
+    starting: Option<StartingStep>,
     /// The requests the landing thread has taken and not yet given back.
     group: Vec<Taken>,
     /// The command of the last write that ended,
@@ -193,6 +201,16 @@ struct Taken {
     waited_in: Option<TheWriteItEndedBefore>,
 }
 
+/// One step of the service's start,
+/// before the loop that lands the commits reads its queue,
+/// as the words of a wait over the bound name it.
+struct StartingStep {
+    /// What the step is doing, in the words a person reads.
+    step: String,
+    /// When it began.
+    began: Instant,
+}
+
 /// One write the landing thread was inside,
 /// as the words a wait over the bound names it by.
 struct TheWriteItWasInside {
@@ -210,6 +228,29 @@ struct TheWriteItEndedBefore {
     command: String,
     /// How long the write had been over when the request was taken.
     over_for: Duration,
+}
+
+/// The step a start is inside,
+/// for as long as the step takes:
+/// dropped when the service reaches the loop that lands commits.
+pub struct StartingFor {
+    /// The board the step is recorded in.
+    board: Arc<LandingBoard>,
+    /// What the step was doing,
+    /// so only the step that was written down takes its record away.
+    step: String,
+    /// Whether the board was told which step this is:
+    /// a step taken beside the loop stands between no request and its landing, so it is neither named to a waiting
+    ///  client nor timed here.
+    told: bool,
+}
+
+impl Drop for StartingFor {
+    fn drop(&mut self) {
+        if self.told {
+            self.board.the_start_step_has_finished(self.step.as_str());
+        }
+    }
 }
 
 /// One withdrawal a connection thread decided:
@@ -263,7 +304,7 @@ impl LandingBoard {
             slow_after,
             journal,
             directory,
-            held: std::sync::Mutex::new(TheLandingsOwn { group: Vec::new(), last: None, withdrawals: Vec::new() }),
+            held: std::sync::Mutex::new(TheLandingsOwn { loop_begun: false, starting: None, group: Vec::new(), last: None, withdrawals: Vec::new() }),
         });
     }
 
@@ -419,6 +460,69 @@ impl LandingBoard {
     }
 
     /// What:
+    ///  Say that the service's start is inside `step` until this value ends,
+    ///  and name the step in the journal when it took longer than a person would expect.
+    /// Why:
+    ///   The first commit after a start waits for whatever the start does before the loop reads its queue,
+    /// and the journal of 2026-11-15 held 3,628 ms between the line that warmed the rules and the line that removed
+    /// old finished records
+    /// (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`),
+    ///  with no line saying which step it was.
+    ///  A step that takes longer than `A_START_STEP_NAMED_AFTER` says so,
+    /// and a commit that waited past its own bound names the step it waited in.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// using started = board.beginStarting('it reads the records of old finished batches');
+    /// ```
+    pub fn begin_starting(self: &Arc<Self>, step: &str) -> StartingFor {
+        // The step is named before it is taken, so a commit that waits inside it is told which step it is.
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        let told: bool = !owned.loop_begun;
+        if told {
+            owned.starting = Some(StartingStep { step: String::from(step), began: Instant::now() });
+        }
+        drop(owned);
+        // A control holds the step here, by its own name, where a stalled drive would
+        // (`service_start_step_hold_control_window.rs`); nothing but that control's variable arms it,
+        // and the wait it takes is the step's own, so the line the journal may carry is measured over it.
+        crate::service_start_step_hold_control_window::the_start_step_waits_where_a_control_says(step);
+        return StartingFor { board: Arc::clone(self), step: String::from(step), told };
+    }
+
+    /// The loop that lands the commits is about to read its queue:
+    /// nothing a start does from here stands between a request and its landing,
+    /// so no step is named to a waiting client any more.
+    pub fn the_loop_has_begun(&self) {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        owned.loop_begun = true;
+        owned.starting = None;
+    }
+
+    /// The step the service's start is inside,
+    /// if it is inside one.
+    fn starting(&self) -> Option<(String, Duration)> {
+        let owned = self.held.lock().expect("the landing thread's own");
+        return owned.starting.as_ref().map(|starting| { return (starting.step.clone(), starting.began.elapsed()); });
+    }
+
+    /// The step of a start has ended:
+    /// the journal says which one it was and how long it took when that was longer than `A_START_STEP_NAMED_AFTER`.
+    fn the_start_step_has_finished(&self, step: &str) {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        // A step inside another step leaves the outer one's record where it is.
+        let started: StartingStep = match owned.starting.take_if(|started| { return started.step == step; }) {
+            Some(started) => started,
+            None => return,
+        };
+        drop(owned);
+        let took: Duration = started.began.elapsed();
+        if took >= crate::wait_ceilings::A_START_STEP_NAMED_AFTER {
+            crate::service_warn!("the commit service's start was inside {} for {} ms, and a commit that arrives meanwhile waits in the queue of commits", started.step, took.as_millis());
+        }
+    }
+
+    /// What:
     ///  Write down the write the landing thread has just left,
     ///  so a commit that waits past the bound is told what the wait was in.
     /// Why:
@@ -455,6 +559,9 @@ impl LandingBoard {
     /// const words = board.wordsOfTheStepAQueueWaitIsIn(id); // 'the landing thread had last been inside `…`' | 'the landing thread had recorded no write'
     /// ```
     fn words_of_the_step_a_queue_wait_is_in(&self, id: &str) -> String {
+        if let Some((step, began)) = self.starting() {
+            return format!("the commit service is starting and is inside {step}, which began {} seconds ago", began.as_secs());
+        }
         let owned = self.held.lock().expect("the landing thread's own");
         let found: Option<&TheWriteItEndedBefore> = owned
             .group

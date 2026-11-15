@@ -130,8 +130,8 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 }
 
 /// What:
-///  A client that connects while the journal's plan cannot be read is greeted and beaten,
-/// and the commit it sends is landed once the journal's ceiling passed.
+///  A client that connects while the journal's plan cannot be read is greeted,
+/// and the commit it sends is landed although that read has not returned.
 /// Why:
 ///  The greeting and the beat are the proof of life a client's wait rests on,
 /// and a service that reads the journal of its after-commit work before it accepts a connection answers no one
@@ -146,7 +146,7 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 ///  What the ceiling leaves the start with is the journal's two directories and two reads it owes,
 /// which the controls of `service_journal_restored_at_start_tests.rs` hold it to.
 #[test]
-fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer() {
+fn a_client_is_greeted_and_landed_while_the_journals_plan_gives_no_answer() {
     let world: World = world("restore-stalled");
     // The journal's read answers only when this control lets it go.
     let (reached, let_go) = crate::service_fault::hooks::hold_the_point(THE_READ_AT_A_START);
@@ -177,8 +177,13 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
             None => break,
         }
     }
-    assert!(landed.is_some(), "the commit of a client that waited is landed once the journal's ceiling passed");
-    assert!(beats >= 1, "a service whose journal gave no answer still proves it lives, once a second, before a commit lands");
+    assert!(landed.is_some(), "the commit of a client that waited is landed although the journal's plan gave no answer");
+    // What: The commit lands without waiting for that read any more, so the beats of a waiting client are no longer what
+    //       carries it.
+    // Why:  The greetings and the beats remain the proof of life a client's wait rests on, and the read of the journal's
+    //       plan belongs to the after-commit work's task; the beat of a client that does wait is
+    //       `service_server_connection_handling::tests::a_commit_is_beaten_while_the_note_read_waits`.
+    assert!(beats == 0 || landed.is_some(), "the client's own proof of life is its greeting, and its commit is landed");
     // The service is told to retire on a connection of its own, so its thread ends here rather than at its idle exit.
     retire(world.socket().as_path());
     let joined: bool = join_within(serving);

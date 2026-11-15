@@ -36,7 +36,7 @@ use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
 use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
-use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
+use crate::service_journal::{DONE_RETAINED, landed_commits};
 use crate::service_index_lock::unsettled_locks;
 use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
 use crate::service_captures::CaptureMemory;
@@ -233,8 +233,28 @@ impl ServeSettings {
 ///  by a thread of their own (`service_journal_restored_at_start.rs`),
 /// so the task starts with what the service that stopped last left and no storage wait of
 ///  that reading holds a worker.
-fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, push_retries: PushRetries, watch: ClaimWatch) {
+fn start_the_after_commit_work_or_exit(
+    receiver: UnboundedReceiver<Wake>,
+    handlers: GitHandlers,
+    busy: Arc<AtomicUsize>,
+    plan_directory: PathBuf,
+    watch_directory: PathBuf,
+    instance: Option<String>,
+    own_git_dir: Option<PathBuf>,
+    restore_ceiling: Duration,
+) {
     let work = async move {
+        // What: The plan and the watch of a service that stopped last are read here, in this task, before the loop waits.
+        // Why:  Only this work uses them, so a commit never waits for the reading of the service's state directory for its sake.
+        let (push_retries, mut watch): (PushRetries, ClaimWatch) =
+            crate::service_journal_restored_at_start::restored_within(restore_ceiling, plan_directory, watch_directory, instance);
+        // What: The worktree this service serves is one of the repositories the loop looks at by itself.
+        // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record
+        //       whose wake was lost is found by the look even when no landing of this process wrote a note for it
+        //       (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`).
+        if let Some(own) = own_git_dir.as_deref() {
+            watch.remember(own);
+        }
         let mut wakes: UnboundedReceiver<Wake> = receiver;
         work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
     };
@@ -243,6 +263,15 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
         std::process::exit(4);
     }
 }
+
+/// The name the journal and a waiting client know the recovery of an open batch by.
+const SETTLE_STEP: &str = "it settles the batch a killed service left open";
+
+/// The name the journal and a waiting client know the reading of the newest finished records by.
+const LANDED_STEP: &str = "it reads the records of the newest finished batches";
+
+/// The name the journal and a waiting client know the reading of an earlier release's helper records by.
+const EARLIER_RELEASE_STEP: &str = "it reads what an earlier release's helper finished";
 
 /// How many withdrawn identities the service remembers before it forgets them all:
 /// the same count as the finished batches it
@@ -342,30 +371,36 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             own_git_dir: settings.own_git_dir.clone(),
         },
     );
-    // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
-    //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
-    let (started_retries, mut started_watch): (PushRetries, ClaimWatch) =
-        crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
-    // What: The worktree this service serves is one of the repositories the loop looks at by itself.
-    // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record whose
-    //       wake was lost is found by the look even when no landing of this process wrote a note for it and no client ever woke
-    //       it (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`).
-    if let Some(own) = settings.own_git_dir.as_deref() {
-        started_watch.remember(own);
-    }
-    start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
+    // What: The plan and the watch are read in the task that runs the after-commit work, never before a commit can land.
+    // Why:  Only that work uses them, and a request that arrives meanwhile waits in the queue (`service_server.rs`, the steps
+    //       below): a reading of the service's state directory is one of the steps that had no reason to be waited for.
+    //       The task begins with what a service that stopped last left, and the reading is bounded by
+    //       `journal_restore_ceiling`.
+    let own_git_dir: Option<PathBuf> = settings.own_git_dir.clone();
+    let restore_ceiling: Duration = settings.journal_restore_ceiling;
+    start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, plan_directory, watch_directory, watch_instance, own_git_dir, restore_ceiling);
+    // What: An open batch a killed service left is settled before anything lands.
+    // Why:  A landing that overtook the recovery would move the branch on a batch whose own record is still open.
+    let settled = board.begin_starting(SETTLE_STEP);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
-    // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
-    //  and only past the newest `DONE_RETAINED` of the journal, before the rest are read into that memory.
-    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED, &crate::claim_time::ClaimTime::read());
-    if pruned > 0 {
-        crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
-    }
+    drop(settled);
+    // What: The landing thread reads the records of the newest finished batches before it lands anything.
+    // Why:  A client whose answer was lost sends the same request again, and an answer from memory is what keeps its commit
+    //       from being made twice. The records past that count are only removed, and their removal runs beside the loop
+    //       (`service_prune_old_records_beside_the_loop.rs`).
+    let reading = board.begin_starting(LANDED_STEP);
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    drop(reading);
     // What the earlier release's helper of this worktree finished counts as landed too: a client it never answered asks again.
     if let Some(instance) = settings.instance.as_deref() {
+        let adopting = board.begin_starting(EARLIER_RELEASE_STEP);
         landed.extend(crate::earlier_service_journal_adopted::earlier_commits_landed(context.journal.as_path(), instance));
+        drop(adopting);
     }
+    // The records of old finished batches are removed beside the loop: no landing reads them.
+    crate::service_prune_old_records_beside_the_loop::prune_old_records_beside_the_loop(context.journal.clone(), Arc::clone(&board));
+    // From here nothing of the start stands between a request and its landing, so no step is named to a waiting client.
+    board.the_loop_has_begun();
     // The service's own shutdown: a stop is recorded by the handler and ended here, after the Gits the service waits on are ended.
     crate::service_server_shutdown_after_a_stop::start_shutdown_after_a_stop_or_exit();
     // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is

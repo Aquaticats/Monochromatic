@@ -66,6 +66,14 @@ pub mod service_busy;
 /// so a commit's wait is measured without a drive made slow.
 pub mod service_decision_record_hold_control_window;
 
+/// The removal of old finished batch records,
+/// beside the landing loop.
+pub mod service_prune_old_records_beside_the_loop;
+
+/// The one instant of the service's start a control may take hold of,
+/// so the first commit's wait after a start is measured without a drive made slow.
+pub mod service_start_step_hold_control_window;
+
 /// The answers the landing board gives and the checks on the names it keeps.
 pub mod service_busy_answers_and_name_checks;
 

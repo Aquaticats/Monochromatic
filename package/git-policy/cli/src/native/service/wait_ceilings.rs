@@ -665,6 +665,18 @@ pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 ///  reported with whatever the landing thread was inside.
 pub const A_QUEUE_WAIT_NAMED_AFTER: Duration = Duration::from_secs(5);
 
+/// How long one step of the service's start may take before the journal names it and how long it took.
+/// Why:
+///   A start reads and removes records of the service's state directory before it reads its queue,
+///  and the first commit after a start waits for that;
+/// the journal of 2026-11-15 held 3,628 ms between its warm line and its pruning line,
+///  where the two starts before took 106 ms and 40 ms,
+///  and no line said which step took it
+/// (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+///  A second is three orders of magnitude more than a listing of a few hundred small records costs,
+///  so a step past it is one a person would ask about.
+pub const A_START_STEP_NAMED_AFTER: Duration = Duration::from_secs(1);
+
 /// The longest the after-commit work waits for one step that reads or writes state which is not a Git command:
 /// the plan of the pushes waiting for a new try,
 /// the applied changes of a round,

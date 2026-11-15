@@ -750,6 +750,6 @@ fn a_request_the_landing_thread_has_taken_is_never_told_it_was_not() {
     // The request is given back when its group is over, and the queue words are the truth again.
     shared.board.end_group(&[String::from("taken-request")]);
     let (after, _) = note_from_the_board(&shared.board, Some("taken-request"), Some(past), None);
-    let Some(ServiceMessage::Waiting { text }) = after else { panic!("a waiting client is told something: {after:?}") };
-    assert!(text.contains("has not taken this commit yet"), "a request the board no longer holds is one it has not taken: {text}");
+    let Some(ServiceMessage::Waiting { text: not_taken }) = after else { panic!("a waiting client is told something: {after:?}") };
+    assert!(not_taken.contains("has not taken this commit yet"), "a request the board no longer holds is one it has not taken: {not_taken}");
 }
