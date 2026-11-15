@@ -738,6 +738,24 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T04:21:30-05:00,
+  from the third review of the journal branch
+  (`2d001c892e`),
+  not blocking work,
+  adopted meanwhile and open to veto:
+  when a control fails because its fixture service ended early,
+  the test's panic quotes what the service wrote.
+  Where the test runner's own output is the journal,
+  that quotation is in the journal,
+  under the runner's identifier.
+  Adopted:
+  that is the test's report and stays,
+  marked as a quotation and written down in the docs,
+  because the requirement is that a service a test starts never writes into the journal by itself.
+  The other reading:
+  no word of a fixture service may reach the journal by any road,
+  so the panic carries only a summary and the words stay in a file of the fixture.
+
 - Added 2026-11-15T03:06:17-05:00,
   from the author of the removal guard
   (branch tip `f8509847f6`,
