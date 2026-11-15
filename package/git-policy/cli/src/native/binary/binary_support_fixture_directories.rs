@@ -189,8 +189,7 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
         service: std::sync::Mutex::new(None),
         service_environment: std::sync::Mutex::new(Vec::new()),
         service_launch: std::sync::Mutex::new(ServiceLaunch::default()),
-        socket_folder_token: std::sync::Mutex::new(String::new()),
-        socket_folders: std::sync::Mutex::new(Vec::new()),
+        socket_folders: std::sync::Mutex::new(crate::support_socket_folders::SocketFolders::default()),
     };
 }
 

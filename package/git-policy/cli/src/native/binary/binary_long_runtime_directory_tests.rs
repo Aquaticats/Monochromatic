@@ -15,7 +15,7 @@
 //!  so what is checked is the program a person runs and the address it really reaches.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, repository, short_runtime_directory, socket_folder, start_fixture_service, start_fixture_service_in};
+use super::support::{Fixture, fixture, git, repository, short_runtime_directory, start_fixture_service, start_fixture_service_in};
 use git_policy_cli::service_address_of_a_worktree::socket_address_of;
 use git_policy_cli::service_instance::{instance_of, longest_runtime_directory, socket_path};
 use git_policy_cli::service_server::Bind;
@@ -43,12 +43,13 @@ const DIGEST_NAME_BYTES: usize = 8;
 /// and it is shorter where the home directory's path is longer:
 /// a home directory of two hundred bytes leaves nothing under `$HOME/temp/agent`,
 /// where a name of `at-the-longest` plus padding needs thirteen.
-/// So the folder is asked for by the room the name needs, from the fixture that owns it,
+/// So the folder is asked for by the room the name needs,
+/// from the fixture that owns it,
 /// and a control here never depends on how long this account's home directory is.
 fn runtime_directory_of_length(fixture: &Fixture, length: usize, tag: &str) -> PathBuf {
     let name_length: usize = tag.len().min(DIGEST_NAME_BYTES);
     let longest_parent: usize = length.saturating_sub(1 + name_length);
-    let parent: PathBuf = socket_folder(fixture, "lr", longest_parent);
+    let parent: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("lr", longest_parent);
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a runtime directory longer than the folder it stands in");
     // The name holds the tag where there is room for it and padding to the byte the control asks for. A tag that does not
     //  fit is replaced by a digest of itself: two controls still get two directories, whichever number this process runs

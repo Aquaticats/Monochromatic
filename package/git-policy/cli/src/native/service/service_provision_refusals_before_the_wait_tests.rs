@@ -114,14 +114,17 @@ impl Manager for Addressing {
 
 /// What:
 ///  The folder of the stand-in Git directory and of every runtime directory this module makes,
-///  the longest place this account offers, made by the helper that owns it.
+///  the longest place this account offers,
+/// made by the helper that owns it.
 /// Why:
 ///   Neither the stand-in Git directory nor a runtime directory stands under the fixture root,
 /// which sits under the build directory and is far longer than a socket address carries.
 /// A control whose name needs more room than this folder leaves asks for a shorter one
 /// (`runtime_directory_of_length`).
-/// The folder is this test thread's own, named with a token rather than with the process number,
-/// and it goes with the thread that made it, so this module leaves nothing in a place it shares.
+/// The folder is this test thread's own,
+/// named with a token rather than with the process number,
+/// and it goes with the thread that made it,
+/// so this module leaves nothing in a place it shares.
 fn short_parent() -> PathBuf {
     return crate::test_support::runtime_directory_parent("pr", usize::MAX);
 }
@@ -701,13 +704,16 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
 }
 
 /// What:
-///  The two spellings no file system can make, standing under `parent`:
+///  The two spellings no file system can make,
+/// standing under `parent`:
 /// one through a regular file and one through a link that points nowhere.
 /// Why:
 ///   The control that uses them is about a commit that stops at once instead of binding where no address can be,
 /// so both spellings must be past what a path form carries,
 /// which is why their names are padded from the limit rather than left to the folder's length.
-/// They are made here, once, so the control that reads them and the control of two runs with one process number
+/// They are made here,
+/// once,
+/// so the control that reads them and the control of two runs with one process number
 /// make the same two things.
 fn spellings_no_file_system_can_make(parent: &Path) -> [(&'static str, PathBuf); 2] {
     let file_name: String = a_name_that_makes_the_path_past_the_limit(parent, "a-file-with-room");
@@ -755,16 +761,21 @@ fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
 }
 
 /// What:
-///  Two runs with one process number, at once, each make the file and the link no spelling can cross.
+///  Two runs with one process number,
+/// at once,
+/// each make the file and the link no spelling can cross.
 /// Why:
 ///   A name built from a process number is not a name of one's own:
-/// about 549 processes start a second on this machine, so a number comes round in about two hours,
+/// about 549 processes start a second on this machine,
+/// so a number comes round in about two hours,
 /// and inside a container far sooner.
-/// With the folder named after the process number, the two runs made one folder and one of them stopped at
+/// With the folder named after the process number,
+/// the two runs made one folder and one of them stopped at
 /// `AlreadyExists`
 /// before it read anything,
 /// which fails a run for fixture reuse rather than for the behaviour under test.
-/// Two threads of this test carry this process's number and run together, so they stand for two runs with one number.
+/// Two threads of this test carry this process's number and run together,
+/// so they stand for two runs with one number.
 #[test]
 #[cfg(target_os = "linux")]
 fn two_runs_with_one_process_number_do_not_meet_in_the_folder_they_make() {

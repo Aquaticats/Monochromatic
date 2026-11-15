@@ -461,8 +461,11 @@ fn a_folder_with_room_for_no_runtime_directory_name_is_refused_naming_every_plac
 ///   The helper picks the folder from places this machine shares with other tests and with people,
 /// and the room a name needs decides which of them it picks:
 /// with a home directory of two hundred bytes the shortest is the session's runtime directory.
-/// Before this control, nineteen passing controls left `/r/temp/agent/ze1000007`, `pr1000028` and `sa1000013`
-/// behind, and the same under `$HOME/temp` and under `$XDG_RUNTIME_DIR`,
+/// Before this control,
+/// nineteen passing controls left `/r/temp/agent/ze1000007`,
+/// `pr1000028` and `sa1000013`
+/// behind,
+/// and the same under `$HOME/temp` and under `$XDG_RUNTIME_DIR`,
 /// so a passing control littered a place it shares and a later run could meet what it left.
 /// The folder is the owner of everything the helper puts in it,
 /// which is why the thread that made it is what this control holds to.
