@@ -148,7 +148,7 @@ static OWED_SWEEPS: Mutex<Vec<LockLedger>> = Mutex::new(Vec::new());
 
 /// How many sweeps of stopped pushes this process owes a judgement.
 pub fn sweeps_owed() -> usize {
-    return OWED_SWEEPS.lock().map(|owed| owed.len()).unwrap_or(0);
+    return OWED_SWEEPS.lock().map(|owed| { return owed.len(); }).unwrap_or(0);
 }
 
 /// Ask a running push to end,

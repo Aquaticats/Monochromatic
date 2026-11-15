@@ -796,12 +796,15 @@ fn a_watched_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_pr
     watched_step(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup", Leftover::BetweenTheUnlinks);
 }
 
-/// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling:
+/// A member that never leaves the state where a signal cannot act is still ended within the stop's ceiling:
 /// the stop returns about one
 ///  ceiling after the request,
 /// the holder is gone,
 /// and the lock it left stays for the person,
 /// so nothing waits for good.
+/// What the waiting for the held member may use is that ceiling less the parts kept back for the reap and the sweep,
+/// and the
+///  stop's own answer still lies inside the ceiling.
 #[test]
 fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
     const CEILING: Duration = Duration::from_millis(1500);
@@ -814,8 +817,16 @@ fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
     let began: Instant = Instant::now();
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), GRACE, scratch_environment().as_slice()).expect("runs");
     let took: Duration = began.elapsed();
+    // The part of the ceiling the waiting for a held member may use: the ceiling less the parts the stop keeps for the reap
+    //  after the kill and for the sweep of the locks it leaves (`push/stop_of_a_push_and_sweep_of_its_locks.rs`).
+    let escalation_part: Duration = CEILING
+        .saturating_sub(crate::bounded_push::REAP_AFTER_THE_KILL)
+        .saturating_sub(crate::bounded_push::SWEEP_AFTER_THE_STOP);
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
-    assert!(took >= HOLD_DEADLINE + CEILING, "the stop forced the end after {took:?}, before the ceiling of {CEILING:?} that followed the request");
+    assert!(
+        took >= HOLD_DEADLINE + escalation_part,
+        "the stop forced the end after {took:?}, before the part of the ceiling of {CEILING:?} that its waiting for the held member may use ({escalation_part:?}) that followed the request"
+    );
     assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
     assert_the_holder_held_its_lock(Holder::Unresponsive, "stalled run held for ever");
     drop(watching);
