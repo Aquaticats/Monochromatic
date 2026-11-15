@@ -23,8 +23,9 @@ use std::time::{Duration, Instant, SystemTime};
 
 /// Imports the module under test.
 use crate::toolchain::store_versions::{
-    DOWNLOADS_DIRECTORY_NAME, SIZE_RECORDS_FILE_NAME, TOMBSTONE_PREFIX, install_directory_name, leftover_downloads,
-    read_size_records, removal_markers, tombstone_of, tree_size, version_directories,
+    DOWNLOADS_DIRECTORY_NAME, FACTS_SUFFIX, JudgedTree, SIZE_RECORDS_FILE_NAME, TOMBSTONE_PREFIX, install_directory_name,
+    judged_of_tree, leftover_downloads, read_judged, read_size_records, record_of, removal_markers, tombstone_of,
+    tree_size, version_directories, write_judged,
 };
 use crate::toolchain::model::Route;
 use crate::test_scratch::scratch;
@@ -247,4 +248,86 @@ fn measures_the_length_of_every_file_below() {
     fs::write(version.join("lib/node_modules/index.js"), vec![b'j'; 24]).expect("write a nested file");
 
     assert_eq!(tree_size(&version), 1024);
+}
+
+/// What:
+/// A judgement written beside a removal name reads back as the judgement of that tree.
+/// Why:
+/// The record is the only proof of a removed tree's wholeness, and a format that does not round-trip turns every
+/// whole tree into one nothing may take for finished.
+#[test]
+fn records_a_tree_and_reads_the_same_judgement_back() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    let judged: JudgedTree = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the tree");
+
+    write_judged(&version, &judged).expect("write the record");
+    let read_back: JudgedTree = read_judged(&version).expect("read the record");
+
+    assert!(judged.matches(&read_back), "the record does not describe the tree it was written for");
+    assert!(read_back.matches(&judged), "the record does not describe the tree it was written for");
+}
+
+/// What:
+/// A judgement describes one tree and not another one that happens to weigh the same.
+/// Why:
+/// A record outlives the tree it described (a put-back leaves the copy under its name), and a later removal of the
+/// same version can be killed before it writes its own; the identity in the record is what keeps that older record
+/// from being read as a proof about the newer tree.
+#[test]
+fn tells_a_tree_from_another_of_the_same_size() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let first: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    let judged: JudgedTree = judged_of_tree(&first, Instant::now() + Duration::from_secs(60)).expect("judge the first tree");
+    fs::remove_dir_all(&first).expect("remove the judged tree");
+    let second: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    let standing: JudgedTree = judged_of_tree(&second, Instant::now() + Duration::from_secs(60)).expect("judge the second tree");
+    assert_eq!(standing.facts.bytes, judged.facts.bytes, "the fixture must hold two trees of the same size");
+
+    assert!(!judged.matches(&standing), "a judgement of one tree described another one that weighs the same");
+}
+
+/// What:
+/// A judgement stops describing its tree when anything inside the tree is written.
+/// Why:
+/// A write into a folder that already existed changes neither the tree's root inode nor the root's own write time,
+/// and the file count and the bytes of the whole tree are what show it.
+#[test]
+fn stops_describing_a_tree_a_write_landed_in() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    fs::create_dir_all(version.join("nested")).expect("make a nested folder");
+    let judged: JudgedTree = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the tree");
+    assert_eq!(
+        fs::symlink_metadata(&version).and_then(|metadata| return metadata.modified()).ok(),
+        Some(judged.written),
+        "the fixture must prove the root's own write time cannot see the write that follows"
+    );
+
+    fs::write(version.join("nested/fresh"), b"fresh").expect("write into the folder that already existed");
+    let standing: JudgedTree = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge it again");
+
+    assert!(!judged.matches(&standing), "a judgement still described a tree something was written into");
+}
+
+/// What:
+/// A tree with no record beside it, and one with something else written there, read as no judgement at all.
+/// Why:
+/// A half-written record, or one a person wrote, proves nothing about the tree; reading it as a judgement is how a
+/// whole tree would be declared deletable.
+#[test]
+fn reads_no_judgement_where_nothing_judged_the_tree() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    assert!(read_judged(&version).is_none(), "a tree with no record read as a judged one");
+
+    fs::write(record_of(&version), b"not a record this program wrote").expect("write a record of another kind");
+
+    assert!(read_judged(&version).is_none(), "a record this program did not write read as a judgement");
+    let name: String = record_of(&version).file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
+    assert_eq!(name, format!("{TOMBSTONE_PREFIX}26.13.1{FACTS_SUFFIX}"), "the record does not sit beside the removal name");
 }

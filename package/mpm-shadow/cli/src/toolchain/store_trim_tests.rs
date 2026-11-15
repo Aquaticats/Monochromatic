@@ -1412,36 +1412,6 @@ fn puts_back_a_tree_a_write_landed_in_after_its_record_as_unfinished() {
 }
 
 /// What:
-/// A record left behind by an older removal describes no newer tree, and the newer tree goes back unfinished.
-/// Why:
-/// A put-back leaves the copy under its version's name, and a later removal of that version can be killed before it
-/// writes a record of its own; the older record would then be read as if it described the newer tree, and a whole tree
-/// would be deleted on a proof about another one.
-#[test]
-fn puts_back_a_tree_an_older_record_describes_as_unfinished() {
-    let fixture = Fixture::new();
-    let version: PathBuf = fixture.root.join("node/26.11.0");
-    let marker: PathBuf = tombstone_of(&version);
-    // The record an earlier judgement left, describing no tree any more.
-    let older = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the version");
-    write_judged(&marker, &older).expect("write the older removal's record");
-    // Another tree at the same name, which a fresh install puts there.
-    fs::remove_dir_all(&version).expect("remove the judged tree");
-    fs::create_dir_all(&version).expect("make the newer tree");
-    fs::write(version.join("program"), vec![b'n'; 2000]).expect("write the newer tree");
-    fs::rename(&version, &marker).expect("move the newer tree aside");
-
-    let finished = finish_removals(&fixture.run());
-
-    assert!(
-        fs::read_dir(&version).map(|mut entries| return entries.next().is_some()).unwrap_or(false),
-        "the newer tree was deleted on a record about another one: {:?}",
-        finished.lines
-    );
-    assert!(!marker.exists(), "the marker outlived the copy it held: {:?}", finished.lines);
-}
-
-/// What:
 /// A tool's `current` link that names a copy put back unfinished is taken away, and the copy stays.
 /// Why:
 /// A launcher follows that link without asking whether the version finished, and while the copy was aside the link
