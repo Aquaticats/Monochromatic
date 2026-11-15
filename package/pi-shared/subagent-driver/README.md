@@ -1154,6 +1154,21 @@ an entry an extension wrote among them.
 `doc/troubleshooting/secret-values-reaching-a-model.md` lists every place a value could be written or sent
 and the point before it that masks.
 
+What the mask is applied to is the data Pi serialises,
+not the object it came in:
+the value goes through Pi's own serialisation once,
+the text is masked,
+and Pi gets plain data back.
+That is one answer for a key,
+a `toJSON` method,
+a getter and a cycle,
+and a value that cannot be serialised,
+whose masking throws,
+or whose masked form is not the same shape of data is not handed on at all:
+the result is withheld whole,
+says it has no details,
+and the reader is told why.
+
 An agent reads a marker that names where the value came from,
 `[masked secret value of MISE_GITHUB_TOKEN]`,
 and goes on without it.
@@ -1168,6 +1183,18 @@ and Pi's compaction and branch summarization build their request from the sessio
 `context_with_system`
 (`dist/core/compaction/compaction.js:524`),
 so a value that an old session already held could travel inside one.
+
+Every place a value is kept has three answers:
+covered,
+not there,
+and could not.
+A store,
+Pi's own credential file,
+a shell start-up file,
+an age identity the machine declares,
+or a session a run resumes that is there and cannot be read stops the run before Pi starts;
+a session that still holds a value when the run is over ends it as `session-unmasked`,
+with the summary saying where the value is.
 
 A store that is there and cannot be read stops the run before Pi starts,
 with a `SecretEnvironmentUnreadableError` naming the cause and no value,
