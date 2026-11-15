@@ -17,6 +17,7 @@ import {
   finishRun,
 } from './stand-in-pi-records-fixture.ts';
 import { scenarioPlays, } from './stand-in-pi-scenario-plays-fixture.ts';
+import { silencePlays, } from './stand-in-pi-silence-plays-fixture.ts';
 import { workPlays, } from './stand-in-pi-work-plays-fixture.ts';
 
 /**
@@ -118,6 +119,14 @@ export async function playPrompt(id: unknown,): Promise<void> {
   const waitingPlay = waitingPromptPlays.get(scenario,);
   if (waitingPlay !== undefined) {
     await waitingPlay(id,);
+    return;
+  }
+  /**
+   The scenario's play if its subject is a command that says nothing.
+   */
+  const silencePlay = silencePlays.get(scenario,);
+  if (silencePlay !== undefined) {
+    await silencePlay(id,);
     return;
   }
   /**

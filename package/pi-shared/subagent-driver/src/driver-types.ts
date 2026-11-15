@@ -227,6 +227,13 @@ export type RunSummary = {
   readonly dialogs: readonly PiRecord[];
 
   /**
+   Every stretch in which the run said nothing, in order, each naming the command it sat in when one was in flight and whether the
+   driver ended that command. It is here rather than only in the feed because a reader of a summary decides whether the run's work
+   was cut, and the feed of a run kept for hours is a file nobody opens to answer that.
+   */
+  readonly silences?: readonly SilenceOfRun[];
+
+  /**
    Pi's own session statistics, which name the session file and hold the session's cost, or the error asking for them gave.
    */
   readonly sessionStats: unknown;
@@ -310,6 +317,61 @@ export type RunSummary = {
 };
 
 /**
+ One tool command as a run knows it while it runs, or as a silence names it once it has been written down.
+ */
+export type SilentCommand = {
+  /**
+   The tool that runs the command, such as `bash`.
+   */
+  readonly tool: string;
+
+  /**
+   What the command was asked to do: the arguments Pi reported, or the preview of them that a feed line and a summary keep.
+   */
+  readonly args: unknown;
+
+  /**
+   How long the command had been running.
+   */
+  readonly milliseconds: number;
+
+  /**
+   The bound the command declared for itself, in seconds, when it declared one, as the bash tool's `timeout` argument carries it.
+   */
+  readonly boundSeconds?: number;
+};
+
+/**
+ One stretch in which a run said nothing, as the feed notes it and the summary keeps it.
+ */
+export type SilenceOfRun = {
+  /**
+   How long the run had said nothing when this was written down.
+   */
+  readonly silentMilliseconds: number;
+
+  /**
+   The command the run was sitting in, when one was in flight; absent when the silence was Pi's own or a model's.
+   */
+  readonly command?: SilentCommand;
+
+  /**
+   Whether the driver ended the command this silence named, which only a silence past the driver's second stated time does.
+   */
+  readonly ended?: boolean;
+
+  /**
+   Whether Pi took the message that told the agent what was ended.
+   */
+  readonly told?: boolean;
+
+  /**
+   Why the message that tells the agent what was ended did not reach it, when it did not.
+   */
+  readonly failure?: string;
+};
+
+/**
  Options of one run of the driver.
  */
 export type DriverOptions = {
@@ -330,6 +392,18 @@ export type DriverOptions = {
   readonly piArguments: readonly string[];
   readonly wallSeconds: number;
   readonly idleSeconds: number;
+
+  /**
+   Seconds a run may say nothing before the driver writes that down as a feed line and a summary entry, which is
+   `SILENT_NOTICE_SECONDS` in `driver-constants.ts` unless a caller states another.
+   */
+  readonly silentSeconds: number;
+
+  /**
+   Seconds a command that says nothing is given before the driver ends it and tells the agent what it ended, which is
+   `SILENT_ENDING_SECONDS` in `driver-constants.ts` unless a caller states another.
+   */
+  readonly silentEndSeconds: number;
   readonly turnCap: number;
 
   /**
@@ -434,6 +508,30 @@ export type RecordOfPiRun = {
    How long nothing has been heard or noted.
    */
   readonly silentMilliseconds: () => number;
+
+  /**
+   When the run last said something or was last written to, as milliseconds since the epoch: the instant this silence started at,
+   which tells one stretch of silence from the next without guessing.
+   */
+  readonly silenceStartedAt: () => number;
+
+  /**
+   The tool commands in flight, oldest first, each with how long it has run and the bound it declared for itself. Empty when the
+   run is sitting in none.
+   */
+  readonly commandsInFlight: () => readonly SilentCommand[];
+
+  /**
+   Writes one feed line and one summary entry for a stretch in which the run said nothing, without counting it as activity: a
+   silence the driver writes down is still a silence, so counting it would keep the next line from ever being due.
+   */
+  readonly noteSilence: (silence: SilenceOfRun,) => void;
+
+  /**
+   Writes the line that says which command a silence ended and what the agent was told, counts it as activity, and keeps it in the
+   summary.
+   */
+  readonly noteSilenceEnded: (silence: SilenceOfRun,) => void;
 
   /**
    Writes one feed line, which also counts as activity: a message just delivered must not look like a long silence.

@@ -930,6 +930,22 @@ each written as `--name=value`:
   because a deadline of `Infinity` is no deadline.
 - `--idle-seconds`:
   how long the driver stays up for a steering message after Pi comes to rest.
+- `--silent-seconds`:
+  how long a run may say nothing before the driver writes that down,
+  ten minutes by default.
+  A run says something with every record Pi writes,
+  so a command reporting output or a model streaming a reply is never silent;
+  a command whose output stopped,
+  or whose own process went and left a descendant holding its pipe,
+  is.
+  The line names the command in flight and how long it has said nothing,
+  and ends nothing.
+- `--silent-end-seconds`:
+  how long a command that says nothing is given before the driver ends it and tells the agent what it ended,
+  one hour by default.
+  A command that declared a bound of its own with the bash tool's `timeout` argument is left alone until that bound has passed,
+  and is ended a minute past it when that bound could not end it.
+  The section "A command that says nothing" states what both values come from.
 - `--turn-cap`:
   how many model turns the run may start.
   An attempt of Pi's own automatic retry is a turn too,
@@ -989,6 +1005,11 @@ the launcher that builds the session's environment asks it, once, before it make
   and an answer of the run's own `process` tool that names processes also gets a `processes` line holding it whole,
   because the driver reads those answers to tell whether work of the run's still runs,
   and text cut inside a JSON string cannot be read back.
+  A `silence` line is written once for each stretch in which the run said nothing,
+  naming the command it sat in and how long it had said nothing;
+  a `silence-ended` line names the command the driver ended past the second stated time,
+  whether Pi took the message that told the agent,
+  and why it did not when it did not.
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
@@ -1003,6 +1024,8 @@ the launcher that builds the session's environment asks it, once, before it make
   `piStartFailures` holds every start that ended before its Pi took the prompt,
   each with its exit, the pause that followed it and the last lines Pi printed,
   `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
+  `silences` holds every stretch in which the run said nothing,
+  each naming the command it sat in and whether the driver ended that command,
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
 - `stderr.log`:
@@ -1250,6 +1273,79 @@ A run that a later start carried reports the start it rode out in `piStartFailur
 so `pi-exited-before-prompt` alone marks a condition that stood:
 a caller that fills a queue reads it and stops starting runs into that condition,
 and starts them again once the condition has been answered.
+
+## A command that says nothing
+
+A Pi run can sit inside one tool command for hours with nothing noticing.
+On 2026-11-15 one run ended at its wall clock after 57 600 seconds with 26 turns,
+and its feed shows a `tool_start` for `bash` at 1 284 897 ms,
+a `rg` search of a folder holding several hundred gigabytes,
+and the matching `tool_end` at 57 600 250 ms saying `Command aborted`:
+the wall clock was the only thing that ended it,
+and its branch never moved.
+Three runs going that day had written no feed line for 105, 378 and 724 minutes,
+each inside one command;
+a `SIGTERM` to the process that held it brought all three back within a minute.
+
+So the driver measures silence.
+A run says nothing while Pi writes no record at all,
+which is what the record's own activity clock keeps:
+a command's output arrives as `tool_execution_update`,
+which Pi's bash tool emits at most every 100 ms while output comes,
+and a model's reply arrives as `message_update` deltas.
+A build printing progress or a search printing matches is never silent,
+and no second clock is needed to tell the two apart.
+
+Two times bound that silence, and both are options of the run.
+
+`--silent-seconds` is the first,
+ten minutes by default.
+The first time a silence passes it the driver writes one `silence` line naming the command it is sitting in and how long,
+and one entry in the summary's `silences`,
+and ends nothing:
+a whole-suite run that prints nothing for a while is noticed rather than cut.
+One line per stretch is written, not one per look.
+
+`--silent-end-seconds` is the second,
+one hour by default.
+Past it the driver does what the wall clock does:
+it sends Pi `abort`,
+which ends the operation in flight and kills the tool's process tree,
+and then sends the agent a message of its own naming the command,
+how long it had said nothing,
+and that a command which may run long needs a bound of its own.
+The run goes on in the turn that message starts;
+a message Pi refuses ends the run `prompt-rejected`,
+because an agent that was never told does not know what became of its command.
+The `silence-ended` line and the summary entry that goes with it say whether Pi took the message.
+
+The driver cannot tell a hang from a long honest command by silence,
+so it does not pretend to.
+It puts the second time above every honest silence it measured,
+and an agent that knows a command may run long says so in advance by giving the bash tool its `timeout` argument,
+in seconds.
+Pi enforces that bound itself by killing the command's process tree,
+and the driver does not end the command before the bound has passed.
+A bound buys time, never immunity:
+a command whose own bound could not end it,
+which is a descendant holding the pipe after the command's process went,
+is ended by the driver a minute past that bound,
+and the message says the bound had passed and the command was still going.
+A bound longer than the run's wall clock changes nothing about when the run ends,
+because the wall clock stays the outer bound of every wait.
+
+Both values come from the 2 346 feeds of `${HOME}/temp/agent/pi-runs` read on 2026-11-15,
+holding 248 424 bash commands and 612 100 stretches with no command open
+(38 feeds were left unopened because a scan in the secret-values keep folder names their run).
+A command's p99 was 316 seconds and its p99.9 1 500,
+401 of the 152 277 commands that declared no bound of their own ran past ten minutes,
+16 ran past an hour,
+and the longest honest one was 5 512 seconds;
+the longest stretch with no command open was 1 205 seconds.
+96 147 commands did declare a bound, at 30 seconds to 7 300,
+and 334 of them ran past it,
+302 of those within a minute.
+The numbers and the sentence each value rests on are in `src/driver-constants.ts`.
 
 ## When Pi compacts before it takes the prompt
 

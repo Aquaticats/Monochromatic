@@ -33,6 +33,8 @@ import {
   POLL_MILLISECONDS,
   type RecordOfPiRun,
   type RetryWaiting,
+  SILENT_ENDING_SECONDS,
+  SILENT_NOTICE_SECONDS,
   startRecordOfPiRun,
   START_PAUSE_MILLISECONDS,
   type WatchRequest,
@@ -184,6 +186,8 @@ function optionsOf({
     retryCap,
     retryBaseSeconds,
     startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
+    silentSeconds: SILENT_NOTICE_SECONDS,
+    silentEndSeconds: SILENT_ENDING_SECONDS,
   };
 }
 

@@ -19,10 +19,21 @@ export {
   type RetryWaiting,
 } from './answer-a-model-error.ts';
 export {
+  aSilenceInTheRun,
+  aSilentCommandIsDueToEnd,
+  declaredBoundOf,
+  endedCommandMessageOf,
+  keptCommand,
+  type SilenceWaitedFor,
+} from './a-command-that-says-nothing.ts';
+export {
   COMMAND_ANSWER_MILLISECONDS,
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
+  SILENT_BOUND_GRACE_SECONDS,
+  SILENT_ENDING_SECONDS,
+  SILENT_NOTICE_SECONDS,
   START_ATTEMPTS,
   START_PAUSE_MILLISECONDS,
   START_SEQUENCE_MILLISECONDS,
@@ -31,6 +42,8 @@ export {
 export type {
   NoFurtherStart,
   PiStartFailure,
+  SilenceOfRun,
+  SilentCommand,
 } from './driver-types.ts';
 export {
   type RunPutAway,

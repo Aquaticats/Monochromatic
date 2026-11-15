@@ -30,6 +30,8 @@ import {
   endReasonOfRun,
   type PiRecord,
   type RecordOfPiRun,
+  SILENT_ENDING_SECONDS,
+  SILENT_NOTICE_SECONDS,
   startRecordOfPiRun,
   START_PAUSE_MILLISECONDS,
   START_UP_ANSWER_MILLISECONDS,
@@ -267,6 +269,8 @@ async function firstPromptOf({
     retryCap: 0,
     retryBaseSeconds: 1,
     startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
+    silentSeconds: SILENT_NOTICE_SECONDS,
+    silentEndSeconds: SILENT_ENDING_SECONDS,
   };
   /**
    The record of the run.
@@ -428,6 +432,8 @@ await describe({
           retryCap: 0,
           retryBaseSeconds: 1,
           startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
         };
         /**
          The record of the run.

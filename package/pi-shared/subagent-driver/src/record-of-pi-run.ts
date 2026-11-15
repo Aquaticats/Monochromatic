@@ -9,6 +9,7 @@ import type {
   PiRecord,
   RecordOfPiRun,
   RetryTaken,
+  SilenceOfRun,
 } from './driver-types.ts';
 import {
   FEED_PREVIEW_CHARACTERS,
@@ -191,12 +192,18 @@ export function startRecordOfPiRun({
      Whether Pi took the run's first prompt, which is where work may begin.
      */
     tookPrompt: boolean;
+
+    /**
+     Every stretch in which the run said nothing, as the summary keeps them.
+     */
+    silences: SilenceOfRun[];
   } = {
     retries: 0,
     retriesSinceAnswer: 0,
     answers: 0,
     rateLimitErrors: 0,
     tookPrompt: false,
+    silences: [],
   };
 
   /**
@@ -246,6 +253,29 @@ export function startRecordOfPiRun({
     turnCount: observed.turnCount,
     silentMilliseconds: function silentMilliseconds() {
       return now() - activity.at;
+    },
+    silenceStartedAt: function silenceStartedAt() {
+      return activity.at;
+    },
+    commandsInFlight: observed.commandsInFlight,
+    noteSilence: function noteSilence(silence,) {
+      // A silence the driver writes down is still a silence: counting this line as activity would keep the next one from ever being
+      // due, and the code the ended command waits behind would never run.
+      feed.note({
+        kind: 'silence',
+        ...silence,
+      },);
+      state.silences
+        .push(silence,);
+    },
+    noteSilenceEnded: function noteSilenceEnded(silence,) {
+      activity.at = now();
+      feed.note({
+        kind: 'silence-ended',
+        ...silence,
+      },);
+      state.silences
+        .push(silence,);
     },
     note,
     countHandledPrompt: observed.countPromptHandled,
@@ -322,6 +352,9 @@ export function startRecordOfPiRun({
         lastAssistantText: observed.lastAssistantText(),
         retries: state.retries,
         rateLimitErrors: state.rateLimitErrors,
+        ...((state.silences
+          .length
+          === 0) ? {} : { silences: state.silences, }),
         piStartAttempts: piStartAttempts ?? 1,
         ...(piStartFailures === undefined ? {} : { piStartFailures, }),
         ...(piStartStoppedBy === undefined ? {} : { piStartStoppedBy, }),

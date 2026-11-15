@@ -21,6 +21,11 @@ export const NESTED_RUN_VARIABLE = 'MONOCHROMATIC_PI_SUBAGENT_DRIVER_RUNNING';
 export const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
+ Seconds in a minute, for the figures a message to an agent and a report of a run are read in.
+ */
+export const SECONDS_PER_MINUTE = 60;
+
+/**
  Milliseconds between looks at the inbox, the stop file and the limits. Only how soon a steer or a stop is noticed depends on it.
  */
 export const POLL_MILLISECONDS = 300;
@@ -157,6 +162,45 @@ export const MODEL_ERROR_RETRY_BASE_SECONDS = 2;
  one it leaves to Pi.
  */
 export const MODEL_ERROR_RETRY_MAX_DELAY_MILLISECONDS = 60_000;
+
+/**
+ Seconds a run may say nothing before the driver writes it down as a line of its own: ten minutes.
+
+ What a run says is every record Pi sends over the channel: a tool's output arrives as one `tool_execution_update` per chunk, and a
+ model's reply arrives as `message_update` deltas, so a command or a reply that is working is never silent. Silence is therefore a
+ command that reports nothing, or a model that answers nothing, for this long.
+
+ Measured on this machine on 2026-11-15 over the 2,346 feeds of `${HOME}/temp/agent/pi-runs` (38 of them left unopened because a
+ scan in the secret-values keep folder names their run), holding 248,424 bash commands and 612,100 stretches with no command open:
+ a command's p99 was 316 s and its p99.9 1,500 s, 401 of the 152,277 commands that declared no bound of their own ran past 600 s,
+ and 24 of those 612,100 command-free stretches ran past it. A notice costs one feed line and ends nothing, so it sits in that
+ rare tail rather than above every slow build.
+ */
+export const SILENT_NOTICE_SECONDS = 600;
+
+/**
+ Seconds a command that says nothing is given before the driver ends it: one hour.
+
+ Above every honest silence in the same measurement: the longest stretch with no command open was 1,205 s, three times over, and
+ the longest command that declared no bound of its own was 5,512 s. Sixteen of those 152,277 unbounded commands ran past 3,600 s:
+ four of them are the hangs that started this work (6,424 s, 24,325 s, 43,535 s and 56,315 s), and the longest of the rest is
+ 13,990 s, so a silent command past this bound is ended and told about rather than left for its run's wall clock.
+
+ A command that declares a bound of its own is not ended before that bound has passed, because a whole-suite run or a build says
+ how long it may take rather than staying inside an hour: 96,147 of the 248,424 commands did, at 30 s to 7,300 s. The run's own
+ wall clock stays the outer bound of every wait.
+ */
+export const SILENT_ENDING_SECONDS = 3_600;
+
+/**
+ Seconds past a declared bound before the driver ends the command itself.
+
+ Pi ends a command at its own `timeout` by killing its process tree, so an honest command ends within a moment of that bound.
+ Measured on this machine on 2026-11-15, 334 of the 96,158 commands that declared a bound ran past it: 179 within one second and
+ 215 within five, while 32 ran more than a minute past it. A minute therefore sits above Pi's own kill and leaves the rest to this
+ driver, which is the case a bound could not end: a descendant holding the command's output open after its own process went.
+ */
+export const SILENT_BOUND_GRACE_SECONDS = 60;
 
 /**
  Longest text of one kind kept on a feed line, carried over from the driver the recorded runs used. They bound the size of a feed

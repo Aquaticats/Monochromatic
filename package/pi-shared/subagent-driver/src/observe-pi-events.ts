@@ -15,6 +15,7 @@ import type {
   PiRecord,
   PiRetryGaveUp,
   RunFailure,
+  SilentCommand,
 } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { startRunTallies, } from './run-tallies.ts';
@@ -82,6 +83,12 @@ export type ObservedPiRun = {
   readonly toolHistogram: () => Readonly<Record<string, number>>;
   readonly toolErrors: () => readonly PiRecord[];
   readonly dialogs: () => readonly PiRecord[];
+
+  /**
+   The tool commands in flight, oldest first, each with how long it has run and the bound it declared for itself. Empty when the
+   run is sitting in none.
+   */
+  readonly commandsInFlight: () => readonly SilentCommand[];
   readonly observe: (observation: EventObservation,) => void;
 
   /**
@@ -407,6 +414,7 @@ export function startObservingPiRun({
     toolHistogram: tallies.toolHistogram,
     toolErrors: tallies.toolErrors,
     dialogs: tallies.dialogs,
+    commandsInFlight: tallies.commandsInFlight,
     observe,
     countPromptHandled: function countPromptHandled() {
       state.settled += 1;

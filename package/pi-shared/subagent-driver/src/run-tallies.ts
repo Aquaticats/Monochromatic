@@ -5,14 +5,21 @@
  */
 
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
-import type { PiRecord, } from './driver-types.ts';
+import type {
+  PiRecord,
+  SilentCommand,
+} from './driver-types.ts';
 import {
   PROCESS_TOOL_NAME,
   PROCESSES_RECORD_KIND,
   processesInToolAnswer,
 } from './processes-a-tool-answer-names.ts';
 import { preview, } from './previews-of-pi-messages.ts';
-import { textOf, } from './read-pi-fields.ts';
+import {
+  fieldsOf,
+  textOf,
+} from './read-pi-fields.ts';
+import { declaredBoundOf, } from './a-command-that-says-nothing.ts';
 
 /**
  The dialog methods that wait for an answer; the other interface methods need none.
@@ -49,6 +56,12 @@ export type RunTallies = {
     readonly event: PiRecord;
     readonly declineDialog: (id: unknown,) => void;
   },) => void;
+
+  /**
+   The tool commands in flight, oldest first, each with how long it has run and the bound it declared for itself. Empty when the
+   run is sitting in none.
+   */
+  readonly commandsInFlight: () => readonly SilentCommand[];
 };
 
 /**
@@ -84,7 +97,26 @@ export function startRunTallies({
    The dialogs declined.
    */
   const dialogs: PiRecord[] = [];
+  /**
+   The tool commands started and not yet ended, oldest first. A tool that starts another leaves both open, and the one started last
+   is the one the run is sitting in.
+   */
+  const inFlight: {
+    readonly tool: string;
+    readonly args: unknown;
+    readonly sinceMilliseconds: number
+  }[] = [];
   return {
+    commandsInFlight: function commandsInFlightOfRun() {
+      return inFlight.map(function running(started,) {
+        return {
+          tool: started.tool,
+          args: started.args,
+          milliseconds: millisecondsSoFar() - started.sinceMilliseconds,
+          ...declaredBoundOf(started.args,),
+        };
+      },);
+    },
     toolHistogram: function toolHistogramOfRun() {
       return Object.fromEntries(toolHistogram,);
     },
@@ -103,6 +135,11 @@ export function startRunTallies({
         tool,
         (toolHistogram.get(tool,) ?? 0) + 1,
       );
+      inFlight.push({
+        tool,
+        args: event.args,
+        sinceMilliseconds: millisecondsSoFar(),
+      },);
       note({
         kind: 'tool_start',
         tool,
@@ -121,6 +158,18 @@ export function startRunTallies({
        The tool's name.
        */
       const tool = textOf(event.toolName,);
+      /**
+       Where the command this ends was started, which is the last one of that name still open.
+       */
+      const startedAt = inFlight.findLastIndex(function sameTool(entry,) {
+        return entry.tool === tool;
+      },);
+      if (startedAt !== (-1)) {
+        inFlight.splice(
+          startedAt,
+          1,
+        );
+      }
       note({
         kind: 'tool_end',
         tool: event.toolName,

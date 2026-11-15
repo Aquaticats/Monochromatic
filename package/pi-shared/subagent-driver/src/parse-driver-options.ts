@@ -9,6 +9,8 @@ import {
   MILLISECONDS_PER_SECOND,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
+  SILENT_ENDING_SECONDS,
+  SILENT_NOTICE_SECONDS,
   START_PAUSE_MILLISECONDS,
 } from './driver-constants.ts';
 import type { DriverOptions, } from './driver-types.ts';
@@ -23,7 +25,7 @@ import {
  The driver's command line, for the error message.
  */
 export const DRIVER_USAGE =
-  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--start-pause-seconds=<n>] [--pi-argument=<word>]...';
+  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--silent-seconds=<n>] [--silent-end-seconds=<n>] [--start-pause-seconds=<n>] [--pi-argument=<word>]...';
 
 /**
  A command line the driver cannot use.
@@ -168,6 +170,8 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         'turn-cap': { type: 'string', },
         'retry-cap': { type: 'string', },
         'retry-base-seconds': { type: 'string', },
+        'silent-seconds': { type: 'string', },
+        'silent-end-seconds': { type: 'string', },
         'start-pause-seconds': { type: 'string', },
       },
     },);
@@ -216,6 +220,18 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         optionOf({
           value: values['retry-base-seconds'],
           name: 'retry-base-seconds',
+        },),
+      ),
+      silentSeconds: (values['silent-seconds'] === undefined) ? SILENT_NOTICE_SECONDS : requiredSeconds(
+        optionOf({
+          value: values['silent-seconds'],
+          name: 'silent-seconds',
+        },),
+      ),
+      silentEndSeconds: (values['silent-end-seconds'] === undefined) ? SILENT_ENDING_SECONDS : requiredSeconds(
+        optionOf({
+          value: values['silent-end-seconds'],
+          name: 'silent-end-seconds',
         },),
       ),
       startPauseSeconds: (values['start-pause-seconds'] === undefined)

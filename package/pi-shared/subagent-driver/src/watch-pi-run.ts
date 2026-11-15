@@ -33,6 +33,10 @@ import {
   askAboutItsWorkOrReportAFailure,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
+import {
+  aSilenceInTheRun,
+  type SilenceWaitedFor,
+} from './a-command-that-says-nothing.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
 
@@ -418,6 +422,11 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
    The work this run left running, once the driver has seen it and is waiting for it to end; nothing until then.
    */
   const waited: WorkWaitedFor = {};
+  /**
+   Where the watch stands with the silence of the run, so one stretch of it is written down once and a command that has been ended
+   is not ended again.
+   */
+  const silence: SilenceWaitedFor = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -442,6 +451,18 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
           },);
       }
       return progress;
+    }
+    /**
+     What a run that has said nothing needs: a line the first time, and past the second stated time the end of the command it is
+     sitting in, with a message telling the agent what was ended. It comes before every other wait, because a command that never
+     returns is what keeps a run from ever reaching them.
+     */
+    const afterSilence = await aSilenceInTheRun({
+      watch,
+      waited: silence,
+    },);
+    if (afterSilence !== 'still-running') {
+      return afterSilence;
     }
     /**
      Where the run stands with the model error Pi settled on, if it settled on one.
