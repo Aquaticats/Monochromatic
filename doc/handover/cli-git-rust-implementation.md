@@ -738,6 +738,14 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T01:30:55-05:00,
+  from integration pass 49,
+  not blocking work:
+  a lock a live program holds in the command's own worktree still gets the wrapper's line,
+  so a person's own `git add` there reads both that line and Git's refusal.
+  Is the line still wanted for the command's own worktree,
+  now that it is no longer written for another worktree's lock?
+
 - Added 2026-11-15T01:15:56-05:00,
   from the fresh run on mpm-shadow's removal of old versions
   (branch tip `58db281dc5`,
@@ -1446,6 +1454,92 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Integration pass 49 is in `main` and `0.6.1-alpha.38` is dispatched: a command names only the locks its own worktree meets (2026-11-15T01:30:55-05:00)
+
+Not final and not approved:
+what the pass reports,
+what the coordinating session checked and did.
+
+- **Integration pass 49**,
+  ended 01:24:40 at `e03d351368`,
+  reports its branch fit for release.
+  Its report,
+  read whole:
+  `~/temp/agent/integration-pass-49-scratch/keep/report.md`.
+  - The branch (`98fcc243fa`,
+    tip unmoved,
+    six commits all its own) merged clean;
+    four files,
+    220 insertions,
+    3 deletions.
+    Only the words are narrowed:
+    a lock in another linked worktree is still cleared when its holder is proved gone,
+    and a command of a different worktree neither waits for it nor names it.
+  - Where pass 44's index-holder wait and this change meet,
+    both meanings stand side by side,
+    shown by the merge controls and the branch's own passing together.
+  - The control the branch is for,
+    two adds at once,
+    passed 20 of 20 runs in the gate's own image at the merged tip and 20 of 20 after `main` with pass 48 came in.
+    Its planted control failed in that image with the fix left out,
+    naming the other worktree's lock,
+    so the arrangement can show a difference.
+  - Build,
+    both test compiles and Clippy clean;
+    `lock::` 379 passed,
+    the two binary modules 7 and 16,
+    the guards 6 and 20,
+    at full width and at four CPUs.
+  - Whole suites once at the tip,
+    four CPUs:
+    library 7,892 of 7,897 passed,
+    binary 1,209 of 1,215.
+    Of the failures,
+    eight are on both of the gate's lists and one on the newer list alone
+    (`foundation::lazy_runtime::…a_build_that_finishes_while_the_caller_gives_up_is_kept`,
+    a second sighting,
+    outside any container).
+    Two are on neither list:
+    `commit::native_commit_waiting_notice::tests::a_step_that_appeared_after_the_ceiling_look_is_still_stopped`
+    and `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`.
+  - The three `push_minimum_rate::` controls that failed in the gate on `0.6.1-alpha.37` passed here,
+    in 14.7 to 18.6 s,
+    with pass 48 in.
+- **Checked before the merge**:
+  the pass's tip is the same locally and on `origin`;
+  `main` held one commit the tip lacked,
+  a handover commit,
+  and none under `package/git-policy/`,
+  `toolchain.lock.json` or `Cargo.lock`.
+- **Merged** as `de61092d93` at 01:29:44.
+  The fuzz sidecar's type check at that commit:
+  exit 0 at 01:30:55
+  (`~/temp/agent/fuzz-sidecar-type-check-on-main-after-its-merge-2026-11-14T1022/keep/type-check-at-de61092d93-with-pass-49-in-2026-11-15T0131.txt`).
+- **`0.6.1-alpha.38` dispatched** at 01:30:15,
+  run 43685730297.
+  The first try was refused by the release task:
+  its note was 227 characters where at most 200 are taken;
+  nothing was dispatched by it.
+  Install,
+  a sample commit and the container gate follow when the workflow has published.
+- **Routed from the pass's report**:
+  the two failures on neither list were added as sightings to the queued brief on library tests that fail inside the suite
+  (the suites ran while the home drive stalled;
+  that run is asked to run each alone);
+  the runtime control's second sighting was added to its queued brief;
+  the push controls' passing on this machine was sent by note to pass 48's author,
+  who is going.
+  The pass's question on the line for a lock in the command's own worktree is kept for the owner.
+- **The pass ran no unit test of `bin/`**:
+  its brief was written before that check was added,
+  and the fresh run on the stale planted controls is still queued.
+- Read at 01:29:06:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
 
 ##### Three wrapper branches answer and go to review: the Git version of the gate, the lock a killed Git left on a reference, and the controls under an address-space limit, whose review is written by hand (2026-11-15T01:25:15-05:00)
 
