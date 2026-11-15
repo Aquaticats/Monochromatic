@@ -3,7 +3,7 @@
  presence from the process folder, and a message whose driver is gone is kept under its own name and named in the summary.
  */
 
-import {
+import fsPromises, {
   link,
   mkdir,
   mkdtemp,
@@ -12,6 +12,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
+import { syncBuiltinESMExports, } from 'node:module';
 import { dirname, join, } from 'node:path';
 import {
   describe,
@@ -361,6 +362,22 @@ async function textsUnder(folder: string,): Promise<readonly string[]> {
     return entry.isDirectory() ? await textsUnder(path,) : [await readFile(path, 'utf8',)];
   },),);
   return texts.flat();
+}
+
+/**
+ Refuses every hard link, as a filesystem without hard links does.
+
+ @returns never; the call always fails
+
+ @throws an error carrying the code a filesystem gives for a refused link
+ */
+async function refusesEveryLink(): Promise<void> {
+  /**
+   What the filesystem would say.
+   */
+  const failure = new Error('EPERM: operation not permitted',);
+  Object.assign(failure, { code: 'EPERM', },);
+  throw failure;
 }
 
 /**
@@ -1297,6 +1314,317 @@ await describe({
         const secondSummary = await summaryOf(second.record,);
         expect(firstSummary.inboxNotTaken,).toBeUndefined();
         expect(secondSummary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+
+    it({
+      name: 'two files whose inode numbers differ only above 2^53 are not one file',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox the claimed message and the kept message both stand in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        /**
+         What the claimed message and the earlier kept message hold.
+         */
+        const claimedText = 'the claimed message, which must survive';
+        const standingText = 'a different kept message';
+        await writeFile(claim, claimedText, { encoding: 'utf8', },);
+        /**
+         The kept name of the earlier message, which is a file of its own.
+         */
+        const standing = join(inbox, `.failed-${MESSAGE_NAME}`,);
+        await writeFile(standing, standingText, { encoding: 'utf8', },);
+        /**
+         The device both files are reported on, which says nothing about which file each one is.
+         */
+        const DEVICE = 7;
+        /**
+         The largest integer a JavaScript number holds exactly: two inode numbers one apart above it are one number.
+         */
+        const EXACT_NUMBER_LIMIT = 2n ** 53n;
+        /**
+         The two inode numbers, which differ only above that limit.
+         */
+        const claimedInode = EXACT_NUMBER_LIMIT + 1n;
+        const standingInode = EXACT_NUMBER_LIMIT;
+        /**
+         The filesystem's own read, kept so the patch below can be undone.
+         */
+        const realLstat = fsPromises.lstat;
+        // The filesystem as this test presents it: a read that is not exact sees both inode numbers as one value.
+        Object.assign(fsPromises, {
+          lstat: async function lstatWithHighInodes(
+            path: string,
+            options?: Parameters<typeof fsPromises.lstat>[1],
+          ) {
+            /**
+             What the filesystem really reports.
+             */
+            const stats = await realLstat(path, options,);
+            if (((options as { readonly bigint?: boolean } | undefined)?.bigint) !== true) {
+              if (path === claim) {
+                Object.assign(stats, { dev: DEVICE, ino: Number(claimedInode,), },);
+              }
+              if (path === standing) {
+                Object.assign(stats, { dev: DEVICE, ino: Number(standingInode,), },);
+              }
+            }
+            return stats;
+          },
+        },);
+        syncBuiltinESMExports();
+        try {
+          const { watch, record, } = await watchOver({
+            folder: folder.path,
+            processFolder: '/proc',
+          },);
+          /**
+           Where the keep put the claimed message.
+           */
+          const kept = await keepMessage({
+            watch,
+            name: MESSAGE_NAME,
+            claim,
+            keptAs: 'failed',
+          },);
+          await record.close();
+          // The kept name of the other file is not this message's publication: the claim is published under a name of its own,
+          // and both messages are still readable.
+          expect(kept,).toBe(join(inbox, `.failed-${MESSAGE_NAME}.2`,),);
+          expect(await readFile(standing, 'utf8',),).toBe(standingText,);
+          expect(await readFile(kept, 'utf8',),).toBe(claimedText,);
+        }
+        finally {
+          Object.assign(fsPromises, { lstat: realLstat, },);
+          syncBuiltinESMExports();
+        }
+      },
+    },),
+    it({
+      name: 'a publication a killed pass made under the other kind of kept name is finished, not made twice',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox the publication was left in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        // The exact state a kill leaves after a driver linked its refused message as `.failed-m.txt` and before it removed the
+        // claim: both names, one file.
+        await link(claim, join(inbox, `.failed-${MESSAGE_NAME}`,),);
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // The recovery finds the publication already made, under the other kind of kept name, and adds no second name.
+        expect(await entriesOf(inbox,),).toEqual([`.failed-${MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.failed-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'a keep on a filesystem without hard links publishes a claimed message by a copy of its own',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox the claimed message stands in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        // A filesystem that refuses hard links still publishes: the kept name holds a copy, and the claim is then removed.
+        /**
+         Where the keep published the message.
+         */
+        const kept = await keepMessage({
+          watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'orphaned',
+          link: refusesEveryLink,
+        },);
+        await record.close();
+        expect(kept,).toBe(join(inbox, `.orphaned-${MESSAGE_NAME}`,),);
+        expect(await readFile(kept, 'utf8',),).toBe(MESSAGE_TEXT,);
+        expect(await entriesOf(inbox,),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+      },
+    },),
+    it({
+      name: 'a copy a killed pass left under the other kind of kept name cannot be told from this message, so it is published again',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox both names of the message stand in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        // The state a kill leaves on a filesystem without hard links: the kept name holds a copy of the message and the claim is
+        // still there. A copy is a file of its own, so no later pass can prove it is this message's.
+        await writeFile(join(inbox, `.failed-${MESSAGE_NAME}`,), MESSAGE_TEXT, { encoding: 'utf8', },);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        /**
+         Where the keep published the message.
+         */
+        const kept = await keepMessage({
+          watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'orphaned',
+          link: refusesEveryLink,
+        },);
+        await record.close();
+        // The documented limit of a copy: the message now stands under a second name, and both names hold the whole of it.
+        expect(kept,).toBe(join(inbox, `.orphaned-${MESSAGE_NAME}`,),);
+        expect(await entriesOf(inbox,),).toEqual([`.failed-${MESSAGE_NAME}`, `.orphaned-${MESSAGE_NAME}`,],);
+        expect(await readFile(kept, 'utf8',),).toBe(MESSAGE_TEXT,);
+        expect(await readFile(join(inbox, `.failed-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+      },
+    },),
+
+    it({
+      name: 'two kept names of one claimed message are settled to the first, and the claim is finished',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox both kept names stand in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        // What two passes that both linked the same claim before either settled leave: one message under two kept names.
+        await link(claim, join(inbox, `.failed-${MESSAGE_NAME}`,),);
+        await link(claim, join(inbox, `.orphaned-${MESSAGE_NAME}`,),);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        /**
+         Where the keep says the message stands.
+         */
+        const kept = await keepMessage({
+          watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'orphaned',
+        },);
+        await record.close();
+        // The first name in order is the publication, the later one is taken away, and the message is whole under one name.
+        expect(kept,).toBe(join(inbox, `.failed-${MESSAGE_NAME}`,),);
+        expect(await entriesOf(inbox,),).toEqual([`.failed-${MESSAGE_NAME}`,],);
+        expect(await readFile(kept, 'utf8',),).toBe(MESSAGE_TEXT,);
+      },
+    },),
+    it({
+      name: 'a keep that meets another pass publishing the claim under the other kind takes that name, and both fulfil',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox the publication stands in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        /**
+         Told when the first keep has linked and not yet settled.
+         */
+        const linked = Promise.withResolvers<void>();
+        /**
+         Told when the second keep may run.
+         */
+        const mayGoOn = Promise.withResolvers<void>();
+        /**
+         Where the first keep published the message, once the second one has run across its link.
+         */
+        const firstKeep = keepMessage({
+          watch: first.watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'failed',
+          link: async function holdsAfterLinking(existing, created,) {
+            await link(existing, created,);
+            linked.resolve();
+            await mayGoOn.promise;
+          },
+        },);
+        await linked.promise;
+        /**
+         Where the second keep published it, which is the first keep's own name.
+         */
+        const secondKept = await keepMessage({
+          watch: second.watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'orphaned',
+        },);
+        mayGoOn.resolve();
+        /**
+         What the first keep came to.
+         */
+        const [firstOutcome,] = await Promise.allSettled([firstKeep,],);
+        expect(firstOutcome.status,).toBe('fulfilled',);
+        expect(secondKept,).toBe(join(inbox, `.failed-${MESSAGE_NAME}`,),);
+        expect(await entriesOf(inbox,),).toEqual([`.failed-${MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.failed-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
       },
     },),
   ],
