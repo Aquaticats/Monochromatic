@@ -1099,3 +1099,49 @@ fn a_lease_a_filling_gives_back_is_not_taken_twice() {
     assert!(matches!(third, TheClaim::Taken), "and a filling that claims the name now is refused, so two fillings never hold it: {third:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  A pattern another command appends between this job's reading of the exclude file and its own write
+///  keeps its own line,
+///  and every staging pattern is a line of its own.
+/// Why:
+///   The reading decides which patterns are missing,
+/// and whether the batch needs a leading line end,
+/// and both decisions are stale by the time of the write:
+/// an unterminated pattern appended in the window would carry the first staging pattern onto its own line,
+/// so that pattern would not exist and the staging name would be ignored by nothing.
+/// The batch begins with a line end whatever was read, and it is one write,
+/// so the other writer's line ends where it ended and every staging pattern stands alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hook(() => appendFileSync(exclude, 'important-file')); expect(excludeTheStagingNames(gitDir)).toBeOk(); expect(everyPatternIsItsOwnLine()).toBe(true)
+/// ```
+#[test]
+fn a_pattern_another_writer_appends_between_the_read_and_the_write_keeps_both_lines_apart() {
+    let root: PathBuf = fixture("prewarm-exclude-append-race");
+    let git_dir: PathBuf = root.join("git-directory");
+    std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+    let exclude: PathBuf = git_dir.join("info/exclude");
+    std::fs::write(exclude.as_path(), b"node_modules/\n").expect("a person's own line");
+    let planted: PathBuf = exclude.clone();
+    super::AFTER_THE_EXCLUDE_IS_READ.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            // Another command's pattern, with no line end after it, exactly as a person's editor may leave it.
+            let mut appended: Vec<u8> = std::fs::read(planted.as_path()).expect("the exclude file");
+            appended.extend_from_slice(b"important-file");
+            std::fs::write(planted.as_path(), appended.as_slice()).expect("the other command's append");
+        }));
+    });
+    super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
+    super::AFTER_THE_EXCLUDE_IS_READ.with(|hook| { *hook.borrow_mut() = None; });
+    let raw: String = String::from_utf8_lossy(std::fs::read(exclude.as_path()).expect("the exclude file").as_slice()).into_owned();
+    let lines: Vec<&str> = raw.split('\n').collect();
+    assert!(lines.contains(&"important-file"), "the other command's pattern is a line of its own: {raw:?}");
+    for pattern in super::EXCLUDED_STAGING_PATTERNS {
+        let count: usize = lines.iter().filter(|line| return **line == pattern).count();
+        assert_eq!(count, 1, "{pattern} is a line of its own exactly once: {raw:?}");
+    }
+    assert!(!raw.contains("important-file*.monochromatic-prewarm/"), "nothing joins the other command's pattern and the first staging pattern: {raw:?}");
+    remove(root.as_path());
+}

@@ -767,8 +767,7 @@ fn lines_of_excluding(bytes: &[u8]) -> Vec<&[u8]> {
 ///
 /// # Errors
 ///
-/// An exclude file that is not a regular file, cannot be read or cannot be appended to,
-/// and a line end that has to be written before the patterns when the file does not end with one.
+/// An exclude file that is not a regular file, cannot be read or cannot be appended to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -799,14 +798,22 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
     if missing.is_empty() {
         return Ok(());
     }
+    #[cfg(test)]
+    AFTER_THE_EXCLUDE_IS_READ.with(|hook| {
+        if let Some(another) = hook.borrow().as_ref() {
+            another();
+        }
+    });
     if let Err(error) = std::fs::create_dir_all(info.as_path()) {
         return Err(format!("{} could not be made ({error})", info.display()));
     }
-    // A last line the file does not end with would otherwise carry the first pattern this job writes, so a line end comes first.
+    // The batch starts with a line end whatever the file ended with when it was read. A decision taken from that reading is stale
+    //  by the time of the write: another command can append an unterminated pattern after it, and a batch without a leading line
+    //  end then joins that pattern and the first of these into a line that is neither, so the staging name is ignored by nothing
+    //  and a copied build directory is stageable. Git reads a blank line as nothing, so the extra line end costs nothing when
+    //  nothing raced, and the whole batch is one `write`, so nothing can land inside it.
     let mut text: Vec<u8> = Vec::with_capacity(missing.iter().map(|pattern| return pattern.len() + 1).sum::<usize>() + 1);
-    if !already.is_empty() && !already.ends_with(b"\n") {
-        text.push(b'\n');
-    }
+    text.push(b'\n');
     for pattern in missing {
         text.extend_from_slice(pattern.as_bytes());
         text.push(b'\n');
@@ -830,6 +837,16 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("{} could not be appended to ({error})", exclude.display())),
     };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may append to the exclude file between this job's reading of it and its own write,
+    /// which is where another command's append lands.
+    /// Why:
+    ///   The window is two adjacent calls,
+    /// and a control that waited on a wall clock would pass whatever the code did.
+    pub(crate) static AFTER_THE_EXCLUDE_IS_READ: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:

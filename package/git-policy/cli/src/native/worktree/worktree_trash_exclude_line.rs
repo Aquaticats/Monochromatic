@@ -100,8 +100,9 @@ fn refusal_words(refusal: &ReadRefusal) -> String {
 /// Nothing else in the file is touched:
 /// the bytes the person
 ///  put there are kept exactly,
-/// and a file that does not end in a newline is closed with one so the added line
-///  is a line of its own.
+/// and the addition always begins with a line end,
+/// so the added line is a line of its own whatever another command appended after this one read the file
+/// (see the append below).
 /// A file that exists and cannot be read is a refusal rather than an append,
 /// because appending
 ///  to bytes nobody could read could write the line twice or in the middle of a pattern.
@@ -141,10 +142,19 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     if already_excluded(existing.as_slice()) {
         return Ok(false);
     }
-    let mut adding: Vec<u8> = Vec::new();
-    if !existing.is_empty() && !existing.ends_with(b"\n") {
-        adding.push(b'\n');
-    }
+    #[cfg(test)]
+    AFTER_THE_EXCLUDE_IS_READ.with(|hook| {
+        if let Some(another) = hook.borrow().as_ref() {
+            another();
+        }
+    });
+    // The addition starts with a line end whatever the file ended with when it was read. A decision taken from that reading is
+    //  stale by the time of the write: another command can append an unterminated pattern after it, and an addition without a
+    //  leading line end then joins that pattern and this one into a line that is neither, so Git ignores the trash by nothing
+    //  and a credential in it is stageable. Git reads a blank line as nothing, so the extra line end costs nothing when nothing
+    //  raced, and the whole addition is one `write`, so nothing can land inside it.
+    let mut adding: Vec<u8> = Vec::with_capacity(TRASH_EXCLUDE_LINE.len() + 2);
+    adding.push(b'\n');
     adding.extend_from_slice(TRASH_EXCLUDE_LINE.as_bytes());
     adding.push(b'\n');
     if let Some(parent) = path.parent()
@@ -219,6 +229,16 @@ fn is_a_line_end(byte: &u8) -> bool {
 /// ```
 fn is_the_wrappers_line(line: &[u8]) -> bool {
     return crate::exclude_line_as_git_reads_it::the_pattern_git_reads(line) == TRASH_EXCLUDE_LINE.as_bytes();
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may append to the exclude file between this step's reading of it and its own write,
+    /// which is where another command's append lands.
+    /// Why:
+    ///   The window is two adjacent calls,
+    /// and a control that waited on a wall clock would pass whatever the code did.
+    pub(crate) static AFTER_THE_EXCLUDE_IS_READ: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Exclude-line controls stay out of the release executable.

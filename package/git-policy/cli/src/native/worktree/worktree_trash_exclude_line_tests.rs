@@ -263,3 +263,62 @@ fn a_line_git_does_not_ignore_by_is_never_taken_for_the_wrappers_own() {
         remove(root.as_path());
     }
 }
+
+/// What:
+///  A pattern another command appends between this step's reading of the exclude file and its own write
+///  keeps its own line,
+///  and the wrapper's line keeps its own:
+///  Git ignores the trash by the wrapper's line and by nothing merged with the other command's.
+/// Why:
+///   The reading decides whether the addition needs a leading line end,
+/// and that decision is stale by the time of the write:
+/// an unterminated pattern appended in the window would carry the wrapper's line onto its own,
+/// so the other command's pattern would become another pattern and the wrapper's line would not exist,
+/// and a credential in the trash could then be staged.
+/// The addition begins with a line end whatever was read, and it is one write,
+/// so the other writer's line ends where it ended and the wrapper's line stands alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hook(() => appendFileSync(exclude, 'important-file')); expect(ensureTrashIsExcluded(gitDir)).toBe(true); expect(gitIgnoresTrash()).toBe(true)
+/// ```
+#[test]
+fn a_line_another_writer_appends_between_the_read_and_the_write_keeps_both_lines_apart() {
+    let root: PathBuf = fixture("trash-exclude-append-race");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    put(repo.as_path(), "tracked.txt", b"tracked\n");
+    put(repo.as_path(), ".git/info/exclude", b"node_modules/\n");
+    put(repo.as_path(), ".claude/cli-git-trash/credentials.txt", b"another command's token\n");
+    let exclude: PathBuf = repo.join(".git/info/exclude");
+    let planted: PathBuf = exclude.clone();
+    super::AFTER_THE_EXCLUDE_IS_READ.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            // Another command's pattern, with no line end after it, exactly as a person's editor may leave it.
+            let mut appended: Vec<u8> = std::fs::read(planted.as_path()).expect("the exclude file");
+            appended.extend_from_slice(b"important-file");
+            std::fs::write(planted.as_path(), appended.as_slice()).expect("the other command's append");
+        }));
+    });
+    let added: bool = ensure_trash_is_excluded(repo.join(".git").as_path()).expect("the line is written");
+    super::AFTER_THE_EXCLUDE_IS_READ.with(|hook| { *hook.borrow_mut() = None; });
+    assert!(added, "the wrapper's line is written");
+    let bytes: Vec<u8> = std::fs::read(exclude.as_path()).expect("the exclude file");
+    let lines: Vec<&[u8]> = bytes.split(|byte| return *byte == b'\n').collect();
+    assert!(lines.contains(&b"important-file".as_slice()), "the other command's pattern is a line of its own: {:?}", String::from_utf8_lossy(bytes.as_slice()));
+    assert!(lines.contains(&TRASH_EXCLUDE_LINE.as_bytes()), "and the wrapper's line is a line of its own: {:?}", String::from_utf8_lossy(bytes.as_slice()));
+    assert!(
+        !String::from_utf8_lossy(bytes.as_slice()).contains("important-file/.claude/cli-git-trash/"),
+        "nothing joins the other command's pattern and the wrapper's line: {:?}",
+        String::from_utf8_lossy(bytes.as_slice())
+    );
+    // The paragraph a merged line would defeat: Git ignores the trash by the wrapper's own line.
+    assert!(trash_location_is_ignored(&crate::test_support::git_context(), repo.as_path()), "Git ignores the trash by the wrapper's line");
+    // And a merged line would be repaired rather than taken for this line, so the recogniser is no part of the defect: it reads
+    //  the joined bytes as one pattern that is not the wrapper's, and the next call appends the wrapper's line again.
+    assert_ne!(
+        crate::exclude_line_as_git_reads_it::the_pattern_git_reads(b"important-file/.claude/cli-git-trash/\n"),
+        TRASH_EXCLUDE_LINE.as_bytes(),
+        "a joined line is not read as the wrapper's pattern"
+    );
+    remove(root.as_path());
+}
