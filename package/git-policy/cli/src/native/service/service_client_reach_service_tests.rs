@@ -27,8 +27,9 @@
 /// The client,
 /// its settings and the manager watch it asks.
 use super::*;
-/// How the client asks the manager about a unit.
-use crate::service_client_settings_and_watches::ManagerWatch;
+/// How the client asks the manager about a unit,
+/// and what its answers keep apart.
+use crate::service_client_settings_and_watches::{ManagerAnswer, ManagerWatch};
 /// The line a service greets with.
 use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service};
 use crate::service_server::Bind;
@@ -72,12 +73,16 @@ struct StandIn {
     /// Whether the thread of a stand-in service keeps accepting,
     /// which a control clears so no thread waits on a test that ended.
     keep_serving: bool,
+    /// Whether the manager cannot be asked at all,
+    /// which is what a bus this command cannot reach leaves;
+    /// it answers that instead of a state or a word that it holds no such unit.
+    unreachable: bool,
 }
 
 impl StandIn {
     /// A manager that holds nothing and answers nothing.
     const fn empty() -> Self {
-        return Self { socket: None, state: None, release: None, asked: Vec::new(), wedged: false, keep_serving: true };
+        return Self { socket: None, state: None, release: None, asked: Vec::new(), wedged: false, keep_serving: true, unreachable: false };
     }
 }
 
@@ -89,12 +94,24 @@ const SERVED_CONNECTIONS: u32 = 400;
 /// The one stand-in of this test process.
 static MANAGER: Mutex<StandIn> = Mutex::new(StandIn::empty());
 
-/// The `ActiveState` the client asks for,
-/// recorded and answered from the stand-in.
-fn stand_in_state(_bus: &Path, unit: &str) -> Option<String> {
+/// What:
+///  The `ActiveState` the client asks for,
+///  recorded and answered from the stand-in.
+/// Why:
+///  A stand-in with no state answers the way the manager answers for a unit it unloaded when its service stopped,
+///  `NoSuchUnit`,
+///  which says the unit can be started rather than that the manager cannot be asked;
+///  a control says so itself when it needs the other answer.
+fn stand_in_state(_bus: &Path, unit: &str) -> ManagerAnswer {
     let mut manager = MANAGER.lock().expect("lock");
-    let answer: Option<String> = manager.state.clone();
-    manager.asked.push(format!("state {unit} {}", answer.as_deref().unwrap_or("nothing")));
+    let held: Option<String> = manager.state.clone();
+    let answer: ManagerAnswer = match (&manager.unreachable, held.clone()) {
+        (true, _) => ManagerAnswer::Unreachable,
+        (false, Some(state)) => ManagerAnswer::State(state),
+        (false, None) => ManagerAnswer::NotHeld,
+    };
+    let recorded: String = held.unwrap_or_else(|| { return String::from("held-nothing"); });
+    manager.asked.push(format!("state {unit} {recorded}"));
     return answer;
 }
 
@@ -285,6 +302,111 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
     assert!(before_the_start <= 2, "{before_the_start} state answers came before the start request: {asked_of_the_manager:?}");
 }
 
+
+/// What:
+///  A unit the manager holds no such unit for is asked to start,
+///  so the service the start brings up is reached.
+/// Why:
+///   A service that stopped is unloaded by the manager,
+///   and `GetUnit` then answers `NoSuchUnit` for it rather than `inactive`
+///   (measured against this machine's manager with `gdbus call … Manager.GetUnit`, 2026-11-14:
+///   `Error: GDBus.Error:org.freedesktop.systemd1.NoSuchUnit: Unit … not loaded.`).
+///   The client read that answer as "the manager cannot be asked",
+///   so the start its own words promise ("the client's own wait starts the unit when it finds it inactive",
+///   `service_own_socket_of_a_retire_that_served_nothing.rs`) was never asked for:
+///   a service that retired before serving anything stops its own socket,
+///   and every merge's hand-off of that worktree then ended with "the commit service did not start"
+///   (`2026-11-14T20:51:03-05:00` and three later merges of one worktree).
+///   A start is what loads the unit again, so that answer is a reason to ask for one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reach(configWhoseManagerHoldsNothing)).toBeDefined(); expect(asked()).toContain('start ' + unit);
+/// ```
+#[test]
+fn a_unit_the_manager_holds_no_such_unit_for_is_asked_to_start() {
+    let socket: String = address("client-reach-held-nothing");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.socket = Some(socket.clone());
+        manager.state = None;
+        manager.unreachable = false;
+        manager.asked.clear();
+    }
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut announced: bool = false;
+    let reached = reach(
+        &config(socket.as_str(), unit.as_str(), socket_unit.as_str()),
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    );
+    let asked_of_the_manager: Vec<String> = asked();
+    let (reader, version, _release) = reached.unwrap_or_else(|failure| {
+        panic!("a unit the manager holds no such unit for must be started: {failure:?} after {asked_of_the_manager:?}")
+    });
+    assert_eq!(version, PROTOCOL_VERSION);
+    drop(reader);
+    assert!(
+        asked_of_the_manager.iter().any(|call| { return call == &format!("start {unit}"); }),
+        "the unit the manager holds no such unit for is asked to start: {asked_of_the_manager:?}"
+    );
+}
+
+/// What:
+///  A manager that cannot be asked at all gives no start and says so,
+///  in the wait's notice and in the failure's own facts.
+/// Why:
+///   "The commit service did not start" was printed where no start was ever asked for,
+///   and the notice said the manager "does not hold" the unit,
+///   which is the manager's answer about a unit rather than the silence of a manager nothing could reach.
+///   A reader needs the two apart: one is a service to start,
+///   the other a session whose service manager this command cannot reach,
+///   and the failure names the unit and the wait's own answer so a later record can tell them apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(failure).toEqual({ didNotStart: { answer: undefined, startAsked: false, unit } }); expect(notices).toContain('could not be asked');
+/// ```
+#[test]
+fn a_manager_that_cannot_be_asked_names_itself_and_asks_for_no_start() {
+    let socket: String = address("client-reach-cannot-be-asked");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.socket = Some(socket.clone());
+        manager.state = None;
+        manager.unreachable = true;
+        manager.asked.clear();
+    }
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    // Past the notice grace, so this control also reads the line the wait prints.
+    settings.start_wait = Duration::from_millis(1_200);
+    let mut announced: bool = false;
+    let mut notices: Vec<u8> = Vec::new();
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("nothing answers and no manager can start anything");
+    let asked_of_the_manager: Vec<String> = asked();
+    assert_eq!(failure, ClientFailure::DidNotStart { unit: Some(unit.clone()), answer: None, start_asked: false });
+    assert!(
+        !asked_of_the_manager.iter().any(|call| { return call.starts_with("start "); }),
+        "no start is asked for where nothing can be asked: {asked_of_the_manager:?}"
+    );
+    let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
+    assert!(said.contains("could not be asked about"), "the notice says the manager could not be asked: {said:?}");
+    assert!(!said.contains("holds no"), "and never that it holds no such unit: {said:?}");
+    let rendered: String = crate::service_messages::render(&failure);
+    assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
+    assert!(rendered.contains("could not be asked"), "and that the manager could not be asked: {rendered}");
+    let reason: String = match crate::service_handoff::not_handed_over(failure) {
+        ClientFailure::WorkNotHandedOver(reason) => reason,
+        other => panic!("work that was not handed over says so: {other:?}"),
+    };
+    assert!(reason.contains(unit.as_str()), "the record names the unit too: {reason}");
+}
 
 /// What:
 ///  A service of another release that will not retire ends the command,
@@ -755,7 +877,8 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
     };
     let mut announced: bool = false;
     let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing listens, so nothing is reached");
-    assert_eq!(failure, ClientFailure::DidNotStart);
+    // No manager can be asked here, so no unit was named to one and none answered.
+    assert_eq!(failure, ClientFailure::DidNotStart { unit: None, answer: None, start_asked: false });
 }
 
 

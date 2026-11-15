@@ -238,7 +238,7 @@ fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_answered() {
     let name: String = an_address("never-sent");
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("never-sent"), &mut std::io::sink())
         .expect_err("nothing listens at this address");
-    assert_eq!(failure, ClientFailure::DidNotStart, "nothing was sent, so nothing landed");
+    assert_eq!(failure, ClientFailure::DidNotStart { unit: None, answer: None, start_asked: false }, "nothing was sent, so nothing landed");
 }
 
 /// What:

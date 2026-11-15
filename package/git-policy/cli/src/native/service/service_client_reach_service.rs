@@ -14,7 +14,7 @@
 //! const reader = await reachCurrent(config, notices, announced, trace, serviceSeen);
 //! ```
 
-use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
+use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, ManagerAnswer, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
 use crate::commit_timing::ReachTrace;
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
 use crate::service_protocol::{
@@ -59,7 +59,9 @@ pub(crate) fn reach(
 ) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let mut started: Instant = Instant::now();
     let mut refused_here: bool = false;
-    let mut last_asked: Instant = started;
+    // Nothing has been asked of the manager yet: the first connection that finds nothing listening asks at once, because a unit
+    //  that stopped is unloaded and only a start loads it again (`ManagerAnswer`).
+    let mut last_asked: Option<Instant> = None;
     let mut failed_answers: u32 = 0;
     let mut cannot_ask: bool = false;
     let mut last_start_request: Option<Instant> = None;
@@ -116,25 +118,37 @@ pub(crate) fn reach(
             },
         }
         if let Some(watch) = config.start_watch.as_ref()
-            && last_asked.elapsed() >= watch.every
+            && last_asked.is_none_or(|at: Instant| { return at.elapsed() >= watch.every; })
         {
-            last_asked = Instant::now();
-            let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
-            last_state = answer.clone();
-            // What: A unit the manager answers `inactive` for is asked to start at once, then again after each start
-            //       wait while it stays inactive.
+            last_asked = Some(Instant::now());
+            let answer: ManagerAnswer = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
+            last_state = answer.state().map(String::from);
+            // What: A unit the manager answers `inactive` for, and one it holds no such unit for, is asked to start at
+            //       once, then again after each start wait while it stays that way.
             // Why:  The client's connection was refused, so nothing of this worktree listens and nothing is starting it: an
             //       `inactive` unit is the answer a person's `systemctl --user stop` leaves, and provisioning counts the
             //       socket file it kept as in place, so nothing else starts it. Waiting the start wait (ten seconds)
             //       before asking made that commit ten seconds slower than native Git
             //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 5). A unit that
             //       is `activating` is being started and is left alone.
+            //       A unit the manager holds no such unit for is the state of every stopped service: the manager unloads
+            //       it and `GetUnit` then answers `NoSuchUnit`, so a client that waited for `inactive` waited for an answer
+            //       the manager never gives, and the start that loads the unit was never asked for. Every merge's hand-off
+            //       of one worktree after its service retired and stopped its own socket then ended with "the commit service
+            //       did not start" on 2026-11-14T20:51-05:00, its socket off and its unit unloaded
+            //       (`service_own_socket_of_a_retire_that_served_nothing.rs`).
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // if (answer === 'inactive' && (lastStartRequest === undefined || lastStartRequest.elapsed() >= startWait)) { await start(unit); }
+            // if ((answer.state === 'inactive' || answer.notHeld) && (lastStartRequest === undefined || lastStartRequest.elapsed() >= startWait)) { await start(unit); }
             // ```
-            if answer.as_deref() == Some("inactive")
+            let asks_for_a_start: bool = match &answer {
+                // A unit the manager holds no such unit for is one that stopped and was unloaded: the start loads it again.
+                ManagerAnswer::NotHeld => true,
+                ManagerAnswer::State(state) => state == "inactive",
+                ManagerAnswer::Unreachable => false,
+            };
+            if asks_for_a_start
                 && match last_start_request {
                     Some(at) => at.elapsed() >= config.start_wait,
                     None => true,
@@ -143,7 +157,7 @@ pub(crate) fn reach(
                 let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
                 last_start_request = Some(Instant::now());
             }
-            cannot_ask = answer.is_none();
+            cannot_ask = answer == ManagerAnswer::Unreachable;
             // What: A unit the manager calls `failed` is asked to be reset and started, once, and the wait goes on.
             // Why:  Provisioning finds the unit text current and the socket file there (systemd keeps it) and so
             //       leaves the failed state alone, and a unit in that state never comes back by itself; the
@@ -156,7 +170,7 @@ pub(crate) fn reach(
             // ```ts
             // if (answer === 'failed' && repairs++ === 0) { await reset(unit); await start(unit); failedAnswers = 0; }
             // ```
-            if answer.as_deref() == Some("failed") && repairs == 0 {
+            if answer.state() == Some("failed") && repairs == 0 {
                 repairs += 1;
                 // The service unit requires the socket unit, so one start covers both and both states are forgotten.
                 let _forgotten = (watch.reset)(watch.bus.as_path(), watch.unit.as_str());
@@ -165,7 +179,7 @@ pub(crate) fn reach(
                 last_start_request = Some(Instant::now());
                 failed_answers = 0;
             }
-            failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
+            failed_answers = if answer.state() == Some("failed") { failed_answers + 1 } else { 0 };
         }
         // What: The wait says what it waits for and on whom, once it has lasted long enough to matter.
         // Why:  A commit with a service that answers nothing printed nothing for ten seconds and then named a cause that was
@@ -183,7 +197,8 @@ pub(crate) fn reach(
             let who: String = match (&config.start_watch, last_state.as_deref()) {
                 (None, _) => String::from("and no service manager can be asked to start it"),
                 (Some(watch), Some(state)) => format!("the service manager says {} is {state}", watch.unit),
-                (Some(watch), None) => format!("and the service manager does not hold {}", watch.unit),
+                (Some(watch), None) if cannot_ask => format!("and the service manager could not be asked about {}", watch.unit),
+                (Some(watch), None) => format!("and the service manager holds no {}, so it was asked to start it", watch.unit),
             };
             let _written = writeln!(notices, "{}", starting_notice(address.as_str(), who.as_str()));
         }
@@ -222,8 +237,15 @@ pub(crate) fn reach(
             // One answer of "failed" can be the unit's last run, before the connection made the manager start it again. A start the
             //  manager reports as under way is waited for until the start ceiling and no longer (owner, 2026-11-03: "nothing
             //  should ever wait forever or indefinitely").
-            Some(_) if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling => {
-                return Err(ClientFailure::DidNotStart);
+            //  The failure carries which unit the manager was asked about and what it last said, because "the commit service did
+            //  not start" alone said nothing about the wait that ended: a start that was never asked for leaves the service's own
+            //  log empty, and that is what left the merges of 2026-11-14T20:51-05:00 unexplained.
+            Some(watch) if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling => {
+                return Err(ClientFailure::DidNotStart {
+                    unit: Some(watch.unit.clone()),
+                    answer: last_state.clone(),
+                    start_asked: last_start_request.is_some(),
+                });
             }
             Some(_) => {}
             // Without a manager to ask, nothing can start the service: what the wait comes to is the truth about the address.
@@ -277,7 +299,8 @@ fn greeting_patience_without_a_manager(config: &ClientConfig, started: Instant) 
 /// ```
 fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) -> ClientFailure {
     if !connected {
-        return ClientFailure::DidNotStart;
+        // No manager can be asked here (`start_watch` is absent), so no unit was named to anyone and none answered.
+        return ClientFailure::DidNotStart { unit: None, answer: None, start_asked: false };
     }
     return ClientFailure::NothingAnswered { address: crate::service_server::address_text(&config.address), waited };
 }

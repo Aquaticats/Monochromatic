@@ -24,7 +24,7 @@
 
 use git_policy_cli::commit_timing::SubmitTrace;
 use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
-use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
+use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerAnswer, ManagerWatch, Submitted, submit, submit_traced};
 use git_policy_cli::service_messages::{ClientFailure, position_notice, silent_notice};
 
 /// The words a commit the service named no place for is told,
@@ -460,7 +460,7 @@ static MANAGER_SAYS_INACTIVE: AtomicBool = AtomicBool::new(false);
 static START_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
 /// The fake manager's answer.
-fn fake_manager(_bus: &Path, _unit: &str) -> Option<String> {
+fn fake_manager(_bus: &Path, _unit: &str) -> ManagerAnswer {
     let word: &str = if MANAGER_SAYS_FAILED.load(Ordering::SeqCst) {
         "failed"
     } else if MANAGER_SAYS_INACTIVE.load(Ordering::SeqCst) {
@@ -468,7 +468,7 @@ fn fake_manager(_bus: &Path, _unit: &str) -> Option<String> {
     } else {
         "activating"
     };
-    return Some(String::from(word));
+    return ManagerAnswer::State(String::from(word));
 }
 
 /// The fake manager takes a request to start the unit and counts it.
@@ -532,7 +532,7 @@ fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_fai
     assert!(!waiting.is_finished(), "the wait ended on a clock although the manager had not said the start failed");
     MANAGER_SAYS_FAILED.store(true, Ordering::SeqCst);
     let (answered, _notices) = waiting.join().expect("client thread");
-    assert_eq!(answered, Err(ClientFailure::DidNotStart));
+    assert!(matches!(answered, Err(ClientFailure::DidNotStart { .. })), "the manager said the start failed twice: {answered:?}");
     MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
     drop(UnixStream::connect_addr(&SocketAddr::from_abstract_name(name.as_bytes()).expect("name")));
     drop(held);
@@ -600,15 +600,18 @@ fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
 #[test]
 fn a_manager_that_cannot_be_asked_leaves_the_wait_to_the_start_wait() {
     let name: String = address("unaskable");
-    fn unreachable_manager(_bus: &Path, _unit: &str) -> Option<String> {
-        return None;
+    fn unreachable_manager(_bus: &Path, _unit: &str) -> ManagerAnswer {
+        return ManagerAnswer::Unreachable;
     }
     let mut unaskable: ClientConfig = watched(name.as_str());
     unaskable.start_watch = unaskable.start_watch.map(|watch| { return ManagerWatch { state: unreachable_manager, ..watch }; });
     let service: UnixListener = listen(name.as_str());
     let held = std::thread::spawn(move || { return service.accept().map(|(stream, _)| { return stream; }); });
     let (answered, _notices) = client(unaskable).join().expect("client thread");
-    assert_eq!(answered, Err(ClientFailure::DidNotStart));
+    assert!(
+        matches!(answered, Err(ClientFailure::DidNotStart { answer: None, start_asked: false, .. })),
+        "a manager that could not be asked is not a start that was refused: {answered:?}"
+    );
     drop(UnixStream::connect_addr(&SocketAddr::from_abstract_name(name.as_bytes()).expect("name")));
     drop(held);
 }
@@ -782,7 +785,7 @@ fn a_start_that_never_finishes_ends_at_the_start_ceiling() {
     let _service: UnixListener = listen(name.as_str());
     let config: ClientConfig = ClientConfig { start_ceiling: SHORT_CEILING, ..watched(name.as_str()) };
     let (answered, _notices) = client_within_patience(config).expect("the client ended at the start ceiling");
-    assert_eq!(answered, Err(ClientFailure::DidNotStart));
+    assert!(matches!(answered, Err(ClientFailure::DidNotStart { .. })), "the ceiling ended the wait: {answered:?}");
 }
 
 /// A fake service for the late-notice control:

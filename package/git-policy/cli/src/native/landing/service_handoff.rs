@@ -343,15 +343,26 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
 /// ```ts
 /// const handed = (failure) => ({ kind: 'work-not-handed-over', reason: reasonOf(failure) });
 /// ```
-fn not_handed_over(failure: ClientFailure) -> ClientFailure {
+pub(crate) fn not_handed_over(failure: ClientFailure) -> ClientFailure {
+    // What: A start that was never asked for is the one failure whose own words cannot be the whole reason.
+    // Why:  "The commit service did not start" left the merges of 2026-11-14T20:51:03-05:00 and 2026-11-14T20:58:58-05:00
+    //       with nothing to read: the service's log holds nothing when nothing asked for a start, so the record now carries
+    //       which unit the wait asked the manager about and what that manager last answered.
+    if let ClientFailure::DidNotStart { unit, answer, start_asked } = &failure {
+        return ClientFailure::WorkNotHandedOver(format!(
+            "the commit service did not start: {}",
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::the_start_that_did_not_come(unit.as_deref(), answer.as_deref(), *start_asked)
+        ));
+    }
     let reason: &str = match &failure {
         ClientFailure::NoActivation(_) => "this account cannot start the commit service on demand",
         ClientFailure::ManagerDidNotAnswer { .. } => "the user service manager did not answer within the time one exchange is given",
         ClientFailure::ServiceSilent => "the commit service stopped answering",
-        ClientFailure::DidNotStart => "the commit service did not start",
         ClientFailure::NoCommonVersion => "the commit service that is running was started from a newer release of this git wrapper",
         ClientFailure::OtherRelease => "a commit service started from another release of this git wrapper is still running",
         ClientFailure::ProgramMissing(_) | ClientFailure::CouldNotStart(_) | ClientFailure::UnitInTheWay(_) | ClientFailure::Unavailable => "the commit service could not be reached",
+        // The variant this arm used to hold is answered above, with the wait's own facts.
+        ClientFailure::DidNotStart { .. } => "the commit service did not start",
         _ => "the commit service could not be told about it",
     };
     return ClientFailure::WorkNotHandedOver(String::from(reason));

@@ -124,8 +124,19 @@ pub enum Platform {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientFailure {
-    /// The service was started and did not come up.
-    DidNotStart,
+    /// The wait for the commit service ended with nothing greeting it,
+    /// and what it learned about the service manager's own answer is what says why:
+    /// a start that was never asked for leaves the service's log empty.
+    DidNotStart {
+        /// The unit this command asked the service manager about,
+        /// or nothing where no manager can be asked to start a service at all.
+        unit: Option<String>,
+        /// What the service manager last answered about that unit,
+        /// or nothing where it gave no answer.
+        answer: Option<String>,
+        /// Whether the manager was asked to start that unit during this wait.
+        start_asked: bool,
+    },
     /// Something accepted the connection at the service's address and nothing answered;
     /// no service manager could be asked to start or restart it.
     NothingAnswered {
@@ -322,9 +333,10 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::DidNotStart => format!(
-            "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
-             Run the commit again after fixing that. {NOTHING_CHANGED}"
+        ClientFailure::DidNotStart { unit, answer, start_asked } => format!(
+            "The commit service did not start, so this commit was not made: {}. Its log shows why: `{LOG_COMMAND}`. \
+             Run the commit again after fixing that. {NOTHING_CHANGED}",
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::the_start_that_did_not_come(unit.as_deref(), answer.as_deref(), *start_asked)
         ),
         ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
         ClientFailure::NoActivation(platform) => format!(
