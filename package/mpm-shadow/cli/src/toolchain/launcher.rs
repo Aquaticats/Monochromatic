@@ -231,6 +231,95 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
     return Ok(launcher);
 }
 
+/// The file name of the claim that orders making a launcher and its links against retiring that launcher.
+/// One claim covers one launcher folder, not one name: the folder is the smallest thing a single file can carry, and the
+/// section is one launcher's placement, its record and one link, so an install beside this one waits only for the
+/// names it is changing, never for the whole link pass.
+const LAUNCHER_CLAIM_NAME: &str = ".launcher-names.claim";
+
+/// How long a sequence waits for that claim before it leaves the name to the next install.
+/// The section is a placement, a record write and one link (a few hundred bytes, or one copy of a 5.6 MB program when
+/// the launcher is new), so this bound has more than a thousandfold slack.
+/// A sequence that gives up leaves one name unlinked or one launcher unretired, which the next install does, and never
+/// fails the command: an install that fails also fails the commit waiting for it.
+pub(crate) const LAUNCHER_CLAIM_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The pause between two attempts at the claim.
+const LAUNCHER_CLAIM_POLL: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// What:
+/// The claim on a launcher folder's names, held for as long as the value lives.
+/// Why:
+/// A launcher is needed by an install whose lock declares it and by every link that reaches it.
+/// Placing a launcher, writing its record and making a link to it are three steps,
+/// and scanning for links, taking the launcher aside and taking its record aside are three more:
+/// without one claim on the folder, a retirement can come between the placing and the linking and leave the link
+/// pointing at nothing, which the eighth review reproduced.
+/// The claim is the OS lock of a file in the folder, so a run killed inside the section releases it and the next run
+/// takes it, and no stale claim has to be recognised.
+pub(crate) struct LauncherClaim {
+    /// The open claim file, whose lock is the claim.
+    _file: fs::File,
+}
+
+/// What:
+/// Takes the claim on `scope`'s launcher folder, waiting no longer than `LAUNCHER_CLAIM_WAIT`,
+/// or `None` when another command holds it for that long.
+/// Why:
+/// A caller that cannot take it leaves the name it was about to change to the next install and says so;
+/// failing instead would fail an install, and the commit running it, for the one thing that is already late.
+pub(crate) fn claim_launcher_names(scope: &Scope) -> Result<Option<LauncherClaim>, ToolchainError> {
+    return claim_launcher_names_within(scope, LAUNCHER_CLAIM_WAIT);
+}
+
+/// What:
+/// `claim_launcher_names` waiting `wait` instead of `LAUNCHER_CLAIM_WAIT`.
+/// Why:
+/// One loop serves the tool and the controls, which run a second install's step inside a first one's removal and must
+/// not spend the shipped bound waiting for the claim the first one holds.
+pub(crate) fn claim_launcher_names_within(
+    scope: &Scope,
+    wait: std::time::Duration,
+) -> Result<Option<LauncherClaim>, ToolchainError> {
+    if let Err(error) = fs::create_dir_all(&scope.launcher_dir) {
+        return Err(ToolchainError::failure(format!("cannot create {}: {error}", scope.launcher_dir.display())));
+    }
+    let path: PathBuf = scope.launcher_dir.join(LAUNCHER_CLAIM_NAME);
+    let file: fs::File = create_lock_file(&path).map_err(ToolchainError::failure)?;
+    let deadline: std::time::Instant = std::time::Instant::now() + wait;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(Some(LauncherClaim { _file: file })),
+            Err(std::fs::TryLockError::WouldBlock) => {
+                if std::time::Instant::now() >= deadline {
+                    return Ok(None);
+                }
+                std::thread::sleep(LAUNCHER_CLAIM_POLL);
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(ToolchainError::failure(format!("cannot test {}: {error}", path.display())));
+            }
+        }
+    }
+}
+
+/// What:
+/// Whether everything this install would make for the bin `name` already stands there:
+/// the launcher is the program found for it, and its record says what this run would write.
+/// Why:
+/// A sequence that would change nothing needs no claim and makes no write,
+/// which is what keeps an install with nothing to do as cheap as it was;
+/// a launcher that is gone makes this false, so a dangling farm link does not keep a missing launcher missing.
+pub(crate) fn launcher_is_current(scope: &Scope, tool_id: &str, name: &str, real: &Path) -> bool {
+    let launcher: PathBuf = scope.launcher_dir.join(name);
+    if !is_same_file(real, &launcher) {
+        return false;
+    }
+    let record: LaunchRecord =
+        LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
+    return the_record_at(&record_path(&launcher)).ok().flatten().as_deref() == Some(render_record(&record).as_str());
+}
+
 /// The file name of the lock that makes one folder's record writes one critical section.
 /// One lock covers one folder's records:
 /// that is the smallest unit a single lock file can name,

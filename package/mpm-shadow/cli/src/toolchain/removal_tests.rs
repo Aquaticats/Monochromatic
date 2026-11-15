@@ -253,3 +253,36 @@ fn an_edit_in_place_whose_writer_put_the_modification_time_back_is_not_removed()
 }
 
 //endregion
+
+//region The eighth review: an edit through a descriptor that was opened before the move
+// The writer is placed by the caller's last question (`may_remove`), which is the instruction the eighth review used:
+// the removal's last judgement comes after it, so an edit made there is seen and put back. A write after that judgement
+// is the limit the module doc states, which no order of steps closes.
+
+#[test]
+fn an_edit_through_an_open_descriptor_before_the_last_judgement_is_put_back() {
+    /// Imports `Write` from `std::io`,
+    /// for the descriptor the move does not disturb.
+    use std::io::Write;
+    let directory = scratch();
+    let path: PathBuf = directory.path().join("entry");
+    fs::write(&path, "original bytes").expect("write the judged entry");
+    let writer: fs::File = fs::OpenOptions::new().write(true).open(&path).expect("keep a writer open");
+    let judged = judged_of(&path).expect("judge the entry");
+
+    let outcome = super::removal::remove_if_still(&path, judged, &|| {
+        // `Write` is implemented for `&File`, so the shared borrow the question's signature allows still writes.
+        let mut through: &fs::File = &writer;
+        through.write_all(b"an edit through the descriptor the move did not disturb").expect("write through the open descriptor");
+        through.sync_all().expect("flush the edit");
+        return true;
+    });
+
+    assert_eq!(outcome.expect("the removal runs"), Removal::Replaced, "the edit is not the entry that was judged");
+    assert_eq!(
+        fs::read_to_string(&path).expect("the edit survives at the visible name"),
+        "an edit through the descriptor the move did not disturb"
+    );
+}
+
+//endregion

@@ -84,6 +84,51 @@
 //! and the hidden name a person's file is kept at is named in the sentence that reports it,
 //! together with the command that moves it back.
 //!
+//! What:
+//! A removal is safe when nothing can make the removed thing needed between the proof and the removal.
+//! Why:
+//! Eight reviews each found the next pair of steps that another command can come between,
+//! so what decides the shape is not the steps but the answer to who needs the thing and what keeps that party out.
+//! What each thing this tool removes is needed by, and what stands between that party and the removal:
+//!
+//! - **A launcher, `<launcher folder>/<name>`.**
+//!   Needed by an install whose lock declares that name, which places it, writes its record and links it
+//!   (`exposure::rebuild_exposure`, and the postinstall link that names it),
+//!   and by any link that reaches it (the farm, a tool's `-bin` folder, the scope's link folder).
+//!   What stands between them and the removal:
+//!   the claim on that launcher folder's names (`launcher::claim_launcher_names`),
+//!   which every sequence that makes a launcher or a link to one holds across placing, recording and linking,
+//!   and which the retirement holds across scanning for links, asking the lock on disk,
+//!   taking the launcher aside and then taking its record aside.
+//!   A sequence that cannot take the claim within its stated bound leaves the name to the next install and says so;
+//!   a retirement that cannot take it leaves the launcher and says so.
+//!   A file a person puts at the name is kept by the move-aside and the comparison above.
+//! - **A launcher's record, `<name>.launch`.**
+//!   Needed by the launcher it describes, which a retirement may remove only while the record proves it,
+//!   and by the install that writes it.
+//!   What stands between: the same claim, under which an install places the program before it writes the record;
+//!   and, for two installs writing one record, the folder's record lock, which asks the lock on disk whose name the
+//!   bin is (`launcher::write_the_record_the_lock_asks_for`).
+//! - **A hidden name a killed run left, `.⟨name⟩.⟨pid⟩.⟨n⟩.retired`.**
+//!   Needed by the visible entry it is a second name of, and by a person's file arriving at that hidden name.
+//!   What stands between: the same move-aside and comparison every other removal uses (`remove_second_name`),
+//!   so the hidden name is unlinked only when the entry taken out of it is the entry the visible name still is.
+//! - **An entry of the postinstall record.**
+//!   Needed by the link on disk it names, which no folder scan would find once the declaration is gone.
+//!   What stands between: the record's completeness.
+//!   A record with an entry this tool cannot read is a record whose set of links is unknown,
+//!   so nothing is retired on the strength of it (`postinstall_links::record_is_readable`).
+//!
+//! The limit no order of these steps closes:
+//! a process that already holds a descriptor to an entry can write through it after the last look anyone takes,
+//! the unlink included.
+//! The removal judges the entry it moved aside, and after the caller's last question judges the entry in hand once
+//! more, which is the narrowest window this program can have: the only instruction between that judgement and the
+//! unlink is the unlink itself.
+//! Content written through an already-open descriptor after that judgement is removed with the entry;
+//! a removal cannot know it happened,
+//! and no file system offers an unlink that proves the content at the same instruction.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // removal.ts
@@ -246,6 +291,9 @@ pub(crate) fn judged_of_open_entry(file: &fs::File) -> Result<Judged, String> {
     let mut buffer: Vec<u8> = vec![0; 64 * 1024];
     let mut offset: u64 = 0;
     loop {
+        if offset > super::ordinary_file::MAX_ORDINARY_BYTES {
+            return Err(super::ordinary_file::larger_than_read(Path::new("the open entry"), super::ordinary_file::MAX_ORDINARY_BYTES));
+        }
         let filled: usize = match file.read_at(&mut buffer, offset) {
             Ok(0) => break,
             Ok(filled) => filled,
@@ -346,29 +394,6 @@ fn move_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
 /// the first leaves every entry where it is, and the sentence has to say so.
 fn no_such_operation(error: &std::io::Error) -> bool {
     return matches!(error.kind(), std::io::ErrorKind::Unsupported | std::io::ErrorKind::InvalidInput);
-}
-
-/// What:
-/// Whether two names are names of one entry (the same device and inode).
-/// Why:
-/// A run killed between a hard link and the removal of the other name left one entry under two names,
-/// as have older versions of this tool that moved entries aside with a link and an unlink;
-/// the repair pass tells that state from a name something newer took by asking this.
-#[cfg(unix)]
-pub(crate) fn same_entry(first: &Path, second: &Path) -> bool {
-    /// Imports `MetadataExt` from `std::os::unix::fs`.
-    use std::os::unix::fs::MetadataExt;
-    return match (fs::symlink_metadata(first), fs::symlink_metadata(second)) {
-        (Ok(one), Ok(two)) => one.dev() == two.dev() && one.ino() == two.ino(),
-        _ => false,
-    };
-}
-
-/// Whether two names are names of one entry, on a platform that cannot say;
-/// `false` keeps both, which is the side that removes nothing.
-#[cfg(not(unix))]
-pub(crate) fn same_entry(_first: &Path, _second: &Path) -> bool {
-    return false;
 }
 
 /// What:
@@ -519,10 +544,39 @@ pub(crate) fn remove_if_still(path: &Path, judged: Judged, may_remove: &dyn Fn()
             Err(reason) => Err(reason),
         };
     }
+    // The judgement that decides this unlink is the one just made, and the next instruction is the unlink.
+    // Content a process writes through a descriptor it opened earlier can still arrive after it (see the limit at the
+    // top of this module), and nothing else can come between.
+    let now: Option<Judged> = judged_of(&temporary).ok();
+    if !now.is_some_and(|current| return is_the_judged_entry(&current, &judged)) {
+        return match put_back(path, &temporary) {
+            Ok(()) => Ok(Removal::Replaced),
+            Err(reason) => Err(reason),
+        };
+    }
     return match drop_aside(&temporary) {
         Ok(()) => Ok(Removal::Retired),
         Err(reason) => Err(reason),
     };
+}
+
+/// What:
+/// Removes the hidden name `hidden` when the entry standing there is the entry at `target`,
+/// and puts it back when it is not.
+/// Why:
+/// This is the repair pass's duplicate: one entry a killed run left under two names.
+/// Asking whether the two names are one entry and then unlinking `hidden` are two instructions,
+/// and a file another command renames onto `hidden` between them would be deleted.
+/// So the entry is taken out of `hidden` with one no-replace move first and judged there,
+/// the same steps as every other removal, and the unlink then acts on a name this call made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removeSecondName(target: string, hidden: string): Removal  // throws
+/// ```
+pub(crate) fn remove_second_name(target: &Path, hidden: &Path) -> Result<Removal, String> {
+    let judged: Judged = judged_of(target)?;
+    return remove_if_still(hidden, judged, &|| return true);
 }
 
 /// What:

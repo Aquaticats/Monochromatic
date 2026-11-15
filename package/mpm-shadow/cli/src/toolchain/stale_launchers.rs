@@ -67,7 +67,7 @@ use super::context::Context;
 /// Imports `link_directory` from `super::exposure`.
 use super::exposure::link_directory;
 /// Imports what this module uses from `super::launcher`.
-use super::launcher::{RECORD_SUFFIX, launcher_names_of, parse_record, record_path};
+use super::launcher::{LauncherClaim, RECORD_SUFFIX, claim_launcher_names, launcher_names_of, parse_record, record_path};
 /// Imports what this module uses from `super::launcher_source`.
 use super::launcher_source::{launcher_source, newest_installed_shadow, program_name, running_program};
 /// Imports what this module uses from `super::lock`.
@@ -81,7 +81,7 @@ use super::util::process_is_gone;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 /// Imports what this module uses from `super::removal`.
-use super::removal::{Judged, Removal, judged_of, judged_of_open, judged_of_open_entry, maker_of_retired, put_back, remove_if_still, retired_from, same_entry};
+use super::removal::{Judged, Removal, judged_of, judged_of_open, judged_of_open_entry, maker_of_retired, put_back, remove_if_still, remove_second_name, retired_from};
 /// Imports the one way this tool opens a file it did not just create.
 use super::ordinary_file::{open_ordinary, open_ordinary_through_links};
 
@@ -905,6 +905,25 @@ fn retire_launchers(
                 continue;
             }
         };
+        // What can make this launcher needed again is an install's placement of this name or a link to it,
+        // and both are made under the launcher folder's claim: the scan for links, the lock question, the launcher and
+        // its record happen under one hold of it, so no link can be made between the scan and the removal.
+        let _claim: LauncherClaim = match claim_launcher_names(ctx.scope) {
+            Ok(Some(claim)) => claim,
+            Ok(None) => {
+                notices.warnings.push(format!(
+                    "left {} alone: its name is nowhere in this lock and its bytes are mpm-shadow's own, but another \
+                     mpm-shadow holds the claim on this launcher folder's names, so this pass cannot tell whether a link \
+                     to it is being made right now",
+                    launcher.display()
+                ));
+                continue;
+            }
+            Err(error) => {
+                notices.warnings.push(format!("left {} alone: {error_message}", launcher.display(), error_message = error.message));
+                return;
+            }
+        };
         let reaching: Vec<PathBuf> = links_reaching(ctx, &launcher);
         if !reaching.is_empty() {
             notices.warnings.push(format!(
@@ -1005,6 +1024,26 @@ fn retire_records_without_launchers(
             continue;
         }
         let launcher: PathBuf = record.with_file_name(launcher_name);
+        // A record is needed by the launcher it describes, and an install places that launcher and writes its record
+        // under the launcher folder's claim: the look at the launcher and the removal of the record happen under the
+        // same hold, so a launcher placed in between is seen.
+        let _claim: LauncherClaim = match claim_launcher_names(ctx.scope) {
+            Ok(Some(claim)) => claim,
+            Ok(None) => {
+                notices.warnings.push(format!(
+                    "left {} alone: its launcher is gone and its name is nowhere in this lock, but another mpm-shadow \
+                     holds the claim on this launcher folder's names",
+                    record.display()
+                ));
+                continue;
+            }
+            Err(error) => {
+                notices
+                    .warnings
+                    .push(format!("left {} alone: {error_message}", record.display(), error_message = error.message));
+                return;
+            }
+        };
         if fs::symlink_metadata(&launcher).is_ok() {
             // Its launcher stands beside it, so the pass above judged the pair.
             continue;
@@ -1246,31 +1285,33 @@ pub(super) fn repair_what_a_kill_left(ctx: &Context, notices: &mut LauncherNotic
                 )),
                 // One entry can stand under two names: a run killed between a hard link and the removal of the other
                 // name left it, and every version of this tool before the one that moves entries with one no-replace
-                // rename did the same on every removal it was killed in. The two names are one entry, so there is
-                // nothing to put back and no file to keep: the hidden name goes, and nothing a person made is lost.
+                // rename did the same on every removal it was killed in.
+                // The duplicate goes through the same removal every other unlink uses, so the file unlinked is the file
+                // taken out of the hidden name and judged there, never a file another command put at that name.
                 // Another pass may have repaired this hidden name between the two instructions above: then there is
                 // nothing here to report.
                 Err(_) if fs::symlink_metadata(&hidden).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound) => {}
-                Err(_) if same_entry(&target, &hidden) => {
-                    match fs::remove_file(&hidden) {
-                        Ok(()) => notices.warnings.push(format!(
-                            "removed {}, a second name of the entry that already stands at {} after a run was killed between \
-                             moving it aside and removing it",
-                            hidden.display(),
-                            target.display()
-                        )),
-                        Err(error) => notices.warnings.push(format!(
-                            "left {} alone: it is a second name of the entry that stands at {}, and it cannot be removed: {error}",
-                            hidden.display(),
-                            target.display()
-                        )),
-                    }
-                }
-                Err(reason) => notices.warnings.push(format!(
-                    "left {} alone: it holds what a killed run moved aside from {}, and {reason}",
-                    hidden.display(),
-                    target.display()
-                )),
+                Err(_) => match remove_second_name(&target, &hidden) {
+                    Ok(Removal::Retired) => notices.warnings.push(format!(
+                        "removed {}, a second name of the entry that already stands at {} after a run was killed between \
+                         moving it aside and removing it",
+                        hidden.display(),
+                        target.display()
+                    )),
+                    Ok(Removal::Gone) => {}
+                    Ok(Removal::Kept) => {}
+                    Ok(Removal::Replaced) => notices.warnings.push(format!(
+                        "left {} alone: it is not the entry that stands at {} any more, so it was moved aside, judged and \
+                         put back",
+                        hidden.display(),
+                        target.display()
+                    )),
+                    Err(reason) => notices.warnings.push(format!(
+                        "left {} alone: it may be a second name of the entry that stands at {}, and {reason}",
+                        hidden.display(),
+                        target.display()
+                    )),
+                },
             }
         }
     }

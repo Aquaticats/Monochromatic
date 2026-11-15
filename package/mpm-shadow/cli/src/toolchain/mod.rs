@@ -427,6 +427,14 @@ mod stale_launchers_tests;
 #[cfg(all(test, unix))]
 mod removal_tests;
 
+/// The unit tests of reading a file this tool did not just create.
+#[cfg(all(test, unix))]
+mod ordinary_file_tests;
+
+/// The unit tests of publishing the plan and the lock under a held scope guard.
+#[cfg(test)]
+mod publish_tests;
+
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
 mod prune_cargo_tests;

@@ -35,7 +35,7 @@ use super::error::ToolchainError;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
 /// Imports the one way this tool opens or creates a file it did not just make.
-use super::ordinary_file::{create_lock_file, read_ordinary_text, read_ordinary_through_links};
+use super::ordinary_file::{create_lock_file, read_ordinary_through_links};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports the shared named helpers.
@@ -107,14 +107,19 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 }
 
 /// What:
-/// How long a command waits for the scope's lock before it goes on without it, or refuses.
+/// How long a publish waits for the scope's guard before it does its compare and its write without it.
 /// Why:
 /// Nothing waits forever, so a holder that is stopped or hung must not stop another command.
-/// The lock covers one checkout's link and launcher writes: the whole `install` measured on this machine takes about
-/// 60 ms on a checkout with 174 declared bins (README, "The launcher"), and the one member of the held region that can take
-/// long is the bounded check of the repository's link, which waits at most `repository_link_cause::CHECK_DEADLINE`
-/// (10 s). The bound is smaller than that check's own bound on purpose: a waiter that gives up only loses this run's
-/// retirement of the names the lock declares nowhere, which the next install does, and never any data.
+/// The guard covers exactly one region, and this is where its reason lives:
+/// the read of the plan's and the lock's revisions, the comparison of them with the ones the caller read, and the
+/// atomic write, so that two commands publishing the plan or the lock do not both pass the comparison and lose the
+/// other's entry, and so that the plan and the lock do not move between each other's publishes.
+/// What it buys is that window, and nothing else: the comparison and the atomic write are what refuse to publish over
+/// a file that moved, and the guard only keeps them from racing. So a publish that cannot take it inside this bound
+/// does the same comparison and the same write without it, at the cost of the race between two publishes (a lock
+/// resolution one link would redo, or a plan entry whose command reports that the plan moved), and never a failure:
+/// a failure would take the install, and the commit waiting for it, down for the one thing that is already late.
+/// The region is a read and a write of a few hundred kilobytes at most, so this bound has a hundredfold slack.
 pub const GUARD_WAIT: Duration = Duration::from_secs(5);
 
 /// The pause between two attempts at the lock.
@@ -206,26 +211,6 @@ pub fn acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
     }
 }
 
-/// What:
-/// Who holds the scope's lock,
-/// as far as the guard file says.
-/// Why:
-/// A command that could not take the lock says so in words,
-/// and the holder's note is what can name it;
-/// a note that is absent or unreadable is said to be so rather than guessed at.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function holderOf(scope: Scope): string
-/// ```
-pub fn holder_of(scope: &Scope) -> String {
-    let text: String = read_ordinary_text(&scope.guard_file).unwrap_or_default();
-    return match text.trim().parse::<u32>() {
-        Ok(pid) => format!("another mpm-shadow (process {pid}, the last one that took it)"),
-        Err(_) => "another command in this checkout (it left no note of its process)".to_string(),
-    };
-}
-
 /// Takes the scope's exclusive lock without waiting;
 /// `None` when another run holds it.
 pub fn try_acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
@@ -288,16 +273,11 @@ pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError>
 /// export function publishLock(scope: Scope, expected: Revisions, text: string): void
 /// ```
 pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(), ToolchainError> {
-    let Some(guard) = acquire_guard(scope)? else {
-        return Err(ToolchainError::failure(format!(
-            "{} is held by {}, and this command waited {} s for it, so {} was not written and nothing was changed; \
-             run the command again when the other one has finished",
-            scope.guard_file.display(),
-            holder_of(scope),
-            GUARD_WAIT.as_secs(),
-            scope.lock_file.display()
-        )));
-    };
+    // The guard is taken when another command has not taken it; when the holder is stopped or slow past the bound,
+    // this publish does the same compare and the same atomic write without it rather than failing: a failed publish
+    // fails the install, and the commit waiting for that install, which is the loss this order avoids.
+    // What the guard buys is in one place: `GUARD_WAIT`'s reason.
+    let guard: Option<Guard> = acquire_guard(scope)?;
     let observed: Revisions = read_revisions(scope)?;
     let moved: Vec<String> = moved_files(expected, &observed, scope);
     if !moved.is_empty() {
@@ -377,16 +357,11 @@ fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), Toolch
 /// export function publishPlan(scope: Scope, expected: Revision, text: string): void
 /// ```
 pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<(), ToolchainError> {
-    let Some(guard) = acquire_guard(scope)? else {
-        return Err(ToolchainError::failure(format!(
-            "{} is held by {}, and this command waited {} s for it, so {} was not written and nothing was changed; \
-             run the command again when the other one has finished",
-            scope.guard_file.display(),
-            holder_of(scope),
-            GUARD_WAIT.as_secs(),
-            scope.plan_file.display()
-        )));
-    };
+    // The guard is taken when another command has not taken it; when the holder is stopped or slow past the bound,
+    // this publish does the same compare and the same atomic write without it rather than failing: a failed publish
+    // fails the install, and the commit waiting for that install, which is the loss this order avoids.
+    // What the guard buys is in one place: `GUARD_WAIT`'s reason.
+    let guard: Option<Guard> = acquire_guard(scope)?;
     let observed: Revisions = read_revisions(scope)?;
     if expected != &observed.plan {
         drop(guard);

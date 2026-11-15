@@ -35,8 +35,8 @@ use super::context::Context;
 use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
-/// Imports `ensure_launcher` from `super::launcher`.
-use super::launcher::ensure_launcher;
+/// Imports what this module uses from `super::launcher`.
+use super::launcher::{claim_launcher_names, ensure_launcher, launcher_is_current};
 /// Imports what this module uses from `super::launcher_source`.
 use super::launcher_source::{newest_installed_shadow, program_name, running_program};
 /// Imports `find_tool_bin` from `super::layout`.
@@ -49,13 +49,16 @@ use super::runner::{RunOutcome, RunRequest};
 use super::scope::Scope;
 
 /// The result of rebuilding the farm:
-/// the names now linked and the names whose program was not found.
+/// the names now linked, the names whose program was not found, and the names left to the next install.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExposureReport {
     /// Names linked in the exposure directory.
     pub linked: Vec<String>,
     /// Declared names no installed program was found for.
     pub missing: Vec<String>,
+    /// One sentence per name whose link this run left to the next install, and why.
+    /// A name here is not a failure: the link it would make is made by an install that runs alone.
+    pub warnings: Vec<String>,
 }
 
 /// The directories searched in addition to a route's own:
@@ -80,6 +83,72 @@ fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) ->
         return ensure_launcher(scope, &tool.declaration.id, name, found);
     }
     return Ok(found.to_path_buf());
+}
+
+/// What:
+/// The path the exposed link for `name` must point at, without placing anything.
+/// Why:
+/// A link that already points there, over a launcher that is already the program found, needs no claim and no write;
+/// and the retirement decides the same question about the same path.
+fn wanted_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) -> PathBuf {
+    if is_repository_published(tool) {
+        return scope.launcher_dir.join(name);
+    }
+    return found.to_path_buf();
+}
+
+/// Whether the link at `link` already states `target` as its target.
+fn link_is_current(link: &Path, target: &Path) -> bool {
+    return fs::read_link(link).is_ok_and(|stated| return stated == target);
+}
+
+/// What:
+/// Makes the link at `link` point at `name`'s exposed target,
+/// under the claim that orders making a launcher and its links against retiring that launcher.
+/// Why:
+/// A link to a launcher and the launcher's retirement must not interleave (see `super::removal`'s statement):
+/// this takes the claim across placing the launcher, writing its record and making the link,
+/// and the retirement takes the same claim across scanning for links and taking them away,
+/// so a link can never be made between the retirement's scan and its removal.
+/// A link that already stands over a launcher that is current needs neither, so an install with nothing to do takes
+/// no claim and writes nothing.
+/// A non-repository tool's link names the tool's own program, which nothing here removes, so it needs no claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function linkTheBin(ctx: Context, tool: LockedTool, name: string, found: string, link: string): string | undefined
+/// ```
+fn link_the_bin(
+    ctx: &Context,
+    tool: &LockedTool,
+    name: &str,
+    found: &Path,
+    link: &Path,
+) -> Result<Option<String>, ToolchainError> {
+    let target: PathBuf = wanted_target(ctx.scope, tool, name, found);
+    if link_is_current(link, &target) {
+        if !is_repository_published(tool) {
+            return Ok(None);
+        }
+        if launcher_is_current(ctx.scope, &tool.declaration.id, name, found) {
+            return Ok(None);
+        }
+    }
+    if !is_repository_published(tool) {
+        atomic_symlink(link, &target)?;
+        return Ok(None);
+    }
+    let Some(_claim) = claim_launcher_names(ctx.scope)? else {
+        return Ok(Some(format!(
+            "left {} for the next install: another mpm-shadow holds the claim on this launcher folder's names, and a \
+             link made without it could point at a launcher that install is retiring",
+            link.display()
+        )));
+    };
+    // Under the claim: the launcher, then its record, then the link.
+    let claimed_target: PathBuf = exposed_target(ctx.scope, tool, name, found)?;
+    atomic_symlink(link, &claimed_target)?;
+    return Ok(None);
 }
 
 /// What:
@@ -116,9 +185,11 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
             }
             match find_tool_bin(tool, &primary, ctx.scope, ctx.env, &extra_dirs(ctx)) {
                 Some(found) => {
-                    let target: PathBuf = exposed_target(ctx.scope, tool, name, &found)?;
-                    atomic_symlink(&ctx.scope.exposure_dir.join(name), &target)?;
-                    report.linked.push(name.clone());
+                    let link: PathBuf = ctx.scope.exposure_dir.join(name);
+                    match link_the_bin(ctx, tool, name, &found, &link)? {
+                        None => report.linked.push(name.clone()),
+                        Some(sentence) => report.warnings.push(sentence),
+                    }
                 }
                 None => report.missing.push(name.clone()),
             }
@@ -208,7 +279,7 @@ pub struct MadeLink {
     pub target: PathBuf,
 }
 
-/// The links a pass made and the error that stopped it,
+/// The links a pass made, the sentences for the links it left to the next install, and the error that stopped it,
 /// if any:
 /// the links made before the error still exist and must be recorded.
 #[derive(Debug, Default)]
@@ -216,6 +287,8 @@ pub struct MadeLinks {
     /// The links made,
     /// in plan order.
     pub made: Vec<MadeLink>,
+    /// One sentence per link this pass left to the next install, and why.
+    pub warnings: Vec<String>,
     /// The error that ended the pass.
     pub error: Option<ToolchainError>,
 }
@@ -235,17 +308,20 @@ pub fn make_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> MadeLinks
         let Some(found) = find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
             continue;
         };
-        let target: PathBuf = match exposed_target(ctx.scope, tool, &link.source_bin, &found) {
-            Ok(target) => target,
+        let path: PathBuf = link_directory(ctx.scope, &link.link_dir).join(&link.link_name);
+        let target: PathBuf = wanted_target(ctx.scope, tool, &link.source_bin, &found);
+        match link_the_bin(ctx, tool, &link.source_bin, &found, &path) {
+            Ok(None) => {}
+            Ok(Some(sentence)) => {
+                // Not made, so not recorded: the record names the links this tool made, and a link it did not make
+                // must not be named there.
+                outcome.warnings.push(sentence);
+                continue;
+            }
             Err(error) => {
                 outcome.error = Some(error);
                 return outcome;
             }
-        };
-        let path: PathBuf = link_directory(ctx.scope, &link.link_dir).join(&link.link_name);
-        if let Err(error) = atomic_symlink(&path, &target) {
-            outcome.error = Some(error);
-            return outcome;
         }
         outcome.made.push(MadeLink { name: link.link_name.clone(), path, target });
     }

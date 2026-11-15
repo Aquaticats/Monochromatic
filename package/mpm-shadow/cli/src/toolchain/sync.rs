@@ -285,7 +285,12 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     }
     let mut linked_bins: Vec<String> = Vec::new();
     match rebuild_exposure(ctx, &entries) {
-        Ok(exposure) => linked_bins = exposure.linked,
+        Ok(exposure) => {
+            linked_bins = exposure.linked;
+            // A name whose link this run left to the next install is a warning, never a failure: the install that
+            // runs alone makes it, and a failure here would fail the commit waiting for this one.
+            report.warnings.extend(exposure.warnings);
+        }
         Err(error) => report.failed.push(("exposure directory".to_string(), error.message)),
     }
     // A bin the plan renamed or dropped leaves a launcher, its record and an exposed link that no later install rewrites;

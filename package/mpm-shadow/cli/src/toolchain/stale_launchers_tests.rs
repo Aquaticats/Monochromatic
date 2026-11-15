@@ -649,3 +649,118 @@ fn a_second_name_of_one_entry_left_by_a_kill_is_gone_after_one_pass() {
 }
 
 //endregion
+
+//region The eighth review: a link while its launcher is retired, a replacement at a hidden name, and an unreadable record entry
+// Every second actor is placed by the code's own seam or is the file system's state, never by a sleep; the second
+// install's step is the code's own step, not a bare `symlink`.
+
+#[test]
+fn a_link_made_while_its_launcher_is_being_retired_is_never_left_dangling() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    let program: PathBuf = rig.scope.root.join("store").join(RENAMED_BIN);
+    let link: PathBuf = rig.scope.exposure_dir.join(RENAMED_BIN);
+    let scope = rig.scope.clone();
+    let linked: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let linked_in_hook: Arc<AtomicBool> = Arc::clone(&linked);
+    let link_in_hook: PathBuf = link.clone();
+    let launcher_in_hook: PathBuf = launcher.clone();
+    // Install A's own step (claim, launcher, record, link) runs inside install B's removal, after B has scanned for links
+    // and taken the launcher aside: the order the review reproduced.
+    super::removal::seam::set_after_the_move(Some(Box::new(move || {
+        let claim = super::launcher::claim_launcher_names_within(&scope, std::time::Duration::from_millis(50))
+            .expect("install A tests the claim");
+        let Some(_claim) = claim else {
+            // A leaves the name to the next install, which is the claim doing its work.
+            return;
+        };
+        super::launcher::ensure_launcher(&scope, SHADOW_TOOL, RENAMED_BIN, &program).expect("install A places its launcher");
+        super::install_support::atomic_symlink(&link_in_hook, &launcher_in_hook).expect("install A links it");
+        linked_in_hook.store(true, Ordering::SeqCst);
+    })));
+
+    let notices: LauncherNotices = retire(&rig);
+    super::removal::seam::set_after_the_move(None);
+
+    assert!(
+        !(exists_at(&link) && !exists_at(&launcher)),
+        "install A's link (made: {}) dangles: the launcher was retired after the link was made; {notices:?}",
+        linked.load(Ordering::SeqCst)
+    );
+}
+
+#[test]
+fn an_install_holds_the_claim_and_a_second_install_leaves_the_link_to_the_next_one() {
+    let rig = rig_with_installed_shadow();
+    let tool = rig.tool(SHADOW_TOOL);
+    let name: &str = RENAMED_BIN;
+    fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher folder");
+    // Another install is inside its launcher-and-link section for this folder.
+    let held = super::launcher::claim_launcher_names(&rig.scope).expect("the claim is tested").expect("the claim is free");
+
+    let report = super::exposure::rebuild_exposure(&rig.context(), &[&tool]).expect("the exposure pass runs");
+
+    drop(held);
+    assert!(
+        !exists_at(&rig.scope.exposure_dir.join(name)),
+        "a link made without the claim could point at a launcher the other install is retiring: {report:?}"
+    );
+    assert!(
+        report.warnings.iter().any(|line| return line.contains("holds the claim on this launcher folder's names")),
+        "the pass says why the link is left to the next install: {report:?}"
+    );
+}
+
+#[test]
+fn a_file_renamed_onto_a_hidden_name_is_not_unlinked_by_the_repair() {
+    let rig = Rig::new();
+    fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher folder");
+    let target: PathBuf = rig.scope.launcher_dir.join("entry");
+    let hidden: PathBuf = rig.scope.launcher_dir.join(".entry.4294967.0.retired");
+    fs::write(&target, "the killed run's original entry").expect("write the visible entry");
+    fs::hard_link(&target, &hidden).expect("make the killed run's second name");
+    let replacement: PathBuf = rig.scope.launcher_dir.join("replacement");
+    fs::write(&replacement, "a different file of a person's").expect("write the replacement");
+    let replacement_in_hook: PathBuf = replacement.clone();
+    let hidden_in_hook: PathBuf = hidden.clone();
+    // The replacement lands between the repair's look at the hidden name and the repair's unlink of it.
+    super::removal::seam::set_before_the_move(Some(Box::new(move || {
+        fs::rename(&replacement_in_hook, &hidden_in_hook).expect("another command renames its file onto the hidden name");
+    })));
+    let mut notices: LauncherNotices = LauncherNotices::default();
+    super::stale_launchers::repair_what_a_kill_left(&rig.context(), &mut notices);
+    super::removal::seam::set_before_the_move(None);
+
+    assert_eq!(
+        fs::read_to_string(&hidden).expect("the file renamed onto the hidden name must survive"),
+        "a different file of a person's",
+        "final state: {notices:?}"
+    );
+}
+
+#[test]
+fn a_record_entry_that_cannot_be_read_keeps_the_launcher_its_link_names() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    let old_directory: PathBuf = rig.scope.root.join(".cache").join("old-links");
+    fs::create_dir_all(&old_directory).expect("make the dropped postinstall directory");
+    let link: PathBuf = old_directory.join("old-alias");
+    symlink(&launcher, &link).expect("make the link that only the damaged record names");
+    let record: PathBuf = super::postinstall_links::record_file(&rig.context());
+    fs::write(&record, format!("{{\"links\":{{\"{}\":7}}}}", link.display())).expect("write a record with a non-path value");
+
+    let link_set_known: bool = super::postinstall_links::record_is_readable(&rig.context());
+    let notices: LauncherNotices = retire_undeclared_launchers(&rig.context(), &[], link_set_known);
+
+    assert!(!link_set_known, "a record with an entry it cannot read names an unknown set of links: {notices:?}");
+    assert!(exists_at(&link), "the fixture's link must remain: {notices:?}");
+    assert!(
+        exists_at(&launcher),
+        "a record entry that cannot be read must keep the launcher its link names; final state: {notices:?}"
+    );
+}
+
+//endregion

@@ -131,9 +131,20 @@ fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
         return (links, Some(format!("{} is not a record of postinstall links, so no stale postinstall link is retired", file.display())));
     };
     for (path, target) in entries {
-        if let Some(target_text) = target.as_str() {
-            links.insert(PathBuf::from(path), PathBuf::from(target_text));
-        }
+        // What could not be read cannot be proved absent: an entry whose value is not a path is an entry this tool
+        // cannot place, so the set of links the record names is unknown, and a launcher must not be removed on the
+        // strength of it. This is said, not skipped.
+        let Some(target_text) = target.as_str() else {
+            return (
+                BTreeMap::new(),
+                Some(format!(
+                    "{} names {path} with a value that is not a path, so which links this tool made is unknown and no \
+                     stale postinstall link is retired",
+                    file.display()
+                )),
+            );
+        };
+        links.insert(PathBuf::from(path), PathBuf::from(target_text));
     }
     return (links, None);
 }
@@ -501,5 +512,7 @@ pub fn sync_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<Li
     if let Some(error) = outcome.error {
         return Err(error);
     }
-    return notices;
+    let mut settled: LinkNotices = notices?;
+    settled.warnings.extend(outcome.warnings);
+    return Ok(settled);
 }

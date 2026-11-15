@@ -45,6 +45,56 @@ use sha2::{Digest, Sha256};
 const READ_BLOCK: usize = 64 * 1024;
 
 /// What:
+/// The most bytes a file this tool reads may hold.
+/// Why:
+/// Every file read here is one this tool wrote or was written for it, so the bound comes from what this tool writes:
+/// the largest is a launcher, a byte copy of the `mpm-shadow` program (release build 5 332 336 bytes; the same
+/// program in a debug build 72 620 408 bytes, and the fixture tests copy a debug test binary of 86 831 664 bytes;
+/// all measured 2026-11-15), while the plan (23 871), the lock (63 625) and the records are far smaller.
+/// Three times the largest measured copy is the bound.
+/// A file past it is answered as unreadable rather than read:
+/// a command that keeps a file open for appending can keep it growing for ever, and a read that follows it never ends
+/// and holds every byte it read (the open's `O_NONBLOCK` says nothing about an ordinary file's length).
+pub(crate) const MAX_ORDINARY_BYTES: u64 = 256 * 1024 * 1024;
+
+/// The sentence for a file past `MAX_ORDINARY_BYTES`.
+pub(crate) fn larger_than_read(path: &Path, limit: u64) -> String {
+    return format!("{} is larger than the {limit} bytes this tool reads at most, so it was not read", path.display());
+}
+
+/// What:
+/// The bytes of an ordinary file,
+/// read in blocks,
+/// and ending with a sentence when the file holds more than `MAX_ORDINARY_BYTES`.
+/// Why:
+/// The read ends at the bound whether or not the file has an end:
+/// a file another command keeps growing is refused, not followed,
+/// and the refusal names the file and the bound.
+/// A kill inside the read leaves nothing: no name has been written and no entry moved.
+///
+/// How a growing file is shown to end the read is the control beside this module:
+/// `seam` appends to the file between two blocks, which is the only way to make a file grow under a reader on purpose.
+fn read_bounded(file: &mut fs::File, path: &Path, limit: u64) -> Result<Vec<u8>, String> {
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![0; READ_BLOCK];
+    loop {
+        if bytes.len() as u64 > limit {
+            return Err(larger_than_read(path, limit));
+        }
+        let read: usize = match file.read(&mut buffer) {
+            Ok(count) => count,
+            Err(error) => return Err(format!("{} cannot be read: {error}", path.display())),
+        };
+        if read == 0 {
+            return Ok(bytes);
+        }
+        bytes.extend_from_slice(&buffer[..read]);
+        #[cfg(test)]
+        seam::after_a_block(path);
+    }
+}
+
+/// What:
 /// The mode a lock file is created with, before the umask narrows it:
 /// the same mode the standard library gives a new file,
 /// so a lock file this module creates is no wider than one it created before.
@@ -93,11 +143,17 @@ pub(crate) fn open_ordinary_through_links(path: &Path) -> Result<fs::File, Strin
 /// The bytes of the ordinary file at `path`.
 pub(crate) fn read_ordinary(path: &Path) -> Result<Vec<u8>, String> {
     let mut file: fs::File = open_ordinary(path)?;
-    let mut bytes: Vec<u8> = Vec::new();
-    if let Err(error) = file.read_to_end(&mut bytes) {
-        return Err(format!("{} cannot be read: {error}", path.display()));
-    }
-    return Ok(bytes);
+    return read_bounded(&mut file, path, MAX_ORDINARY_BYTES);
+}
+
+/// The bytes of the ordinary file at `path`, read with `limit` instead of `MAX_ORDINARY_BYTES`.
+/// Why:
+/// One loop serves the tool and the control that shows a growing file ending, and the control passes a small bound so
+/// it needs no file of the shipped size.
+#[cfg(test)]
+pub(crate) fn read_ordinary_at_most(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
+    let mut file: fs::File = open_ordinary(path)?;
+    return read_bounded(&mut file, path, limit);
 }
 
 /// The text of the ordinary file at `path`,
@@ -114,11 +170,7 @@ pub(crate) fn read_ordinary_text(path: &Path) -> Result<String, String> {
 /// reached through a symbolic link when the path is one.
 pub(crate) fn read_ordinary_through_links(path: &Path) -> Result<Vec<u8>, String> {
     let mut file: fs::File = open_ordinary_through_links(path)?;
-    let mut bytes: Vec<u8> = Vec::new();
-    if let Err(error) = file.read_to_end(&mut bytes) {
-        return Err(format!("{} cannot be read: {error}", path.display()));
-    }
-    return Ok(bytes);
+    return read_bounded(&mut file, path, MAX_ORDINARY_BYTES);
 }
 
 /// The text of the ordinary file at `path`,
@@ -165,7 +217,11 @@ pub(crate) fn sha256_of_ordinary(path: &Path) -> Result<[u8; 32], String> {
     let mut file: fs::File = open_ordinary(path)?;
     let mut hasher: Sha256 = Sha256::new();
     let mut buffer: Vec<u8> = vec![0; READ_BLOCK];
+    let mut seen: u64 = 0;
     loop {
+        if seen > MAX_ORDINARY_BYTES {
+            return Err(larger_than_read(path, MAX_ORDINARY_BYTES));
+        }
         let read: usize = match file.read(&mut buffer) {
             Ok(count) => count,
             Err(error) => return Err(format!("{} cannot be read: {error}", path.display())),
@@ -173,7 +229,10 @@ pub(crate) fn sha256_of_ordinary(path: &Path) -> Result<[u8; 32], String> {
         if read == 0 {
             break;
         }
+        seen += u64::try_from(read).unwrap_or(u64::MAX);
         hasher.update(&buffer[..read]);
+        #[cfg(test)]
+        seam::after_a_block(path);
     }
     return Ok(hasher.finalize().into());
 }
@@ -267,4 +326,32 @@ fn create_without_waiting(path: &Path) -> std::io::Result<fs::File> {
 #[cfg(not(unix))]
 fn create_without_waiting(path: &Path) -> std::io::Result<fs::File> {
     return fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path);
+}
+
+/// What:
+/// The seam a control uses to make a file grow between two blocks of a read.
+/// Why:
+/// A file another command keeps open for appending grows under a reader only if that writer runs between two reads;
+/// this is where it runs, in tests only, so the growth is placed by the code and never by a sleep.
+#[cfg(test)]
+pub(crate) mod seam {
+    /// Imports `Mutex` from `std`.
+    use std::sync::Mutex;
+    /// Imports `Path` from `std::path`.
+    use std::path::Path;
+
+    /// The hook a control sets, run after every block a read takes.
+    static AFTER_A_BLOCK: Mutex<Option<Box<dyn Fn(&Path) + Send>>> = Mutex::new(None);
+
+    /// Sets (or with `None` clears) the hook run after a read block.
+    pub(crate) fn set_after_a_block(hook: Option<Box<dyn Fn(&Path) + Send>>) {
+        *AFTER_A_BLOCK.lock().expect("the seam is not poisoned") = hook;
+    }
+
+    /// Runs the hook, when a test set one.
+    pub(crate) fn after_a_block(path: &Path) {
+        if let Some(hook) = AFTER_A_BLOCK.lock().expect("the seam is not poisoned").as_ref() {
+            hook(path);
+        }
+    }
 }
