@@ -191,6 +191,7 @@ export {
  */
 export {
   WAKE_LIMIT,
+  WORK_AFTER_A_TURN_MILLISECONDS,
   WORK_POLL_MILLISECONDS,
   type ProcessAtAFolder,
   isOwnFolder,

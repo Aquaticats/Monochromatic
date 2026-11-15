@@ -41,6 +41,39 @@ import {
 } from './pool-tallies.ts';
 
 /**
+ Reads what a refusal says about who holds the name the run asked for.
+
+ A name that reads as taken without a holder left a coordinator with nothing to act on: on 2026-11-14 a start was refused
+ `ALREADY RUNNING: review-…` and nothing said that the holder was a launcher whose run had ended three hours before, so the run the
+ start asked for was missing for an hour and three quarters until the queue was read by hand.
+
+ @param run - the run that holds the name
+
+ @returns the words a refusal adds after the run's name, and nothing when the holder is unknown
+
+ @example
+ ```ts
+ const said = heldTextOf({ run: { name: 'a', membership: { holds: 'no-pool' }, held: { kind: 'unit', unit: 'pi-a.service', state: 'active' } } },);
+ ```
+ */
+export function heldTextOf({ run }: { readonly run: GoingRun },): string {
+  /**
+   What holds the name, when the count knew it.
+   */
+  const { held, } = run;
+  if (held === undefined) {
+    return '';
+  }
+  /**
+   When the holder took the name, in the words a reader can compare with the moment of the refusal.
+   */
+  const since = (held.since === undefined) ? '' : ` since ${held.since}`;
+  return (held.kind === 'unit')
+    ? `, held${since} by unit ${held.unit} (${held.state})`
+    : `, held${since} by launcher process ${String(held.pid,)}`;
+}
+
+/**
  The status a gate exits with when it starts nothing for want of room, which is no pool having a slot free or the build volume
  being under its floor. The retrying command reads it to know it should ask again.
  */
@@ -243,16 +276,19 @@ export async function gateOutcomeOf({
     throw new PoolGateOptionsError(`--name is required unless only the counts are asked for.\nUsage: ${POOL_GATE_USAGE}`,);
   }
   // An audit runs on another account and holds no slot, so a second run of the same audit name is no conflict.
-  if (
-    (!runName.startsWith(AUDIT_RUN_PREFIX,))
-      && runs.some(function isNamed(run,) {
-        return run.name === runName;
-      },)
-  ) {
+  /**
+   The run of that name that is going now, when one is.
+   */
+  const holding = runName.startsWith(AUDIT_RUN_PREFIX,)
+    ? undefined
+    : runs.find(function isNamed(run,) {
+      return run.name === runName;
+    },);
+  if (holding !== undefined) {
     return {
       action: 'already-running',
       status: ALREADY_RUNNING_EXIT_STATUS,
-      lines: [`ALREADY RUNNING: ${runName}`,],
+      lines: [`ALREADY RUNNING: ${runName}${heldTextOf({ run: holding, })}`,],
     };
   }
   /**

@@ -6,6 +6,7 @@
  */
 
 import {
+  type ChildProcess,
   execFile,
   spawn,
 } from 'node:child_process';
@@ -327,52 +328,26 @@ export type ShownCommandEnding = {
    Why it could not be started, when it could not be.
    */
   readonly startProblem?: string;
+
+  /**
+   Whether the bound the caller gave is what ended it, which is no exit of its own.
+   */
+  readonly endedByItsOwnBound?: boolean;
 };
 
 /**
- Runs one command with the caller's own streams, so what it prints reaches the terminal as it prints it, and answers with how it
- ended.
+ Waits for one command to close, and answers how it did.
 
- This is the shape a launcher needs: a run's progress must show while it runs, and its status is what the caller answers with.
+ @param child - the process
 
- @param command - the program, found on `PATH`
-
- @param words - its arguments, each kept whole
-
- @param folder - the folder it runs in, which is this process's own when it names none
-
- @param environment - the environment it gets, which is this process's own when it names none
-
- @returns how it ended, which never throws for a failure of the command itself
+ @returns its status, or why it could not be started
 
  @example
  ```ts
- const ended = await runCommandShowingItsOutput({ command: 'systemd-run', words: ['--user', '--wait', '--unit=pi-a', 'true',], },);
+ const closing = await closingOfACommand(child);
  ```
  */
-export async function runCommandShowingItsOutput({
-  command,
-  words,
-  folder,
-  environment,
-}: {
-  readonly command: string;
-  readonly words: readonly string[];
-  readonly folder?: string;
-  readonly environment?: NodeJS.ProcessEnv;
-},): Promise<ShownCommandEnding> {
-  /**
-   The command's process.
-   */
-  const child = spawn(
-    command,
-    [...words,],
-    {
-      stdio: 'inherit',
-      ...(folder === undefined ? {} : { cwd: folder, }),
-      ...(environment === undefined ? {} : { env: environment, }),
-    },
-  );
+async function closingOfACommand(child: ChildProcess,): Promise<ShownCommandEnding> {
   try {
     /**
      What the process reported when it closed, which is its status or the signal that ended it.
@@ -392,4 +367,88 @@ export async function runCommandShowingItsOutput({
     // as an exit.
     return { startProblem: String(error,) };
   }
+}
+
+/**
+ Runs one command with the caller's own streams, so what it prints reaches the terminal as it prints it, and answers with how it
+ ended.
+
+ This is the shape a launcher needs: a run's progress must show while it runs, and its status is what the caller answers with.
+
+ @param command - the program, found on `PATH`
+
+ @param words - its arguments, each kept whole
+
+ @param folder - the folder it runs in, which is this process's own when it names none
+
+ @param environment - the environment it gets, which is this process's own when it names none
+
+ @param timeoutMilliseconds - how long it may run, which the caller gives when a command that never ends must not hold the caller
+
+ @returns how it ended, which never throws for a failure of the command itself
+
+ @example
+ ```ts
+ const ended = await runCommandShowingItsOutput({ command: 'systemd-run', words: ['--user', '--wait', '--unit=pi-a', 'true',], },);
+ ```
+ */
+export async function runCommandShowingItsOutput({
+  command,
+  words,
+  folder,
+  environment,
+  timeoutMilliseconds,
+}: {
+  readonly command: string;
+  readonly words: readonly string[];
+  readonly folder?: string;
+  readonly environment?: NodeJS.ProcessEnv;
+
+  /**
+   How long it may run, when a command that never ends must not hold its caller.
+   */
+  readonly timeoutMilliseconds?: number;
+},): Promise<ShownCommandEnding> {
+  /**
+   The command's process.
+   */
+  const child = spawn(
+    command,
+    [...words,],
+    {
+      stdio: 'inherit',
+      ...(folder === undefined ? {} : { cwd: folder, }),
+      ...(environment === undefined ? {} : { env: environment, }),
+    },
+  );
+  /**
+   Whether the caller's own bound is what ended it.
+   */
+  const ended: { byItsOwnBound: boolean } = { byItsOwnBound: false, };
+  /**
+   The timer that ends it at the caller's own bound, or nothing when the caller gave none.
+   */
+  const bound = (timeoutMilliseconds === undefined)
+    ? undefined
+    : setTimeout(
+      function endAtItsBound() {
+        ended.byItsOwnBound = true;
+        // The polite signal, so a launcher ended this way still prints the line it ends with.
+        child.kill('SIGTERM',);
+      },
+      timeoutMilliseconds,
+    );
+  /**
+   How the process ended, or why it could not be started.
+   */
+  const closing: ShownCommandEnding = await closingOfACommand(child,);
+  if (bound !== undefined) {
+    clearTimeout(bound,);
+  }
+  return ended.byItsOwnBound
+    ? {
+      ...closing,
+      endedByItsOwnBound: true,
+    }
+    : closing;
 }

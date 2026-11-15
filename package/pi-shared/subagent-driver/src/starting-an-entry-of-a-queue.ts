@@ -17,12 +17,10 @@
 import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
-  BATCH_DEFAULT_CPU_PERCENT,
   BATCH_DEFAULT_DEADLINE_SECONDS,
-  BATCH_DEFAULT_MEMORY,
-  BATCH_DEFAULT_TASK_COUNT,
   type BatchEntry,
 } from './batch-list.ts';
+import { reviewRunEntryOf, } from './batch-entry-of-a-review-of-a-range.ts';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   changeOfAReviewRun,
@@ -35,23 +33,19 @@ import {
 } from './material-of-a-review.ts';
 import type { QueueRecord, } from './queue-of-runs.ts';
 import { FOCUS_OF_A_CHANGE_REVIEW, } from './review-brief.ts';
-import {
-  REVIEW_WALL_SECONDS,
-} from './reviews-of-finished-branches.ts';
-import {
-  REVIEWING_MODEL,
-  REVIEWING_PROVIDER,
-  branchOfAReview,
-  briefFileOfAReview,
-  runNameOfAReview,
-} from './reviewer-of-a-change.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
 import {
   type RunCommand,
   runCommandWithChildProcess,
 } from './run-command.ts';
 import { startABatchFile, } from './starting-a-batch-in-its-own-unit.ts';
+import {
+  batchOutputFileOf,
+  batchUnitNameOf,
+} from './batch-run-as-a-unit.ts';
 import { writeReviewBrief, } from './writing-a-review-brief.ts';
+
+export { reviewRunEntryOf, } from './batch-entry-of-a-review-of-a-range.ts';
 
 /**
  How many characters of an entry's name go into the batch list's file name, which also becomes its unit's name.
@@ -153,6 +147,18 @@ export type StartOfAnEntrySeams = {
    How a command is run.
    */
   readonly run?: RunCommand;
+
+  /**
+   Called once the entry's batch list is written and before its unit is asked for, so the caller can write down the start it has to
+   settle if the launcher never gets as far as a run. It is given the list, the unit that list names, the file that unit writes and
+   the name the run itself takes.
+   */
+  readonly beforeTheUnitIsAskedFor?: (request: {
+    readonly batchFile: string;
+    readonly unit: string;
+    readonly outputFile: string;
+    readonly runName: string;
+  }) => Promise<void>;
 };
 
 /**
@@ -223,49 +229,6 @@ function entryFailureOf({
     kind: 'the-entry',
     reason,
     output,
-  };
-}
-
-/**
- Reads the batch entry one review of a range is started as: the run named after the change, on the branch and from the brief the
- package's writer made, on the provider and model every review runs on.
-
- @param review - the review of a range
-
- @param reviewsFolder - folder that holds one folder per review
-
- @returns the batch entry to write
-
- @example
- ```ts
- const entry = reviewRunEntryOf({ review: { name: 'review-a', reviewOfRange: 'main...a', commit: 'a', source: 'src' }, reviewsFolder: '/reviews' });
- ```
- */
-export function reviewRunEntryOf({
-  review,
-  reviewsFolder,
-}: {
-  readonly review: ReviewOfARangeEntry;
-  readonly reviewsFolder: string;
-},): BatchEntry {
-  /**
-   The change under review.
-   */
-  const change = changeOfAReviewRun({ run: review.name, },);
-  return {
-    name: runNameOfAReview({ review: change, },),
-    branch: branchOfAReview({ review: change, },),
-    base: review.commit,
-    prompt: briefFileOfAReview({
-      reviewsFolder,
-      review: change,
-    },),
-    cpu: BATCH_DEFAULT_CPU_PERCENT,
-    memory: BATCH_DEFAULT_MEMORY,
-    tasks: BATCH_DEFAULT_TASK_COUNT,
-    wall: REVIEW_WALL_SECONDS,
-    provider: REVIEWING_PROVIDER,
-    model: REVIEWING_MODEL,
   };
 }
 
@@ -538,6 +501,15 @@ export async function startAnEntryOfAQueue({
       failure: list.refused,
     };
   }
+  // The start is written down before its unit is asked for, so a launcher that never gets as far as a run still has its entry
+  // somewhere a round of the filling reads.
+  await seams.beforeTheUnitIsAskedFor?.({
+    batchFile: list.written,
+    unit: batchUnitNameOf({ batchFile: list.written, },),
+    outputFile: batchOutputFileOf({ batchFile: list.written, },),
+    runName: handedOn.entry
+      .name,
+  },);
   try {
     /**
      What starting the batch's unit answered.

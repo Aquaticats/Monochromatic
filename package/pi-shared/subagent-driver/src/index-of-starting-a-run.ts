@@ -59,11 +59,13 @@ export {
 } from './free-space-floor.ts';
 export {
   type GoingRun,
+  type HolderOfARunName,
   LAUNCHER_ENTRY_NAMES,
   REPLACED_LAUNCHER_ENTRY_NAMES,
   goingRunsNow,
   launcherRunsIn,
   poolOfExecStart,
+  unitFactsIn,
   unitRunNamesIn,
 } from './going-runs.ts';
 export {
@@ -72,6 +74,7 @@ export {
   NO_SLOT_EXIT_STATUS,
   type PoolChoice,
   gateOutcomeOf,
+  heldTextOf,
   poolChoiceFor,
 } from './pool-gate.ts';
 export {

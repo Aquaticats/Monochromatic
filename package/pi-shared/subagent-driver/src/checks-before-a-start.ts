@@ -24,6 +24,7 @@ import {
   rememberPiStartCheck,
 } from './pi-start-check.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
+import { unitFactsIn, } from './going-runs.ts';
 
 export {
   PI_LOAD_FAILURE_TEXT,
@@ -148,7 +149,10 @@ export async function baseProblemIn({
 }
 
 /**
- Says what stops a run's own unit name from being free, if anything does.
+ Says what stops a run's own unit name from being free, if anything does, naming what holds it and since when.
+
+ A refusal that named only the unit's own state left a reader without the moment it was taken: on 2026-11-14 a start was refused for
+ a unit of the run's name that had ended hours before, and nothing said so.
 
  @param run - how a command is run
 
@@ -173,7 +177,7 @@ export async function nameProblemIn({
    */
   const unitName = unitNameOfGiven({ name: runName, },);
   /**
-   What the manager answered about that unit's state.
+   What the manager answered about that unit.
    */
   const answered = await run({
     command: 'systemctl',
@@ -182,18 +186,32 @@ export async function nameProblemIn({
       'show',
       unitName,
       '--property=LoadState',
-      '--value',
+      '--property=ActiveState',
+      '--property=StateChangeTimestamp',
     ],
   },);
   /**
-   The state the manager named, empty when it answered nothing.
+   The properties the manager printed, by name.
    */
-  const state = (answered.status === 0) ? answered.stdout
-    .trim() : '';
+  const facts = unitFactsIn({ shown: (answered.status === 0) ? answered.stdout : '', },);
+  /**
+   The state the unit is loaded in, empty when the manager answered nothing.
+   */
+  const state = facts.LoadState ?? '';
   if ((state === '') || (state === UNIT_NOT_FOUND_STATE)) {
     return {};
   }
-  return { problem: `${unitName} is already there (LoadState ${state}), so a run named ${runName} cannot take that name`, };
+  /**
+   What the unit is doing now, which tells a reader whether the name belongs to a run that is going.
+   */
+  const active = facts.ActiveState ?? '';
+  /**
+   When the unit last changed state, which is when the name was last taken or given up.
+   */
+  const since = facts.StateChangeTimestamp ?? '';
+  return {
+    problem: `${unitName} is already there (LoadState ${state}, ActiveState ${(active === '') ? 'not read' : active}${(since === '') ? '' : ` since ${since}`}), so a run named ${runName} cannot take that name`,
+  };
 }
 
 /**

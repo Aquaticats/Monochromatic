@@ -53,6 +53,11 @@ import {
 import type { QueueRecord, } from './queue-of-runs.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import {
+  removeWatchedStart,
+  writeWatchedStart,
+} from './start-of-a-queue-entry-the-filling-watches.ts';
+import { settleWatchedStarts, } from './settling-the-starts-a-filling-watches.ts';
+import {
   setAsideAnEntryOfAQueue,
 } from './set-aside-entry.ts';
 import {
@@ -141,6 +146,7 @@ async function runsGoing(): Promise<Awaited<ReturnType<typeof goingRunsNow>>> {
   const going = await goingRunsNow({
     run: runCommandWithChildProcess,
     processFolder: PROCESS_FOLDER,
+    runsFolder: options.runsFolder,
     launcherEntryNames: [
       ...LAUNCHER_ENTRY_NAMES,
       ...REPLACED_LAUNCHER_ENTRY_NAMES,
@@ -166,7 +172,8 @@ async function runsGoing(): Promise<Awaited<ReturnType<typeof goingRunsNow>>> {
 }
 
 /**
- Starts one entry and keeps the whole of what its failed start printed, beside the runs.
+ Starts one entry and keeps the whole of what its failed start printed, beside the runs, and writes down the start itself so a
+ launcher that never gets as far as a run is settled by the round after it.
 
  @param record - the entry to start
 
@@ -186,11 +193,27 @@ async function startAndKeep({ record, }: { readonly record: QueueRecord },): Pro
       now: Date.now,
       deadlineSeconds: options.deadlineSeconds,
     },
-    seams: { git, },
+    seams: {
+      git,
+      beforeTheUnitIsAskedFor: async function writeTheStartDown(start,) {
+        await writeWatchedStart({
+          runsFolder: options.runsFolder,
+          record,
+          start,
+          now: Date.now,
+        },);
+      },
+    },
   },);
   if (started.started) {
     return started;
   }
+  // A start that never got as far as its unit is no start to settle: its failure is set aside or put back by the pass, and a record
+  // left behind would have the round after it set the entry aside a second time.
+  await removeWatchedStart({
+    runsFolder: options.runsFolder,
+    name: record.name,
+  },);
   /**
    Where the whole of what the failed start printed was kept.
    */
@@ -208,6 +231,38 @@ async function startAndKeep({ record, }: { readonly record: QueueRecord },): Pro
       ...(kept.keptAt === undefined ? {} : { keptOutputAt: kept.keptAt, }),
     },
   };
+}
+
+/**
+ Settles every entry this filling started whose launcher ended without a run, puts each one back or sets it aside, and says what
+ became of it once.
+
+ A round of the filling takes an entry out of the queue the moment its batch is asked for, so a launcher that failed after that
+ point left its entry nowhere: on 2026-11-14T11:28:41-05:00 the filling started a queued review, the launcher answered
+ `ALREADY RUNNING` twenty seconds later, and the run was missing for an hour and three quarters until the queue was read by hand.
+ */
+async function settleStartsThisRound(): Promise<void> {
+  try {
+    /**
+     What became of each start this filling wrote down.
+     */
+    const settled = await settleWatchedStarts({
+      runsFolder: options.runsFolder,
+      queueFile: options.queueFile,
+      run: runCommandWithChildProcess,
+      now: Date.now,
+      report: reportOnStandardError,
+    },);
+    for (const one of settled) {
+      if (one.line !== undefined) {
+        reportOnStandardOutput(`${one.line}\n`,);
+      }
+    }
+  }
+  catch (error) {
+    // One start that cannot be settled must not end the filling, which is what the queue behind it waits on.
+    reportOnStandardError(`${new Date().toISOString()} settling the starts this filling made failed and the filling goes on: ${String(error,)}\n`,);
+  }
 }
 
 /**
@@ -277,6 +332,7 @@ const stopAskingAt = Date.now() + (options.secondsAtMost * MILLISECONDS_PER_SECO
 /* oxlint-disable eslint/no-await-in-loop -- one round after another: each round counts the runs going and fills the places the
    level leaves, and a second count inside a round reads a run just started as a free place. See doc/lint/sequential-awaits.md. */
 for (;;) {
+  await settleStartsThisRound();
   if (options.putBackEndedReviews) {
     await putEndedReviewsBackThisRound();
   }

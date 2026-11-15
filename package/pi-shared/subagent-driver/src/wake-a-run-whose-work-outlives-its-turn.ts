@@ -11,6 +11,11 @@
  branch, whose worktree `pi-kimi-review-<the run's name>-round-<n>` contains that name: they waited on another agent's work and
  would have resumed finished sessions.
 
+ The wait is bounded by `WORK_AFTER_A_TURN_MILLISECONDS`, never by the run's own wall clock: the run is over, and a launcher that
+ waits for what the run left running is also a launcher holding the run's name against the next start of it. A process the kernel
+ had already taken away when its own files were asked for is no work of the run, which is the race that ended two launchers without
+ a line in 2026-11-14.
+
  @module
  */
 
@@ -23,6 +28,7 @@ import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
 import { isDigitsOnly, } from './text-of-an-option.ts';
+import { MILLISECONDS_PER_MINUTE, } from './overdue-constants.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
 /**
@@ -41,6 +47,23 @@ export const WAKE_LIMIT = 5;
  every look walks the process table once.
  */
 export const WORK_POLL_MILLISECONDS = 30_000;
+
+/**
+ Minutes a run's own work may still run after the run's turn ended, which is how long the launcher waits for it.
+ */
+const MINUTES_A_RUNS_WORK_MAY_OUTLAST_ITS_TURN = 30;
+
+/**
+ Milliseconds a run's own work may still run after the run's turn ended. The wait for that work is a launcher that stays up after
+ its run, so its bound is what keeps a launcher from holding the run's name for hours.
+
+ Thirty minutes, from what this work is: a build or a reproduction the agent left compiling, which the module above records as
+ taking minutes. It is not the run's own wall clock, which is what this waited for until 2026-11-15 and which let one launcher
+ wait six hours for three git policy wrapper processes that were never a build. The wait costs nothing when it ends early: the
+ session is resumed either way, with a note that says what still runs, so a build that outlasts this bound is read by the agent
+ rather than lost.
+ */
+export const WORK_AFTER_A_TURN_MILLISECONDS: number = MINUTES_A_RUNS_WORK_MAY_OUTLAST_ITS_TURN * MILLISECONDS_PER_MINUTE;
 
 /**
  The starts a review's run name carries: this package's own `review-`, and the `kimi-review-` of the scratch runs it replaced.
@@ -220,6 +243,10 @@ const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
   'ENOTDIR',
   'EACCES',
   'EPERM',
+  // A process the kernel had already taken away when its own files were asked for answers this, not ENOENT: on 2026-11-14 two
+  // launchers ended with an uncaught `ESRCH: no such process, read '/proc/<pid>/comm'` while they read the process table just as
+  // the run's own teardown processes were dying, so neither said how its run ended. A process that is gone works nowhere.
+  'ESRCH',
 ]);
 
 /**
@@ -254,7 +281,8 @@ async function commandNameIn({
     )).trim();
   }
   catch (error) {
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'ENOTDIR')) {
+    // A process that ended between the listing and this read is gone, which is the same answer as a program this cannot name.
+    if (SKIPPED_PROCESS_CODES.has(errorCodeOf(error,),)) {
       return '?';
     }
     throw error;
@@ -320,29 +348,28 @@ export function processesStillWorkingFor({
 /**
  Reads the note a resumed agent gets, which says what it left running and what to do with it.
 
- @param stillWorking - the run's own processes that still run, which may be empty when they have ended
+ The note names no number of seconds: the wait it ends is the launcher's own bound, and a note that repeated the run's wall clock
+ named a wait that never happened.
 
- @param wallSeconds - how long the run was allowed to last, which the note names when the work outlasted it
+ @param stillWorking - the run's own processes that still run, which may be empty when they have ended
 
  @returns the note
 
  @example
  ```ts
- const note = wakePromptOf({ stillWorking: [], wallSeconds: 7_200, },);
+ const note = wakePromptOf({ stillWorking: [], },);
  ```
  */
 export function wakePromptOf({
   stillWorking,
-  wallSeconds,
 }: {
   readonly stillWorking: readonly string[];
-  readonly wallSeconds: number;
 },): string {
   /**
    What the note says about the work, in its first sentence.
    */
   const opening = (stillWorking.length > 0)
-    ? `Work you left running when your turn ended is still running after ${String(wallSeconds,)} s: ${stillWorking.slice(
+    ? `Work you left running when your turn ended is still running: ${stillWorking.slice(
       0,
       OWN_WORK_NAMED_IN_A_NOTE,
     )
@@ -391,19 +418,20 @@ export function wakeResumeWordsOf({
 }
 
 /**
- Says how long a wait for a run's own work may last: the run's wall clock, so no wait outlives the work it waits for.
+ Says how long a wait for a run's own work may last.
 
- @param wallSeconds - how long a run may last, in seconds
+ It is not the run's own wall clock: the run has ended, and a launcher waiting for what it left running is a launcher holding the
+ name of a run that is over. See `WORK_AFTER_A_TURN_MILLISECONDS` for the bound and why it is that.
 
  @returns how long the wait may last, in milliseconds
 
  @example
  ```ts
- const wait = workWaitMillisecondsOf({ wallSeconds: 600, },);
+ const wait = workWaitMillisecondsOf();
  ```
  */
-export function workWaitMillisecondsOf({ wallSeconds, }: { readonly wallSeconds: number },): number {
-  return wallSeconds * MILLISECONDS_PER_SECOND;
+export function workWaitMillisecondsOf(): number {
+  return WORK_AFTER_A_TURN_MILLISECONDS;
 }
 
 /**
@@ -453,14 +481,17 @@ export type WakeOutcome =
      The status the resumed launcher ended with, or nothing when a signal ended it.
      */
       readonly status?: number;
+
+    /**
+     Whether the bound given to the resumed launcher is what ended it.
+     */
+      readonly endedByItsOwnBound?: boolean;
     };
 
 /**
  Waits for the run's own work and resumes its session, one wake at a time.
 
  @param runName - the run's name
-
- @param wallSeconds - how long the run may last, which bounds the wait
 
  @param wakesSoFar - how many times this run's name has been resumed already
 
@@ -480,12 +511,11 @@ export type WakeOutcome =
 
  @example
  ```ts
- const outcome = await wakeIfItsOwnWorkOutlivesItsTurn({ runName: 'a', wallSeconds: 600, wakesSoFar: 0, readOwnWork, report, wait, now: Date.now, resume, },);
+ const outcome = await wakeIfItsOwnWorkOutlivesItsTurn({ runName: 'a', wakesSoFar: 0, readOwnWork, report, wait, now: Date.now, resume, },);
  ```
  */
 export async function wakeIfItsOwnWorkOutlivesItsTurn({
   runName,
-  wallSeconds,
   wakesSoFar,
   readOwnWork,
   report,
@@ -495,7 +525,6 @@ export async function wakeIfItsOwnWorkOutlivesItsTurn({
   pollMilliseconds = WORK_POLL_MILLISECONDS,
 }: {
   readonly runName: string;
-  readonly wallSeconds: number;
   readonly wakesSoFar: number;
   readonly readOwnWork: () => Promise<readonly string[]>;
   readonly report: (line: string) => void;
@@ -534,11 +563,11 @@ export async function wakeIfItsOwnWorkOutlivesItsTurn({
     readOwnWork,
     wait,
     now,
-    deadline: now() + workWaitMillisecondsOf({ wallSeconds, },),
+    deadline: now() + workWaitMillisecondsOf(),
     pollMilliseconds,
   },);
   if (leftRunning.length > 0) {
-    report(`${runName}: its work still runs after ${String(wallSeconds,)} s (${leftRunning.slice(
+    report(`${runName}: its work still runs after ${String(Math.round(WORK_AFTER_A_TURN_MILLISECONDS / MILLISECONDS_PER_SECOND,),)} s (${leftRunning.slice(
       0,
       OWN_WORK_NAMED_IN_A_NOTE,
     )
@@ -558,6 +587,7 @@ export async function wakeIfItsOwnWorkOutlivesItsTurn({
   return {
     step: 'resumed',
     ...((answer.status === undefined) ? {} : { status: answer.status, }),
+    ...((answer.endedByItsOwnBound === true) ? { endedByItsOwnBound: true, } : {}),
   };
 }
 
@@ -574,6 +604,11 @@ export type WakeResumeAnswer = {
    The status the resumed launcher ended with, or nothing when a signal ended it.
    */
   readonly status?: number;
+
+  /**
+   Whether the bound given to the resumed launcher is what ended it, which is no exit of its own.
+   */
+  readonly endedByItsOwnBound?: boolean;
 
   /**
    Why the session could not be resumed, when it could not.

@@ -506,7 +506,7 @@ await describe({
         },);
         expect(await programsAsked(folder,),).toEqual([
           'systemctl --user list-units --state=active,activating --no-legend --plain pi-*.service',
-          'systemctl --user show pi-copy-route.service --property=ExecStart --value',
+          'systemctl --user show pi-copy-route.service --property=ExecStart --property=ActiveEnterTimestamp',
         ],);
       },
     },),
@@ -517,7 +517,9 @@ await describe({
         await writeStandIns({
           folder: folder.bins,
           units: 'pi-copy-route.service x\n',
-          execStart: `{ argv[]=node drive.ts --provider=${NEURALWATT_STANDARD.provider} --model=${NEURALWATT_STANDARD.model} ; }`,
+          // The manager answers both the unit own command line and when it became active, which is what a refusal names.
+          execStart: `ExecStart={ argv[]=node drive.ts --provider=${NEURALWATT_STANDARD.provider} --model=${NEURALWATT_STANDARD.model} ; }
+ActiveEnterTimestamp=Sat 2026-11-14 09:42:51 EST`,
         },);
         /**
          What the gate answered about a name that is already going.
@@ -527,7 +529,9 @@ await describe({
           words: ['--name=copy-route', '--runs-folder=/nowhere',],
         },);
         expect(ran.status,).toBe(ALREADY_RUNNING_EXIT_STATUS,);
-        expect(ran.stdout.trim(),).toBe('ALREADY RUNNING: copy-route',);
+        // A refusal says what holds the name and since when, because a reader who is told only that the name is taken has
+        // nothing to act on: on 2026-11-14 the holder was a launcher whose run had ended three hours before.
+        expect(ran.stdout.trim(),).toBe('ALREADY RUNNING: copy-route, held since Sat 2026-11-14 09:42:51 EST by unit pi-copy-route.service (active)',);
         expect((await programsAsked(folder,)).some(function ranTheLauncher(line,) {
           return line.startsWith('systemd-run',);
         },),).toBe(false,);

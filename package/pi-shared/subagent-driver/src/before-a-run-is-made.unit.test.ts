@@ -375,13 +375,17 @@ await describe({
              */
             const runName = 'copy-route';
             /**
+             When the unit last changed state, which a refusal names so a reader knows whether the holder is a run going now.
+             */
+            const SINCE = 'Sat 2026-11-14 13:15:17 EST';
+            /**
              What the manager says about a unit it holds.
              */
             const { problem, } = await nameProblemIn({
               run: async function answered() {
                 return {
                   status: 0,
-                  stdout: 'loaded\n',
+                  stdout: `LoadState=loaded\nActiveState=failed\nStateChangeTimestamp=${SINCE}\n`,
                   stderr: '',
                 };
               },
@@ -389,6 +393,8 @@ await describe({
             },);
             expect(problem,).toContain(unitNameOfGiven({ name: runName, },),);
             expect(problem,).toContain(runName,);
+            expect(problem,).toContain('ActiveState failed',);
+            expect(problem,).toContain(SINCE,);
           },
         },),
       ],
@@ -421,7 +427,7 @@ await describe({
                   }
                   : {
                     status: 0,
-                    stdout: 'active\n',
+                    stdout: 'LoadState=loaded\nActiveState=active\nStateChangeTimestamp=Sat 2026-11-14 09:42:51 EST\n',
                     stderr: '',
                   };
               },

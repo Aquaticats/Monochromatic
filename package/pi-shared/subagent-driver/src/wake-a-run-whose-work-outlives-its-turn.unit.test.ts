@@ -25,6 +25,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   WAKE_LIMIT,
+  WORK_AFTER_A_TURN_MILLISECONDS,
   WORK_POLL_MILLISECONDS,
   type ProcessAtAFolder,
   isOwnFolder,
@@ -178,6 +179,11 @@ await describe({
               command: 'sleep',
             },);
             await mkdir(join(processes, '14',), { recursive: true, },);
+            // A process whose own program could not be read, which is what a process that the kernel has already taken away answers:
+            // on 2026-11-14 two launchers ended with an uncaught `ESRCH: no such process, read '/proc/<pid>/comm'` while they read the
+            // process table just as their run's own teardown processes were dying.
+            await mkdir(join(processes, '15',), { recursive: true, },);
+            await symlink('/elsewhere', join(processes, '15', 'cwd',),);
             await mkdir(join(processes, 'not-a-number',), { recursive: true, },);
             // A process of another account, whose folder this one may not read: a process list always holds one, and the first
             // of them is process 1, which is what ended remove-finished-worktrees on 2026-11-11.
@@ -211,7 +217,11 @@ await describe({
             expect(read,).toEqual([
               12,
               13,
+              15,
             ],);
+            expect((await processesAtTheirFolders({ processFolder: processes, },)).find(function isTheUnnamed(process,) {
+              return process.pid === 15;
+            },)?.command,).toBe('?',);
             expect(await processesAtTheirFolders({ processFolder: join(folder.path, 'not-a-folder',), },),).toEqual([],);
           },
         },),
@@ -302,11 +312,9 @@ await describe({
           fn: async () => {
             expect(wakePromptOf({
               stillWorking: ['12 cargo',],
-              wallSeconds: 600,
-            },),).toBe('Work you left running when your turn ended is still running after 600 s: 12 cargo. Read its results and continue your task from where you stopped. Ending your turn again while something runs is fine; you are resumed when it ends.\n',);
+            },),).toBe('Work you left running when your turn ended is still running: 12 cargo. Read its results and continue your task from where you stopped. Ending your turn again while something runs is fine; you are resumed when it ends.\n',);
             expect(wakePromptOf({
               stillWorking: [],
-              wallSeconds: 600,
             },),).toContain('The work you left running when your turn ended has now ended.',);
           },
         },),
@@ -344,6 +352,58 @@ await describe({
       name: wakeIfItsOwnWorkOutlivesItsTurn.name,
       children: [
         it({
+          name: 'ends the wait for a run own work at a bound of its own, never at the run own wall clock, and resumes with the work still named',
+          fn: async () => {
+            /**
+             The clock the wait reads, which the fake wait moves on.
+             */
+            const clock: { at: number } = { at: 0, };
+            /**
+             The lines the step reported.
+             */
+            const reported: string[] = [];
+            /**
+             What the resumed launch was told still runs.
+             */
+            const told: { stillWorking?: readonly string[] } = {};
+            /**
+             What the step found and did.
+             */
+            const outcome = await wakeIfItsOwnWorkOutlivesItsTurn({
+              runName: 'a',
+              wakesSoFar: 0,
+              readOwnWork: async function stillWorking() {
+                return ['12 cargo',];
+              },
+              report: function report(line,) {
+                reported.push(line,);
+              },
+              wait: async function wait(milliseconds,) {
+                clock.at += milliseconds;
+              },
+              now: function now() {
+                return clock.at;
+              },
+              resume: async function resume({ stillWorking, },) {
+                told.stillWorking = stillWorking;
+                return {
+                  resumed: true,
+                  status: 0,
+                };
+              },
+            },);
+            // The wait lasted its own bound and no more: the run's own wall clock is what it waited out until 2026-11-15, which
+            // kept one launcher up for six hours after its run had ended.
+            expect(clock.at,).toBe(WORK_AFTER_A_TURN_MILLISECONDS,);
+            expect(outcome,).toEqual({
+              step: 'resumed',
+              status: 0,
+            },);
+            expect(told.stillWorking,).toEqual(['12 cargo',],);
+            expect(reported.join('\n',),).toContain(`its work still runs after ${String(WORK_AFTER_A_TURN_MILLISECONDS / 1_000,)} s`,);
+          },
+        },),
+        it({
           name: 'does nothing for a run that left no work of its own running',
           fn: async () => {
             /**
@@ -352,7 +412,6 @@ await describe({
             const reported: string[] = [];
             expect(await wakeIfItsOwnWorkOutlivesItsTurn({
               runName: 'a',
-              wallSeconds: 600,
               wakesSoFar: 0,
               readOwnWork: async function noWork() {
                 return [];
@@ -392,7 +451,6 @@ await describe({
             const asked: (readonly string[])[] = [];
             expect(await wakeIfItsOwnWorkOutlivesItsTurn({
               runName: 'a',
-              wallSeconds: 600,
               wakesSoFar: 0,
               readOwnWork: async function nextLook() {
                 /**
@@ -429,7 +487,6 @@ await describe({
              */
             const note = wakePromptOf({
               stillWorking: [],
-              wallSeconds: 600,
             },);
             expect(note,).not.toContain('owner',);
             expect(note,).not.toContain('the user said',);
@@ -446,7 +503,6 @@ await describe({
              */
             const tooManyWakes = await wakeIfItsOwnWorkOutlivesItsTurn({
               runName: 'a',
-              wallSeconds: 600,
               wakesSoFar: WAKE_LIMIT,
               readOwnWork: async function ownWork() {
                 return ['12 cargo',];
@@ -479,7 +535,6 @@ await describe({
              */
             const noSession = await wakeIfItsOwnWorkOutlivesItsTurn({
               runName: 'a',
-              wallSeconds: 600,
               wakesSoFar: 0,
               readOwnWork: async function nextLook() {
                 /**
@@ -516,9 +571,10 @@ await describe({
       name: workWaitMillisecondsOf.name,
       children: [
         it({
-          name: 'bounds the wait for a run own work by that run own wall clock',
+          name: 'bounds the wait for a run own work by a bound of its own, never by the run own wall clock',
           fn: async () => {
-            expect(workWaitMillisecondsOf({ wallSeconds: 600, },),).toBe(600_000,);
+            expect(workWaitMillisecondsOf(),).toBe(WORK_AFTER_A_TURN_MILLISECONDS,);
+            expect(WORK_AFTER_A_TURN_MILLISECONDS,).toBe(30 * 60 * 1_000,);
             expect(WAKE_LIMIT,).toBeGreaterThan(0,);
             expect(WORK_POLL_MILLISECONDS,).toBeGreaterThan(0,);
           },

@@ -30,11 +30,29 @@ import {
 } from './pool-limits.ts';
 import { optionIn, } from './option-in.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import { unitStateIsRunning, } from './wait-for-a-unit-to-end.ts';
+import {
+  NO_FINISHED_RUN_OF_THAT_NAME,
+  newestFinishedRunOf,
+} from './newest-finished-run-of-a-name.ts';
 import {
   firstWordOf,
   isDigitsOnly,
   valueOfOption,
 } from './text-of-an-option.ts';
+import {
+  type HolderOfARunName,
+  startedAtOf,
+  unitFactsIn,
+  unitFactsOf,
+} from './who-holds-a-run-name.ts';
+
+export {
+  type HolderOfARunName,
+  startedAtOf,
+  unitFactsIn,
+  unitFactsOf,
+} from './who-holds-a-run-name.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -100,6 +118,11 @@ export type GoingRun = {
    The pool this run holds a slot in; a membership that is in no pool claims no slot anywhere.
    */
   readonly membership: PoolMembership;
+
+  /**
+   What holds the run's name, so that a refusal names the holder and since when. A place read from a batch list carries none.
+   */
+  readonly held?: HolderOfARunName;
 };
 
 /**
@@ -242,12 +265,25 @@ export async function launcherRunsIn({
     if (name === '') {
       continue;
     }
+    /**
+     When this launcher began, which its own entry in the process folder says.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the entry of the process just read, whose start is in its own folder
+    const since = await startedAtOf({
+      processFolder,
+      entry,
+    },);
     runs.push({
       name,
       membership: membershipOfCommandLine({
         commandLine,
         pools,
       },),
+      held: {
+        kind: 'launcher',
+        pid: Number(entry,),
+        ...((since === '') ? {} : { since, }),
+      },
     },);
   }
   return runs;
@@ -343,12 +379,18 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
 export async function goingRunsNow({
   run,
   processFolder,
+  runsFolder,
   launcherEntryNames,
   pools = PROVIDER_POOLS,
   onProblem,
 }: {
   readonly run: RunCommand;
   readonly processFolder: string;
+  /**
+   Folder the driver writes one run folder per run into, which tells a launcher whose unit the manager collected from one that has
+   not made its unit yet.
+   */
+  readonly runsFolder?: string;
   readonly launcherEntryNames: readonly string[];
   readonly pools?: readonly ProviderPool[];
   readonly onProblem: (problem: string) => void;
@@ -362,9 +404,62 @@ export async function goingRunsNow({
     pools,
   },);
   /**
+   The launchers whose run has not ended, which is what a launcher process says of a run at all.
+
+   A launcher whose unit is there and is not going, and whose newest run folder holds a summary, is one that outlived its run: it is
+   in its after-run steps, where it waits for work the run left running, resumes the session or removes the worktree. Such a
+   launcher starts nothing more, so counting it kept its run's name taken after the run was over: on 2026-11-14 one held the name of
+   a finished review for three hours, and the start that asked for that run again was answered `ALREADY RUNNING` and lost. The run
+   folder is what tells a launcher that has not made its unit yet from one whose unit the manager has already collected.
+   */
+  const stillGoing: GoingRun[] = [];
+  for (const launcher of launchers) {
+    /**
+     The unit the run would be, and what the manager says about it.
+     */
+    const unitName = `${PI_UNIT_PREFIX}${launcher.name}${UNIT_SUFFIX}`;
+    /**
+     What the manager says about the run's own unit.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one launcher after another, and each question is about a different unit
+    const facts = await unitFactsOf({
+      run,
+      unitName,
+    },);
+    /**
+     The state the unit is in, and empty when the manager named none.
+     */
+    const state = facts.ActiveState ?? '';
+    if (unitStateIsRunning({ state, },)) {
+      stillGoing.push({
+        ...launcher,
+        held: {
+          kind: 'unit',
+          unit: unitName,
+          state,
+          ...((facts.ActiveEnterTimestamp === undefined) ? {} : { since: facts.ActiveEnterTimestamp, }),
+        },
+      },);
+      continue;
+    }
+    // A manager that cannot be asked must never drop a live run from the counts, and a launcher whose unit is not there yet has not
+    // made it: both are counted. Only a launcher whose latest run folder holds a summary is one whose run ended.
+    /**
+     Whether the run this launcher started has ended, which its newest run folder holding a summary says.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the run folders of the launcher just read
+    const runEnded = (runsFolder !== undefined) && ((await newestFinishedRunOf({
+      runsFolder,
+      runName: launcher.name,
+    },)) !== NO_FINISHED_RUN_OF_THAT_NAME);
+    if (!runEnded) {
+      stillGoing.push(launcher,);
+    }
+  }
+  /**
    The runs the launchers already account for.
    */
-  const runs = new Map(launchers.map(function keyed(launcher,) {
+  const runs = new Map(stillGoing.map(function keyed(launcher,) {
     return [
       launcher.name,
       launcher,
@@ -396,7 +491,7 @@ export async function goingRunsNow({
       continue;
     }
     /**
-     What the unit's own command line says about its pool.
+     What the unit's own command line says about its pool, and what the manager says of its state.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one unit after another: each question is about a different unit, and asking them all at once would leave the counts of a listing nobody can tie to a moment; see doc/lint/sequential-awaits.md
     const shown = await run({
@@ -406,9 +501,13 @@ export async function goingRunsNow({
         'show',
         `${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX}`,
         EXEC_START_PROPERTY,
-        '--value',
+        '--property=ActiveEnterTimestamp',
       ],
     },);
+    /**
+     The properties the manager printed for the unit.
+     */
+    const facts = unitFactsIn({ shown: shown.stdout, },);
     if (shown.status !== 0) {
       onProblem(`pool of unit ${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX} not read: ${shown.problem
         ?? shown.stderr
@@ -419,11 +518,20 @@ export async function goingRunsNow({
       {
         name,
         membership: (shown.status === 0)
-          ? poolOfExecStart({ shown: shown.stdout, },)
+          // A manager asked for the value alone answers the unit's own command line without its property's name, which is what the
+          // answer is read as when no `ExecStart=` line is there.
+          ? poolOfExecStart({ shown: facts.ExecStart ?? shown.stdout, },)
           : membershipOf({
             runName: name,
             pools,
           },),
+        held: {
+          kind: 'unit',
+          unit: `${PI_UNIT_PREFIX}${name}${UNIT_SUFFIX}`,
+          // Every unit counted here is one the listing named as active or activating.
+          state: 'active',
+          ...((facts.ActiveEnterTimestamp === undefined) ? {} : { since: facts.ActiveEnterTimestamp, }),
+        },
       },
     );
   }

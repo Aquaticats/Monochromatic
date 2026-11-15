@@ -40,6 +40,10 @@ import {
   wakePromptOf,
   wakeResumeWordsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
+import {
+  MILLISECONDS_PER_SECOND,
+} from './driver-constants.ts';
+import { UNIT_WAIT_GRACE_SECONDS, } from './wait-for-a-unit-to-end.ts';
 
 /**
  End reasons whose cause only Pi's own words give: Pi left the run, whether it had taken the prompt (`pi-exited`) or left before it
@@ -215,10 +219,7 @@ async function resumeTheSession({
     );
     await writeFile(
       wakePrompt,
-      wakePromptOf({
-        stillWorking,
-        wallSeconds: request.wallSeconds,
-      },),
+      wakePromptOf({ stillWorking, },),
       { encoding: 'utf8', },
     );
     /**
@@ -236,12 +237,17 @@ async function resumeTheSession({
       ],
       environment: {
         ...request.environment,
-        PI_RUN_WAKES: String(request.wakesSoFar + 1,),
+        PI_RUN_WAKES: String((request.wakesSoFar + 1),),
       },
+      // The resumed launcher is a whole launcher of this run again, and it may wait for its own run as this one did. What bounds
+      // it is the bound this launcher gives its own unit, so a resume that never ends cannot keep this launcher up forever: on
+      // 2026-11-14 a launcher was still up three hours and a half after its run ended, with the process that started it waiting.
+      timeoutMilliseconds: (request.wallSeconds + UNIT_WAIT_GRACE_SECONDS) * MILLISECONDS_PER_SECOND,
     },);
     return {
       resumed: true,
       ...((resumed.status === undefined) ? {} : { status: resumed.status, }),
+      ...((resumed.endedByItsOwnBound === true) ? { endedByItsOwnBound: true, } : {}),
     };
   }
   catch (error) {
@@ -284,7 +290,6 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
   const wake: WakeOutcome = ((endReason === 'idle') && (!request.readOnlyInMain))
     ? await wakeIfItsOwnWorkOutlivesItsTurn({
       runName: request.runName,
-      wallSeconds: request.wallSeconds,
       wakesSoFar: request.wakesSoFar,
       readOwnWork: async function readOwnWork() {
         return await ownWorkStillRunning(request,);
@@ -305,8 +310,12 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
     request.report(`${request.runName}: the agent was not resumed (${(wake.step === 'could-not-resume') ? wake.problem : 'its work still runs'})`,);
   }
   if (wake.step === 'resumed') {
-    request.report(`${request.runName}: resumed run ended with status ${String(wake.status,)}`,);
-    return { status: (wake.status === 0) ? 0 : (wake.status ?? 1), };
+    request.report(`${request.runName}: ${(wake.endedByItsOwnBound === true)
+      ? `the resumed launcher was ended at its own bound of ${String(request.wallSeconds + UNIT_WAIT_GRACE_SECONDS,)} s`
+      : `resumed run ended with status ${String(wake.status,)}`}`,);
+    return { status: (wake.endedByItsOwnBound === true)
+      ? 1
+      : ((wake.status === 0) ? 0 : (wake.status ?? 1)), };
   }
   /**
    What the run's own work still runs, which keeps the worktree as it is while it does.

@@ -6,7 +6,10 @@
  */
 
 import { readFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  isAbsolute,
+  join,
+} from 'node:path';
 import {
   isRecord,
   fieldsOf,
@@ -72,9 +75,14 @@ export function sessionFileInSummary({
 /**
  Reads the session file of a finished run in the runs folder.
 
+ The run's folder is taken as a path when it is one, which is how every caller holds it: on 2026-11-14 a wake joined the runs
+ folder with the finished run's whole path and reported `…/pi-runs/home/user/temp/agent/pi-runs/review-…-1/summary.json` as
+ unreadable, so no run whose work outlived its turn was ever resumed. A bare folder name is read inside the runs folder, as
+ before.
+
  @param runsFolder - folder the driver writes one run folder per run into
 
- @param runFolder - the finished run's folder's name
+ @param runFolder - the finished run's folder, as a path or as a name inside the runs folder
 
  @returns the session file
 
@@ -93,11 +101,15 @@ export async function sessionFileOfRun({
   readonly runFolder: string;
 }): Promise<string> {
   /**
-   Where that run's summary is.
+   Where that run's summary is, which is the run folder's own path when the caller gave one.
    */
   const summaryFile = join(
-    runsFolder,
-    runFolder,
+    isAbsolute(runFolder,)
+      ? runFolder
+      : join(
+        runsFolder,
+        runFolder,
+      ),
     'summary.json',
   );
   try {

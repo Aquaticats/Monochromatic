@@ -85,6 +85,24 @@ export {
   placesAskedFor,
 } from './asked-for-places.ts';
 export {
+  WATCHED_START_FILE_SUFFIX,
+  type WatchedStart,
+  WatchedStartError,
+  gaveUpAtItsDeadline,
+  isAWatchedStartFile,
+  launcherReasonIn,
+  removeWatchedStart,
+  watchedStartFileOf,
+  watchedStartIn,
+  watchedStartsIn,
+  writeWatchedStart,
+} from './start-of-a-queue-entry-the-filling-watches.ts';
+export {
+  type SettledStart,
+  runExistsFor,
+  settleWatchedStarts,
+} from './settling-the-starts-a-filling-watches.ts';
+export {
   FILLING_ROUND_SECONDS,
   STALLED_FILLING_BOUND_MILLISECONDS,
   STALLED_FILLING_BOUND_SECONDS,

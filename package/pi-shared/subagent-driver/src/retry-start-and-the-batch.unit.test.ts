@@ -1254,7 +1254,9 @@ await describe({
               return run.name;
             },),).toEqual(['with-launcher', 'no-launcher',],);
             expect(poolNamesOf(going[1] ?? aRunOutsideEveryPool(),),).toEqual(['neuralwatt-kimi-flex',],);
-            expect(asked,).toHaveLength(2,);
+            // The launchers own unit is asked about as well, which is what tells a launcher whose run has ended from one that
+            // has not made its unit yet.
+            expect(asked,).toHaveLength(3,);
           },
         },),
         it({

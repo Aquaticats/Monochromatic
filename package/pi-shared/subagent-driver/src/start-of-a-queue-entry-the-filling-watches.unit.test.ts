@@ -1,0 +1,621 @@
+/**
+ The record of one start the filling made: the entry out of the queue only while its run exists, and the entry put back or set aside
+ with the launcher's own reason otherwise.
+
+ The manager and the runs folder are seams: a test answers `systemctl show` itself and writes the run folders it describes, so no
+ unit, worktree or Pi run is started.
+
+ @module
+ */
+
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import {
+  WATCHED_START_FILE_SUFFIX,
+  type QueueRecord,
+  type RunCommand,
+  gaveUpAtItsDeadline,
+  isAWatchedStartFile,
+  launcherReasonIn,
+  putAQueueEntryIn,
+  readQueueOfRuns,
+  removeWatchedStart,
+  runExistsFor,
+  setAsideRecordOf,
+  settleWatchedStarts,
+  watchedStartFileOf,
+  watchedStartIn,
+  watchedStartsIn,
+  WatchedStartError,
+  writeWatchedStart,
+} from '../dist/final/node/index.mjs';
+
+/**
+ A folder a test may write in, with its runs and its queue, removed when the test ends.
+ */
+type AThrowawayFolder = {
+  /**
+   The folder's path.
+   */
+  readonly path: string;
+
+  /**
+   The folder the runs live in.
+   */
+  readonly runs: string;
+
+  /**
+   The queue's path.
+   */
+  readonly queueFile: string;
+
+  /**
+   Removes the folder and everything under it.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ A folder a test may write in, with its runs and its queue, removed when the test ends.
+
+ @param entries - what the queue holds
+
+ @returns the folder
+ */
+async function makeFolder(entries: readonly Record<string, unknown>[],): Promise<AThrowawayFolder> {
+  /**
+   The folder's path.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'pi-watched-start-',),);
+  /**
+   The folder the runs live in.
+   */
+  const runs = join(path, 'runs',);
+  await mkdir(runs, { recursive: true, },);
+  /**
+   The queue's path.
+   */
+  const queueFile = join(path, 'queue.json',);
+  await writeFile(
+    queueFile,
+    `${JSON.stringify(entries,)}\n`,
+  );
+  return {
+    path,
+    runs,
+    queueFile,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
+/**
+ The entry a test starts, which is one run a queue of runs may hold.
+
+ @param name - its name
+
+ @returns the entry
+ */
+function anEntry({ name, }: { readonly name: string },): QueueRecord {
+  return {
+    name,
+    branch: `feat/${name}`,
+  };
+}
+
+/**
+ Writes the record of one start, as the filling writes it before the batch's unit is asked for.
+
+ @param request - the folder, the entry, the unit's state and what the batch printed
+
+ @returns the record's path
+
+ @example
+ ```ts
+ await writeStartOf({ folder, name: 'a', state: 'inactive', printed: 'ALREADY RUNNING: a\n', });
+ ```
+ */
+async function writeStartOf({
+  folder,
+  name,
+  printed,
+}: {
+  readonly folder: AThrowawayFolder;
+  readonly name: string;
+  readonly printed: string;
+}): Promise<string> {
+  /**
+   The batch list beside the runs, which names the unit and its output.
+   */
+  const batchFile = join(
+    folder.runs,
+    `batch-2026-11-14T162841-queue-entry-${name}.json`,
+  );
+  await writeFile(
+    batchFile,
+    `${JSON.stringify([{
+      name,
+      branch: `feat/${name}`,
+    },],)}\n`,
+  );
+  await writeFile(
+    join(
+      folder.runs,
+      `batch-2026-11-14T162841-queue-entry-${name}.out`,
+    ),
+    printed,
+  );
+  return await writeWatchedStart({
+    runsFolder: folder.runs,
+    record: anEntry({ name, },),
+    start: {
+      runName: name,
+      batchFile,
+      outputFile: join(
+        folder.runs,
+        `batch-2026-11-14T162841-queue-entry-${name}.out`,
+      ),
+      unit: `launch-batch-2026-11-14T162841-queue-entry-${name}`,
+    },
+    now: Date.now,
+  },);
+}
+
+/**
+ Answers `systemctl show` for the units a test names, and a unit it does not name as one that is not there.
+
+ @param states - the state each unit is in
+
+ @returns how one command is run
+ */
+function unitsInTheStates(states: ReadonlyMap<string, string>,): RunCommand {
+  return async function systemctl({ words, },) {
+    /**
+     The unit the question is about, which follows `show`.
+     */
+    const unitName = words[2] ?? '';
+    return {
+      status: 0,
+      stdout: `${states.get(unitName,) ?? 'inactive'}\n`,
+      stderr: '',
+    };
+  };
+}
+
+/**
+ Writes one finished run's folder and summary.
+
+ @param runs - the folder the runs live in
+
+ @param name - the run's name
+
+ @returns what the summary's path is
+ */
+async function writeFinishedRun({
+  runs,
+  name,
+}: {
+  readonly runs: string;
+  readonly name: string;
+},): Promise<string> {
+  /**
+   The run's own folder.
+   */
+  const folder = join(
+    runs,
+    `${name}-1`,
+  );
+  await mkdir(folder, { recursive: true, },);
+  /**
+   The summary's path.
+   */
+  const summary = join(folder, 'summary.json',);
+  await writeFile(
+    summary,
+    '{"endReason":"idle"}\n',
+  );
+  return summary;
+}
+
+await describe({
+  name: '',
+  children: [
+    describe({
+      name: watchedStartIn.name,
+      children: [
+        it({
+          name: 'reads a record this package wrote, and refuses anything else with the file named',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            /**
+             The records the folder holds.
+             */
+            const records = await watchedStartsIn({ runsFolder: folder.runs, },);
+            expect(records,).toHaveLength(1,);
+            expect(records[0]?.name,).toBe('a',);
+            expect(records[0]?.runName,).toBe('a',);
+            expect(records[0]?.unit,).toBe('launch-batch-2026-11-14T162841-queue-entry-a',);
+            /**
+             What a file that is not a record is refused with.
+             */
+            let refused: unknown;
+            try {
+              watchedStartIn({
+                shown: '{"name":"a"}',
+                file: '/runs/a-queue-start.json',
+              },);
+            }
+            catch (error) {
+              refused = error;
+            }
+            expect(refused,).toBeInstanceOf(WatchedStartError,);
+            expect((refused as Error).message,).toContain('/runs/a-queue-start.json',);
+          },
+        },),
+        it({
+          name: 'keeps every record removed when its entry was settled, and lists only the start it still holds',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            expect(isAWatchedStartFile({
+              file: watchedStartFileOf({
+                runsFolder: '/runs',
+                name: 'a',
+              },),
+            },),).toBe(true,);
+            await removeWatchedStart({
+              runsFolder: folder.runs,
+              name: 'a',
+            },);
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toEqual([],);
+            // A record that was already gone is no failure: settling the same start twice must be safe.
+            await removeWatchedStart({
+              runsFolder: folder.runs,
+              name: 'a',
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: launcherReasonIn.name,
+      children: [
+        it({
+          name: 'answers the last line the batch printed, nothing when it printed nothing, and names a wait that gave up at its deadline',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            /**
+             What the batch printed.
+             */
+            const file = join(folder.runs, 'batch-a.out',);
+            await writeFile(
+              file,
+              'ALREADY RUNNING: a\na: status 4 ALREADY RUNNING: a (all it printed: /runs/a-start-failure.log)\n1 of 1 entries failed: a\n',
+            );
+            expect(await launcherReasonIn({ file, },),).toBe('1 of 1 entries failed: a',);
+            expect(gaveUpAtItsDeadline({ reason: await launcherReasonIn({ file, },), },),).toBe(false,);
+            await writeFile(
+              file,
+              'WAITING: a asks for a pool\nno slot freed before the deadline: --name=a\n1 of 1 entries failed: a\n',
+            );
+            /**
+             The line the retrying start ended with.
+             */
+            const gaveUp = 'no slot freed before the deadline: --name=a\n';
+            await writeFile(
+              file,
+              `WAITING: a asks for a pool\n${gaveUp}`,
+            );
+            expect(gaveUpAtItsDeadline({ reason: await launcherReasonIn({ file, },), },),).toBe(true,);
+            expect(await launcherReasonIn({ file: join(folder.runs, 'not-there.out',), },),).toBe('',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: runExistsFor.name,
+      children: [
+        it({
+          name: 'reads a run whose unit is going as there, and a run folder that finished after the start as there too',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            /**
+             The record the questions are about.
+             */
+            const [record] = await watchedStartsIn({ runsFolder: folder.runs, },);
+            expect(record,).toBeDefined();
+            if (record === undefined) {
+              return;
+            }
+            expect(await runExistsFor({
+              runsFolder: folder.runs,
+              record,
+              run: unitsInTheStates(new Map([['pi-a.service', 'active',],],),),
+            },),).toEqual({
+              there: true,
+              because: 'unit pi-a.service is active',
+            },);
+            /**
+             The summary of a run that finished before the start, which is no run of this start.
+             */
+            const summary = await writeFinishedRun({
+              runs: folder.runs,
+              name: 'a',
+            },);
+            /**
+             A moment before the start, which leaves that summary out.
+             */
+            const before = new Date(Date.parse(record.startedAt,) - 60_000,);
+            await utimes(
+              summary,
+              before,
+              before,
+            );
+            expect(await runExistsFor({
+              runsFolder: folder.runs,
+              record,
+              run: unitsInTheStates(new Map(),),
+            },),).toEqual({ there: false, },);
+            /**
+             The same summary written after the start, which is this start's run.
+             */
+            const after = new Date(Date.parse(record.startedAt,) + 60_000,);
+            await utimes(
+              summary,
+              after,
+              after,
+            );
+            expect(await runExistsFor({
+              runsFolder: folder.runs,
+              record,
+              run: unitsInTheStates(new Map(),),
+            },),).toEqual({
+              there: true,
+              because: 'run folder a-1 holds a summary written after the start',
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: settleWatchedStarts.name,
+      children: [
+        it({
+          name: 'puts an entry back at the head of the queue when its launcher only gave up waiting for a place, and says so once',
+          fn: async () => {
+            await using folder = await makeFolder([{
+              name: 'b',
+              branch: 'feat/b',
+            },],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: 'WAITING: a asks for a pool\nno slot freed before the deadline: --name=a\n',
+            },);
+            /**
+             What settling found.
+             */
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: function report(problem,) {
+                throw new Error(`nothing was expected to be reported: ${problem}`);
+              },
+            },);
+            expect(settled,).toHaveLength(1,);
+            expect(settled[0]?.outcome,).toBe('put-back',);
+            expect(settled[0]?.line,).toContain('put a back at the head of the queue',);
+            expect(settled[0]?.line,).toContain('no slot freed before the deadline',);
+            expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
+              return entry.name;
+            },),).toEqual(['a', 'b',],);
+            // The record is gone, which is what makes the filling say it once.
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toEqual([],);
+            expect(await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: () => {},
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'sets an entry aside with the launcher own reason when its launcher failed, and the record can be read back and put back',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: 'ALREADY RUNNING: a\na: status 4 ALREADY RUNNING: a (all it printed: /runs/a-start-failure.log)\n1 of 1 entries failed: a\n',
+            },);
+            /**
+             What settling found.
+             */
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: () => {},
+            },);
+            expect(settled[0]?.outcome,).toBe('set-aside',);
+            expect(settled[0]?.line,).toContain('set aside a (the-launcher)',);
+            expect(settled[0]?.line,).toContain('1 of 1 entries failed: a',);
+            /**
+             The record the set-aside wrote, which holds the entry whole and the reason it was set aside for.
+             */
+            const record = await setAsideRecordOf({
+              runsFolder: folder.runs,
+              name: 'a',
+            },);
+            expect(typeof record,).toBe('object',);
+            if ((typeof record) === 'object') {
+              expect(record.reason,).toBe('1 of 1 entries failed: a',);
+              expect(record.entry,).toEqual(anEntry({ name: 'a', },),);
+            }
+            expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'keeps the entry out of the queue and says so once when its run exists',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            await writeFinishedRun({
+              runs: folder.runs,
+              name: 'a',
+            },);
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: () => {},
+            },);
+            expect(settled,).toHaveLength(1,);
+            expect(settled[0]?.outcome,).toBe('the-run-exists',);
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toEqual([],);
+            expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'leaves a start alone while the batch that was asked for it is still going, and settles it in the round after',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            expect(await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map([[
+                'launch-batch-2026-11-14T162841-queue-entry-a.service',
+                'active',
+              ],],),),
+              now: Date.now,
+              report: () => {},
+            },),).toEqual([{
+              name: 'a',
+              outcome: 'still-going',
+            },],);
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toHaveLength(1,);
+          },
+        },),
+        it({
+          name: 'drops the record of a start whose entry never left the queue, which a kill between the two leaves, and tries the entry again',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            await putAQueueEntryIn({
+              queueFile: folder.queueFile,
+              entry: anEntry({ name: 'a', },),
+              position: 0,
+            },);
+            const dropped = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: () => {},
+            },);
+            expect(dropped[0]?.outcome,).toBe('never-left-the-queue',);
+            expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
+              return entry.name;
+            },),).toEqual(['a',],);
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'reports a start it cannot settle and goes on to the next one',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            await writeStartOf({
+              folder,
+              name: 'b',
+              printed: 'ALREADY RUNNING: b\n',
+            },);
+            /**
+             What the settling reported.
+             */
+            const reported: string[] = [];
+            /**
+             What settling found.
+             */
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              // A queue that cannot be read is one start that cannot be settled, and no reason to leave the other one.
+              queueFile: join(folder.path, 'no-folder', 'queue.json',),
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: function report(problem,) {
+                reported.push(problem,);
+              },
+            },);
+            expect(settled,).toEqual([],);
+            expect(reported,).toHaveLength(2,);
+            expect(reported[0],).toContain('could not be settled');
+            // Both records are still there, so the next round tries them again rather than losing the entries.
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toHaveLength(2,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: WATCHED_START_FILE_SUFFIX,
+      children: [
+        it({
+          name: 'ends every record of a start, and no other file beside the runs is one',
+          fn: async () => {
+            expect('-queue-start.json'.endsWith(WATCHED_START_FILE_SUFFIX,),).toBe(true,);
+            expect(isAWatchedStartFile({ file: 'a-set-aside.json', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+  ],
+},);
