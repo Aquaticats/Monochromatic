@@ -29,6 +29,14 @@
 //! for the lines it handed over,
 //! because `std::process::exit` ends the thread where it stands
 //! and a refusal's last line is the whole of what a person gets.
+//!  A line is the thread's until all of its bytes are in the stream:
+//! a write a stream refused leaves the rest of the line here,
+//! and nothing else is written until the rest of it is,
+//! so the stream holds one line whole or a fragment whose remainder is still to come.
+//! A fragment is the one thing a reader can be left with,
+//! and only when the process ends before the rest of the line reaches the stream:
+//! it has no newline of its own,
+//! so the next line written into that stream begins right after it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -80,6 +88,20 @@ const DROPPED_NOTICE_TAIL: &str = " log entries were dropped before this one bec
 /// never per line.
 pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = std::time::Duration::from_millis(250);
 
+/// How often the end of a process asks the thread again for a line a stream refused.
+///
+/// A wait is what it says: the answer is `true` only when every byte of every line is in the stream,
+/// and a stream that refused a line may take it a moment later,
+/// so the end asks again rather than answering on the thread's first attempt.
+/// The bound it asks within is `WAIT_BEFORE_AN_EXIT`,
+/// and this is a fiftieth of it.
+/// Measured on 2026-11-15 against this queue:
+/// a reader that made room 50 ms into the wait had the line 4.6 ms later, which is one tick,
+/// and an end of a process with no room at all waited 250.06 ms of its 250 ms bound.
+/// So one bound holds the thread to at most `WAIT_BEFORE_AN_EXIT / THE_END_ASKS_AGAIN_EVERY` attempts,
+/// a handful of syscalls at the very end of a process and none during its work.
+pub const THE_END_ASKS_AGAIN_EVERY: std::time::Duration = std::time::Duration::from_millis(5);
+
 /// What the queue of one process holds,
 /// and where the lines of a control go.
 struct Queue {
@@ -88,6 +110,11 @@ struct Queue {
     lines: VecDeque<Vec<u8>>,
     /// How many lines found no room since the last one that got through.
     dropped: u64,
+    /// Whether the stream takes nothing more:
+    /// a write that failed for any reason other than a momentary lack of room
+    /// leaves a stream that no wait can bring back,
+    /// so the end of the process is answered `false` at once rather than at its bound.
+    stream_is_gone: bool,
     /// Whether the thread holds a line it has not written yet.
     /// The queue being empty is not enough for a caller that waits for the stream:
     /// the last line is out of the queue and in the stream only once this is false again.
@@ -134,7 +161,7 @@ fn queue() -> &'static (Mutex<Queue>, Condvar) {
 fn start_the_queue() -> &'static (Mutex<Queue>, Condvar) {
     {
         let started: &'static (Mutex<Queue>, Condvar) = Box::leak(Box::new((
-            Mutex::new(Queue { lines: VecDeque::new(), dropped: 0, writing: false, writer: None }),
+            Mutex::new(Queue { lines: VecDeque::new(), dropped: 0, stream_is_gone: false, writing: false, writer: None }),
             Condvar::new(),
         )));
         // The thread holds the queue for as long as this process runs; a failure to start it leaves the lines uncounted,
@@ -150,14 +177,23 @@ fn start_the_queue() -> &'static (Mutex<Queue>, Condvar) {
 }
 
 /// What:
-///  Writes the lines of the queue for as long as the process runs.
+///  Writes the lines of the queue for as long as the process runs,
+///  and keeps whatever a stream did not take.
 /// Why:
 ///   This thread may wait for the stream as long as the stream takes;
 /// the landing that handed it a line does not.
+///  A line leaves this thread only when all of its bytes are in the stream,
+/// because the end of a process promises exactly that much and a write can end short:
+/// a stream with no room now (`WouldBlock`) takes the rest of the line later,
+/// so the rest stays here and this thread is asked again, by the next line or by the end of the process;
+/// a partial write takes what it took, and the remainder stays here, so nothing else is written into the middle of one line;
+/// a signal that ended the call (`Interrupted`) changed nothing about the stream, so the attempt is made again at once;
+/// and a stream that is gone (a closed pipe, a descriptor nothing holds) takes nothing ever again,
+/// so the rest of the line is dropped and the whole queue answers `false` from then on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (;;) { const line = take(); if (!line) return; write(line) }
+/// for (;;) { const line = take(); if (!line) return; while (line.hasBytes) { const wrote = tryWrite(line.bytes); if (ended) return; if (!wrote) waitToBeAskedAgain() } }
 /// ```
 fn write_every_line(started: &'static (Mutex<Queue>, Condvar)) {
     let (queue, ready) = started;
@@ -191,8 +227,38 @@ fn write_every_line(started: &'static (Mutex<Queue>, Condvar)) {
                 None => Box::new(std::io::stderr()),
             }
         };
-        // The stream may wait as long as it likes; the result is dropped because a closed log is no reason to lose the work it describes.
-        let _written = writer.write_all(line.as_slice());
+        // What: the bytes of this line the stream has not taken yet.
+        // Why:  a line leaves this thread only when all of it is in the stream.
+        let mut unwritten: &[u8] = line.as_slice();
+        while !unwritten.is_empty() {
+            match writer.write(unwritten) {
+                // A stream that took nothing is one to ask again later, not one that refused.
+                Ok(0) => {}
+                Ok(taken) => {
+                    unwritten = &unwritten[taken..];
+                    continue;
+                }
+                // A signal ended the call and nothing about the stream changed.
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                // A stream with no room now: the rest of the line waits here.
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                // The stream is gone, and no wait brings a reader back: the rest of this line is dropped and the queue
+                //  says so to whoever asks.
+                Err(_gone) => {
+                    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    held.stream_is_gone = true;
+                    drop(held);
+                    break;
+                }
+            }
+            // Nothing more can be written now, so this thread waits to be asked again, by the next line handed over or
+            //  by the end of the process, and never on the stream itself.
+            let held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let _woken = match ready.wait(held) {
+                Ok(ready_now) => ready_now,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+        }
         let _flushed = writer.flush();
         let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if held.writer.is_none() {
@@ -254,12 +320,19 @@ pub fn dropped_so_far() -> u64 {
 /// What:
 ///  Waits,
 ///  bounded,
-///  for every line handed over to reach the stream,
+///  for every byte of every line handed over to reach the stream,
 ///  and says whether it did.
 /// Why:
 ///   A process that ends at once after its last line loses that line otherwise:
 /// the line is out of the queue and in a thread of its own,
 /// and `std::process::exit` ends every thread where it stands.
+///  Its answer is the whole of what it promises:
+/// `true` means every byte of every line handed over is in the stream,
+/// which is why a line a stream has no room for yet is still the thread's when the wait begins,
+/// and why the wait asks the thread again at `THE_END_ASKS_AGAIN_EVERY`
+/// instead of answering on its first attempt.
+///  A stream that is gone is answered `false` at once and not waited for,
+/// because every write to it fails the same way and no wait brings a reader back.
 /// The wrapper's service mode refuses a start with one line and returns its exit status,
 /// and the refusals of 2026-11-14 (a `--git` that is the wrapper,
 /// a start with no socket and no address)
@@ -286,13 +359,20 @@ pub fn write_what_waits(within: std::time::Duration) -> bool {
     let deadline: std::time::Instant = std::time::Instant::now() + within;
     let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     loop {
+        // A stream that is gone takes nothing more, so no wait brings a reader back and the answer is owed now.
+        if held.stream_is_gone {
+            return false;
+        }
         if held.lines.is_empty() && !held.writing {
             return true;
         }
         let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
             return false;
         };
-        held = match ready.wait_timeout(held, left) {
+        // The thread keeps what a stream refused and tries again when it is asked to: this is the asking, and the tick
+        //  is what makes a reader's room, wherever in the bound it appears, the thread's next attempt.
+        ready.notify_all();
+        held = match ready.wait_timeout(held, left.min(THE_END_ASKS_AGAIN_EVERY)) {
             Ok((woken, _its_time_was_up)) => woken,
             Err(poisoned) => poisoned.into_inner().0,
         };
