@@ -1497,7 +1497,10 @@ and what it did.
   base `0b67e7ccae`).
   The branch's clean moves a nested repository aside to a saved copy,
   where the rule's words are that the wrapper moves nothing aside.
-  Read at 00:58 in the branch's `SPEC.md`,
+  Read between 00:52:28 and 00:54:32
+  (the commits before and after the read;
+  an earlier wording here gave a minute ahead of the clock)
+  in the branch's `SPEC.md`,
   "Discarding commands"
   (lines 18867 to about 19400 at `0b67e7ccae`):
   the lines there that cite an owner's answer cite the one of 2026-11-10
@@ -1536,6 +1539,16 @@ and what it did.
   20 runs going.
   The resumed session is not named by the credential scan.
   The queue held 75 entries at 00:45:37.
+- **A sighting under `0.6.1-alpha.37`**:
+  this session's commit `fd002ed513` in the main checkout,
+  landed 00:54:32,
+  printed "The commit service has not said where this commit stands yet; it has waited 10 seconds." and then "This commit is next." before it landed.
+  The home drive was stalling in those minutes
+  (the probe's readings in `doc/handover/agents-at-once-on-this-machine.md`).
+  One commit,
+  its cause not measured;
+  it is over the rule of five seconds or twice real Git,
+  and it goes to the queued run on a commit whose service did not start or stopped answering as a third sighting.
 
 ##### The cap steps down to 20 after two stalls in a row on the home drive; the drawn tree and mpm-shadow's install go back to their authors (2026-11-15T00:34:22-05:00)
 
