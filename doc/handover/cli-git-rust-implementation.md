@@ -757,7 +757,7 @@ Questions kept for the owner's return:
   refuse with the opt-out,
   or delete and log?
   The branch keeps its save until an answer.
-- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24 and 01:03:30,
+- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24 and 01:02:30,
   not blocking work:
   the cap on agents went from 24 to 20 at 00:32:16,
   from 20 to 18 at 00:50:55 and from 18 to 17 at 01:00:44,
@@ -1436,7 +1436,7 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
-##### The home drive stalls for 109 seconds and the cap steps to 17; two commits wait on their service across the stall; the lock-holders folder goes to review (2026-11-15T01:03:30-05:00)
+##### The home drive stalls for 109 seconds and the cap steps to 17; two commits wait on their service across the stall; the lock-holders folder goes to review (2026-11-15T01:02:30-05:00)
 
 Not final and not approved:
 what the probe and one author report,
