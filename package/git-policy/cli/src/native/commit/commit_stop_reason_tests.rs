@@ -237,9 +237,12 @@ fn every_failure_a_command_decides_names_itself() {
         seen.push(word);
     }
     assert_eq!(seen.len(), failures.len(), "every failure is named, and by a word of its own");
-    // The three the live log could not tell apart are named apart.
+    // What: The three the live log could not tell apart are named apart.
+    // Why:  `nothing-answered` was a variant of `main`'s that this branch removes: a service that is there and greets nothing
+    //       is `service-recovering` here, and one that is not there is `did-not-start`, so the word that named a state no
+    //       branch has is `service-recovering` now.
     let named: String = failures.iter().map(|failure| { return crate::service_messages::failure_code(failure); }).collect::<Vec<&str>>().join(" ");
-    for expected in ["other-release", "no-activation", "did-not-start", "nothing-answered"] {
+    for expected in ["other-release", "no-activation", "did-not-start", "service-recovering"] {
         assert!(named.contains(expected), "{expected} is not among the words: {named}");
     }
 }
