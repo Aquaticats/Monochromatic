@@ -206,14 +206,17 @@ type Fixture = {
 
  @param withARealRepository - whether the checkout is a Git repository with one commit, which the worktree tests need
 
+ @param holdsUnits - whether the unit stand-in holds each name until both starts have asked, which places two starts at the unit
+ rather than at the worktree
+
  @returns where each part is
 
  @example
  ```ts
- const fixture = await fixtureIn(folder.path, false);
+ const fixture = await fixtureIn(folder.path, false, true);
  ```
  */
-async function fixtureIn(folder: string, withARealRepository: boolean,): Promise<Fixture> {
+async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnits: boolean,): Promise<Fixture> {
   /**
    Every part of the fixture, each under the folder of this test.
    */
@@ -288,11 +291,41 @@ async function fixtureIn(folder: string, withARealRepository: boolean,): Promise
     body: `sleep 0.1\nprintf '%s\\n' 'not-found'\nexit 0\n`,
   },);
   // The unit manager: one unit per name, refused the second time as the real manager refuses, and the summary a driver writes into
-  // the folder the unit is told to write into, saying which start wrote it and which branch its worktree was on.
+  // the folder the unit is told to write into, saying which start wrote it and which branch its worktree was on. A name is released
+  // when its unit ends, which is what `--collect` makes a manager do.
   await writeProgram({
     folder: fixture.launcherBin,
     name: 'systemd-run',
-    body: `for word in "$@"; do\n  case "$word" in\n    --unit=*) unit="\${word#--unit=}" ;;\n    --run-folder=*) runFolder="\${word#--run-folder=}" ;;\n    --working-folder=*) workingFolder="\${word#--working-folder=}" ;;\n  esac\ndone\nprintf '%s\\t%s\\t%s\\n' "$PI_START_ID" "$unit" "$runFolder" >> '${fixture.units}'\nmkdir -p '${folder}/unit-names'\nif ! mkdir '${folder}/unit-names/'"$unit" 2>/dev/null; then\n  printf 'Unit %s was already loaded or has a fragment file.\\n' "$unit" >&2\n  exit 1\nfi\nwaited=0\nwhile [ "$(wc -l < '${fixture.units}')" -lt 2 ] && [ "$waited" -lt 100 ]; do\n  sleep 0.02\n  waited=$((waited + 1))\ndone\nbranch=$(git -C "$workingFolder" branch --show-current 2>/dev/null || true)\nstatus=$(git -C "$workingFolder" status --porcelain 2>/dev/null || true)\nprintf '%s\\n' '{"endReason":"pi-exited","startId":"'"$PI_START_ID"'","branch":"'"$branch"'","statusLines":"'"$(printf '%s' "$status" | tr '\\n' ';')"'"}' > "$runFolder/${SUMMARY_FILE_NAME}"\nexit 0\n`,
+    body: [
+      'for word in "$@"; do',
+      '  case "$word" in',
+      '    --unit=*) unit="${word#--unit=}" ;;',
+      '    --run-folder=*) runFolder="${word#--run-folder=}" ;;',
+      '    --working-folder=*) workingFolder="${word#--working-folder=}" ;;',
+      '  esac',
+      'done',
+      `printf '%s\\t%s\\t%s\\n' "$PI_START_ID" "$unit" "$runFolder" >> '${fixture.units}'`,
+      `mkdir -p '${folder}/unit-names'`,
+      `if ! mkdir '${folder}/unit-names/'"$unit" 2>/dev/null; then`,
+      `  printf 'Unit %s was already loaded or has a fragment file.\\n' "$unit" >&2`,
+      '  exit 1',
+      'fi',
+      ...(holdsUnits
+        ? [
+          'waited=0',
+          `while [ "$(wc -l < '${fixture.units}')" -lt 2 ] && [ "$waited" -lt 100 ]; do`,
+          '  sleep 0.02',
+          '  waited=$((waited + 1))',
+          'done',
+        ]
+        : []),
+      'branch=$(git -C "$workingFolder" branch --show-current 2>/dev/null || true)',
+      'status=$(git -C "$workingFolder" status --porcelain 2>/dev/null || true)',
+      `printf '%s\\n' '{"endReason":"pi-exited","startId":"'"$PI_START_ID"'","branch":"'"$branch"'","statusLines":"'"$(printf '%s' "$status" | tr '\\n' ';')"'"}' > "$runFolder/${SUMMARY_FILE_NAME}"`,
+      `rmdir '${folder}/unit-names/'"$unit" 2>/dev/null || true`,
+      'exit 0',
+      '',
+    ].join('\n',),
   },);
   // The session's own git, which answers the policy namespace help as the wrapper does.
   await writeProgram({
@@ -575,7 +608,7 @@ await describe({
         /**
          The stand-ins, the checkout and the runs folder both starts share.
          */
-        const fixture = await fixtureIn(folder.path, false,);
+        const fixture = await fixtureIn(folder.path, false, true,);
         /**
          What both starts printed, each its own process, started at once.
          */
@@ -649,7 +682,7 @@ await describe({
         /**
          The stand-ins, the real repository and the runs folder both starts share.
          */
-        const fixture = await fixtureIn(folder.path, true,);
+        const fixture = await fixtureIn(folder.path, true, false,);
         /**
          The worktree path both starts of this name use.
          */
@@ -693,12 +726,29 @@ await describe({
         // The first start's worktree and its uncommitted work are exactly as that start left them.
         expect(await readFile(firstStartsFile, 'utf8',),).toContain('did not commit it',);
         expect((await runGit(worktree, ['branch', '--show-current',],)).trim(),).toBe('feat/first',);
-        // The second start wrote no report, because it never worked in a worktree.
-        const secondFolder = runFolderNamedIn(second.output,).split('/').at(-1) ?? '';
-        expect(await summaryIn({
-          runsFolder: fixture.runs,
-          folder: secondFolder,
-        },),).toBe('',);
+        /**
+         What every run folder of this name holds, which says which start wrote a report and on which branch.
+         */
+        const written = await Promise.all((await readdir(fixture.runs,))
+          .filter(function isARunFolder(entry,) {
+            return entry.startsWith(`${RUN_NAME}-`,);
+          },)
+          .map(async function summaryOf(entry,) {
+            return {
+              folder: entry,
+              summary: await summaryIn({
+                runsFolder: fixture.runs,
+                folder: entry,
+              },),
+            };
+          },));
+        // One report, from the first start. The second start wrote none, because no worktree was handed to it.
+        expect(written.filter(function saysSecond(one,) {
+          return one.summary.includes('"startId":"second"',);
+        },),).toEqual([],);
+        expect(written.filter(function saysFirst(one,) {
+          return one.summary.includes('"startId":"first"',);
+        },).length,).toBe(1,);
       },
     },),
     it({
@@ -708,7 +758,7 @@ await describe({
         /**
          The stand-ins, the real repository and the runs folder this start shares with the making it finds.
          */
-        const fixture = await fixtureIn(folder.path, true,);
+        const fixture = await fixtureIn(folder.path, true, false,);
         /**
          The worktree path this name uses.
          */
