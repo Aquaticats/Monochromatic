@@ -738,6 +738,18 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T05:45:58-05:00,
+  from the author of the review brief's coverage check
+  (branch tip `0e676c38da`,
+  in review),
+  not blocking work:
+  when a finished review does not cover its change
+  (no range stated,
+  or fewer files read than listed),
+  does the starter start that review again by itself,
+  or leave it to whoever reads the reviews,
+  as now?
+
 - Added 2026-11-15T05:22:17-05:00,
   from the author of mpm-shadow's removal of old versions
   (branch tip `e9af93e68a`,
@@ -1581,6 +1593,146 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### A review dropped from the queue without a word is found and put back; three reviews send the lock-holders folder, the stop of a push and the bounded Git helper back (2026-11-15T05:45:58-05:00)
+
+Not final and not approved:
+a miss of this session's checks,
+what four reviews and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **A queued review was taken out of the queue at 05:22:40 and nothing said so.**
+  The starter's change of 02:22 worked as written the first time it was exercised:
+  the package's brief writer refused the range of the long runtime directory's answer
+  (`main...0bcc1fc7fc`,
+  "nothing to review under `package/git-policy/cli/src/native`":
+  the range changes tests,
+  their support and the image's file list alone),
+  the entry was kept in
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/entries-taken-out-of-the-queue-because-their-brief-could-not-be-written.jsonl`,
+  and the queue went on.
+  But the script that starts several entries passes on only some of the starter's lines,
+  and "BRIEF NOT WRITTEN" was not among them,
+  so the journal held only the task runner's "ERROR task failed",
+  which this session's check did not look for.
+  Found at 05:44 by counting those lines:
+  69 in the filling unit's journal,
+  68 of them the known jam of 02:12 and this one.
+  **Done**:
+  the line is passed on now;
+  each round reads the kept file's line count
+  (one);
+  and the review is written by hand,
+  as the same branch's earlier review was,
+  with its range,
+  its diff and the eight files it changes,
+  and queued second
+  (`~/temp/agent/change-reviews/git-policy-cli-long-runtime-directory-controls-answer-after-their-review-a-change-to-tests-their-support-and-the-image/`).
+  Five gate failures wait on that branch.
+  This session had queued that entry itself;
+  its own check of the range counts code files differently from the package's.
+- **The lock-holders folder** (`429503238b`),
+  its fourth review,
+  ended 05:37:40,
+  eleven of eleven files,
+  four things,
+  each reproduced:
+  a child killed before its identity is recorded leaves a lock nobody can prove abandoned,
+  and the next commit fails with `File exists`;
+  one record under the usual name hides a contradicting record,
+  and a lock is unlinked on half a proof;
+  with `GIT_INDEX_FILE` elsewhere,
+  every `.lock` file beside that index is a candidate,
+  and a person's `important.lock` was unlinked;
+  a FIFO at the record's path holds a Git start before its ceiling begins.
+  All worth their fix.
+  The code of the last three is new on the branch
+  (`records_of_number`,
+  `write_a_record_line_once` and that `lock_roots` are absent from `main`).
+  **The first may be in the released wrapper**:
+  `main` also calls `note_child_started` after a spawn
+  (`invocation/forwarding.rs`,
+  line 299),
+  and the author is asked to run the review's arm against that path and say so plainly.
+  The author is resumed,
+  its fourth run
+  (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-fourth-review-of-2026-11-15-prompt.md`,
+  queued sixth).
+  Two gate failures wait on it.
+- **The stop of a stopped push** (`374f34c4b9`),
+  its review,
+  ended 05:34:48,
+  two of two files,
+  two things,
+  both reproduced:
+  with the ceiling spent and no runtime worker,
+  the killed child's last handle and the sweep of its locks are dropped with a future that is never polled
+  (a zombie and a staging file left;
+  the same fixture before the change reaped and swept),
+  so the branch brought it;
+  and the inline sweep stands outside the whole-stop bound.
+  The author is resumed,
+  its second run
+  (`~/temp/agent/pi-runs/push-stopped-at-its-window-answers-its-review-of-2026-11-15-prompt.md`,
+  queued fifth),
+  and asked whether the second was there before its range.
+- **The wrapper under the gate container's Git** (`f6aaf6d9e5`),
+  its fourth review,
+  ended 05:34:16,
+  three of three files,
+  one thing,
+  reproduced:
+  the bounded helper of the tests writes its input before its bounded wait begins,
+  so a megabyte given to a child that never reads holds it.
+  **Weighed**:
+  no test reaches it
+  (one caller passes input,
+  lines of at most 262 characters,
+  to real Git;
+  the others pass none),
+  and this session first meant to dismiss it and send the branch to a pass.
+  It did not:
+  the helper's doc says "Nothing waits without a bound",
+  a hung test file held a run for six hours this night,
+  and a finding this session would still have fixed is an open finding,
+  which by the reading adopted at 04:25:14 keeps a branch from a pass.
+  The author is resumed for that one thing,
+  its fifth run
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-answers-its-fourth-review-of-2026-11-15-prompt.md`,
+  queued third).
+  Seven gate failures wait on it.
+- **The review brief's coverage**,
+  its author's third run,
+  ended 05:32:06 at `0e676c38da`:
+  a review file is finished only with a completion line of fixed words;
+  an already-written review that does not cover its change no longer slips past;
+  the record of what a review read is written before its brief;
+  198 suites pass.
+  Its review is queued ninth
+  (`main...0e676c38da`,
+  sixteen code files that are not tests).
+  Adopted from its open questions,
+  labelled,
+  open to veto:
+  a file carrying both the "still going" and the "complete" line counts as unfinished;
+  a review folder older than the completion line is answered as having none.
+  Its third question is kept for the owner.
+- **The temperature**,
+  read at 05:36:32:
+  58.5 degrees,
+  budget 32.0 threads,
+  18.4 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 05:36:33:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start since 05:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  No resumed session is named by the credential scan.
+  The queue held 84 entries at 05:45:58.
 
 ##### Four runs sat for hours inside one command each and nothing noticed; a commit of an unmerged branch ran twelve hours; three reviews are routed and pass 52 queued (2026-11-15T05:33:25-05:00)
 
