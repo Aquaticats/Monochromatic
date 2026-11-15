@@ -67,6 +67,32 @@ const BYTES_A_REFERENCE_MAY_NOT_HOLD: readonly string[] = [
 const BRANCH_FOLDER = 'fix';
 
 /**
+ How many failing cases a failure names, so a control that went wrong reads as the cases it broke rather than as a count.
+ */
+const CASES_NAMED_IN_A_FAILURE = 10;
+
+/**
+ Writes the cases that failed as one sentence, naming the first few.
+
+ @param failures - every case that did not come back as it was written
+
+ @returns the sentence a test asserts is empty
+
+ @example
+ ```ts
+ const summary = failuresNamed({ failures: ['"_" at middle: read back...',], },);
+ ```
+ */
+function failuresNamed({ failures, }: { readonly failures: readonly string[] },): string {
+  if (failures.length === 0) {
+    return '';
+  }
+  return `${String(failures.length,)} case${(failures.length === 1) ? '' : 's'} failed: `
+    + failures.slice(0, CASES_NAMED_IN_A_FAILURE,)
+      .join('; ');
+}
+
+/**
  Reads the top of the checkout the test runs in, which every question about a reference name is asked in: this repository's Git
  wrapper answers only at the top.
 
@@ -329,7 +355,7 @@ await describe({
                 }
               }
             }
-            expect(failures,).toEqual([],);
+            expect(failuresNamed({ failures, },),).toBe('',);
             expect(cases,).toBeGreaterThan(0,);
           },
         },),
@@ -367,7 +393,7 @@ await describe({
                 failures.push(`${JSON.stringify(byte,)}: ${failure}`);
               }
             }
-            expect(failures,).toEqual([],);
+            expect(failuresNamed({ failures, },),).toBe('',);
           },
         },),
         it({
