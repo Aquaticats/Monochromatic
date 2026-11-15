@@ -533,29 +533,33 @@ fn a_lane_drains_its_directories_in_the_order_they_were_named() {
 }
 
 /// What:
-///  A lane that stops partway through a round says so,
-/// runs no item after the one it stopped in,
-/// and loses nothing:
-/// the record it was inside keeps its claim,
-/// the record behind it stays pending,
-/// and a repository of another lane is drained.
+///  A push whose handler panics fails that record alone:
+/// the record is settled as failed,
+/// the record behind it in the same lane is run,
+/// a repository of another lane is drained,
+/// and the round finishes,
+/// with every claim released.
 /// Why:
-///   The round's items are tasks,
-/// so a lane stops where a task panics or the pool refuses a thread,
-/// and the
-///  caller that is told nothing reads the silence as a refresh that covered every directory.
-/// The plan says what the round must answer
-///  instead of a full answer:
-/// `OrderedRunError`,
-/// with the claims of the stopped lane left to their lease (`service_work::CLAIM_LEASE`),
-///  which is the next round of the work loop's to find.
+///   A panic in one item is kept as that item's answer
+/// (`a_panic_that_ends_one_item.rs`),
+/// which the audit of `0.6.1-alpha.12` decided on 2026-11-12 (`3e81ca57cc`):
+/// a panic that unwound the wave left the records of the wave claimed,
+///  the one whose work had finished and had its answer ready included,
+///  so a push that was refused at once was pushed again after its lease.
+/// The round still answers `OrderedRunError::Panicked` for a lane task that panics past every guard
+///  (`parallel_runner_on_the_runtime_awaiting.rs`,
+/// `finish_the_run`),
+/// and a handler's own panic no longer reaches it.
+///  What this control keeps is the part a person sees: the record that broke is named and settled,
+/// the work behind it is not lost,
+///  and the round that covered three directories is a full answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [answer, stopped] = await drainDirectoriesAwaiting({ dirs }); // stopped is Panicked, the record behind stays pending
+/// const [answer, stopped] = await drainDirectoriesAwaiting({ dirs }); expect(stopped).toBeUndefined(); expect(inState(common, 'failed')).toBe(1); expect(inState(common, 'claimed')).toBe(0); expect(inState(linked, 'done')).toBe(1)
 /// ```
 #[test]
-fn a_lane_that_panics_stops_its_lane_and_the_round_says_so() {
+fn a_panicking_push_fails_its_record_alone_and_its_lane_goes_on() {
     let (root, made) = repositories("round-lane-panics", 2);
     let linked: PathBuf = made[0].root.join("linked");
     std::fs::create_dir_all(linked.as_path()).expect("linked directory");
@@ -579,19 +583,24 @@ fn a_lane_that_panics_stops_its_lane_and_the_round_says_so() {
         now: &ClaimTime::read(),
         host: &LARGE_HOST,
     }));
-    let why: crate::parallel_runner_on_the_runtime::OrderedRunError = stopped.expect("the round says it did not finish");
-    assert!(why.to_string().contains("panicked"), "the round names a step that panicked: {why}");
-    assert_eq!(answered.changes.len(), 0, "the lane that stopped planned nothing: {:?}", answered.changes);
+    assert!(stopped.is_none(), "a push whose handler panicked is that record's failure and no lane's end: {stopped:?}");
+    // Each directory whose pushes all ended answers one change for the push retry plan, so the answer names every directory the round was given.
+    assert_eq!(answered.changes.len(), directories.len(), "the round's answer covers every directory it was given, the one whose push failed included: {:?}", answered.changes);
+    assert_eq!(in_state(&made[0].common, crate::work_item::FAILED), 1, "the record whose push panicked is settled as failed");
+    assert_eq!(in_state(&made[0].common, crate::work_item::CLAIMED), 0, "its claim is released, so no later round pushes it again");
+    assert_eq!(in_state(&linked, crate::work_item::DONE), 1, "the record behind it in the same lane ran, because that lane went on");
+    assert_eq!(in_state(&linked, crate::work_item::PENDING), 0, "that record is not left waiting for another round");
     assert_eq!(settled(&made[1]), 1, "the repository of another lane was drained");
-    let claimed: usize = std::fs::read_dir(state_directory(work_directory(made[0].common.as_path()).as_path(), crate::work_item::CLAIMED)).map_or(0, |listing| { return listing.flatten().count(); });
-    assert_eq!(claimed, 1, "the record the lane was inside keeps its claim, which its lease ends");
-    let pending: usize = std::fs::read_dir(state_directory(work_directory(linked.as_path()).as_path(), crate::work_item::PENDING)).map_or(0, |listing| { return listing.flatten().count(); });
-    assert_eq!(pending, 1, "the record behind the one that stopped was not run and stays pending");
     remove(root.as_path());
 }
 
+/// How many records of `git_dir` are in the state named by `directory`.
+fn in_state(git_dir: &Path, directory: &str) -> usize {
+    return std::fs::read_dir(state_directory(work_directory(git_dir).as_path(), directory)).map_or(0, |listing| { return listing.flatten().count(); });
+}
+
 /// Handlers that panic on the push of one repository and answer done for every other,
-/// with the Git directory of the push that stops them.
+/// with the Git directory whose push panics.
 struct PanicsOn {
     /// The Git directory whose push panics.
     when: PathBuf,
