@@ -35,6 +35,9 @@ use crate::control_terminal::Terminal;
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::replace_process_with_real_git;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+/// The directory this command runs in after its `-C` chain, and the Git directory its options or environment name:
+///  the repository whose locks it meets and whose record names the Git it starts.
+use crate::repository_link_paths::{chain_directory, named_git_directory};
 use crate::management::{host_filesystem_section, plan_management_with_section};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
@@ -353,11 +356,60 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     }
     // From here on every real-Git start of this process runs with traditional hooks off.
     crate::hooks_off::activate();
-    // What: The locks a killed command of this repository left are met here, before this command reaches Git.
-    // Why:  A lock whose holder the wrapper's own record proves gone protects nothing, and waiting a minute for that process
-    //       would be a wait the wrapper could have known to skip. Nothing is cleared on a proof that is not complete, so a
-    //       lock of a live Git, of an editor, or of another machine keeps the bounded wait and the report it always had.
-    crate::abandoned_locks::meet_the_locks_of_the_working_directory(environment);
+    let met: Vec<PathBuf> = meet_the_locks_here(arguments, environment);
+    let code: i32 = perform_the_action(arguments, environment);
+    // What: A record this command wrote for a Git it started explains a lock that Git may have left; once the command
+    //       ends and no lock of the repository names any process the record names, the record and its folder go.
+    // Why:  A command that changed nothing else then leaves the Git directory exactly as it found it. A command that
+    //       became Git never reaches this line, and its record is what proves its own lock's holder gone, so it stays
+    //       until the next command's pass sweeps it.
+    crate::abandoned_locks::sweep_the_records_the_command_left(met.as_slice());
+    return code;
+}
+
+/// What:
+///  Meet the locks of the repository the command works on,
+///  and return the roots it met so the records the command leaves can be swept when it ends.
+///       `Vec<PathBuf>` is empty when the command works in no repository.
+/// Why:
+///  The locks a killed command of this repository left are met before this command reaches Git,
+///  in the repository the command works on:
+///  a lock whose holder the wrapper's own record proves gone protects nothing,
+///  and waiting a minute for that process would be a wait the wrapper could have known to skip.
+///  Nothing is cleared on a proof that is not complete,
+///  so a lock of a live Git, of an editor, or of another machine keeps the bounded wait and the report it always had.
+///  The repository is the one the command names with `-C`,
+/// `--git-dir` or `GIT_DIR`:
+///  a command that works on another repository than the one its working directory belongs to changes nothing in this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const roots = meetTheLocksFor(args, env); const code = perform(args, env); sweepAfter(roots); return code;
+/// ```
+fn meet_the_locks_here(arguments: &[OsString], environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
+    let globals: StrippedInvocation = strip_wrapper_controls(arguments);
+    // `&globals.arguments[..prefix_len]` borrows the globals before the command word: the wrapper's own controls are
+    //  stripped out first, so no control is read as one of Git's options.
+    let prefix: &[OsString] = &globals.arguments[..globals.layout.prefix_len];
+    let start: PathBuf = chain_directory(std::env::current_dir().unwrap_or_default().as_path(), prefix);
+    let named: Option<PathBuf> = named_git_directory(start.as_path(), prefix, environment);
+    return crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(start.as_path(), named.as_deref());
+}
+
+/// What:
+///  Plan one invocation and perform it,
+///  returning its exit code.
+///       Returns only when Git was not started;
+///  a forwarded command never returns.
+/// Why:
+///  This is everything the executable's `main` does once the locks are met,
+///  kept apart so the records the command leaves are swept whichever way it ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function perform(args: string[], environment: [string, string][]): number;
+/// ```
+fn perform_the_action(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
     let action: Action = match process_resolution_inputs(environment) {
         // A monochromatic-git-policy-cli executable that a wrapper started as Git stops before it plans anything or starts anything.
         Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {

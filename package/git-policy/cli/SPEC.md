@@ -9977,12 +9977,31 @@ and `child <pid> <identity>` for every Git it starts and waits for
 `src/native/push/child_watch_one_shot_run.rs`,
 `src/native/push/child_watch_output_watched_on_the_runtime.rs`,
 `src/native/landing/service_hold_retry.rs`).
-The record is written before the first Git of the command starts,
-so a kill at any later instruction leaves it behind,
-and a command that replaces itself with real Git
-(`exec`) is named by its `self` line,
-which the replaced process keeps,
-because the replacement keeps the number and the birth identity.
+The `self` line is written immediately before this process is replaced by real Git,
+so the replacement keeps the number and the birth identity the line names
+and the line is there before that Git can take a lock.
+A command that starts no Git,
+or that stops before it starts one,
+writes no record and makes no folder:
+a refused commit leaves its repository exactly as it found it.
+
+A record lives under the repository the command works on,
+the one its `-C` chain,
+`--git-dir` or `GIT_DIR` names,
+never under the repository its working directory happens to belong to:
+a command that names another repository works there and leaves this one alone
+(`src/native/invocation/entry.rs`,
+`src/native/repository_link_check/repository_link_paths.rs`).
+
+A record stays exactly as long as it can explain a lock.
+The pass that meets a repository's locks removes every record whose holders are all gone
+and whose numbers stand beside no lock,
+and removes the folder with the last record it held;
+a command that ends without becoming Git sweeps its own record the same way before it returns
+(`src/native/lock/abandoned_locks.rs`,
+`sweep_the_records_the_command_left`).
+A folder that reads as present can therefore go before a record is made in it,
+and the writer makes the folder again for that one failure.
 
 An identity is the one the commit service's index lock marker already writes
 (`src/native/landing/service_index_identity.rs`):
@@ -10178,9 +10197,13 @@ which is why the removal needs no repair afterwards.
 
 The pass runs once in the wrapper's own process before the command reaches Git
 (`entry.rs`,
-`meet_the_locks_of_the_working_directory`),
-so every command of any kind meets a clear repository,
-and the commit service runs it before its landing waits for the index
+`meet_the_locks_of_the_repository_the_command_works_on`),
+in the repository the command works on:
+the directory its `-C` chain ends in,
+or the Git directory its `--git-dir` or `GIT_DIR` names.
+So every command of any kind meets a clear repository,
+and a command that names another repository changes nothing in the one it runs in.
+The commit service runs it before its landing waits for the index
 (`service_land_take_index_lock.rs`),
 so a commit is not withdrawn over a lock the service can prove dead.
 The walk reads directory entries by their own file type,
@@ -10189,6 +10212,9 @@ and stops at `MOST_ENTRIES` entries,
 which reads about 8,192 entries of a Git directory.
 A repository with no lock pays that walk and one failed lookup of its record folder,
 and starts no Git.
+A command that wrote a record of a Git it started and did not itself become Git
+pays that walk once more when it ends,
+so the records it leaves go with it unless a lock still stands in their names.
 A command that removed a lock prints one line naming the file,
 the number its PID file held,
 and what the record proved,

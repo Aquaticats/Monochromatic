@@ -25,6 +25,7 @@
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::dependent_version::{CONFIGURATION, manifest, publish_set, read, write};
 use super::support::{Fixture, direct, fixture, git, repository};
+use git_policy_cli::lock_holder_records::RECORD_HEADER;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -341,6 +342,49 @@ fn a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone(
     assert_eq!(git_text(&fixture, running_in.as_path(), &["status", "--short"]), running_in_status, "its uncommitted edit is still there");
     assert_eq!(stores_of(&fixture, running_in.as_path()), before, "the repository the command ran in gained nothing");
     assert_eq!(git_text(&fixture, oracle_in.as_path(), &["status", "--short"]), running_in_status, "the oracle's first repository was left alone too");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A read-only command that names another repository records the Git it starts there,
+///  and leaves the repository its working directory belongs to exactly as it found it.
+/// Why:
+///  The record is the only proof that a lock's holder is gone,
+///  so it belongs where the Git that may take the lock works (`lock/lock_holder_records.rs`).
+///  Written into the repository the command merely ran in,
+///  it is a file of the person's own tree to every tool that lists a Git directory,
+///  and a migration of that checkout once refused over it,
+///  and the repository the Git worked in had no record of it at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runWrapped(['--git-dir=named/.git', '--work-tree=named', 'status']);
+/// expect(readdir(runningIn)).not.toContain('cli-git-lock-holders'); expect(recordsOf(named)).toHaveLength(1);
+/// ```
+#[test]
+fn a_read_only_command_that_names_another_repository_records_its_git_there() {
+    let fixture: Fixture = fixture("naming-a-read-only-command");
+    let running_in: PathBuf = plain_with_a_subdirectory(&fixture, fixture.root.join("running-in").as_path());
+    let named: PathBuf = plain_with_a_subdirectory(&fixture, fixture.root.join("named").as_path());
+    let before: (String, Vec<String>) = stores_of(&fixture, running_in.as_path());
+    let git_dir: String = format!("--git-dir={}", named.join(".git").display());
+    let work_tree: String = format!("--work-tree={}", named.display());
+    let served: Output = wrapped_commit(&fixture, running_in.as_path(), &[git_dir.as_str(), work_tree.as_str(), "status", "--short"])
+        .output()
+        .expect("the wrapped command runs");
+    assert!(served.status.success(), "the command goes on: {}", String::from_utf8_lossy(served.stderr.as_slice()));
+    assert_eq!(stores_of(&fixture, running_in.as_path()), before, "the repository the command ran in gained nothing, not a record either");
+    let folder: PathBuf = git_policy_cli::lock_holder_records::folder_of(named.join(".git").as_path());
+    let mut written: Vec<String> = std::fs::read_dir(folder.as_path())
+        .expect("the named repository holds the record of the Git the command started")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    written.sort();
+    assert_eq!(written.len(), 1, "one record for the one Git the command started: {written:?}");
+    let text: String = std::fs::read_to_string(folder.join(&written[0])).expect("the record is readable");
+    assert!(text.starts_with(RECORD_HEADER), "a record starts with its header: {text:?}");
+    assert!(text.contains("self "), "the record names the process that became the Git: {text:?}");
     remove_settled(&fixture);
 }
 

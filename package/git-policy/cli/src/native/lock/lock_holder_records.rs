@@ -21,15 +21,17 @@
 //!  a process of another PID namespace or another machine is unknown and is never cleared,
 //!  and only the same boot,
 //! namespace and machine lets the birth identity decide.
-//!  The file is written before the child can take any lock,
+//!  The file is written immediately before the wrapper's process becomes Git,
+//!  and for every Git it starts and waits for,
 //!  so a kill the wrapper cannot catch leaves it behind;
 //!  it is removed by the pass that finds every holder it names gone and no lock of the repository standing in
-//!  their names.
+//!  their names,
+//!  and the folder goes with the last record it held.
 //!  The reads of these files are in `lock_holder_record_reads.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! rememberRepository(commonDir); recordThisProcess(commonDir); noteChildStarted(child.pid);
+//! rememberRepository(commonDir); beforeBecomingGit(); noteChildStarted(child.pid);
 //! ```
 
 /// The identity of this process:
@@ -111,38 +113,6 @@ pub fn note_child_started(pid: u32) {
         return;
     };
     record_a_child_started(common_dir.as_path(), pid);
-}
-
-/// What:
-///  Whether this process is the one that wrote its own record,
-///  claimed once per process.
-/// Why:
-///   A command may pass the lock pass twice (the client,
-/// then a forward that resolved its own Git directory),
-///  and the second pass must neither add a second line nor read the record again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// let claimed = false; const first = !claimed && (claimed = true);
-/// ```
-fn the_self_record_is_this_processs_once() -> bool {
-    static CLAIMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    return !CLAIMED.swap(true, std::sync::atomic::Ordering::SeqCst);
-}
-
-/// What:
-///  Whether this call is the one that may write this process's own record.
-/// Why:
-///   The first caller records,
-///  and every later one returns at once,
-///  because a record names a process once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (!claimSelfRecord()) return;
-/// ```
-pub fn the_self_record_is_this_processs() -> bool {
-    return the_self_record_is_this_processs_once();
 }
 
 /// What:
@@ -285,15 +255,57 @@ fn record_file_of_this_process(folder: &Path) -> Option<PathBuf> {
 }
 
 /// What:
-///  Note in the repository's record that this process runs,
-///  creating the record when it is this process's first note.
+///  Whether this process has a record in the repository's folder.
 /// Why:
-///   A forwarded command replaces this process with real Git,
-///  which keeps the number and the birth identity,
-///  so a record written before the replacement names the Git that then takes the lock.
+///   A command that started no Git wrote no record,
+///  so the sweep it makes when it ends has nothing to decide and costs one look;
+///  and a command that wrote one is the one whose record may be litter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(join(folder, `${process.pid}.${digest(ownIdentity)}`))
+/// ```
+pub fn this_process_has_a_record(common_dir: &Path) -> bool {
+    let folder: PathBuf = folder_of(common_dir);
+    let Some(path) = record_file_of_this_process(folder.as_path()) else {
+        return false;
+    };
+    return path.exists();
+}
+
+/// What:
+///  Note in the repository's record that this process runs,
+///  which is done just before this process is replaced by real Git.
+/// Why:
+///   A replaced process keeps the number and the birth identity,
+///  so a record written before the replacement names the Git that then takes the lock,
+///  and the record is there before that Git can take one.
+///  A command that never reaches the replacement changes nothing in the repository,
+///  so it leaves no record and makes no folder.
 ///  A record that cannot be written leaves nothing behind and holds back nothing:
 ///  the next command then treats the lock as it does today,
 ///  which is the safe side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// beforeBecomingGit() // creates <folder>/<pid>.<digest> with `self <pid> <identity>`
+/// ```
+pub fn record_this_process_before_it_becomes_git() {
+    let Some(common_dir) = REPOSITORY.get() else {
+        // The commit service works in the repositories it is told about and remembers none: its locks carry its own marker.
+        return;
+    };
+    record_this_process(common_dir.as_path());
+}
+
+/// What:
+///  Note in the repository's record that this process runs,
+///  creating the record when it is this process's first note.
+/// Why:
+///   The caller has already decided that a record of this process belongs in that repository,
+///  which only a Git that works there needs.
+///  One record per process keeps the folder small enough to read whole,
+///  and an append of one short line is all a Git start costs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -321,14 +333,20 @@ pub fn record_a_child_started(common_dir: &Path, pid: u32) {
 
 /// What:
 ///  Add the line for `pid` to this process's record,
-///  making the file and its header first when they are not there.
+///  making the file and its header first when they are not there,
+///  and making the folder again once when it went between the two.
 /// Why:
 ///   One record per process keeps the folder small enough to read whole,
 ///  and an append of one short line is all a Git start costs.
+///  The pass that sweeps a repository's records removes the folder with the last record it held,
+///  so a folder read as present can be gone before the file is made in it;
+///  one more try closes that window,
+///  and a second failure leaves the record unwritten,
+///  which keeps a lock rather than clearing it on an account that is not there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// appendFileSync(file, recordLine(kind, pid, identity))
+/// appendFileSync(file, recordLine(kind, pid, identity)) // the folder made again once when it went
 /// ```
 fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
     let Some(path) = record_file_of_this_process(folder) else {
@@ -337,19 +355,44 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
     let Some(identity) = identity_of_process(i64::from(pid)) else {
         return Err(std::io::Error::other("the identity of that process is unavailable"));
     };
+    let mut made_again: bool = false;
+    loop {
+        match write_a_record_line_once(folder, path.as_path(), kind, pid, identity.as_str()) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && !made_again => {
+                made_again = true;
+                continue;
+            }
+            other => return other,
+        }
+    }
+}
+
+/// What:
+///  One attempt at making the record when it is not there and appending the line when it is.
+///       `pub(crate)` so a control can make this attempt fail the way a folder removed under it does.
+/// Why:
+///   `note` makes this attempt twice, and the second one is the folder being made again;
+///  a `NotFound` here is the folder or the file going between the look and the write,
+///  which is the one failure the second attempt can answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!existsSync(file)) { mkdirSync(folder, { recursive: true }); writeFileSync(file, text, { flag: 'wx' }) } else { appendFileSync(file, line) }
+/// ```
+pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, pid: u32, identity: &str) -> std::io::Result<()> {
     use std::io::Write as _;
     if !path.exists() {
         std::fs::create_dir_all(folder)?;
-        let mut made: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
+        let mut made: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(path) {
             Ok(file) => file,
             // Another thread of this process made it: the header is there and the append below is enough.
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => std::fs::OpenOptions::new().append(true).open(path.as_path())?,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => std::fs::OpenOptions::new().append(true).open(path)?,
             Err(error) => return Err(error),
         };
-        made.write_all(record_text(&[(kind, i64::from(pid), identity)]).as_bytes())?;
+        made.write_all(record_text(&[(kind, i64::from(pid), identity.to_owned())]).as_bytes())?;
         return Ok(());
     }
-    let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path.as_path())?;
-    file.write_all(record_line(kind, i64::from(pid), identity.as_str()).as_bytes())?;
+    let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path)?;
+    file.write_all(record_line(kind, i64::from(pid), identity).as_bytes())?;
     return Ok(());
 }

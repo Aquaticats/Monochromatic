@@ -2,7 +2,8 @@
 //!  What the wrapper's records of the processes it started say about a lock's holder:
 //!  the identity one record names for a process number,
 //!  the proof that a holder is gone,
-//!  and the removal of the records that explain nothing.
+//!  and the removal of the records that explain nothing,
+//!  with the folder they sat in once it holds none.
 //! Why:
 //!  A number alone proves nothing,
 //!  so the proof is a record of this repository naming that number with a birth identity,
@@ -203,17 +204,24 @@ pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
 
 /// What:
 ///  Remove every record whose holders are all gone
-///  and whose numbers no standing lock of the repository names.
+///  and whose numbers no standing lock of the repository names,
+///  and the folder itself once it holds no record.
 /// Why:
 ///   A record is the proof a lock's holder is gone,
 ///  so it stays exactly as long as it can explain a lock;
 ///  a record whose commands are over and whose numbers stand beside no lock is litter.
+///  The folder is litter too once the last record it held is gone,
+///  and a person's own tool that lists a Git directory counts a folder that explains nothing like any other file of
+///  theirs,
+///  so it goes with that record.
+///  `remove_dir` refuses a folder that still holds anything,
+///  so a record another command wrote meanwhile keeps it.
 ///  Nothing here waits and nothing is renamed over another file,
 ///  so two commands sweeping at once remove the same litter harmlessly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const [file, holders] of records) if (holders.every(dead) && !holders.some(inUse)) rm(file)
+/// for (const [file, holders] of records) if (holders.every(dead) && !holders.some(inUse)) rm(file); try { rmdir(folder) } catch {}
 /// ```
 pub fn sweep(common_dir: &Path, pids_in_use: &[i64]) {
     for (path, holders) in every_holder(common_dir) {
@@ -229,6 +237,7 @@ pub fn sweep(common_dir: &Path, pids_in_use: &[i64]) {
         }
         let _removed = std::fs::remove_file(path.as_path());
     }
+    let _removed_folder = std::fs::remove_dir(folder_of(common_dir).as_path());
 }
 
 /// What:

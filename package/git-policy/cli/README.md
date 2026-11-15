@@ -3632,6 +3632,18 @@ naming the wrapper and every Git it started,
 each with the birth identity,
 boot ID,
 PID namespace and machine ID that the commit service's index lock marker already uses.
+The record of the wrapper itself is written immediately before the process becomes Git,
+and a Git it starts and waits for is named as soon as it exists;
+a command that starts no Git,
+or stops before it starts one,
+leaves no record and makes no folder.
+It sits under the repository the command works on,
+the one its `-C` chain or its `--git-dir` or `GIT_DIR` names,
+never under the repository its working directory happens to belong to.
+A record stays exactly as long as it can explain a lock:
+the pass removes every record whose holders are all gone and whose numbers stand beside no lock,
+and the folder with the last record,
+and a command that ends without becoming Git sweeps its own record the same way before it returns.
 A lock is cleared when its PID file names a number no live process has,
 its own birth is strictly later than the lock's (a file system that records no birth time,
 or one whose
@@ -3676,6 +3688,7 @@ and the `rm` that clears it,
 because that lock cannot release itself and nothing here may remove it.
 
 The pass runs before every wrapped command reaches Git,
+in the repository that command works on,
 and again in the commit service before its landing waits for the index,
 so a commit is not withdrawn over a lock the wrapper can prove dead.
 It reads the Git directories by their own entries,

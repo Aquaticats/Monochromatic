@@ -20,6 +20,7 @@
 //!  and it skips the object store,
 //! whose files are a pack writer's own.
 //!  The pass runs from the wrapper's own process before the command reaches Git,
+//!  in the repository the command works on rather than the one its working directory belongs to,
 //!  and from the commit service before its landing waits for an index lock,
 //!  so the next command of any kind meets a clear repository.
 //!
@@ -38,8 +39,8 @@ use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 use crate::git_directory_roots::{common_dir_for, git_directory_of};
 /// The records themselves:
 /// the repository this command works in,
-/// and the account of this process.
-use crate::lock_holder_records::{record_this_process, remember_repository, the_self_record_is_this_processs};
+/// which every Git it starts is noted in.
+use crate::lock_holder_records::remember_repository;
 /// The read of the records,
 /// for the sweep that keeps only the ones that explain a lock.
 use crate::lock_holder_record_reads::sweep;
@@ -292,6 +293,39 @@ pub fn clear_abandoned_locks_telling(roots: &[PathBuf], out: &mut dyn std::io::W
 }
 
 /// What:
+///  Sweep the records of a repository once the command that met its locks has ended,
+///  against the locks that stand there now.
+/// Why:
+///  A record written for a Git this command started explains a lock that Git may have left;
+///  once the command returns and no lock of the repository names any process it recorded,
+///  the record explains nothing and goes with the folder that held it,
+///  so a command that changed nothing else leaves the Git directory as it found it.
+///  A process whose only record is the one written just before it became Git never reaches this:
+///  its replacement is the process, and the next command's pass sweeps the record.
+///  The walk and the judgement are the pass's own,
+///  so a lock below their bounds keeps every record that may explain it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweepAfterTheCommand(roots) // nothing when this process wrote no record, or the walk was not whole
+/// ```
+pub fn sweep_the_records_the_command_left(roots: &[PathBuf]) {
+    let Some(first) = roots.first() else {
+        return;
+    };
+    let common: PathBuf = common_dir_for(first.as_path());
+    // A command that started no Git wrote no record, and the walk below would have nothing to decide.
+    if !crate::lock_holder_records::this_process_has_a_record(common.as_path()) {
+        return;
+    }
+    let searched: Walked = walked(roots);
+    if !searched.complete {
+        return;
+    }
+    sweep(common.as_path(), standing_lock_pids(searched.locks.as_slice()).as_slice());
+}
+
+/// What:
 ///  The numbers that stand beside the locks of one repository now.
 /// Why:
 ///  The sweep keeps every record that can still explain a lock,
@@ -336,46 +370,40 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Meet the locks of the repository the working directory is in,
+///  Meet the locks of the repository the command works on,
 ///  before this command reaches Git:
 ///  remember the repository,
-///  note this process in its record,
 ///  and clear the locks whose holder is proven gone.
 /// Why:
 ///  This is the one place a client command passes,
 ///  so every command of any kind meets a clear repository,
 ///  and a `git status` after a kill is enough to repair what the killed command left.
+///  The repository is the one the command names,
+///  never the one its working directory happens to belong to:
+///  a command that names another repository leaves no record and clears no lock in this one
+///  (`repository_link_paths::chain_directory`,
+/// `named_git_directory`).
 ///  The Git directory is found by reading a few small files,
 /// never by starting Git,
 ///  and a directory outside any repository costs one failed look.
+///  The roots it met come back so the command can sweep the records it leaves behind when it ends
+///  (`sweep_the_records_the_command_left`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// meetTheLocks(env) // GIT_DIR, else the working directory's repository
+/// meetTheLocks(start) // -C chain and --git-dir or GIT_DIR, else the start directory's repository
 /// ```
-pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsString, std::ffi::OsString)]) {
-    let working: PathBuf = std::env::current_dir().unwrap_or_default();
-    let mut named: Option<PathBuf> = None;
-    for (name, value) in environment.iter().rev() {
-        if name == std::ffi::OsStr::new("GIT_DIR") {
-            named = Some(working.join(value));
-            break;
-        }
-    }
+pub fn meet_the_locks_of_the_repository_the_command_works_on(start: &Path, named: Option<&Path>) -> Vec<PathBuf> {
     let found: Option<PathBuf> = match named {
-        Some(directory) => Some(directory),
-        None => git_directory_of(working.as_path()),
+        Some(directory) => Some(directory.to_path_buf()),
+        None => git_directory_of(start),
     };
     let Some(git_dir) = found else {
-        return;
+        return Vec::new();
     };
     let common: PathBuf = common_dir_for(git_dir.as_path());
     remember_repository(common.as_path());
-    // One record per process: a command that runs the pass twice (a client, then a forward that meets another repository)
-    //  adds no second line and costs one atomic read.
-    if !the_self_record_is_this_processs() {
-        return;
-    }
-    record_this_process(common.as_path());
-    clear_abandoned_locks_telling(roots_of_git_directory(git_dir.as_path()).as_slice(), &mut std::io::stderr());
+    let roots: Vec<PathBuf> = roots_of_git_directory(git_dir.as_path());
+    clear_abandoned_locks_telling(roots.as_slice(), &mut std::io::stderr());
+    return roots;
 }

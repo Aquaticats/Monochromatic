@@ -20,6 +20,9 @@ use std::path::{Component, Path, PathBuf};
 /// a work tree or the common Git directory.
 const GIT_PATH_VARIABLES: [&str; 3] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"];
 
+/// The variable that names the Git directory of an invocation.
+const GIT_DIRECTORY_VARIABLE: &str = "GIT_DIR";
+
 /// What:
 ///  The text of an option value that names a path,
 /// and where in the prefix the next option starts.
@@ -44,24 +47,29 @@ fn path_option_value(prefix: &[OsString], index: usize, name: &str) -> Option<(P
 
 /// What:
 ///  The directory a command runs in,
-///  and the Git directory,
-///  work tree and common directory its global options name.
+///  the Git directory,
+///  work tree and common directory its global options name,
+///  and the Git directory its `--git-dir` names on its own.
 ///  `&[OsString]` borrows the tokens before the subcommand;
-///  `(PathBuf, Vec<PathBuf>)` is that directory and the named ones.
+///  `(PathBuf, Vec<PathBuf>, Option<PathBuf>)` is that directory, the named ones, and the Git directory option's value
+///  as it was written.
 /// Why:
-///   One walk answers both:
+///   One walk answers all three:
 ///  a `-C` moves the directory for every question after it,
 ///  and a relative Git directory or work tree is read from the directory the chain ends in.
 ///  A value that takes an argument is stepped over,
 ///  so no path is read out of one.
+///  Git keeps the last `--git-dir` it was given and reads its value from the directory it ends in,
+///  so the value is handed back unjoined and the last one wins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// prefixPaths({ cwd, globalPrefix }) // { directory: '/a/b/c/../d', options: ['/g/dir', '/a/b/c/../d/tree'] }
+/// prefixPaths({ cwd, globalPrefix }) // { directory: '/a/b/c/../d', options: ['/g/dir', '/a/b/c/../d/tree'], gitDir: 'g/dir' }
 /// ```
-fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf>) {
+fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf>, Option<PathBuf>) {
     let mut directory: PathBuf = cwd.to_path_buf();
     let mut options: Vec<PathBuf> = Vec::new();
+    let mut named_git_dir: Option<PathBuf> = None;
     let mut index: usize = 0;
     while index < global_prefix.len() {
         let token: &OsString = &global_prefix[index];
@@ -71,6 +79,7 @@ fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf
             continue;
         }
         if let Some((value, next)) = path_option_value(global_prefix, index, "--git-dir") {
+            named_git_dir = Some(value.clone());
             options.push(value);
             index = next;
             continue;
@@ -83,7 +92,7 @@ fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf
         let takes_value: bool = VALUE_OPTIONS.contains(&token.as_encoded_bytes());
         index += if takes_value { 2 } else { 1 };
     }
-    return (directory, options);
+    return (directory, options, named_git_dir);
 }
 
 /// What:
@@ -107,6 +116,42 @@ pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
 }
 
 /// What:
+///  The Git directory an invocation names,
+///  from the last `--git-dir` of its global options or from `GIT_DIR`,
+///  read from the directory its `-C` chain ends in,
+///  or nothing when it names none.
+///  `&[OsString]` borrows the tokens before the subcommand;
+///  `Option<PathBuf>` is that directory or nothing.
+/// Why:
+///   A command that names a Git directory works in that repository,
+///  not in the one its working directory belongs to,
+///  so what the wrapper clears and what it records of the processes it starts belong to the named one.
+///  Git reads a relative value from the directory its options end in,
+///  and the last of two `--git-dir` options wins,
+///  so this reads the same way;
+///  `GIT_DIR` is read only when the options name none,
+///  as Git reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namedGitDirectory('/work/here', ['-C', 'sub', '--git-dir=../cfg.git'], env) // '/work/here/sub/../cfg.git'
+/// ```
+pub fn named_git_directory(cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<PathBuf> {
+    let (directory, _, from_options): (PathBuf, Vec<PathBuf>, Option<PathBuf>) = prefix_paths(cwd, global_prefix);
+    if let Some(named) = from_options {
+        return Some(directory.join(named));
+    }
+    // The last `GIT_DIR` the environment carries wins, and an empty one names nothing.
+    let mut from_environment: Option<PathBuf> = None;
+    for (name, value) in environment {
+        if name == OsStr::new(GIT_DIRECTORY_VARIABLE) && !value.is_empty() {
+            from_environment = Some(PathBuf::from(value));
+        }
+    }
+    return from_environment.map(|named| { return directory.join(named); });
+}
+
+/// What:
 ///  The directories an invocation names:
 /// the directory its `-C` chain ends in (the current directory without one),
 /// and the Git directory,
@@ -124,7 +169,7 @@ pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
 /// namedPaths({ cwd, globalPrefix, environment }) // ['/work/here', '/g/dir']
 /// ```
 pub fn named_paths(cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
-    let (directory, mut options): (PathBuf, Vec<PathBuf>) = prefix_paths(cwd, global_prefix);
+    let (directory, mut options, _): (PathBuf, Vec<PathBuf>, Option<PathBuf>) = prefix_paths(cwd, global_prefix);
     for (name, value) in environment {
         if GIT_PATH_VARIABLES.contains(&name.to_string_lossy().as_ref()) && !value.is_empty() {
             options.push(PathBuf::from(value));

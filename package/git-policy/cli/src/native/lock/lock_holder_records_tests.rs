@@ -2,7 +2,7 @@
 //!  Controls of the record a command writes of itself and of the processes it starts:
 //!  the one spelling the writer and the reader share,
 //!  the two-space form older records carry,
-//!  and the folder that must not grow with every command.
+//!  and the folder that must neither grow with every command nor outlive the last record it held.
 //! Why:
 //!  The writer wrote `self  <pid>` with two spaces and the reader parsed only one,
 //!  so a forwarded command's own record named nobody and its lock could never be proved abandoned,
@@ -16,7 +16,7 @@
 //! ```
 
 use crate::lock_holder_record_reads::{identities_recorded, sweep};
-use crate::lock_holder_records::{CHILD_KIND, RECORD_HEADER, SELF_KIND, folder_of, identity_of_birth, identity_of_process, record_line, record_text};
+use crate::lock_holder_records::{CHILD_KIND, RECORD_HEADER, SELF_KIND, folder_of, identity_of_birth, identity_of_process, record_line, record_text, write_a_record_line_once};
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
@@ -122,8 +122,40 @@ fn a_record_of_a_finished_command_is_swept_and_one_a_lock_needs_is_kept() {
     std::fs::write(folder.join("needed"), record_text(&[(CHILD_KIND, gone, identity.clone())]).as_bytes()).expect("a record a lock needs");
     sweep(root.as_path(), &[gone]);
     assert!(folder.join("finished").exists() && folder.join("needed").exists(), "a number a standing lock names keeps every record that names it");
+    assert!(folder.exists(), "a folder that still holds a record stays, so a lock's proof is never swept with it");
     sweep(root.as_path(), &[]);
     assert!(!folder.join("finished").exists(), "a record of a command that ended and that no lock names goes");
     assert!(!folder.join("needed").exists(), "and so does the other, once no lock names the number");
+    assert!(!folder.exists(), "the folder goes with the last record it held, so a Git directory reads as the command found it");
+    remove(root.as_path());
+}
+
+/// What:
+///  The one attempt at writing a record reports a file it cannot make,
+///  which is what `note` answers with a second attempt.
+/// Why:
+///  The second attempt exists because a sweep can remove the folder between the look at it and the file made in it,
+///  and a retry that did not end would hold the command;
+///  a first attempt that fails for any other reason reaches the caller at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(() => writeOnce(folder, join(folder, 'missing', 'file'), ...)).toThrow(/NotFound/);
+/// ```
+#[test]
+fn an_attempt_whose_folder_is_not_under_the_file_reports_it_and_makes_nothing() {
+    let root: PathBuf = fixture("record-attempt-fails");
+    let folder: PathBuf = folder_of(root.as_path());
+    let unreachable: PathBuf = folder.join("a-directory-nobody-made").join("record");
+    let failed: std::io::Error = write_a_record_line_once(
+        folder.as_path(),
+        unreachable.as_path(),
+        SELF_KIND,
+        std::process::id(),
+        identity_of_birth("linux:4242").as_str(),
+    )
+    .expect_err("a file whose directory is not there cannot be made");
+    assert_eq!(failed.kind(), std::io::ErrorKind::NotFound, "the failure says the folder or the file is not there: {failed}");
+    assert!(!unreachable.exists(), "nothing was written");
     remove(root.as_path());
 }

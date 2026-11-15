@@ -574,6 +574,10 @@ pub fn replace_process_with_real_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Error {
+    // The repository's record names this process before it becomes Git, so a lock the Git takes is explainable after a
+    //  kill. A command that never reaches this point started nothing that works in the repository, so it leaves no
+    //  record and makes no folder (`lock_holder_records.rs`).
+    crate::lock_holder_records::record_this_process_before_it_becomes_git();
     #[cfg(unix)]
     {
         // This is the command the person typed, so the person's monitor setting stays (`hooks_off`).

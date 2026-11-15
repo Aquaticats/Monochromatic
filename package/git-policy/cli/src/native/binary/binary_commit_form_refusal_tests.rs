@@ -296,8 +296,10 @@ fn wrapped_here(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Comm
 ///  tree this way.
 ///  The holder records are the wrapper's own account of the Gits it started
 ///  (`lock/lock_holder_records.rs`),
-///  which a later pass removes once every process it names is gone,
+///  one file per process,
+///  written into the repository the command works on and removed with the folder once the records explain nothing,
 ///  so they say nothing about what a refusal did to a repository.
+///  A command that starts no Git writes none at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -316,10 +318,10 @@ fn everything_under(root: &Path) -> Vec<(String, Vec<u8>)> {
             if name.ends_with(".git/objects") || name.contains(".git/objects/") {
                 continue;
             }
-            // The wrapper's own record of the Gits it started, in a repository's common Git directory
-            //  (`lock/lock_holder_records.rs`, `HOLDER_FOLDER`): it is written before the first child may take a lock and
-            //  removed by the pass that finds every holder it names gone, so it is the wrapper's bookkeeping and not a
-            //  change a refusal made to the repository.
+            // The wrapper's own record of the Gits it started, in the common Git directory of the repository the command
+            //  works on (`lock/lock_holder_records.rs`, `HOLDER_FOLDER`): it names the processes the command started and is
+            //  removed with its folder once the pass proves they are gone, so it is the wrapper's bookkeeping and not a
+            //  change a refusal made to the repository. A command that starts no Git leaves no folder.
             if name.split('/').any(|part| { return part == "cli-git-lock-holders"; }) {
                 continue;
             }
