@@ -1605,6 +1605,72 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper under the gate container's Git: a fifth review of its test helper; two findings go back, two are weighed as a limit by a measurement (2026-11-15T07:35:49-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The wrapper under the gate container's Git** (`c5a3fdf410`),
+  its fifth review,
+  ended 07:29:52,
+  three of three files,
+  four things,
+  all in the tests' bounded helper:
+  - reproduced:
+    a query that left with its own status is reported as ended at the bound,
+    because the ending is taken from whether the signal could be sent
+    (`ending=AtTheBound code=Some(137)`, at a bound of one millisecond, on the thirty-first attempt);
+  - reproduced:
+    a query that answered leaves the helper in a panic after five seconds when a detached descendant still holds its input;
+  - by reading:
+    a kill of the group after the waiter collected the query could reach a new group of the same number;
+  - by reading:
+    the helper's own test kills a descendant by a number read back from a file after the descendant may have left.
+- **Weighed**:
+  the two reproduced ones make the helper say something untrue of what it did,
+  and its doc promises the opposite;
+  they go back.
+  The two by reading both need the kernel to give a freed process number out again within microseconds,
+  or within eight seconds.
+  Measured here at 07:35:
+  the largest process number is 4,194,304,
+  and 92,150,289 processes were started in 167,920 s of uptime,
+  about 549 a second,
+  so the numbers come round about every two hours.
+  Either sequence needs some thousand times that rate.
+  They are taken as a limit and need no change.
+  The author is resumed,
+  its sixth run
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-answers-its-fifth-review-of-2026-11-15-prompt.md`,
+  queued third).
+- **What this costs**:
+  the branch's own subject,
+  the wrapper and its controls under the Git the gate's container installs,
+  has had no finding since its second review;
+  the last four rounds were all about one helper of its tests,
+  and seven of the gate's eighteen standing failures wait on it.
+  The question kept for the owner at 04:25:14
+  (may a branch whose only open findings are in tests go to a pass)
+  is this branch's question;
+  the reading adopted there stays until the owner answers.
+- **The temperature**,
+  read at 07:34:26:
+  55.1 degrees,
+  budget 32.0 threads,
+  12.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:34:27:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:29;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 87 entries at 07:35:49.
+
 ##### A review that read and ran nothing sends the commit behind the service's writes back with three claims (2026-11-15T07:29:43-05:00)
 
 Not final and not approved:
