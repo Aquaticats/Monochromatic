@@ -1655,6 +1655,15 @@ and what it queued.
   (`invocation/forwarding.rs`,
   line 299),
   and the author is asked to run the review's arm against that path and say so plainly.
+  Read on `main` at 05:50:
+  `run_real_git_naming` spawns the child,
+  then calls `note_child_started`,
+  and `note` in `lock/lock_holder_records.rs` gives up at line 337 when the child's identity cannot be read,
+  with nothing returned to the caller.
+  So the order the review faults is in the released code.
+  Whether a commit then fails there is not shown by reading:
+  it depends on what `main`'s lock pass does with a lock no record names,
+  and only the author's run of the arm against `main` shows that.
   The author is resumed,
   its fourth run
   (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-fourth-review-of-2026-11-15-prompt.md`,
