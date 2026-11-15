@@ -3207,16 +3207,37 @@ A worktree whose branch a merge landed is removed by those same routes,
  that every ignored entry it holds is one the worktree the merge ran in also holds
  (a whole ignored directory as one entry,
  which is not read below that),
- that no commit is named only by the worktree's own state,
+ that no object is named only by the worktree's own state,
  that no edit to a tracked file hides behind a mark Git does not see through,
  and that the records of its own Git directory are copied,
  and then it records the removal and returns.
-A commit named only by the worktree's own state is one its detached `HEAD` names,
- or one a reference under `refs/worktree/`,
- `refs/bisect/` or `refs/rewritten/` names,
- and no reference of the repository that outlives the removal holds
- (`src/native/worktree/worktree_removal_keeps_git_work.rs`);
- a commit an ancestor of a surviving reference holds is not stranded.
+An object stranded by a removal is one that a name dying with the worktree holds and that nothing outliving it
+ reaches
+ (`src/native/worktree/worktree_removal_keeps_git_work.rs`),
+ and the object is of any kind Git keeps:
+ a commit,
+ an annotated tag with its own message,
+ a tree,
+ or a blob.
+The names that die are the worktree's detached `HEAD`,
+ each reference under `refs/worktree/`,
+ `refs/bisect/` or `refs/rewritten/`,
+ each log in the worktree's own Git directory
+ (a reflog line can name a tag as well as a commit),
+ and each record of an operation that stopped there
+ (`FETCH_HEAD`,
+ `ORIG_HEAD`,
+ the rebase and merge records).
+A reference dies holding the object it names itself,
+ not the commit a tag peels to,
+ so the refusal names the tag a person made and its remedy keeps the tag and what it tags.
+Git answers the question:
+ one `git rev-list --objects` takes every dying name as a tip and every surviving reference as an exclusion,
+ and the surviving logs join the exclusions only when that answer is not empty,
+ so the log files are read only where the references leave something unanswered.
+An object a surviving name reaches,
+ or one an object a surviving name reaches was built on,
+ is not stranded.
 Every worktree this repository registers inside the candidate is asked the same question,
  detached `HEAD` included,
  because the removal takes that worktree's own Git directory with the outer one.
