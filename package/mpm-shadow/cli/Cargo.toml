@@ -70,6 +70,12 @@ sha2 = { workspace = true }
 # A current-thread runtime inside the HTTP client only; the rest of the crate stays synchronous.
 tokio = { workspace = true, features = ["rt", "net", "time"] }
 
+# The reads, and the one rename, that the standard library does not expose (owner, 2026-11-07, "Linux calls: rustix"):
+# opening a file without waiting for a named pipe and without following a link, and moving an entry to a name that is
+# free without replacing what stands there. The removal proves each of its steps with one of these.
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["fs"] }
+
 [dev-dependencies]
 # Disposable directories for the PATH, registry and install-record fixtures.
 tempfile = { workspace = true }
@@ -95,6 +101,7 @@ http-body-util = ">=0.1.5"
 hyper = ">=1.12.0"
 hyper-rustls = ">=0.27.10"
 hyper-util = ">=0.1.21"
+rustix = ">=1.1.6"
 serde_json = ">=1.0.154"
 sha2 = ">=0.11.1"
 tempfile = ">=3.27.0"

@@ -26,6 +26,8 @@ use std::path::{Path, PathBuf};
 
 /// Imports the reader of a launcher record and the path where a record stands beside a launcher.
 use super::launcher::{parse_record, record_path};
+/// Imports the one way this tool reads a file it did not just create.
+use super::ordinary_file::read_ordinary_text;
 
 /// How many launchers in a row are followed before the chain counts as one that never reaches a program.
 /// Delegated pick under the owner's rule that nothing waits without end (the same bound as the shadows' lookups,
@@ -72,7 +74,7 @@ pub fn chain_problem(own: &Path, program: &Path) -> Option<String> {
             ));
         }
         followed.push(resolved.clone());
-        let Ok(text) = fs::read_to_string(record_path(&resolved)) else {
+        let Ok(text) = read_ordinary_text(&record_path(&resolved)) else {
             return None;
         };
         let record = parse_record(&text)?;

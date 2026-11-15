@@ -21,9 +21,6 @@
 //! export function lockDigest(lock: Lock): string { ... }
 //! ```
 
-/// Imports `fs` from `std`, for the read of the lock the scope holds now.
-use std::fs;
-
 /// Imports the JSON value types (see `model.rs`).
 use serde_json::{Map, Value};
 
@@ -31,6 +28,8 @@ use serde_json::{Map, Value};
 use super::error::ToolchainError;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
+/// Imports the one way this tool reads a file it did not just create.
+use super::ordinary_file::read_ordinary_text_through_links;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports what this module uses from `super::model`.
@@ -180,7 +179,7 @@ pub fn render_lock(lock: &Lock) -> String {
 /// export function currentLock(scope: Scope): Lock | undefined
 /// ```
 pub fn current_lock(scope: &Scope) -> Option<Lock> {
-    let source: String = fs::read_to_string(&scope.lock_file).ok()?;
+    let source: String = read_ordinary_text_through_links(&scope.lock_file).ok()?;
     return parse_lock(&source, &scope.lock_file.display().to_string()).ok().map(|parsed| return parsed.lock);
 }
 

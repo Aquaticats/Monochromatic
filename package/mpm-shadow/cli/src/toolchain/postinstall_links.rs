@@ -46,7 +46,9 @@ use super::scope::{Scope, ScopeKind};
 /// Imports `write_atomically` from `super::publish`.
 use super::publish::write_atomically;
 /// Imports what this module uses from `super::removal`.
-use super::removal::{Judged, Removal, judged_of_metadata, remove_if_still};
+use super::removal::{Judged, Removal, judged_of, remove_if_still};
+/// Imports the one way this tool opens or creates a file it did not just make.
+use super::ordinary_file::{create_lock_file, read_ordinary_text};
 
 /// The file name of the record,
 /// inside the scope's launcher directory.
@@ -110,10 +112,14 @@ pub(super) fn record_file(ctx: &Context) -> PathBuf {
 /// and a warning when the record exists but cannot be read,
 /// in which case nothing is retired this run.
 fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
-    let text: String = match fs::read_to_string(file) {
+    if fs::symlink_metadata(file).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound) {
+        return (BTreeMap::new(), None);
+    }
+    let text: String = match read_ordinary_text(file) {
         Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (BTreeMap::new(), None),
-        Err(error) => return (BTreeMap::new(), Some(format!("cannot read {}, so no stale postinstall link is retired: {error}", file.display()))),
+        Err(reason) => {
+            return (BTreeMap::new(), Some(format!("no stale postinstall link is retired: {reason}")));
+        }
     };
     let mut links: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
     let parsed: Option<Value> = serde_json::from_str(&text).ok();
@@ -283,7 +289,10 @@ fn inspect(path: &Path, recorded_target: &Path) -> Held {
     if !metadata.file_type().is_symlink() {
         return Held::Foreign("it is not a symlink".to_string());
     }
-    let judged: Judged = judged_of_metadata(&metadata);
+    let judged: Judged = match judged_of(path) {
+        Ok(judged) => judged,
+        Err(reason) => return Held::Foreign(reason),
+    };
     return match fs::read_link(path) {
         Ok(target) if target == recorded_target => Held::OwnLink(judged),
         Ok(target) => Held::Foreign(format!("it points at {}", target.display())),
@@ -452,9 +461,9 @@ const RECORD_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
 /// the launcher and link passes take no lock, so an install beside this one is never made to wait for them.
 fn acquire_record_lock(file: &Path) -> Result<Option<fs::File>, ToolchainError> {
     let lock_path: PathBuf = file.with_file_name(RECORD_LOCK_NAME);
-    let handle: fs::File = match fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path) {
+    let handle: fs::File = match create_lock_file(&lock_path) {
         Ok(handle) => handle,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot open {}: {error}", lock_path.display()))),
+        Err(reason) => return Err(ToolchainError::failure(reason)),
     };
     let deadline: std::time::Instant = std::time::Instant::now() + RECORD_LOCK_WAIT;
     loop {

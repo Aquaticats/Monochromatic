@@ -67,7 +67,7 @@ use super::context::Context;
 /// Imports `link_directory` from `super::exposure`.
 use super::exposure::link_directory;
 /// Imports what this module uses from `super::launcher`.
-use super::launcher::{RECORD_SUFFIX, parse_record, record_path};
+use super::launcher::{RECORD_SUFFIX, launcher_names_of, parse_record, record_path};
 /// Imports what this module uses from `super::launcher_source`.
 use super::launcher_source::{launcher_source, newest_installed_shadow, program_name, running_program};
 /// Imports what this module uses from `super::lock`.
@@ -81,7 +81,9 @@ use super::util::process_is_gone;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 /// Imports what this module uses from `super::removal`.
-use super::removal::{Judged, Removal, judged_of_metadata, maker_of_retired, put_back, remove_if_still, retired_from};
+use super::removal::{Judged, Removal, judged_of, judged_of_open, maker_of_retired, put_back, remove_if_still, retired_from, same_entry};
+/// Imports the one way this tool opens a file it did not just create.
+use super::ordinary_file::{open_ordinary, open_ordinary_through_links};
 
 //region The crate mpm-shadow places, the folders it links into, and how much of a file is read at a time
 
@@ -144,25 +146,25 @@ fn sorted_entries(directory: &Path, notices: &mut LauncherNotices) -> Vec<fs::Di
 /// so a record naming a tool the lock has dropped is not proven and the file beside it stays.
 /// The identity comes from the open record,
 /// because the content and the entry must be the same file for a removal to be safe.
+/// The open never waits and refuses anything but an ordinary file (`super::ordinary_file`):
+/// a named pipe where a record stood waited for ever for a writer that an install never sends,
+/// which the seventh review reproduced.
 fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<Judged, String> {
-    let mut file: fs::File = match fs::File::open(record) {
+    let mut file: fs::File = match open_ordinary(record) {
         Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(_reason) if record_is_absent(record) => {
             return Err(format!(
                 "no launcher record {} stands beside it, so mpm-shadow cannot tell it from a file someone put there",
                 record.display()
             ));
         }
-        Err(error) => return Err(format!("{} cannot be read: {error}", record.display())),
-    };
-    let judged: Judged = match file.metadata() {
-        Ok(metadata) => judged_of_metadata(&metadata),
-        Err(error) => return Err(format!("{} cannot be inspected: {error}", record.display())),
+        Err(reason) => return Err(reason),
     };
     let mut text: String = String::new();
     if let Err(error) = file.read_to_string(&mut text) {
         return Err(format!("{} cannot be read: {error}", record.display()));
     }
+    let judged: Judged = judged_of_open(&file, text.as_bytes())?;
     let Some(parsed) = parse_record(&text) else {
         return Err(format!("{} is not a launcher record mpm-shadow wrote", record.display()));
     };
@@ -174,6 +176,12 @@ fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<Judge
         ));
     }
     return Ok(judged);
+}
+
+/// Whether nothing at all stands at `path`,
+/// which tells a reader that its sentence about an absent file is the right one.
+fn record_is_absent(path: &Path) -> bool {
+    return fs::symlink_metadata(path).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound);
 }
 
 /// The crate a shadow's identity text names,
@@ -190,9 +198,12 @@ fn owner_crate(identity: &str) -> String {
 /// A launcher is byte for byte one of `mpm-shadow`'s programs,
 /// so the comparison is the whole file,
 /// in blocks so no file is held in memory;
-/// a file that cannot be read is not one of them.
+/// a file that cannot be read, or that is not an ordinary file, is not one of them.
+/// `first` is an entry this tool placed and `second` may be reached through a symbolic link (`current` is one),
+/// so each is opened the way its own kind needs: without following a link for the first,
+/// and through the link for the second, which must still end at an ordinary file.
 fn same_bytes(first: &Path, second: &Path) -> bool {
-    let (Ok(mut one), Ok(mut two)) = (fs::File::open(first), fs::File::open(second)) else {
+    let (Ok(mut one), Ok(mut two)) = (open_ordinary(first), open_ordinary_through_links(second)) else {
         return false;
     };
     let (Ok(one_metadata), Ok(two_metadata)) = (one.metadata(), two.metadata()) else {
@@ -358,13 +369,13 @@ impl<'a> Proofs<'a> {
             Ok(metadata) => metadata,
             Err(error) => return Err(format!("it cannot be inspected: {error}")),
         };
-        let judged: Judged = judged_of_metadata(&metadata);
         if metadata.file_type().is_symlink() {
             return Err("it is a symbolic link, and mpm-shadow places a copy of its own program there, never a link".to_string());
         }
         if !metadata.is_file() {
             return Err("it is not a regular file".to_string());
         }
+        let judged: Judged = judged_of(launcher)?;
         record_is_own(&record_path(launcher), declared_tools)?;
         let why: String = self.own_bytes(launcher, declared_tools)?;
         return Ok(Proven { why, judged });
@@ -378,10 +389,7 @@ impl<'a> Proofs<'a> {
     /// and never by its name,
     /// its path or the date it was written.
     fn own_bytes(&mut self, file: &Path, declared_tools: &BTreeSet<&str>) -> Result<String, String> {
-        let opened: fs::File = match fs::File::open(file) {
-            Ok(opened) => opened,
-            Err(error) => return Err(format!("it cannot be read: {error}")),
-        };
+        let opened: fs::File = open_ordinary(file)?;
         if let Some(identity) = identity_of_open_file(&opened)
             && owner_crate(&identity) == OWN_SHADOW_CRATE
         {
@@ -735,13 +743,20 @@ fn retire_farm_links(
                 return;
             }
         }
+        let judged: Judged = match judged_of(&path) {
+            Ok(judged) => judged,
+            Err(reason) => {
+                notices.warnings.push(format!("left {} alone: {reason}", path.display()));
+                continue;
+            }
+        };
         retire_one_link(
             ctx,
             made_links,
             &name,
             "the lock declares no bin of that name",
             &path,
-            judged_of_metadata(&metadata),
+            judged,
             declared_tools,
             proofs,
             notices,
@@ -807,13 +822,20 @@ fn retire_other_links(
                     return;
                 }
             }
+            let judged: Judged = match judged_of(&path) {
+                Ok(judged) => judged,
+                Err(reason) => {
+                    notices.warnings.push(format!("left {} alone: {reason}", path.display()));
+                    continue;
+                }
+            };
             retire_one_link(
                 ctx,
                 made_links,
                 &name,
                 "the lock declares no postinstall link there",
                 &path,
-                judged_of_metadata(&metadata),
+                judged,
                 declared_tools,
                 proofs,
                 notices,
@@ -1010,12 +1032,7 @@ fn declared_launcher_names(tools: &[LockedTool]) -> BTreeSet<String> {
         if !is_repository_published(tool) {
             continue;
         }
-        for bin in &tool.declaration.bins {
-            names.insert(bin.clone());
-        }
-        if let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall {
-            names.insert(link.source_bin.clone());
-        }
+        names.extend(launcher_names_of(tool));
     }
     return names;
 }
@@ -1160,12 +1177,20 @@ pub struct LauncherNotices {
 }
 
 /// What:
-/// Puts back what a run killed between taking an entry aside and removing it left under a hidden name.
+/// Puts back what a run killed between taking an entry aside and removing it left under a hidden name,
+/// and removes the second name of an entry that a killed run left under two names.
 /// Why:
-/// The removal's step 4 leaves the entry only under `.⟨name⟩.⟨pid⟩.⟨attempt⟩.retired` (see `super::removal`'s steps),
+/// The removal's step 3 leaves the entry only under `.⟨name⟩.⟨pid⟩.⟨attempt⟩.retired` (see `super::removal`'s steps),
 /// and no diagnostic can be printed by the killed process.
-/// A later pass finds it, puts it back at its own name when that name is free (never over something newer),
-/// and says so; a name that is taken keeps the hidden entry where it is, with the sentence that names it.
+/// A later pass finds it, puts it back at its own name with one no-replace move when that name is free (never over
+/// something newer), and says so;
+/// a name that is taken keeps the hidden entry where it is, with the sentence that names it.
+/// Every state a kill can leave converges in this one pass:
+/// the entry hidden and its name free goes back;
+/// the entry hidden and its name taken is either one entry under two names (a kill between a hard link and an unlink,
+/// which every version before the one no-replace move leaves) and the hidden name goes,
+/// or two different entries, and the hidden one is kept and named.
+/// A hidden name whose maker is still running is an install inside its own removal and is not touched.
 pub(super) fn repair_what_a_kill_left(ctx: &Context, notices: &mut LauncherNotices) {
     let mut folders: Vec<PathBuf> = link_folders(ctx);
     folders.push(ctx.scope.launcher_dir.clone());
@@ -1194,6 +1219,25 @@ pub(super) fn repair_what_a_kill_left(ctx: &Context, notices: &mut LauncherNotic
                     target.display(),
                     hidden.display()
                 )),
+                // One entry can stand under two names: a run killed between a hard link and the removal of the other
+                // name left it, and every version of this tool before the one that moves entries with one no-replace
+                // rename did the same on every removal it was killed in. The two names are one entry, so there is
+                // nothing to put back and no file to keep: the hidden name goes, and nothing a person made is lost.
+                Err(_) if same_entry(&target, &hidden) => {
+                    match fs::remove_file(&hidden) {
+                        Ok(()) => notices.warnings.push(format!(
+                            "removed {}, a second name of the entry that already stands at {} after a run was killed between \
+                             moving it aside and removing it",
+                            hidden.display(),
+                            target.display()
+                        )),
+                        Err(error) => notices.warnings.push(format!(
+                            "left {} alone: it is a second name of the entry that stands at {}, and it cannot be removed: {error}",
+                            hidden.display(),
+                            target.display()
+                        )),
+                    }
+                }
                 Err(reason) => notices.warnings.push(format!(
                     "left {} alone: it holds what a killed run moved aside from {}, and {reason}",
                     hidden.display(),

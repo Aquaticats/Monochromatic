@@ -124,6 +124,11 @@ pub mod launcher_source;
 /// records and exposed links of names the lock declares nowhere.
 pub mod stale_launchers;
 
+/// Opening and reading a file this tool did not just create,
+/// without waiting,
+/// and refusing anything that is not an ordinary file.
+mod ordinary_file;
+
 /// Removing one entry only when it is still the entry that was judged.
 mod removal;
 

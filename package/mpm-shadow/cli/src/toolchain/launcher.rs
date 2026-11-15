@@ -51,11 +51,15 @@ use serde_json::{Map, Value};
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_newer_than_locked, older_lock_message_for};
+use super::cargo_installs::{is_newer_than_locked, is_repository_published, older_lock_message_for};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports the check that follows a launcher chain and names a loop or a broken record.
 use super::launcher_chain::chain_problem;
+/// Imports what this module uses from `super::lock`.
+use super::lock::{Lock, current_lock};
+/// Imports what this module uses from `super::model`.
+use super::model::{LockedTool, Postinstall};
 /// Imports what this module uses from `super::launcher_current_link`.
 use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
 /// Imports what this module uses from `super::launcher_source`.
@@ -66,6 +70,8 @@ use super::repository_link_cause::{CHECK_DEADLINE, LinkVerdict, repository_link_
 use super::scope::{Scope, ScopeKind};
 /// Imports the one atomic write the launcher and the lock share.
 use super::util::write_atomically;
+/// Imports the one way this tool reads a file it did not just create.
+use super::ordinary_file::{create_lock_file, read_ordinary_text, read_ordinary_text_through_links};
 
 /// The suffix of the record beside a launcher.
 pub const RECORD_SUFFIX: &str = ".launch";
@@ -215,17 +221,149 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
         LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
     let source: PathBuf = launcher_source(scope, running_program()?, cfg!(target_os = "linux"))?;
     place_binary(&source, &launcher)?;
+    // The seam a control uses to let a second install finish its launcher and its record here, while this one stands
+    // between its program and its record. Compiled in tests only.
+    #[cfg(test)]
+    seam::after_the_place();
     // After the program, never before: the record is the proof a retirement may remove a launcher, so it must not name a
     // program that is not there yet.
-    write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
+    write_the_record_the_lock_asks_for(scope, name, tool_id, &launcher, &record)?;
     return Ok(launcher);
+}
+
+/// The file name of the lock that makes one folder's record writes one critical section.
+/// One lock covers one folder's records:
+/// that is the smallest unit a single lock file can name,
+/// and a record's write is a few hundred bytes,
+/// so an install beside this one is never made to wait for the launcher or link passes.
+const RECORD_LOCK_NAME: &str = ".launch-records.lock";
+
+/// How long a record writer waits for that lock before it refuses the write and says so.
+/// The section is a read, a comparison and a write of a few hundred bytes,
+/// so this bound has a hundredfold slack;
+/// refusing is the safe side because the record that stands keeps the launcher provable.
+const RECORD_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// How long the wait sleeps between two tries.
+const RECORD_LOCK_POLL: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// What:
+/// Writes the `<name>.launch` record beside `launcher`, under the folder's record lock,
+/// and only when the lock on disk asks for it.
+/// Why:
+/// Two installs can hold different locks that assign one bin name to different tools,
+/// and the older install can finish after the newer one wrote its record
+/// (the seventh review reproduced exactly that, and the launcher then started the older tool).
+/// So the record is written only while the folder's record lock is held,
+/// and the lock on disk is asked, at that instant, whether it assigns this bin name to a tool other than this one:
+/// if it does, the newer record that stands is what the tree's own lock asks for, and this run leaves it alone.
+/// The launcher is a copy of the same `mpm-shadow` program either way, so nothing a person sees is wrong.
+/// A lock that cannot be read says nothing about another tool, and then this run writes what its own lock says.
+/// The standing record is read first, and an identical one is not written again:
+/// an install with nothing to do replaces no file.
+/// A file at the record's name that is not a launcher record is left and named, never replaced.
+fn write_the_record_the_lock_asks_for(
+    scope: &Scope,
+    name: &str,
+    tool_id: &str,
+    launcher: &Path,
+    record: &LaunchRecord,
+) -> Result<(), ToolchainError> {
+    let lock_path: PathBuf = scope.launcher_dir.join(RECORD_LOCK_NAME);
+    let _guard: fs::File = take_the_records_lock(&lock_path)?;
+    if current_lock(scope).is_some_and(|lock| return another_tool_declares(&lock, name, tool_id)) {
+        return Ok(());
+    }
+    let path: PathBuf = record_path(launcher);
+    let text: String = render_record(record);
+    let standing: Option<String> = match read_ordinary_text(&path) {
+        Ok(standing) => Some(standing),
+        Err(_reason) if fs::symlink_metadata(&path).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound) => None,
+        Err(reason) => {
+            return Err(ToolchainError::failure(format!(
+                "{reason}, so no launcher record was written and it was left where it is"
+            )));
+        }
+    };
+    if standing.as_deref() == Some(text.as_str()) {
+        return Ok(());
+    }
+    if let Some(standing_text) = &standing
+        && parse_record(standing_text).is_none()
+    {
+        return Err(ToolchainError::failure(format!(
+            "{} stands where this launcher's record belongs and it is not a launcher record mpm-shadow wrote, so it was left \
+             where it is and no record was written",
+            path.display()
+        )));
+    }
+    return write_atomically(&path, text.as_bytes());
+}
+
+/// What:
+/// The folder's record lock, taken with a bound,
+/// or the sentence that says why the record was not written.
+/// Why:
+/// A writer that cannot take it must not write a record at all:
+/// a record written without the lock could replace the newer record another install just wrote,
+/// which is the defect this lock exists for.
+fn take_the_records_lock(lock_path: &Path) -> Result<fs::File, ToolchainError> {
+    let handle: fs::File = create_lock_file(lock_path).map_err(ToolchainError::failure)?;
+    let deadline: std::time::Instant = std::time::Instant::now() + RECORD_LOCK_WAIT;
+    loop {
+        match handle.try_lock() {
+            Ok(()) => return Ok(handle),
+            Err(std::fs::TryLockError::WouldBlock) => {
+                if std::time::Instant::now() >= deadline {
+                    return Err(ToolchainError::failure(format!(
+                        "no launcher record was written: another mpm-shadow holds {} for longer than {} seconds, and a record \
+                         written without it could replace the record a newer install just wrote",
+                        lock_path.display(),
+                        RECORD_LOCK_WAIT.as_secs()
+                    )));
+                }
+                std::thread::sleep(RECORD_LOCK_POLL);
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(ToolchainError::failure(format!("cannot test {}: {error}", lock_path.display())));
+            }
+        }
+    }
+}
+
+/// What:
+/// The bin names a tool gets a launcher for:
+/// its declared bins,
+/// and the source bin of the postinstall link it declares.
+/// Why:
+/// `rebuild_exposure` asks for a launcher for each of them,
+/// and the retirement counts the same names as the lock's own,
+/// so both ask this one place what a launcher's name is.
+pub(crate) fn launcher_names_of(tool: &LockedTool) -> Vec<String> {
+    let mut names: Vec<String> = tool.declaration.bins.clone();
+    if let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall {
+        names.push(link.source_bin.clone());
+    }
+    return names;
+}
+
+/// What:
+/// Whether the lock declares `name` a launcher for a tool other than `tool_id`.
+/// Why:
+/// This is the question a record's write asks the lock on disk at that instant:
+/// a name the lock gives another tool belongs to that tool's record, whatever lock this run loaded.
+pub(crate) fn another_tool_declares(lock: &Lock, name: &str, tool_id: &str) -> bool {
+    return lock
+        .tools
+        .iter()
+        .any(|tool| return tool.declaration.id != tool_id && is_repository_published(tool) && launcher_names_of(tool).iter().any(|bin| return bin == name));
 }
 
 /// The record beside the running executable,
 /// or `None` when this process was not started as a launcher.
 pub fn launch_record_of_current_exe() -> Option<LaunchRecord> {
     let executable: PathBuf = std::env::current_exe().ok()?;
-    let text: String = fs::read_to_string(record_path(&executable)).ok()?;
+    let text: String = read_ordinary_text(&record_path(&executable)).ok()?;
     return parse_record(&text);
 }
 
@@ -379,7 +517,7 @@ fn say_why_the_lock_is_unreadable(lock_file: &Path) {
 /// export function runLauncher(record: LaunchRecord, args: string[]): number
 /// ```
 pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
-    let lock_text: Option<String> = fs::read_to_string(&record.lock_file).ok();
+    let lock_text: Option<String> = read_ordinary_text_through_links(&record.lock_file).ok();
     if lock_text.is_none() {
         say_why_the_lock_is_unreadable(&record.lock_file);
     }
@@ -442,4 +580,28 @@ fn report_program_not_found(record: &LaunchRecord, program: &Path, lock_text: Op
     eprintln!("mpm-shadow: not starting {}: no file exists there", program.display());
     eprintln!("mpm-shadow: {}", advice_for(record, lock_text));
     return NOT_FOUND_EXIT_CODE;
+}
+
+/// The seam a control uses to let a second install finish while this one stands between its program and its record.
+/// Compiled in tests only, so no shipped path can be moved by anything but the file system.
+#[cfg(test)]
+pub(crate) mod seam {
+    /// Imports `Mutex` from `std`.
+    use std::sync::Mutex;
+
+    /// The hook a control sets to run after the program is placed and before the record is written.
+    static AFTER_THE_PLACE: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
+
+    /// Sets (or with `None` clears) the hook run after the program is placed.
+    pub(crate) fn set_after_the_place(hook: Option<Box<dyn Fn() + Send>>) {
+        *AFTER_THE_PLACE.lock().expect("the seam is not poisoned") = hook;
+    }
+
+    /// Runs the hook once, when there is one.
+    pub(crate) fn after_the_place() {
+        let waiting: Option<Box<dyn Fn() + Send>> = AFTER_THE_PLACE.lock().expect("the seam is not poisoned").take();
+        if let Some(hook) = waiting {
+            hook();
+        }
+    }
 }

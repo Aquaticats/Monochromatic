@@ -149,7 +149,11 @@ fn a_launcher_is_made_with_its_record_beside_it() {
         .map(|entry| return entry.file_name().to_string_lossy().to_string())
         .collect();
     names.sort();
-    assert_eq!(names, vec!["git".to_string(), "git.launch".to_string()]);
+    assert_eq!(
+        names,
+        vec![".launch-records.lock".to_string(), "git".to_string(), "git.launch".to_string()],
+        "the launcher, its record, and the lock of the folder's record writes"
+    );
 }
 
 /// The environment variable that makes a copy of the test binary act as the child of the test below;
@@ -427,8 +431,7 @@ fn a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow() {
 }
 
 #[test]
-fn a_launcher_that_cannot_be_placed_leaves_no_record_behind() {
-    let rig = Rig::new();
+fn a_launcher_that_cannot_be_placed_leaves_no_record_behind() {    let rig = Rig::new();
     // A name a launcher cannot be renamed onto: a directory of a person's, which stands where the launcher would go.
     let blocked: PathBuf = rig.scope.launcher_dir.join("cli-git-native");
     fs::create_dir_all(blocked.join("content")).expect("make the directory in the launcher's way");
@@ -445,3 +448,36 @@ fn a_launcher_that_cannot_be_placed_leaves_no_record_behind() {
         record.display()
     );
 }
+
+//region The seventh review: an older install's late record leaves a newer one in place
+// The second install is placed by the code's own seam (`launcher::seam`, compiled only in tests), never by a sleep.
+
+#[test]
+fn a_late_record_from_an_install_the_lock_no_longer_names_leaves_the_newer_record_in_place() {
+    let rig = Rig::new();
+    // The sample lock assigns this bin name to `cargo:monochromatic-mpm-shadow` and to no other tool that gets a
+    // launcher, so an install whose lock says otherwise is the older of two.
+    let name = "mpm-shadow";
+    let newer_tool = "cargo:monochromatic-mpm-shadow";
+    let older_tool = "cargo:fd-find";
+    let older_real = rig.scope.root.join("older").join("current").join("bin").join(name);
+    let newer_real = rig.scope.root.join("newer").join("current").join("bin").join(name);
+    write_executable(&older_real);
+    write_executable(&newer_real);
+    let scope_in_hook = rig.scope.clone();
+    let newer_real_in_hook = newer_real.clone();
+    super::launcher::seam::set_after_the_place(Some(Box::new(move || {
+        ensure_launcher(&scope_in_hook, newer_tool, name, &newer_real_in_hook).expect("the newer install finishes");
+    })));
+
+    ensure_launcher(&rig.scope, older_tool, name, &older_real).expect("the older install resumes and finishes");
+
+    super::launcher::seam::set_after_the_place(None);
+    let launcher: PathBuf = rig.scope.launcher_dir.join(name);
+    let record = parse_record(&fs::read_to_string(record_path(&launcher)).expect("the final record is readable"))
+        .expect("the final record parses");
+    assert_eq!(record.tool_id, newer_tool, "the older install's late record replaced the newer install's record");
+    assert_eq!(record.real, newer_real, "the launcher would start the program of the older lock");
+}
+
+//endregion

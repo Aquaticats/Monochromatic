@@ -97,8 +97,10 @@ use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// Imports `shell_word` from `super::cargo_installs`.
+/// Imports what this module uses from `super::cargo_installs`.
 use super::cargo_installs::shell_word;
+/// Imports the one way this tool opens a file it did not just create.
+use super::ordinary_file::{sha256_of_bytes, sha256_of_ordinary};
 
 /// How many hidden names beside an entry are tried before a removal refuses to take it aside.
 /// Delegated pick under the owner's rule that nothing waits without end and never discards a person's file;
@@ -107,11 +109,11 @@ const TEMPORARY_NAME_ATTEMPTS: usize = 64;
 
 /// What:
 /// The entry at a path when it was judged:
-/// the file it was, by everything an edit in place would change.
+/// the file it was, by everything that tells it from anything that takes its place.
 /// Why:
 /// Inode identity alone misses a truncate-and-write in the same inode;
-/// the size and the two timestamps move when any byte does,
-/// so a file a person rewrote after the judgement is not taken for the judged one.
+/// the size and the modification time move when any byte does,
+/// and the content catches the writer that puts the modification time back after an edit in place.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Judged {
     /// The device of the file system the entry is on.
@@ -123,9 +125,11 @@ pub(crate) struct Judged {
     /// Its size in bytes.
     size: u64,
     /// When its bytes last changed, in nanoseconds since the epoch.
-    /// The change time is deliberately not part of this: creating the hard link of the move-aside bumps it on the inode
-    /// itself, so a compare that included it would take every entry for a changed one.
+    /// The change time is deliberately not part of this: the move itself bumps it on the inode,
+    /// so a compare that included it would take every entry for a changed one.
     modified: i128,
+    /// SHA-256 of its bytes: an ordinary file's content, or a symbolic link's stated target.
+    content: [u8; 32],
 }
 
 /// What a take-aside left.
@@ -162,8 +166,9 @@ fn nanoseconds(time: std::io::Result<std::time::SystemTime>) -> i128 {
     };
 }
 
-/// The identity of an entry from its metadata.
-pub(crate) fn judged_of_metadata(metadata: &fs::Metadata) -> Judged {
+/// The identity of an entry from its metadata,
+/// with the digest of the bytes that were read from it.
+fn judged_of_metadata(metadata: &fs::Metadata, content: [u8; 32]) -> Judged {
     /// Imports `MetadataExt` from `std::os::unix::fs`.
     #[cfg(unix)]
     use std::os::unix::fs::MetadataExt;
@@ -178,17 +183,60 @@ pub(crate) fn judged_of_metadata(metadata: &fs::Metadata) -> Judged {
         inode,
         size: metadata.len(),
         modified: nanoseconds(metadata.modified()),
+        content,
     };
 }
 
-/// The identity of the entry at `path`, without following a symbolic link.
-/// The callers judge from the metadata they already hold, so this is the seam their tests judge by.
-#[cfg(test)]
+/// What:
+/// The judgement of the entry at `path`: what it is and what its bytes are,
+/// or the sentence naming what is wrong with it.
+/// Why:
+/// This is step 1 of the steps at the top, and the same call makes step 4's comparison,
+/// so what a removal compares is always one thing: two judgements.
+/// A symbolic link is judged by its stated target,
+/// which is read without opening anything;
+/// an ordinary file by its content,
+/// through an open that never waits;
+/// anything else is not judged, so this module never removes it.
+///
+/// @throws The sentence naming why the entry cannot be judged, which leaves it where it is.
 pub(crate) fn judged_of(path: &Path) -> Result<Judged, String> {
-    return match fs::symlink_metadata(path) {
-        Ok(metadata) => Ok(judged_of_metadata(&metadata)),
-        Err(error) => Err(format!("it cannot be inspected: {error}")),
+    let metadata: fs::Metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => return Err(format!("{} cannot be inspected: {error}", path.display())),
     };
+    let content: [u8; 32] = if metadata.file_type().is_symlink() {
+        let stated: PathBuf = match fs::read_link(path) {
+            Ok(stated) => stated,
+            Err(error) => return Err(format!("{} cannot be read as a link: {error}", path.display())),
+        };
+        sha256_of_bytes(stated.as_os_str().as_encoded_bytes())
+    } else if metadata.is_file() {
+        sha256_of_ordinary(path)?
+    } else {
+        return Err(super::ordinary_file::not_ordinary(path, &metadata));
+    };
+    return Ok(judged_of_metadata(&metadata, content));
+}
+
+/// What:
+/// The judgement of the file an open descriptor names,
+/// from the bytes that were read through that same descriptor.
+/// Why:
+/// A record is read through a descriptor this tool opened,
+/// and the proof is about what that descriptor holds:
+/// judging the path again would describe an entry that may already be another file.
+///
+/// @throws The sentence naming why the entry cannot be judged, which leaves it where it is.
+pub(crate) fn judged_of_open(file: &fs::File, content: &[u8]) -> Result<Judged, String> {
+    let metadata: fs::Metadata = match file.metadata() {
+        Ok(metadata) => metadata,
+        Err(error) => return Err(format!("the open record cannot be inspected: {error}")),
+    };
+    if !metadata.is_file() {
+        return Err(super::ordinary_file::not_ordinary(Path::new("the open record"), &metadata));
+    }
+    return Ok(judged_of_metadata(&metadata, sha256_of_bytes(content)));
 }
 
 /// What:
@@ -196,7 +244,7 @@ pub(crate) fn judged_of(path: &Path) -> Result<Judged, String> {
 /// or the reason every name of the bound is taken.
 /// Why:
 /// The name is only *chosen* here, never created:
-/// the hard link that follows fails when something took the name in between,
+/// the no-replace move that follows fails when something took the name in between,
 /// and then the next name is tried,
 /// so a person's file at a hidden name is never written over.
 fn temporary_name_beside(path: &Path, taken: usize) -> Result<PathBuf, String> {
@@ -212,23 +260,105 @@ fn temporary_name_beside(path: &Path, taken: usize) -> Result<PathBuf, String> {
     return Ok(path.with_file_name(format!(".{name}.{}.{attempt}.retired", std::process::id())));
 }
 
+/// What:
+/// Whether the entry just judged is the one that was judged before.
+/// Why:
+/// This is step 4's whole decision, and every field of the judgement is in it:
+/// device and inode say it is the same file,
+/// size and modification time say it has not been rewritten,
+/// and the content says it even when a writer put the modification time back.
+/// The change time is not compared, because the move bumps it on the inode.
+fn is_the_judged_entry(now: &Judged, judged: &Judged) -> bool {
+    #[cfg(unix)]
+    let same_identity: bool = now.device == judged.device && now.inode == judged.inode;
+    #[cfg(not(unix))]
+    let same_identity: bool = true;
+    return same_identity && now.size == judged.size && now.modified == judged.modified && now.content == judged.content;
+}
 
 /// What:
-/// Takes the entry at `path` aside under a hidden name, replacing nothing,
-/// and says whether it is the entry that was judged.
+/// Moves the entry at `from` to `to`, replacing nothing.
 /// Why:
-/// The link is the no-replace creation (step 3 of the steps at the top),
-/// the unlink is step 4,
-/// and the compare is step 5:
-/// a different size or time means the file was rewritten after the judgement,
-/// and that one is put back rather than removed.
+/// This is the one act of the removal that takes an entry off a shared name,
+/// and it must never write over a name another command made.
+/// `renameat2` with `RENAME_NOREPLACE` (`renamex_np` with `RENAME_EXCL` on macOS) is the one operation that moves whatever
+/// stands at one name to another and fails when the other name is taken,
+/// so between the two names there is no instant in which a third command's entry can be lost.
+/// A platform or file system without it answers `Unsupported` or `InvalidInput`,
+/// and the caller then leaves the entry where it is with a sentence.
+fn move_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+    // The one call that carries the flag, from `rustix`.
+    #[cfg(any(target_os = "linux", target_vendor = "apple", target_os = "redox"))]
+    {
+        return rustix::fs::renameat_with(rustix::fs::CWD, from, rustix::fs::CWD, to, rustix::fs::RenameFlags::NOREPLACE)
+            .map_err(std::io::Error::from);
+    }
+    #[cfg(not(any(target_os = "linux", target_vendor = "apple", target_os = "redox")))]
+    {
+        let _ = (from, to);
+        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "this platform has no rename that replaces nothing"));
+    }
+}
+
+/// What:
+/// Whether an error says that this platform or file system has no move that replaces nothing.
+/// Why:
+/// `EINVAL` and `ENOSYS` mean the flag is not implemented here,
+/// and that is a different thing from a move that failed on one entry:
+/// the first leaves every entry where it is, and the sentence has to say so.
+fn no_such_operation(error: &std::io::Error) -> bool {
+    return matches!(error.kind(), std::io::ErrorKind::Unsupported | std::io::ErrorKind::InvalidInput);
+}
+
+/// What:
+/// Whether two names are names of one entry (the same device and inode).
+/// Why:
+/// A run killed between a hard link and the removal of the other name left one entry under two names,
+/// as have older versions of this tool that moved entries aside with a link and an unlink;
+/// the repair pass tells that state from a name something newer took by asking this.
+#[cfg(unix)]
+pub(crate) fn same_entry(first: &Path, second: &Path) -> bool {
+    /// Imports `MetadataExt` from `std::os::unix::fs`.
+    use std::os::unix::fs::MetadataExt;
+    return match (fs::symlink_metadata(first), fs::symlink_metadata(second)) {
+        (Ok(one), Ok(two)) => one.dev() == two.dev() && one.ino() == two.ino(),
+        _ => false,
+    };
+}
+
+/// Whether two names are names of one entry, on a platform that cannot say;
+/// `false` keeps both, which is the side that removes nothing.
+#[cfg(not(unix))]
+pub(crate) fn same_entry(_first: &Path, _second: &Path) -> bool {
+    return false;
+}
+
+/// What:
+/// Takes the entry at `path` aside under a hidden name with one no-replace move,
+/// and says whether the entry it took is the one that was judged.
+/// Why:
+/// The move is step 3 of the steps at the top,
+/// and the comparison is step 4:
+/// the move takes whatever stands at the path, so the decision is made about the entry in hand;
+/// a judgement that differs in any field, content included, is put back rather than removed.
+/// The hidden name this call chooses is the only name it writes,
+/// and it writes it with an operation that fails instead of replacing.
 pub(crate) fn take_aside(path: &Path, judged: Judged) -> Result<Taken, String> {
+    // An entry this tool never removes (a directory, a named pipe, a socket, a device) is left before anything moves:
+    // moving it aside and finding that out would put a person's directory at a hidden name if the visible name were
+    // then taken. This look decides only whether to try, never whether a removal succeeded.
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() || metadata.file_type().is_symlink() => {}
+        Ok(metadata) => return Err(super::ordinary_file::not_ordinary(path, &metadata)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Taken::Gone),
+        Err(error) => return Err(format!("{} cannot be inspected: {error}", path.display())),
+    }
     let mut attempt: usize = 0;
     loop {
         let temporary: PathBuf = temporary_name_beside(path, attempt)?;
         #[cfg(test)]
-        seam::before_the_link();
-        match fs::hard_link(path, &temporary) {
+        seam::before_the_move();
+        match move_without_replacing(path, &temporary) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Taken::Gone),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -236,27 +366,22 @@ pub(crate) fn take_aside(path: &Path, judged: Judged) -> Result<Taken, String> {
                 attempt += 1;
                 continue;
             }
-            Err(error) => {
+            Err(error) if no_such_operation(&error) => {
                 return Err(format!(
-                    "it cannot be taken aside under a hidden name ({error}); a file system without hard links keeps it where it is \
-                     rather than guessing"
+                    "this platform or file system has no way to move an entry to another name without replacing what stands \
+                     there, so {} was left where it is and nothing was removed ({error})",
+                    path.display()
                 ));
             }
-        }
-        // The entry now has two names; the visible one goes, so the hidden one holds it alone.
-        match fs::remove_file(path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                let _ = fs::remove_file(&temporary);
-                return Ok(Taken::Gone);
-            }
             Err(error) => {
-                let _ = fs::remove_file(&temporary);
-                return Err(format!("it cannot be moved aside: {error}"));
+                return Err(format!("it cannot be moved aside to a hidden name ({error}), so nothing was removed"));
             }
         }
-        let moved: Option<Judged> = fs::symlink_metadata(&temporary).ok().map(|metadata| return judged_of_metadata(&metadata));
-        if moved != Some(judged) {
+        #[cfg(test)]
+        seam::after_the_move();
+        // The entry is at the hidden name this call made, and nobody else can name it.
+        let now: Option<Judged> = judged_of(&temporary).ok();
+        if !now.is_some_and(|current| return is_the_judged_entry(&current, &judged)) {
             return match put_back(path, &temporary) {
                 Ok(()) => Ok(Taken::Replaced),
                 Err(reason) => Err(reason),
@@ -297,23 +422,32 @@ pub(crate) fn could_not_put_back(path: &Path, temporary: &Path, error: &std::io:
 
 /// What:
 /// Puts the entry at `temporary` back at `path`,
-/// only if nothing stands at `path` now.
+/// with one no-replace move, and only if nothing stands at `path` now.
 /// Why:
-/// A hard link is the atomic "make this name only if it is free": it fails with `EEXIST` instead of writing over whatever
+/// The move is the atomic "make this name only if it is free": it fails with `EEXIST` instead of writing over whatever
 /// took the path, and the moved file then stays at its hidden name for the person to move.
-/// A directory cannot be hard-linked; it is not an entry this tool removes, so it is left where it is and said.
+/// A hard link and an unlink would leave an instant in which the entry has both names,
+/// and a kill in that instant left a duplicate that no later pass could tell from a name something newer took.
+/// A directory is moved back the same way; a file system that cannot move it leaves it and says where.
 pub(crate) fn put_back(path: &Path, temporary: &Path) -> Result<(), String> {
-    match fs::hard_link(temporary, path) {
-        Ok(()) => {
-            let _ = fs::remove_file(temporary);
-            return Ok(());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(kept_aside(path, temporary)),
-        Err(error) => return Err(could_not_put_back(path, temporary, &error)),
-    }
+    return match move_without_replacing(temporary, path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(kept_aside(path, temporary)),
+        Err(error) if no_such_operation(&error) => Err(format!(
+            "this platform or file system has no way to move it back without replacing what stands there, so it stays at {} and \
+             nothing removes it ({error}); `mv -- {} <where it belongs>` moves it",
+            temporary.display(),
+            shell_word(&temporary.to_string_lossy())
+        )),
+        Err(error) => Err(could_not_put_back(path, temporary, &error)),
+    };
 }
 
 /// Deletes the entry taken aside, and names where it is when it cannot be.
+/// Why:
+/// This is step 6: it acts on the hidden name this call made,
+/// which carries this process's number and which no other run writes,
+/// so the unlink removes exactly the entry moved aside and never a name another command took.
 pub(crate) fn drop_aside(temporary: &Path) -> Result<(), String> {
     return match fs::remove_file(temporary) {
         Ok(()) => Ok(()),
@@ -383,24 +517,45 @@ pub(crate) fn maker_of_retired(name: &str) -> Option<u32> {
     return parts[parts.len() - 3].parse().ok();
 }
 
-/// The seam a control uses to place a second actor's write between the name choice and the link that must not replace it.
-/// Compiled in tests only, so no shipped path can be moved by anything but the file system.
+/// What:
+/// The two seams a control uses to place a second actor's write at the steps of a removal,
+/// compiled in tests only, so no shipped path can be moved by anything but the file system.
+/// Why:
+/// One control places a file at the hidden name before the move, which must not replace it;
+/// another places a replacement at the visible path after the move, which must not be unlinked.
+/// Each hook is taken when it runs, so a control that places its second actor once does so once.
 #[cfg(test)]
 pub(crate) mod seam {
     /// Imports `Mutex` from `std`.
     use std::sync::Mutex;
 
-    /// The hook, when a test set one.
-    static BEFORE_THE_LINK: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
+    /// The hook run between the name choice and the move, when a test set one.
+    static BEFORE_THE_MOVE: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
 
-    /// Sets (or with `None` clears) the hook run between the name choice and the hard link.
-    pub(crate) fn set_before_the_link(hook: Option<Box<dyn Fn() + Send>>) {
-        *BEFORE_THE_LINK.lock().expect("the seam is not poisoned") = hook;
+    /// The hook run after the move and before the comparison, when a test set one.
+    static AFTER_THE_MOVE: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
+
+    /// Sets (or with `None` clears) the hook run between the name choice and the move.
+    pub(crate) fn set_before_the_move(hook: Option<Box<dyn Fn() + Send>>) {
+        *BEFORE_THE_MOVE.lock().expect("the seam is not poisoned") = hook;
     }
 
-    /// Runs the hook, when there is one.
-    pub(crate) fn before_the_link() {
-        if let Some(hook) = BEFORE_THE_LINK.lock().expect("the seam is not poisoned").as_ref() {
+    /// Runs the hook before the move, when there is one.
+    pub(crate) fn before_the_move() {
+        if let Some(hook) = BEFORE_THE_MOVE.lock().expect("the seam is not poisoned").as_ref() {
+            hook();
+        }
+    }
+
+    /// Sets (or with `None` clears) the hook run after the move and before the comparison.
+    pub(crate) fn set_after_the_move(hook: Option<Box<dyn Fn() + Send>>) {
+        *AFTER_THE_MOVE.lock().expect("the seam is not poisoned") = hook;
+    }
+
+    /// Runs the hook after the move once, when there is one.
+    pub(crate) fn after_the_move() {
+        let waiting = AFTER_THE_MOVE.lock().expect("the seam is not poisoned").take();
+        if let Some(hook) = waiting {
             hook();
         }
     }

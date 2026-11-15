@@ -157,13 +157,13 @@ fn a_file_that_takes_the_hidden_name_between_the_choice_and_the_link_is_not_repl
     let hidden: PathBuf = directory.path().join(format!(".link.{}.0.retired", std::process::id()));
     let persons_text = "a person's file at the hidden name\n";
     let taken: PathBuf = hidden.clone();
-    super::removal::seam::set_before_the_link(Some(Box::new(move || {
+    super::removal::seam::set_before_the_move(Some(Box::new(move || {
         fs::write(&taken, persons_text).expect("the second actor's write at the hidden name");
     })));
 
     let outcome = super::removal::remove_if_still(&path, judged, &|| return true);
 
-    super::removal::seam::set_before_the_link(None);
+    super::removal::seam::set_before_the_move(None);
     assert_eq!(
         fs::read_to_string(&hidden).expect("the person's file is still there"),
         persons_text,
@@ -190,6 +190,66 @@ fn a_file_rewritten_in_place_after_the_judgement_is_not_removed() {
 
     assert_eq!(outcome.expect("the removal runs"), super::removal::Removal::Replaced);
     assert_eq!(fs::read_to_string(&path).expect("the person's content is still there"), persons_text);
+}
+
+//endregion
+
+//region The seventh review: a replacement at the visible name, an edit in place, and a second name after a kill
+// Every second actor is placed by the code's own seam (`removal::seam`, compiled only in tests) or is the file system's
+// state, and never by a sleep.
+
+#[test]
+fn a_replacement_at_the_visible_name_after_the_move_is_not_unlinked() {
+    let directory = scratch();
+    let path: PathBuf = directory.path().join("launcher");
+    let judged_text = "the launcher mpm-shadow placed\n";
+    fs::write(&path, judged_text).expect("write the judged entry");
+    let judged = judged_of(&path).expect("the entry is inspected");
+    let replacement_text = "a person's file, moved onto the name while the removal held the judged one\n";
+    let replacement: PathBuf = directory.path().join("replacement");
+    fs::write(&replacement, replacement_text).expect("write the replacement");
+    let moved_from: PathBuf = replacement.clone();
+    let moved_to: PathBuf = path.clone();
+    super::removal::seam::set_after_the_move(Some(Box::new(move || {
+        fs::rename(&moved_from, &moved_to).expect("another command moves its file onto the visible name");
+    })));
+
+    let outcome = super::removal::remove_if_still(&path, judged, &|| return true);
+
+    super::removal::seam::set_after_the_move(None);
+    assert_eq!(outcome.expect("the removal runs"), Removal::Retired, "the entry that was judged went");
+    assert_eq!(
+        fs::read_to_string(&path).expect("the replacement at the visible name survives the removal"),
+        replacement_text,
+        "the replacement was unlinked"
+    );
+}
+
+#[test]
+fn an_edit_in_place_whose_writer_put_the_modification_time_back_is_not_removed() {
+    /// Imports `MetadataExt` from `std::os::unix::fs`,
+    /// for the modification time the second actor puts back.
+    use std::os::unix::fs::MetadataExt;
+    let directory = scratch();
+    let path: PathBuf = directory.path().join("launch-record");
+    fs::write(&path, "AAAA").expect("write the judged entry");
+    let judged = judged_of(&path).expect("the entry is inspected");
+    let before: fs::Metadata = fs::symlink_metadata(&path).expect("read the original time");
+    let seconds: u64 = before.mtime().try_into().expect("a time after the epoch");
+    let nanoseconds: u32 = before.mtime_nsec().try_into().expect("a nanosecond count");
+    let edited: PathBuf = path.clone();
+    super::removal::seam::set_before_the_move(Some(Box::new(move || {
+        fs::write(&edited, "BBBB").expect("another command edits the bytes, keeping their length");
+        let file: fs::File = fs::OpenOptions::new().write(true).open(&edited).expect("open the edited file");
+        let kept: std::time::SystemTime = std::time::UNIX_EPOCH + std::time::Duration::new(seconds, nanoseconds);
+        file.set_times(fs::FileTimes::new().set_modified(kept)).expect("put the original modification time back");
+    })));
+
+    let outcome = super::removal::remove_if_still(&path, judged, &|| return true);
+
+    super::removal::seam::set_before_the_move(None);
+    assert_eq!(outcome.expect("the removal runs"), Removal::Replaced, "the edited entry is not the judged one");
+    assert_eq!(fs::read_to_string(&path).expect("the edit survives"), "BBBB", "the edit was removed with the entry");
 }
 
 //endregion

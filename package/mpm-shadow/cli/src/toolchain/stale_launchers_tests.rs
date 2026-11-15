@@ -613,3 +613,39 @@ fn a_link_that_names_the_launcher_without_resolving_keeps_the_launcher_and_its_r
     assert!(!exists_at(&link), "the link is retired once the farm is writable: {second:?}");
     assert!(!exists_at(&launcher) && !exists_at(&record));
 }
+
+//region The seventh review: a second name of one entry converges in one pass
+// The killed state is the file system's (one entry under two names, whose maker is gone), never a sleep.
+
+#[test]
+fn a_second_name_of_one_entry_left_by_a_kill_is_gone_after_one_pass() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    // The state a kill between a hard link and the removal of the other name left, which every version before the one
+    // that moves entries with a single no-replace move made on every removal a kill landed in.
+    let hidden: PathBuf = launcher.with_file_name(format!(".{RENAMED_BIN}.4294967.0.retired"));
+    fs::hard_link(&launcher, &hidden).expect("the second name a kill between the link and the unlink leaves");
+    // The lock declares the visible launcher, so the pass keeps it and the repair has the duplicate to clean.
+    let mut declared = rig.lock.clone();
+    declared
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.declaration.id == SHADOW_TOOL)
+        .expect("the sample lock holds the tool")
+        .declaration
+        .bins
+        .push(RENAMED_BIN.to_string());
+    fs::write(&rig.scope.lock_file, render_lock(&declared)).expect("declare the visible launcher");
+
+    let first: LauncherNotices = retire(&rig);
+
+    assert!(exists_at(&launcher), "the visible entry is kept: {first:?}");
+    assert!(!exists_at(&hidden), "one pass removes the second name of the entry that stands: {first:?}");
+    assert!(
+        first.warnings.iter().any(|line| return line.contains("a second name of the entry that already stands at")),
+        "the pass says what it removed: {first:?}"
+    );
+    assert_eq!(retire(&rig), LauncherNotices::default(), "a later pass has nothing left to say");
+}
+
+//endregion

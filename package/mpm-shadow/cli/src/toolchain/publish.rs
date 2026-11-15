@@ -22,7 +22,7 @@
 //! ```
 
 /// Imports what this module uses from `std::fs`.
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 /// Imports the write trait the holder's note is written with.
 use std::io::Write;
 /// Imports what this module uses from `std::path`.
@@ -34,6 +34,8 @@ use std::time::{Duration, Instant};
 use super::error::ToolchainError;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
+/// Imports the one way this tool opens or creates a file it did not just make.
+use super::ordinary_file::{create_lock_file, read_ordinary_text, read_ordinary_through_links};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports the shared named helpers.
@@ -69,14 +71,23 @@ pub struct Revisions {
     pub lock: Revision,
 }
 
+/// What:
 /// The bytes of a file,
 /// or `None` when it does not exist;
 /// any other read failure is an error naming the path.
+/// Why:
+/// The plan and the lock are files this run did not create,
+/// so the read never waits (a named pipe here would stop an install for ever) and takes nothing but an ordinary file,
+/// reached through a symbolic link when the path is one.
 pub fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, ToolchainError> {
-    return match fs::read(path) {
+    match fs::symlink_metadata(path) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(ToolchainError::config(format!("cannot read {}: {error}", path.display()))),
+    };
+    return match read_ordinary_through_links(path) {
         Ok(bytes) => Ok(Some(bytes)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(ToolchainError::config(format!("cannot read {}: {error}", path.display()))),
+        Err(reason) => Err(ToolchainError::config(reason)),
     };
 }
 
@@ -161,9 +172,9 @@ fn open_guard_file(path: &Path) -> Result<File, ToolchainError> {
     {
         return Err(ToolchainError::failure(format!("cannot create {} for the scope lock: {error}", parent.display())));
     }
-    return match OpenOptions::new().create(true).truncate(false).write(true).open(path) {
+    return match create_lock_file(path) {
         Ok(file) => Ok(file),
-        Err(error) => Err(ToolchainError::failure(format!("cannot open the scope lock file {}: {error}", path.display()))),
+        Err(reason) => Err(ToolchainError::failure(reason)),
     };
 }
 
@@ -208,7 +219,7 @@ pub fn acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
 /// export function holderOf(scope: Scope): string
 /// ```
 pub fn holder_of(scope: &Scope) -> String {
-    let text: String = fs::read_to_string(&scope.guard_file).unwrap_or_default();
+    let text: String = read_ordinary_text(&scope.guard_file).unwrap_or_default();
     return match text.trim().parse::<u32>() {
         Ok(pid) => format!("another mpm-shadow (process {pid}, the last one that took it)"),
         Err(_) => "another command in this checkout (it left no note of its process)".to_string(),
