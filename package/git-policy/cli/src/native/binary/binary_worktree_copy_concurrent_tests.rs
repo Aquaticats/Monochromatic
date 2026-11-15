@@ -219,6 +219,13 @@ fn write_pid_file_after_the_lock(lock: &Path, content: &str) {
 /// and the second registers and finishes inside the first's
 /// real Git,
 /// so a comparison of the whole set of registrations around the first would find both worktrees.
+/// Two gate runs printed a standing-lock line about the first add's `index.lock` before the second's copy summary,
+/// because the file system proved that lock's PID file was born after it:
+/// Git's two opens are 150 to 208 µs apart in the gate's container,
+/// and that container's birth times advance in ticks of about one millisecond.
+/// The lock belongs to the first add's worktree,
+/// so no command of this one may name it;
+/// `an_add_says_nothing_about_a_lock_a_live_program_holds_in_another_worktree` holds that state on purpose.
 #[test]
 fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy() {
     let mut held: Held = Held::new("copy-concurrent-adds");
@@ -360,14 +367,20 @@ fn an_add_killed_inside_its_real_git_does_not_hold_up_the_next_add() {
 ///  An add says only what it copied when another worktree's administrative directory holds an `index.lock`
 ///  whose PID file this file system proves was born after the lock and names a live program.
 /// Why:
-///  The gate on `0.6.1-alpha.34` (2026-11-14) failed `an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`
-///  because that run's file system gave the first add's two files a proven order:
+///  The gate on `0.6.1-alpha.34` (`c6a7e45273`) and again on `main` at `92385d3581` (both 2026-11-14) failed
+///  `an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`
+///  because those runs' file system gave the first add's two files a proven order:
 ///  the second add then printed a standing-lock line about the first add's `index.lock` before its own copy summary,
 ///  and the runs whose file system gave them one birth time printed nothing.
+///  Git creates the lock and then opens the PID file beside it (`lockfile.c`),
+///  and eight runs of real Git 2.56.1 in that gate's container put the two opens 150 to 208 µs apart (`strace`),
+///  while this volume's and that container's birth times advance in ticks of about one millisecond:
+///  so about one add in five gets the proven order,
+///  and no run may rely on where a tick falls.
 ///  A lock a live program holds in another worktree is that worktree's own write,
 ///  its own command ends by itself,
 ///  and no command of this worktree may report it as standing in its way.
-///  The state is planted because the two files a real Git writes share one birth time nearly always;
+///  The state is planted because a control may not wait for a tick:
 ///  writing the PID file until the order is proven holds that step without waiting and without a second run.
 ///
 /// In TS you'd write (pseudocode):
