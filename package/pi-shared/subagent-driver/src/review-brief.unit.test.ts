@@ -52,6 +52,34 @@ function aCommit(): string {
 }
 
 /**
+ The range that names what the change changed.
+
+ @returns the range, as `git diff` takes one
+
+ @example
+ ```ts
+ const range = aRange();
+ ```
+ */
+function aRange(): string {
+  return 'main...fix/rewrite-the-gate';
+}
+
+/**
+ The second merge a branch was taken in by, which a review of that branch reads over as well.
+
+ @returns the range of that merge, as `git diff` takes one
+
+ @example
+ ```ts
+ const range = aSecondRange();
+ ```
+ */
+function aSecondRange(): string {
+  return '9821cb2c10^1...fix/rewrite-the-gate';
+}
+
+/**
  The folder whose changes are reviewed.
 
  @returns the folder's path
@@ -134,6 +162,7 @@ function aRulesFile(): string {
 function aBriefRequest(): {
   readonly review: string;
   readonly commit: string;
+  readonly ranges: readonly string[];
   readonly source: string;
   readonly files: readonly string[];
   readonly focus: string;
@@ -144,6 +173,7 @@ function aBriefRequest(): {
   return {
     review: aReview(),
     commit: aCommit(),
+    ranges: [aRange(),],
     source: aSourceFolder(),
     files: [aReviewedFile(),],
     focus: FOCUS_OF_A_CHANGE_REVIEW,
@@ -229,6 +259,47 @@ await describe({
             expect(aBrief(),).toContain(FOCUS_OF_A_CHANGE_REVIEW,);
             expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'review.md',),);
             expect(aBrief(),).toContain('write your review file before anything else you do at the end',);
+          },
+        },),
+        it({
+          name: 'names the one range it was given in words that do not need git\'s three dots, names the file its whole diff is in, and says the last commit alone is not the change',
+          fn: async () => {
+            expect(aBrief(),).toContain(`The change is the range \`${aRange()}\`, which is everything the commit you start on holds that \`main\` does not.`,);
+            expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'change.diff',),);
+            expect(aBrief(),).toContain('The last commit alone is not the change',);
+          },
+        },),
+        it({
+          name: 'names every range of a change read over two merges, and names both in the lines the review states what it covered with',
+          fn: async () => {
+            /**
+             The brief of a change its branch was taken in by two merges, which is read over both.
+             */
+            const twoRanges = briefOfAReview({
+              ...aBriefRequest(),
+              ranges: [aRange(), aSecondRange(),],
+              files: [aReviewedFile(), `${aSourceFolder()}/gate_second.rs`,],
+            },);
+            expect(twoRanges,).toContain(`\`${aRange()}\`, which is everything the commit you start on holds that \`main\` does not, and \`${aSecondRange()}\`, which is everything the commit you start on holds that \`9821cb2c10^1\` does not`,);
+            expect(twoRanges,).toContain(`Ranges reviewed: \`${aRange()}\`, \`${aSecondRange()}\``,);
+            expect(twoRanges,).toContain('Files read in full: <how many of the files above you read in full> of 2',);
+          },
+        },),
+        it({
+          name: 'asks the review to state the ranges it read and how many of the listed files it read, in the two lines it fills with what the review was given',
+          fn: async () => {
+            expect(aBrief(),).toContain(`Ranges reviewed: \`${aRange()}\``,);
+            expect(aBrief(),).toContain('Files read in full: <how many of the files above you read in full> of 1',);
+            expect(aBrief(),).toContain('so whoever reads the verdict can tell a whole review from a part of one',);
+            expect(aBrief(),).toContain('is read afterwards as a review that did not cover its change',);
+          },
+        },),
+        it({
+          name: 'gives the command that builds and tests a package under a disposable home, because mise cannot decrypt this checkout\'s environment file without its key',
+          fn: async () => {
+            expect(aBrief(),).toContain('MISE_SOPS_STRICT=false mise --yes run --skip-tools',);
+            expect(aBrief(),).toContain('A disposable `HOME` holds no key for this checkout\'s encrypted environment file',);
+            expect(aBrief(),).toContain('systemd-run --user --scope',);
           },
         },),
         it({

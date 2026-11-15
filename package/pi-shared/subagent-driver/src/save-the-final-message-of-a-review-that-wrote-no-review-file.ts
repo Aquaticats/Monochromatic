@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
  `save-the-final-message-of-a-review-that-wrote-no-review-file`: writes the last assistant message of a review's newest finished run
- as that review's `review.md`, when the review wrote none. See `README.md` for the options.
+ as that review's `review.md`, when the review wrote none, and answers what the review's own file is read as. See `README.md` for
+ the options.
 
- A review worktree is kept until `review.md` exists, so a review whose run wrote no file is saved here rather than left unread.
+ A review worktree is kept until `review.md` exists, so a review whose run wrote no file is saved here rather than left unread. A
+ review whose own file states a range it was not given, or states none, is answered as a review that did not cover its change and
+ the command exits `1`: a review of a part of a change that answers "nothing found" is worse than no review, because its verdict
+ is taken for the whole.
 
  @module
  */
@@ -53,8 +57,10 @@ for (const one of saved) {
   process.stdout
     .write(`${one.line}\n`,);
 }
-process.exitCode = saved.every(function isSaved(one,) {
-  return one.saved;
+process.exitCode = saved.every(function isReadable(one,) {
+  return one.saved && (one.coverage
+    ?.kind
+    !== 'does-not-cover');
 },)
   ? 0
   : 1;

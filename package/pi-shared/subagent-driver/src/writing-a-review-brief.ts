@@ -145,6 +145,7 @@ export async function writeReviewBrief({
     briefOfAReview({
       review,
       commit,
+      ranges,
       source,
       files: material.files,
       focus,
@@ -155,7 +156,8 @@ export async function writeReviewBrief({
     'utf8',
   );
   // What the review read is kept beside its files: a branch moves on as soon as anyone commits to it, and a fix that answers
-  // this review has to start at the commit the review actually read.
+  // this review has to start at the commit the review actually read. The files the brief listed are kept with it, so what the
+  // review's own file states it covered can be judged against what it was given.
   await writeFile(
     readingFileOfAReview({
       reviewsFolder,
@@ -167,6 +169,7 @@ export async function writeReviewBrief({
         commit,
         ranges,
         source,
+        files: material.files,
       } satisfies ReviewReading,
       undefined,
       2

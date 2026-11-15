@@ -27,8 +27,19 @@ import {
 } from './read-pi-fields.ts';
 import {
   REVIEW_FILE_NAME,
+  readingFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
+import {
+  type ReviewReading,
+  ReviewReadingError,
+  readingIn,
+} from './material-of-a-review.ts';
+import {
+  type ReviewCoverage,
+  coverageOfAReview,
+  sentenceOfCoverage,
+} from './what-a-review-says-it-covered.ts';
 import {
   SessionFileUnreadableError,
   sessionFileInSummary,
@@ -60,6 +71,11 @@ export type SavedReview = {
    Whether a review file was written.
    */
   readonly saved: boolean;
+
+  /**
+   What the review's own file is read as, absent when the review wrote no file to read.
+   */
+  readonly coverage?: ReviewCoverage;
 
   /**
    The line to print.
@@ -305,7 +321,103 @@ function sessionFileOfARun({
 }
 
 /**
- Saves the last message of a review's newest run as its `review.md`, unless the review wrote one.
+ Reads what a review recorded it read, or nothing when the record is not there or cannot be read as one.
+
+ @param file - the file the record was written to
+
+ @returns the reading, or nothing at all when nothing readable is kept there
+
+ @example
+ ```ts
+ const read = await readingIfReadable('/reviews/a/what-the-review-read.json');
+ ```
+ */
+async function readingIfReadable(file: string,): Promise<{ readonly reading?: ReviewReading }> {
+  try {
+    return {
+      reading: readingIn({
+        shown: await readFile(
+          file,
+          'utf8',
+        ),
+        file,
+      },),
+    };
+  }
+  catch (error) {
+    // A review whose record is missing, or cannot be read as one, gives nothing to judge its own file against; the line the
+    // caller prints says so rather than ending the command that reads several reviews.
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof ReviewReadingError)
+      || (error instanceof SyntaxError)) {
+      return {};
+    }
+    throw error;
+  }
+}
+
+/**
+ Reads a review's own file against the record beside it, and answers the line that says what the review covered.
+
+ @param review - the review's name
+
+ @param reviewFolder - folder that holds one folder per review
+
+ @param reviewFile - the review's own file, which is there
+
+ @param saved - whether the file was written by this command rather than by the run
+
+ @param state - what the review file's state is, as the line prints it
+
+ @returns the review, what its own file is read as, and the line to print
+
+ @example
+ ```ts
+ const read = await reviewAsRead({ review: 'a-round-1', reviewFolder: '/reviews', reviewFile: '/reviews/a-round-1/review.md', saved: false, state: 'has its review.md', },);
+ ```
+ */
+async function reviewAsRead({
+  review,
+  reviewFolder,
+  reviewFile,
+  saved,
+  state,
+}: {
+  readonly review: string;
+  readonly reviewFolder: string;
+  readonly reviewFile: string;
+  readonly saved: boolean;
+  readonly state: string;
+}): Promise<SavedReview> {
+  /**
+   The file that records what the review was given.
+   */
+  const readingFile = readingFileOfAReview({
+    reviewsFolder: reviewFolder,
+    review,
+  },);
+  /**
+   What the review's own file is read as.
+   */
+  const coverage = coverageOfAReview({
+    shown: await readFile(
+      reviewFile,
+      'utf8',
+    ),
+    readingFile,
+    ...(await readingIfReadable(readingFile,)),
+  },);
+  return {
+    review,
+    saved,
+    coverage,
+    line: `${review}: ${state}, ${sentenceOfCoverage({ coverage, },)}`,
+  };
+}
+
+/**
+ Saves the last message of a review's newest run as its `review.md`, unless the review wrote one, and answers what the review's own
+ file is read as: a review that states a range it was not given, or states none, is answered as a review that did not cover its
+ change rather than as a clean one.
 
  @param runsFolder - folder the driver writes one run folder per run into
 
@@ -338,11 +450,13 @@ export async function saveTheLastMessage({
     REVIEW_FILE_NAME,
   );
   if (await isThere(reviewFile,)) {
-    return {
+    return await reviewAsRead({
       review,
+      reviewFolder,
+      reviewFile,
       saved: false,
-      line: `${review}: has its review.md`,
-    };
+      state: 'has its review.md',
+    },);
   }
   /**
    The newest finished run of that review.
@@ -426,11 +540,13 @@ export async function saveTheLastMessage({
     `<!-- ${SAVED_REVIEW_NOTE} ${newest.run} -->\n\n${text}\n`,
     { encoding: 'utf8', },
   );
-  return {
+  return await reviewAsRead({
     review,
+    reviewFolder,
+    reviewFile,
     saved: true,
-    line: `${review}: saved its last message as review.md (${String(text.length,)} characters)`,
-  };
+    state: `saved its last message as review.md (${String(text.length,)} characters)`,
+  },);
 }
 
 /**

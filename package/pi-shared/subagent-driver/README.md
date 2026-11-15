@@ -552,13 +552,46 @@ It writes the diff of the ranges under the source folder,
 the brief that names the code files among them,
 an empty `reproductions/` folder,
 and `what-the-review-read.json`,
-which records the commit, the ranges and the source folder a fix that answers this review starts from,
+which records the commit,
+the ranges,
+the source folder a fix that answers this review starts from,
+and the files the brief listed,
 and prints one line:
 
 ```text
 # --review=rewrite-the-gate --commit=abc1234 --range=main...fix/rewrite-the-gate --source=package/git-policy/cli/src/native
 review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/brief.md; its worktree starts at abc1234. Its folder is <reviews>/rewrite-the-gate
 ```
+
+The brief says what the change is before anything else it asks:
+each range in words a reader who does not know git's three dots reads as a set of commits
+(`main...fix/a` is "everything the commit you start on holds that `main` does not"),
+the file the whole diff is in beside it (`change.diff`),
+the files the change touches that a review reads,
+and that the last commit alone is not the change.
+A brief for a change read over two merges names both.
+It also asks the review to state, at the top of its own file,
+the ranges it reviewed and how many of the listed files it read in full:
+
+```text
+Ranges reviewed: `main...fix/a`
+Files read in full: 12 of 12
+```
+
+That statement is what `save-the-final-message-of-a-review-that-wrote-no-review-file` judges a finished review by:
+a review that states another range than the one it was given,
+or states none,
+is answered as a review that did not cover its change and the command exits `1`,
+so a review of a part of a change is never taken for a review of the whole.
+A review whose `what-the-review-read.json` names no listed files was written before the brief asked for the statement,
+and the line says whether it covers its change cannot be told rather than that it does not.
+
+The brief also gives the command that builds and tests a package under the disposable `HOME` it requires,
+because this checkout's `.config/mise/conf.d/20-env.toml` declares an age-encrypted environment file
+whose identity is under the real home:
+`MISE_SOPS_STRICT=false mise --yes run --skip-tools <task>` skips that file instead of failing to decrypt it,
+reads no credential,
+and keeps the toolchain out of the disposable home.
 
 The files are the `.rs` and `.ts` code the ranges touched,
 and the manifests and tool configurations that decide how that code is built,
@@ -1288,8 +1321,18 @@ and writes it as `<review-folder>/<review>/review.md` with a note saying which r
 The review folder is `$HOME/temp/agent/change-reviews` unless the caller names another.
 The summary's own `lastAssistantText` cannot be the source:
 it is cut to 900 characters.
-A review that wrote its own file is left alone,
-and the command exits non-zero when any review it was asked for was not saved.
+A review that wrote its own file is left alone.
+It then judges what the review's own file states against `what-the-review-read.json`:
+a review that states another range than the one it was given,
+that states none,
+or that states a count of files contradicting the brief's list,
+is printed as a review that did not cover its change,
+and the command exits non-zero,
+as it does when any review it was asked for was not saved.
+A review whose record names no listed files was written before the brief asked for the statement,
+and the line says whether it covers its change cannot be told.
+The lines name the ranges the review stated and the ranges it was given,
+so a review of a part of a change is read as one rather than taken for the whole.
 
 ## The three answers a run waits for while Pi starts
 

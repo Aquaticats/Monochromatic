@@ -80,6 +80,20 @@ export {
 } from './reviews-of-finished-branches.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
+  rangeInWords,
+  rangesInALine,
+  rangesInWords,
+} from './ranges-in-words.ts';
+export {
+  FILES_READ_LABEL,
+  RANGES_REVIEWED_LABEL,
+  type ReviewCoverage,
+  type ReviewStatement,
+  coverageOfAReview,
+  sentenceOfCoverage,
+  statementIn,
+} from './what-a-review-says-it-covered.ts';
+export {
   keepFailedOutput,
   reportOnStandardError,
 } from './kept-start-failure.ts';

@@ -10,6 +10,11 @@
 
 import { REVIEW_OF_A_CHANGE_TEMPLATE, } from './briefs/review-of-a-change-template.ts';
 import {
+  rangesInALine,
+  rangesInWords,
+} from './ranges-in-words.ts';
+import {
+  diffFileOfAReview,
   reproductionsFolderOfAReview,
   reviewFolderOf,
   reviewFileOfAReview,
@@ -27,6 +32,8 @@ import {
 export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'RULES',
   'COMMIT',
+  'RANGES',
+  'DIFF_FILE',
   'REVIEWS_FOLDER',
   'RUNS_FOLDER',
   'SCRATCH_FOLDER',
@@ -35,6 +42,8 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
   'REVIEW_FILE',
+  'RANGES_LIST',
+  'FILE_COUNT',
 ];
 
 /**
@@ -68,6 +77,8 @@ export function subjectOfAReview({ source, }: { readonly source: string },): str
 
  @param commit - the commit under review
 
+ @param ranges - what changed, each as `git diff` takes one
+
  @param source - the folder whose changes are reviewed
 
  @param files - the files the reviewer reads, from the top of the checkout
@@ -84,12 +95,13 @@ export function subjectOfAReview({ source, }: { readonly source: string },): str
 
  @example
  ```ts
- const values = reviewBriefValues({ review: 'a', commit: 'abc123', source: 'package/a/src', files: [], focus: 'x', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const values = reviewBriefValues({ review: 'a', commit: 'abc123', ranges: ['main...fix/a'], source: 'package/a/src', files: [], focus: 'x', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function reviewBriefValues({
   review,
   commit,
+  ranges,
   source,
   files,
   focus,
@@ -99,6 +111,7 @@ export function reviewBriefValues({
 }: {
   readonly review: string;
   readonly commit: string;
+  readonly ranges: readonly string[];
   readonly source: string;
   readonly files: readonly string[];
   readonly focus: string;
@@ -109,6 +122,11 @@ export function reviewBriefValues({
   return {
     RULES: rulesFile,
     COMMIT: commit,
+    RANGES: rangesInWords({ ranges, },),
+    DIFF_FILE: diffFileOfAReview({
+      reviewsFolder,
+      review,
+    },),
     REVIEWS_FOLDER: reviewsFolder,
     RUNS_FOLDER: runsFolder,
     SCRATCH_FOLDER: reviewFolderOf({
@@ -129,6 +147,8 @@ export function reviewBriefValues({
       reviewsFolder,
       review,
     },),
+    RANGES_LIST: rangesInALine({ ranges, },),
+    FILE_COUNT: String(files.length,),
   };
 }
 
@@ -138,6 +158,8 @@ export function reviewBriefValues({
  @param review - the change the review reads
 
  @param commit - the commit under review
+
+ @param ranges - what changed, each as `git diff` takes one
 
  @param source - the folder whose changes are reviewed
 
@@ -157,12 +179,13 @@ export function reviewBriefValues({
 
  @example
  ```ts
- const brief = briefOfAReview({ review: 'a', commit: 'abc123', source: 'package/a/src', files: ['package/a/src/x.ts'], focus: 'data loss', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const brief = briefOfAReview({ review: 'a', commit: 'abc123', ranges: ['main...fix/a'], source: 'package/a/src', files: ['package/a/src/x.ts'], focus: 'data loss', reviewsFolder: '/reviews', runsFolder: '/runs', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function briefOfAReview({
   review,
   commit,
+  ranges,
   source,
   files,
   focus,
@@ -172,6 +195,7 @@ export function briefOfAReview({
 }: {
   readonly review: string;
   readonly commit: string;
+  readonly ranges: readonly string[];
   readonly source: string;
   readonly files: readonly string[];
   readonly focus: string;
@@ -184,6 +208,7 @@ export function briefOfAReview({
     values: reviewBriefValues({
       review,
       commit,
+      ranges,
       source,
       files,
       focus,

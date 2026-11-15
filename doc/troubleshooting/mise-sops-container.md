@@ -216,3 +216,67 @@ search was run because the decision is that there is nothing to file:
 no issue draft and no comment draft are kept,
  and this section is the
 explicit record of that outcome.
+
+## A disposable `HOME` for a review's build and tests
+
+### Symptom
+
+A review that has to build and run the code it reads is told to work under a disposable
+`HOME` and `XDG_RUNTIME_DIR`.
+Every `mise` invocation there stops before the task starts:
+
+```txt
+mise ERROR failed to decrypt sops file
+mise ERROR unable to decrypt file metadata
+mise ERROR unable to retrieve data key
+mise ERROR no data key retrieved from metadata, make sure at least one private integration key is present
+mise ERROR Version: 2026.11.3 linux-x64 (2026-11-06)
+```
+
+A review of 2026-11-14 hit this and ran nothing at all:
+`/home/user/temp/agent/change-reviews/git-policy-cli-renamed-subvolume-left-with-no-owner-answers-after-its-review/review.md`,
+its last section, says "`mise exec` under the required disposable `HOME` could not decrypt its
+SOPS configuration because no private key was available there", so all four of its findings are by
+reading.
+
+### Why it happens
+
+A review's worktree carries the gitignored `.env.local.json` and `mise.local.toml`,
+so the tracked `.config/mise/conf.d/20-env.toml` (`_.file = [{ path = ".env.local.json", redact = true }]`,
+see `doc/philosophy/secrets.md`) points at a file that is there.
+mise's default identity is `~/.config/mise/age.txt`,
+which a disposable `HOME` does not hold, and `sops.strict` is `true` by default
+(the setting is quoted in the section above).
+The file is therefore present and undecryptable, which is the fail-hard case.
+
+### What does not help
+
+- `--no-env` (`MISE_NO_ENV=1`): `mise exec` honours it, `mise run` does not.
+  `mise --no-env run --skip-tools <task>` still ends on the decryption error,
+  measured 2026-11-15 with `//package/pi-shared/subagent-driver:build`.
+- `--skip-tools`: it skips tool installation only, not the env file.
+- Copying the identity into the disposable home: that would put a private key in a second place, and
+  a reviewer must read no credential.
+
+### What works
+
+`MISE_SOPS_STRICT=false` takes mise's skip branch (setting and source quoted above), so the file is
+skipped rather than decrypted: no credential is read, and the task runs.
+
+```bash
+# in the review's worktree, for a package's task
+MISE_SOPS_STRICT=false mise --yes run --skip-tools //package/pi-shared/subagent-driver:build
+MISE_SOPS_STRICT=false mise --yes run --skip-tools //package/pi-shared/subagent-driver:test:unit -- src/review-brief.unit.test.ts
+```
+
+`--yes` answers mise's trust prompt, and `--skip-tools` keeps the toolchain from being installed into
+the disposable home (a `mise` run under a disposable home otherwise installs a toolchain home of
+about 1.6 GiB there).
+The tools the task needs come from `PATH` and the checkout's own `node_modules/.bin`,
+which is what the reviews of 2026-11-14 that did build used:
+`mise --yes run --skip-tools //package/git-policy/cli:native:test:host -- <filter>`.
+
+Measured 2026-11-15 on mise 2026.11.3 linux-x64: the two commands above built the package and ran its
+unit tests under a `HOME` that held no identity, with no credential read.
+
+The review brief carries the same command, so a reviewer is not left to find it.

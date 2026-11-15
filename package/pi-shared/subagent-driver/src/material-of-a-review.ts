@@ -205,7 +205,8 @@ export async function outputOfGit({
 
  A review reads a commit, the ranges that named the change, and the source folder under it. The branch a review read moves on as
  soon as anyone commits to it, and a fix started at the branch would answer a change nobody reviewed, so the commit itself is
- what is kept.
+ what is kept. The files its brief listed are kept with them, so what a review's own file states it covered can be judged
+ against what it was given.
  */
 export type ReviewReading = {
   /**
@@ -227,6 +228,11 @@ export type ReviewReading = {
    The folder whose changes were reviewed, from the top of the checkout.
    */
   readonly source: string;
+
+  /**
+   The files the brief listed, absent when the record was written before a brief listed them.
+   */
+  readonly files?: readonly string[];
 };
 
 /**
@@ -277,6 +283,7 @@ export function readingIn({
     commit: kept.commit,
     source: kept.source,
     ranges: kept.ranges,
+    files: kept.files,
   };
   if (
     ((typeof fields.review) !== 'string') || ((typeof fields.commit) !== 'string')
@@ -301,11 +308,41 @@ export function readingIn({
       `${file} names a range that is no text, so where a fix for it would start cannot be read`,
     );
   }
+  // A record written before a brief listed its files names none, so what a review states it covered is judged against the
+  // ranges alone; a record that names them is read whole or refused.
+  if (fields.files === undefined) {
+    return {
+      review: fields.review,
+      commit: fields.commit,
+      ranges,
+      source: fields.source,
+    };
+  }
+  if (!Array.isArray(fields.files,)) {
+    throw new ReviewReadingError(
+      `${file} names listed files that are no list, so what the review was given cannot be read`,
+    );
+  }
+  /**
+   The files the record kept, which what a review states it covered is judged against.
+   */
+  const files = fields.files
+    .filter(function isAFile(path,): path is string {
+      return (typeof path) === 'string';
+    },);
+  if (files.length
+    !== fields.files
+      .length) {
+    throw new ReviewReadingError(
+      `${file} names a listed file that is no text, so what the review was given cannot be read`,
+    );
+  }
   return {
     review: fields.review,
     commit: fields.commit,
     ranges,
     source: fields.source,
+    files,
   };
 }
 
