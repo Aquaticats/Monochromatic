@@ -1623,6 +1623,60 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.41` is installed; its sample commit took 5.6 s behind the new service's start-up reads of its state directory (2026-11-15T08:00:08-05:00)
+
+Not final and not approved:
+what the release's steps printed,
+what the coordinating session measured,
+and where it sent the measurement.
+
+- **Release `0.6.1-alpha.41`**
+  (pass 52):
+  published 07:57:03,
+  installed 07:58:14
+  (`git --version` names it),
+  lock commit `d28b29240c`.
+  The container gate started 07:59:08 on `d28b29240c`
+  (log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-d28b29240c-20261115T075908-0500.log`;
+  its verdict is waited for in the background).
+  The fuzz sidecar's type check on `main` exited 0 at 07:59:48.
+- **The sample commit took 5,612 ms**
+  (5,577 ms in its timing line,
+  4,706 of them waiting for the service's answer),
+  where the five installs before took 1,366 to 2,452 ms.
+  It landed.
+  It is over the five seconds of the commit-time rule.
+- **Where the time went**,
+  from the `at_ms` of the service's own lines:
+  the new service was ready at 07:58:09.566 and warmed its rules by 09.575;
+  its line "removed the records of 10 old finished batches" came at 13.203,
+  3,628 ms later;
+  the batch was formed at 14.428.
+  The same span in the two starts before was 106 ms (47 records) and 40 ms (13 records).
+- **Read on `main`**
+  (`service/service_server.rs`, the lines before that log line):
+  on the landing thread,
+  before it reads the queue,
+  the service restores its plan and watch,
+  settles open batches,
+  removes old finished records,
+  and reads what landed,
+  all in its state directory on the home drive;
+  a request that arrives meanwhile waits,
+  as the comment there says.
+  Which of those steps took the 3.6 s is not known,
+  no line says it.
+  The drive probe,
+  once a minute,
+  read the home drive at 23 ms and 2 ms on either side,
+  which neither shows nor rules out a stall of a few seconds.
+  Pass 52 changed no code on this path
+  (three test files and `foundation/lazy_runtime.rs`).
+- **Sent to** the author of the commit that does not wait behind the service's writes to another drive,
+  whose second run was still queued:
+  the sighting is added to its brief as one more place of its own sentence,
+  with the rule that nothing lands before the recovery is over left standing.
+
 ##### The credential masking is not ready: its second review finds ten more roads; the twelve-hour commit has its cause, on its branch alone (2026-11-15T07:55:03-05:00)
 
 Not final and not approved:
