@@ -74,11 +74,62 @@ pub(crate) const FIXTURE_GIT_BOUND: std::time::Duration = std::time::Duration::f
 /// and a query whose descendant holds one end open never holds the control.
 pub(crate) const PIPE_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
 
+/// How often the wait looks whether the query ended.
+/// Why one millisecond:
+///  this helper owns the wait, so no second thread may collect the query while the bound's signal is on its way;
+/// the standard library has no timed wait, so the wait looks,
+/// and a query that ends in a millisecond costs about a millisecond.
+///  The typed-value sweep, which makes thousands of these calls, measured 143 s with a ten-millisecond look and 25 s
+/// with a wait in another thread that this replaces.
+const LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(1);
+
 /// How long a query this helper has killed may take to be reaped.
 /// Why five seconds:
 ///  a `SIGKILL`ed child is reaped at once, so this window only covers the kernel and the scheduler;
 /// a query that still has not been reaped in it is a defect of this helper, not a slow host.
 const REAPING: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// What:
+///  The seam a control of the ending uses:
+///  it runs between the last look at the query and the signal that ends it.
+/// Why:
+///  That window is a few instructions wide,
+/// so no query can arrange to end in it from outside,
+/// and a control about which ending this helper reports needs a way to put an ending there.
+///  Nothing of this seam exists in the release build.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// beforeTheSignal?.(query); // absent unless a control armed it
+/// ```
+#[cfg(test)]
+fn the_ending_seam(query: libc::pid_t) {
+    if let Some(seam) = ENDING_SEAM.lock().expect("the ending seam").take() {
+        seam(query);
+    }
+}
+
+/// The one ending seam a control arms, for the one call it measures.
+#[cfg(test)]
+static ENDING_SEAM: std::sync::Mutex<Option<Box<dyn FnOnce(libc::pid_t) + Send>>> = std::sync::Mutex::new(None);
+
+/// `the_ending_seam` in a build without controls: nothing runs.
+#[cfg(not(test))]
+fn the_ending_seam(_query: libc::pid_t) {}
+
+/// Arm the ending seam for one call of `real_git_within`.
+#[cfg(test)]
+pub(crate) fn arm_the_ending_seam(seam: impl FnOnce(libc::pid_t) + Send + 'static) {
+    *ENDING_SEAM.lock().expect("the ending seam") = Some(Box::new(seam));
+}
+
+/// Disarm the ending seam, answering whether it was still armed.
+/// Why:
+///  a control that did not reach the seam must not leave it armed for another test.
+#[cfg(test)]
+pub(crate) fn disarm_the_ending_seam() -> bool {
+    return ENDING_SEAM.lock().expect("the ending seam").take().is_some();
+}
 
 /// Who ended one bounded query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -100,6 +151,9 @@ pub(crate) struct QueryAnswer {
     /// Whether a pipe was still held when the grace passed,
     /// so a descendant of the query kept that end open and the output may be short of what the query wrote.
     pub held_open: bool,
+    /// Whether the input was still being written when the grace passed,
+    /// so a descendant of the query kept its read end open and the query never read all of it.
+    pub input_held: bool,
 }
 
 /// What:
@@ -199,29 +253,25 @@ pub(crate) fn real_git_within(
         // Without an input the query's standard input is the null device, and nothing is written.
         None => None,
     };
-    // The wait blocks on the query instead of looking at the clock, so a query that ends in a millisecond costs a
-    // millisecond; the bound is the wait's own deadline, not a poll's.
-    let (status_sender, status_receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
-    let waiter: std::thread::JoinHandle<()> = std::thread::Builder::new().spawn(move || {
-        let _status = status_sender.send(child.wait());
-    }).expect("the waiter of a query starts");
-    let (status, ending): (std::process::ExitStatus, QueryEnding) = match status_receiver.recv_timeout(bound) {
-        Ok(Ok(status)) => (status, QueryEnding::Itself),
-        Ok(Err(error)) => panic!("the ending of the query {program:?} cannot be read: {error}"),
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+    // This helper owns the wait, so no other thread can collect the query before the bound's signal is sent:
+    // the query stays unreaped, and the number it leads its group by stays its own until it is killed or reaped.
+    let began: std::time::Instant = std::time::Instant::now();
+    let (status, ending): (std::process::ExitStatus, QueryEnding) = loop {
+        if let Some(status) = child.try_wait().expect("the query's state") {
+            break (status, QueryEnding::Itself);
+        }
+        if began.elapsed() >= bound {
+            // A control about the ending places the query's own exit here, before the signal.
+            the_ending_seam(group);
             // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours.
             let killed: i32 = unsafe { libc::kill(-group, libc::SIGKILL) };
-            let reaped: std::io::Result<std::process::ExitStatus> = status_receiver
-                .recv_timeout(REAPING)
-                .unwrap_or_else(|_| panic!("the query {program:?} was killed at its bound of {bound:?} and not reaped within {REAPING:?}"));
-            let status: std::process::ExitStatus = reaped.unwrap_or_else(|error| panic!("the ending of the query {program:?} cannot be read: {error}"));
+            let status: std::process::ExitStatus = child.wait().expect("the bounded query's ending");
             // The helper's own act decides this and never the status the query came back with;
             // a group that was already gone was ended by itself, not by this call.
-            (status, if killed == 0 { QueryEnding::AtTheBound } else { QueryEnding::Itself })
+            break (status, if killed == 0 { QueryEnding::AtTheBound } else { QueryEnding::Itself });
         }
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of the query {program:?} ended without its status"),
+        std::thread::sleep(LOOK_EVERY);
     };
-    let _joined = waiter.join();
     // The write ends with the query, and the ending is what judges it:
     // a write the query's death broke is part of that ending and no failure,
     // and any other failure of it is said.
@@ -246,6 +296,7 @@ pub(crate) fn real_git_within(
         output: Output { status, stdout, stderr },
         ending,
         held_open: !(output_ended && error_ended),
+        input_held: false,
     };
 }
 
