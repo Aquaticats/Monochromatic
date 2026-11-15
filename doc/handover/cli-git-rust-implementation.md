@@ -1582,6 +1582,143 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Four runs sat for hours inside one command each and nothing noticed; a commit of an unmerged branch ran twelve hours; three reviews are routed and pass 52 queued (2026-11-15T05:33:25-05:00)
+
+Not final and not approved:
+a defect of the driver and of this session's checks,
+what was done,
+what two reviews report,
+and what the coordinating session queued.
+
+- **Found only because one run ended at its wall clock with its first words as its last.**
+  The fresh run on the launcher that ends with its run
+  (started 2026-11-14 13:23)
+  ended at 05:23:04 after 57,600 s.
+  Its feed:
+  twenty-one minutes of reading,
+  then one `bash` command,
+  `cd -- "${HOME}/temp/agent" && rg -l … . | head -30`,
+  from 1,284,897 ms to 57,600,250 ms.
+  Fifteen and a half hours in a search of the scratch root.
+  Its branch never moved.
+- **This session then compared every going run's feed with the clock**,
+  which no check of its rounds had done.
+  Three of sixteen had written nothing for 105,
+  378 and 724 minutes,
+  each inside one command:
+  - integration pass 50:
+    `rg` over the whole scratch root for a report its brief had mentioned without a path;
+    that was this session's brief.
+  - the masking author:
+    `node src/secret-values-of-this-machine.unit.test.ts`,
+    run with the fix taken out,
+    waiting 378 minutes with no CPU time used.
+  - the author of the commit service that needs no manager:
+    a reproduction whose child was
+    `monochromatic-git-policy-cli -C …/work/repo commit -m one -- file.txt`,
+    built from that branch,
+    **running 725 minutes with 8,662 s of user and 14,171 s of system CPU**,
+    and a service instance sixteen minutes old with 818 s of CPU.
+    A commit that neither ends nor fails.
+    **That code is on an unmerged branch,
+    not in `main` and not in a release.**
+  The record of those processes is
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/processes-that-held-three-pi-runs-silent-for-hours-2026-11-15T0530.txt`.
+- **Done at 05:31**:
+  `SIGTERM` to the one hung process of each
+  (the `rg`,
+  the test file,
+  the commit and its service),
+  nothing else of any run,
+  and a note into each run's inbox saying what ran how long and what was ended.
+  At 05:32 no going run was silent for twenty minutes.
+  No run was stopped.
+- **What it cost**:
+  one agent place for fifteen hours,
+  one for twelve,
+  one for six,
+  pass 50 for an hour and three quarters;
+  and the commit burned about half a core for twelve hours,
+  part of what heated the machine.
+- **Against a repeat**:
+  each round of this session now lists going runs silent for twenty minutes or more with their processes
+  (`list-the-processes-of-each-going-run-whose-feed-is-silent.ts 20`,
+  kept in the scripts' folder);
+  a fresh run is queued for the driver itself
+  (`~/temp/agent/pi-runs/driver-a-tool-command-that-says-nothing-for-a-stated-time-is-noticed-and-does-not-hold-its-run-for-hours-prompt.md`,
+  sixth);
+  briefs written from now on say never to search the scratch root as a whole and to bound long commands.
+  The wall-clock run is resumed with its session
+  (queued tenth).
+- **The user's service manager did not answer for about two minutes**:
+  the drive probe's two readings of 05:24:10 and 05:25:30 could not count units
+  (its `systemctl` call ran into its twenty seconds),
+  one start of the filling unit failed at 05:25:50 with `spawnSync systemctl ETIMEDOUT`,
+  and the manager's journal shows a burst of units started in one second at 05:26:43.
+  It followed the end of the wall-clock run's unit at 05:23:04 by a minute.
+  The cause is not found.
+  `systemctl --user list-units --all` took 19 ms at 05:27:30,
+  and three starts have succeeded since.
+- **The landed removal** (`dfd6fab13e`),
+  its eighth review,
+  ended 05:20:35,
+  21 of 21 files,
+  three things,
+  each reproduced against the built wrapper and each ending with a commit that a collection removed:
+  an alias `!git -C <repository> worktree remove` goes past the guard,
+  because the reader of a shell alias declines an inner global option;
+  a nested worktree whose path is not UTF-8 is decoded lossily,
+  taken for gone and deleted with its detached commit;
+  and a commit named only by `FETCH_HEAD` goes with its worktree.
+  All worth their fix.
+  The author is resumed,
+  its thirteenth run
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-eighth-review-of-2026-11-15-prompt.md`,
+  queued fourth).
+- **Adopted,
+  labelled,
+  open to veto**:
+  `FETCH_HEAD` is a naming record like the others,
+  and a removal is refused when it holds the only name of a commit.
+  It had been left out as a question for the owner.
+  The review made a commit a person created that only `FETCH_HEAD` names,
+  the wrapper cannot tell such a commit from one that can be fetched again,
+  and the rule in `SPEC.md`,
+  "What never discarding a person's data means",
+  then gives one answer:
+  refuse,
+  with the opt-out.
+  The author is asked to show how often an ordinary fetch reaches the refusal.
+- **The library tests that failed inside the suite** (`2c37b9a4c3`),
+  their review,
+  ended 05:23:38:
+  the one code file read in full,
+  no defect found,
+  seven tests run by name and passing.
+  So the review ran,
+  and the branch goes to a pass:
+  **integration pass 52** is queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-52-with-three-library-tests-that-failed-in-the-suite-made-to-pass-prompt.md`).
+  The review ran the tests one at a time;
+  the pass's whole-suite run is the one the branch exists for.
+  Passes 50 and 51 go beside it.
+- **The temperature**,
+  read at 05:26:55:
+  54.1 degrees,
+  budget 30.3 threads,
+  8.1 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 05:26:55:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  one failed start in the filling unit's journal,
+  the one named here;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  14 runs going then,
+  16 at 05:33.
+  No resumed session is named by the credential scan.
+  The queue held 83 entries at 05:33:25.
+
 ##### The landing goes back a third time, for a marker and a lock that two fillings can both hold; mpm's removal of old versions is answered and is inert on a desktop (2026-11-15T05:22:17-05:00)
 
 Not final and not approved:
