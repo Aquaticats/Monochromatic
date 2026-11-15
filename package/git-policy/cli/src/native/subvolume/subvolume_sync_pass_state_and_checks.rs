@@ -26,7 +26,7 @@ use crate::subvolume_sync_attrs::{AttributeFailure, AttributeLosses};
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 /// The name an entry is written under before it is renamed to its own,
@@ -397,40 +397,169 @@ impl Pass<'_> {
 
     /// What:
     ///  Put the finished temporary entry at the destination name,
-    ///  and never replace an entry this pass did not see.
-    ///  `existing` is what the pass found at that name when it decided to copy.
+    ///  replacing only the entry the pass examined and nothing else.
+    ///  `examined` is what the pass found at that name when it decided to copy.
     /// Why:
-    ///   The look and the write are two steps,
-    ///  and between them another command can put something at that name.
-    ///  A name the pass found free is therefore created and never replaced,
-    ///  and a name that held an entry is replaced only while it still holds that very entry,
-    ///  so what came to stand there is somebody's and stays.
+    ///   A rename onto a name replaces whatever stands there, in every form the kernel offers,
+    ///  so the pass frees the name by parking what stands there and creates its copy where it holds the name.
+    ///  The parked entry is then judged against what the pass examined:
+    ///  the object the pass saw is superseded and removed,
+    ///  and anything else goes back to its name,
+    ///  over the copy this pass made there and nothing else.
+    ///  A write in place, and a replacement made while the copy ran, are therefore never discarded,
+    ///  and a kill leaves the parked entry at a name no pass deletes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const published = pass.publish(directory, relative, existing); // 'placed' | 'kept-the-destination-entry'
+    /// const published = pass.publish(directory, relative, examined); // 'placed' | 'kept-the-destination-entry'
     /// ```
-    pub(crate) fn publish(&mut self, directory: &Directory, relative: &Path, existing: Option<&Metadata>) -> Result<Published, MigrateError> {
+    pub(crate) fn publish(&mut self, directory: &Directory, relative: &Path, examined: Option<&Metadata>) -> Result<Published, MigrateError> {
         let name: &OsStr = relative.file_name().unwrap_or_default();
         let destination: PathBuf = directory.child(name);
         let partial: PathBuf = directory.partial();
         let shown: PathBuf = self.shown(relative);
-        let Some(found) = existing else {
+        let Some(examined_here) = examined else {
             return place_where_nothing_was(partial.as_path(), destination.as_path(), shown.as_path());
         };
-        // The pass saw this entry and decided the source wins. Only that very entry may be replaced.
-        let now: Option<Metadata> = std::fs::symlink_metadata(&destination).ok();
-        if !same_object(now.as_ref(), found) {
-            remove_if_present(partial.as_path(), shown.as_path())?;
-            return Ok(Published::KeptTheDestinationEntry);
-        }
-        if found.is_dir() {
-            // A directory is in the way of a rename, so it goes first, and only the one the pass saw.
-            remove_entry(destination.as_path(), shown.as_path())?;
-            return place_where_nothing_was(partial.as_path(), destination.as_path(), shown.as_path());
-        }
-        return MigrateError::from_io_result(std::fs::rename(partial.as_path(), &destination), "put the finished copy in place of", shown.as_path()).map(|()| return Published::Placed);
+        return self.replace_the_examined(directory, relative, examined_here, Creating::FromTheTemporaryName);
     }
+
+    /// What:
+    ///  Put a new directory where the pass examined an entry that is not one,
+    ///  by the same parking and judging as `publish`.
+    /// Why:
+    ///   A directory cannot be moved over a name either,
+    ///  and the file the pass examined there is somebody's until the judgement says it is the object it examined.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const placed = pass.publishDirectory(directory, relative, examined);
+    /// ```
+    pub(crate) fn publish_directory(&mut self, directory: &Directory, relative: &Path, examined: &Metadata) -> Result<Published, MigrateError> {
+        return self.replace_the_examined(directory, relative, examined, Creating::Directory);
+    }
+
+    /// What:
+    ///  Replace the entry the pass examined at `relative` with what `creating` makes,
+    ///  parking what stands there and judging it afterwards.
+    /// Why:
+    ///   See `publish`.
+    ///  Nothing here removes or renames an entry the pass did not examine:
+    ///  the only name it writes over is the one it just created.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pass.replaceTheExamined(directory, relative, examined, creating);
+    /// ```
+    fn replace_the_examined(&mut self, directory: &Directory, relative: &Path, examined: &Metadata, creating: Creating) -> Result<Published, MigrateError> {
+        let name: &OsStr = relative.file_name().unwrap_or_default();
+        let destination: PathBuf = directory.child(name);
+        let shown: PathBuf = self.shown(relative);
+        let parked: PathBuf = directory.child(parked_name(name).as_os_str());
+        let parked_relative: PathBuf = relative.with_file_name(parked_name(name).as_os_str());
+        // The name is freed by parking what stands there, and never by removing it.
+        match crate::rename_that_never_replaces::rename_noreplace(destination.as_path(), parked.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                // A parked entry already stands there: nothing of it is this pass's to judge, so nothing is freed and
+                //  the source's copy is not placed. Both are named.
+                self.stats.kept_at_the_destination.push(parked_relative);
+                remove_if_present(directory.partial().as_path(), shown.as_path())?;
+                return Ok(Published::KeptTheDestinationEntry);
+            }
+            Err(error) => return Err(MigrateError::io("park the entry the destination holds", shown.as_path(), &error)),
+        }
+        #[cfg(test)]
+        note_the_freed_name(destination.as_path());
+        // The name is free here, and only here, so the copy is created and never renamed over anything.
+        let created: std::io::Result<()> = match creating {
+            Creating::FromTheTemporaryName => crate::rename_that_never_replaces::rename_noreplace(directory.partial().as_path(), destination.as_path()),
+            Creating::Directory => std::fs::DirBuilder::new().mode(0o700).create(&destination),
+        };
+        match created {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                // Somebody put a file at the freed name while it stood free. It stays, and the entry the pass parked is
+                //  named for the person rather than removed or renamed over that file.
+                self.stats.kept_at_the_destination.push(parked_relative);
+                remove_if_present(directory.partial().as_path(), shown.as_path())?;
+                return Ok(Published::KeptTheDestinationEntry);
+            }
+            Err(error) => {
+                // The pass is stopping. The parked entry stays where it is, and the next command names it.
+                return Err(MigrateError::io("create the copy at the freed name", shown.as_path(), &error));
+            }
+        }
+        // The parked entry is judged as the object it is, at the instant the name was freed.
+        let displaced: Option<Metadata> = std::fs::symlink_metadata(parked.as_path()).ok();
+        let superseded: bool = matches!(displaced, Some(ref found) if unchanged_since(found, examined));
+        if superseded {
+            remove_entry(parked.as_path(), parked_relative.as_path())?;
+            return Ok(Published::Placed);
+        }
+        // Not the object the pass examined: it goes back to its name, over the copy this pass just made there, and the
+        //  copy is dropped.
+        remove_if_present(destination.as_path(), shown.as_path())?;
+        MigrateError::from_io_result(std::fs::rename(parked.as_path(), destination.as_path()), "put the entry the pass did not examine back", shown.as_path())?;
+        return Ok(Published::KeptTheDestinationEntry);
+    }
+
+    /// Whether the source path still names the object the pass examined:
+    /// a path another command replaced names another object,
+    /// and what was copied from the old name is then not what stands there.
+    pub(crate) fn source_path_still_names(&self, examined: &Metadata, relative: &Path) -> bool {
+        return match std::fs::symlink_metadata(self.source.join(relative)) {
+            Ok(found) => found.dev() == examined.dev() && found.ino() == examined.ino(),
+            Err(_gone) => false,
+        };
+    }
+
+    /// What:
+    ///  The parked entries a directory holds,
+    ///  whose replacements the pass that parked them did not finish.
+    /// Why:
+    ///   A parked entry is somebody's until a pass judges it,
+    ///  so every later pass names it and none deletes it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const parked = parkedEntriesIn(directory); // string[]
+    /// ```
+    pub(crate) fn parked_entries_in(&mut self, directory: &Directory, relative: &Path) {
+        let listing: std::fs::ReadDir = match std::fs::read_dir(directory.anchor.path()) {
+            Ok(found) => found,
+            Err(_unreadable) => return,
+        };
+        for item in listing.flatten() {
+            if !is_a_parked_name(item.file_name().as_os_str()) {
+                continue;
+            }
+            let path: PathBuf = relative.join(item.file_name());
+            if !self.stats.kept_at_the_destination.contains(&path) {
+                self.stats.kept_at_the_destination.push(path);
+            }
+        }
+    }
+}
+
+/// What:
+///  What the pass makes at a name it freed by parking what stood there.
+/// Why:
+///   The two are made differently,
+///  and neither is renamed over anything:
+///  a copy is moved into the free name,
+///  a directory is made there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Creating = 'from-the-temporary-name' | 'directory';
+/// ```
+#[derive(Clone, Copy)]
+enum Creating {
+    /// A finished copy of a file, a link or a named pipe.
+    FromTheTemporaryName,
+    /// The directory the pass examined an entry that is not one for.
+    Directory,
 }
 
 /// What:
@@ -511,19 +640,31 @@ pub(crate) fn place_where_nothing_was(partial: &Path, destination: &Path, shown:
     };
 }
 
-/// Whether the entry at a name is still the object the pass looked at:
-/// the same device and inode.
+/// What:
+///  Whether the entry the pass judged is still the object it examined:
+///  the same device and inode,
+///  the same size,
+///  and the same modification time.
 /// Why:
-///   A name says nothing about which object it holds,
-///  and an object that a name held a moment ago may have been replaced by another one.
+///   A write in place keeps a file's device and inode and moves its size and its modification time,
+///  so an identity of two numbers alone would call a written file the one it examined.
+///  The change time is not compared:
+///  parking an entry moves that time itself,
+///  so comparing it would call every entry another object,
+///  and the two fields above are the ones a write moves.
+///  The entry judged here is the one the pass parked out of the name,
+///  so the judgement is of the object that stood there at the instant the name was freed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const same = (now, looked) => now?.dev === looked.dev && now?.ino === looked.ino;
+/// const unchanged = (found, examined) => found.dev === examined.dev && found.ino === examined.ino
+///   && found.size === examined.size && found.mtimeNs === examined.mtimeNs;
 /// ```
-pub(crate) fn same_object(held_now: Option<&Metadata>, looked: &Metadata) -> bool {
-    let Some(held) = held_now else { return false };
-    return held.dev() == looked.dev() && held.ino() == looked.ino();
+pub(crate) fn unchanged_since(found: &Metadata, examined: &Metadata) -> bool {
+    return found.dev() == examined.dev()
+        && found.ino() == examined.ino()
+        && found.len() == examined.len()
+        && (found.mtime(), found.mtime_nsec()) == (examined.mtime(), examined.mtime_nsec());
 }
 
 /// Make an existing destination directory writable for the pass;

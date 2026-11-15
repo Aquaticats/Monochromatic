@@ -603,9 +603,10 @@ fn an_ordinary_file_the_destination_gained_during_the_copy_is_kept() {
     remove(parent.as_path());
 }
 
-/// The publish's own two roads:
+/// The publish's own roads:
 /// a name the pass found free is created and never replaced,
-/// a name that held an entry is replaced only while it still holds that entry.
+/// and a name that held an entry is freed by parking what stands there,
+///  which is judged and put back unless it is the very object the pass examined.
 #[test]
 fn a_name_the_pass_found_free_is_created_and_one_it_saw_is_replaced_only_as_the_same_object() {
     let (parent, source, destination) = trees("publish-roads");
@@ -621,14 +622,17 @@ fn a_name_the_pass_found_free_is_created_and_one_it_saw_is_replaced_only_as_the_
     assert_eq!(pass.publish(&directory, Path::new("file.txt"), None).expect("a publish"), Published::KeptTheDestinationEntry);
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"somebody else's file");
     assert!(!directory.partial().exists(), "the copy of the entry that was kept is dropped");
-    // The entry the pass saw, replaced.
+    // An entry the pass did not examine: it is parked, judged, and put back over the copy this pass made there.
     std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
     assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&listing)).expect("a publish"), Published::KeptTheDestinationEntry);
-    assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"somebody else's file", "a name that no longer holds the object the pass saw keeps what it holds");
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"somebody else's file", "the entry the pass did not examine is put back");
+    assert!(!destination.join(format!("file.txt{PARKED_SUFFIX}")).exists(), "and nothing stays parked after the judgement");
+    // The very object the pass examined: it is superseded, and the copy takes the name.
     let seen: std::fs::Metadata = std::fs::symlink_metadata(destination.join("file.txt")).expect("the entry the pass saw");
     std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
     assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&seen)).expect("a publish"), Published::Placed);
-    assert_eq!(std::fs::read(destination.join("file.txt")).expect("replaced"), b"the copy", "the object the pass saw is replaced");
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("replaced"), b"the copy", "the object the pass examined is replaced");
+    assert!(!destination.join(format!("file.txt{PARKED_SUFFIX}")).exists(), "the parked entry the pass examined is removed");
     remove(parent.as_path());
 }
 //endregion
@@ -678,9 +682,19 @@ fn review_repro_source_replaced_during_copy_is_not_deleted() {
         std::fs::rename(replacement.as_path(), replaced_note.as_path()).expect("replace the source path");
     });
     let (code, said) = run_hooked(&platform, &remove_old_arguments(), root.as_path());
-    let checkout_text: String = std::fs::read_to_string(root.join("person-notes.txt")).unwrap_or_else(|error| format!("unreadable: {error}"));
-    println!("removal code {code}; old tree exists {}; checkout holds {checkout_text:?}; output: {said}", layout.old_path.exists());
-    assert_eq!(checkout_text, String::from_utf8(replacement_text.to_vec()).expect("replacement text"));
+    platform.on_clone = Box::new(|_calls| {});
+    let wanted_text: String = String::from_utf8(replacement_text.to_vec()).expect("replacement text");
+    let checkout_text: Option<String> = std::fs::read_to_string(root.join("person-notes.txt")).ok();
+    let old_tree_text: Option<String> = std::fs::read_to_string(layout.old_path.join("person-notes.txt")).ok();
+    println!("removal code {code}; old tree exists {}; checkout holds {checkout_text:?}; old tree holds {old_tree_text:?}; output: {said}", layout.old_path.exists());
+    // A hook that replaces the source path on every copy never lets it stand still, so the pass copies it a bounded
+    //  number of times and then counts it as an entry that changed while passing. The property is that the replacement
+    //  is in one of the two trees and that nothing deleted it.
+    assert!(
+        checkout_text.as_ref() == Some(&wanted_text) || (code == REFUSED && old_tree_text.as_ref() == Some(&wanted_text)),
+        "the replacement is in one of the two trees and nothing deleted it: {said}"
+    );
+    assert!(code != DONE || checkout_text.as_ref() == Some(&wanted_text), "a finished deletion means the checkout holds the replacement: {said}");
     remove(parent.as_path());
 }
 
@@ -737,9 +751,9 @@ fn review_repro_a_file_put_at_the_freed_name_is_kept() {
     let placed_into: PathBuf = destination_note.clone();
     let once: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     {
-        let once = once.clone();
+        let only_once = once.clone();
         watch_the_freed_name(Some(Box::new(move |freed: &Path| {
-            if once.swap(true, Ordering::SeqCst) {
+            if only_once.swap(true, Ordering::SeqCst) {
                 return;
             }
             std::fs::write(freed, concurrent_text).expect("a file at the freed name");

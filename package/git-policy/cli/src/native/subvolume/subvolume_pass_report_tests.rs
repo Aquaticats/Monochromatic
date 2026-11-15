@@ -43,7 +43,7 @@ fn each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label() {
     );
     assert_eq!(
         lines[6],
-        "copy: did not place .git/person-notes.txt because the destination came to hold another entry there, and that entry stays"
+        "copy: did not place .git/person-notes.txt because the destination holds an entry there that this pass did not put there, and it stays"
     );
     assert_eq!(lines[7], "copy: did not carry src/changed-kind.rs because it was another kind of entry when the copy reached it");
     assert_eq!(

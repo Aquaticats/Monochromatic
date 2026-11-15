@@ -38,9 +38,13 @@
 //! stops the run (the rule of the 2026-11-01 real run:
 //! copying around
 //!  an unreadable directory with deletion on would erase its subtree from the copy).
-//!  Every entry is written under a temporary name in its directory and renamed over its name when complete,
+//!  Every entry is copied under a temporary name in its directory and then created at its own name,
 //! so a kill
 //!  never leaves a half-written file at a name a later pass would take for a newer one.
+//! The pass never renames a finished copy over a name it did not create:
+//! a name the destination already holds is freed by parking what stands there under a name of its own,
+//! and the entry that was parked is judged at once and removed or put back,
+//! so no write of this pass replaces an entry it did not examine.
 //! The destination is reached
 //!  through open directory descriptors (`subvolume_anchor.rs`),
 //! so a directory replaced by a link during the pass
@@ -59,47 +63,58 @@
 //! Every place in this pass where something is looked at and acted on later,
 //! and what each does when the tree changed in between.
 //! The rule is one: a look and an act must be of the same thing,
-//! and a write into the destination never replaces what it did not see.
-//! No place here can end in the deletion of the old tree while it reports nothing,
-//! and the two that name an entry are counted where the deletion looks
-//! (`kept_at_the_destination` and `changed_while_passing`),
-//! so they hold it back until the person reads the path.
+//! and no write of this pass replaces an entry it did not examine.
+//! No place here can end in the deletion of the old tree while it reports nothing:
+//! the two that name an entry are counted where the deletion looks
+//! (`kept_at_the_destination` and `changed_while_passing`), they are written beside the checkout before the pass goes
+//!  on, and the deletion reads that record rather than only its own memory.
 //!
 //! - The source folder's listing, then each child's metadata, then the type the child is handled by:
-//! the metadata from the listing is what the pass decides and copies by,
+//! the metadata from the listing is what the pass decides by,
 //! and an entry that is another kind when the copy opens it is counted as `changed_while_passing` rather than as a
-//! file that vanished (the copy of a file, of a link and of a named pipe each check it, and a folder that is no folder
-//! is counted the same way).
-//! This one could delete a person's file before this rule, when a listed file became a directory: it is closed.
+//! file that vanished.
+//! This one could delete a person's file, when a listed file became a directory: it is closed.
+//! - The source path, looked at again after the copy and before the copy takes the destination name:
+//! a path that no longer names the object that was copied means another command put a new file or link there,
+//! and that object is then copied in its place, a bounded number of times;
+//! a name that will not stand still is counted as `changed_while_passing`.
+//! This one could copy an entry the old tree no longer held and then let the replacement be deleted with it: it is
+//!  closed.
 //! - The destination name's absence when the pass decided to copy, then the placement of the finished copy:
 //! the placement creates the name with `renameat2(RENAME_NOREPLACE)` and never replaces,
 //! and a name that came to hold something is kept and counted as `kept_at_the_destination`.
-//! A filesystem without that call refuses the migration with its own words rather than replacing unseen.
-//! This one could delete a person's file before this rule, and it is closed.
-//! - The destination entry the pass saw, then its replacement:
-//! the name is compared with the very object the pass saw (device and inode) and replaced only while it still holds
-//! that object;
-//! another object is kept and counted as `kept_at_the_destination`.
-//! The comparison and the rename are two steps, so an object swapped in between them is still replaced;
-//! the exchange that would close that window hands the object it displaced into this pass's temporary name,
-//! which a later pass deletes,
-//! so it is not used here and the limit is stated rather than hidden.
-//! - A destination folder the pass saw where the source holds a file, then its removal and the placement:
-//! the folder goes only after the same comparison, and the placement then creates the name.
-//! The same window as the line before applies.
+//! This one could delete a person's file: it is closed.
+//! - The destination entry the pass examined, then the name it takes:
+//! the entry is parked under its own parked name with `renameat2(RENAME_NOREPLACE)`,
+//! the copy is created at the freed name, and the parked entry is then judged as the object it is:
+//! the device and inode,
+//!  the size and the modification time it had when the pass examined it,
+//!  a write in place moving the last two.
+//! Only the object the pass examined is removed; anything else is put back,
+//! over the copy this pass made there and nothing else,
+//! and is counted as `kept_at_the_destination`.
+//! A kill between the parking and the judgement leaves the parked entry at `<name>.cli-git-migrate-displaced`,
+//! which no pass deletes: every pass names it, so the deletion waits for the person.
+//! This one could discard a write made in place, and a file another command put at the name in the instant between
+//!  the comparison and the rename: both are closed, because the judgement is of the object that was parked and the
+//!  only name this pass writes over is the one it created.
+//! - A destination file the pass examined where the source holds a folder, then the folder:
+//! the same parking and judgement, and the folder is made at the freed name with `mkdir`,
+//!  which fails rather than replaces when the name was taken again.
 //! - The temporary name in the destination (`.cli-git-migrate-partial`):
 //! the pass removes what stands there before it creates its own copy there.
 //! The name belongs to the pass inside the tree it is building, so what is removed there is the pass's own leftover;
 //! a person's file at that exact name in a tree this pass builds is removed.
 //! No tree this pass builds is the checkout, and nothing of it can reach the old tree's deletion.
-//! - The source file's metadata before and after the copy:
+//! - The source file's metadata on the descriptor before and after the copy:
 //! a file that changes while it is copied is copied again, three times at most, and then the run stops with an error
 //! naming the file, so nothing is taken for a faithful copy.
 //! - A file this user may not read:
 //! left in the source and listed, and the deletion of the old tree waits for its own flag.
 //! - The deletion pass, which lists the destination after the source:
 //! it removes what the source does not hold, which is what a deletion pass is for,
-//! and it leaves another command's stage container where it stands.
+//! it leaves another command's stage container where it stands,
+//! and it leaves every parked entry where it stands.
 //! It runs only into a tree this migration is building, so it cannot reach the old tree's deletion.
 //! - A folder the source held nothing but another command's stage container in, then its removal:
 //! `rmdir` refuses a folder that gained a file in between, so what another command wrote there stays.
@@ -233,6 +248,9 @@ impl Pass<'_> {
         let directory: Directory = Directory { anchor, temporary };
         // A kill leaves at most this one entry behind; it is incomplete by construction, so it never stays.
         remove_if_present(directory.partial().as_path(), self.shown(relative).join(&directory.temporary).as_path())?;
+        // A parked entry is what a replacement this pass parks and has not judged yet: a kill leaves it, and nothing
+        //  here deletes or renames it, so the person is told and the old tree is kept.
+        self.parked_entries_in(&directory, relative);
         if self.options.delete && !self.options.update_only {
             self.delete_extras(&directory, relative, &names)?;
         }
@@ -259,6 +277,11 @@ impl Pass<'_> {
             //  it where it is. The name a source container has is in `names` already; this is the container the source does not
             //  hold, which is a copy another command is filling into this destination right now.
             if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_encoded_bytes()) {
+                continue;
+            }
+            // A parked entry is somebody's until a pass judges it, and a kill can leave one whose name the source no
+            //  longer has: it stays, and the walk has already named it.
+            if is_a_parked_name(item.file_name().as_os_str()) {
                 continue;
             }
             remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;
@@ -355,16 +378,23 @@ impl Pass<'_> {
         }
         let file_type: std::fs::FileType = metadata.file_type();
         if file_type.is_dir() {
+            let mut made_by_this_hand: bool = false;
             if let Some(found) = &existing && !found.is_dir() {
                 if !self.replace_allowed(relative.as_path(), found, &metadata) {
                     return Ok(());
                 }
-                remove_entry(destination.as_path(), self.shown(relative.as_path()).as_path())?;
+                // The file the pass examined is parked and judged, and the new directory is made at the freed name.
+                if self.publish_directory(directory, relative.as_path(), found)? == Published::KeptTheDestinationEntry {
+                    self.record_outcome(relative.clone(), Copied::KeptTheDestinationEntry, carried_as_notice);
+                    return Ok(());
+                }
+                made_by_this_hand = true;
             }
-            let is_directory_now: bool = match existing.as_ref() {
-                Some(found) => found.is_dir(),
-                None => false,
-            };
+            let is_directory_now: bool = made_by_this_hand
+                || match existing.as_ref() {
+                    Some(found) => found.is_dir(),
+                    None => false,
+                };
             if !is_directory_now {
                 MigrateError::from_io_result(std::fs::DirBuilder::new().mode(0o700).create(&destination), "create the directory", self.shown(relative.as_path()).as_path())?;
             }

@@ -375,6 +375,11 @@ fn closing(run: &mut Run<'_>) {
     run.line(format!("{root} is now a btrfs subvolume (root inode 256).").as_str());
     run.line(format!("The original tree is kept at {old_path}. Check the result with `git status` and `git fsck`, then delete it with `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old` (or undo everything with `--rollback`).").as_str());
     run.line("Shells, editors and agent sessions that had their working directory inside the checkout still use the old tree; restart them, or run `cd \"$PWD\"` in a shell.");
+    let uncarried: usize = run.left_out.len() + run.conflicts.len() + run.kept_at_the_destination.len() + run.changed_while_passing.len() + run.recorded.len();
+    if uncarried > 0 {
+        let list: String = layout.left_out_path.display().to_string();
+        run.line(format!("{uncarried} entr(ies) stayed in the old tree and did not reach the checkout; they are listed in {list}. Copy what you want to keep into the checkout, then delete the old tree with `--remove-old` (or pass `--discard-left-out` with it to delete the old tree with those entries).").as_str());
+    }
     if !run.unreadable.is_empty() {
         let count: usize = run.unreadable.len();
         let list: String = run.layout.unreadable_path.display().to_string();

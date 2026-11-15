@@ -53,9 +53,33 @@ impl Pass<'_> {
                 return Ok(Copied::LeftAsItIs);
             }
         }
-        let partial: PathBuf = directory.partial();
-        MigrateError::from_io_result(std::os::unix::fs::symlink(&target, &partial), "create the link", shown.as_path())?;
-        attribute_result(preserve_on_link(source.as_path(), partial.as_path(), metadata, &mut self.stats.losses), shown.as_path())?;
+        // The link the pass read is the one that has to stand at the source path when the copy takes the destination
+        //  name: another command can put a new link there while the copy runs, and that link is the one to copy.
+        let mut names: u32 = 0;
+        let mut wanted: PathBuf = target;
+        loop {
+            names += 1;
+            let partial: PathBuf = directory.partial();
+            MigrateError::from_io_result(std::os::unix::fs::symlink(&wanted, &partial), "create the link", shown.as_path())?;
+            attribute_result(preserve_on_link(source.as_path(), partial.as_path(), metadata, &mut self.stats.losses), shown.as_path())?;
+            if self.source_path_still_names(metadata, relative) && std::fs::read_link(&source).ok().as_ref() == Some(&wanted) {
+                break;
+            }
+            remove_if_present(partial.as_path(), shown.as_path())?;
+            if names >= COPY_ATTEMPTS {
+                return Ok(Copied::ChangedKind);
+            }
+            self.stats.recopied += 1;
+            match std::fs::read_link(&source) {
+                Ok(now) => wanted = now,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    self.stats.vanished += 1;
+                    return Ok(Copied::Vanished);
+                }
+                Err(error) if error.raw_os_error() == Some(libc::EINVAL) => return Ok(Copied::ChangedKind),
+                Err(error) => return Err(MigrateError::io("read the link", source.as_path(), &error)),
+            }
+        }
         if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
             return Ok(Copied::KeptTheDestinationEntry);
         }
@@ -93,11 +117,33 @@ impl Pass<'_> {
                 return Ok(Copied::LeftAsItIs);
             }
         }
-        let partial: PathBuf = directory.partial();
         let shown: PathBuf = self.shown(relative);
-        MigrateError::from_io_result(make_fifo(partial.as_path(), metadata.mode()), "create the named pipe", shown.as_path())?;
-        let handle: File = MigrateError::from_io_result(open_fifo(partial.as_path()), "open the named pipe", shown.as_path())?;
-        attribute_result(preserve_on_descriptor(source.as_path(), &handle, metadata, true, &mut self.stats.losses), shown.as_path())?;
+        let mut names: u32 = 0;
+        let mut examined: Metadata = std::fs::symlink_metadata(&source).unwrap_or_else(|_gone| return metadata.clone());
+        loop {
+            names += 1;
+            let partial: PathBuf = directory.partial();
+            MigrateError::from_io_result(make_fifo(partial.as_path(), examined.mode()), "create the named pipe", shown.as_path())?;
+            let handle: File = MigrateError::from_io_result(open_fifo(partial.as_path()), "open the named pipe", shown.as_path())?;
+            attribute_result(preserve_on_descriptor(source.as_path(), &handle, &examined, true, &mut self.stats.losses), shown.as_path())?;
+            if self.source_path_still_names(&examined, relative) {
+                break;
+            }
+            remove_if_present(partial.as_path(), shown.as_path())?;
+            if names >= COPY_ATTEMPTS {
+                return Ok(Copied::ChangedKind);
+            }
+            self.stats.recopied += 1;
+            match std::fs::symlink_metadata(&source) {
+                Ok(now) if now.file_type().is_fifo() => examined = now,
+                Ok(_other) => return Ok(Copied::ChangedKind),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    self.stats.vanished += 1;
+                    return Ok(Copied::Vanished);
+                }
+                Err(error) => return Err(MigrateError::io("examine", source.as_path(), &error)),
+            }
+        }
         if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
             return Ok(Copied::KeptTheDestinationEntry);
         }
@@ -181,72 +227,90 @@ impl Pass<'_> {
             }
         }
         if listing.nlink() > 1
+            && self.source_path_still_names(listing, relative)
             && let Some(outcome) = self.link_to_earlier_copy(directory, relative, listed_key, existing.as_ref())?
         {
             return Ok(outcome);
         }
-        let mut input: File = match File::open(&source) {
-            Ok(opened) => opened,
-            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
-                self.stats.unreadable.push(relative.to_path_buf());
-                return Ok(Copied::Unreadable);
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                self.stats.vanished += 1;
-                return Ok(Copied::Vanished);
-            }
-            Err(error) => return Err(MigrateError::io("open", source.as_path(), &error)),
-        };
-        let mut attempt: u32 = 0;
+        // The file a pass copies is the one the source path names when the copy starts, and the path is looked at again
+        //  before the finished copy takes the destination name: another command can rename a new file onto that path
+        //  while the copy runs, and the file that stands there then is the one that has to reach the destination.
+        let mut names: u32 = 0;
         loop {
-            attempt += 1;
-            let before: Metadata = MigrateError::from_io_result(input.metadata(), "examine", source.as_path())?;
-            // The name holds another kind of entry now: nothing is written here, and the walk reports it, so the old
-            //  tree is not deleted with an entry this pass never carried.
-            if !before.is_file() {
-                return Ok(Copied::ChangedKind);
-            }
-            remove_if_present(directory.partial().as_path(), shown.as_path())?;
-            let mut output: File = MigrateError::from_io_result(std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.partial())
-                , "create", shown.as_path())?;
-            self.interrupt.check("copy-partial")?;
-            MigrateError::from_io_result(input.rewind(), "rewind", source.as_path())?;
-            let cloned: Result<(), PrimitiveError> = self.platform.clone_file(&input, &output, directory.partial().as_path());
-            if cloned.is_err() {
-                MigrateError::from_io_result(std::io::copy(&mut input, &mut output), "copy to", shown.as_path())?;
-            }
-            let after: Metadata = MigrateError::from_io_result(input.metadata(), "examine", source.as_path())?;
-            if !is_settled(&before, &after) {
-                drop(output);
-                remove_if_present(directory.partial().as_path(), shown.as_path())?;
-                if attempt >= COPY_ATTEMPTS {
-                    return Err(MigrateError::Io {
-                        action: String::from("copy"),
-                        path: source,
-                        reason: format!("it changed while it was being copied, {COPY_ATTEMPTS} times in a row; stop the programs writing to it and run the command again"),
-                    });
+            names += 1;
+            let mut input: File = match File::open(&source) {
+                Ok(opened) => opened,
+                Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                    self.stats.unreadable.push(relative.to_path_buf());
+                    return Ok(Copied::Unreadable);
                 }
-                self.stats.recopied += 1;
-                continue;
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    self.stats.vanished += 1;
+                    return Ok(Copied::Vanished);
+                }
+                Err(error) => return Err(MigrateError::io("open", source.as_path(), &error)),
+            };
+            let mut attempt: u32 = 0;
+            loop {
+                attempt += 1;
+                let before: Metadata = MigrateError::from_io_result(input.metadata(), "examine", source.as_path())?;
+                // The name holds another kind of entry now: nothing is written here, and the walk reports it, so the old
+                //  tree is not deleted with an entry this pass never carried.
+                if !before.is_file() {
+                    return Ok(Copied::ChangedKind);
+                }
+                remove_if_present(directory.partial().as_path(), shown.as_path())?;
+                let mut output: File = MigrateError::from_io_result(std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.partial())
+                    , "create", shown.as_path())?;
+                self.interrupt.check("copy-partial")?;
+                MigrateError::from_io_result(input.rewind(), "rewind", source.as_path())?;
+                let cloned: Result<(), PrimitiveError> = self.platform.clone_file(&input, &output, directory.partial().as_path());
+                if cloned.is_err() {
+                    MigrateError::from_io_result(std::io::copy(&mut input, &mut output), "copy to", shown.as_path())?;
+                }
+                let after: Metadata = MigrateError::from_io_result(input.metadata(), "examine", source.as_path())?;
+                if !is_settled(&before, &after) {
+                    drop(output);
+                    remove_if_present(directory.partial().as_path(), shown.as_path())?;
+                    if attempt >= COPY_ATTEMPTS {
+                        return Err(MigrateError::Io {
+                            action: String::from("copy"),
+                            path: source,
+                            reason: format!("it changed while it was being copied, {COPY_ATTEMPTS} times in a row; stop the programs writing to it and run the command again"),
+                        });
+                    }
+                    self.stats.recopied += 1;
+                    continue;
+                }
+                attribute_result(preserve_on_descriptor(source.as_path(), &output, &before, !self.options.update_only, &mut self.stats.losses)
+                    , shown.as_path())?;
+                drop(output);
+                if !self.source_path_still_names(&before, relative) {
+                    // The name leads to another file now: the copy is dropped and that file is copied, a bounded number
+                    //  of times. A name that will not stand still is an entry that changed while passing.
+                    remove_if_present(directory.partial().as_path(), shown.as_path())?;
+                    if names >= COPY_ATTEMPTS {
+                        return Ok(Copied::ChangedKind);
+                    }
+                    self.stats.recopied += 1;
+                    break;
+                }
+                if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
+                    return Ok(Copied::KeptTheDestinationEntry);
+                }
+                if cloned.is_ok() {
+                    self.stats.cloned += 1;
+                }
+                self.stats.files_copied += 1;
+                if self.stats.copied_sample.len() < SAMPLE_SIZE {
+                    self.stats.copied_sample.push(relative.to_path_buf());
+                }
+                if before.nlink() > 1 {
+                    self.record_link((before.dev(), before.ino()), relative);
+                }
+                self.interrupt.check("copy-entry")?;
+                return Ok(Copied::Placed);
             }
-            attribute_result(preserve_on_descriptor(source.as_path(), &output, &before, !self.options.update_only, &mut self.stats.losses)
-                , shown.as_path())?;
-            drop(output);
-            if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
-                return Ok(Copied::KeptTheDestinationEntry);
-            }
-            if cloned.is_ok() {
-                self.stats.cloned += 1;
-            }
-            self.stats.files_copied += 1;
-            if self.stats.copied_sample.len() < SAMPLE_SIZE {
-                self.stats.copied_sample.push(relative.to_path_buf());
-            }
-            if before.nlink() > 1 {
-                self.record_link((before.dev(), before.ino()), relative);
-            }
-            self.interrupt.check("copy-entry")?;
-            return Ok(Copied::Placed);
         }
     }
 

@@ -27,6 +27,7 @@ use crate::subvolume_error::MigrateError;
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal};
 use crate::subvolume_run::Run;
 use crate::worktree_convert_phases::identity_of_path;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// The identity of the object at `path` in the journal's form,
@@ -297,8 +298,24 @@ pub(crate) fn pinned_root_moved(run: &Run<'_>, pinned: &PinnedRoot) -> Option<Re
 /// ```ts
 /// const cause = uncarriedCause(run);
 /// ```
-pub(crate) fn uncarried_cause(run: &Run<'_>) -> String {
+pub(crate) fn uncarried_cause(run: &Run<'_>, uncarried: &BTreeSet<PathBuf>) -> String {
     let mut parts: Vec<String> = Vec::new();
+    let recorded_only: Vec<&PathBuf> = uncarried
+        .iter()
+        .filter(|path| {
+            return !run.left_out.contains(*path)
+                && !run.conflicts.contains(*path)
+                && !run.kept_at_the_destination.contains(*path)
+                && !run.changed_while_passing.contains(*path);
+        })
+        .collect();
+    if !recorded_only.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) an earlier run recorded as not carried ({})",
+            recorded_only.len(),
+            shown_left_out(recorded_only.into_iter())
+        ));
+    }
     if !run.left_out.is_empty() {
         parts.push(format!(
             "{} entr(ies) absent from {} and older than the catch-up ({})",

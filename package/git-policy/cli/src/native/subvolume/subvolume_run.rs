@@ -38,6 +38,7 @@ pub const INDEX_LOCK: &str = ".git/index.lock";
 
 /// What:
 ///  The paths recorded in the plain file at `path`,
+///  or none when the name holds no file,
 /// read line by line from a handle opened without waiting.
 /// Why:
 ///   Both cleanup modes call `Run::open` before they do anything,
@@ -54,9 +55,9 @@ pub const INDEX_LOCK: &str = ".git/index.lock";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function readUnreadableList(path: string): Promise<Set<string>>;
+/// async function readPathList(path: string): Promise<Set<string>>;
 /// ```
-fn read_unreadable_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
+fn read_path_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
     let file: std::fs::File = crate::plain_file::open_plain_file(path)?;
     let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(file);
     let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
@@ -119,6 +120,12 @@ pub struct Run<'a> {
     /// Relative paths of entries that were another kind of entry when the carry reached them,
     /// so nothing was written at their path.
     pub changed_while_passing: BTreeSet<PathBuf>,
+    /// Relative paths an earlier command recorded as not carried,
+    /// read from the list beside the checkout.
+    /// They forbid the deletion until a person copies them or accepts the loss,
+    /// so a run that has passed nothing still refuses:
+    /// the record speaks for the runs that learned it and did not finish.
+    pub recorded: BTreeSet<PathBuf>,
 }
 
 impl Run<'_> {
@@ -137,13 +144,40 @@ impl Run<'_> {
         say: &'a mut dyn FnMut(&str),
     ) -> Result<Run<'a>, MigrateError> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
-        let unreadable: BTreeSet<PathBuf> = match read_unreadable_list(layout.unreadable_path.as_path()) {
+        let unreadable: BTreeSet<PathBuf> = match read_path_list(layout.unreadable_path.as_path()) {
             Ok(listed) => listed,
             // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
             // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
             Err(error) => return Err(MigrateError::io("read the list of unreadable files", layout.unreadable_path.as_path(), &error)),
         };
+        return Self::open_with(layout, platform, interrupt, say, journal, unreadable);
+    }
+
+    /// What:
+    ///  Start the state with the part of it that can be read from disk,
+    ///  which is what a run resumed after a kill finds.
+    /// Why:
+    ///   The entries no pass carried are as durable as the unreadable ones:
+    ///  a kill between the pass that learned one and the deletion loses the run's memory,
+    ///  not the fact.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// Run.openWith(layout, ..., recorded = readPathList(layout.leftOutPath));
+    /// ```
+    fn open_with<'a>(
+        layout: &'a Layout,
+        platform: &'a dyn Platform,
+        interrupt: &'a Interrupt,
+        say: &'a mut dyn FnMut(&str),
+        journal: Journal,
+        unreadable: BTreeSet<PathBuf>,
+    ) -> Result<Run<'a>, MigrateError> {
+        // A name that cannot be read here is not a reason to fail a migration: the deletion asks the record again
+        //  (`Run::uncarried`), and answers then. A link at the name is such a case, and a plain write of the next list
+        //  replaces that link rather than following it.
+        let recorded: BTreeSet<PathBuf> = read_path_list(layout.left_out_path.as_path()).unwrap_or_default();
         return Ok(Run {
             platform,
             layout,
@@ -155,6 +189,7 @@ impl Run<'_> {
             conflicts: BTreeSet::new(),
             kept_at_the_destination: BTreeSet::new(),
             changed_while_passing: BTreeSet::new(),
+            recorded,
         });
     }
 
@@ -179,6 +214,7 @@ impl Run<'_> {
     pub fn pass(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
         let stats: SyncStats = self.pass_unrecorded(label, source, destination, delete, update_only)?;
         self.record_unreadable(label, &stats)?;
+        self.record_uncarried(&stats)?;
         return Ok(stats);
     }
 
@@ -231,7 +267,7 @@ impl Run<'_> {
     pub fn pass_late(&mut self, label: &str, source: &Path, destination: &Path, since: i64) -> Result<SyncStats, MigrateError> {
         let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
         self.record_unreadable(label, &stats)?;
-        self.record_left_out(&stats)?;
+        self.record_uncarried(&stats)?;
         for path in &stats.copied_sample {
             self.line(format!("{label}: carried {}", path.display()).as_str());
         }
@@ -269,7 +305,9 @@ impl Run<'_> {
     ///  in the destination holds another kind of entry,
     /// those the destination came to hold something else at while the pass ran,
     /// and those that were another kind of entry when the pass reached them,
-    /// and write the list beside the checkout.
+    /// and write the list beside the checkout,
+    /// with every path an earlier run recorded,
+    /// so nothing durable is lost by the run that rewrites it.
     /// Why:
     ///   A left-out entry is either a file deleted from the checkout on purpose or a file restored into the old tree
     /// after the migration,
@@ -291,7 +329,7 @@ impl Run<'_> {
     /// ```ts
     /// run.recordLeftOut(stats) // writes <parent>/.cli-git-migrate-<name>.left-out.txt
     /// ```
-    fn record_left_out(&mut self, stats: &SyncStats) -> Result<(), MigrateError> {
+    fn record_uncarried(&mut self, stats: &SyncStats) -> Result<(), MigrateError> {
         for path in &stats.conflicts {
             if !self.unreadable.contains(path) {
                 self.conflicts.insert(path.clone());
@@ -318,6 +356,35 @@ impl Run<'_> {
         return self.write_left_out();
     }
 
+    /// What:
+    ///  Every path that forbids deleting the old tree:
+    ///  the entries this run's passes did not carry,
+    ///  and every path the record beside the checkout holds,
+    ///  read again now,
+    ///  so a run that has passed nothing still refuses and a run that cannot remember does not decide.
+    /// Why:
+    ///   Delete the old tree is the one act of this command that cannot be taken back,
+    ///  and a process can be killed between the pass that learned an entry and that act,
+    ///  so the question is asked of the record as it stands and not of one run's memory.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const uncarried = await run.uncarried(); // string[]
+    /// ```
+    pub fn uncarried(&mut self) -> Result<BTreeSet<PathBuf>, MigrateError> {
+        match read_path_list(self.layout.left_out_path.as_path()) {
+            Ok(listed) => self.recorded = listed,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => self.recorded = BTreeSet::new(),
+            Err(error) => return Err(MigrateError::io("read the list of entries no pass carried", self.layout.left_out_path.as_path(), &error)),
+        }
+        let mut every: BTreeSet<PathBuf> = self.recorded.clone();
+        every.extend(self.left_out.iter().cloned());
+        every.extend(self.conflicts.iter().cloned());
+        every.extend(self.kept_at_the_destination.iter().cloned());
+        every.extend(self.changed_while_passing.iter().cloned());
+        return Ok(every);
+    }
+
     /// Write the list of left-out entries beside the checkout.
     /// The write replaces a name that is there,
     /// a symbolic link included,
@@ -332,7 +399,7 @@ impl Run<'_> {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
-        for path in self.kept_at_the_destination.iter().chain(self.changed_while_passing.iter()) {
+        for path in self.kept_at_the_destination.iter().chain(self.changed_while_passing.iter()).chain(self.recorded.iter()) {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
