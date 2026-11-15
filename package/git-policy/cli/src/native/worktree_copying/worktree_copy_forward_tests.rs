@@ -109,7 +109,8 @@ fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {
         creates: true,
         destination: Some(topic.clone()),
         add_plan: None,
-        remove_plan: None,
+        removal_escaped: false,
+            remove_plan: None,
         quiet: false,
     };
     let created: ForwardedRun = run_forwarded_git(
@@ -164,7 +165,8 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
         creates: true,
         destination: None,
         add_plan: None,
-        remove_plan: None,
+        removal_escaped: false,
+            remove_plan: None,
         quiet: false,
     };
     match run_forwarded_git(
@@ -199,7 +201,8 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        removal_escaped: false,
+            remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
         quiet: false,
     };
     let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
@@ -252,7 +255,8 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        removal_escaped: false,
+            remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
         quiet: false,
     };
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
@@ -332,6 +336,7 @@ fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
         creates: true,
         destination: Some(topic.clone()),
         add_plan: Some(AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
+        removal_escaped: false,
         remove_plan: None,
         quiet: false,
     };
@@ -399,6 +404,7 @@ fn a_persons_own_read_tree_is_not_ended_at_the_ladder_ceiling() {
         creates: false,
         destination: None,
         add_plan: None,
+        removal_escaped: false,
         remove_plan: None,
         quiet: false,
     };
@@ -496,6 +502,7 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
         creates: true,
         destination: Some(topic.clone()),
         add_plan: Some(crate::worktree_add_plan::AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
+        removal_escaped: false,
         remove_plan: None,
         quiet: false,
     };

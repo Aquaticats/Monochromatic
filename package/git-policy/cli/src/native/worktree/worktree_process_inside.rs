@@ -67,12 +67,44 @@
 //! `systemd --user`,
 //! `(sd-pam)` and four more),
 //!  so keeping every worktree they might be in would remove none.
-//!  A process that started before the worktree was made cannot be working inside it,
-//!  which is what its start time proves:
-//!  a folder can only lead into a directory that already existed.
-//!  So a hidden process of this account keeps the worktree only while its age is shorter than the worktree's,
-//!  or while either age cannot be read,
-//!  and the reason names the process.
+//!  A start time proves less than that, and a review showed the difference:
+//!  a process that began before the worktree existed can change its folder into it afterwards,
+//!  and the worktree was then deleted around a live process whose folder this account may not read
+//!  (a review of this change,
+//!  finding 4).
+//!  Nothing in the kernel answers where such a process is:
+//!  its worktree-relative records are exactly the ones `PR_SET_DUMPABLE` 0 hides
+//!  (measured on this host:
+//!  `/proc/<pid>/cwd`,
+//!  `root`,
+//!  `exe`,
+//!  `fd`,
+//!  `maps`,
+//!  `smaps`,
+//!  `numa_maps`,
+//!  `auxv`,
+//!  `syscall`,
+//!  `io`,
+//!  `pagemap`,
+//!  the namespace links and `personality` are refused,
+//!  while `stat`, `status`, `comm`, `cmdline`, `cgroup`, `mountinfo` and `sched` are readable).
+//!  So the scan decides with what those records say:
+//!  a kernel thread and a process that ended hold no folder at all, and never keep a worktree;
+//!  a process in this command's own control group or one below it is the work a worktree is used by,
+//!  and keeps the worktree whatever its start,
+//!  because a folder is changed into by the work a command started and not by the services a session starts with;
+//!  and a process that started after the worktree existed may have been started in it, so it keeps the worktree too.
+//!  What is left is the cost this scan cannot remove and does not hide:
+//!  a hidden process of this account that began before the worktree,
+//!  in another control group than this command's,
+//!  may be inside the worktree and is taken as outside.
+//!  Measured on this host, that set is eleven processes
+//!  (`ssh-agent` twice, `ksgrd_network_h`, `kwin_wayland`, `polkit-kde-auth`, `zypak-sandbox`, `steam`,
+//!  `systemd`, `(sd-pam)` and two of this repository's own test programs):
+//!  keeping the worktree for every one of them would remove none ever.
+//!  The question this leaves a person is in the report of this change,
+//!  with the numbers, because only the owner can accept the miss.
+//!  A process of another account is not counted at all.
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
@@ -117,6 +149,18 @@
 use crate::process_use::PROCESS_SCAN_CEILING;
 use std::path::Path;
 use std::time::{Duration, Instant};
+
+/// Where this machine's process table is read.
+/// Why:
+///   One name stands for it in every reader,
+///  so a scan, a question asked again immediately before a destroy and the control that replaces the table
+///  all name the same place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PROCESS_TABLE = '/proc';
+/// ```
+pub(crate) const PROCESS_TABLE: &str = "/proc";
 
 /// What a read of a process's working folder showed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -444,6 +488,9 @@ pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Pat
         Err(error) => return ProcessWorking::Unfinished(format!("the process table {proc_root:?} cannot be read ({error}), so nothing proves no process works there")),
     };
     let uptime: Option<Duration> = uptime_of(proc_root);
+    // Where this command itself runs, read once: a hidden process in this group or below it is one whose folder this
+    //  account hid inside the work this removal belongs to, which is what a chdir into the worktree leaves behind.
+    let own_group: Option<String> = group_of(proc_root, std::process::id());
     let mut reached: usize = 0;
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
@@ -457,7 +504,7 @@ pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Pat
             return ProcessWorking::Unfinished(stopped_at_the_bound(reached, proc_root));
         }
         reached += 1;
-        match one_process(entry.path().as_path(), pid, root, git_dir, proc_root, uptime, worktree_age) {
+        match one_process(entry.path().as_path(), pid, root, git_dir, proc_root, uptime, worktree_age, own_group.as_deref()) {
             Entry::Nobody => {}
             Entry::Someone(working) => return ProcessWorking::Someone(working),
         }
@@ -481,7 +528,7 @@ pub fn process_working_inside_until(root: &Path, git_dir: &Path, proc_root: &Pat
 /// ```ts
 /// oneProcess(entry, pid, root, gitDir, procRoot, uptime, worktreeAge) // Entry
 /// ```
-fn one_process(entry: &Path, pid: u32, root: &Path, git_dir: &Path, proc_root: &Path, uptime: Option<Duration>, worktree_age: Option<Duration>) -> Entry {
+fn one_process(entry: &Path, pid: u32, root: &Path, git_dir: &Path, proc_root: &Path, uptime: Option<Duration>, worktree_age: Option<Duration>, own_group: Option<&str>) -> Entry {
     match std::fs::read_link(entry.join("cwd")) {
         Ok(working) if working.starts_with(root) => return Entry::Someone(WorkingProcess { pid, program: program_of(entry), folder: WorkingFolder::Inside }),
         Ok(_elsewhere) => {
@@ -501,6 +548,17 @@ fn one_process(entry: &Path, pid: u32, root: &Path, git_dir: &Path, proc_root: &
             if !owned_by_this_account(entry) {
                 return Entry::Nobody;
             }
+            // A kernel thread and a process that ended hold no working folder at all, so neither can be inside.
+            if !can_hold_a_folder(proc_root, pid) {
+                return Entry::Nobody;
+            }
+            // A process in this command's own group or below it runs as this command's work does: a shell, an agent, a
+            //  build or a control's helper, which is what changes its folder into a worktree. So its age decides nothing:
+            //  it may be inside whatever its start, and the worktree stays.
+            if group_of(proc_root, pid).zip(own_group).is_some_and(|(theirs, ours)| return inside_the_group(ours, theirs.as_str())) {
+                return Entry::Someone(WorkingProcess { pid, program: program_of(entry), folder: WorkingFolder::Unreadable });
+            }
+            // A process that started after the worktree existed may have been started in it, so it keeps the worktree.
             if started_before(started_ago(proc_root, pid, uptime), worktree_age) {
                 return Entry::Nobody;
             }
@@ -626,12 +684,104 @@ fn without_deleted_suffix(target: &Path) -> &Path {
 const DELETED_SUFFIX: &str = " (deleted)";
 
 /// What:
-///  Whether a process that started this long ago cannot be working in a folder this young.
+///  The control group one process runs in,
+///  as the kernel names it,
+///  or nothing when that record cannot be read.
 /// Why:
-///   A working folder can only be a directory that existed when the process changed into it,
-///  so a process older than the worktree is outside it,
-///  and one younger may be inside,
-/// as may one whose age cannot be read.
+///   A process that hides its working folder still answers this one question:
+///  `/proc/<pid>/cgroup` is readable to the account that owns the process,
+///  and it names the slice, scope or service the process belongs to.
+///  It costs one small file read per hidden process and one for this command.
+///  It is what tells the processes that do a worktree's work from the services a session starts with:
+///  the first run in the group this command runs in, the second in another,
+///  and only the first is where a folder gets changed into a worktree
+///  (a review of this change,
+///  finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// groupOf('/proc', 4242) // '/user.slice/user-1000.slice/user@1000.service/app.slice/x.scope'
+/// ```
+fn group_of(proc_root: &Path, pid: u32) -> Option<String> {
+    let text: String = std::fs::read_to_string(proc_root.join(pid.to_string()).join("cgroup")).ok()?;
+    for line in text.lines() {
+        // The unified hierarchy's own line; a host with the older hierarchies names more than one and this reads the one
+        //  every process of this machine is in.
+        if let Some(path) = line.strip_prefix("0::") {
+            return Some(path.trim().to_owned());
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Whether the group `theirs` is this command's group or one below it.
+/// Why:
+///   A scope started from a command is a child of that command's own group,
+///  and a child of a group is where the command's own work runs,
+///  so the comparison is at a separator and never at a letter:
+///  `/a/b` holds `/a/b/c` and not `/a/bc`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// insideTheGroup('/x/run.scope', '/x/run.scope/child.scope') // true
+/// ```
+fn inside_the_group(ours: &str, theirs: &str) -> bool {
+    if theirs == ours {
+        return true;
+    }
+    let Some(rest): Option<&str> = theirs.strip_prefix(ours) else {
+        return false;
+    };
+    return rest.starts_with('/');
+}
+
+/// What:
+///  Whether a process can hold a working folder at all.
+/// Why:
+///   Two kinds of entry in the table cannot:
+///  a kernel thread has no user-space directory to be in,
+///  and a process that ended has given its folder up,
+///  so neither can be working in a worktree and neither is a reason to keep one.
+///  Both answers come from the one record the kernel still writes for a process that hides everything else
+///  (`/proc/<pid>/stat`: its state in field 3 and the `PF_KTHREAD` bit of its flags in field 9),
+///  so this costs one read and no more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// canHoldAFolder('/proc', 4242) // false for a kernel thread or a zombie
+/// ```
+fn can_hold_a_folder(proc_root: &Path, pid: u32) -> bool {
+    let Ok(stat) = std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")) else {
+        // A record that cannot be read proves nothing, and a scan that cannot prove a process holds no folder keeps the
+        //  worktree: this answer says only that the two kinds that cannot hold one are not what stands here.
+        return true;
+    };
+    let Some(after_name) = stat.rsplit_once(')') else {
+        return true;
+    };
+    let mut fields = after_name.1.split_whitespace();
+    let state: Option<&str> = fields.next();
+    if state == Some("Z") || state == Some("X") || state == Some("x") {
+        return false;
+    }
+    // The state was field 3, so the sixth field after it is field 9, which holds the flags.
+    let flags: Option<u64> = fields.nth(5).and_then(|one| return one.parse::<u64>().ok());
+    // `PF_KTHREAD` is bit 21 of the flags word (`include/linux/sched.h`).
+    const KERNEL_THREAD: u64 = 0x0020_0000;
+    return !matches!(flags, Some(bits) if bits & KERNEL_THREAD != 0);
+}
+
+/// What:
+///  Whether a process that started this long ago is old enough to be taken as outside a folder this young.
+/// Why:
+///   This is a narrowing and not a proof:
+///  a process older than a directory can still change its folder into it,
+///  which is why the caller keeps the worktree for a hidden process that is this command's own work
+///  whatever its start,
+///  and why the module's description says which process this answer can be wrong about.
+///  A pair of ages where either is unknown decides nothing,
+///  so a process whose age cannot be read keeps the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

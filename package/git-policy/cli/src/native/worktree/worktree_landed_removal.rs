@@ -128,7 +128,7 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
 use crate::worktree_landed_kept_retry::{RememberedKept, forget_kept, remembered_kept, remember_kept};
-use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_worktrees};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_rescue::snapshot_linked_worktrees;
@@ -546,7 +546,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     // path does (`snapshot_before_worktree_removal`): the sweep runs no such command, and without this its removals
     // destroyed those records with no word to anyone (a cross-vendor audit of `574063773d`, finding F3).
     sweep.rescue_problems = snapshot_linked_worktrees(place.common_dir);
-    let registered: Vec<Registration> = match registrations_of(place.common_dir) {
+    let registered: Vec<Registration> = match registered_worktrees(place.common_dir) {
         Ok(found) => found,
         Err(reason) => {
             sweep.failed = Some(reason);
@@ -634,7 +634,10 @@ fn worktrees_this_merge_may_remove<'a>(
     let mut removable: Vec<&'a Registration> = Vec::with_capacity(candidates.len() + earlier_kept.len());
     let mut already: HashSet<&Path> = HashSet::with_capacity(candidates.len() + earlier_kept.len());
     for one in registered {
-        if candidates.contains(one.branch.as_str()) && already.insert(one.worktree.as_path()) {
+        // A detached `HEAD` names no branch, so nothing landed on one there: only a candidate is skipped, never a
+        // registration, which the guard and the nested-worktree scan below still see.
+        let Some(branch) = one.branch.as_ref() else { continue };
+        if candidates.contains(branch.as_str()) && already.insert(one.worktree.as_path()) {
             removable.push(one);
         }
     }
@@ -682,19 +685,20 @@ fn kept_worktree_still_here<'a>(
     let one: &'a Registration = registered.iter().find(|one| return one.worktree == remembered.worktree)?;
     // The branch the removed worktree had, and no other: a worktree added again at this path for other work is not this
     // record's, and removing it would take a working folder nobody asked about.
-    if one.branch != remembered.branch {
+    if one.branch.as_ref() != Some(&remembered.branch) {
         return None;
     }
     if identity_standing_there(one.worktree.as_path(), one.admin.as_path()) != remembered.identity {
         return None;
     }
-    let landing: &Landing = landed.iter().find(|row| return row.reference == one.branch)?;
-    if !holds_its_own_commits(place.common_dir, one.branch.as_str(), landing.tip.as_str()) {
+    let branch: &String = one.branch.as_ref()?;
+    let landing: &Landing = landed.iter().find(|row| return &row.reference == branch)?;
+    if !holds_its_own_commits(place.common_dir, branch.as_str(), landing.tip.as_str()) {
         return None;
     }
     // The same witness the candidate path asks: another branch's own reflog naming this tip is the proof that the branch
     // was moved there rather than making it, and a worktree the fresh rule would keep stays here too.
-    if another_branch_took_the_tip(landed, place.common_dir, one.branch.as_str(), landing.tip.as_str(), this_merge) {
+    if another_branch_took_the_tip(landed, place.common_dir, branch.as_str(), landing.tip.as_str(), this_merge) {
         return None;
     }
     return Some(one);
@@ -713,38 +717,41 @@ fn kept_worktree_still_here<'a>(
 /// recordWhatBecameOf(place, registration, examined, sweep)
 /// ```
 fn record_what_became_of(place: &LandedPlace<'_>, one: &Registration, examined: Examined, sweep: &mut LandedSweep) {
+    // A candidate is a registration a branch landed for, so its `HEAD` names one; the words say so when it cannot be read,
+    // which is what every other line of the sweep says for the same state.
+    let branch: String = one.branch.clone().unwrap_or_else(|| return String::from("a head with no branch"));
     match examined {
         Examined::Removed => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+            sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: branch.clone() });
         }
         Examined::RemovedAround(left) => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), left });
+            sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: branch.clone(), left });
         }
         Examined::EmptiedAround => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.removed_emptied.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+            sweep.removed_emptied.push(RemovedWorktree { worktree: one.worktree.clone(), branch: branch.clone() });
         }
         Examined::Unfinished(report) => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report });
+            sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: branch.clone(), report });
         }
         Examined::Refused(report) => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report });
+            sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: branch.clone(), why: report });
         }
         Examined::Handed(record) => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record });
+            sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: branch.clone(), record });
         }
         Examined::Unproven => {
             forget_kept(place.common_dir, one.worktree.as_path());
-            sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
+            sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: branch.clone() });
         }
         Examined::Kept(why) => {
-            remember_kept(place.common_dir, one.worktree.as_path(), one.branch.as_str(), identity_standing_there(one.worktree.as_path(), one.admin.as_path()).as_str(), why.as_str());
-            sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why });
+            remember_kept(place.common_dir, one.worktree.as_path(), branch.as_str(), identity_standing_there(one.worktree.as_path(), one.admin.as_path()).as_str(), why.as_str());
+            sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: branch.clone(), why });
         }
     }
 }
@@ -916,7 +923,12 @@ fn examine_and_remove(
     if let Err(reason) = nothing_new_would_go_with_it(place.common_dir, one) {
         return Examined::Kept(reason);
     }
-    let look: SecondLook<'_> = SecondLook { common_dir: place.common_dir, proc_root: place.proc_root };
+    // The sweep leaves no process out, and that is the one place the owner's decision of 2026-11-14 does not reach: the
+    //  decision names the guard of a removal a person types. A merge that runs in a landed worktree must keep it, because
+    //  deleting the folder the merge itself is working in is what no automatic removal may do
+    //  (`a_landed_worktree_the_command_itself_was_started_in_stays`, and the loss `574063773d` it was written for).
+    let left_out: crate::worktree_process_inside::LeftOut = crate::worktree_process_inside::LeftOut::none();
+    let look: SecondLook<'_> = SecondLook { context: place.context, common_dir: place.common_dir, proc_root: place.proc_root, left_out: &left_out };
     if let Some(why) = why_the_worktree_stays(&look, one.worktree.as_path(), one.admin.as_path()) {
         return Examined::Kept(why);
     }

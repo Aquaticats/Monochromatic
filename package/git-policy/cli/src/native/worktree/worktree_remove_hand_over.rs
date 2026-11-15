@@ -921,7 +921,10 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
             kept.said.as_slice(),
         );
     }
-    let look: SecondLook<'_> = SecondLook { common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE) };
+    // This service and the chain it stands in are its own work, and a service holds the directory it walks open while it
+    //  proves a candidate may go: counting that descriptor would keep every worktree it was asked to remove.
+    let left_out: crate::worktree_process_inside::LeftOut = crate::worktree_process_inside::LeftOut::of_this_command(Path::new(PROCESS_TABLE), std::time::Instant::now() + crate::process_use::PROCESS_SCAN_CEILING);
+    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE), left_out: &left_out };
     if let Some(why) = why_the_worktree_stays(&look, target.as_path(), registration.admin.as_path()) {
         return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
     }
@@ -953,6 +956,15 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         }
         force = true;
         debug(TAG, format!("the removal of {} began and was cut short; it is finished now", target.display()).as_str());
+    }
+    // The look above was made before this service proved cleanliness, walked the tree and listed what will go, and
+    //  real Git's own removal is the instruction that deletes: a process can enter the worktree, and a worktree can be
+    //  registered inside it, in that window, so the same question is asked again here, immediately before Git is started
+    //  (a review of this change, finding 5). Real Git's run is the part this program cannot look inside, and what it
+    //  refuses there is stated where that window is measured (`worktree_removal_second_look.rs`).
+    let again: TheWorktreeStillStays<'_> = TheWorktreeStillStays { context: &context, common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE), target: target.as_path(), admin: registration.admin.as_path(), left_out: &left_out };
+    if let Some(why) = why_the_worktree_stays(&SecondLook { context: again.context, common_dir: again.common_dir, proc_root: again.proc_root, left_out: again.left_out }, target.as_path(), registration.admin.as_path()) {
+        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
     }
     let mut arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove")];
     if force {
@@ -990,6 +1002,57 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
 }
 
 /// What:
+///  The service's own last look:
+///  every condition the proof asks of a worktree,
+///  asked again immediately before anything is deleted.
+/// Why:
+///   The proof is made when the record is read and the removal runs later,
+///  after a walk of the tree and a listing of what will go,
+///  and a process that entered the worktree or a worktree registered inside it arrives in that window
+///  (a review of this change,
+///  finding 5).
+///  A named type stands where a closure would capture the three paths,
+///  because this codebase keeps closures out of calls like this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheWorktreeStillStays implements LastLook { ask() { ... } }
+/// ```
+struct TheWorktreeStillStays<'a> {
+    /// The common Git directory the registrations are read from.
+    common_dir: &'a Path,
+    /// The process table to read.
+    proc_root: &'a Path,
+    /// The worktree the record names.
+    target: &'a Path,
+    /// Its administrative directory.
+    admin: &'a Path,
+    /// The processes the scan leaves out,
+    /// which are this service and the chain it stands in.
+    left_out: &'a crate::worktree_process_inside::LeftOut,
+    /// How to start real Git,
+    /// which the question about a nested worktree's own work needs.
+    context: &'a GitContext,
+}
+
+impl crate::worktree_remove::LastLook for TheWorktreeStillStays<'_> {
+    /// The reason nothing is removed,
+    /// or nothing when every condition still holds.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ask() // throws the reason
+    /// ```
+    fn ask(&self) -> Result<(), String> {
+        let look: SecondLook<'_> = SecondLook { context: self.context, common_dir: self.common_dir, proc_root: self.proc_root, left_out: self.left_out };
+        return match why_the_worktree_stays(&look, self.target, self.admin) {
+            Some(why) => Err(why),
+            None => Ok(()),
+        };
+    }
+}
+
+/// What:
 ///  Remove the worktree around what someone else put inside it,
 ///  in this service's own process,
 ///  and say what was left where a person finds it.
@@ -1017,7 +1080,11 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
         Err(reason) => return Verdict::Retry(reason),
     };
     let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
-    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
+    // The same question, asked again inside the removal immediately before its destroy: a worktree registered inside this
+    //  one, or a record written into its Git directory, can arrive after the proof above it.
+    let left_out: crate::worktree_process_inside::LeftOut = crate::worktree_process_inside::LeftOut::of_this_command(Path::new(PROCESS_TABLE), std::time::Instant::now() + crate::process_use::PROCESS_SCAN_CEILING);
+    let again: TheWorktreeStillStays<'_> = TheWorktreeStillStays { context: &context, common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE), target, admin: registration.admin.as_path(), left_out: &left_out };
+    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: Some(&again) };
     match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
         RemoveOutcome::Removed => {
             // The record that says which worktree a half-done removal of this id was belongs to that removal, and the

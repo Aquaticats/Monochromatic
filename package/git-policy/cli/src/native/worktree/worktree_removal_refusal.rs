@@ -149,6 +149,68 @@ pub fn why_a_removal_is_refused(removal: &RemovalInQuestion<'_>) -> Option<Strin
 }
 
 /// What:
+///  The same question asked again as late as the wrapper can ask it.
+/// Why:
+///   The proof a typed removal makes is made where the command is judged,
+///  and the instruction that deletes follows a walk of the tree,
+///  a listing of what will go and, on the subvolume route, a rename:
+///  a process can enter the worktree, and a nested worktree can be added inside it,
+///  after the judgement and before the destroy,
+///  and a removal on the early answer deleted an edit made in that window
+///  (a review of this change,
+///  finding 5).
+///  So the caller passes this to the removal itself,
+///  which asks it after its own proof of cleanliness and immediately before the destroy,
+///  and to the route that leaves the removal to Git, which asks it immediately before Git is started.
+///  What it cannot close is stated where it is passed:
+///  the wrapper cannot look inside real Git's own run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheLookAgain { ask(): void } // throws the refusal
+/// ```
+pub struct TheLookAgain<'a> {
+    /// How to start real Git,
+    /// which the nested-worktree question needs.
+    pub context: GitContext,
+    /// The canonical common Git directory.
+    pub common_dir: &'a Path,
+    /// The process table to read.
+    pub proc_root: &'a Path,
+    /// The worktree's real path,
+    /// which is the target the guard decides about again.
+    pub target: &'a Path,
+    /// Whether the person forced the removal.
+    pub force: bool,
+}
+
+impl crate::worktree_remove::LastLook for TheLookAgain<'_> {
+    /// The reason nothing is removed,
+    /// or nothing when everything the guard asks for still holds.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ask() // throws the reason
+    /// ```
+    fn ask(&self) -> Result<(), String> {
+        // The target was resolved when the command was read, and an absolute real path is the same name the person's
+        //  spelling resolved to, so the question is asked about that path with no directory to read it from.
+        let question: RemovalInQuestion<'_> = RemovalInQuestion {
+            context: &self.context,
+            common_dir: self.common_dir,
+            proc_root: self.proc_root,
+            operand: self.target.as_os_str(),
+            command_directory: self.target.parent().unwrap_or(self.target),
+            force: self.force,
+        };
+        return match why_a_removal_is_refused(&question) {
+            Some(why) => Err(why),
+            None => Ok(()),
+        };
+    }
+}
+
+/// What:
 ///  Why this removal may not take `worktree`,
 ///  or nothing when nothing here keeps it.
 /// Why:
@@ -194,7 +256,7 @@ fn the_first_reason_to_keep(removal: &RemovalInQuestion<'_>, worktree: &Path, le
 /// ```ts
 /// aNestedWorktreeHoldsGitWork('/x', [{ worktree: '/x/nested', why: 'changed tracked files (`a.txt`)' }])
 /// ```
-fn a_nested_worktree_holds_git_work(target: &Path, holding: &[NestedHoldingGitWork]) -> String {
+pub(crate) fn a_nested_worktree_holds_git_work(target: &Path, holding: &[NestedHoldingGitWork]) -> String {
     let mut said: Vec<String> = Vec::with_capacity(holding.len());
     for one in holding {
         said.push(format!("`{}` holds {}", one.worktree.display(), one.why()));
@@ -237,7 +299,7 @@ fn working_process_keeps_it(target: &Path, why: &str) -> String {
 /// ```ts
 /// cannotTell('the process table ... stopped at its bound ...')
 /// ```
-fn cannot_tell(question: &str) -> String {
+pub(crate) fn cannot_tell(question: &str) -> String {
     return format!(
         "monochromatic-git-policy-cli: refusing to remove the worktree, because {question}, so nothing proves it is not working in it. Nothing was removed. Run the command again when that answer can be read, and if you have decided the worktree goes anyway, {ESCAPE_SENTENCE}"
     );

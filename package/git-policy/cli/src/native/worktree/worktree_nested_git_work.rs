@@ -17,7 +17,7 @@
 //!  The automatic routes already leave a worktree that holds a worktree this repository registers on a branch,
 //!  which is the stronger answer;
 //!  a nested worktree whose `HEAD` names no branch is invisible to their reader
-//!  (`registrations_of` keeps only branch-bearing registrations),
+//!  (`registered_worktrees` answers with every registration, the detached ones included),
 //!  so for that one this question is the only guard a typed removal has,
 //!  and the sweep's own gap is a separate change's;
 //!  this question is asked where a person types the removal,
@@ -33,7 +33,7 @@
 //! ```
 
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use crate::worktree_landed_registrations::{RegisteredWorktree, registered_worktrees};
+use crate::worktree_landed_registrations::{Registration, registered_worktrees};
 use crate::worktree_ladder_target::checkout_environment;
 use crate::worktree_removal_deletions::{DeletedEntries, HiddenMarks};
 use std::ffi::OsString;
@@ -149,7 +149,7 @@ pub fn nested_worktrees_holding_git_work(context: &GitContext, common_dir: &Path
 /// ```ts
 /// oneNestedWorktree(git, nested) // { worktree, changed, hidden, holdsACommitNothingElseNames }
 /// ```
-fn one_nested_worktree(context: &GitContext, nested: &RegisteredWorktree) -> Result<NestedHoldingGitWork, String> {
+fn one_nested_worktree(context: &GitContext, nested: &Registration) -> Result<NestedHoldingGitWork, String> {
     let changed: DeletedEntries = DeletedEntries::changed_tracked_of(context, nested.worktree.as_path(), Some(nested.admin.as_path()));
     if let Some(reason) = &changed.unreadable {
         return Err(reason.clone());
@@ -176,7 +176,7 @@ fn one_nested_worktree(context: &GitContext, nested: &RegisteredWorktree) -> Res
 /// ```ts
 /// detachedCommitNothingElseNames(git, nested) // boolean, or throws the reason
 /// ```
-fn detached_commit_nothing_else_names(context: &GitContext, nested: &RegisteredWorktree) -> Result<bool, String> {
+fn detached_commit_nothing_else_names(context: &GitContext, nested: &Registration) -> Result<bool, String> {
     // A `HEAD` that names a branch points at a reference of the common Git directory, which survives the removal,
     //  so only a detached one is a commit whose only name goes.
     if nested.branch.is_some() {

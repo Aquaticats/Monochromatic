@@ -24,7 +24,7 @@
 //! new NothingNewWouldGoWithIt({ commonDir, registration }).ask();
 //! ```
 
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{Registration, registered_worktrees};
 use crate::worktree_removal_rescue::snapshot_one;
 use crate::worktree_removal_second_look::{nested_worktree_reason, worktrees_inside};
 use crate::worktree_remove::LastLook;
@@ -102,7 +102,7 @@ pub(super) fn nothing_new_would_go_with_it(common_dir: &Path, one: &Registration
     if !unsaved.is_empty() {
         return Err(unsaved_records_reason(one.admin.as_path(), unsaved.as_slice()));
     }
-    let registered_now: Vec<Registration> = match registrations_of(common_dir) {
+    let registered_now: Vec<Registration> = match registered_worktrees(common_dir) {
         Ok(found) => found,
         Err(reason) => return Err(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
     };

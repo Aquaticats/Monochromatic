@@ -19,7 +19,7 @@ use crate::service_work::Verdict;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, remove, repository, shown_notices};
 use crate::worktree_added_by_the_wrapper::record;
 use crate::worktree_clean::check_clean;
-use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_before, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_before, registered_worktrees};
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_snapshot_promotion::files_of;
 use crate::worktree_remove::{Held as HeldDirectories, LinuxOperations, RemoveOperations, RemoveRequest};
@@ -1332,7 +1332,7 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     let registered_before: RegisteredBefore = registrations_now(&landed);
     // The list the sweep read before it began to examine candidates,
     // which names the worktree this merge landed and not the one a command adds below.
-    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
+    let registered: Vec<Registration> = registered_worktrees(landed.common.as_path()).expect("the registrations the sweep read");
     let outer: Registration = registered
         .iter()
         .find(|one| return one.worktree == landed.worktree)
@@ -1441,7 +1441,7 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
     let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-nested-during-the-proof", ".claude/\n");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
     let registered_before: RegisteredBefore = registrations_now(&landed);
-    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
+    let registered: Vec<Registration> = registered_worktrees(landed.common.as_path()).expect("the registrations the sweep read");
     let outer: Registration = registered
         .iter()
         .find(|one| return one.worktree == landed.worktree)
@@ -1510,7 +1510,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     let landed: Landed = a_repository_with_a_worktree("landed-push-notice-after-snapshot");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
     let registered_before: RegisteredBefore = registrations_now(&landed);
-    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
+    let registered: Vec<Registration> = registered_worktrees(landed.common.as_path()).expect("the registrations the sweep read");
     let outer: Registration = registered
         .iter()
         .find(|one| return one.worktree == landed.worktree)

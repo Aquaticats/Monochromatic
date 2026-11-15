@@ -199,7 +199,13 @@ pub fn remembered_kept(common_dir: &Path) -> Vec<RememberedKept> {
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(RECORD_SUFFIX.trim_start_matches('.')) {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else {
+        // A record read through `read_record_here`, which opens without waiting for a writer: a name a process made a
+        //  named pipe would otherwise hold the person's `git merge` for ever, and this reader had that shape
+        //  (a review of this change, finding 6).
+        let Ok(bytes) = crate::worktree_registration_proof::read_record_here(path.as_path(), "a kept worktree's record") else {
+            continue;
+        };
+        let Ok(text) = String::from_utf8(bytes) else {
             continue;
         };
         if let Some(one) = parsed(text.as_str()) {

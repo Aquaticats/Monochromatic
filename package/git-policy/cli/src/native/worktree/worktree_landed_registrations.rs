@@ -13,6 +13,11 @@
 //!  which did not exist when the merge landed,
 //!  so the command that runs the merge names the registrations it found before it started
 //!  and the sweep removes only those.
+//!  One registration left out for the state of its `HEAD` was a nested worktree a removal deleted with its parent
+//!  (a review of this change, finding 2),
+//!  and a pathname turned into text named nothing at all when a byte of it was not UTF-8
+//!  (finding 3),
+//!  so this reader keeps every registration and every path is the bytes Git recorded.
 //!  Every record of a registration is read by `worktree_registration_proof.rs`,
 //!  which opens without waiting for a writer:
 //!  a `gitdir` or a `HEAD` that a process names as a named pipe would otherwise hold the person's `git merge`
@@ -23,7 +28,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const registered = registrationsOf(commonDir); // throws the reason
+//! const registered = registeredWorktrees(commonDir); // throws the reason
 //! const before = registeredBefore(commonDir); // the names that existed before the merge
 //! ```
 
@@ -32,36 +37,30 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// One registration of the repository,
-/// as the sweep needs it.
+/// as every reader of registrations needs it.
+/// Why:
+///   A registration is the only list entry a repository owns,
+/// and a detached `HEAD` is a state a worktree can have:
+///  the sweep finds no candidate there,
+///  because nothing can land on a branch it does not have,
+///  while a removal's guard and its deletion record need the worktree named whatever its `HEAD` says.
+///  So one reader answers every caller and leaves no registration out for the state of its `HEAD`:
+///  a removal that read a shorter list took a nested worktree's changed files and its own record with it
+///  when that worktree was detached
+///  (a review of this change,
+///  finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Registration = { admin: string; worktree: string; branch?: string };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Registration {
     /// The administrative directory.
     pub(crate) admin: PathBuf,
-    /// The worktree root the registration names.
-    pub(crate) worktree: PathBuf,
-    /// The branch its `HEAD` names,
-    /// as a full ref name.
-    pub(crate) branch: String,
-}
-
-/// One registration of the repository,
-/// with the branch its `HEAD` names when it names one.
-/// Why:
-///   A registration is the only list entry a repository owns,
-/// and a detached `HEAD` is a state a worktree can have:
-/// the sweep has no candidate there,
-/// because nothing can land on a branch it does not have,
-/// while a report about the worktree still has to name it as the worktree it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RegisteredWorktree = { admin: string; worktree: string; branch?: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct RegisteredWorktree {
-    /// The administrative directory.
-    pub(crate) admin: PathBuf,
-    /// The worktree root the registration names.
+    /// The worktree root the registration names,
+    /// as the bytes the repository recorded,
+    /// which are not text on a filesystem that accepts any byte in a name.
     pub(crate) worktree: PathBuf,
     /// The branch its `HEAD` names,
     /// as a full ref name,
@@ -70,69 +69,64 @@ pub(crate) struct RegisteredWorktree {
 }
 
 /// What:
-///  Every linked worktree the repository registers,
-///  with the branch each one has checked out.
-/// Why:
-///   The registrations are the only list of worktrees this repository owns,
-///  and each one's `HEAD` names its branch without a Git start:
-///  a file read decides which candidates exist,
-///  and Git runs only for a branch that landed.
-///  A worktree on a detached `HEAD` names no branch,
-///  so it is no candidate:
-///  nothing can land on a branch it does not have.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const registered = registrationsOf(commonDir); // throws the reason
-/// ```
-pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, String> {
-    let mut found: Vec<Registration> = Vec::new();
-    for one in registered_worktrees(common_dir)? {
-        let Some(branch) = one.branch else { continue };
-        found.push(Registration { admin: one.admin, worktree: one.worktree, branch });
-    }
-    return Ok(found);
-}
-
-/// What:
 ///  Every registration of the repository,
 ///  in one listing of its `worktrees` folder,
 ///  with the branch each one's `HEAD` names when it names one.
 /// Why:
-///   The sweep and the report ask the same files the same question,
-/// and only what they keep differs:
-/// one
-///  needs a branch,
-/// the other needs the registration.
+///   Every reader asks the same files the same question,
+/// so there is one reader:
+///  the sweep, the removal's guard, the report of what a removal deletes and the nested-worktree scan
+///  all see every registration,
+///  and a caller that needs a branch is the one that skips the registrations without one.
+///  A list that left the detached ones out answered a removal's guard with a shorter list than the repository has,
+///  and a nested worktree on a detached `HEAD` then went with its parent
+///  (a review of this change,
+///  finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const registered = registeredWorktrees(commonDir); // throws the reason
 /// ```
-pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
+pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<Registration>, String> {
     let folder: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", folder.display())),
     };
-    let mut found: Vec<RegisteredWorktree> = Vec::new();
+    let mut found: Vec<Registration> = Vec::new();
     for entry in listing.flatten() {
         let admin: PathBuf = entry.path();
         let Some(worktree) = registered_worktree(admin.as_path()) else {
             continue;
         };
         let branch: Option<String> = head_branch(admin.as_path());
-        found.push(RegisteredWorktree { admin, worktree, branch });
+        found.push(Registration { admin, worktree, branch });
     }
     return Ok(found);
 }
 
-/// The worktree root a registration's `gitdir` file names,
+/// What:
+///  The worktree root a registration's `gitdir` file names,
 /// when that root is still a directory.
+/// Why:
+///   The record holds the bytes Git wrote,
+///  and a Git pathname is those bytes:
+///  a name that is not UTF-8 decoded into text names nothing,
+///  so a nested worktree whose name held one byte was invisible to the guard and to the deletion record,
+///  and an unforced removal deleted its tracked edit with no refusal and no entry
+///  (a review of this change,
+///  finding 3).
+///  Nothing between this read and the comparisons, the refusal and the record turns them into text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recorded = Buffer.from(readRecord(admin + '/gitdir')).trimEnd();
+/// ```
 fn registered_worktree(admin: &Path) -> Option<PathBuf> {
-    let text: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").ok()?;
-    let recorded: PathBuf = PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
+    use std::os::unix::ffi::OsStrExt as _;
+    let recorded_bytes: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").ok()?;
+    let recorded: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(recorded_bytes.trim_ascii_end()));
     let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
     let root: PathBuf = std::fs::canonicalize(pointer.parent()?).ok()?;
     return root.is_dir().then_some(root);

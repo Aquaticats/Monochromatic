@@ -50,7 +50,8 @@ use crate::rule_require_root::{RequireRootDecision, decide_require_root};
 /// The variable that names the forbidden-strings rules list.
 use crate::scanner_selection::RULES_VARIABLE;
 use crate::wrapped_command::{WrappedOutcome, run_wrapped_command};
-use crate::wrapper_controls::{Controls, no_controls, strip_global_controls};
+use crate::policy_registry::PolicyId;
+use crate::wrapper_controls::{Controls, is_escaped, no_controls, strip_global_controls};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::worktree_copy_forward::run_forwarded_git;
 use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
@@ -315,6 +316,7 @@ fn plan_with_real_git(
                     stderr,
                     environment,
                     copy_bypassed,
+                    is_escaped(&stripped.controls, PolicyId::LinkedWorktreeOnly),
                     &mut checks,
                 ),
                 environment,

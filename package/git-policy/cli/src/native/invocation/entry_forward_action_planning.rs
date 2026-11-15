@@ -65,6 +65,7 @@ pub(crate) fn forward_action(
     stderr: String,
     environment: &[(OsString, OsString)],
     copy_bypassed: bool,
+    escaped_the_linked_worktree_policy: bool,
     checks: &mut ShippedChecks<GitFacts>,
 ) -> Action {
     let context: GitContext = GitContext {
@@ -132,6 +133,7 @@ pub(crate) fn forward_action(
                 destination,
                 add_plan,
                 remove_plan,
+                removal_escaped: escaped_the_linked_worktree_policy,
                 quiet,
             })
         } else {

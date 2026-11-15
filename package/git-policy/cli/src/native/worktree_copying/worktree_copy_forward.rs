@@ -28,6 +28,7 @@ use crate::hooks_off::StartOwner;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
+use crate::worktree_removal_refusal::TheLookAgain;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
 /// What a removal deletes of the files Git ignores and of a nested worktree's files,
@@ -69,6 +70,12 @@ pub struct CopyFacts {
     /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
     ///  absent for every other command.
     pub remove_plan: Option<RemovePlan>,
+    /// Whether the person escaped the linked-worktree policy for this command,
+    /// which is what makes a removal run exactly as real Git runs it.
+    /// Why:
+    ///   The escape is a promise that nothing of this program's stands between the person and Git,
+    ///  so the removal's own last look is not asked at all when it holds.
+    pub removal_escaped: bool,
     /// Whether the person asked a `git worktree add` for `--quiet`,
     /// read from the words whether or not the ladder serves the form,
     /// so a plainly run add prints no line a quiet one would suppress.
@@ -380,8 +387,22 @@ fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo>
 /// ```
 #[cfg(unix)]
 fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], facts: &CopyFacts) -> ForwardedRun {
+    #[cfg(unix)]
+    use std::io::Write as _;
+    // The guard this command passed is a judgement of a moment, and the moment has passed: its proof of cleanliness, the
+    //  listing of what will go and, on the subvolume route, a rename stand between it and the instruction that deletes. So
+    //  the same question is asked again here, as late as this program can ask it, and again inside the removal
+    //  immediately before the destroy. A process can enter the worktree, and a nested worktree can be added inside it, in
+    //  that window, and a removal on the early answer deleted an edit made there (a review of this change, finding 5).
+    let again: Option<TheLookAgain<'_>> = the_look_again(real_git, overlay, facts);
+    if let Some(look) = &again
+        && let Err(why) = crate::worktree_remove::LastLook::ask(look)
+    {
+        let _closed = writeln!(std::io::stderr(), "monochromatic-git-policy-cli: refusing to remove the worktree {}: {why}", facts.remove_plan.as_ref().expect("a removal plan").target.display());
+        return ForwardedRun::Ran(1);
+    }
     #[cfg(target_os = "linux")]
-    if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
+    if let Some(finished) = remove_by_subvolume(real_git, overlay, facts, again.as_ref()) {
         return finished;
     }
     // A removal Git makes itself deletes the files it ignores without a word, so what is there is read before Git runs and
@@ -403,6 +424,40 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
         record_removal_deleted(common.as_path(), begun, facts.remove_plan.as_ref().expect("a removal plan").target.as_path());
     }
     return finished;
+}
+
+/// What:
+///  The removal guard's question, ready to be asked again immediately before anything is deleted,
+///  or nothing when this run removes no worktree or the person forced it.
+/// Why:
+///   A forced removal asks nothing,
+///  and no other command has a worktree to ask about,
+///  so the look is built only for the form it is about.
+///  The target is the worktree's real path,
+///  read when the command was judged,
+///  and the guard decides about that path again rather than about the spelling the person typed,
+///  which is the name it resolved to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theLookAgain(realGit, overlay, facts) // TheLookAgain | undefined
+/// ```
+#[cfg(unix)]
+fn the_look_again<'a>(real_git: &Path, overlay: &[(OsString, OsString)], facts: &'a CopyFacts) -> Option<TheLookAgain<'a>> {
+    let plan = facts.remove_plan.as_ref()?;
+    // A forced removal asks nothing, and neither does one the person escaped the policy for: the escape promises the
+    //  removal runs exactly as real Git runs it.
+    if plan.force || facts.removal_escaped {
+        return None;
+    }
+    let common_dir: &'a Path = common_directory(&facts.identity)?;
+    return Some(TheLookAgain {
+        context: removal_git_context(real_git, overlay),
+        common_dir,
+        proc_root: Path::new(crate::worktree_process_inside::PROCESS_TABLE),
+        target: plan.target.as_path(),
+        force: plan.force,
+    });
 }
 
 /// What:
@@ -442,7 +497,7 @@ fn removal_git_context(real_git: &Path, overlay: &[(OsString, OsString)]) -> cra
 /// facts.removePlan === undefined ? undefined : outcomeToRun(await removeSubvolumeWorktree(request))
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
+fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts, again: Option<&TheLookAgain<'_>>) -> Option<ForwardedRun> {
     use std::io::Write;
     use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
     let plan = facts.remove_plan.as_ref()?;
@@ -453,7 +508,13 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None });
+    // The last look this removal can take, asked after its own proof of cleanliness and immediately before the destroy:
+    //  what the caller proved before it is a judgement of a moment that has passed.
+    let last_look: Option<&dyn crate::worktree_remove::LastLook> = match again {
+        Some(found) => Some(found),
+        None => None,
+    };
+    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look });
     match outcome {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace => {

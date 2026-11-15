@@ -234,7 +234,8 @@ fn a_non_writer_with_a_copy_runs_settled() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: None,
+        removal_escaped: false,
+            remove_plan: None,
         quiet: false,
     });
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::Ran(0));

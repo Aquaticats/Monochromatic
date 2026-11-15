@@ -30,8 +30,10 @@
 //! ```
 
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
-use crate::worktree_landed_registrations::{Registration, registrations_of};
-use crate::worktree_process_inside::{ProcessWorking, process_working_inside};
+use crate::worktree_landed_registrations::Registration;
+use crate::worktree_nested_git_work::nested_worktrees_holding_git_work;
+use crate::worktree_removal_refusal::{a_nested_worktree_holds_git_work, cannot_tell};
+use crate::worktree_process_inside::{ProcessWorking, process_working_inside_left_out};
 use crate::worktree_removal_rescue::snapshot_one;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
@@ -72,14 +74,27 @@ const BISECT_MARK_PREFIX: &str = "BISECT_";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SecondLook = { commonDir: string; procRoot: string };
+/// type SecondLook = { context: GitContext; commonDir: string; procRoot: string; leftOut: LeftOut };
 /// ```
 pub(crate) struct SecondLook<'a> {
+    /// How to start real Git,
+    /// which the question about a nested worktree's own work needs.
+    pub(crate) context: &'a crate::transaction_git::GitContext,
     /// The canonical common Git directory,
     /// which owns every registration.
     pub(crate) common_dir: &'a Path,
     /// The process table to read.
     pub(crate) proc_root: &'a Path,
+    /// The processes the scan leaves out:
+    ///  this command and the processes it stands in a chain with.
+    /// Why:
+    ///   A removal's own process and its parents are its own work and not strangers in the worktree
+    ///  (the owner's decision of 2026-11-14),
+    ///  and a service that removes a worktree holds the directory it walks open,
+    ///  which a scan that counted every descriptor would read as a person's program using the worktree
+    ///  (a review of this change,
+    ///  finding 5).
+    pub(crate) left_out: &'a crate::worktree_process_inside::LeftOut,
 }
 
 /// What:
@@ -108,13 +123,14 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     // A worktree a command added inside this one is in the registrations only once that command has finished, so the
     // list any earlier reading answered with proves nothing about it: a removal of the outer one takes the nested
     // worktree's changed files and its own record with it (a cross-vendor review of the landed sweep, round 208).
-    let registered: Vec<Registration> = match registrations_of(look.common_dir) {
-        Ok(found) => found,
-        Err(reason) => return Some(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
-    };
-    let inside: Vec<&Registration> = worktrees_inside(worktree, registered.as_slice());
-    if !inside.is_empty() {
-        return Some(nested_worktree_reason(inside.as_slice()));
+    // A worktree registered inside this one keeps it only while it holds Git work no other copy has: an edit to a tracked
+    //  file, a mark that hides one, or a commit no reference names. A nested worktree holding none of those goes with the
+    //  removal and is recorded, which is the owner's decision of 2026-11-12 ("Delete ignored, spare busy"). The question is
+    //  Git's own answer, so it is asked of Git and only when a registration is nested at all.
+    match nested_worktrees_holding_git_work(look.context, look.common_dir, worktree) {
+        Ok(holding) if holding.is_empty() => {}
+        Ok(holding) => return Some(a_nested_worktree_holds_git_work(worktree, holding.as_slice())),
+        Err(reason) => return Some(cannot_tell(format!("nothing shows whether a worktree inside it holds work of yours ({reason})").as_str())),
     }
     if admin.join("locked").exists() {
         return Some(String::from("it is locked, and a lock is a promise to keep it"));
@@ -129,7 +145,7 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
-    match process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
+    match process_working_inside_left_out(worktree, admin, look.proc_root, age_of(worktree), look.left_out) {
         ProcessWorking::Nobody => {}
         ProcessWorking::Someone(working) => return Some(working.why()),
         // A scan that did not finish proves nothing about the rest of the table, and a removal on it would take the
