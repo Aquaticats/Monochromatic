@@ -1301,6 +1301,66 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The first two reviews on Kimi: six reproduced defects in the queue filling, back to its author; the drawn tree's read one commit of twelve files' range and goes on (2026-11-14T19:04:12-05:00)
+
+Not final and not approved:
+what two reviews report,
+and how the coordinating session weighed them.
+
+- **The queue of runs filled from the package** (`a634fbf060`),
+  third review,
+  the first on Kimi,
+  ended 18:58:13:
+  six things,
+  each reproduced through the code's own seams with seven scripts.
+  One entry can be handed to two batch units
+  (two fillings at once;
+  a filling killed between its start and its removal);
+  a completed start removes by name and can delete a replacement queued under that name;
+  the lock is called broken for its age alone and taken from a holder that is alive,
+  whose later write then discards the taker's change;
+  a reused name makes the recovery sweep delete a valid set-aside,
+  the entry's only record;
+  a review that starts during a put-back is queued again;
+  and a newest attempt that was killed before its summary blocks the put-back without end.
+  This session weighs all six as worth their fix:
+  each loses an entry or runs one twice in the tool that carries every run here.
+  Four are one thing,
+  an entry with no single owner at each instant,
+  and the widened lock of the last answer is what the review took apart.
+  The author is resumed and held to the project's rule on concurrency
+  (`AGENTS.md`, rule `NLK`: lock-free first;
+  a lock that stays has its reason beside it and is never taken from a live holder),
+  asked first for the states of an entry and the one step between each two
+  (`~/temp/agent/pi-runs/queue-of-runs-filled-from-the-package-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The drawn shadow tree** (`be2299c325`),
+  fourth review,
+  on Kimi,
+  ended 19:00:57 with "No concrete defects found".
+  This session does not count it as a clean review,
+  for two things its own file shows.
+  It read one commit
+  (`git diff --check be2299c325^ be2299c325`,
+  "the production edit" and "the other edit"),
+  where the range it was given changes twelve code files.
+  And two of the change's own three binary controls failed in its run
+  (a marker that never appeared;
+  a timing record without its `shadow went` part),
+  which it set aside as scenarios that were not established;
+  the author reports them passing.
+  The reviewer is resumed on Kimi to read the whole range and to find by runs why the two failed
+  (`…/go-on-with-the-review-of-the-drawn-shadow-tree-over-the-whole-range-it-was-given-prompt.md`).
+- **What the two say of the reviewer that stands in**,
+  as far as two reviews can:
+  one was as deep as the Qwen reviews before it,
+  with a script for every finding;
+  the other mistook its scope.
+  Each review on Kimi is read whole for its scope before its verdict is taken.
+- Read at 19:02:50:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  Neither resumed session is named by the credential scan.
+
 ##### Four authors' answers go to review on Kimi, the landing's first (2026-11-14T18:58:04-05:00)
 
 Not final and not approved:
