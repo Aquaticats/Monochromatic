@@ -1639,6 +1639,94 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The drawn shadow tree: a file lost from a commit's scratch can end in a commit nobody wrote; the address-space controls have one small finding left (2026-11-15T08:25:36-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+what it measured,
+and what it queued.
+
+- **The drawn shadow tree** (`2c9848ce0a`),
+  its sixth review,
+  ended 08:18:41,
+  15 of 15 files,
+  the wrapper built,
+  four things,
+  three reproduced through the built wrapper at the branch's own pause after the shadow is built,
+  none a repeat:
+  - with `MERGE_HEAD` deleted from the shadow,
+    a merge's commit exits 0 with one parent,
+    and the real `MERGE_HEAD` is removed;
+  - with the private `commit.index` deleted,
+    the commit exits 0 with the empty tree,
+    every tracked file gone from history;
+  - with the shadow's `reftable` deleted,
+    the commit fails with Git's I/O error and is not built again;
+  - by reading:
+    the sweep lists a tree as stale and removes it later without asking again,
+    which needs a step of the wall clock inside a window of microseconds.
+- **Weighed**:
+  all four go back.
+  The first two are the gravest outcome a commit has,
+  whoever removes the file.
+  The author is asked to hold the commit that Git made against what was captured
+  (its parents;
+  its tree,
+  or at least never the empty tree where the captured index held entries)
+  before the branch moves and before the real merge state is touched,
+  as a suggestion marked as one,
+  and to say why its shape covers every file and every instant.
+  It is asked first whether `main` has the first two,
+  by a run against the wrapper built from `main`.
+  Its seventh run is queued second
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-sixth-review-of-2026-11-15-prompt.md`).
+- **Measured here**,
+  because the second could have happened already:
+  of 15,161 commits on every ref of this repository since 2026-11-01,
+  none has Git's empty tree.
+  That says no commit here ended that way;
+  it does not say `main` cannot do it,
+  which the author's run decides.
+- **The controls of a service under an address-space limit** (`f24d1b9ebd`),
+  their third review,
+  ended 08:19:53,
+  six of six files,
+  the binary tests compiled and four controls run by name,
+  one thing,
+  by reading,
+  and no other defect:
+  the case above the boundary may be refused without the control failing,
+  because any landing of the sweep satisfies the count.
+  Read here as well:
+  the control's doc says that case "carries the landing",
+  and the assertions do not hold it to that.
+  **Weighed**:
+  small,
+  and still worth its fix,
+  so by the reading adopted at 05:45 it counts as open.
+  Its author's fifth run is queued fifth,
+  asked to find which is true
+  (the case always lands,
+  or the doc says too much)
+  and to write that.
+  It is the last thing between this branch and a pass.
+- **The temperature**,
+  read at 08:23:21:
+  56.3 degrees,
+  budget 32.0 threads,
+  15.5 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:23:22:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused in either filling unit since 08:13;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
+  The queue held 86 entries at 08:25:36.
+
 ##### The gate on `0.6.1-alpha.41` fails 13 of 9,125: pass 52's three library tests pass; the filling unit is restarted (2026-11-15T08:17:41-05:00)
 
 Not final and not approved:
