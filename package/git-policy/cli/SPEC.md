@@ -7943,6 +7943,15 @@ on the commit path:
   (two commits waited 120,560 ms and 78,864 ms in the queue on 2026-11-15 while that drive stalled, and a read of the
   same drive held a commit 6,156 ms in the control that replaced the write with it,
   `doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+  A withdrawal is answered "it has not begun to land and never will" only when this service holds its journal alone:
+  each service takes a place in the journal's `services` directory when it starts (an exclusive create, no lock, its
+  process birth identity in the record) and removes it when it ends,
+  and a place whose process is gone is taken away as it is found
+  (`service/service_journal_holders.rs`).
+  With another live service over the same journal, the promise is not this service's to make,
+  so the withdrawal is left unanswered with the words of why and the client's own ceiling ends the wait with the
+  result not known, which is true.
+  Production has one service per journal by socket activation, so the promise is made there as before.
   The landing thread claims a request in memory and writes down, at that same moment, what the queue wait was in;
   a connection thread that would withdraw a request the landing thread holds leaves it to the landing thread;
   and a withdrawal of a request the landing thread does not hold is decided by whichever withdrawer takes the identity
@@ -17387,6 +17396,13 @@ while the newest ones are read into memory before the first landing
 The steps a start does take before it reads its queue each say which one they are,
 in the journal and to the client that waits,
 when they take longer than `A_START_STEP_NAMED_AFTER`.
+Every file step the after-commit work's task takes goes through one door
+(`service/service_file_work_off_the_workers.rs`):
+a job of the blocking pool awaited under a ceiling,
+so no worker of the runtime waits in a file,
+and at the ceiling the job is left behind and the loop goes on without what it held.
+A source guard fails when a synchronous file helper or a blocking receive is written in an `async` body of this crate
+outside such a job (`source_guard/blocking_code_off_the_runtime_tests.rs`, `blocking-helper-on-a-task`).
 The age is the whole life of a client of the record (`service/wait_ceilings.rs`):
 the wait for the answer,
 inside which every resend of the request happens (`ANSWER_CEILING`),

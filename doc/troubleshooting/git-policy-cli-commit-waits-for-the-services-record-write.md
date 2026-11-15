@@ -415,6 +415,102 @@ and how long,
 and a commit that waits past its own bound is told the step in the service's notice and in the client's
 own words.
 
+## What the second review found, and what answered each
+
+The review of 2026-11-15 read the whole range and found three things the change had moved;
+two it reproduced in a
+disposable copy of the source.
+
+- **A second live service confirmed a withdrawal the first was landing.**
+  A decision kept in one service's memory holds only where one service is the only one:
+  the withdrawal that reached the
+  second service saw its own empty group,
+  no journal record,
+  and answered `Withdrawn`,
+  while the first service could
+  still land the request.
+  Every service takes a place in `<journal>/services/` when it starts,
+  and answers that promise only when it is the
+  journal's only live holder (`service_journal_holders.rs`);
+  otherwise the landing thread says why and leaves the answer
+  to the client's own ceiling,
+  which reports the result not known,
+  which is true.
+  The place is an exclusive create at a start and a cached listing on a withdrawal's own job:
+  nothing of it is on the
+  path a commit waits on.
+- **The wait for the restored journal stood on the runtime's only worker.**
+  With one worker,
+  which the runtime plan permits,
+  the after-commit task called the synchronous `restored_within` on it,
+  so a client that connected meanwhile was greeted by nobody.
+- **The write of the watch note stood on the same worker,
+  with no bound.**
+  `watch.remember` creates directories and writes a file,
+  and a journal drive that stopped answering there held every
+  client of the service.
+
+Both of the second two are one thing,
+and are answered at one place:
+`service_file_work_off_the_workers.rs` is the door every file step of that task goes through,
+a job of the blocking pool awaited under a ceiling,
+so the worker greets and beats while the job waits.
+The read of the plan and the watch keeps its own ceiling plus five seconds at the door,
+and the write of a watch note has `WATCH_NOTE_WRITE_CEILING` (5 s,
+the client's own silence window and the pause the
+loop already takes between looks);
+at either,
+one line says which step it was,
+the job is left behind,
+and the loop goes on without what it held.
+A guard rule fails when a synchronous file helper is called from an `async` body of this crate outside such a job
+(`blocking-helper-on-a-task`,
+whose list is the service's own helpers that read or write),
+and the guard's pool calls now include the door,
+so a fourth such call cannot be written without failing the scan.
+The rule found one place the review did not name:
+the work loop's own retry of an unwritten note called `remember` for
+a watch with no store,
+which writes nothing;
+that branch now says so by the name it calls
+(`remember_in_memory`).
+
+The controls,
+before and after (each fix taken out by an edit and put back):
+
+```text
+control 1, at the tip:        Withdrawn(...)  where Queued is the answer
+control 2, at the tip:  with one worker, the read at a start held the only worker and no client was greeted
+control 3, at the tip:  with one worker, the write of the watch note held the only worker and no client was greeted
+all three at the fix:         3 tests run, 3 passed
+```
+
+The measurement of the start step,
+both arms interleaved on the same machine within the hour,
+the removal of old records held in every run (`held=true` in each):
+
+- this tip:
+  five runs,
+  122,
+  188,
+  122,
+  340,
+  234 ms;
+  median 188 ms.
+- the tip the round started from:
+  five runs,
+  198,
+  446,
+  163,
+  122,
+  1,108 ms;
+  median 198 ms.
+- the bound is 5,000 ms,
+  and the same control on the code before the start fix read 6,081 ms.
+
+So the three answers cost a first commit after a start nothing,
+and the wait they were about is not back.
+
 ## The controls that keep it from coming back
 
 - `binary/binary_commit_while_a_decision_record_is_held_tests.rs::
@@ -431,5 +527,14 @@ own words.
   a_first_commit_after_a_start_is_answered_while_the_old_records_are_removed`
 - `binary/binary_a_first_commit_after_a_start_tests.rs::
   a_start_step_a_commit_waits_for_names_itself`
+- `service/service_busy_tests.rs::a_second_service_of_one_journal_never_confirms_a_withdrawal_it_does_not_hold`
+- `service/service_journal_holders_tests.rs::a_journal_is_alone_until_a_second_service_takes_a_place_in_it`
+- `service/service_server_greets_before_the_journal_is_restored_tests.rs::`
+  `a_client_is_greeted_while_the_journals_read_is_held_with_one_worker`
+- `service/service_server_greets_before_the_journal_is_restored_tests.rs::`
+  `a_client_is_greeted_while_the_watch_note_is_held_with_one_worker`
+- `service/service_file_work_off_the_workers_tests.rs::a_worker_is_free_while_the_job_runs`
+- `source_guard/blocking_code_off_the_runtime_tests.rs` and its rules,
+  where `blocking-helper-on-a-task` names the helpers a task may not call
 - `source_guard/service_lock_inventory_tests.rs`,
   which now names `service/service_busy.rs` and checks the reason beside its lock
