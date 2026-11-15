@@ -2462,12 +2462,6 @@ await describe({
           processFolder,
           workLeftRunning: async () => [],
         },);
-        // A failure here must not leave the run's own rejection unhandled; the test reads it again below.
-        void firstRun.catch(function handled() {},);
-        await waitForFeedProblem({
-          runFolder,
-          text: 'cannot read the start time of its own process',
-        },);
         /**
          The messages the second driver sent.
          */
@@ -2480,22 +2474,30 @@ await describe({
           'second-feed.jsonl',
         ), },);
         /**
-         What the second driver made of the message, which its own process start lets it claim.
+         What the second driver made of the message, which its own process start lets it claim, once the first run has said it
+         cannot claim it.
          */
-        const second = await deliverReadyMessage({
-          watch: {
-            connection: answeringConnection({ sent: sentBySecond, },),
-            record: secondRecord,
-            options: optionsOf({ runFolder, },),
-            inbox,
-            deadline: Date.now() + HOLD_MILLISECONDS,
-            processFolder: '/proc',
-          },
-          name: MESSAGE_NAME,
-        },);
+        const secondDelivery = (async () => {
+          await waitForFeedProblem({
+            runFolder,
+            text: 'cannot read the start time of its own process',
+          },);
+          return await deliverReadyMessage({
+            watch: {
+              connection: answeringConnection({ sent: sentBySecond, },),
+              record: secondRecord,
+              options: optionsOf({ runFolder, },),
+              inbox,
+              deadline: Date.now() + HOLD_MILLISECONDS,
+              processFolder: '/proc',
+            },
+            name: MESSAGE_NAME,
+          },);
+        })();
+        // Both are awaited together, so a failure in either leaves neither unhandled.
+        const [endReason, second,] = await Promise.all([firstRun, secondDelivery,],);
         expect(second,).toEqual({ ending: 'taken', },);
         expect(sentBySecond,).toEqual([MESSAGE_TEXT,],);
-        const endReason = await firstRun;
         expect(endReason,).toBe('wall-clock',);
         /**
          What the first run says about the message another driver took.

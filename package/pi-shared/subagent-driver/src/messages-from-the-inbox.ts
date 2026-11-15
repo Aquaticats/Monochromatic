@@ -23,6 +23,7 @@ import {
   type HeldMessage,
   ClaimOwnerUnreadableError,
   claimMessage,
+  entryOrNothing,
   noteMessageNotTaken,
   removeOwnerFolderOf,
 } from './claims-of-an-inbox.ts';
@@ -370,10 +371,24 @@ export function holdMessagesTheRunOwes(watch: WatchRequest,): MessagesTheRunOwes
         watch,
         held: claimed,
       },);
+      /* oxlint-disable eslint/no-await-in-loop -- one message after another, each looked at before it is named; see
+         doc/lint/sequential-awaits.md */
       for (const name of unclaimable) {
-        watch.record
-          .noteMessageNotTaken(name,);
+        // The summary says what is true when it is written: a name this driver could not claim is named only if its message is
+        // still in the inbox, because another driver may have claimed it and Pi may have taken it whole.
+        /**
+         What is in the inbox under that name, or nothing when it has gone.
+         */
+        const stillThere = await entryOrNothing(join(
+          watch.inbox,
+          name,
+        ),);
+        if ((typeof stillThere) !== 'symbol') {
+          watch.record
+            .noteMessageNotTaken(name,);
+        }
       }
+      /* oxlint-enable eslint/no-await-in-loop */
     },
   };
 }

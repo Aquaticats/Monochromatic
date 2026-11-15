@@ -13,7 +13,10 @@
  @module
  */
 
+import { randomUUID, } from 'node:crypto';
+import { constants as fileConstants, } from 'node:fs';
 import {
+  copyFile,
   link as linkOnDisk,
   lstat,
   mkdir,
@@ -336,17 +339,36 @@ export async function removeClaimOwnerFolder(ownerFolder: string,): Promise<void
 }
 
 /**
- Takes a claim's owner folder away once it holds no claim.
+ Takes a claim's folder away, and its owner's folder and the claims folder with it, once each is empty.
 
- @param claim - where a message was, whose owner folder is to go when it is empty
+ @param claim - where a message was
 
  @example
  ```ts
- await removeOwnerFolderOf('/runs/a-1/inbox/.claims/4242-123456/m.txt',);
+ await removeClaimFolderOf('/runs/a-1/inbox/.claims/4242-123456/9a1b/m.txt',);
+ ```
+ */
+export async function removeClaimFolderOf(claim: string,): Promise<void> {
+  /**
+   The folder one claim lives in.
+   */
+  const claimFolder = dirname(claim,);
+  await removeFolderIfEmpty(claimFolder,);
+  await removeClaimOwnerFolder(dirname(claimFolder,),);
+}
+
+/**
+ Takes a claim's owner folder away once it holds no claim.
+
+ @param claim - where a message was
+
+ @example
+ ```ts
+ await removeOwnerFolderOf('/runs/a-1/inbox/.claims/4242-123456/9a1b/m.txt',);
  ```
  */
 export async function removeOwnerFolderOf(claim: string,): Promise<void> {
-  await removeClaimOwnerFolder(dirname(claim,),);
+  await removeClaimFolderOf(claim,);
 }
 
 /**
@@ -463,19 +485,35 @@ export async function claimMessage({
     { recursive: true, },
   );
   /**
+   The claim's own folder, named by an identifier nothing else can hold, so this claim can never land on another one: a second
+   message published under the same name is claimed into a folder of its own, and a claim left by an earlier failed keep stays.
+   */
+  const claimFolder = join(
+    ownerFolder,
+    randomUUID(),
+  );
+  await mkdir(claimFolder,);
+  /**
    Where the claim goes, under the message's own name so a person and a later driver both read what it was.
    */
   const claimed = join(
-    ownerFolder,
+    claimFolder,
     name,
   );
-  await rename(
-    join(
-      watch.inbox,
-      name,
-    ),
-    claimed,
-  );
+  try {
+    await rename(
+      join(
+        watch.inbox,
+        name,
+      ),
+      claimed,
+    );
+  }
+  catch (error) {
+    // A claim that did not happen leaves no empty folder behind.
+    await removeFolderIfEmpty(claimFolder,);
+    throw error;
+  }
   return claimed;
 }
 
@@ -498,8 +536,11 @@ async function publishKept({
 }: {
   readonly claim: string;
   readonly target: string;
-  readonly link: (existing: string, created: string,) => Promise<void>
-},): Promise<'published' | 'name-taken' | 'kept-by-rename'> {
+  readonly link: (
+    existing: string,
+    created: string,
+  ) => Promise<void>
+},): Promise<'published' | 'name-taken'> {
   try {
     await link(
       claim,
@@ -518,13 +559,32 @@ async function publishKept({
       return 'name-taken';
     }
     if ((code === 'EPERM') || (code === 'EACCES')) {
-      // A folder cannot be linked, and holding one of Pi's messages is not at stake in it.
-      await rename(
-        claim,
-        target,
-      );
-      await removeOwnerFolderOf(claim,);
-      return 'kept-by-rename';
+      /**
+       What the claim holds, which a copy reproduces only when it is an ordinary file.
+       */
+      const info = await entryOrNothing(claim,);
+      if (((typeof info) === 'symbol') || (!info.isFile())) {
+        // A folder is not a file a copy can hold; the message stays under its claim, where its own name reads it, and is named.
+        throw error;
+      }
+      // A filesystem without hard links still keeps the no-replacement promise: a copy that creates its name exclusively fails
+      // when something already stands there, exactly as the link does.
+      try {
+        await copyFile(
+          claim,
+          target,
+          fileConstants.COPYFILE_EXCL,
+        );
+      }
+      catch (copyError) {
+        if (errorCodeOf(copyError,) === 'EEXIST') {
+          return 'name-taken';
+        }
+        throw copyError;
+      }
+      await unlink(claim,);
+      await removeClaimFolderOf(claim,);
+      return 'published';
     }
     throw error;
   }
@@ -545,6 +605,11 @@ async function publishKept({
  @param link - the hard link a filesystem gives, which a test replaces to make one fail
 
  @returns the name the message was kept under
+
+ @example
+ ```ts
+ const kept = await keepMessage({ watch, name: 'm', claim, keptAs: 'failed', },);
+ ```
  */
 export async function keepMessage({
   watch,
@@ -557,7 +622,10 @@ export async function keepMessage({
   readonly name: string;
   readonly claim: string;
   readonly keptAs: 'failed' | 'orphaned';
-  readonly link?: (existing: string, created: string,) => Promise<void>
+  readonly link?: (
+    existing: string,
+    created: string,
+  ) => Promise<void>
 },): Promise<string> {
   /**
    The most numbered names to try before giving up: there are always fewer kept messages than names in the inbox.
@@ -580,7 +648,7 @@ export async function keepMessage({
       target,
       link,
     },);
-    if ((outcome === 'published') || (outcome === 'kept-by-rename')) {
+    if (outcome === 'published') {
       return target;
     }
   }

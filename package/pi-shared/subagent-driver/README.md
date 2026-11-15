@@ -1025,7 +1025,16 @@ the launcher that builds the session's environment asks it, once, before it make
   a named pipe is set aside instead of waited on.
   A message Pi refused while it rested stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
-  so no kept message replaces another.
+  so no kept message replaces another:
+  a keep names its file with a link,
+  and a filesystem that refuses hard links gets a copy created exclusively,
+  which fails the same way when the name is taken.
+  A name the file system cannot hold with a prefix is not kept as a file:
+  a component may be 255 bytes, so `.failed-<name>` carries names up to 247 bytes,
+  `.orphaned-<name>` up to 245,
+  and the numbered `.failed-<name>.<n>` one byte less for each digit of the number;
+  a longer message stays under its claim, where its own name reads it, and is named in the summary.
+  A message that is a folder cannot be linked or copied as a file, and stays under its claim the same way.
   A message Pi refuses because it has begun a turn is not a refusal of the message:
   it is held under its claim and goes again once Pi rests,
   ahead of the inbox,
@@ -1034,10 +1043,13 @@ the launcher that builds the session's environment asks it, once, before it make
   and named in the summary's `inboxNotTaken`.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
-  The claim is the folder `.claims/<pid>-<start>` inside the inbox,
-  where `<pid>` is the claiming driver's process number
-  and `<start>` the clock ticks it began at,
-  and the message keeps its own name inside it:
+  The claim is a folder of its own inside the claiming driver's:
+  `.claims/<pid>-<start>/<a name nothing else can hold>/<name>`,
+  where `<pid>` is the driver's process number
+  and `<start>` the clock ticks it began at;
+  the message keeps its own name inside it,
+  and a second publication of that name is claimed into a folder of its own,
+  so it never lands on a claim an earlier failed keep left standing:
   at every instant the inbox says which message is claimed and by which driver.
   A driver killed before it laid the claim down leaves that folder behind,
   and every driver that reads the inbox asks the process folder whether `<pid>` still began at `<start>`:
@@ -1052,7 +1064,10 @@ the launcher that builds the session's environment asks it, once, before it make
   A driver that cannot read the start of its own process does not claim at all:
   the message stays in the inbox under its own name,
   a driver that can prove its identity delivers it later,
-  and a run that ends first names it in `inboxNotTaken` instead of sending it under an unverifiable claim.
+  and a run that ends first names it in `inboxNotTaken` instead of sending it under an unverifiable claim,
+  but only if the message is still in the inbox then:
+  a name another driver took in the meantime is not named,
+  so the summary says what is true when it is written.
 - `stop`:
   create this file to end the run early.
 

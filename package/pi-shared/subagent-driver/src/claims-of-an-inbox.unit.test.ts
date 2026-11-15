@@ -771,14 +771,14 @@ await describe({
         /**
          The hard link a filesystem without them refuses, which this test's filesystem gives.
          */
-        const refusesLinks = async function refusesLinks(): Promise<void> {
+        async function refusesLinks(): Promise<void> {
           /**
            What the filesystem would say.
            */
           const failure = new Error('EPERM: operation not permitted',);
           Object.assign(failure, { code: 'EPERM', },);
           throw failure;
-        };
+        }
         /**
          Where the first keep went.
          */

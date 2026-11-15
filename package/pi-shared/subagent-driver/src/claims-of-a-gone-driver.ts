@@ -19,6 +19,7 @@ import {
   noteMessageNotTaken,
   processFolderOf,
   removeClaimOwnerFolder,
+  removeFolderIfEmpty,
 } from './claims-of-an-inbox.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -116,12 +117,7 @@ export async function recoverClaimsOfGoneDrivers({
       continue;
     }
     if (!entry.isDirectory()) {
-      // A claim outside an owner's folder is not one this code makes; its own name is all that is left to keep it under.
-      await keepOrphanedMessage({
-        watch,
-        name: ownerName,
-        claim: ownerFolder,
-      },);
+      // Not one of this code's claims: a folder it names is an owner's, and nothing here proves that an owner is gone.
       continue;
     }
     // A driver that is still there, or that cannot be shown to be gone, keeps its claims: it may be about to take them.
@@ -132,18 +128,48 @@ export async function recoverClaimsOfGoneDrivers({
       continue;
     }
     /**
-     The messages that owner claimed.
+     The claims that owner left, each in a folder of its own, or a message the code claimed before it used claim folders.
      */
     const claimed = await readdir(ownerFolder,);
-    for (const name of claimed) {
-      await keepOrphanedMessage({
-        watch,
-        name,
-        claim: join(
-          ownerFolder,
+    for (const claimEntry of claimed) {
+      /**
+       Where that entry is.
+       */
+      const path = join(
+        ownerFolder,
+        claimEntry,
+      );
+      /**
+       What it is, or nothing when it has gone since the folder was listed.
+       */
+      const info = await entryOrNothing(path,);
+      if ((typeof info) === 'symbol') {
+        continue;
+      }
+      if (!info.isDirectory()) {
+        // A message claimed by the code before it used claim folders: the message itself, under its own name.
+        await keepOrphanedMessage({
+          watch,
+          name: claimEntry,
+          claim: path,
+        },);
+        continue;
+      }
+      /**
+       The messages that claim folder holds, which is one unless a claim took a message that was itself a folder.
+       */
+      const inside = await readdir(path,);
+      for (const name of inside) {
+        await keepOrphanedMessage({
+          watch,
           name,
-        ),
-      },);
+          claim: join(
+            path,
+            name,
+          ),
+        },);
+      }
+      await removeFolderIfEmpty(path,);
     }
     await removeClaimOwnerFolder(ownerFolder,);
   }

@@ -1634,7 +1634,7 @@ await describe({
       },
     },),
     it({
-      name: 'an inbox entry that cannot be read is set aside and the run goes on',
+      name: 'an inbox entry that cannot be read stays under its claim, and the summary names it',
       fn: async () => {
         const run = await runDriver({
           scenario: 'normal',
@@ -1648,7 +1648,10 @@ await describe({
         },);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('stop-file',);
-        expect(run.inbox,).toEqual(['.failed-folder',],);
+        // A folder can be neither linked nor copied as a kept file, so it stays under its claim, where its own name reads it, and
+        // the summary names it rather than reading as one that took it.
+        expect(run.inbox,).toEqual(['.claims',],);
+        expect(run.summary.inboxNotTaken,).toEqual(['folder',],);
       },
     },),
     it({
