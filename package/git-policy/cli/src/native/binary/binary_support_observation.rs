@@ -377,11 +377,14 @@ fn open_records(work: &Path) -> Result<usize, String> {
 /// A control that means to read one attempt of such a record reads that instead
 /// (`observe_without_waiting_for_the_after_commit_work`).
 ///  Two readings are taken before the work is called settled,
-/// because a claim moves a record out of `pending` and into `claimed` through `recovering`,
-/// so one pass over the three states can see none of them while the service holds the record;
-/// the second reading is taken at once, so a record cannot pass through `recovering` and reach `claimed` unseen twice.
+/// because a claim moves a record out of `pending` and into `claimed` through `recovering`:
+/// one pass over the three states,
+/// listed one after another,
+/// can see none of them while the service holds the record.
+/// The second reading is taken at once,
+/// so a record cannot pass through `recovering` and reach `claimed` unseen twice.
 /// The data folder is spelled by the wrapper's own rule for a Git directory it reads,
-/// because a repository whose folder still has the earlier release's name holds its queue there.
+/// because a repository whose folder keeps the earlier release's name holds its queue there.
 pub fn settle_service_work(directory: &Path) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;

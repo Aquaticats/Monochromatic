@@ -127,7 +127,8 @@ fn a_queue_left_under_the_earlier_folder_name_is_waited_for() {
     remove(&fixture);
 }
 
-/// A state directory the wait cannot list is reported, and never read as "no record there".
+/// A state directory the wait cannot list is reported:
+///  it is never read as "no record there".
 #[test]
 fn a_state_directory_that_cannot_be_listed_is_reported() {
     let fixture: Fixture = fixture("settle-unreadable-state");
