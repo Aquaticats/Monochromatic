@@ -78,6 +78,17 @@ export class ReviewFolderTakenError extends Error {
 }
 
 /**
+ Where a test holds a start that is taking a dead start's place, so two starts can be made to look at one dead record at the
+ same moment. It is a seam: no command passes it.
+ */
+export type ReviewFolderClaimSeams = {
+  /**
+   Awaited after the start has read a dead owner's record and before it removes that record.
+   */
+  readonly afterLookingAtADeadOwner?: () => Promise<void>;
+};
+
+/**
  What a review folder holds of its owner: the record a start left, or no record that can be read.
  */
 type OwnerOfAReview =
@@ -376,6 +387,8 @@ async function takeTheOwnerFile({
 
  @param owner - the record to keep when this start takes the folder
 
+ @param seams - a place a test holds a start at, which no command passes
+
  @throws ReviewFolderTakenError when another start holds the folder, naming both branches when both are known
 
  @example
@@ -388,11 +401,13 @@ export async function takeReviewFolder({
   ownerFile,
   branch,
   owner,
+  seams,
 }: {
   readonly reviewFolder: string;
   readonly ownerFile: string;
   readonly branch?: string;
   readonly owner: ReviewFolderOwner;
+  readonly seams?: ReviewFolderClaimSeams;
 },): Promise<void> {
   await mkdir(
     reviewFolder,
@@ -434,6 +449,7 @@ export async function takeReviewFolder({
   // The holder has ended and wrote this same change: take its record away and try once more. Only one start can make the new
   // record, so two starts of one branch cannot both write the folder, and a start killed before it wrote its brief blocks nobody
   // for good.
+  await seams?.afterLookingAtADeadOwner?.();
   await rm(
     ownerFile,
     { force: true, },

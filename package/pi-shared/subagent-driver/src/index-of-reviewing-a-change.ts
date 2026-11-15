@@ -90,9 +90,12 @@ export {
   startReviews,
 } from './reviews-of-finished-branches.ts';
 export {
+  type ReviewFolderClaimSeams,
   type ReviewFolderOwner,
   ReviewFolderTakenError,
+  takeReviewFolder,
 } from './claiming-a-review-folder.ts';
+export { processIdentityOfThisProcess, } from './liveness-of-a-process.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
   keepFailedOutput,
