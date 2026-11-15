@@ -59,7 +59,7 @@ use super::error::ToolchainError;
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{ProcessRunner, Runner};
+use super::runner::{Ceiling, ProcessRunner, Runner, WORKTREE_LIST_CEILING};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, ScopeKind, resolve_scope};
 
@@ -390,7 +390,7 @@ pub fn prune_toolchain(
     let present = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &[]))?;
     let mut lock_files: Vec<PathBuf> = vec![scope.lock_file.clone()];
     if scope.kind == ScopeKind::Repo {
-        lock_files.extend(worktree_lock_files(runner, &scope.root, None)?);
+        lock_files.extend(worktree_lock_files(runner, &scope.root, Ceiling::after(WORKTREE_LIST_CEILING, "listing the worktrees to find the locks"))?);
     }
     let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
     // What: the deletions this run will make, with the versions the other toolchain root forwards to left out.

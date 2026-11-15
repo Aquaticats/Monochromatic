@@ -518,7 +518,7 @@ fn an_install_keeps_the_version_the_current_link_names() {
 /// A runner that records the ceiling of every request it is given, and answers as a program that printed nothing.
 #[derive(Default)]
 struct RecordingCeilings {
-    ceilings: std::cell::RefCell<Vec<Option<std::time::Instant>>>,
+    ceilings: std::cell::RefCell<Vec<super::runner::Ceiling>>,
 }
 
 impl super::runner::Runner for RecordingCeilings {
@@ -558,6 +558,6 @@ fn hands_a_postinstall_command_a_ceiling() {
     let ceilings = recording.ceilings.borrow().clone();
     assert!(!ceilings.is_empty(), "the postinstall step started no program: {report:?}");
     for ceiling in &ceilings {
-        assert!(ceiling.is_some(), "the postinstall request names no ceiling at all");
+        assert!(!ceiling.why.is_empty(), "the postinstall request names a ceiling without saying what sized it");
     }
 }

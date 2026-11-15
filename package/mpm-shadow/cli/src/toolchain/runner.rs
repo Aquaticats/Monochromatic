@@ -48,6 +48,51 @@ fn texts(arguments: &[&str]) -> Vec<String> {
 }
 
 /// What:
+/// The moment a program a request starts is ended, and the sentence that says what sized that moment.
+/// Why:
+/// No request of this program may wait for good, and a bare optional deadline let a call site say "no bound" in one
+/// word; a request now names a ceiling, and the value is named where it is chosen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Ceiling = { at: Instant; why: string };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Ceiling {
+    /// When the program is ended.
+    pub at: Instant,
+    /// What sized that moment, in the words a report quotes.
+    pub why: &'static str,
+}
+
+/// The methods of `Ceiling`.
+impl Ceiling {
+    /// A ceiling that long from now, with the sentence that says what sized it.
+    pub fn after(span: Duration, why: &'static str) -> Ceiling {
+        return Ceiling { at: Instant::now() + span, why };
+    }
+
+    /// A ceiling at a moment another bound already set.
+    pub fn at(at: Instant, why: &'static str) -> Ceiling {
+        return Ceiling { at, why };
+    }
+}
+
+/// How long listing the repository's worktrees may take: sixty seconds.
+/// Why:
+/// `git worktree list --porcelain` of this repository answered in 30 ms on 2026-11-13 (the cleanup's measurement);
+/// sixty seconds is a ceiling for a repository of many worktrees on a slow drive, and a listing that runs past it is a
+/// failed listing, which keeps every version.
+pub const WORKTREE_LIST_CEILING: Duration = Duration::from_secs(60);
+
+/// How long one install step may take: one hour.
+/// Why:
+/// A step installs a package, runs a postinstall command that may compile, or fetches an archive; a release build of
+/// this package took about a minute on 2026-11-15, and a cold compile of a large crate is the long case this is sized
+/// for. At the ceiling the program is ended, the step is reported as failed, and the sync says which step it was.
+pub const STEP_CEILING: Duration = Duration::from_secs(60 * 60);
+
+/// What:
 /// One program start:
 /// the program (a name looked up on `PATH`,
 /// or a path),
@@ -76,10 +121,9 @@ pub struct RunRequest {
     /// The working directory;
     /// `None` means this process's.
     pub cwd: Option<PathBuf>,
-    /// When the program must be ended,
-    /// `None` for no bound.
-    /// The cleanup hands its own work limit here, so a program it started never holds the pass for good.
-    pub deadline: Option<Instant>,
+    /// When the program is ended, and what sized that moment.
+    /// There is no value that means "no bound": every request names one.
+    pub deadline: Ceiling,
 }
 
 /// The methods of `RunRequest`.
@@ -91,7 +135,7 @@ impl RunRequest {
             args: texts(args),
             env: None,
             cwd: None,
-            deadline: None,
+            deadline: Ceiling::after(STEP_CEILING, "a step that installs a package or runs a postinstall command"),
         };
     }
 
@@ -107,9 +151,9 @@ impl RunRequest {
         return self;
     }
 
-    /// A copy that is ended at `deadline`.
-    pub fn with_deadline(mut self, deadline: Instant) -> RunRequest {
-        self.deadline = Some(deadline);
+    /// A copy that is ended at `ceiling`.
+    pub fn with_deadline(mut self, ceiling: Ceiling) -> RunRequest {
+        self.deadline = ceiling;
         return self;
     }
 
@@ -200,21 +244,7 @@ impl Runner for ProcessRunner {
         if let Some(directory) = &request.cwd {
             command.current_dir(directory);
         }
-        if let Some(deadline) = request.deadline {
-            return bounded(command, deadline);
-        }
-        return match command.output() {
-            Ok(output) => RunOutcome {
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-                code: output.status.code().unwrap_or(1),
-            },
-            Err(error) => RunOutcome {
-                stdout: String::new(),
-                stderr: format!("cannot start {}: {error}", request.command),
-                code: 1,
-            },
-        };
+        return bounded(command, request.deadline);
     }
 }
 
@@ -230,7 +260,8 @@ impl Runner for ProcessRunner {
 /// ```ts
 /// function bounded(command: Command, deadline: Instant): RunOutcome
 /// ```
-fn bounded(mut command: Command, deadline: Instant) -> RunOutcome {
+fn bounded(mut command: Command, ceiling: Ceiling) -> RunOutcome {
+    let deadline: Instant = ceiling.at;
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child: std::process::Child = match command.spawn() {
         Ok(child) => child,
@@ -242,58 +273,80 @@ fn bounded(mut command: Command, deadline: Instant) -> RunOutcome {
             };
         }
     };
-    let stdout_pipe = child.stdout.take();
-    let stderr_pipe = child.stderr.take();
-    let reading_stdout = std::thread::spawn(move || {
+    // What: the two streams are read on threads of their own, and each one sends what it read back.
+    // Why: a reader blocked on a pipe must not be joined by the request; the request takes what has arrived by its
+    // ceiling and leaves the thread to end when the pipe does.
+    let (stdout_sent, stdout_text) = std::sync::mpsc::channel::<String>();
+    let (stderr_sent, stderr_text) = std::sync::mpsc::channel::<String>();
+    let mut stdout_pipe = child.stdout.take();
+    let mut stderr_pipe = child.stderr.take();
+    std::thread::spawn(move || {
         let mut text: String = String::new();
-        if let Some(mut pipe) = stdout_pipe {
-            let _ = std::io::Read::read_to_string(&mut pipe, &mut text);
+        if let Some(pipe) = stdout_pipe.as_mut() {
+            let _ = std::io::Read::read_to_string(pipe, &mut text);
         }
-        return text;
+        let _ = stdout_sent.send(text);
     });
-    let reading_stderr = std::thread::spawn(move || {
+    std::thread::spawn(move || {
         let mut text: String = String::new();
-        if let Some(mut pipe) = stderr_pipe {
-            let _ = std::io::Read::read_to_string(&mut pipe, &mut text);
+        if let Some(pipe) = stderr_pipe.as_mut() {
+            let _ = std::io::Read::read_to_string(pipe, &mut text);
         }
-        return text;
+        let _ = stderr_sent.send(text);
     });
-    let status: std::process::ExitStatus = loop {
+    let mut status: Option<std::process::ExitStatus> = None;
+    let mut killed: bool = false;
+    loop {
         match child.try_wait() {
-            Ok(Some(status)) => break status,
+            Ok(Some(ended)) => {
+                status = Some(ended);
+                break;
+            }
             Ok(None) => {}
-            Err(_) => break child.wait().unwrap_or_else(|_| return killed_status()),
+            Err(_) => {
+                let _ = child.wait();
+                break;
+            }
         }
         if Instant::now() >= deadline {
+            killed = true;
             let _ = child.kill();
             let _ = child.wait();
-            let stdout: String = reading_stdout.join().unwrap_or_default();
-            let mut stderr: String = reading_stderr.join().unwrap_or_default();
-            if !stderr.ends_with('\n') && !stderr.is_empty() {
-                stderr.push('\n');
-            }
-            stderr.push_str("the program was ended at the cleanup's work limit");
-            return RunOutcome { stdout, stderr, code: 1 };
+            break;
         }
         std::thread::sleep(WAIT_STEP);
+    }
+    // What: the answer waits for the output only until the ceiling.
+    // Why: a descendant that inherited the pipe and outlived the direct child would otherwise hold the request for
+    // good.
+    let mut stdout: String = String::new();
+    let mut stderr: String = String::new();
+    let mut held_past_the_ceiling: bool = false;
+    for (text, from_stdout) in [(&mut stdout, true), (&mut stderr, false)] {
+        let left: Duration = deadline.saturating_duration_since(Instant::now());
+        let arrived = if from_stdout { stdout_text.recv_timeout(left) } else { stderr_text.recv_timeout(left) };
+        match arrived {
+            Ok(read) => *text = read,
+            Err(_) => held_past_the_ceiling = true,
+        }
+    }
+    let mut note: String = String::new();
+    if killed {
+        note.push_str(&format!("the program was ended at its ceiling: {}", ceiling.why));
+    } else if held_past_the_ceiling {
+        note.push_str(&format!("a descendant still held the output past the ceiling: {}", ceiling.why));
+    }
+    if !note.is_empty() {
+        if !stderr.ends_with('\n') && !stderr.is_empty() {
+            stderr.push('\n');
+        }
+        stderr.push_str(&note);
+    }
+    let code: i32 = match status {
+        Some(ended) => ended.code().unwrap_or(1),
+        None => 1,
     };
-    let stdout: String = reading_stdout.join().unwrap_or_default();
-    let stderr: String = reading_stderr.join().unwrap_or_default();
-    return RunOutcome { stdout, stderr, code: status.code().unwrap_or(1) };
-}
-
-/// What:
-/// A status for a child whose end cannot be read.
-/// Why:
-/// `RunOutcome` reports a program that could not start or was killed as code 1, and this is the same answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function killedStatus(): ExitStatus
-/// ```
-fn killed_status() -> std::process::ExitStatus {
-    use std::os::unix::process::ExitStatusExt;
-    return std::process::ExitStatus::from_raw(1 << 8);
+    return RunOutcome { stdout, stderr, code };
 }
 
 /// The environment tool installs run with:

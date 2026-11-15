@@ -16,13 +16,12 @@
 
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
-/// Imports `Instant` from `std::time`.
-use std::time::Instant;
+
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest, Runner};
+use super::runner::{Ceiling, RunOutcome, RunRequest, Runner};
 
 /// One worktree `git worktree list --porcelain` reports.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,13 +44,10 @@ pub struct ListedWorktree {
 /// ```ts
 /// export function listedWorktrees(runner: Runner, root: string): { directory: string; prunable: boolean }[]  // throws
 /// ```
-pub fn listed_worktrees(runner: &dyn Runner, root: &Path, deadline: Option<Instant>) -> Result<Vec<ListedWorktree>, ToolchainError> {
-    let mut request: RunRequest = RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]);
-    // What: a caller with a work limit hands it here, so a Git that never ends is ended with the pass.
-    // Why: this program is the one the cleanup starts, and it held an install for good without a bound.
-    if let Some(moment) = deadline {
-        request = request.with_deadline(moment);
-    }
+pub fn listed_worktrees(runner: &dyn Runner, root: &Path, deadline: Ceiling) -> Result<Vec<ListedWorktree>, ToolchainError> {
+    // What: every caller hands a ceiling, and the pass hands its own work limit.
+    // Why: this program held an install for good without a bound.
+    let request: RunRequest = RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]).with_deadline(deadline);
     let outcome: RunOutcome = runner.run(&request);
     if !outcome.succeeded() {
         return Err(ToolchainError::failure(format!(
@@ -81,7 +77,7 @@ pub fn listed_worktrees(runner: &dyn Runner, root: &Path, deadline: Option<Insta
 /// A worktree whose directory is gone is skipped only when git marks it `prunable`;
 /// otherwise (an unmounted disk,
 /// say) the command refuses.
-pub fn worktree_lock_files(runner: &dyn Runner, root: &Path, deadline: Option<Instant>) -> Result<Vec<PathBuf>, ToolchainError> {
+pub fn worktree_lock_files(runner: &dyn Runner, root: &Path, deadline: Ceiling) -> Result<Vec<PathBuf>, ToolchainError> {
     let listed: Vec<ListedWorktree> = listed_worktrees(runner, root, deadline)?;
     let mut files: Vec<PathBuf> = Vec::new();
     for worktree in listed {

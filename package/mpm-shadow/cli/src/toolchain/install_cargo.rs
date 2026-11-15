@@ -37,7 +37,7 @@ use super::model::{LockedTool, Origin};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{Ceiling, RunOutcome, RunRequest, STEP_CEILING};
 
 /// What:
 /// Installs one crate with `cargo binstall --root <version directory>` into the crate's own version-keyed cargo
@@ -97,7 +97,7 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
     if let Some(token) = ctx.github_token() {
         env.insert("GITHUB_TOKEN".to_string(), token);
     }
-    let request: RunRequest = RunRequest { command: "cargo".to_string(), args, env: Some(env), cwd: None, deadline: None };
+    let request: RunRequest = RunRequest { command: "cargo".to_string(), args, env: Some(env), cwd: None, deadline: Ceiling::after(STEP_CEILING, "a step that installs a package or runs a postinstall command") };
     let outcome: RunOutcome = ctx.run(&request);
     if !outcome.succeeded() {
         if repository_crate && let Some(error) = no_archive_failure(&tool.declaration.id, &crate_name, &tool.version, &outcome) {

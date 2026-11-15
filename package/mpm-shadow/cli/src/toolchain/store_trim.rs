@@ -217,6 +217,9 @@ use crate::cleanup_report::format_size;
 /// Imports `CURRENT_LINK_NAME` from `super::cargo_installs`.
 use super::archive_staging::has_complete_marker;
 use super::cargo_installs::{CURRENT_LINK_NAME, recorded_version};
+/// Imports `Ceiling` from `super::runner`,
+/// the bound a listing the pass starts is given.
+use super::runner::Ceiling;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `Route` from `super::model`.
@@ -231,7 +234,8 @@ use super::store_path_holders::{StoreHolders, held_reason, holders_of};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
     JudgedTree, RemovalMarker, TreeFacts, VersionDirectory, deleting_of, downloads_of,
-    install_directory_name, judged_of_tree, leftover_downloads, newest_write, read_judged, record_of, record_of_marker,
+    IN_FLIGHT_DOWNLOAD_SUFFIX, install_directory_name, judged_of_tree, leftover_downloads, newest_write, read_judged,
+    record_of, record_of_marker,
     removal_markers, tombstone_of,
     version_directories, write_judged,
 };
@@ -1580,7 +1584,9 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
             finish_the_deletion(
                 &marker.version_marker,
                 &marker.root,
-                locked.as_deref(),
+                &marker.tool,
+                &marker.version,
+                named,
                 &holders,
                 run.deadline(),
                 &mut outcome,
@@ -1594,7 +1600,9 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
             finish_the_deletion(
                 downloads,
                 &marker.root,
-                locked.as_deref(),
+                &marker.tool,
+                &marker.version,
+                named,
                 &holders,
                 run.deadline(),
                 &mut outcome,
@@ -1635,7 +1643,9 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
 fn finish_the_deletion(
     tree: &Path,
     root: &Path,
-    locked: Option<&str>,
+    tool: &str,
+    version: &str,
+    named: &NamedVersions,
     holders: &StoreHolders,
     deadline: Instant,
     outcome: &mut FinishOutcome,
@@ -1646,7 +1656,14 @@ fn finish_the_deletion(
         outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", tree.display()));
         return;
     };
-    if let Some(lock) = locked {
+    // What: a lock that cannot be read may name this version, so its deletion waits.
+    // Why: what the pass could not read it takes for present.
+    if let Some(reason) = &named.unreadable {
+        outcome.unfinished.insert(root.to_path_buf());
+        outcome.lines.push(format!("mpm-shadow: kept {}: {reason}, so its deletion waits", tree.display()));
+        return;
+    }
+    if let Some(lock) = named.naming_lock(tool, version) {
         outcome.unfinished.insert(root.to_path_buf());
         outcome.lines.push(format!("mpm-shadow: kept {}: the lock {lock} names it now, so its deletion waits", tree.display()));
         return;
@@ -1720,6 +1737,32 @@ fn finish_without_a_version(marker: &RemovalMarker, holders: &StoreHolders, dead
 }
 
 /// What:
+/// Whether the archives under a live downloads name include a finished file.
+/// Why:
+/// An install writes its archive under a name ending in the in-flight suffix and renames it when it has finished, so a
+/// folder that holds only such a file is a download under way, and a directory that cannot be read proves nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function liveArchivesAreFinished(directory: string): boolean
+/// ```
+fn live_archives_are_finished(directory: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if name.ends_with(IN_FLIGHT_DOWNLOAD_SUFFIX) {
+            continue;
+        }
+        if entry.file_type().map(|kind| return kind.is_file()).unwrap_or(false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 /// Puts the archives a removal holds back under the version's name,
 /// or deletes them when that name holds newer archives already.
 /// Why:
@@ -1737,7 +1780,15 @@ fn put_an_archive_back(marker: &RemovalMarker, holders: &StoreHolders, deadline:
         return Err("it could not be read in full at this moment".to_string());
     };
     if !provably_absent(live)? {
-        // the live name holds archives already, so this copy is the older one and goes
+        // What: the live name holds something, and this copy is the older one only when that something finished.
+        // Why: a live folder holding nothing but a download still in flight is not a replacement; deleting the complete
+        // archives for it lost the only complete copy.
+        if !live_archives_are_finished(live) {
+            return Err(format!(
+                "{} holds a download still in flight, so the complete archives beside it stay where they are",
+                live.display()
+            ));
+        }
         return match settle(&ToSettle { path: archive, target: archive, judged: &judged, holders, action: Settle::Delete, deadline }) {
             Settled::Done => Ok(()),
             Settled::Kept(reason) => Err(reason),
@@ -1941,7 +1992,11 @@ fn visible_locks(ctx: &Context, deadline: Instant) -> (Vec<PathBuf>, Option<Stri
         ScopeKind::Global => named_repository_root(ctx.env),
     };
     match repository {
-        Some(root) => match worktree_lock_files(ctx.runner, root.as_path(), Some(deadline)) {
+        Some(root) => match worktree_lock_files(
+            ctx.runner,
+            root.as_path(),
+            Ceiling::at(deadline, "the cleanup's own work limit"),
+        ) {
             Ok(listed) => files.extend(listed),
             Err(error) => unreadable = Some(error.message),
         },
@@ -2104,17 +2159,21 @@ pub fn trim_after_install_with(ctx: &Context, installed: &[(String, String)], ho
     let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: roots.clone(), holders };
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
-    // What: the removals an earlier run started are finished or undone before anything else is judged.
-    // Why: their marker is the only record that a version's space is not back, and a lock that cannot be read must
-    // not make the store look empty of pending removals.
-    let finished: FinishOutcome = finish_removals(&run);
-    lines.extend(finished.lines);
-    unfinished.extend(finished.unfinished);
+    // What: every lock this pass can read is read before anything is recovered.
+    // Why: a recovery deletes a tree whose deletion has begun, and a lock that names that version keeps it; reading the
+    // locks afterwards let recovery delete data a current lock still named, and a lock that could not be read
+    // protected nothing at all.
     let (lock_files, lock_problem) = visible_locks(ctx, run.deadline());
     let named: NamedVersions = match lock_problem {
         Some(reason) => NamedVersions { by_tool: BTreeMap::new(), unreadable: Some(reason) },
         None => read_named_versions(&lock_files),
     };
+    // What: the removals an earlier run started are finished or undone, judged by the locks just read.
+    // Why: a tree a killed pass left is judged again from nothing, by what is on the drive now, and a lock that names
+    // its version keeps it.
+    let finished: FinishOutcome = finish_removals_with(&run, &named);
+    lines.extend(finished.lines);
+    unfinished.extend(finished.unfinished);
     let tools: BTreeSet<String> = named.tool_directories();
     if let Some(reason) = &named.unreadable {
         // What: a lock that cannot be read keeps every version.

@@ -44,7 +44,7 @@ use super::layout::find_tool_bin;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Postinstall};
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{Ceiling, RunOutcome, RunRequest, STEP_CEILING};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
@@ -363,7 +363,7 @@ pub fn run_postinstall_commands(ctx: &Context, tools: &[&LockedTool]) -> Command
             args: step.args.clone(),
             env: Some(env.clone()),
             cwd: Some(ctx.scope.root.clone()),
-            deadline: None,
+            deadline: Ceiling::after(STEP_CEILING, "a step that installs a package or runs a postinstall command"),
         };
         let outcome: RunOutcome = ctx.run(&request);
         if outcome.succeeded() {

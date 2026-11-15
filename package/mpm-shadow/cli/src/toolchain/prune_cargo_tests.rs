@@ -13,6 +13,7 @@ use super::fakes::Rig;
 use super::fakes_cargo::finish_install;
 use super::error::ToolchainError;
 use super::prune_cargo::{PresentVersion, after_removing, named_by_all, named_versions, plan_prune, present_versions, prune_toolchain};
+use super::runner::{Ceiling, WORKTREE_LIST_CEILING};
 use super::worktrees::worktree_lock_files;
 
 fn present(entries: &[(&str, &[&str])]) -> BTreeMap<String, Vec<PresentVersion>> {
@@ -78,17 +79,17 @@ fn the_worktree_list_gives_each_lock_and_refuses_for_a_missing_directory_that_is
     fs::create_dir_all(&alive).expect("make");
     let porcelain = format!("worktree {}\nHEAD abc\nbranch refs/heads/x\n\nworktree /gone/and/prunable\nHEAD def\ndetached\nprunable gitdir file points to non-existent location\n\n", alive.display());
     rig.runner.answer("git -C", &porcelain, 0);
-    let files = worktree_lock_files(&rig.runner, &rig.scope.root, None).expect("lists");
+    let files = worktree_lock_files(&rig.runner, &rig.scope.root, Ceiling::after(WORKTREE_LIST_CEILING, "listing the worktrees")).expect("lists");
     assert_eq!(files, vec![alive.join("toolchain.lock.json")]);
 
     let unmounted = Rig::new();
     unmounted.runner.answer("git -C", "worktree /mnt/offline/tree\nHEAD abc\ndetached\n\n", 0);
-    let error = worktree_lock_files(&unmounted.runner, &unmounted.scope.root, None).expect_err("refuses");
+    let error = worktree_lock_files(&unmounted.runner, &unmounted.scope.root, Ceiling::after(WORKTREE_LIST_CEILING, "listing the worktrees")).expect_err("refuses");
     assert!(error.message.contains("/mnt/offline/tree") && error.message.contains("nothing was deleted"), "{error}");
 
     let failing = Rig::new();
     failing.runner.fail("git -C", "not a repository");
-    assert!(worktree_lock_files(&failing.runner, &failing.scope.root, None).is_err());
+    assert!(worktree_lock_files(&failing.runner, &failing.scope.root, Ceiling::after(WORKTREE_LIST_CEILING, "listing the worktrees")).is_err());
 }
 
 /// Writes a lock naming `crate_name` at `version` into `directory` and returns its path.

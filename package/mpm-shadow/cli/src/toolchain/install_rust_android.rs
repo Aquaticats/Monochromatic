@@ -35,7 +35,7 @@ use super::layout::tool_install_dir;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{Ceiling, RunOutcome, RunRequest, STEP_CEILING};
 
 /// `rustup toolchain install --no-self-update <package id, or the locked version>`.
 pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
@@ -371,7 +371,7 @@ pub fn install_android_sdk(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
         args,
         env: Some(env),
         cwd: None,
-        deadline: None,
+        deadline: Ceiling::after(STEP_CEILING, "a step that installs a package or runs a postinstall command"),
     };
     run_checked(ctx, &request, "android sdk install", &tool.declaration.id)?;
     return Ok(());

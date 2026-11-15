@@ -36,7 +36,7 @@ use super::install_support::{artifact_for_host, failed_step};
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{Ceiling, RunOutcome, RunRequest, STEP_CEILING};
 
 /// The prefix of every artifact URL this route accepts.
 const GITHUB_PREFIX: &str = "https://github.com/";
@@ -229,7 +229,7 @@ pub fn install_bin_sourced(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
                 args,
                 env: Some(env.clone()),
                 cwd: None,
-                deadline: None,
+                deadline: Ceiling::after(STEP_CEILING, "a step that installs a package or runs a postinstall command"),
             };
             let outcome: RunOutcome = ctx.run(&request);
             if outcome.succeeded() {

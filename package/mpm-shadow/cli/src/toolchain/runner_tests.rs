@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::fakes::FakeRunner;
-use super::runner::{ProcessRunner, RunOutcome, RunRequest, Runner, toolchain_path_env};
+use super::runner::{Ceiling, ProcessRunner, RunOutcome, RunRequest, Runner, toolchain_path_env};
 use super::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, repo_scope};
 use crate::test_scratch::scratch;
 
@@ -97,7 +97,7 @@ fn the_fake_records_requests_answers_by_prefix_and_defaults_to_success() {
 #[test]
 fn ends_a_child_at_the_deadline_it_was_given() {
     let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_millis(150);
-    let request = RunRequest::new("sleep", &["60"]).with_deadline(deadline);
+    let request = RunRequest::new("sleep", &["60"]).with_deadline(Ceiling::at(deadline, "a control's ceiling"));
     let started: std::time::Instant = std::time::Instant::now();
 
     let outcome: RunOutcome = ProcessRunner.run(&request);
@@ -105,7 +105,7 @@ fn ends_a_child_at_the_deadline_it_was_given() {
     assert!(started.elapsed() < std::time::Duration::from_secs(5), "the child outlived its deadline: {:?}", started.elapsed());
     assert_eq!(outcome.code, 1, "a child ended at the deadline is reported as failed: {outcome:?}");
     assert!(
-        outcome.stderr.contains("ended at the cleanup's work limit"),
+        outcome.stderr.contains("ended at its ceiling"),
         "the outcome does not say the child was ended: {outcome:?}"
     );
 }
@@ -127,8 +127,8 @@ fn ends_a_request_while_a_grandchild_holds_the_pipe() {
         "/bin/sh",
         &["-c", "read release < \"$1\" & exit 0", "sh", fifo.to_str().expect("UTF-8 fifo path")],
     )
-    .with_deadline(ceiling);
-    let running = std::thread::spawn(move || ProcessRunner.run(&request));
+    .with_deadline(Ceiling::at(ceiling, "a control's ceiling"));
+    let running = std::thread::spawn(move || return ProcessRunner.run(&request));
 
     std::thread::sleep(std::time::Duration::from_millis(250));
     let returned_before_release = running.is_finished();

@@ -34,7 +34,7 @@ use super::layout::cargo_bin_dir;
 /// Imports `listed_worktrees` from `super::worktrees`.
 use super::worktrees::listed_worktrees;
 /// Imports `Runner` from `super::runner`.
-use super::runner::Runner;
+use super::runner::{Ceiling, Runner, WORKTREE_LIST_CEILING};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, ScopeKind, global_scope};
 
@@ -169,7 +169,7 @@ fn visible_checkouts(scope: &Scope, runner: &dyn Runner, places: &mut Places) ->
         return Vec::new();
     }
     let mut checkouts: Vec<PathBuf> = vec![scope.root.clone()];
-    match listed_worktrees(runner, &scope.root, None) {
+    match listed_worktrees(runner, &scope.root, Ceiling::after(WORKTREE_LIST_CEILING, "listing the worktrees to find the locks")) {
         Ok(listed) => {
             for worktree in listed {
                 if worktree.directory.is_dir() {

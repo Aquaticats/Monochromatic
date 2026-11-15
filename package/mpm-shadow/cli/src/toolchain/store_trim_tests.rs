@@ -39,6 +39,7 @@ use crate::toolchain::published_archive::is_finished;
 use crate::toolchain::scope::EnvMap;
 use crate::toolchain::store_trim::{finish_removals_with, trim_after_install_with};
 use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span};
+use crate::toolchain::runner::Ceiling;
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, judged_of_tree, record_of, removal_markers, tombstone_of, write_judged};
 use crate::test_scratch::scratch;
 
@@ -2244,7 +2245,7 @@ fn orders_removal_by_the_newest_write_inside_the_tree() {
 
 /// A runner that records the deadline of every request it is given, and answers as a small Git would.
 struct RecordedGit {
-    deadlines: std::cell::RefCell<Vec<Option<Instant>>>,
+    deadlines: std::cell::RefCell<Vec<Ceiling>>,
 }
 
 impl crate::toolchain::runner::Runner for RecordedGit {
@@ -2271,10 +2272,10 @@ fn hands_the_cleanup_work_limit_to_the_git_it_starts() {
 
     trim_after_install_with(&context, &[("node".to_string(), "2.0.0".to_string())], Some(StoreHolders::default()));
 
-    let deadlines: Vec<Option<Instant>> = runner.deadlines.borrow().clone();
+    let deadlines: Vec<Ceiling> = runner.deadlines.borrow().clone();
     assert!(!deadlines.is_empty(), "the cleanup did not start Git at all");
     assert!(
-        deadlines.iter().all(|deadline| return deadline.is_some()),
+        deadlines.iter().all(|deadline| return !deadline.why.is_empty()),
         "Git was started with no bound while the pass had {} of work limit: {deadlines:?}",
         format_span(Duration::from_secs(5))
     );

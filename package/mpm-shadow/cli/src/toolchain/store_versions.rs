@@ -205,7 +205,60 @@ pub fn install_directory_name(route: Route, id: &str) -> Option<String> {
     };
 }
 
-/// One version directory of a tool in a store.
+/// What one entry directly under a tool's directory or a tool's downloads directory is.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntryShape {
+    /// A live version's own tree, or a live archive folder.
+    Live,
+    /// A tree a removal moved aside, whole.
+    MovedAside,
+    /// A tree whose deletion has begun.
+    DeletionPending,
+}
+
+/// What:
+/// What the entry named `name` is, and which version it belongs to,
+/// taking the name apart with the same prefixes that put it together, any number of them deep.
+/// Why:
+/// A normal removal renames a version to its removal name and the deletion renames that again, so a killed deletion
+/// leaves a name two prefixes deep; one reader answers for every form, and the version it names is the same string a
+/// lock names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function entryNamed(name: string): { shape: 'live' | 'movedAside' | 'deletionPending'; version: string } | undefined
+/// ```
+pub fn entry_named(name: &str) -> Option<(EntryShape, String)> {
+    let mut rest: &str = name;
+    let mut moved_aside: bool = false;
+    let mut deleting: bool = false;
+    loop {
+        if let Some(version) = rest.strip_prefix(DELETING_PREFIX) {
+            rest = version;
+            deleting = true;
+            continue;
+        }
+        if let Some(version) = rest.strip_prefix(TOMBSTONE_PREFIX) {
+            rest = version;
+            moved_aside = true;
+            continue;
+        }
+        break;
+    }
+    if rest.is_empty() || rest.starts_with('.') {
+        return None;
+    }
+    let shape: EntryShape = if deleting {
+        EntryShape::DeletionPending
+    } else if moved_aside {
+        EntryShape::MovedAside
+    } else {
+        EntryShape::Live
+    };
+    return Some((shape, rest.to_string()));
+}
+
+/// What one version of one tool is, as the store keeps it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VersionDirectory {
     /// The tool's directory name in the store (`node`,
@@ -914,12 +967,15 @@ fn markers_in(directory: &Path) -> Vec<(String, PathBuf, bool)> {
             continue;
         }
         let name: String = entry.file_name().to_string_lossy().to_string();
-        if let Some(version) = name.strip_prefix(TOMBSTONE_PREFIX) {
-            found.push((version.to_string(), entry.path(), false));
+        // What: the version is the name's last part, and the shape says which name it stands under.
+        // Why: one reader answers for a live tree, a moved-aside one and a deletion begun, at any depth.
+        let Some((shape, version)) = entry_named(&name) else {
             continue;
-        }
-        if let Some(version) = name.strip_prefix(DELETING_PREFIX) {
-            found.push((version.to_string(), entry.path(), true));
+        };
+        match shape {
+            EntryShape::Live => {}
+            EntryShape::MovedAside => found.push((version, entry.path(), false)),
+            EntryShape::DeletionPending => found.push((version, entry.path(), true)),
         }
     }
     found.sort();
