@@ -93,10 +93,13 @@ fn a_shell_alias_is_judged_by_the_words_its_shell_runs() {
 }
 
 /// What:
-///  A shell alias whose command this crate cannot read is left to Git.
+///  A shell alias whose command this crate cannot read is a reason, whatever its text says.
 /// Why:
-///  No words are read for `!sh -c 'git worktree remove "$1"'`,
-///  and guessing one would judge a command nobody runs.
+///  A text a shell will run cannot be read to the end,
+///  and nothing of this program can stand inside Git's shell: the wrapper never starts itself as a shim and never
+///  writes shell text (`doc/planning/cli-git-no-self-invocation.md`).
+///  So an alias this crate cannot read is not shown to be harmless
+///  (a review of `746040080c`, findings 1 and 2).
 #[test]
 fn a_shell_alias_with_no_readable_git_command_is_left_to_git() {
     let command: ResolvedCommand = ResolvedCommand {
@@ -107,7 +110,11 @@ fn a_shell_alias_with_no_readable_git_command_is_left_to_git() {
         shell_command: None,
         shell_value: None,
     };
-    assert!(matches!(the_removal_it_judges(&command, &crate::test_support::git_context()), Ok(None)), "no words are read for this alias");
+    let refused: Result<Option<Judged>, String> = the_removal_it_judges(&command, &crate::test_support::git_context());
+    match refused {
+        Err(reason) => assert!(reason.contains("not one Git command line this program can read"), "and the reason says why: {reason}"),
+        other => panic!("an alias whose command cannot be read is a reason, but it answered {other:?}"),
+    }
 }
 
 /// What:
@@ -132,13 +139,13 @@ fn the_options_that_carry_are_configuration_and_never_movement() {
 }
 
 /// What:
-///  A `!` alias whose Git command carries its own global options is judged by that whole command line,
-///  and the subcommand is found where Git puts it.
+///  A `!` alias whose Git command moves itself to another directory or names another repository is a reason.
 /// Why:
-///  The reader declined a command with a global option of its own, so the alias was forwarded as written and the
-///  removal it ran was never judged
-///  (a review of `dfd6fab13e`, finding 1).
-///  An inner `-C` names the directory the removal runs in, so it is followed rather than stopped at.
+///  The guard judges the repository the command was invoked in, and an inner `-C` or `--git-dir` names another one:
+///  a look-up and the checks in the invoked repository, while real Git removed a worktree of the repository the inner
+///  option named, was the hole
+///  (a review of `746040080c`, finding 1).
+///  So the alias is refused rather than judged against the wrong repository, and its opt-out runs it as real Git runs it.
 #[test]
 fn an_inner_global_option_is_part_of_the_command_that_is_judged() {
     let command: ResolvedCommand = ResolvedCommand {
@@ -151,10 +158,23 @@ fn an_inner_global_option_is_part_of_the_command_that_is_judged() {
         ),
         shell_value: Some(b"git -C /elsewhere -c core.ignorecase=true worktree remove".to_vec()),
     };
-    let judged: Judged = the_removal_it_judges(&command, &crate::test_support::git_context()).expect("the words can be read").expect("a removal was read");
-    assert_eq!(judged.subcommand_index, 4, "the subcommand stands where Git's own layout puts it");
-    assert_eq!(judged.words[4], std::ffi::OsString::from("worktree"), "and that word is the subcommand");
-    assert!(judged.start.ends_with("elsewhere"), "the inner -C names the directory the removal runs in: {}", judged.start.display());
+    let refused: Result<Option<Judged>, String> = the_removal_it_judges(&command, &crate::test_support::git_context());
+    match refused {
+        Err(reason) => assert!(reason.contains("moves the removal to another directory"), "and the reason says which option did: {reason}"),
+        other => panic!("an alias naming another repository is a reason, but it answered {other:?}"),
+    }
+    // A command line whose only own option is configuration is read and judged where it points.
+    let configured: ResolvedCommand = ResolvedCommand {
+        arguments: command.arguments.clone(),
+        subcommand_index: command.subcommand_index,
+        subcommand: command.subcommand.clone(),
+        route: Route::ShellAlias,
+        shell_command: Some(["-c", "core.ignorecase=true", "worktree", "remove", "task"].map(std::ffi::OsString::from).to_vec()),
+        shell_value: Some(b"git -c core.ignorecase=true worktree remove".to_vec()),
+    };
+    let judged: Judged = the_removal_it_judges(&configured, &crate::test_support::git_context()).expect("the words can be read").expect("a removal was read");
+    assert_eq!(judged.subcommand_index, 2, "the subcommand stands where Git's own layout puts it");
+    assert_eq!(judged.words[2], std::ffi::OsString::from("worktree"), "and that word is the subcommand");
     assert_eq!(
         judged.answers_with,
         vec![std::ffi::OsString::from("-c"), std::ffi::OsString::from("core.ignorecase=true")],
