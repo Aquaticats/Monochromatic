@@ -655,40 +655,52 @@ fn a_second_name_of_one_entry_left_by_a_kill_is_gone_after_one_pass() {
 // install's step is the code's own step, not a bare `symlink`.
 
 #[test]
-fn a_link_made_while_its_launcher_is_being_retired_is_never_left_dangling() {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+fn a_retirement_between_a_placement_and_its_link_is_never_left_dangling() {
+    use std::sync::{Arc, Mutex};
 
     let rig = rig_with_installed_shadow();
-    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
-    let program: PathBuf = rig.scope.root.join("store").join(RENAMED_BIN);
-    let link: PathBuf = rig.scope.exposure_dir.join(RENAMED_BIN);
+    let tool = rig.tool(SHADOW_TOOL);
+    let name: &str = DECLARED_BIN;
+    let link: PathBuf = rig.scope.exposure_dir.join(name);
+    let launcher: PathBuf = rig.scope.launcher_dir.join(name);
     let scope = rig.scope.clone();
-    let linked: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let linked_in_hook: Arc<AtomicBool> = Arc::clone(&linked);
-    let link_in_hook: PathBuf = link.clone();
-    let launcher_in_hook: PathBuf = launcher.clone();
-    // Install A's own step (claim, launcher, record, link) runs inside install B's removal, after B has scanned for links
-    // and taken the launcher aside: the order the review reproduced.
-    super::removal::seam::set_after_the_move(Some(Box::new(move || {
-        let claim = super::launcher::claim_launcher_names_within(&scope, std::time::Duration::from_millis(50))
-            .expect("install A tests the claim");
-        let Some(_claim) = claim else {
-            // A leaves the name to the next install, which is the claim doing its work.
-            return;
-        };
-        super::launcher::ensure_launcher(&scope, SHADOW_TOOL, RENAMED_BIN, &program).expect("install A places its launcher");
-        super::install_support::atomic_symlink(&link_in_hook, &launcher_in_hook).expect("install A links it");
-        linked_in_hook.store(true, Ordering::SeqCst);
+    let env = rig.env.clone();
+    // Install A's lock (the rig's, in memory) declares this bin; the lock on disk no longer does, so install B's
+    // retirement of the launcher is the one that would take it away.
+    let mut without_the_bin = rig.lock.clone();
+    let declared = &mut without_the_bin
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.declaration.id == SHADOW_TOOL)
+        .expect("the sample lock holds the tool")
+        .declaration;
+    declared.bins.clear();
+    declared.options.postinstall = None;
+    fs::write(&rig.scope.lock_file, render_lock(&without_the_bin)).expect("publish the lock that dropped the bin");
+    let removal: Arc<Mutex<LauncherNotices>> = Arc::new(Mutex::new(LauncherNotices::default()));
+    let removal_in_hook: Arc<Mutex<LauncherNotices>> = Arc::clone(&removal);
+    // Install B's whole retirement runs between install A's placement of the launcher (and its record) and install A's
+    // link: the order the eighth review reproduced. In this code those two instructions are one claimed section, so the
+    // retirement waits for the claim and leaves the name to the next install.
+    super::exposure::seam::set_before_the_link(Some(Box::new(move || {
+        let runner = super::fakes::FakeRunner::new();
+        let http = super::fakes::FakeHttp::new();
+        let host = super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) };
+        let tools: Vec<super::model::LockedTool> = Vec::new();
+        let context = super::context::Context { scope: &scope, env: &env, runner: &runner, http: &http, host: &host, tools: &tools };
+        let notices = retire_undeclared_launchers(&context, &[], true);
+        *removal_in_hook.lock().expect("the notices are not poisoned") = notices;
     })));
 
-    let notices: LauncherNotices = retire(&rig);
-    super::removal::seam::set_after_the_move(None);
+    let exposure = super::exposure::rebuild_exposure(&rig.context(), &[&tool]);
+    super::exposure::seam::set_before_the_link(None);
 
+    let exposure = exposure.expect("install A's link pass runs");
+    let removal: LauncherNotices = removal.lock().expect("the notices are not poisoned").clone();
     assert!(
         !(exists_at(&link) && !exists_at(&launcher)),
-        "install A's link (made: {}) dangles: the launcher was retired after the link was made; {notices:?}",
-        linked.load(Ordering::SeqCst)
+        "install A's link dangles: a retirement took the launcher between the placement and the link; \
+         pass: {exposure:?}, retirement: {removal:?}"
     );
 }
 
@@ -696,7 +708,7 @@ fn a_link_made_while_its_launcher_is_being_retired_is_never_left_dangling() {
 fn an_install_holds_the_claim_and_a_second_install_leaves_the_link_to_the_next_one() {
     let rig = rig_with_installed_shadow();
     let tool = rig.tool(SHADOW_TOOL);
-    let name: &str = RENAMED_BIN;
+    let name: &str = DECLARED_BIN;
     fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher folder");
     // Another install is inside its launcher-and-link section for this folder.
     let held = super::launcher::claim_launcher_names(&rig.scope).expect("the claim is tested").expect("the claim is free");

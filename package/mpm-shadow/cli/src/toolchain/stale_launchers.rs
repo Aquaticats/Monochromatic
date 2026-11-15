@@ -887,7 +887,7 @@ fn retire_launchers(
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
-) {
+) -> bool {
     for entry in entries {
         let name: String = entry.file_name().to_string_lossy().to_string();
         // A record is judged with the launcher it stands beside, and a hidden name is the record of the postinstall links or a
@@ -911,17 +911,22 @@ fn retire_launchers(
         let _claim: LauncherClaim = match claim_launcher_names(ctx.scope) {
             Ok(Some(claim)) => claim,
             Ok(None) => {
+                // One refusal ends the pass: the folder's names are being changed by another install, and waiting the
+                // bound again for every remaining candidate would hold this install for minutes.
                 notices.warnings.push(format!(
-                    "left {} alone: its name is nowhere in this lock and its bytes are mpm-shadow's own, but another \
-                     mpm-shadow holds the claim on this launcher folder's names, so this pass cannot tell whether a link \
-                     to it is being made right now",
+                    "left every name this lock declares nowhere alone: another mpm-shadow holds the claim on this \
+                     launcher folder's names, so this pass cannot tell whether a link to {} is being made right now; \
+                     the next install retires what is left",
                     launcher.display()
                 ));
-                continue;
+                return false;
             }
             Err(error) => {
-                notices.warnings.push(format!("left {} alone: {error_message}", launcher.display(), error_message = error.message));
-                return;
+                notices.warnings.push(format!(
+                    "left every name this lock declares nowhere alone: {error_message}",
+                    error_message = error.message
+                ));
+                return false;
             }
         };
         let reaching: Vec<PathBuf> = links_reaching(ctx, &launcher);
@@ -938,7 +943,7 @@ fn retire_launchers(
             Some(false) => continue,
             None => {
                 notices.warnings.push(unreadable_lock_again(ctx));
-                return;
+                return true;
             }
         }
         match remove_if_still(&launcher, proven.judged, &|| return may_remove(ctx, made_links, &name, None)) {
@@ -989,6 +994,7 @@ fn retire_launchers(
             )),
         }
     }
+    return true;
 }
 
 /// What:
@@ -1009,7 +1015,7 @@ fn retire_records_without_launchers(
     started: &Declared,
     declared_tools: &BTreeSet<&str>,
     notices: &mut LauncherNotices,
-) {
+) -> bool {
     for entry in entries {
         let record_name: String = entry.file_name().to_string_lossy().to_string();
         let Some(launcher_name) = record_name.strip_suffix(RECORD_SUFFIX) else {
@@ -1031,17 +1037,19 @@ fn retire_records_without_launchers(
             Ok(Some(claim)) => claim,
             Ok(None) => {
                 notices.warnings.push(format!(
-                    "left {} alone: its launcher is gone and its name is nowhere in this lock, but another mpm-shadow \
-                     holds the claim on this launcher folder's names",
-                    record.display()
+                    "left every record this lock declares nowhere alone: another mpm-shadow holds the claim on this \
+                     launcher folder's names, so this pass cannot tell whether {} is being placed right now; the next \
+                     install retires what is left",
+                    launcher.display()
                 ));
-                continue;
+                return false;
             }
             Err(error) => {
-                notices
-                    .warnings
-                    .push(format!("left {} alone: {error_message}", record.display(), error_message = error.message));
-                return;
+                notices.warnings.push(format!(
+                    "left every record this lock declares nowhere alone: {error_message}",
+                    error_message = error.message
+                ));
+                return false;
             }
         };
         if fs::symlink_metadata(&launcher).is_ok() {
@@ -1062,7 +1070,7 @@ fn retire_records_without_launchers(
             Some(false) => continue,
             None => {
                 notices.warnings.push(unreadable_lock_again(ctx));
-                return;
+                return true;
             }
         }
         match remove_if_still(&record, judged, &|| return may_remove(ctx, made_links, launcher_name, None)) {
@@ -1080,6 +1088,7 @@ fn retire_records_without_launchers(
                 .push(format!("left {} alone: the lock declares no bin of that name, but {reason}", record.display())),
         }
     }
+    return true;
 }
 
 //endregion
@@ -1383,7 +1392,11 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String], link_se
         }
         return notices;
     }
-    retire_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut proofs, &mut notices);
+    if !retire_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut proofs, &mut notices) {
+        // The folder's names are being changed by another install; the records are judged with the launchers they
+        // belong to, so nothing more is decided in this pass.
+        return notices;
+    }
     retire_records_without_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut notices);
     return notices;
 }

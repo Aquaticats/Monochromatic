@@ -147,6 +147,10 @@ fn link_the_bin(
     };
     // Under the claim: the launcher, then its record, then the link.
     let claimed_target: PathBuf = exposed_target(ctx.scope, tool, name, found)?;
+    // The seam a control uses to run a second install's retirement between this placement and this link, which is the
+    // interleaving the eighth review reproduced. Compiled in tests only.
+    #[cfg(test)]
+    seam::before_the_link();
     atomic_symlink(link, &claimed_target)?;
     return Ok(None);
 }
@@ -470,4 +474,31 @@ pub fn unresolvable_bins(scope: &Scope, tools: &[&LockedTool]) -> Vec<String> {
         }
     }
     return unresolved;
+}
+
+/// What:
+/// The seam a control uses to run a second command between placing a launcher and making the link to it.
+/// Why:
+/// In this code those two instructions are one claimed section; only a control can split them, and only by doing so
+/// can it show what happens when a retirement runs between them and the claim that orders it is taken out.
+#[cfg(test)]
+pub(crate) mod seam {
+    /// Imports `Mutex` from `std`.
+    use std::sync::Mutex;
+
+    /// The hook a control sets, run between the placement and the link.
+    static BEFORE_THE_LINK: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
+
+    /// Sets (or with `None` clears) the hook run between the placement and the link.
+    pub(crate) fn set_before_the_link(hook: Option<Box<dyn Fn() + Send>>) {
+        *BEFORE_THE_LINK.lock().expect("the seam is not poisoned") = hook;
+    }
+
+    /// Runs the hook once, when there is one.
+    pub(crate) fn before_the_link() {
+        let waiting: Option<Box<dyn Fn() + Send>> = BEFORE_THE_LINK.lock().expect("the seam is not poisoned").take();
+        if let Some(hook) = waiting {
+            hook();
+        }
+    }
 }
