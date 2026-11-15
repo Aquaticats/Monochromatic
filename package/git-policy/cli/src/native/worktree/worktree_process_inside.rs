@@ -275,9 +275,10 @@ fn open_files_in(entry: &Path, worktree: &Path, git_dir: &Path) -> OpenFiles {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return OpenFiles::Outside,
         Err(_refused) => return OpenFiles::Unreadable,
     };
-    for descriptor in descriptors {
-        let Ok(descriptor) = descriptor else {
-            return OpenFiles::Unreadable;
+    for listed in descriptors {
+        let descriptor: std::fs::DirEntry = match listed {
+            Ok(one) => one,
+            Err(_unread) => return OpenFiles::Unreadable,
         };
         let target: std::path::PathBuf = match std::fs::read_link(descriptor.path()) {
             Ok(found) => found,

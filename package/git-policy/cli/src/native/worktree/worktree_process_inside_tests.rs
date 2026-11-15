@@ -169,10 +169,10 @@ fn a_process_whose_descriptor_table_cannot_be_read_keeps_the_worktree_only_befor
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::create_dir(elsewhere.as_path()).expect("a folder the process was started in");
     let pid: u32 = 5353;
-    let table: PathBuf = a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere.as_path(), pid);
+    let described: PathBuf = a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere.as_path(), pid);
     // Up for a thousand seconds and started at the 99 900th tick, so the process is a second old: younger than a
     // folder made ten seconds ago, and older than one made half a second ago.
-    let table: PathBuf = saying_it_started(table, pid, 1_000, 99_900);
+    let table: PathBuf = saying_it_started(described, pid, 1_000, 99_900);
     let younger: Option<WorkingProcess> =
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(10)));
     let older: Option<WorkingProcess> =
