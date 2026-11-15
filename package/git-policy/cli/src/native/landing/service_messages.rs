@@ -136,6 +136,7 @@ pub enum ClientFailure {
         answer: ManagerLastWords,
         /// What this command asked the manager to do about it.
         asked: RequestedStart,
+    },
     /// The service of this worktree is alive at its address and has not greeted yet:
     /// it is still preparing the batches an earlier service left open.
     ServiceIsPreparing {

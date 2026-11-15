@@ -79,7 +79,7 @@ fn an_address_nothing_listens_on_ends_with_the_plain_failure() {
     let began = Instant::now();
     let mut announced: bool = false;
     let reached = reach(&config(address("nothing-listens").as_str()), &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
-    assert_eq!(reached.err(), Some(ClientFailure::DidNotStart));
+    assert_eq!(reached.err(), Some(ClientFailure::DidNotStart { unit: None, answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent, asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing }));
     assert!(began.elapsed() < Duration::from_secs(5), "the wait ends at its bound");
 }
 

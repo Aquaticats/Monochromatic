@@ -27,6 +27,7 @@ use crate::commit_timing::ReachTrace;
 use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, starting_notice};
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
 use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire};
 use crate::service_server_start_by_the_wrapper::{StartAttempt, start};
 use std::io::{BufReader, Write};
@@ -118,13 +119,13 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
                 return Err(match (connected, preparing.as_ref()) {
                     (_, Some(service)) => searching_where_a_live_service_prepares(config, service, started.elapsed()),
                     (true, None) => nothing_answered(config, started.elapsed()),
-                    (false, None) => ClientFailure::DidNotStart,
+                    (false, None) => did_not_start(),
                 });
             }
             Some(_) => {}
             // Without an executable to start, nothing can start the service: what the wait comes to is the truth about the address.
             None if started.elapsed() >= config.start_wait => {
-                return Err(if connected { nothing_answered(config, started.elapsed()) } else { ClientFailure::DidNotStart });
+                return Err(if connected { nothing_answered(config, started.elapsed()) } else { did_not_start() });
             }
             None => {}
         }
@@ -315,3 +316,18 @@ fn other_release_notice(release: Option<&str>) -> String {
 #[cfg(test)]
 #[path = "service_client_reach_service_tests.rs"]
 mod tests;
+
+/// What:
+///  A start that never happened, in the failure the client already words for it.
+/// Why:
+///  This release asks no service manager for anything,
+/// so the answer carries no unit, no manager's word and no request:
+/// the command started a service itself and nothing greeted at its address.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// didNotStart() // { kind: 'did-not-start', unit: undefined, answer: silent, asked: nothing }
+/// ```
+fn did_not_start() -> ClientFailure {
+    return ClientFailure::DidNotStart { unit: None, answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing };
+}
