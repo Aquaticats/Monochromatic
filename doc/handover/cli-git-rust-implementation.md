@@ -1594,6 +1594,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.40` is published and installed on this machine and its gate is running; the last two unowned test problems get runs (2026-11-15T06:59:10-05:00)
+
+Not final and not approved:
+what the release's steps printed and what the coordinating session queued.
+
+- **`0.6.1-alpha.40`** (integration pass 50):
+  published 06:57:38 by GitHub's record
+  (both Linux binaries);
+  installed on this machine at 06:58:46 through the package's install task,
+  which committed the lock
+  (`8e48a7a853` is `main` after it).
+  `git --version` prints `monochromatic-git-policy-cli 0.6.1-alpha.40, shadowing git at /usr/bin/git`.
+  The sample commit took 1,447 ms;
+  the service's journal held no line for it.
+  The install's output is
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0.6.1-alpha.40-output.txt`.
+- The container gate on `8e48a7a853` started 06:59:10
+  (unit `gpc-gate-wrapper-next-alpha-on-8e48a7a853-20261115T065910-0500`,
+  log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-8e48a7a853-20261115T065910-0500.log`),
+  again under the CPU budget and the power-saver profile.
+  Expected to pass now,
+  by pass 50's own runs in the gate images:
+  the three refused-start controls
+  (`service_mode::` twice and the provisioning control,
+  which this release renames).
+  The fuzz sidecar's type check was started beside it.
+- **Two more fresh runs** for test problems no run owned:
+  - `bin/native-gate-main-tip.unit.test.ts` builds its throwaway checkout through the installed wrapper,
+    so it fails with the session bus address unset and leaves units in the user's manager with it set
+    (`~/temp/agent/pi-runs/gate-script-unit-test-builds-its-throwaway-checkout-without-the-installed-wrapper-prompt.md`,
+    queued seventeenth).
+  - cargo-shadow's two tests that pass or fail from run to run,
+    reported 2026-11-14 with no failing output kept
+    (`~/temp/agent/pi-runs/cargo-shadow-two-tests-that-pass-or-fail-from-run-to-run-have-their-cause-removed-prompt.md`,
+    queued eighteenth).
+  With these,
+  every failing test named in this night's reports has a branch,
+  a review,
+  a pass or a queued run.
+- The queue held 85 entries at 06:59:00.
+- The next release of the wrapper is `0.6.1-alpha.41`.
+
 ##### Tests that fail inside a suite and pass alone, which no run owned, get two fresh runs (2026-11-15T06:57:30-05:00)
 
 Not final and not approved:
