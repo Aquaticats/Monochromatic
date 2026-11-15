@@ -466,12 +466,20 @@ await describe({
         },);
         expect(putBack.status,).toBe(0,);
         expect(putBack.stdout,).toContain('put review-tests-alone back at position 0 of 1',);
-        expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([{
+        /**
+         The queue once the entry was put back.
+         */
+        const queue = await readQueueOfRuns({ queueFile: folder.queueFile, },);
+        expect(queue,).toHaveLength(1,);
+        const { queueId, ...heldEntry } = queue[0] as Record<string, unknown>;
+        expect(heldEntry,).toEqual({
           name: 'review-tests-alone',
           reviewOfRange: 'main~1...main',
           commit: folder.commit,
           source: 'src',
-        },],);
+        },);
+        // The entry goes back with the identity its record holds, which is how the settlement tells it from a namesake.
+        expect(typeof queueId,).toBe('string',);
       },
     },),
     it({

@@ -23,6 +23,9 @@ import {
 } from './pool-limits.ts';
 import type { QueueRecord, } from './queue-of-runs.ts';
 import {
+  QUEUE_BOOKKEEPING_FIELDS,
+} from './queue-of-runs.ts';
+import {
   REVIEWING_MODEL,
   REVIEWING_PROVIDER,
   REVIEW_RUN_PREFIX,
@@ -143,6 +146,9 @@ function fieldHasItsType({
 /**
  Reads the fields an entry names that the shape it takes does not, which is why it is refused.
 
+The queue's own bookkeeping fields are named by no shape and are not refused: they say which entry this is and which filling is
+starting it, and a shape that refused them would make every claimed entry unreadable.
+
  @param record - the entry
 
  @param known - the fields the shape holds
@@ -163,7 +169,7 @@ function fieldsTheShapeDoesNotHold({
 },): readonly string[] {
   return Object.keys(record,)
     .filter(function isUnread(field,) {
-      return !known.includes(field,);
+      return !known.includes(field,) && !QUEUE_BOOKKEEPING_FIELDS.includes(field,);
     },);
 }
 

@@ -39,6 +39,7 @@ import {
   summaryTextOf,
   talliesOf,
   fillFreePlacesFromAQueue,
+  writeQueueOfRuns,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -229,11 +230,16 @@ async function fillOnce({
         },
       },);
     },
-    setAside: function setAside({ record, failure, },) {
+    setAside: function setAside({
+      record,
+      failure,
+      claim,
+    },) {
       return setAsideAnEntryOfAQueue({
         queueFile: folder.queueFile,
         runsFolder: folder.runs,
         record,
+        claim,
         reason: failure.reason,
         now: Date.now,
       },);
@@ -312,16 +318,21 @@ await describe({
             expect(pass.outcome.setAsideNames,).toEqual(['fails',],);
             expect(pass.outcome.stoppedBecause,).toBeUndefined();
             expect(await namesIn(folder.queueFile,),).toEqual([],);
-            // The entry set aside is still there to read and put back, with the reason and the time its start failed at.
-            expect(await setAsideRecordOf({ runsFolder: folder.runs, name: 'fails', },),).toMatchObject({
-              name: 'fails',
-              entry: reviewNamed('fails',),
-              reason: 'nothing to review under src in main...fails',
-            },);
             /**
-             The record the pass left.
+             The record the pass left: the entry whole, with the identity the claim minted for it, so that a namesake queued
+             later is another entry.
              */
-            const record = await setAsideRecordOf({ runsFolder: folder.runs, name: 'fails', },) as { readonly setAsideAt: string };
+            const record = await setAsideRecordOf({ runsFolder: folder.runs, name: 'fails', },) as {
+              readonly entry: QueueRecord;
+              readonly name: string;
+              readonly reason: string;
+              readonly setAsideAt: string;
+            };
+            expect(record.name,).toBe('fails',);
+            expect(record.reason,).toBe('nothing to review under src in main...fails',);
+            const { queueId, ...held } = record.entry;
+            expect(held,).toEqual(reviewNamed('fails',),);
+            expect(typeof queueId,).toBe('string',);
             expect(record.setAsideAt,).toContain('T',);
             expect(pass.lines.join('',),).toContain('set aside fails (the-entry)',);
           },
@@ -360,18 +371,41 @@ await describe({
           },
         },),
         it({
-          name: 'drops a record whose entry never left the queue, which a kill between the two leaves, and tries the entry again',
+          name: 'finishes a set-aside whose record was written and whose entry never left the queue, keeping the record',
           fn: async () => {
-            await using folder = await makeFolder([runNamed('a',),],);
+            await using folder = await makeFolder([],);
+            // A kill between a set-aside's record and the claim it completes leaves the entry claimed with its record. The record
+            // holds the entry's identity, so the settlement knows the two are one attempt and finishes the set-aside: the entry goes,
+            // and the record stays as the entry's copy. Before the claim and the identity, the sweep read this state as a record whose
+            // entry never left the queue and dropped the record, losing what the failed start had decided.
+            /**
+             The identity the claim minted for the entry.
+             */
+            const queueId = 'a-discarded-entry-identity';
             await writeFile(
               join(folder.runs, 'a-set-aside.json',),
               `${JSON.stringify({
                 name: 'a',
-                entry: runNamed('a',),
+                entry: {
+                  ...runNamed('a',),
+                  queueId,
+                },
                 reason: 'a prompt file that is not there',
                 setAsideAt: '2026-11-14T09:00:00.000-05:00',
               },)}\n`,
             );
+            await writeQueueOfRuns({
+              queueFile: folder.queueFile,
+              entries: [{
+                ...runNamed('a',),
+                queueId,
+                queueClaim: {
+                  token: 'the-attempt-a-kill-interrupted',
+                  pid: 1,
+                  at: '2026-11-14T09:00:00.000-05:00',
+                },
+              },],
+            },);
             /**
              What the one pass answered.
              */
@@ -382,10 +416,14 @@ await describe({
                 return { started: true, };
               },
             },);
-            expect(pass.started,).toEqual(['a',],);
+            expect(pass.started,).toEqual([],);
             expect(pass.outcome.setAsideNames,).toEqual([],);
-            expect(pass.lines.join('',),).toContain('never left the queue',);
-            expect(await setAsideRecordOf({ runsFolder: folder.runs, name: 'a', },),).toBe(NO_SET_ASIDE_RECORD,);
+            expect(pass.lines.join('',),).toContain('so the set-aside is finished and the record stands',);
+            expect(await namesIn(folder.queueFile,),).toEqual([],);
+            expect(await setAsideRecordOf({ runsFolder: folder.runs, name: 'a', },),).toMatchObject({
+              name: 'a',
+              reason: 'a prompt file that is not there',
+            },);
           },
         },),
       ],

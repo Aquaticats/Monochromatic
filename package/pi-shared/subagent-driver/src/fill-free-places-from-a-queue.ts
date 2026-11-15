@@ -50,7 +50,10 @@ import {
   putBackSince,
   putEndedReviewsBack,
 } from './putting-ended-reviews-back.ts';
-import type { QueueRecord, } from './queue-of-runs.ts';
+import type {
+  QueueClaim,
+  QueueRecord,
+} from './queue-of-runs.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import {
   setAsideAnEntryOfAQueue,
@@ -168,22 +171,30 @@ async function runsGoing(): Promise<Awaited<ReturnType<typeof goingRunsNow>>> {
 /**
  Starts one entry and keeps the whole of what its failed start printed, beside the runs.
 
- @param record - the entry to start
+ @param record - the entry to start, as the queue holds it without its claim
+
+ @param claim - the claim this filling holds on it, whose token names the attempt
 
  @returns what the start answered, and where the whole of its output went when it failed
  */
-async function startAndKeep({ record, }: { readonly record: QueueRecord },): Promise<StartOfAnEntry> {
+async function startAndKeep({
+  record,
+  claim,
+}: {
+  readonly record: QueueRecord;
+  readonly claim: QueueClaim;
+},): Promise<StartOfAnEntry> {
   /**
    What starting the entry answered.
    */
   const started = await startAnEntryOfAQueue({
     request: {
       record,
+      attempt: claim,
       runsFolder: options.runsFolder,
       reviewsFolder: options.reviewsFolder,
       checkoutFolder: options.checkoutFolder,
       home: env.HOME ?? '',
-      now: Date.now,
       deadlineSeconds: options.deadlineSeconds,
     },
     seams: { git, },
@@ -230,6 +241,15 @@ async function putEndedReviewsBackThisRound(): Promise<void> {
       going: new Set(going.map(function nameOf(run,) {
         return run.name;
       },),),
+      goingNow: async function goingAtTheInsert() {
+        /**
+         The runs going at the instant of the insert.
+         */
+        const now = await runsGoing();
+        return new Set(now.map(function nameOf(run,) {
+          return run.name;
+        },),);
+      },
       now: Date.now,
     },);
     for (const line of putBack.lines) {
@@ -298,11 +318,13 @@ for (;;) {
         setAside: function setAside({
           record,
           failure,
+          claim,
         },) {
           return setAsideAnEntryOfAQueue({
             queueFile: options.queueFile,
             runsFolder: options.runsFolder,
             record,
+            claim,
             reason: failure.reason,
             ...(failure.keptOutputAt === undefined ? {} : { keptOutputAt: failure.keptOutputAt, }),
             now: Date.now,

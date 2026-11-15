@@ -14,13 +14,22 @@
    work, and naming that holder is more use than waiting longer.
  - {@link QUEUE_LOCK_POLL_MILLISECONDS} is the pause between attempts, longer than a change, so a waiter usually takes the lock on
    its next attempt rather than spinning on the filesystem.
- - {@link QUEUE_LOCK_STALE_MILLISECONDS} is the age past which a lock file cannot belong to a live critical section: ten minutes is
-   about three hundred thousand times the worst measured change. It is the last resort for a lock whose holder's process number now
-   belongs to another process, or whose holder was stopped and never resumed.
+
+ No age breaks a lock. Age says nothing about whether a holder is alive: a review's brief or a slow volume can hold a change for
+ longer than any number a reader picks, and taking the lock from a live holder is what let one holder write the list it had read
+ over the change that replaced it, losing that change while both callers answered success (reproduced on 2026-11-15 against the
+ queue of that day). What is read instead is identity: the lock names its holder's process and the start time of that process, and
+ a process number that now belongs to a different process is a number reused after its holder died.
 
  A holder that was killed leaves its lock file and no live process, and the next caller breaks it at once: a process that is gone
- cannot hold a queue. A lock file that names no process could only have been damaged, because this module writes the holder to a file
- beside the lock and links that file into place whole, so it is broken too.
+ cannot hold a queue. A lock file that names no process could only have been damaged, because this module writes the holder to a
+ file beside the lock and links that file into place whole, so it is broken too. A lock naming a live process whose start time is
+ the recorded one is never taken, however old it is: the wait runs out and the refusal names that process, and removing the file in
+ hand is the remedy for a holder that is stopped and never resumed.
+
+ A lock whose holder is broken while it still lives is harmless, because the lock carries a token: a caller's release removes the
+ lock only while it carries that token, and a write of the queue under the lock first reads the lock and refuses when the token is
+ not this caller's, so the replaced caller's change is refused rather than written over the taker's.
  */
 
 import { randomUUID, } from 'node:crypto';
@@ -29,11 +38,9 @@ import {
   readFile,
   rename,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises';
 import { setTimeout as sleep, } from 'node:timers/promises';
-import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 
 /**
@@ -77,9 +84,19 @@ export const QUEUE_LOCK_WAIT_MILLISECONDS = 10_000;
 export const QUEUE_LOCK_POLL_MILLISECONDS = 10;
 
 /**
- The age past which a lock file cannot belong to a live critical section, in milliseconds.
+ The folder a Linux machine keeps one folder per process in, which is where the start time of a process is read.
  */
-export const QUEUE_LOCK_STALE_MILLISECONDS = 600_000;
+const PROCESS_FOLDER = '/proc';
+
+/**
+ Which field of a process's own statistics holds when it started, counted in clock ticks since the machine came up.
+ */
+const PROCESS_START_TIME_FIELD = 22;
+
+/**
+ The column a process's statistics separate its name from its other fields with, which the name itself may hold.
+ */
+const PROCESS_STAT_NAME_END = ')';
 
 /**
  The queue is held by another writer, and this caller's wait ran out, so nothing was changed.
@@ -92,12 +109,32 @@ export class QueueLockHeldError extends Error {
 }
 
 /**
+ The lock that was taken is no longer this caller's, so the queue this caller read is not the queue it would write.
+ */
+export class QueueLockLostError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'QueueLockLostError';
+}
+
+/**
  A queue's lock while a caller changes the queue: it is given back when the block that took it ends, whether that block answered or
  threw.
  */
 export type TheQueueLock = {
   /**
-   Removes the lock file, which lets the next writer take the queue.
+   The lock file's path.
+   */
+  readonly lockFile: string;
+
+  /**
+   The token this caller's lock carries, which no other caller's lock carries.
+   */
+  readonly token: string;
+
+  /**
+   Removes the lock file while it still carries this caller's token, which lets the next writer take the queue.
    */
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
@@ -115,6 +152,16 @@ type HolderOfAQueue = {
    When the holder took the lock, when the file names a time.
    */
   readonly at?: string;
+
+  /**
+   When the holder's process started, when the file names it.
+   */
+  readonly startedAt?: string;
+
+  /**
+   The token the holder wrote, when the file names one.
+   */
+  readonly token?: string;
 };
 
 /**
@@ -334,9 +381,25 @@ async function holderOfAQueue({ lockFile, }: { readonly lockFile: string },): Pr
     parsed,
     'at',
   );
+  /**
+   When the holder's process started, when the file names it.
+   */
+  const startedAt: unknown = Reflect.get(
+    parsed,
+    'startedAt',
+  );
+  /**
+   The token the holder wrote, when the file names one.
+   */
+  const token: unknown = Reflect.get(
+    parsed,
+    'token',
+  );
   return {
     ...(((typeof pid) === 'number') ? { pid, } : {}),
     ...(((typeof at) === 'string') ? { at, } : {}),
+    ...(((typeof startedAt) === 'string') ? { startedAt, } : {}),
+    ...(((typeof token) === 'string') ? { token, } : {}),
   };
 }
 
@@ -352,7 +415,7 @@ async function holderOfAQueue({ lockFile, }: { readonly lockFile: string },): Pr
  const there = processIsThere({ pid: 1 });
  ```
  */
-function processIsThere({ pid, }: { readonly pid: number },): boolean {
+export function processIsThere({ pid, }: { readonly pid: number },): boolean {
   try {
     process.kill(
       pid,
@@ -367,65 +430,69 @@ function processIsThere({ pid, }: { readonly pid: number },): boolean {
 }
 
 /**
- Reads how old a lock file is.
+ Reads when one process started, which tells a process from a process number reused after its holder died.
 
- @param lockFile - the lock's path
+ @param pid - the process number
 
- @param now - the clock the age is read from
-
- @returns the age, or that the lock is gone
+ @returns the start time the kernel counted, or nothing when no process of that number is there or its statistics cannot be read
 
  @example
  ```ts
- const age = await ageOfALock({ lockFile: '/runs/queue.json.lock', now: Date.now });
+ const startedAt = await processStartedAtOf({ pid: process.pid });
  ```
  */
-async function ageOfALock({
-  lockFile,
-  now,
-}: {
-  readonly lockFile: string;
-  readonly now: () => number;
-},): Promise<{ readonly ageMilliseconds: number } | { readonly gone: true }> {
+export async function processStartedAtOf({ pid, }: { readonly pid: number },): Promise<string | undefined> {
+  /**
+   The process's statistics.
+   */
+  let shown: string;
   try {
-    return {
-      ageMilliseconds: now() - (await stat(lockFile,)).mtimeMs,
-    };
+    shown = await readFile(
+      `${PROCESS_FOLDER}/${String(pid,)}/stat`,
+      'utf8',
+    );
   }
   catch (error) {
-    // A lock that vanished between the read and the look is one its holder gave back, which the next attempt finds free.
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return { gone: true, };
+    // A process that is gone, or one this account may not read, answers nothing: the caller treats an unknown start time as a
+    // holder it cannot judge, which is a lock it must not take.
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'EACCES')) {
+      return undefined;
     }
     throw error;
   }
+  /**
+   Where the process's name ends, which is the last closing bracket: the name itself may hold brackets and spaces.
+   */
+  const nameEnd = shown.lastIndexOf(PROCESS_STAT_NAME_END,);
+  if (nameEnd === (-1)) {
+    return undefined;
+  }
+  /**
+   The fields after the name, of which the first is the state and the twenty-second from one is the start time.
+   */
+  const afterName = shown.slice(nameEnd + 1,)
+    .trim()
+    .split(/\s+/u,);
+  /**
+   The start time, which is at the field the kernel counts it in.
+   */
+  const startedAt = afterName[PROCESS_START_TIME_FIELD - 3];
+  return ((startedAt === undefined) || (startedAt === '')) ? undefined : startedAt;
 }
 
 /**
  Reads whether a lock holds no live critical section, and so may be broken.
 
- @param lockFile - the lock's path
-
  @param holder - what the lock file says about its holder
-
- @param now - the clock the lock's age is read from
 
  @returns whether the lock may be broken, and the reason a caller's line gives
 
  @example
  ```ts
- const breaker = await lockMayBeBroken({ lockFile: '/runs/queue.json.lock', holder, now: Date.now });
+ const breaker = lockMayBeBroken({ holder });
  ```
  */
-async function lockMayBeBroken({
-  lockFile,
-  holder,
-  now,
-}: {
-  readonly lockFile: string;
-  readonly holder: HolderOfAQueue;
-  readonly now: () => number;
-},): Promise<StateOfALock> {
+async function lockMayBeBroken({ holder, }: { readonly holder: HolderOfAQueue },): Promise<StateOfALock> {
   if (holder.pid === undefined) {
     return {
       broken: true,
@@ -438,22 +505,22 @@ async function lockMayBeBroken({
       reason: `its process ${String(holder.pid,)} is gone`,
     };
   }
-  /**
-   How old the lock is, or that it went away.
-   */
-  const age = await ageOfALock({
-    lockFile,
-    now,
-  },);
-  if ('gone' in age) {
+  if (holder.startedAt === undefined) {
+    // A lock written by hand, or by a version of this module that recorded no start time, names a process this caller cannot
+    // tell from a process number reused after its holder died: it is a holder, and a live holder is never taken from.
     return { broken: false, };
   }
-  return (age.ageMilliseconds > QUEUE_LOCK_STALE_MILLISECONDS)
-    ? {
+  /**
+   When the process now holding that number started.
+   */
+  const startedAt = await processStartedAtOf({ pid: holder.pid, },);
+  if ((startedAt !== undefined) && (startedAt !== holder.startedAt)) {
+    return {
       broken: true,
-      reason: `it is ${String(Math.round(age.ageMilliseconds / MILLISECONDS_PER_SECOND,),)} s old, older than any change to a queue could be`,
-    }
-    : { broken: false, };
+      reason: `the number of its process ${String(holder.pid,)} now belongs to a process started at ${startedAt}, not at the ${holder.startedAt} it names`,
+    };
+  }
+  return { broken: false, };
 }
 
 /**
@@ -494,11 +561,86 @@ async function breakTheLockFile({ lockFile, }: { readonly lockFile: string },): 
 }
 
 /**
+ Removes a lock file while it still carries this caller's token, and leaves another caller's lock alone.
+
+ @param lockFile - the lock's path
+
+ @param token - the token this caller's lock carries
+
+ @example
+ ```ts
+ await removeTheLockWhileItIsOurs({ lockFile: '/runs/queue.json.lock', token });
+ ```
+ */
+async function removeTheLockWhileItIsOurs({
+  lockFile,
+  token,
+}: {
+  readonly lockFile: string;
+  readonly token: string;
+},): Promise<void> {
+  /**
+   What the lock says now, which is another caller's lock once this caller's was broken and taken.
+   */
+  const holder = await holderOfAQueue({ lockFile, },);
+  if (holder.token !== token) {
+    return;
+  }
+  await rm(
+    lockFile,
+    { force: true, },
+  );
+}
+
+/**
+ Refuses a change when the lock under which the queue was read is no longer this caller's.
+
+ A lock is only ever broken while its holder is gone or while the number it names belongs to another process, so this answers
+ about a caller whose lock was taken by someone who judged it wrongly, or about a change made after its own lock was given back.
+ Either way the list this caller read is not the list it would write, so nothing is written.
+
+ @param lockFile - the lock's path
+
+ @param token - the token this caller's lock carries
+
+ @param queueFile - the queue's path, for the message
+
+ @throws QueueLockLostError when the lock is there and carries another token, or is gone
+
+ @example
+ ```ts
+ await assertTheLockIsStillOurs({ lockFile: '/runs/queue.json.lock', token, queueFile: '/runs/queue.json' });
+ ```
+ */
+export async function assertTheLockIsStillOurs({
+  lockFile,
+  token,
+  queueFile,
+}: {
+  readonly lockFile: string;
+  readonly token: string;
+  readonly queueFile: string;
+},): Promise<void> {
+  /**
+   What the lock says now.
+   */
+  const holder = await holderOfAQueue({ lockFile, },);
+  if (holder.token === token) {
+    return;
+  }
+  throw new QueueLockLostError(
+    `the queue at ${queueFile} was not changed: the lock this caller took is gone, and ${lockFile} now holds `
+      + `${((holder.pid === undefined) ? 'nothing this caller can read' : `process ${String(holder.pid,)} since ${holder.at ?? 'an unknown time'}`)}. `
+      + 'The queue was read under the old lock, so writing it would write over whatever the new holder changed.',
+  );
+}
+
+/**
  Waits, bounded, for one caller to take a queue's lock, and answers the lock it holds.
 
  @param queueFile - the queue whose lock is taken
 
- @param now - the clock the wait and the lock's age are read from
+ @param now - the clock the wait and the lock's time are read from
 
  @param wait - the pause between two attempts
 
@@ -530,9 +672,19 @@ export async function acquireTheQueueLock({
    */
   const lockFile = lockFileOfAQueue({ queueFile, },);
   /**
+   The token this caller's lock carries, which tells it from a lock taken after its own was broken.
+   */
+  const token = randomUUID();
+  /**
+   When this caller's process started, which tells a later holder from this process number reused after this one dies.
+   */
+  const startedAt = await processStartedAtOf({ pid: process.pid, },);
+  /**
    The moment this caller stops asking.
    */
   const deadline = now() + waitMilliseconds;
+  /* oxlint-disable eslint/no-unused-expressions -- one attempt, then a pause, then the next attempt: taking a lock is a sequence
+     of attempts by definition, and each reads what the attempt before it left. See doc/lint/sequential-awaits.md. */
   /* oxlint-disable eslint/no-await-in-loop -- one attempt, then a pause, then the next attempt: taking a lock is a sequence of
      attempts by definition, and each reads what the attempt before it left. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -540,15 +692,21 @@ export async function acquireTheQueueLock({
       lockFile,
       content: `${JSON.stringify({
         pid: process.pid,
+        ...((startedAt === undefined) ? {} : { startedAt, }),
         at: new Date(now(),).toISOString(),
+        token,
       },)}\n`,
     },)) {
       return {
+        lockFile,
+        token,
         async [Symbol.asyncDispose]() {
-          await rm(
+          // Only this caller's own lock goes: a lock that was broken and taken by another caller carries that caller's token, and
+          // removing it would take a live holder's queue from it.
+          await removeTheLockWhileItIsOurs({
             lockFile,
-            { force: true, },
-          );
+            token,
+          },);
         },
       };
     }
@@ -559,11 +717,7 @@ export async function acquireTheQueueLock({
     /**
      Whether that lock holds no live critical section.
      */
-    const breaker = await lockMayBeBroken({
-      lockFile,
-      holder,
-      now,
-    },);
+    const breaker = await lockMayBeBroken({ holder, },);
     if (breaker.broken) {
       // The holder that would care is gone, so the breaking is silent and the caller simply goes on: the reason is in
       // `lockMayBeBroken` for a reader of this code, and a lock that named no live process cannot hold the queue.

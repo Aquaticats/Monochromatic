@@ -22,8 +22,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  type QueueClaim,
+  claimAnEntryOfAQueue,
   isASetAsideRecordFile,
+  NO_SET_ASIDE_RECORD,
   lockFileOfAQueue,
+  queueIdOf,
   putASetAsideEntryBack,
   QueueLockHeldError,
   readQueueOfRuns,
@@ -125,6 +129,36 @@ const THE_ENTRY = {
   wall: 28_800,
 };
 
+/**
+ Claims the entry every test here sets aside, which is what a filling does before it starts it.
+
+ Only a claimed entry can be set aside: the record is the copy of an attempt this filling was starting, and the queue's copy goes
+ only when it is that very attempt.
+
+ @param folder - the folder whose queue is claimed
+
+ @returns the claim, and the identity it minted for the entry
+
+ @throws Error when the queue no longer holds the entry as it was read
+ */
+async function claimTheEntry({ folder, }: { readonly folder: AThrowawayFolder },): Promise<{
+  readonly queueId: string;
+  readonly claim: QueueClaim;
+}> {
+  /**
+   What taking the claim answered.
+   */
+  const taken = await claimAnEntryOfAQueue({
+    queueFile: folder.queueFile,
+    record: THE_ENTRY,
+    now: Date.now,
+  },);
+  if (taken.kind !== 'claimed') {
+    throw new Error(`the queue did not hold the entry to claim: ${taken.kind}`,);
+  }
+  return { queueId: taken.queueId, claim: taken.claim, };
+}
+
 await describe({
   name: '',
   children: [
@@ -186,12 +220,17 @@ await describe({
              */
             const now = Date.parse('2026-11-14T09:00:00.000-05:00',);
             /**
+             The claim the filling holds on the entry when its start fails.
+             */
+            const claim = await claimTheEntry({ folder, },);
+            /**
              What setting the entry aside answered.
              */
             const kept = await setAsideAnEntryOfAQueue({
               queueFile: folder.queueFile,
               runsFolder: folder.runs,
               record: THE_ENTRY,
+              claim,
               reason: 'nothing to review under src in main...a',
               now: function nowOfTheRecord() {
                 return now;
@@ -199,11 +238,16 @@ await describe({
             },);
             expect(kept.file,).toBe(setAsideFileOf({ runsFolder: folder.runs, name: 'a', },),);
             expect(kept.left,).toBe(1,);
-            expect(await setAsideRecordOf({ runsFolder: folder.runs, name: 'a', },),).toEqual({
-              name: 'a',
-              entry: THE_ENTRY,
-              reason: 'nothing to review under src in main...a',
-              setAsideAt: new Date(now,).toISOString(),
+            /**
+             The record the set-aside left.
+             */
+            const record = await setAsideRecordOf({ runsFolder: folder.runs, name: 'a', },);
+            expect(record === NO_SET_ASIDE_RECORD ? undefined : record.reason,).toBe('nothing to review under src in main...a',);
+            expect(record === NO_SET_ASIDE_RECORD ? undefined : record.setAsideAt,).toBe(new Date(now,).toISOString(),);
+            // The record holds the entry whole, and the identity that tells it from an entry queued under the same name later.
+            expect(record === NO_SET_ASIDE_RECORD ? undefined : record.entry,).toEqual({
+              ...THE_ENTRY,
+              queueId: claim.queueId,
             },);
             expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
               return entry.name;
@@ -231,6 +275,7 @@ await describe({
                 queueFile: folder.queueFile,
                 runsFolder: folder.runs,
                 record: THE_ENTRY,
+                claim: await claimTheEntry({ folder, },),
                 reason: 'nothing to review under src in main...a',
                 now: Date.now,
                 waitMilliseconds: 30,
@@ -308,10 +353,15 @@ await describe({
           name: 'puts the entry back at the head of the queue and removes its record, so nothing is lost',
           fn: async () => {
             await using folder = await makeFolder();
+            /**
+             The claim the filling held when the entry's start failed.
+             */
+            const claim = await claimTheEntry({ folder, },);
             await setAsideAnEntryOfAQueue({
               queueFile: folder.queueFile,
               runsFolder: folder.runs,
               record: THE_ENTRY,
+              claim,
               reason: 'a prompt file that is not there',
               now: Date.now,
             },);
@@ -326,7 +376,15 @@ await describe({
             },);
             expect(put.line,).toContain('put a back at position 0 of 2',);
             expect(put.line,).toContain('a prompt file that is not there',);
-            expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([THE_ENTRY, { name: 'b', branch: 'feat/b', },],);
+            /**
+             The queue once the entry is back in it.
+             */
+            const queue = await readQueueOfRuns({ queueFile: folder.queueFile, },);
+            expect(queue,).toHaveLength(2,);
+            expect(queue[0],).toMatchObject(THE_ENTRY,);
+            // The entry goes back with its identity, so the settlement can tell it from a namesake queued later.
+            expect(queueIdOf({ record: queue[0] as never, },),).toBe(claim.queueId,);
+            expect(queue[1],).toEqual({ name: 'b', branch: 'feat/b', },);
             expect(await setAsideRecordIsThere({ runsFolder: folder.runs, name: 'a', },),).toBe(false,);
           },
         },),
@@ -365,7 +423,7 @@ await describe({
               position: 0,
             },);
             expect(put.line,).toContain('is still in the queue',);
-            expect(put.line,).toContain('the filling finishes or drops it',);
+            expect(put.line,).toContain('the next filling\'s settlement finishes or drops it',);
             expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
               return entry.name;
             },),).toEqual(['a', 'b',],);

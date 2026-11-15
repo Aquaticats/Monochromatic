@@ -318,6 +318,14 @@ await describe({
                 queueFile: folder.queueFile,
                 runsFolder: folder.runs,
                 record: THE_ENTRY,
+                claim: {
+                  queueId: 'a claimed identity',
+                  claim: {
+                    token: 'a token',
+                    pid: process.pid,
+                    at: new Date().toISOString(),
+                  },
+                },
                 reason: 'the entry failed its start',
                 now: Date.now,
                 waitMilliseconds: 30,

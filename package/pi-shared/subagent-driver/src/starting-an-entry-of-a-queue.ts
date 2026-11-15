@@ -15,7 +15,6 @@
  */
 
 import { writeFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
 import {
   BATCH_DEFAULT_CPU_PERCENT,
   BATCH_DEFAULT_DEADLINE_SECONDS,
@@ -24,6 +23,7 @@ import {
   type BatchEntry,
 } from './batch-list.ts';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { namesOfAnAttemptIn, } from './claims-on-the-entries-of-a-queue.ts';
 import {
   changeOfAReviewRun,
   type ReviewOfARangeEntry,
@@ -33,7 +33,10 @@ import {
   type GitQuestion,
   ReviewGitError,
 } from './material-of-a-review.ts';
-import type { QueueRecord, } from './queue-of-runs.ts';
+import type {
+  QueueClaim,
+  QueueRecord,
+} from './queue-of-runs.ts';
 import { FOCUS_OF_A_CHANGE_REVIEW, } from './review-brief.ts';
 import {
   REVIEW_WALL_SECONDS,
@@ -52,16 +55,6 @@ import {
 } from './run-command.ts';
 import { startABatchFile, } from './starting-a-batch-in-its-own-unit.ts';
 import { writeReviewBrief, } from './writing-a-review-brief.ts';
-
-/**
- How many characters of an entry's name go into the batch list's file name, which also becomes its unit's name.
- */
-const NAME_CHARACTERS_IN_A_FILE = 60;
-
-/**
- Characters in the ISO 8601 time a batch list's name begins with, up to the second: `2026-11-14T09:21:14`.
- */
-const STAMP_CHARACTERS = 19;
 
 /**
  The words a git refusal uses when the machine, not the entry, is why git did not answer: a lock file another process holds, a
@@ -369,9 +362,14 @@ async function briefOfAReviewOfARange({
  */
 export type StartOfAnEntryRequest = {
   /**
-   The entry, as the queue holds it.
+   The entry, as the queue holds it, with its identity and no claim.
    */
   readonly record: QueueRecord;
+
+  /**
+   The claim the filling holds on this entry, whose token names this one start attempt.
+   */
+  readonly attempt: QueueClaim;
 
   /**
    Folder the runs live in, where the batch list goes.
@@ -393,12 +391,6 @@ export type StartOfAnEntryRequest = {
    */
   readonly home: string;
 
-
-  /**
-   Where the start reads the time its batch list is named by.
-   */
-  readonly now: () => number;
-
   /**
    How long the batch inside the unit keeps asking for a slot.
    */
@@ -408,7 +400,14 @@ export type StartOfAnEntryRequest = {
 /**
  Writes the one-entry batch list an entry is started from.
 
- @param request - the entry, the folders and the time
+The list's name is the one the entry's claim names (`namesOfAnAttemptIn`), so a claim names its own evidence and a second attempt
+on the same entry never answers for the first.
+
+ @param request - the runs folder the list is written into
+
+ @param name - the entry's name
+
+ @param attempt - the claim that names this attempt
 
  @param entry - the batch entry to write
 
@@ -421,34 +420,23 @@ export type StartOfAnEntryRequest = {
  */
 async function batchListOf({
   request,
+  name,
+  attempt,
   entry,
 }: {
   readonly request: StartOfAnEntryRequest;
+  readonly name: string;
+  readonly attempt: QueueClaim;
   readonly entry: BatchEntry;
 },): Promise<{ readonly written: string } | { readonly refused: FailureOfAStart }> {
   /**
-   The stamp the list's name begins with, so its unit's name is one a reader can place in time.
+   The list's path, beside the runs, named after the attempt and the entry.
    */
-  const stamp = new Date(request.now(),).toISOString()
-    .slice(
-    0,
-    STAMP_CHARACTERS,
-    )
-    .replaceAll(
-    ':',
-    '',
-    );
-  /**
-   The list's path, beside the runs, named after the entry and the moment.
-   */
-  const file = join(
-    request.runsFolder,
-    `batch-${stamp}-${String(process.pid,)}-queue-entry-${entry.name
-      .slice(
-      0,
-      NAME_CHARACTERS_IN_A_FILE,
-    )}.json`,
-  );
+  const file = namesOfAnAttemptIn({
+    runsFolder: request.runsFolder,
+    name,
+    claim: attempt,
+  },).batchFile;
   try {
     await writeFile(
       file,
@@ -530,6 +518,8 @@ export async function startAnEntryOfAQueue({
    */
   const list = await batchListOf({
     request,
+    name: request.record.name,
+    attempt: request.attempt,
     entry: handedOn.entry,
   },);
   if ('refused' in list) {

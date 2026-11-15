@@ -16,9 +16,11 @@ import {
   rename,
   writeFile,
 } from 'node:fs/promises';
+import { randomUUID, } from 'node:crypto';
 import {
   aPathWrittenBeside,
   acquireTheQueueLock,
+  assertTheLockIsStillOurs,
 } from './queue-lock.ts';
 
 /**
@@ -28,6 +30,250 @@ import {
  field; this module only knows that every entry is an object with a name.
  */
 export type QueueRecord = Readonly<Record<string, unknown> & { readonly name: string }>;
+
+/**
+ The field holding an entry's own identity, which the write that claims the entry mints.
+ */
+export const QUEUE_ID_FIELD = 'queueId';
+
+/**
+ The field holding the claim one filling has on an entry, which no other filling starts it under.
+ */
+export const QUEUE_CLAIM_FIELD = 'queueClaim';
+
+/**
+ The fields a queue's own bookkeeping writes into an entry, and which no entry shape reads.
+
+ A name is not an identity: a name may be queued again once its earlier entry has gone, so the state of one entry is known by
+ its identity and by the token of the attempt holding it.
+ */
+export const QUEUE_BOOKKEEPING_FIELDS: readonly string[] = [
+  QUEUE_ID_FIELD,
+  QUEUE_CLAIM_FIELD,
+];
+
+/**
+ The claim one filling holds on one entry while it starts it.
+
+ The token names the start attempt, and the batch list of that attempt, the unit it starts in and that unit's output file are
+ all named from it (`namesOfAnAttemptIn` in `claims-on-the-entries-of-a-queue.ts`), so a claim names its own evidence without
+ naming a path.
+ */
+export type QueueClaim = {
+  /**
+   The token naming this one start attempt, minted when the claim was written.
+   */
+  readonly token: string;
+
+  /**
+   The process number of the filling that holds the claim.
+   */
+  readonly pid: number;
+
+  /**
+   When the claim was taken, as ISO 8601.
+   */
+  readonly at: string;
+};
+
+/**
+ Reads the value of one field of an entry, of any shape.
+
+ @param record - the entry
+
+ @param field - the field's name
+
+ @returns what it holds, or nothing when it names the field not at all
+
+ @example
+ ```ts
+ const written = fieldOf({ record: { name: 'a', queueId: 'q1' }, field: 'queueId' });
+ ```
+ */
+function fieldOf({
+  record,
+  field,
+}: {
+  readonly record: QueueRecord;
+  readonly field: string;
+},): unknown {
+  return record[field];
+}
+
+/**
+ Reads one entry's own identity.
+
+ @param record - the entry
+
+ @returns the identity the queue wrote, or nothing when the entry has none yet
+
+ @example
+ ```ts
+ const id = queueIdOf({ record: { name: 'a', queueId: 'q1' } });
+ ```
+ */
+export function queueIdOf({ record, }: { readonly record: QueueRecord },): string | undefined {
+  /**
+   What the identity field holds.
+   */
+  const written = fieldOf({
+    record,
+    field: QUEUE_ID_FIELD,
+  },);
+  return ((typeof written) === 'string') && (written !== '') ? written : undefined;
+}
+
+/**
+ Reads the claim a filling holds on one entry.
+
+ @param record - the entry
+
+ @returns the claim, or nothing when no filling holds one or the field holds no claim
+
+ @example
+ ```ts
+ const claim = claimOnAnEntry({ record: { name: 'a', queueClaim: { token: 't', pid: 1, at: '2026-11-15T00:00:00.000Z' } } });
+ ```
+ */
+export function claimOnAnEntry({ record, }: { readonly record: QueueRecord },): QueueClaim | undefined {
+  /**
+   What the claim field holds.
+   */
+  const written = fieldOf({
+    record,
+    field: QUEUE_CLAIM_FIELD,
+  },);
+  if (((typeof written) !== 'object') || (written === null)) {
+    return undefined;
+  }
+  /**
+   What the field says a claim is.
+   */
+  const token: unknown = Reflect.get(
+    written,
+    'token',
+  );
+  /**
+   The process number it names.
+   */
+  const pid: unknown = Reflect.get(
+    written,
+    'pid',
+  );
+  /**
+   The time it names.
+   */
+  const at: unknown = Reflect.get(
+    written,
+    'at',
+  );
+  if (
+    ((typeof token) !== 'string')
+      || (token === '')
+      || ((typeof pid) !== 'number')
+      || ((typeof at) !== 'string')
+  ) {
+    return undefined;
+  }
+  return {
+    token,
+    pid,
+    at,
+  };
+}
+
+/**
+ Reads one entry with the claim a filling holds on it, and nothing else changed.
+
+ @param record - the entry
+
+ @param claim - the claim to write on it
+
+ @returns the entry holding that claim
+
+ @example
+ ```ts
+ const claimed = withTheClaim({ record: { name: 'a' }, claim });
+ ```
+ */
+export function withTheClaim({
+  record,
+  claim,
+}: {
+  readonly record: QueueRecord;
+  readonly claim: QueueClaim;
+},): QueueRecord {
+  return {
+    ...record,
+    [QUEUE_CLAIM_FIELD]: claim,
+  };
+}
+
+/**
+ Reads one entry with its claim gone, which is the entry a give-back leaves and the entry a set-aside record holds.
+
+ @param record - the entry
+
+ @returns the entry without a claim
+
+ @example
+ ```ts
+ const queued = withoutTheClaim({ record: { name: 'a', queueClaim: claim } });
+ ```
+ */
+export function withoutTheClaim({ record, }: { readonly record: QueueRecord },): QueueRecord {
+  /**
+   The entry's fields without the claim's.
+   */
+  const { [QUEUE_CLAIM_FIELD]: _claim, ...rest } = record;
+  return rest;
+}
+
+/**
+ Says whether one entry is the attempt named: its own identity and that attempt's token, both.
+
+ A name is not an identity, so a removal or a give-back matched on a name alone would act on an entry queued under that name
+ after the one read, which is how a completed start once deleted replacement user data.
+
+ @param record - the entry
+
+ @param queueId - the identity of the entry the attempt was claimed on
+
+ @param token - the token naming the attempt
+
+ @returns whether this entry is that attempt
+
+ @example
+ ```ts
+ const mine = entryIsTheAttempt({ record, queueId: 'q1', token: 't1' });
+ ```
+ */
+export function entryIsTheAttempt({
+  record,
+  queueId,
+  token,
+}: {
+  readonly record: QueueRecord;
+  readonly queueId: string;
+  readonly token: string;
+},): boolean {
+  return (queueIdOf({ record, },) === queueId)
+    && (claimOnAnEntry({ record, },)?.token === token);
+}
+
+/**
+ Mints an identity for one entry, which the write that claims it writes.
+
+ @returns a fresh identity
+
+ @example
+ ```ts
+ const queueId = aFreshQueueId();
+ ```
+ */
+export function aFreshQueueId(): string {
+  return randomUUID();
+}
 
 /**
  Says whether a value is one entry of a queue: a JSON object named by a non-empty `name`.
@@ -344,10 +590,17 @@ export async function withTheQueueLock<Answer>({
   const entries = await readQueueOfRuns({ queueFile, },);
   return await work({
     entries,
-    write: function writeTheQueue(next,) {
-      return writeTheQueueWhole({
+    async write(theQueue,) {
+      // The token is checked before every write: a lock that was broken and taken by another caller while this one held the
+      // queue would otherwise let this caller write the list it read over the taker's change. See `queue-lock.ts`.
+      await assertTheLockIsStillOurs({
+        lockFile: lock.lockFile,
+        token: lock.token,
         queueFile,
-        entries: next,
+      },);
+      await writeTheQueueWhole({
+        queueFile,
+        entries: theQueue,
       },);
     },
   },);
@@ -458,6 +711,11 @@ export async function writeQueueOfRuns({
     ...(now === undefined ? {} : { now, }),
     ...(wait === undefined ? {} : { wait, }),
     ...(waitMilliseconds === undefined ? {} : { waitMilliseconds, }),
+  },);
+  await assertTheLockIsStillOurs({
+    lockFile: lock.lockFile,
+    token: lock.token,
+    queueFile,
   },);
   await writeTheQueueWhole({
     queueFile,

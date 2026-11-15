@@ -186,6 +186,105 @@ type NewestAttemptOfAReview = {
 };
 
 /**
+ Reads the folder one attempt of one review run wrote.
+
+ @param name - the review run's name
+
+ @param attempt - the attempt's number
+
+ @returns the folder's name, below the runs folder
+
+ @example
+ ```ts
+ const folder = runFolderOf({ name: 'review-a', attempt: 2 });
+ ```
+ */
+function runFolderOf({
+  name,
+  attempt,
+}: {
+  readonly name: string;
+  readonly attempt: number;
+},): string {
+  return `${name}-${String(attempt,)}`;
+}
+
+/**
+ Reads every attempt of every review run in the runs folder, newest first, one list per review name.
+
+ The attempts matter and not only the newest, because an attempt can be killed before it writes a summary: the newest attempt then
+ holds no record of stopping, and the attempt a review goes on from is the newest one that does.
+
+ @param runsFolder - folder the driver writes one run folder per run into
+
+ @returns one list per review name, its attempts newest first
+
+ @example
+ ```ts
+ const attempts = await attemptsOfEachReview({ runsFolder: '/runs' });
+ ```
+ */
+export async function attemptsOfEachReview({ runsFolder, }: { readonly runsFolder: string },): Promise<ReadonlyMap<string, readonly number[]>> {
+  /**
+   The attempts of each review name found so far, in the order the folder listed them.
+   */
+  const attempts = new Map<string, number[]>();
+  for (const entry of await entriesOrNothingIn(runsFolder,)) {
+    if (!entry.startsWith(REVIEW_RUN_PREFIX,)) {
+      continue;
+    }
+    /**
+     Where the attempt's number begins.
+     */
+    const separator = entry.lastIndexOf('-',);
+    if (separator <= 0) {
+      continue;
+    }
+    /**
+     The attempt's number, as the folder writes it.
+     */
+    const written = entry.slice(separator + 1,);
+    if (!isDigitsOnly(written,)) {
+      continue;
+    }
+    /**
+     The review's name.
+     */
+    const name = entry.slice(
+      0,
+      separator,
+    );
+    /**
+     The attempt's number.
+     */
+    const attempt = Number(written,);
+    /**
+     The attempts of that name read so far.
+     */
+    const known = attempts.get(name,);
+    if (known === undefined) {
+      attempts.set(name, [attempt,],);
+    }
+    else {
+      known.push(attempt,);
+    }
+  }
+  /**
+   The attempts of each name, newest first.
+   */
+  const newestFirst = new Map<string, readonly number[]>();
+  for (const [name, numbers,] of attempts) {
+    newestFirst.set(
+      name,
+      [...numbers,].sort(function newestOf(a, b,) {
+        return b - a;
+      },),
+    );
+  }
+  return newestFirst;
+}
+
+/**
  Reads the newest attempt of every review run in the runs folder.
 
  @param runsFolder - folder the driver writes one run folder per run into
@@ -377,6 +476,9 @@ async function rateLimitReviewPromptIn({ runsFolder, }: { readonly runsFolder: s
 
  @param going - the runs going now, by name
 
+ @param goingNow - how the runs going are read again inside the step that inserts, when the caller can ask; a review started while the
+ candidates were being read is then not queued a second time
+
  @param now - where this reads the clock
 
  @param waitMilliseconds - how long to keep asking for the queue's lock before refusing
@@ -394,6 +496,7 @@ export async function putEndedReviewsBack({
   reviewsFolder,
   since,
   going,
+  goingNow,
   now,
   waitMilliseconds,
 }: {
@@ -402,6 +505,7 @@ export async function putEndedReviewsBack({
   readonly reviewsFolder: string;
   readonly since: number;
   readonly going: ReadonlySet<string>;
+  readonly goingNow?: () => Promise<ReadonlySet<string>>;
   readonly now: () => number;
   readonly waitMilliseconds?: number;
 },): Promise<EndedReviewsPutBack> {
@@ -421,46 +525,78 @@ export async function putEndedReviewsBack({
     readonly entry: QueueRecord;
     readonly runFolder: string;
   }[] = [];
-  for (const review of await newestAttemptOfEachReview({ runsFolder, },)) {
-    /**
-     The run's summary.
-     */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one review run after another, each reading its own summary
-    const summary = await summaryOfARunIn({
-      file: join(
-        runsFolder,
-        review.runFolder,
-        SUMMARY_FILE_NAME,
-      ),
-    },);
-    if ((summary === NOT_FINISHED_YET) || (summary.endedAt < since)) {
+  for (const [name, attempts,] of await attemptsOfEachReview({ runsFolder, },)) {
+    if (going.has(name,)) {
       continue;
     }
-    if ((summaryIn({ shown: summary.shown, },)
+    /**
+     The newest attempt of that name which wrote a summary, and what it says.
+     */
+    let found: {
+      readonly attempt: number;
+      readonly shown: string;
+      readonly endedAt: number;
+    } | undefined;
+    for (const attempt of attempts) {
+      /**
+       What this attempt's summary says, or that it wrote none.
+       */
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one attempt of the name after another, newest first
+      const summary = await summaryOfARunIn({
+        file: join(
+          runsFolder,
+          runFolderOf({
+            name,
+            attempt,
+          },),
+          SUMMARY_FILE_NAME,
+        ),
+      },);
+      if (summary === NOT_FINISHED_YET) {
+        // An attempt that wrote no summary did not stop on its own terms. While its run is going the name is skipped above; when
+        // nothing of that name is going it was killed, and the attempt a review goes on from is an older one that did write one.
+        // Reading that silence as work still going left a review unresumed for as long as its folders stood.
+        continue;
+      }
+      found = {
+        attempt,
+        shown: summary.shown,
+        endedAt: summary.endedAt,
+      };
+      break;
+    }
+    if ((found === undefined) || (found.endedAt < since)) {
+      continue;
+    }
+    if ((summaryIn({ shown: found.shown, },)
       .endReason
-      !== RATE_LIMIT_END_REASON) || (!summary.shown
+      !== RATE_LIMIT_END_REASON) || (!found.shown
         .includes(QUOTA_REFUSAL_WORD,))) {
       continue;
     }
-    if (going.has(review.name,)) {
-      continue;
-    }
+    /**
+     The folder the attempt put back wrote, which its entry resumes.
+     */
+    const runFolder = runFolderOf({
+      name,
+      attempt: found.attempt,
+    },);
     // oxlint-disable-next-line eslint/no-await-in-loop -- the review file of the review just read
     if (await reviewIsFinal({
       reviewsFolder,
-      name: review.name,
+      name,
     },)) {
-      lines.push(`${new Date(now(),).toISOString()} ${review.runFolder} ended on the rate limit with its review marked final: not put back`,);
+      lines.push(`${new Date(now(),).toISOString()} ${runFolder} ended on the rate limit with its review marked final: not put back`,);
       continue;
     }
     candidates.push({
-      name: review.name,
-      runFolder: review.runFolder,
+      name,
+      runFolder,
       entry: {
-        name: review.name,
-        branch: branchOfAReview({ review: review.name
+        name,
+        branch: branchOfAReview({ review: name
           .slice(REVIEW_RUN_PREFIX.length,), },),
-        sessionOf: review.runFolder,
+        sessionOf: runFolder,
         prompt: promptFile,
         provider: REVIEWING_PROVIDER,
         model: REVIEWING_MODEL,
@@ -483,6 +619,11 @@ export async function putEndedReviewsBack({
         write,
       },) {
         /**
+         The runs going at this instant, read again here: a review that started while the candidates were read is going now, and
+         queuing a resume of it would hand one session and one worktree on twice.
+         */
+        const goingAtTheInsert = (goingNow === undefined) ? going : await goingNow();
+        /**
          Where a put-back review goes: after the integration passes waiting at the head.
          */
         const firstNotAPass = entries.findIndex(function isNoPass(entry,) {
@@ -504,6 +645,10 @@ export async function putEndedReviewsBack({
         // The prompt is one file for every review put back, written inside the step so no entry names a prompt that is not there.
         await rateLimitReviewPromptIn({ runsFolder, },);
         for (const candidate of candidates) {
+          if (goingAtTheInsert.has(candidate.name,)) {
+            lines.push(`${new Date(now(),).toISOString()} ${candidate.name} not put back: its run started while the ended reviews were read`,);
+            continue;
+          }
           if (next.some(function isNamed(entry,) {
             return entry.name === candidate.name;
           },)) {

@@ -15,6 +15,13 @@
 
 import type { GoingRun, } from './going-runs.ts';
 import {
+  type ClaimedAnEntry,
+  claimAnEntryOfAQueue,
+  completeTheClaim,
+  giveBackTheClaim,
+  settleTheQueueAfterAKill,
+} from './claims-on-the-entries-of-a-queue.ts';
+import {
   poolOfAQueueEntry,
   resumesAQueueEntry,
   shapeOfAQueueEntry,
@@ -32,15 +39,11 @@ import {
   talliesOf,
 } from './pool-tallies.ts';
 import {
-  readQueueOfRuns,
+  type QueueClaim,
   type QueueRecord,
-  takeAQueueEntryOut,
-  withTheQueueLock,
+  readQueueOfRuns,
+  withoutTheClaim,
 } from './queue-of-runs.ts';
-import {
-  removeSetAsideRecord,
-  setAsideRecordIsThere,
-} from './set-aside-entry.ts';
 import type {
   FailureOfAStart,
   StartOfAnEntry,
@@ -73,16 +76,23 @@ export type FillingSeams = {
   readonly freeSpace: () => FreeSpace;
 
   /**
-   Starts one entry.
+   Starts one entry, which this filling has just claimed.
    */
-  readonly start: (request: { readonly record: QueueRecord }) => Promise<StartOfAnEntry>;
+  readonly start: (request: {
+    readonly record: QueueRecord;
+    readonly claim: QueueClaim;
+  }) => Promise<StartOfAnEntry>;
 
   /**
-   Sets one entry aside: writes its record and takes it out of the queue.
+   Sets one entry aside: writes its record and completes the claim that took it out of the queue.
    */
   readonly setAside: (request: {
     readonly record: QueueRecord;
     readonly failure: FailureOfAStart;
+    readonly claim: {
+      readonly queueId: string;
+      readonly claim: QueueClaim;
+    };
   }) => Promise<{
     readonly file: string;
     readonly left: number;
@@ -259,71 +269,11 @@ function setAsideLineOf({
 }
 
 /**
- Drops every set-aside record whose entry is still in the queue, which is what a kill between writing a record and taking its entry
- out leaves.
-
- The decision is made on the queue as it is inside the queue's held step, never on a snapshot read before it: a snapshot taken
- outside the step that drops a record is how a second filling deleted the record of a set-aside a first was still committing, and
- the entry was then lost. The sweep writes no queue: the entries stay where they are, and only the records of entries still queued go.
-
- @param queueFile - the queue's path
-
- @param runsFolder - folder the driver writes its runs into
-
- @param report - where the pass says what it found
-
- @param now - the clock the lock's wait and age are read from
-
- @param wait - the pause between two attempts to take the lock
-
- @param lockWaitMilliseconds - how long to keep asking for the queue's lock before refusing
-
- @example
- ```ts
- await dropUnfinishedSetAsides({ queueFile: '/runs/q.json', runsFolder: '/runs', report: () => {} });
- ```
- */
-async function dropUnfinishedSetAsides({
-  queueFile,
-  runsFolder,
-  report,
-  now,
-  wait,
-  lockWaitMilliseconds,
-}: {
-  readonly queueFile: string;
-  readonly runsFolder: string;
-  readonly report: (line: string) => void;
-  readonly now?: () => number;
-  readonly wait?: (milliseconds: number) => Promise<unknown>;
-  readonly lockWaitMilliseconds?: number;
-},): Promise<void> {
-  await withTheQueueLock({
-    queueFile,
-    ...(now === undefined ? {} : { now, }),
-    ...(wait === undefined ? {} : { wait, }),
-    ...(lockWaitMilliseconds === undefined ? {} : { waitMilliseconds: lockWaitMilliseconds, }),
-    work: async function dropThem({ entries, },) {
-      for (const entry of entries) {
-        // oxlint-disable-next-line eslint/no-await-in-loop -- one entry after another, and each record is its own file
-        if (await setAsideRecordIsThere({
-          runsFolder,
-          name: entry.name,
-        },)) {
-          // oxlint-disable-next-line eslint/no-await-in-loop -- the record of the entry just read
-          await removeSetAsideRecord({
-            runsFolder,
-            name: entry.name,
-          },);
-          report(`${new Date().toISOString()} ${entry.name}: a set-aside record was written and its entry never left the queue, so the record is dropped and the entry is tried again\n`,);
-        }
-      }
-    },
-  },);
-}
-
-/**
  Fills the free places from a queue, once.
+
+ A pass first settles what a kill left behind (see `settleTheQueueAfterAKill`), then counts the agents going, then starts entries in
+ the queue's order while places are free. Each entry is claimed before anything is started for it, and the claim is completed, given
+ back or set aside before the pass asks about the next entry.
 
  @param request - the queue, the level, the folders, and how many entries this pass may start
 
@@ -364,14 +314,13 @@ export async function fillFreePlacesFromAQueue({
     seams.report(line,);
   }
   /**
-   The queue as it stands, which is read again for every entry so that an entry another session queued meanwhile is seen.
+   The entries the queue holds once what a kill left behind is settled.
    */
-  const queueAsItStands = await readQueueOfRuns({ queueFile: request.queueFile, },);
-  await dropUnfinishedSetAsides({
+  const stoodAtTheStart = await settleTheQueueAfterAKill({
     queueFile: request.queueFile,
     runsFolder: request.runsFolder,
     report: say,
-    ...(request.lockWaitMilliseconds === undefined ? {} : { lockWaitMilliseconds: request.lockWaitMilliseconds, }),
+    ...(request.lockWaitMilliseconds === undefined ? {} : { waitMilliseconds: request.lockWaitMilliseconds, }),
   },);
   /**
    The runs going now, and the pools they hold.
@@ -396,7 +345,7 @@ export async function fillFreePlacesFromAQueue({
    How many entries this pass may start.
    */
   const startsAtMost = request.startsAtMost ?? FILLING_STARTS_A_ROUND;
-  say(`${new Date().toISOString()} ${String(counted.length,)} agents going, level ${String(request.level,)}: ${String(placesFree,)} places free, ${String(queueAsItStands.length,)} entries in the queue; ${freeSpaceTextOf(freeSpace,)}\n`,);
+  say(`${new Date().toISOString()} ${String(counted.length,)} agents going, level ${String(request.level,)}: ${String(placesFree,)} places free, ${String(stoodAtTheStart,)} entries in the queue; ${freeSpaceTextOf(freeSpace,)}\n`,);
   /**
    The entries this pass started, in the order it started them.
    */
@@ -438,7 +387,7 @@ export async function fillFreePlacesFromAQueue({
     const why = `${freeSpaceTextOf(freeSpace,)}, under the floor of ${freeSpaceFloorTextOf()}`;
     say(`${new Date().toISOString()} ${why}; nothing is started while the drive is that full\n`,);
     return outcomeOf({
-      left: queueAsItStands.length,
+      left: stoodAtTheStart,
       stoppedBecause: why,
     },);
   }
@@ -460,15 +409,15 @@ export async function fillFreePlacesFromAQueue({
      */
     const tallies = talliesOf({ runs, },);
     /**
-     The first entry of the queue that may start now, which is what keeps the queue's order.
+     Every entry of the queue that may start now, in the queue's order.
      */
-    const record = entries.find(function mayStartNowHere(entry,) {
+    const candidates = entries.filter(function mayStartNowHere(entry,) {
       return mayStartNow({
         record: entry,
         tallies,
       },);
     },);
-    if (record === undefined) {
+    if (candidates.length === 0) {
       /**
        Why the pass starts nothing more.
        */
@@ -480,9 +429,70 @@ export async function fillFreePlacesFromAQueue({
       },);
     }
     /**
-     What starting the chosen entry answered.
+     The entry this pass claimed, or nothing when every entry that may start is being started by another filling.
      */
-    const outcome = await seams.start({ record, },);
+    let mine: {
+      readonly record: QueueRecord;
+      readonly queueId: string;
+      readonly claim: QueueClaim;
+    } | undefined;
+    for (const candidate of candidates) {
+      /**
+       What taking a claim on this candidate answered.
+       */
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each candidate is its own write under the queue's lock
+      const taken: ClaimedAnEntry = await claimAnEntryOfAQueue({
+        queueFile: request.queueFile,
+        record: candidate,
+        now: Date.now,
+        ...(request.lockWaitMilliseconds === undefined ? {} : { waitMilliseconds: request.lockWaitMilliseconds, }),
+      },);
+      if (taken.kind === 'claimed') {
+        mine = {
+          record: candidate,
+          queueId: taken.queueId,
+          claim: taken.claim,
+        };
+        break;
+      }
+      // Another filling claimed it, or it left the queue, between this pass's read and its claim: the entry behind it is asked
+      // about rather than the pass stopping, because an entry another filling is starting is being started.
+      say(`${new Date().toISOString()} ${candidate.name}: ${taken.kind === 'claimed-by-another' ? 'another filling claimed it first' : 'it left the queue before this pass claimed it'}, so this pass asks about the entry behind it\n`,);
+    }
+    if (mine === undefined) {
+      /**
+       Why the pass starts nothing more.
+       */
+      const why = `every entry of the ${String(entries.length,)} left that may start now is being started by another filling`;
+      return outcomeOf({
+        left: entries.length,
+        stoppedBecause: why,
+      },);
+    }
+    /**
+     The entry this pass starts, as the queue holds it without the claim.
+     */
+    const record = withoutTheClaim({ record: mine.record, },);
+    /**
+     What starting the claimed entry answered.
+     */
+    let outcome: StartOfAnEntry;
+    try {
+      outcome = await seams.start({
+        record,
+        claim: mine.claim,
+      },);
+    }
+    catch (error) {
+      // A start that threw before it answered leaves the claim to be given back here: a claim whose holder is alive is not recovered
+      // by another filling, so leaving it would keep the entry where no pass starts it.
+      await giveBackTheClaim({
+        queueFile: request.queueFile,
+        queueId: mine.queueId,
+        token: mine.claim.token,
+      },);
+      throw error;
+    }
     if (!outcome.started) {
       /**
        Why the entry's start failed.
@@ -493,9 +503,17 @@ export async function fillFreePlacesFromAQueue({
          Why the pass stops.
          */
         const why = `the machine said no: ${failure.reason}`;
-        say(`${new Date().toISOString()} left ${record.name} in place at position ${String(entries.indexOf(record,),)} of ${String(entries.length,)}; the filling stops this pass and starts nothing behind it: ${failure.reason}\n`,);
+        /**
+         What giving the claim back left in the queue.
+         */
+        const givenBack = await giveBackTheClaim({
+          queueFile: request.queueFile,
+          queueId: mine.queueId,
+          token: mine.claim.token,
+        },);
+        say(`${new Date().toISOString()} left ${record.name} in place at position ${String(entries.indexOf(mine.record,),)} of ${String(entries.length,)} and gave its claim back; the filling stops this pass and starts nothing behind it: ${failure.reason}\n`,);
         return outcomeOf({
-          left: entries.length,
+          left: givenBack.left,
           stoppedBecause: why,
         },);
       }
@@ -505,6 +523,10 @@ export async function fillFreePlacesFromAQueue({
       const kept = await seams.setAside({
         record,
         failure,
+        claim: {
+          queueId: mine.queueId,
+          claim: mine.claim,
+        },
       },);
       setAsideNames.push(record.name,);
       say(`${setAsideLineOf({
@@ -516,17 +538,16 @@ export async function fillFreePlacesFromAQueue({
       continue;
     }
     /**
-     The queue as it stands once the entry left it, which is read again at the moment of writing so an entry another session
-     queued meanwhile is not written away with a list read before it.
+     What completing the claim left, which is the queue without this attempt and with every other entry where it stood.
      */
-    const taken = await takeAQueueEntryOut({
+    const completed = await completeTheClaim({
       queueFile: request.queueFile,
-      name: record.name,
+      queueId: mine.queueId,
+      token: mine.claim.token,
     },);
-    /**
-     How many entries the queue holds once the entry left it.
-     */
-    const { entries: left, } = taken;
+    if (completed.taken !== 1) {
+      say(`${new Date().toISOString()} ${record.name}: the start took effect but the queue no longer held this filling's attempt, so nothing was removed for it; ${String(completed.left,)} entries left\n`,);
+    }
     started.push(record.name,);
     runs.push({
       name: record.name,
@@ -536,7 +557,7 @@ export async function fillFreePlacesFromAQueue({
       record,
       started: outcome,
       time: new Date().toISOString(),
-    },)}; ${String(left.length,)} entries left\n`,);
+    },)}; ${String(completed.left,)} entries left\n`,);
     for (const line of outcome.lines) {
       say(`${line}\n`,);
     }

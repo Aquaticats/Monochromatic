@@ -228,6 +228,19 @@ async function entryOfTheList(started: Extract<StartOfAnEntry, { readonly starte
   return JSON.parse(await readFile(started.batchFile, 'utf8',),) as readonly unknown[];
 }
 
+
+/**
+ The claim a filling holds on an entry when it starts it, whose token names the attempt's batch list and its unit.
+
+ A fixed token and time keep the names the tests assert beside them readable, and the names are the point: the claim names its own
+ attempt, so a second attempt on the same entry never answers for the first.
+ */
+const THE_ATTEMPT = {
+  token: 'f1e2d3c4-0000-4000-8000-000000000001',
+  pid: 4_242,
+  at: '2026-11-15T09:21:14.000-05:00',
+} as const;
+
 await describe({
   name: '',
   children: [
@@ -248,7 +261,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({ touched: [], },),
@@ -279,7 +292,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({ touched: ['src/a.test.ts',], },),
@@ -308,7 +321,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({ touched: ['src/a.ts',], },),
@@ -356,7 +369,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({
@@ -380,7 +393,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({
@@ -408,7 +421,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({ touched: [], },),
@@ -444,7 +457,7 @@ await describe({
                 reviewsFolder: folder.reviews,
                 checkoutFolder: folder.checkout,
                 home: folder.path,
-                now: Date.now,
+                attempt: THE_ATTEMPT,
               },
               seams: {
                 git: gitAnswering({ touched: [], },),
