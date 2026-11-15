@@ -505,11 +505,17 @@ fn objects_only_the_dying_names_reach(context: &GitContext, common_dir: &Path, r
     // The requests below carry their input on standard input, which this program feeds from a private file under the
     // repository's own scratch directory, so the context has to name the repository it was started for.
     let owned: GitContext = with_the_repository(context, common_dir);
-    let first: Vec<String> = objects_no_named_revision_reaches(&owned, root, dying, surviving_reference_names(&owned, root)?)?;
+    let surviving_references: Vec<String> = surviving_reference_names(&owned, root)?;
+    let first: Vec<String> = objects_no_named_revision_reaches(&owned, root, dying, surviving_references.clone())?;
     if first.is_empty() {
         return Ok(Vec::new());
     }
-    return objects_no_named_revision_reaches(&owned, root, dying, surviving_log_names(common_dir)?);
+    // The second stage asks about what the first left, and keeps both exclusions: a walk from an object lists the
+    // commits that object was built on as well, so a second stage carrying the logs alone would bring back a commit
+    // that a surviving reference had already excluded. The surviving logs are read only here, which is the saving.
+    let mut surviving: Vec<String> = surviving_references;
+    surviving.extend(surviving_log_names(common_dir)?);
+    return objects_no_named_revision_reaches(&owned, root, first.as_slice(), surviving);
 }
 
 /// What:
