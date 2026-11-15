@@ -1317,6 +1317,64 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Issue 6293's sixth review finds five things; the count of leftover processes is corrected; a commit under `0.6.1-alpha.36` took 1,253 ms (2026-11-14T20:27:16-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it measured,
+corrected and queued.
+
+- **Issue 6293** (`8da90399b2`),
+  sixth review,
+  the first by Kimi,
+  ended 20:21:18,
+  62 of 62 files,
+  five things,
+  each with a program it ran:
+  a push that reaches one of two destination refs is settled as a failure of both,
+  and the commit reported as not backed up
+  (real Git and the real `named_push`);
+  the socket and PID note of a removed worktree's service are unlinked before its serving function returns,
+  so a sweep takes the service for gone and removes its journal while it can still write;
+  the start through the manager kills the whole group of a service that has claimed its instance and is recovering,
+  with no look at its PID note
+  (two real service processes);
+  every start in one runtime directory writes the same temporary file for the record of the real Git,
+  so one start publishes the other's path;
+  and a bus address that spells the same socket another way is read as another session,
+  which sends journals and retry plans to storage that is cleared at logout.
+  All five weighed as worth their fix.
+  The author is resumed,
+  and told besides that its last run left a wrapper program alive in a scope,
+  which this session stopped at 19:44,
+  and to stop what it starts before it ends
+  (`~/temp/agent/pi-runs/issue-6293-answers-its-sixth-review-of-2026-11-14-prompt.md`).
+- **The count of leftover processes read three worktrees as left that were not**,
+  between 20:12 and 20:26:
+  a run being started
+  (a launcher and no unit yet),
+  the gate's worktree
+  (no Pi run owns it),
+  and a run whose own name begins with `pi-`,
+  whose worktree is `pi-pi-…` and whose unit is `pi-…`.
+  Nothing was stopped on those readings.
+  The script now also counts a worktree as in use when any process inside it belongs to the control group of a Pi run's unit,
+  a launcher or the gate,
+  with the three cases written at its top;
+  run again at 20:26 it named none.
+- **The sample commit of `0.6.1-alpha.36`**:
+  the handover commit of 20:21:23,
+  timed by the clock on either side,
+  took 1,253 ms with a load average of 24.8,
+  inside the range of the installs before it.
+  So the 2,486 ms of the install's sample is one high reading of two.
+  The next rounds' handover commits are timed the same way.
+- Read at 20:25:55:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  The resumed session is not named by the credential scan.
+
 ##### `0.6.1-alpha.36` is installed and its gate is running; its sample commit took 2,486 ms, above the seven installs before it (2026-11-14T20:20:38-05:00)
 
 Not final and not approved:
