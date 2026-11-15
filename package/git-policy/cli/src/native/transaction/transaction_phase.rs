@@ -128,6 +128,24 @@ pub enum Phase {
     ///  `build_with_git`),
     ///  and no other instant of a commit lets a control place that loss.
     ShadowBuilt,
+    /// A commit kept its copy of the index the command was given,
+    /// and has not yet read the tree that copy names;
+    /// repeatable,
+    /// numbered by occurrence (a capture taken again reaches it again).
+    /// Why:
+    ///   A copy that goes between the keeping and the read is a commit that cannot say what the person staged,
+    ///  and no other instant of a build lets a control place that loss (`service_native.rs`,
+    ///  `the_commit_that_was_asked_for`).
+    CommitCaptureTaken,
+    /// A commit has kept its copy of the index and read the tree that copy names,
+    /// and has not yet made or taken a shadow to build in;
+    /// repeatable,
+    /// numbered by occurrence (a capture taken again reaches it again).
+    /// Why:
+    ///   A commit builds only when what it asked for is known, and a scratch that goes at this instant is one
+    ///  no Git start has yet read (`service_native.rs`,
+    ///  `build_with_git`).
+    CommitCaptured,
     /// A commit's shadow has the commit Git built in it,
     /// and the commit has not yet been read back out of it;
     /// repeatable,
@@ -142,7 +160,7 @@ pub enum Phase {
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 16] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 18] = [
     Phase::MergeCarried,
     Phase::MergeIntent,
     Phase::MergeClearIndex,
@@ -153,6 +171,8 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 16] = [
     Phase::MergeCarryFile,
     Phase::MergeCarriedBack,
     Phase::ServiceStaged,
+    Phase::CommitCaptureTaken,
+    Phase::CommitCaptured,
     Phase::ShadowHanded,
     Phase::ShadowBuilt,
     Phase::ShadowReadable,
@@ -184,6 +204,8 @@ impl Phase {
             Phase::MergeCarriedBack => return "merge-carried-back",
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
+            Phase::CommitCaptureTaken => return "commit-capture-taken",
+            Phase::CommitCaptured => return "commit-captured",
             Phase::ShadowHanded => return "shadow-handed",
             Phase::ShadowBuilt => return "shadow-built",
             Phase::ShadowReadable => return "shadow-readable",

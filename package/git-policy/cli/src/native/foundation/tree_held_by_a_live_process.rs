@@ -194,6 +194,23 @@ pub fn whether_held(tree: &Path) -> WhetherHeld {
 }
 
 /// What:
+///  The removal claim on `tree`, for a control that stands in for a sweep.
+/// Why:
+///  Every sweep takes a tree to remove it through `remove_as_a_sweep`,
+///  so the take itself is this module's own;
+///  a control has to hold the claim at an instant no sweep can be interrupted at,
+///  and this is the only door left open for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takeToRemoveForAControl(tree) // test builds only
+/// ```
+#[cfg(test)]
+pub(crate) fn take_to_remove_for_a_control(tree: &Path) -> ClaimTaken {
+    return take_to_remove(tree);
+}
+
+/// What:
 ///  How much of the claim a call wants:
 ///  one holder's share, which another holder may take at the same time,
 ///  or the whole of it, which only a sweep that means to remove the tree takes.

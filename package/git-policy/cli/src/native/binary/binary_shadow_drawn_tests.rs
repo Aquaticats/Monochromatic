@@ -769,6 +769,12 @@ fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
     }
     let scratch: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path());
     let target: PathBuf = scratch.join(entry);
+    let present: Vec<String> = std::fs::read_dir(scratch.as_path())
+        .expect("the scratch tree")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    println!("reached={phase}:{entry} entries={present:?}");
     let removed: std::io::Result<()> = match std::fs::symlink_metadata(target.as_path()) {
         Ok(metadata) if metadata.is_dir() => std::fs::remove_dir_all(target.as_path()),
         Ok(_) => std::fs::remove_file(target.as_path()),
@@ -891,6 +897,201 @@ fn every_entry_of_the_scratch_tree_can_go_after_git_and_the_commit_is_the_one_as
     for row in &rows {
         if row.exit == Some(0) {
             assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
+        }
+    }
+}
+
+/// One row of the property table:
+/// an entry of a commit's scratch tree taken away at one instant of a build,
+/// and what came back.
+/// Why:
+///  The property is one sentence,
+///  and a reader needs the row that broke it: what the command exited with, the files of the commit it landed,
+///  that commit's parents, and whether the branch moved at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PropertyRow = { row: string; exit: number | null; files: string[]; parents: string[]; branchMoved: boolean };
+/// ```
+#[derive(Debug)]
+struct PropertyRow {
+    /// The phase and the entry, as one name a reader can find.
+    row: String,
+    /// What the command exited with.
+    exit: Option<i32>,
+    /// The files the landed commit holds,
+    /// or nothing when it landed none.
+    files: Vec<String>,
+    /// The parents of the commit `HEAD` names after the command.
+    parents: Vec<String>,
+    /// Whether `HEAD` is a commit the command made.
+    branch_moved: bool,
+}
+
+/// Where the release file of `phase`'s first pause is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const releaseOf = (markers, phase) => join(markers, `${phase}-1.release`)
+/// ```
+fn markers_join(markers: &Path, phase: &str) -> PathBuf {
+    return markers.join(format!("{phase}-1.release"));
+}
+
+/// The commit one fixture is set up for:
+/// the base commit its history starts from,
+/// and the message the commit under test carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stagedCase = (name) => { const c = case(name); ...; return { case: c, base } }
+/// ```
+fn staged_case(name: &str) -> (Case, String) {
+    let case: Case = case(name);
+    std::fs::write(case.repo.join("a.txt"), b"base\nmore\n").expect("the edit");
+    std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
+    git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt", "added.txt"]);
+    let base: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]);
+    return (case, base);
+}
+
+/// The entries of a commit's scratch tree that a loss can take at `phase`,
+/// with the tree itself first.
+/// Why:
+///  Which files exist depends on the instant:
+///  at the capture the tree holds the two indexes and the kept copy and nothing else,
+/// and after Git has built the commit it holds the shadow, its ref store and the commit's own configuration.
+///  The table is every one of them at the instant it is there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entriesAt = (phase) => ['.', ...readdir(scratch), ...readdir(scratch/shadow).map(name => 'shadow/' + name)]
+/// ```
+fn entries_at(phase: &str) -> Vec<String> {
+    let (case, _base): (Case, String) = staged_case(&format!("property-entries-{phase}"));
+    std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, phase, &["commit", "--quiet", "--message=two", "--", "a.txt", "added.txt"]);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join(format!("{phase}-1.reached"));
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the {phase} pause of the probe");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let scratch: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path());
+    let mut entries: Vec<String> = vec![String::from(".")];
+    for entry in std::fs::read_dir(scratch.as_path()).expect("the scratch tree").flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let path: PathBuf = entry.path();
+        entries.push(name.clone());
+        if name == "shadow" && path.is_dir() {
+            for inner in std::fs::read_dir(path.as_path()).expect("the shadow").flatten() {
+                entries.push(format!("shadow/{}", inner.file_name().to_string_lossy()));
+            }
+        }
+    }
+    std::fs::write(markers_join(&case.markers, phase), b"").expect("release the probe");
+    let _seen: Observed = waiting.join().expect("the probe");
+    remove_settled(&case.fixture);
+    entries.sort();
+    entries.dedup();
+    return entries;
+}
+
+/// What:
+///  Takes `entry` away at `phase` of one command's build and answers what came back.
+/// Why:
+///   It is one row of the property table,
+///   and every row starts from a fixture of its own so no row depends on another.
+///   The entry `.` is the commit's scratch tree itself:
+///   every file of it goes at one instant, which is the case where the tree the commit was asked for cannot be read at all.
+///   The release is written before anything is asserted, so a row that fails leaves no commit held at its pause.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneLost = (name, phase, entry) => { ...; remove(join(scratch, entry)); release(); return row }
+/// ```
+fn one_lost_at(name: &str, phase: &str, entry: &str) -> PropertyRow {
+    let (case, base): (Case, String) = staged_case(name);
+    std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    let mut command: Command = a_commit_built_by_git_paused_at(&case, phase, &["commit", "--quiet", "--message=two", "--", "a.txt", "added.txt"]);
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join(format!("{phase}-1.reached"));
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the {phase} pause for the row {entry}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let scratch: PathBuf = the_scratch_tree_of_the_commit(case.repo.as_path());
+    let target: PathBuf = if entry == "." { scratch.clone() } else { scratch.join(entry) };
+    let removed: std::io::Result<()> = match std::fs::symlink_metadata(target.as_path()) {
+        Ok(metadata) if metadata.is_dir() => std::fs::remove_dir_all(target.as_path()),
+        Ok(_) => std::fs::remove_file(target.as_path()),
+        Err(error) => Err(error),
+    };
+    std::fs::write(markers.join(format!("{phase}-1.release")), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    assert!(removed.is_ok(), "the row {row} takes its entry away: {removed:?}", row = format!("{phase}:{entry}"));
+    let moved: Option<String> = match seen.code {
+        Some(0) => Some(super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"])),
+        _other => None,
+    };
+    let files: Vec<String> = match moved.as_ref() {
+        Some(_) => super::commit::git_text(&case.fixture, case.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"])
+            .lines()
+            .map(str::trim)
+            .filter(|line| { return !line.is_empty(); })
+            .map(String::from)
+            .collect(),
+        None => Vec::new(),
+    };
+    let parents: Vec<String> = match seen.code {
+        Some(0) => head_and_its_parents(&case),
+        _other => Vec::new(),
+    };
+    let branch_moved: bool = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]) != base;
+    remove_settled(&case.fixture);
+    return PropertyRow { row: format!("{phase}:{entry}"), exit: seen.code, files, parents, branch_moved };
+}
+
+/// What:
+///  No instant of a build at which a commit's scratch tree can go lets a commit the person did not write land.
+/// Why:
+///  The scratch tree is the wrapper's own,
+///  and every file of it can go at any instruction for a cause no sweep explains.
+///  What the person is owed is one of two outcomes:
+///  the commit the command asked for,
+///  or no commit at all,
+///  and never a commit of other content and never a branch moved by one.
+///  The instants are the ones a Git start reads the tree at: the capture's own read of the kept index,
+///  the moment after it, the shadow built and not yet used, the commit Git built and not yet read back,
+///  and the preparation that follows the read-back.
+#[test]
+fn no_instant_of_a_build_hands_back_a_commit_the_command_did_not_ask_for() {
+    let phases: [&str; 5] = ["commit-capture-taken", "commit-captured", "shadow-built", "shadow-readable", "service-prepared"];
+    let asked: Vec<String> = vec![String::from("a.txt"), String::from("added.txt")];
+    let mut rows: Vec<PropertyRow> = Vec::new();
+    for phase in phases {
+        for entry in entries_at(phase) {
+            let name: String = format!("property-{}-{}", phase, entry.replace('/', "-").replace('.', "tree"));
+            let row: PropertyRow = one_lost_at(name.as_str(), phase, entry.as_str());
+            println!("row={} exit={:?} files={:?} parents={:?} branch_moved={}", row.row, row.exit, row.files, row.parents, row.branch_moved);
+            rows.push(row);
+        }
+    }
+    assert!(!rows.is_empty(), "every instant has its rows");
+    for row in &rows {
+        match row.exit {
+            Some(0) => {
+                assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.row);
+                assert_eq!(row.parents.len(), 1, "the row {} landed a commit of one parent", row.row);
+                assert!(row.branch_moved, "the row {} landed a commit, so the branch moved", row.row);
+            }
+            _other => {
+                assert!(!row.branch_moved, "the row {} moved the branch without landing the commit that was asked for", row.row);
+            }
         }
     }
 }

@@ -81,6 +81,14 @@ static SHADOW_BUILT_REACHED: AtomicU64 = AtomicU64::new(0);
 /// which numbers the marker files of a commit that builds again.
 static SHADOW_READABLE_REACHED: AtomicU64 = AtomicU64::new(0);
 
+/// Counts how often this process reached `CommitCaptureTaken`,
+/// which numbers the marker files of a capture taken again.
+static COMMIT_CAPTURE_TAKEN_REACHED: AtomicU64 = AtomicU64::new(0);
+
+/// Counts how often this process reached `CommitCaptured`,
+/// which numbers the marker files of a capture taken again.
+static COMMIT_CAPTURED_REACHED: AtomicU64 = AtomicU64::new(0);
+
 /// What:
 ///  Whether an event says the content to check was removed:
 /// an engine failure that the content is unavailable,
@@ -397,6 +405,8 @@ pub fn reach_service_phase(phase: Phase) -> Result<(), PhaseMarkerError> {
         Phase::ServiceStaged => &STAGED_REACHED,
         Phase::ServiceSentBack => &SENT_BACK_REACHED,
         Phase::ShadowHanded => &SHADOW_HANDED_REACHED,
+        Phase::CommitCaptureTaken => &COMMIT_CAPTURE_TAKEN_REACHED,
+        Phase::CommitCaptured => &COMMIT_CAPTURED_REACHED,
         Phase::ShadowBuilt => &SHADOW_BUILT_REACHED,
         Phase::ShadowReadable => &SHADOW_READABLE_REACHED,
         Phase::MergeCarried

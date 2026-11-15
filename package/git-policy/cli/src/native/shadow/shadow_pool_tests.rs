@@ -867,3 +867,33 @@ fn a_fill_makes_no_member_for_a_worktree_that_keeps_its_own_info() {
     assert!(!take(&template, root.join("shadow").as_path()), "nothing is taken either");
     remove(root.as_path());
 }
+
+/// What:
+///  A fill that takes its staging tree's claim before the sweep's removal keeps the tree.
+/// Why:
+///  A forward step of the wall clock makes a staging tree a fill wrote moments ago look older than any fill takes,
+///  and a sweep that looked and let go removes it under the live fill (`tree_held_by_a_live_process.rs`,
+///  `remove_as_a_sweep`).
+///  The claim is taken at the one instant between the sweep's look and its removal.
+#[test]
+fn a_fill_that_claims_its_staging_tree_before_the_removal_keeps_it() {
+    let root: PathBuf = fixture("shadow-pool-fill-claims-before-the-removal");
+    let pool: PathBuf = root.join(SHADOW_POOL_FOLDER).join("worktree-main");
+    std::fs::create_dir_all(pool.as_path()).expect("the pool folder");
+    let staging: PathBuf = pool.join(format!("{FILLING_PREFIX}live-fill"));
+    std::fs::create_dir(staging.as_path()).expect("the fill makes its staging tree before it claims it");
+    let held: std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>> = std::cell::RefCell::new(None);
+    let keeping: &'static std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>> = Box::leak(Box::new(held));
+    test_removal::set_before_the_removal(move |path: &Path| {
+        // The fill claims its staging tree in this instant, as a fill does after making it.
+        match crate::tree_held_by_a_live_process::hold(path) {
+            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => *keeping.borrow_mut() = Some(claim),
+            crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => {}
+            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken => panic!("the fill's own tree is not being removed yet"),
+        }
+    });
+    sweep_abandoned(pool.as_path(), SystemTime::now() + Duration::from_secs(3600));
+    assert!(staging.exists(), "the sweep removed the staging tree while the live fill held it");
+    drop(keeping.borrow_mut().take());
+    remove(root.as_path());
+}

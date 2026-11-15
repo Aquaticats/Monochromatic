@@ -295,6 +295,11 @@ pub fn prepare_commit_scratch(
     ceiling: Duration,
 ) -> std::io::Result<(PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>)> {
     let tree: PathBuf = make_a_commit_scratch(common_dir, git_dir, name, ceiling)?;
+    // What: A control may take the tree's removal claim between its making and its claim (`scratch_location_removal_targets_test_support.rs`).
+    // Why:  That instant is the one race a maker meets, and nothing else lets a control place it.
+    //       Nothing arms this hook in a run.
+    #[cfg(test)]
+    test_targets::before_claim(tree.as_path());
     // What: The tree is claimed as it is made, before this call returns it.
     // Why:  A sweep that listed a tree as stale and removes it later must find the claim of the maker that made it:
     //       a tree claimed from its first instant is one `may_go` spares and a removal's whole take refuses,

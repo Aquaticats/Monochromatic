@@ -254,7 +254,23 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             input.commit_index.display()
         )));
     }
+    // What: A control may hold the commit at this instant, with the copy of the index kept and its tree not yet read
+    //       (`transaction_phase.rs`, `Phase::CommitCaptureTaken`).
+    // Why:  A copy that goes between the keeping and the read is a commit that cannot say what the person staged,
+    //       and no other instant of a build lets a control place that loss.
+    //       Nothing arms this marker in a run.
+    crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptureTaken).map_err(|error| {
+        return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
+    })?;
     let asked_for: AskedForCommit = the_commit_that_was_asked_for(input, &expected_parents_of(input)?)?;
+    // What: A control may hold the commit at this instant, with what it asked for known and no shadow yet taken
+    //       (`transaction_phase.rs`, `Phase::CommitCaptured`).
+    // Why:  A scratch that goes here has not been read by any Git start of the build, and no other instant of a build
+    //       lets a control place that loss.
+    //       Nothing arms this marker in a run.
+    crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptured).map_err(|error| {
+        return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
+    })?;
     let mut attempt: usize = 0;
     loop {
         attempt += 1;

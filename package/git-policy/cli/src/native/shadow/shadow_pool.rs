@@ -536,6 +536,12 @@ fn sweep_abandoned(root: &Path, now: SystemTime) {
         {
             continue;
         }
+        // What: A control may take a live fill's claim at this instant (`shadow_pool_removal_test_support.rs`).
+        // Why:  A fill that claims its staging tree between the check above and this removal is the race the removal's own
+        //       claim has to answer, and nothing else lets a control place it.
+        //       Nothing arms this hook in a run.
+        #[cfg(test)]
+        test_removal::before_the_removal(entry.path().as_path());
         let _removed: std::io::Result<()> = remove_tree(entry.path().as_path());
         crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
     }
@@ -567,6 +573,11 @@ fn modification_time(metadata: std::fs::Metadata) -> std::io::Result<SystemTime>
 fn older_than_the_fill_age(age: Duration) -> bool {
     return age > FILLING_STALE_AFTER;
 }
+
+/// The instant before a sweep's removal, for the control that claims there.
+#[cfg(test)]
+#[path = "shadow_pool_removal_test_support.rs"]
+pub(crate) mod test_removal;
 
 /// Pool controls stay out of the release executable.
 #[cfg(test)]

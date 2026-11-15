@@ -859,3 +859,47 @@ fn a_tree_a_maker_holds_is_never_removed_by_a_sweep_for_its_age() {
     assert!(!tree.exists(), "the tree is gone");
     remove(root.as_path());
 }
+
+/// What:
+///  A tree a sweep has taken to remove is never handed out for a command to build in.
+/// Why:
+///  The claim a sweep takes is the whole of it, and a maker that is refused because a sweep holds it gives the tree up
+///  (`tree_held_by_a_live_process.rs`, `claim_a_made_tree`):
+///  building in a tree that is going loses the commit's own files under it,
+///  and its first private-index write fails with `ENOENT` where the removal reaches them first.
+///  The claim is taken at the one instant between the tree's making and the maker's own claim,
+///  which is the only place the race exists.
+#[test]
+fn a_tree_a_sweep_is_taking_is_never_handed_out_for_use() {
+    let root: PathBuf = fixture("scratch-a-sweep-is-taking");
+    let common: PathBuf = root.join("repo").join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    let taken: std::cell::RefCell<Option<PathBuf>> = std::cell::RefCell::new(None);
+    // The sweep takes the claim on the tree the maker just made, and keeps it as it keeps every claim through a removal.
+    let claimed: std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>> = std::cell::RefCell::new(None);
+    let sweeping: &'static (std::cell::RefCell<Option<PathBuf>>, std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>>) = Box::leak(Box::new((taken, claimed)));
+    test_targets::set_before_claim(move |path: &Path| {
+        let answer: crate::tree_held_by_a_live_process::ClaimTaken = crate::tree_held_by_a_live_process::take_to_remove_for_a_control(path);
+        let crate::tree_held_by_a_live_process::ClaimTaken::Yes(held) = answer else {
+            panic!("the test sweep takes the tree the maker made: {answer:?}");
+        };
+        *sweeping.0.borrow_mut() = Some(path.to_path_buf());
+        *sweeping.1.borrow_mut() = Some(held);
+    });
+    let (tree, claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(
+        common.as_path(),
+        common.as_path(),
+        "monochromatic-git-policy-cli-service-0a1b2c3d-0",
+        SCRATCH_REMOVAL_CEILING,
+    )
+    .expect("a commit's tree, or the words of a reason there is none");
+    // The sweep's removal runs while it holds the claim, as every sweep's does.
+    let swept: PathBuf = sweeping.0.borrow().clone().expect("the tree the sweep took");
+    crate::private_storage::remove_tree(swept.as_path()).expect("the sweep removes the tree it owns");
+    drop(sweeping.1.borrow_mut().take());
+    let written: std::io::Result<()> = std::fs::write(tree.join("commit.index"), b"the commit's staged bytes");
+    assert!(written.is_ok(), "the tree the command was handed out was removed under it: {written:?}");
+    assert_ne!(tree, swept, "the command was handed out the very tree a sweep took to remove");
+    drop(claim);
+    remove(root.as_path());
+}
