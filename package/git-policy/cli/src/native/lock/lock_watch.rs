@@ -44,6 +44,19 @@
 //!  those steps wait for their Git through pipes, a descriptor and a progress watch,
 //!  and a branch write is one of them,
 //!  so a merge killed while it moved the branch leaves a lock whose record exists.
+//!  A watch added to a folder that already exists has missed whatever was made in it before,
+//!  so the folder is read once the watch is on it,
+//!  and what stands there is reported as a name this run saw no creation of
+//!  (`FOUND_BY_READING`).
+//!  Such a lock is known to stand and is never bound:
+//!  the reading cannot say when the lock was made,
+//!  and the PID file beside it may be one an earlier holder left and this one inherited.
+//!  That is the limit beside the bounded runner's one:
+//!  until a record of the holders this repository started can name a take for such a lock,
+//!  it is cleared only by the proof that does not need a record,
+//!  and a lock with neither is kept
+//!  (a review of `6c2272132b`,
+//! finding 3).
 //!  The runners that start a Git for this repository's state, and what each one writes:
 //!  the command's own forwarded child, the landing's re-try, every synchronous and awaiting step of the
 //!  wrapper's own ladder, and the ceiling-bounded ladder step,
@@ -667,6 +680,9 @@ pub struct Watch {
     ///  which is what says whether a folder is one whose object store and logs hold no lock of the
     ///  worktree's state.
     git_directories: Vec<PathBuf>,
+    /// The names a reading of a folder found standing there,
+    ///  which the next read delivers as events that say so.
+    found_by_reading: Vec<Event>,
     /// The roots the watch was opened for,
     ///  which an event that names no folder is reported against.
     roots: Vec<PathBuf>,
@@ -737,7 +753,7 @@ impl Watch {
         //       (a review of `ca936e0b93`, finding 2).
         let common_dir: PathBuf = roots.first().map(|root| { return crate::git_directories_of_the_repository::common_dir_of(root.as_path()); }).unwrap_or_default();
         let git_directories: Vec<PathBuf> = crate::git_directories_of_the_repository::git_directories_of(roots, common_dir.as_path());
-        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), git_directories, roots: roots.to_vec() };
+        let mut watch: Watch = Watch { descriptor, child: None, directories: Vec::new(), git_directories, found_by_reading: Vec::new(), roots: roots.to_vec() };
         for root in roots {
             watch.watch_folder_and_below(root.as_path());
         }
@@ -841,7 +857,57 @@ impl Watch {
         if !self.directories.iter().any(|held| { return held.descriptor == watched; }) {
             self.directories.push(WatchedFolder { descriptor: watched, path: folder.to_path_buf(), device: identity.device, inode: identity.inode });
         }
+        // What: The watch is added and only then is the folder read, and what stands there is reported as a name this
+        //       run saw no creation of.
+        // Why:  A watch added to a folder that already exists has missed whatever was made in it before, and Git can
+        //       make a folder and take its first lock before this watch is on it (a review of `6c2272132b`, finding 3).
+        //       The reading finds such a lock, and it cannot say when the lock was made or whose PID file it inherits,
+        //       so the lock is known to stand and is never bound (`FOUND_BY_READING`, `Tracker::was_found_by_reading`).
+        self.read_what_stands_there(folder);
         return true;
+    }
+
+    /// What:
+    ///  Read one folder this watch has just opened,
+    ///  and keep every lock and PID file standing there as news of a state this run did not see made.
+    /// Why:
+    ///  The answer for a watch of a tree is to add the watch and then read the folder:
+    ///  what was made before the watch was there generates no event,
+    ///  and the reading is the only thing that finds it.
+    ///  What is found is a lock at an instant this run did not see,
+    ///  and the PID file beside it may be one an earlier holder left and this one inherited,
+    ///  so it is reported as a name that stands and is never a take of any child.
+    ///  A name the folder does not hold is not reported.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watchOne(dir) && readWhatStandsThere(dir) // IN_CREATE|FOUND_BY_READING for every .lock and ~pid.lock
+    /// ```
+    fn read_what_stands_there(&mut self, folder: &Path) {
+        let Ok(entries) = std::fs::read_dir(folder) else {
+            return;
+        };
+        let mut found: Vec<std::ffi::OsString> = Vec::new();
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if !kind.is_file() {
+                continue;
+            }
+            let name: std::ffi::OsString = entry.file_name();
+            // A lock and the PID file Git writes beside one are the two names this module follows; anything else the
+            //  folder holds is no news of a lock.
+            if !is_a_lock_name(name.as_os_str()) && !name.to_string_lossy().ends_with(PID_INFIX) {
+                continue;
+            }
+            found.push(name);
+        }
+        // Named in order, so two runs of one folder report the same way.
+        found.sort();
+        for name in found {
+            self.found_by_reading.push(Event { directory: folder.to_path_buf(), mask: libc::IN_CREATE | FOUND_BY_READING, name });
+        }
     }
 
     /// What:
@@ -971,7 +1037,11 @@ impl Watch {
     /// ```
     pub fn read_events(&mut self) -> Vec<Event> {
         let mut events: Vec<Event> = Vec::new();
-        // What: A control's made-up events are delivered first, as if the kernel had reported them before the queue.
+        // What: What a reading of a folder found standing is delivered first, as the news of a folder this watch has
+        //       just opened.
+        // Why:  It is news of a state, not of an event, and it belongs before anything the kernel reports afterwards.
+        events.append(&mut self.found_by_reading);
+        // What: A control's made-up events are delivered next, as if the kernel had reported them before the queue.
         // Why:  A shape this machine cannot produce still has to reach the tracker in a control.
         for (watched, mask, name) in take_made_up_events() {
             self.deliver(watched, mask, name.as_encoded_bytes(), &mut events);

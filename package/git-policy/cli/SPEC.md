@@ -10399,6 +10399,95 @@ The list of what the watch reports, and what it does with each:
   and a writer whose temporary a sweep took away makes it again rather than leave a standing lock
   with no record.
 
+#### What looks, and what acts on it later
+
+Other commands run at the same time as this one,
+and a process killed at any instruction is normal,
+so every place where one step reads something and a later step removes or relies on it is written down
+here,
+with what it is now:
+one step under one owner,
+an act that refuses when what was looked at has changed,
+or an act that is safe whatever happened in between.
+A review of `6c2272132b` found three places where a lock a killed command left stayed because of such a
+gap;
+each row below says what its place is now,
+and the row that changed names the control that states it.
+
+- **The walk's candidate list, then one clearance per candidate** (`abandoned_locks.rs`,
+  `walked` then `clear_one`):
+  the list is one reading of the lock directories,
+  and each clearance happens later.
+  The clearance is an act that refuses when what was looked at has changed:
+  it re-reads the lock's metadata, its proof, the removal's claim and the record at the last instant
+  before the `unlink`.
+  The list's staleness is safe: a lock the walk did not see is not acted on in this pass,
+  and the next command finds it.
+- **The numbers that stand beside a lock, then the sweep of the process records** (`abandoned_locks.rs`,
+  `outcome.standing` then `lock_holder_record_reads::sweep`):
+  what may need a record is asked when the record is removed,
+  from the locks that stand and the pins that stand at that instant
+  (`lock_bindings::holder_numbers_that_stand`),
+  and the pins whose lock is gone are removed first,
+  so a pin that names a number really stands.
+  *(This row changed: it used the walk's list, and a wrapped Git that took a lock in a folder the walk
+  had passed lost the record its own pin needed.
+  Control: `a_record_a_standing_binding_names_survives_the_sweep_of_a_walk_it_is_not_in`.)*
+- **The pins, then the sweep of the pins** (`lock_bindings::sweep`):
+  each record is decided from its own pin and the file standing at the path its text names,
+  so the act is safe whatever happened in between;
+  a pin whose lock is gone is litter, and its name is one take's.
+- **A clearance's judgement, then the unlink of the lock** (`clear_one`):
+  the removal claims the file first and then re-reads everything,
+  so it is one step under one owner and refuses when what it judged has changed
+  (device, inode, change time, `same_file`, the record read again).
+- **A clearance's readings of the PID file, then the removal of that file** (`clear_one`):
+  the file belongs to whoever holds the lock,
+  and it is now removed **while the lock still stands and its name is still taken**,
+  because Git creates a lock by exclusive creation and writes a PID file only for a lock it made,
+  so nothing else can take that path in between.
+  Nothing removes it after the name is free.
+  *(This row changed: the file's metadata was recorded, the lock unlinked, and the file removed
+  afterwards if it still had that metadata, so a Git that took the freed name inherited the file and
+  wrote none of its own.
+  Control: `a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder`.)*
+- **The record of a cleared lock, then its removal** (`clear_one`):
+  the record is one file named for the take it belongs to,
+  so the removal is safe whatever happened in between.
+- **A watch added to a folder, then the picture of that folder** (`lock_watch.rs`,
+  `watch_one` and `watch_folder_and_below`):
+  the watch is added **and then the folder is read**,
+  and what stands there is reported as a name this run saw no creation of
+  (`FOUND_BY_READING`).
+  Such a lock is known to stand and is **never bound**:
+  the reading cannot say when it was made, and the PID file beside it may be one an earlier holder
+  left and this one inherited.
+  *(This row changed: a lock made with its folder, or standing in a folder the walk had not reached,
+  was read by nothing and silently unknown.
+  Controls: `a_lock_made_with_its_new_folder_is_known_and_never_bound`,
+  `a_lock_that_stands_when_the_watch_opens_is_known_and_never_bound`.)*
+- **The events, then the pin** (`Tracker::locks_taken` then `lock_bindings::write`):
+  the write is an act that refuses when what was looked at has changed:
+  the folder's identity, the file standing at the path, and the PID file's number are all re-read at
+  the write and once more after the link.
+- **A finished take, then the removal of its record** (`forget_what_the_child_finished`):
+  the record's own name, so safe whatever happened.
+- **A path's text** (`name_the_path`): written once per path with the same bytes, so safe.
+- **This process's own record** (`meet_the_locks_of_the_working_directory`):
+  written once per process, and the atomic read that decides it is one step under one owner.
+- **The words for a lock that is kept** (`abandoned_lock_words.rs`): words only.
+
+Two limits are stated beside those rows:
+
+- A lock a **bounded runner** left has a pin and still no record of its child's start
+  (`forwarding.rs`,
+  `run_real_git_until`),
+  so the proof that also asks for that record refuses it until the change that writes it there lands.
+- A lock **found by reading a folder** is known and cannot be bound until a record of the holders this
+  repository started can name a take for it;
+  until then it is cleared only by the proof that does not need a record,
+  and a lock with neither is kept.
+
 #### The record's life, step by step, and what may run beside each step
 
 The steps below are the whole of a record's life.
