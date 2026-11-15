@@ -22,10 +22,11 @@
 //! ```
 
 /// The reading under test, the forms it answers for, and the fixture helpers.
-use super::paths_the_tree_writes;
 use crate::command_test_support::{fixture, git, git_status, remove};
 use crate::command_written_paths::written_paths;
 use crate::repo_read::repository_facts::{GitFacts, git_facts};
+/// The trait whose question this walk asks the provider.
+use crate::repository_facts::RepositoryFacts;
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::test_support::{REAL_GIT, isolated_overlay};
 use std::collections::BTreeMap;
@@ -58,14 +59,8 @@ struct Row {
     directory: PathBuf,
 }
 
-/// Where the guard says one written path lies, as this walk compares it.
-enum Place {
-    /// Below the worktree root, as Git's listings spell it.
-    Inside(String),
-    /// Outside the worktree, as the operating system reads it.
-    Outside(PathBuf),
-}
-
+/// Every entry the guard would refuse one row over, as it names them: the reading the refusal's
+/// sentence lists.
 /// Every file below `root`, with its bytes.
 fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     let mut found: BTreeMap<PathBuf, Vec<u8>> = BTreeMap::new();
@@ -107,47 +102,25 @@ fn files_a_person_lost(before: &BTreeMap<PathBuf, Vec<u8>>, after: &BTreeMap<Pat
     return lost;
 }
 
-/// Whether one lost path is one of the places the guard named.
-/// `&Path` is the worktree root the inside places are relative to.
-fn named(lost: &Path, places: &[Place], root: &Path) -> bool {
-    for place in places {
-        match place {
-            Place::Inside(spelled) => {
-                if let Ok(relative) = lost.strip_prefix(root)
-                    && relative.as_os_str().as_encoded_bytes() == spelled.as_bytes()
-                {
-                    return true;
-                }
-            }
-            Place::Outside(path) => {
-                if lost == path {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+/// Whether one lost path is one of the entries the guard named.
+/// `&Path` is the worktree root an inside name is relative to.
+fn named(lost: &Path, names: &[String], root: &Path) -> bool {
+    let shown: String = match lost.strip_prefix(root) {
+        Ok(relative) => String::from_utf8_lossy(relative.as_os_str().as_encoded_bytes()).into_owned(),
+        Err(_) => lost.display().to_string(),
+    };
+    return names.iter().any(|name| return name == &shown);
 }
 
-/// What the guard says one row writes: the places its reading answers, or why it cannot tell.
-fn guard_places(repository: &Path, directory: &Path, command: GuardedCommand, words: &[String]) -> Result<Vec<Place>, String> {
+/// What the guard would refuse one row over: the entries its question names, or why it cannot tell.
+fn guard_names(directory: &Path, command: GuardedCommand, words: &[String]) -> Result<Vec<String>, String> {
     let region: Vec<OsString> = words.iter().map(OsString::from).collect();
     let Some(written) = written_paths(command, region.as_slice()) else {
-        return Ok(Vec::<Place>::new());
+        return Ok(Vec::<String>::new());
     };
-    let prefix: Vec<OsString> = vec![OsString::from("-C"), repository.as_os_str().to_os_string()];
+    let prefix: Vec<OsString> = vec![OsString::from("-C"), directory.as_os_str().to_os_string()];
     let mut facts: GitFacts = git_facts(Path::new(REAL_GIT), prefix.as_slice(), isolated_overlay().as_slice());
-    let paths: Vec<super::WrittenPlace> = paths_the_tree_writes(&mut facts, &written, directory)?;
-    let mut places: Vec<Place> = Vec::<Place>::new();
-    for path in paths {
-        match path {
-            super::WrittenPlace::Inside(bytes) => {
-                places.push(Place::Inside(String::from_utf8_lossy(bytes.as_slice()).into_owned()));
-            }
-            super::WrittenPlace::Outside(path) => places.push(Place::Outside(path)),
-        }
-    }
-    return Ok(places);
+    return facts.paths_in_the_way(&written);
 }
 
 /// One repository, one branch whose tree differs, and the files a person holds inside and outside it.
@@ -371,8 +344,7 @@ fn every_row_names_the_place_of_a_file_git_writes() {
         let places: Places = fixture_for(number + 1);
         let row: Row = row_specs(&places).into_iter().nth(number).unwrap_or_else(|| panic!("row {number} is missing"));
         assert_eq!(row.label, labels[number], "the rows shift between fixtures");
-        let guarded: Result<Vec<Place>, String> =
-            guard_places(places.repo.as_path(), row.directory.as_path(), row.command, row.words.as_slice());
+        let guarded: Result<Vec<String>, String> = guard_names(row.directory.as_path(), row.command, row.words.as_slice());
         let mut before: BTreeMap<PathBuf, Vec<u8>> = snapshot(places.repo.as_path());
         before.extend(snapshot(places.outside.as_path()));
         let mut arguments: Vec<&str> = vec![row.word];
@@ -387,17 +359,13 @@ fn every_row_names_the_place_of_a_file_git_writes() {
             Err(cause) => {
                 refused.push(format!("{}: {cause}; Git alone would have written {lost:?}", row.label));
             }
-            Ok(named_places) => {
+            Ok(names) => {
                 for path in &lost {
-                    if !named(path.as_path(), named_places.as_slice(), places.repo.as_path()) {
+                    if !named(path.as_path(), names.as_slice(), places.repo.as_path()) {
                         failures.push(format!(
-                            "{}: Git wrote {} and the guard named {:?} (git exited {:?})",
+                            "{}: Git wrote {} and the guard named {names:?} (git exited {:?})",
                             row.label,
                             path.display(),
-                            named_places.iter().map(|place| return match place {
-                                Place::Inside(spelled) => format!("inside:{spelled}"),
-                                Place::Outside(path) => format!("outside:{}", path.display()),
-                            }).collect::<Vec<String>>(),
                             observed.status.code()
                         ));
                     }
