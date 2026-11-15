@@ -738,6 +738,37 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T10:20:50-05:00,
+  from integration pass 53,
+  not blocking work:
+  the automatic push of a branch that has never been pushed met no upstream.
+  Does the push queue set an upstream for such a branch,
+  or is a new branch pushed once by hand?
+
+- Added 2026-11-15T09:46:57-05:00,
+  from the author of the landed removal
+  (branch tip `5ca2149aea`,
+  in review),
+  not blocking work:
+  a shell alias (`!…`) can build a `git worktree remove` in ways no reader of its text can follow,
+  and the rule against self-invocation rules out making the alias's Git the wrapper.
+  The branch therefore refuses every `!` alias that is not one plain Git command line,
+  with the opt-out,
+  a harmless `!echo hello` among them.
+  This machine's Git configuration holds no alias today,
+  so nothing is stopped here.
+  Does that refusal stand,
+  or is a shell alias forwarded as it is
+  (which leaves the removal a shell alias builds unguarded)?
+
+- A proposal for `AGENTS.md`,
+  added 2026-11-15T09:46:57-05:00,
+  after a brief's suggestion collided with a record under `doc/planning/`:
+  the rule that says to grep `doc/decision/` before briefing work on a component names `doc/planning/` as well,
+  since accepted rules of the owner's live in both.
+  Not applied;
+  the file is the owner's.
+
 - Added 2026-11-15T08:06:19-05:00,
   about the removal of a worktree,
   not blocking work:
@@ -1638,6 +1669,371 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Integration pass 53 is in `main` and `0.6.1-alpha.42` is dispatched; the brief writer for every kind of code file goes back with two findings (2026-11-15T10:20:50-05:00)
+
+Not final and not approved:
+what one pass,
+one review and one author report,
+and what the coordinating session did.
+
+- **Integration pass 53** ended 10:14:53 at `d76695df29`,
+  which holds `main` as it stood,
+  and reports fit:
+  build,
+  both test compiles,
+  Clippy with warnings denied,
+  both guard modules
+  (26 of 26),
+  the review's four controls
+  (4 of 4);
+  in both whole suites only four failures,
+  each known at `main` on this machine
+  (three on the gate's list;
+  the checkout migration's control,
+  whose fix is in review);
+  the two known TypeScript failures and no other.
+  What it could not show and says so:
+  that `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` passes in the gate's image,
+  which the release's gate answers.
+  **Merged** as `9e3862b4f8` (10:19:45),
+  after checking that `main` held nothing in the wrapper that the tip lacked.
+  **Release `0.6.1-alpha.42` dispatched** at 10:19:55
+  (run 43729271505);
+  the install,
+  the sample commit,
+  the gate and the fuzz sidecar's type check follow.
+- **What the pass left as questions**:
+  whether the push queue sets an upstream for a branch it has never pushed
+  (kept for the owner);
+  who owns the two gate-list failures on the lock-holders folder and the migration control
+  (the lock-holders branch,
+  with its author,
+  and the migration branch,
+  in review);
+  and that `held_push_holder_and_verdict` still compares a boot and a birth as text
+  (the fresh run queued at 07:17 owns it).
+  The pass's agent ran `printenv CARGO_TARGET_DIR`
+  (one name,
+  empty);
+  the next pass's brief says where to read a build folder from.
+- **The driver's brief writer for every kind of code file** (`89c1554737`),
+  its review,
+  ended 10:14:58,
+  11 of 11 files,
+  two things,
+  both reproduced by driving `writeReviewBrief`:
+  material a test may read is listed to be read in full and,
+  lines later,
+  said to be left out;
+  and code of an unlisted kind beside a test is reviewed as a change to tests alone,
+  with no requirements for code and no notice.
+  **Weighed**:
+  both go back.
+  The author is asked for one function that answers everything a brief and a status line say for a row of its table,
+  and for the walk of all 64 rows to check the brief's own text.
+  Its fourth run is queued ninth.
+- **The process that holds a file open in a worktree**,
+  its author's second run,
+  ended 10:16:18 at `2bfd8be2b2`:
+  the rule's doc now says what it is and what it misses,
+  49 lines added and 29 removed in one file,
+  comment lines only.
+  The author found the same "cannot" in three lines of the tests' file
+  (a control's doc and two assertion messages)
+  and left them,
+  because its brief forbade a change to a test.
+  Its third run is queued first,
+  for those three lines alone;
+  one review then reads everything added after `3c43b9142a`.
+- **The temperature**,
+  read at 10:19:19:
+  56.1 degrees,
+  budget 32.0 threads,
+  10.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:19:22:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:12;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
+
+##### The wrapper under the gate container's Git: the review of the words finds two sentences left that still say who ended a query (2026-11-15T10:13:11-05:00)
+
+Not final and not approved:
+what one review reports and what the coordinating session queued.
+
+- **The review** of the words added after `d73a209b3e`,
+  ended 10:08:05,
+  two of two files read whole,
+  by reading
+  (which its brief allowed for a change of comments alone):
+  what the author changed is true of the code.
+  Two sentences the author did not change still promise what the stated limits take back:
+  the module's overview says the helper "says who ended" the query;
+  and the doc of `QueryEnding::Itself` says the query "ended by itself",
+  while the code answers `Itself` for every status a wait saw before the bound ran out,
+  a signal from another process among them.
+  No other defect in the two files.
+- **Weighed**:
+  both are what the brief asked the review to look for,
+  and both go back,
+  as two sentences and nothing else.
+  The author's eighth run is queued first
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-two-sentences-that-still-say-who-ended-the-query-prompt.md`),
+  asked also to read both files once more for the same promise and to list what it finds.
+  The review after it reads what is added after `aeae08fa24`.
+- **The temperature**,
+  read at 10:12:27:
+  59.8 degrees,
+  budget 32.0 threads,
+  17.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:12:30:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:06;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+##### The credential masking answers its second review and goes to a third, with made-up values only; the address-space assertion's message goes back (2026-11-15T10:08:02-05:00)
+
+Not final and not approved:
+what one author and one review report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The credential masking**,
+  its author's third run,
+  ended 10:05:58 at `03efc1467b`:
+  all ten reproductions of the second review ran against the old tip,
+  and the three shapes asked for are built.
+  The mask is applied to data
+  (the value serialised once as Pi does,
+  masked,
+  parsed back,
+  its shape compared),
+  and where it fails nothing of the original is handed on,
+  with `details` set explicitly because Pi reads an omitted one as unchanged.
+  One matcher for every stream holds back the longest tail that may still become an armed value.
+  Every source and every kept place answers covered,
+  not there,
+  or could not,
+  and "could not" stops the run before Pi starts or ends it as `session-unmasked`.
+  A table of every road from an armed value to a provider or a kept file is in the troubleshooting doc,
+  with how more were looked for in Pi's installed source;
+  two writes are named and not covered
+  (Pi's crash log;
+  bash messages that the RPC mode never makes).
+  Ten controls fail with their fix out.
+  37 values are armed here before and after,
+  the shortest of ten characters.
+  The cost on a transcript of 400 messages went from 0.181 to 0.517 ms.
+  198 suites pass.
+  The author states that no credential's value reached its tool results.
+- **Its third review** is queued second,
+  on Kimi,
+  with the brief written by the package's writer
+  (31 files to read)
+  and extended by the same three paragraphs as the second
+  (the range;
+  made-up secrets in a disposable home only,
+  no real Pi and no provider;
+  what the change must hold).
+  **The masking is still not merged,
+  the canary is not run,
+  and the owner's rotation still waits.**
+- **The assertion added to the address-space control** (`2616009887`),
+  its review,
+  ended 10:01:55,
+  the one file read in full,
+  the control run unchanged
+  (it passed)
+  and with the room planted below the boundary
+  (the assertion fired),
+  the totals found right,
+  one thing,
+  reproduced:
+  the new message says "the commit there did not" land,
+  while the service's log quoted in the same failure says `outcome=landed`.
+  The field it asserts is the wrapper's own exit,
+  not whether the service made the commit.
+- **Weighed**:
+  it goes back,
+  as words and one field:
+  a failing control says what happened,
+  and what happened is that the wrapper did not return success.
+  The author's sixth run is queued first
+  (`~/temp/agent/pi-runs/controls-of-a-service-under-an-address-space-limit-make-the-new-assertions-message-true-prompt.md`);
+  the review after it reads what is added after `2616009887`.
+  What the planted case showed is worth its own line:
+  at a room below the boundary the service landed the commit and the wrapper did not return success.
+  How the wrapper ended there is what the message does not say,
+  and so is not known from this run.
+  The assertion before it,
+  that the repository recovered,
+  had passed.
+- **The temperature**,
+  read at 10:06:35:
+  58.6 degrees,
+  budget 32.0 threads,
+  20.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:06:39:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:52;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+##### The wrapper under the gate container's Git: the helper's words now state its two limits; the review of that delta is queued first (2026-11-15T09:53:05-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session checked and queued.
+
+- **The author's seventh run**,
+  ended 09:47:53 at `aeae08fa24`:
+  sentences only,
+  no code and no test.
+  `QueryEnding::AtTheBound` now means that the bound ran out and the last status the wait returned was the signal the helper sends,
+  with the sentence that a query killed by that signal from elsewhere in that instant reads the same;
+  and what is bounded is the answer,
+  not every thread that served it.
+  The author found two sentences that were false and not only strong
+  (`QueryAnswer::ending` said "never by the query's status";
+  the tests' module doc said no status is read as the bound's doing),
+  both contradicting the code since the round before,
+  and corrected them in the same change.
+  Clippy exit 0;
+  32 of 32 named tests pass.
+- **Checked here**:
+  the delta from `d73a209b3e` to `aeae08fa24` under `package/` touches two files,
+  the helper and its tests,
+  and all 46 changed lines are comment lines.
+- **Its review** is written by hand,
+  for that delta alone and with the two limits stated in its brief
+  (`~/temp/agent/change-reviews/git-policy-cli-wrapper-under-the-gate-containers-git-the-words-added-after-its-sixth-review/`),
+  and queued first,
+  on Kimi.
+  Its brief says a result by reading counts for this change,
+  since no code changed;
+  that is an exception to the reading that a review which ran nothing clears nothing,
+  adopted for a delta of comments alone and open to veto.
+  A clean review sends the branch to a pass,
+  and seven of the gate's standing failures with it.
+- **The temperature**,
+  read at 09:52:10:
+  53.9 degrees,
+  budget 32.0 threads,
+  5.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:52:11:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:45;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
+##### The landed removal answers: an alias the wrapper cannot read is refused; a suggestion of the coordinating session collided with a recorded rule; the checkout migration answers (2026-11-15T09:46:57-05:00)
+
+Not final and not approved:
+what two authors report,
+what the coordinating session got wrong and measured,
+and what it queued.
+
+- **The landed removal**,
+  its author's fourteenth run,
+  ended 09:43:59 at `5ca2149aea`:
+  the review's three scripts reproduced at the old tip and do not at the new.
+  - **The brief's suggestion collided with the project's record.**
+    The coordinating session had suggested that the Git a shell alias reaches be the wrapper.
+    The author built it,
+    then read `doc/planning/cli-git-no-self-invocation.md`
+    (the wrapper never starts its own executable,
+    whether as a child,
+    a hook command or a shim it writes,
+    and never writes shell text),
+    and took every line of it out.
+    The brief should have named that record:
+    the records under `doc/planning/` were not searched before the suggestion was written,
+    only what the session remembered of `doc/decision/`.
+  - What stands in its place:
+    an alias whose command is one plain Git command line is judged as that command
+    (an inner `-C`, `--git-dir`, `--work-tree`, `--namespace` or `--attr-source` is refused as naming another repository);
+    **every other `!` alias is refused**,
+    with its text and the opt-out,
+    `!echo hello` among them.
+    The stated limit:
+    a plain alias whose value runs a program by an absolute path.
+  - A repository inside an ignored folder is refused when it names a commit the removing repository does not;
+    an ignored folder with no repository,
+    and a repository with no commit,
+    are deleted as decided.
+    The look is bounded at 50,000 entries or ten seconds and costs 25.6 ms on 20,000 ignored files.
+  - An ordinary removal costs 2.8 ms more
+    (41.6 against 39.6 ms);
+    884 `worktree::` tests pass.
+  - The author's own mistake,
+    reported by it:
+    a cost arm built from an uncommitted tree was restored over its edits,
+    which it applied again from its session.
+  Its review is queued third
+  (`main...5ca2149aea`,
+  22 code files that are not tests).
+- **Measured for the refusal of shell aliases**:
+  the Git configuration this checkout reads holds no alias at all,
+  so on this machine today the refusal stops nothing.
+  **Adopted,
+  open to veto,
+  and kept as a question**:
+  the refusal stands for the review and the pass.
+- **The checkout migration**,
+  a fresh run,
+  ended 09:41:19 at `311a65f852`:
+  the migration refused its own repository because a record the wrapper itself wrote during the copy was missing at the destination.
+  The comparison now holds a migration to what a person or Git put there;
+  the wrapper's own records are named once,
+  by the names the code that writes them uses,
+  and a file counts as the wrapper's only when it carries the writer's own mark.
+  Kinds with no mark still count and can still refuse,
+  which the module states.
+  Controls fail with the fix out;
+  354 library tests and the five binary controls pass.
+  Its review is queued eighth
+  (`main...311a65f852`,
+  seven code files that are not tests).
+- **A note to the lock-holders author**,
+  whose fifth run had started with a suggestion of the same session in its brief
+  (the process about to be Git writes its own record between `fork` and `exec`):
+  the record on self-invocation is named to it,
+  with the session's reading that code in the forked child starts no second copy of the wrapper,
+  and that the record stands over the suggestion if the author reads it otherwise.
+- **The temperature**,
+  read at 09:45:49:
+  53.6 degrees,
+  budget 32.0 threads,
+  5.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:45:50:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:39;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
 
 ##### The address-space controls answer their one finding by a measurement; a review of the one added commit is written by hand and queued (2026-11-15T09:40:57-05:00)
 
