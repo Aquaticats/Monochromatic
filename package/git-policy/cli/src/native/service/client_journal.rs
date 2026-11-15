@@ -57,7 +57,7 @@ fn target() -> Option<Target> {
 
 /// What:
 ///  Send one entry to the journal;
-/// whether the socket took it.
+/// whether the socket or the sink took it.
 /// Why:
 ///   The command that sends it goes on whatever the journal does;
 /// the answer is for a test and for the debug log.
@@ -71,9 +71,10 @@ pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]
 }
 
 /// What:
-///  Send one entry under the identifier of the sender:
+///  Record one entry under the identifier of the sender:
 /// the wrapper's,
-/// or the service's when the code runs inside the service.
+/// or the service's when the code runs inside the service,
+/// and answer whether the journal or the standard error took it.
 /// Why:
 ///   An entry belongs next to the others of the program that sent it (`journalctl --identifier=cli-git-service`).
 ///
@@ -86,8 +87,9 @@ pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fiel
     // its stream decides, and never the client's sender, whose road is the machine's journal socket. The identifier stays
     // the caller's, so an entry keeps the name a person finds it by.
     if in_service() {
-        let _delivered: Delivery = crate::service_timing::log_entry_as(identifier, priority, message, fields);
-        return true;
+        let delivered: Delivery = crate::service_timing::log_entry_as(identifier, priority, message, fields);
+        // What a caller is told is what became of the entry: the journal's socket or standard error took it, or neither did.
+        return matches!(delivered, Delivery::Native | Delivery::Stderr);
     }
     let Some(found) = target() else { return false };
     return send_entry_as(&found, identifier, priority, message, fields);
@@ -95,7 +97,7 @@ pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fiel
 
 /// What:
 ///  Send one entry to `target`;
-/// whether the socket took it.
+/// whether that socket took it.
 /// Why:
 ///   Split from the choice of target so a control names its own receiver without touching the process environment.
 ///

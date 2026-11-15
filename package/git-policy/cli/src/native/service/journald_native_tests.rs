@@ -160,7 +160,7 @@ fn standard_error_that_is_not_the_journal_keeps_the_plain_line() {
     let other: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE + 1)), &target);
     assert!(!other.is_native());
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(other.deliver(Priority::Warning, "m", &[], "monochromatic-git-policy-cli-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
+    assert_eq!(other.deliver(Priority::Warning, "m", &[], "m at_ms=1\n", &mut stderr), Delivery::Stderr);
     assert_eq!(String::from_utf8(stderr).expect("text"), "monochromatic-git-policy-cli-service: m at_ms=1\n");
     assert!(socket.recv(&mut [0_u8; 16]).is_err(), "nothing was sent to the socket");
 }
@@ -174,7 +174,7 @@ fn a_journal_that_is_not_listening_falls_back_to_standard_error_with_the_priorit
     let nobody: Target = Target::Abstract(format!("cli-git-test-journal-nobody-{}", std::process::id()));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(sink.deliver(Priority::Warning, "m", &[], "monochromatic-git-policy-cli-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
+    assert_eq!(sink.deliver(Priority::Warning, "m", &[], "m at_ms=1\n", &mut stderr), Delivery::Stderr);
     assert_eq!(String::from_utf8(stderr).expect("text"), "<4>monochromatic-git-policy-cli-service: m at_ms=1\n");
 }
 
@@ -192,7 +192,7 @@ fn a_full_journal_queue_falls_back_instead_of_waiting() {
         native += 1;
         assert!(native < 1_000_000, "the queue never filled");
     }
-    assert!(stderr.starts_with(b"<6>line"), "{:?}", String::from_utf8_lossy(stderr.as_slice()));
+    assert!(stderr.starts_with(format!("<6>{IDENTIFIER}: line").as_bytes()), "{:?}", String::from_utf8_lossy(stderr.as_slice()));
     assert!(started.elapsed() < std::time::Duration::from_secs(20), "filling the queue and falling back took {:?}", started.elapsed());
 }
 
@@ -390,7 +390,7 @@ fn a_line_taken_in_part_is_finished_before_the_next_starts() {
     sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream);
     stream.room = usize::MAX;
     sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream);
-    assert_eq!(String::from_utf8(stream.taken).expect("text"), "<6>first line\n<6>second line\n");
+    assert_eq!(String::from_utf8(stream.taken).expect("text"), format!("<6>{IDENTIFIER}: first line\n<6>{IDENTIFIER}: second line\n"));
 }
 
 /// A standard error that is a blocking pipe with no room never makes the writer wait:
@@ -456,10 +456,10 @@ fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
     assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
     let text: String = String::from_utf8(stream.taken).expect("text");
     assert!(text.starts_with("<4>monochromatic-git-policy-cli-service: 2 log entries were dropped before this one"), "{text}");
-    assert!(text.ends_with("\n<6>third line\n"), "{text}");
+    assert!(text.ends_with(format!("\n<6>{IDENTIFIER}: third line\n").as_str()), "{text}");
     let mut after: Tight = Tight { taken: Vec::new(), room: usize::MAX };
     sink.deliver(Priority::Info, "four", &[], "fourth line\n", &mut after);
-    assert_eq!(String::from_utf8(after.taken).expect("text"), "<6>fourth line\n", "the count is said once");
+    assert_eq!(String::from_utf8(after.taken).expect("text"), format!("<6>{IDENTIFIER}: fourth line\n"), "the count is said once");
 }
 
 /// The line that is still unfinished when no room comes back blocks the lines after it from starting,
@@ -472,12 +472,13 @@ fn a_line_that_stays_unfinished_drops_the_lines_behind_it() {
     let mut stream: Tight = Tight { taken: Vec::new(), room: 4 };
     assert_eq!(sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream), Delivery::Stderr);
     assert_eq!(sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream), Delivery::Dropped);
-    assert_eq!(String::from_utf8(stream.taken.clone()).expect("text"), "<6>f", "nothing of the second line started");
+    let first_line: String = format!("<6>{IDENTIFIER}: first line\n");
+    assert_eq!(String::from_utf8(stream.taken.clone()).expect("text"), first_line[..4], "nothing of the second line started");
     stream.room = usize::MAX;
     assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
     let text: String = String::from_utf8(stream.taken).expect("text");
-    assert!(text.starts_with("<6>first line\n<4>monochromatic-git-policy-cli-service: 1 log entries were dropped before this one"), "{text}");
-    assert!(text.ends_with("\n<6>third line\n"), "{text}");
+    assert!(text.starts_with(format!("<6>{IDENTIFIER}: first line\n<4>{IDENTIFIER}: 1 log entries were dropped before this one").as_str()), "{text}");
+    assert!(text.ends_with(format!("\n<6>{IDENTIFIER}: third line\n").as_str()), "{text}");
 }
 
 /// A native entry that follows dropped ones carries their count as a field,

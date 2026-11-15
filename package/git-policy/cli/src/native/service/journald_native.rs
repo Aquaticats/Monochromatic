@@ -60,6 +60,22 @@ pub const STREAM_VARIABLE: &str = "JOURNAL_STREAM";
 /// the name `journalctl` shows after the host.
 pub const IDENTIFIER: &str = "monochromatic-git-policy-cli-service";
 
+/// What:
+///  The line an entry is written with: the name it is written under, then its text.
+/// Why:
+///  An entry's identity is the name it was given,
+/// and the line standard error receives must carry that name,
+/// the way the datagram's `SYSLOG_IDENTIFIER` does.
+///  One function writes it, so the name a line carries and the name the entry was given cannot part.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lineAs('monochromatic-git-policy-cli', 'word-level merge: a.md at_ms=1\n')
+/// ```
+pub fn line_as(identifier: &str, body: &str) -> String {
+    return format!("{identifier}: {body}");
+}
+
 /// The `SYSLOG_IDENTIFIER` of an entry the wrapper itself sends,
 /// as the command a person ran,
 /// beside the service's own.
@@ -475,11 +491,11 @@ impl Sink {
     }
 
     /// What:
-    ///  Sends one entry,
+    ///  Sends one entry of the service's own name,
     /// and gives where it went:
     /// a datagram when the sink is native and the socket takes it,
     /// otherwise
-    ///  `line` on `stderr`,
+    ///  `body` on `stderr` under that name,
     /// otherwise nowhere.
     /// Why:
     ///   A journal that is restarting,
@@ -498,8 +514,8 @@ impl Sink {
     /// ```ts
     /// try { socket.send(datagram) } catch { stderr.write(prefix + line) ?? count(dropped) }
     /// ```
-    pub fn deliver(&self, priority: Priority, message: &str, fields: &[(&str, String)], line: &str, stderr: &mut dyn Write) -> Delivery {
-        return self.deliver_as(IDENTIFIER, priority, message, fields, line, stderr);
+    pub fn deliver(&self, priority: Priority, message: &str, fields: &[(&str, String)], body: &str, stderr: &mut dyn Write) -> Delivery {
+        return self.deliver_as(IDENTIFIER, priority, message, fields, body, stderr);
     }
 
     /// What:
@@ -517,7 +533,7 @@ impl Sink {
     /// ```ts
     /// deliverAs('monochromatic-git-policy-cli', priority, message, fields, line, stderr)
     /// ```
-    pub fn deliver_as(&self, identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)], line: &str, stderr: &mut dyn Write) -> Delivery {
+    pub fn deliver_as(&self, identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)], body: &str, stderr: &mut dyn Write) -> Delivery {
         let lost: u64 = self.lost.load(Ordering::Relaxed);
         if let Some(socket) = self.native.as_ref()
             && let Some(address) = self.address.as_ref()
@@ -531,7 +547,7 @@ impl Sink {
                 return Delivery::Native;
             }
         }
-        return self.fall_back(priority, line, stderr);
+        return self.fall_back(identifier, priority, body, stderr);
     }
 
     /// Takes `count` off the dropped-entry count without going below zero.
@@ -548,7 +564,7 @@ impl Sink {
     }
 
     /// What:
-    ///  Writes the line to `stderr` without waiting:
+    ///  Writes the entry's line to `stderr` under `identifier` without waiting:
     /// finishes what an earlier line left unwritten first,
     /// says how many
     ///  entries were dropped before this one,
@@ -565,7 +581,7 @@ impl Sink {
     /// ```ts
     /// if (pending.length) flush(pending); if (!pending.length) write(note + line) else lost++
     /// ```
-    fn fall_back(&self, priority: Priority, line: &str, stderr: &mut dyn Write) -> Delivery {
+    fn fall_back(&self, identifier: &str, priority: Priority, body: &str, stderr: &mut dyn Write) -> Delivery {
         // Only the journal's stream carries a `<priority>` prefix; any other standard error gets its plain line, and the rest of
         //  it is kept for the next line like the stream's, because a writer that never waits may take a line only in part.
         let mut pending = self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -582,6 +598,9 @@ impl Sink {
         if lost > 0 {
             bytes.extend_from_slice(format!("<{}>{LOST_NOTICE_HEAD}{lost}{LOST_NOTICE_TAIL}\n", Priority::Warning.number()).as_bytes());
         }
+        // The name is written here, from the identifier the entry was given: the datagram declares it and this line carries
+        //  it, so a look for either finds the entry (`line_as`).
+        let line: String = line_as(identifier, body);
         if self.stream {
             bytes.extend_from_slice(format!("<{}>{line}", priority.number()).as_bytes());
         } else {

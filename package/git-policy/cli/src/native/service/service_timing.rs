@@ -579,7 +579,24 @@ pub fn wall_millis() -> u128 {
 /// `${LOG_PREFIX}${line} at_ms=${Date.now()}\n`
 /// ```
 pub fn stamped_line(line: &str, at_ms: u128) -> String {
-    return format!("{LOG_PREFIX}{line} at_ms={at_ms}\n");
+    return stamped_line_as(crate::journald_native::IDENTIFIER, line, at_ms);
+}
+
+/// What:
+///  The same line written under `identifier`,
+///  which is the name the entry it belongs to was given.
+/// Why:
+///   An entry recorded as the client's (`record_entry_as(CLIENT_IDENTIFIER, ...)`) must be found under the client's name
+/// wherever it is written,
+///  the fallback line included;
+/// `line_as` writes the name, so the two cannot part.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${lineAs(identifier, line)} at_ms=${Date.now()}\n`
+/// ```
+pub fn stamped_line_as(identifier: &str, line: &str, at_ms: u128) -> String {
+    return format!("{} at_ms={at_ms}\n", crate::journald_native::line_as(identifier, line));
 }
 
 /// What:
@@ -705,7 +722,9 @@ pub fn log_entry_as(identifier: &str, priority: Priority, line: &str, fields: &[
     if capture::record(priority, message.as_str(), all.as_slice()) {
         return Delivery::Stderr;
     }
-    let text: String = stamped_line(one_line(masked.as_str(), MESSAGE_LIMIT).as_str(), at_ms);
+    // One line, without the name: the sink writes the identifier the entry was given in front of it (`line_as`), so the
+    //  fallback line and the datagram carry the same identity.
+    let body: String = format!("{} at_ms={at_ms}\n", one_line(masked.as_str(), MESSAGE_LIMIT));
     // On the journal's stream, and everywhere in the service, a line that finds no room is dropped, never waited for: a
     //  service's standard error is the journal, a pipe or a FIFO, and a reader that stops reading holds `write_all` in the
     //  kernel for as long as it does not read (the audit of 0.6.1-alpha.14 held a landing 7.35 s that way, and the journal's
@@ -713,16 +732,18 @@ pub fn log_entry_as(identifier: &str, priority: Priority, line: &str, fields: &[
     //  FIFO drops is what the stream would have dropped anyway (`journald_native.rs`).
     if sink().on_stream() || in_service() {
         let mut never_waits: StreamWriter = StreamWriter::stderr();
-        return sink().deliver_as(identifier, priority, message.as_str(), all.as_slice(), text.as_str(), &mut never_waits);
+        return sink().deliver_as(identifier, priority, message.as_str(), all.as_slice(), body.as_str(), &mut never_waits);
     }
     // The wrapper's own standard error, where a person reads it, is written by a thread of its own, for the same reason: a
     //  command that waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12
     //  (`service_log_lines_off_the_calling_thread.rs`). A line the queue cannot hold is written here instead, because the
     //  wrapper's own stream, unlike a landing's, is the one worth waiting for.
+    // A line the wrapper's own thread writes carries its name itself: the queue takes lines, not entries.
+    let text: String = stamped_line_as(identifier, one_line(masked.as_str(), MESSAGE_LIMIT).as_str(), at_ms);
     return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) {
         Delivery::Stderr
     } else {
-        sink().deliver_as(identifier, priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr())
+        sink().deliver_as(identifier, priority, message.as_str(), all.as_slice(), body.as_str(), &mut std::io::stderr())
     };
 }
 
