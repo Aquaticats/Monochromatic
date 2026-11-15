@@ -148,6 +148,18 @@ fn birth_with_a_leading_zero(birth: &str) -> String {
     return format!("{prefix}:0{tick}");
 }
 
+/// The same birth with the letters of its tag in capitals,
+/// which is the same tag written the way a program that capitalizes a field writes it.
+/// Why:
+///   A tag's case is part of how it is written and no part of what it names,
+/// so a record whose tag is capitalized names the same start tick another way.
+fn birth_with_a_capitalized_tag(birth: &str) -> String {
+    let Some((prefix, tick)) = birth.split_once(':') else {
+        panic!("the birth {birth} carries no tag this control can capitalize");
+    };
+    return format!("{}:{tick}", prefix.to_uppercase());
+}
+
 /// What:
 ///  The identity text cut where its parts begin:
 ///  the birth,
@@ -177,10 +189,11 @@ fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
 /// a live holder whose marker spells one part of its identity another way is never judged gone,
 /// and its lock stays.
 /// Why:
-///   Five spellings a person or another program can produce without changing the value:
-///  hexadecimal letters in the boot in capitals,
-///  a leading zero on the start tick of the birth,
+///   Six spellings a person or another program can produce without changing the value:
+///  the boot's letters in capitals,
+///  a leading zero on the birth's start tick,
 ///  a space before the birth,
+///  the birth's tag in capitals,
 ///  a leading zero on the process number,
 ///  and a leading zero on the PID namespace.
 ///  Two spellings of one boot or one start tick are no proof of another,
@@ -201,13 +214,15 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let padded_scope: String = format!("0{scope}");
     let respelled_boot: String = format!("{birth}#{uppercase_boot}#{scope}{tail}");
     let respelled_tick: String = format!("{padded_tick}#{boot}#{scope}{tail}");
+    let respelled_tag: String = format!("{}#{boot}#{scope}{tail}", birth_with_a_capitalized_tag(birth));
     let respelled_scope: String = format!("{birth}#{boot}#{padded_scope}{tail}");
     // A double space after the process number leaves the space in the birth field, which is how a person or a program
     //  that padded the fields writes the same birth.
     let respelled_space: String = format!(" {identity}");
-    let arms: [(&str, &str, &str, &str, HolderState); 5] = [
+    let arms: [(&str, &str, &str, &str, HolderState); 6] = [
         ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
         ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
+        ("the birth's tag in capitals", "capitalized-tag", pid_field.as_str(), respelled_tag.as_str(), HolderState::Unknown),
         ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
         ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
         ("a space before the birth", "space-before-birth", pid_field.as_str(), respelled_space.as_str(), HolderState::Unknown),

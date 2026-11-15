@@ -26,8 +26,15 @@ fn prefix() -> &'static OsStr {
 /// The generation of the first claim on an item.
 const FIRST: u64 = 1;
 
-/// The birth identity of a process that never ran.
-const NO_SUCH_BIRTH: &str = "linux:not-a-birth";
+/// The birth identity of a process that never ran:
+/// the largest start tick a 64-bit number holds,
+/// written as this program writes one,
+/// and no process is born at it.
+/// Why:
+///   A control needs a birth a live process can never have.
+/// A text that is not a birth at all is no record this reader can compare,
+/// which is what `a_live_owner_whose_birth_is_spelled_another_way_keeps_the_item` plants instead.
+const NO_SUCH_BIRTH: &str = "linux:18446744073709551615";
 
 /// The held claim of an outcome.
 fn held(outcome: Result<ClaimOutcome, MigrateError>) -> OwnerClaim {
@@ -116,6 +123,65 @@ fn an_owner_whose_process_id_was_reused_is_replaced() {
     assert_eq!(present(directory.as_path()), vec![FIRST + 1]);
     drop(claim);
     remove(directory.as_path());
+}
+
+/// Refused:
+///  a live owner whose claim spells its own birth another way keeps the item,
+///  and the claimant says what it could not read instead of taking over.
+/// Why:
+///   The claim names its owner by PID and process birth because the number alone is reused,
+///  and the birth is compared with the identity the process table reports now (`live_owner`).
+/// Two spellings of one start tick read as two processes,
+/// so a live owner's claim is replaced,
+/// and two commands then work on one item:
+/// they write one journal,
+/// share one token on a resume and exchange one directory back (`single_owner_claim.rs`,
+/// its module description).
+///  The spellings are the ones a person or a program can produce without changing the value:
+/// a leading zero on the start tick,
+/// a space on either side of the birth,
+/// and the birth's tag in capitals.
+/// A record whose birth cannot be compared is a question this claimant cannot answer,
+/// so it stops and names the file,
+/// which keeps the item for a person to look at.
+///  A birth in the spelling this program writes stops the claimant too,
+/// as `a_live_owner_stops_the_next_claimant` shows,
+/// which is the control of this control.
+#[test]
+fn a_live_owner_whose_birth_is_spelled_another_way_keeps_the_item() {
+    let birth: String = current_birth_identity().expect("this process has an identity");
+    let Some((tag, tick)) = birth.split_once(':') else {
+        panic!("the birth {birth} of this process carries no tag this control can respell");
+    };
+    let own: i64 = i64::from(std::process::id());
+    let arms: [(&str, String); 4] = [
+        ("a leading zero on the start tick", format!("{tag}:0{tick}")),
+        ("a space before the birth", format!(" {birth}")),
+        ("a space after the birth", format!("{birth} ")),
+        ("the birth's tag in capitals", format!("{}:{tick}", tag.to_uppercase())),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (index, (what, respelled)) in arms.into_iter().enumerate() {
+        let directory: PathBuf = fixture(format!("claim-birth-respelled-{index}").as_str());
+        plant_claim_for_tests(directory.as_path(), prefix(), FIRST, own, respelled.as_str());
+        let outcome: Result<ClaimOutcome, MigrateError> = take_claim(directory.as_path(), prefix());
+        let generations_after: Vec<u64> = present(directory.as_path());
+        remove(directory.as_path());
+        match outcome {
+            Ok(ClaimOutcome::Held(claim)) => {
+                wrong.push(format!("{what}: the claimant took the item from the live owner of the claim reading {respelled}, into {:?}", claim.path));
+            }
+            Ok(ClaimOutcome::Busy(owner)) => {
+                assert_eq!(owner.pid, own, "{what}: the owner a claim reading {respelled} names is this process");
+                assert_eq!(generations_after, vec![FIRST], "{what}: the claimant created no generation of its own");
+            }
+            Err(refusal) => {
+                assert!(format!("{refusal:?}").contains(respelled.as_str()), "{what}: the refusal names the birth it could not compare: {refusal:?}");
+                assert_eq!(generations_after, vec![FIRST], "{what}: the claimant created no generation of its own");
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 /// Claimants that arrive together:

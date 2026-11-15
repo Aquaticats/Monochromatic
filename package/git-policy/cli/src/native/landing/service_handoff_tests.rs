@@ -571,6 +571,59 @@ fn a_held_push_whose_command_still_runs_is_left_to_it() {
     remove(root.as_path());
 }
 
+/// Refused:
+///  a held push whose live command's identity is spelled another way is still left to that command,
+///  and the commit stays held back from the branch's push.
+/// Why:
+///   What the reader answers is what the person and the next push act on,
+///  so this control measures both of them rather than the reader alone:
+/// the line the worktree says,
+/// the record's state,
+/// and the commits a push of the branch must stop before
+/// (`work_item_holding.rs`,
+/// `undecided_commits`).
+///  Read as gone,
+/// the record is settled by a command that is not the gate,
+/// the commit is published before its post-commit checks have answered,
+/// and no push stops before it;
+/// the record is the only place that state exists,
+/// so nothing else can tell the person otherwise.
+#[test]
+fn a_held_push_whose_live_command_is_spelled_another_way_is_left_to_it() {
+    let root: std::path::PathBuf = fixture("handoff-held-live-respelled");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let own: String = crate::held_push_holder_and_verdict::this_command();
+    let mut parts = own.splitn(3, '/');
+    let (Some(boot), Some(pid), Some(birth)) = (parts.next(), parts.next(), parts.next()) else {
+        panic!("this command's own holder text {own} does not name a boot, a process and a birth");
+    };
+    let respelled: String = format!("{}/{pid}/ {birth}", boot.to_uppercase());
+    let holding: Holding = Holding { holder: respelled.clone(), verdict: Verdict::Undecided, reason: String::new() };
+    let (item, held) = held_with_verdict(&handoff, OID, &holding);
+    let woken: Woken = Woken::default();
+    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
+    let branch: &str = handoff.reference.text().expect("a branch name that is text");
+    let stopped: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), branch);
+    // Every consequence is asked and every wrong one is kept, so one run of this control names what a live holder read
+    //  as gone costs, instead of the first thing that broke.
+    let mut wrong: Vec<String> = Vec::new();
+    if !said.iter().any(|line| { return line.contains("has not finished its checks"); }) {
+        wrong.push(format!("the line does not say the command that landed the commit still runs: {said:?}"));
+    }
+    if !held.exists() {
+        wrong.push(String::from("the record left the held state, and the command that will decide was not the one that moved it"));
+    }
+    if !woken.0.borrow().is_empty() {
+        wrong.push(String::from("the service was woken for a push no gate has decided"));
+    }
+    if stopped != vec![String::from(OID)] {
+        wrong.push(format!("a push of the branch no longer stops before the commit whose checks have not answered: {stopped:?}"));
+    }
+    assert!(wrong.is_empty(), "{} is held by {respelled} (the item {}):\n{}", OID, item.id(), wrong.join("\n"));
+    remove(root.as_path());
+}
+
 /// What:
 ///  A retry that finishes a commit takes the first try's hold over,
 /// names itself as the command that decided,
