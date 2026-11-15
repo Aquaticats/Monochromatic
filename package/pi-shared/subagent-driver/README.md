@@ -1127,7 +1127,7 @@ They travel on a descriptor the driver opens for Pi and names in
 and the extension reads it once while it loads and closes it
 (`src/secret-value-masking-extension.ts`).
 
-The extension the driver loads with `--extension` masks them in two places:
+The extension the driver loads with `--extension` masks them in three places:
 `tool_result`,
 which fires after a tool ran and before Pi ends the call and keeps the tool result message
 (`dist/core/agent-session.js:403` in Pi 1.5.2),
@@ -1136,7 +1136,23 @@ Pi's session file,
 or the run's feed;
 and `context_with_system`,
 which fires before every model request with the whole transcript,
-so a value an earlier session already held is masked on its way out when a run resumes one.
+so a value an earlier session already held is masked on its way out when a run resumes one;
+and `message_end`,
+which fires before Pi keeps a message in its session,
+so the first prompt, a steer, an inbox note, an assistant message with its tool calls and every other message are masked
+before the session file holds them.
+That last hook is also what keeps Pi's compaction and branch-summary requests free of values:
+both build their own text from the session and run no context hook.
+
+The driver masks what it writes as well:
+one boundary for every line of `feed.jsonl`,
+one for `summary.json`,
+and one on the way into `stderr.log`.
+The session file Pi wrote is masked once the run is over,
+which is the one boundary the entry kinds no hook reaches pass,
+an entry an extension wrote among them.
+`doc/troubleshooting/secret-values-reaching-a-model.md` lists every place a value could be written or sent
+and the point before it that masks.
 
 An agent reads a marker that names where the value came from,
 `[masked secret value of MISE_GITHUB_TOKEN]`,

@@ -143,7 +143,11 @@ Each rule is the project's own requirement.
   the age key that decrypts the store,
   and a credential-named variable of the driver's own environment.
   They are replaced in each tool result,
-  and again in the whole transcript before every model request,
+  in every message Pi keeps in its session,
+  in the whole transcript before every model request,
+  in the run's feed,
+  its summary and Pi's standard error,
+  and in the session file once the run is over,
   by a marker that names where the value came from,
   as `[masked secret value of MISE_GITHUB_TOKEN]`:
   seeing that marker means the value you asked for was there and was taken out,
