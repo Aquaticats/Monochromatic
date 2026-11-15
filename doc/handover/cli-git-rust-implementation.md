@@ -1615,6 +1615,110 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The released wrapper can land a commit with the empty tree when a file of its scratch goes: shown on `main`, fixed on a branch whose review is now second in line; the checkout migration's review finds two ways a person's file is lost (2026-11-15T11:18:47-05:00)
+
+Not final and not approved:
+what one author and two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The drawn shadow tree**,
+  its author's seventh run,
+  ended 11:13:14 at `5db0fbc6e9`.
+  Asked first whether `main` has the sixth review's first two findings:
+  - **The second, yes.**
+    The review's script against a wrapper built from `main`:
+    with the commit's private index gone from its scratch at a pause,
+    the commit landed with the empty tree,
+    exit 0,
+    and the tracked file left history.
+    That is in the release installed here.
+  - The first
+    (a merge's commit with one parent)
+    was not shown on `main`:
+    `main` has no pause at that place to hold,
+    and the author read the removal rule there and tried no unattended reproduction.
+  - On the branch,
+    before its change,
+    all three reproduced.
+  **The fix**:
+  the tree and the parents a commit is asked for are captured before Git builds,
+  and the built commit is held against them before the request is made and before the real repository's merge state is touched;
+  a difference is not landed,
+  one more build is made from the captures,
+  and a second difference is reported plainly.
+  Every entry of the scratch can go at any instant without changing what lands.
+  The sweep now takes a tree's claim whole before removing it,
+  and the maker claims it as it is made.
+  Not covered,
+  said in the code:
+  an amend's parents,
+  and `--fixup=reword:` and `--fixup=amend:`,
+  whose commit carries the base's tree by design.
+  Cost inside the machine's spread
+  (an ordinary commit 69.0 to 64.4 ms,
+  ratio's median 0.925).
+  Its review is queued second
+  (`main...5db0fbc6e9`,
+  17 code files that are not tests).
+- **Measured again for the empty tree**:
+  of the 145 commits on any ref since 08:20 today,
+  each with a tree of its own,
+  none has the empty tree;
+  with the morning's count,
+  none of the commits since 2026-11-01 has it.
+  What takes a file out of a live commit's scratch on `main` is the sweep for age or something outside the wrapper;
+  how often that can meet a commit is not measured.
+- **The checkout migration** (`311a65f852`),
+  its review,
+  ended 11:15:19,
+  seven of seven files,
+  three controls added to a copy of its tests,
+  all three failing:
+  a record replaced by a directory between the listing and the decision has its contents counted as vanished,
+  and the old tree is deleted with a person's file in neither tree;
+  an old notice now carried over is renamed over a file another command made at the destination during the copy;
+  and a notice in the spelling of an earlier release
+  (`cli-git push notice 1`)
+  is not known as the wrapper's own,
+  so the deletion is refused for it.
+  **Weighed**:
+  all three go back.
+  The first two are one thing,
+  a look and a later act on something that can have changed,
+  and the brief asks for the deciding look and the act to be of one opened thing,
+  for a publish that never replaces,
+  and for a table of every such place in the pass.
+  The author's second run is queued fourth.
+- **The landed removal's review** of `5ca2149aea`,
+  ended 11:16:22,
+  22 of 22 files,
+  six things,
+  all reproduced through the built wrapper.
+  Four are in the look for a repository inside an ignored folder
+  (a root with a byte that is not UTF-8;
+  a bare repository;
+  a query that climbs to the outer repository;
+  a FIFO at a nested `.git` that blocks without a bound),
+  and fall away with that look,
+  which the owner's answer of 10:59 takes out.
+  **Two stand**:
+  a per-worktree reference that names an annotated tag loses the tag object,
+  since only the peeled commit is kept among the objects the guard protects;
+  and an annotated tag held only by a per-worktree reflog loses the tag and its commit,
+  since every reflog name is taken for a commit.
+  The author's fifteenth run had started before the review ended;
+  the two go to it in a sixteenth,
+  when the fifteenth has ended.
+- Read at 11:17:25:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:10;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes.
+
 ##### A warning written to a pipe nobody drains holds a stopped push for good: the stop's author goes back, and the wider thing gets a run of its own; the discarding guard and the unheld branch's push answer (2026-11-15T11:12:43-05:00)
 
 Not final and not approved:
