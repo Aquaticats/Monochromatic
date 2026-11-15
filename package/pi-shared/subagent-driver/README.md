@@ -549,14 +549,17 @@ and `--rules-file`,
 which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
 
 It writes the diff of the ranges under the source folder,
-the brief that names the code files among them,
-an empty `reproductions/` folder,
-and `what-the-review-read.json`,
+then `what-the-review-read.json`,
 which records the commit,
 the ranges,
 the source folder a fix that answers this review starts from,
 and the files the brief listed,
-and prints one line:
+then the brief that names the code files among them,
+and an empty `reproductions/` folder.
+The record goes before the brief so that no review folder holds a brief without the record its review states its ranges against:
+a process killed between the two writes leaves a record nothing has used yet,
+not a brief whose review can only be answered as one that cannot be told.
+It prints one line:
 
 ```text
 # --review=rewrite-the-gate --commit=abc1234 --range=main...fix/rewrite-the-gate --source=package/git-policy/cli/src/native
@@ -570,13 +573,36 @@ the file the whole diff is in beside it (`change.diff`),
 the files the change touches that a review reads,
 and that the last commit alone is not the change.
 A brief for a change read over two merges names both.
-It also asks the review to state, at the top of its own file,
-the ranges it reviewed and how many of the listed files it read in full:
+It also asks the review to say, at the top of its own file,
+whether its work is done and what it covered.
+One line says whether the work is done,
+and the brief gives both of its forms,
+from `src/review-completion-lines.ts`.
+This one opens a review whose runs are still going:
+
+```text
+Review in progress: the runs it started are still going, so no verdict is written yet.
+```
+
+and this one replaces it when every run the review started has finished:
+
+```text
+Review complete: every run it started has finished, and this is its verdict.
+```
+
+The two lines that follow say what it covered:
 
 ```text
 Ranges reviewed: `main...fix/a`
 Files read in full: 12 of 12
 ```
+
+The line that says whether the work is done is not the mark that a report is not final and not approved:
+every report of an agent carries that mark,
+and only the owner declares work complete,
+so a check that refused the mark would refuse every honest review.
+A review whose file still carries the line that opens one whose runs are going was killed mid-work,
+and its file does not cover its change.
 
 The ranges of that statement are read from the code spans the brief writes them in,
 so a branch whose name holds a comma, a semicolon, an underscore or a backtick comes back byte for byte:
@@ -584,11 +610,14 @@ so a branch whose name holds a comma, a semicolon, an underscore or a backtick c
 and proves the round trip for every one of them,
 at the start, in the middle and at the end of a branch's name.
 
-That statement is what both commands that read a finished review judge it by,
+Those lines are what both commands that read a finished review judge it by,
 through the one function `src/what-a-review-says-it-covered.ts` holds,
 whose module doc is the table every answer and both commands' statuses are written from:
-a review covers its change only when it states the ranges it was given and that it read every file the brief listed.
-A review that states another range,
+a review covers its change only when its file says its work is done, states the ranges it was given,
+and says it read every file the brief listed.
+A review whose file still carries the line that opens one whose runs are going,
+whose file carries neither completion line,
+that states another range,
 states fewer files read than the brief listed,
 states no range at all,
 or whose record is missing, unreadable or was written before a brief asked for the statement,
@@ -658,6 +687,20 @@ and one whose brief could not be written are each one line,
 and the rest go on:
 the scratch starter stopped at the first of them,
 and two reviews of round 231 were lost that way with no line anyone read.
+
+A review whose file is already written is judged like one this call finished,
+by the same answer the save command acts on.
+One that covers its change is said in one line, `review-<change>: already reviewed`.
+One that does not cover its change, a file its reviewer was killed before finishing included,
+is said in that review's own line, which names the review and why it does not cover,
+and is counted in the status the command exits with;
+the last line then reads `no review was started, and <n> does not cover its change`
+when it started none.
+The command does not start such a review again:
+a review's branch is fixed by its name,
+and the launcher adds a branch that already exists as it is,
+so starting over is the caller's decision,
+made after the placeholder or the review's folder is put aside.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,

@@ -19,6 +19,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  REVIEW_COMPLETE_LINE,
   type ReviewReading,
   answerOfAReview,
   rangesInALine,
@@ -195,8 +196,8 @@ function branchNameOf({
  ```
  */
 function reviewStating({ ranges, }: { readonly ranges: readonly string[] },): string {
-  return `Not final.\n\nRanges reviewed: ${rangesInALine({ ranges, },)}\n`
-    + `Files read in full: 1 of 1\n\nNo concrete defects found.\n`;
+  return `Not final and not approved.\n\n${REVIEW_COMPLETE_LINE}\n\nRanges reviewed: `
+    + `${rangesInALine({ ranges, },)}\nFiles read in full: 1 of 1\n\nNo concrete defects found.\n`;
 }
 
 /**

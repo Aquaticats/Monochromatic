@@ -14,6 +14,10 @@ import {
   rangesInWords,
 } from './ranges-in-words.ts';
 import {
+  REVIEW_COMPLETE_LINE,
+  REVIEW_IN_PROGRESS_LINE,
+} from './review-completion-lines.ts';
+import {
   diffFileOfAReview,
   reproductionsFolderOfAReview,
   reviewFolderOf,
@@ -42,6 +46,8 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
   'REVIEW_FILE',
+  'IN_PROGRESS_LINE',
+  'COMPLETE_LINE',
   'RANGES_LIST',
   'FILE_COUNT',
 ];
@@ -147,6 +153,8 @@ export function reviewBriefValues({
       reviewsFolder,
       review,
     },),
+    IN_PROGRESS_LINE: REVIEW_IN_PROGRESS_LINE,
+    COMPLETE_LINE: REVIEW_COMPLETE_LINE,
     RANGES_LIST: rangesInALine({ ranges, },),
     FILE_COUNT: String(files.length,),
   };

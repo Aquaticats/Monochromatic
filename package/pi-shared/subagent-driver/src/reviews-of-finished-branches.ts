@@ -6,6 +6,12 @@
  change already reviewed are each said in one line and the rest go on: the scratch starter stopped at the first of them, and two
  reviews of round 231 were lost that way with no line anyone read.
 
+ A review whose file is already written is judged like one this call finished, by the same answer the command that saves a review
+ acts on: one that covers its change is said to be already reviewed, and one that does not covers nothing. A review that does not
+ cover its change, a file its reviewer was killed before finishing included, is named in its own line, counted in the status, and
+ not started again: the caller starts it, because a review's branch is fixed by its name and the launcher adds an existing branch
+ as it is.
+
  @module
  */
 
@@ -91,8 +97,8 @@ export type StartedReviews = {
   readonly statuses: readonly string[];
 
   /**
-   How many of the reviews started do not cover the change they were given, which is what the command that starts them answers `1`
-   for as well as a start that did not end `0`.
+   How many of the reviews it judged do not cover the change they were given, whether this call started them or found them
+   already written, which is what the command that starts them answers `1` for as well as a start that did not end `0`.
    */
   readonly reviewsWithoutCoverage: number;
 };
@@ -128,7 +134,7 @@ export type StartOfOneReview = StartedEntry & {
  */
 export type ReviewStartingSeams = {
   /**
-   Whether a review of that change already wrote its review file.
+   Whether a review of that change already wrote its review file, which is then judged rather than started.
    */
   readonly reviewIsWritten: (request: { readonly review: string }) => Promise<boolean>;
 
@@ -290,6 +296,11 @@ export async function startReviews({
     readonly review: string;
     readonly start: Promise<StartOfOneReview>
   }[] = [];
+  /**
+   Whether each review this call judges covers the change it was given: one for every review already written, and one for every
+   start it made.
+   */
+  const coverage: boolean[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one branch after another, because each brief and start is written and made before
      the next, and the stagger is what keeps their slots in the order given. See doc/lint/sequential-awaits.md. */
   for (const branch of branches) {
@@ -302,7 +313,19 @@ export async function startReviews({
      */
     const run = runNameOfAReview({ review, },);
     if (await seams.reviewIsWritten({ review, },)) {
-      note(`${run}: already reviewed`,);
+      // A review that is already written is judged like one this call finished: a file that does not cover its change is not a
+      // review of it, so the caller is told which review and why, and the starter's status counts it. It is not started again
+      // here: a review's branch is fixed by its name and the launcher adds an existing branch as it is, so starting over, after
+      // the placeholder or the folder is put aside, is the caller's decision. See README.md.
+      /**
+       What saving that review answered: its line, and whether it covers the change it was given.
+       */
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one branch after another, and this review's own file is read before the next branch is looked at; see doc/lint/sequential-awaits.md
+      const alreadyWritten = await seams.save({ review, },);
+      coverage.push(alreadyWritten.covers,);
+      note(alreadyWritten.covers
+        ? `${run}: already reviewed`
+        : alreadyWritten.line,);
       continue;
     }
     /**
@@ -362,10 +385,6 @@ export async function startReviews({
   const statuses = settled.map(function statusOf(entry: { readonly start: StartOfOneReview },) {
     return statusTextOf(entry.start,);
   },);
-  /**
-   Whether each review covers the change it was given, in the order the reviews were started.
-   */
-  const coverage: boolean[] = [];
   for (const {
     review,
     start,
@@ -396,14 +415,51 @@ export async function startReviews({
     return !covers;
   },)
     .length;
-  if (statuses.length > 0) {
-    note(`reviews ended with statuses ${statuses.join(' ',)}${coverageWordsOf({ reviewsWithoutCoverage, },)}`,);
+  if ((statuses.length > 0) || (reviewsWithoutCoverage > 0)) {
+    note(statusSummaryOf({
+      statuses,
+      reviewsWithoutCoverage,
+    },),);
   }
   return {
     lines,
     statuses,
     reviewsWithoutCoverage,
   };
+}
+
+/**
+ Writes the last line a starter prints, so that a caller reads which starts ended how and whether every review covers the change it
+ was given.
+
+ A call that started nothing still prints it when a review it judged does not cover its change, because that answer is the one its
+ caller acts on.
+
+ @param statuses - the status each start ended with, in the order the starts were made
+
+ @param reviewsWithoutCoverage - how many of the reviews it judged do not cover the change they were given
+
+ @returns the line
+
+ @example
+ ```ts
+ const line = statusSummaryOf({ statuses: ['0',], reviewsWithoutCoverage: 0, },);
+ ```
+ */
+function statusSummaryOf({
+  statuses,
+  reviewsWithoutCoverage,
+}: {
+  readonly statuses: readonly string[];
+  readonly reviewsWithoutCoverage: number;
+}): string {
+  /**
+   What the line says about coverage.
+   */
+  const coverageWords = coverageWordsOf({ reviewsWithoutCoverage, },);
+  return (statuses.length === 0)
+    ? `no review was started${coverageWords}`
+    : `reviews ended with statuses ${statuses.join(' ',)}${coverageWords}`;
 }
 
 /**

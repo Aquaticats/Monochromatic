@@ -34,7 +34,11 @@ Report only concrete defects. For each one give the file and line, the exact seq
 Leave out style, naming, and anything you cannot state as a sequence and a wrong result. Finding nothing is a good result once you have read every file listed above and the whole diff.
 Look hardest at: @FOCUS@
 
-Write your review to \`@REVIEW_FILE@\` as soon as your reading is done, marked at its top as not final, and with these two lines at its top, under that mark, so whoever reads the verdict can tell a whole review from a part of one:
+Write your review to \`@REVIEW_FILE@\` as soon as your reading is done, write your review file before anything else you do at the end, and mark it at its top as not final and not approved, which is how every report of an agent is marked and is not the line that says whether its work is done. Under that mark put this line, copied as it reads here, while any run you started is still going:
+@IN_PROGRESS_LINE@
+and replace that one line with this one, copied as it reads here, when every run you started has finished:
+@COMPLETE_LINE@
+Under those, put the two lines that say what your review covered, so whoever reads the verdict can tell a whole review from a part of one:
 Ranges reviewed: @RANGES_LIST@
 Files read in full: <how many of the files above you read in full> of @FILE_COUNT@
-Replace the file when the runs you started have finished; write your review file before anything else you do at the end. A review that ends with no file is lost, and nobody can read what it found. A review whose lines name another range than the ones above, or name no range at all, is read afterwards as a review that did not cover its change.`;
+Replace the file when the runs you started have finished. A review that ends with no file is lost, and nobody can read what it found. A review whose file still carries the first line, carries neither line, or whose other lines name another range than the ones above or name no range at all, is read afterwards as a review that did not cover its change.`;

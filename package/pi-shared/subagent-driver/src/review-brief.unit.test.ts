@@ -14,6 +14,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   FOCUS_OF_A_CHANGE_REVIEW,
+  REVIEW_COMPLETE_LINE,
+  REVIEW_IN_PROGRESS_LINE,
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
   TemplatePlaceholderError,
@@ -246,9 +248,18 @@ await describe({
         it({
           name: 'asks for the review file as soon as the reading is done, marked not final, because a review that ends with no file is lost',
           fn: async () => {
-            expect(aBrief(),).toContain('marked at its top as not final',);
+            expect(aBrief(),).toContain('mark it at its top as not final and not approved',);
             expect(aBrief(),).toContain('A review that ends with no file is lost',);
             expect(aBrief(),).toContain('every command\'s working folder stays inside',);
+          },
+        },),
+        it({
+          name: 'gives the two lines that say whether the review\'s work is done, and says the not-final mark is not one of them',
+          fn: async () => {
+            expect(aBrief(),).toContain(REVIEW_IN_PROGRESS_LINE,);
+            expect(aBrief(),).toContain(REVIEW_COMPLETE_LINE,);
+            expect(aBrief(),).toContain('is not the line that says whether its work is done',);
+            expect(aBrief(),).toContain('still carries the first line, carries neither line',);
           },
         },),
         it({

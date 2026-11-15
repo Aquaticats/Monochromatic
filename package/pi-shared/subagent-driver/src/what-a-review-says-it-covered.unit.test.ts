@@ -10,9 +10,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  REVIEW_COMPLETE_LINE,
+  REVIEW_IN_PROGRESS_LINE,
   type ReviewCoverage,
   type ReviewReading,
   answerOfAReview,
+  completionIn,
   coverageOfAReview,
   statementIn,
 } from '../dist/final/node/index.mjs';
@@ -82,13 +85,34 @@ function theReadingGiven({ files, }: { readonly files?: readonly string[] },): R
 }
 
 /**
- The text of a review's own file, with the two lines its brief asks for at its top.
+ The completion line a review's file carries, from the two the brief gives it.
+
+ @param line - which of the two the file carries, or none
+
+ @returns the line, with the blank line that follows it, and nothing for a file that carries neither
+
+ @example
+ ```ts
+ const opening = aCompletionLine({ line: 'in-progress', },);
+ ```
+ */
+function aCompletionLine({ line, }: { readonly line: 'in-progress' | 'complete' | 'neither' },): string {
+  if (line === 'in-progress') {
+    return `${REVIEW_IN_PROGRESS_LINE}\n\n`;
+  }
+  return (line === 'complete') ? `${REVIEW_COMPLETE_LINE}\n\n` : '';
+}
+
+/**
+ The text of a review's own file, with the lines its brief asks for at its top.
 
  @param ranges - the ranges the review says it read
 
  @param filesRead - how many of the listed files it says it read
 
  @param filesListed - how many files it says the brief listed
+
+ @param completion - which completion line the file carries, `complete` unless a test says otherwise
 
  @returns the review's text
 
@@ -101,15 +125,18 @@ function aReviewStating({
   ranges,
   filesRead,
   filesListed,
+  completion = 'complete',
 }: {
   readonly ranges: readonly string[];
   readonly filesRead: number;
   readonly filesListed: number;
+  readonly completion?: 'in-progress' | 'complete' | 'neither';
 }): string {
-  return `Not final.\n\nRanges reviewed: ${ranges.map(function inBackticks(range,) {
-    return `\`${range}\``;
-  },)
-    .join(', ',)}\nFiles read in full: ${String(filesRead,)} of ${String(filesListed,)}\n\nNo concrete defects found.\n`;
+  return `${aCompletionLine({ line: completion, },)}Ranges reviewed: `
+    + `${ranges.map(function inBackticks(range,) {
+      return `\`${range}\``;
+    },)
+      .join(', ',)}\nFiles read in full: ${String(filesRead,)} of ${String(filesListed,)}\n\nNo concrete defects found.\n`;
 }
 
 /**
@@ -123,7 +150,7 @@ function aReviewStating({
 
  @example
  ```ts
- const coverage = coverageOf({ shown: 'Not final.\n', reading: theReadingGiven({ files: theFilesGiven(), },), },);
+ const coverage = coverageOf({ shown: 'A review.\n', reading: theReadingGiven({ files: theFilesGiven(), },), },);
  ```
  */
 function coverageOf({
@@ -149,7 +176,7 @@ function coverageOf({
 
  @example
  ```ts
- const answer = answerOf({ shown: 'Not final.\n' },);
+ const answer = answerOf({ shown: 'A review.\n' },);
  ```
  */
 function answerOf({
@@ -177,6 +204,47 @@ await describe({
   name: '',
   children: [
     describe({
+      name: completionIn.name,
+      children: [
+        it({
+          name: 'reads the line the brief gives a review whose runs are still going as a review that has not finished',
+          fn: async () => {
+            expect(completionIn({ shown: `Not final and not approved.\n\n${REVIEW_IN_PROGRESS_LINE}\n\nNo verdict yet.\n`, },),)
+              .toEqual({ kind: 'in-progress', },);
+          },
+        },),
+        it({
+          name: 'reads the line that replaces it as a review whose work is done, whatever mark the report carries',
+          fn: async () => {
+            expect(completionIn({
+              shown: `**Not final and not approved.**\n\n**${REVIEW_COMPLETE_LINE}**\n\nNo concrete defects found.\n`,
+            },),).toEqual({ kind: 'complete', },);
+          },
+        },),
+        it({
+          name: 'says a file carries neither line when it carries neither, so a review cannot be completed by saying nothing',
+          fn: async () => {
+            expect(completionIn({ shown: 'Not final and not approved.\n\nNo concrete defects found.\n', },),)
+              .toEqual({ kind: 'neither', },);
+          },
+        },),
+        it({
+          name: 'decides for the line that says the runs are going when a file carries both, because the reviewer left it behind',
+          fn: async () => {
+            expect(completionIn({ shown: `${REVIEW_IN_PROGRESS_LINE}\n${REVIEW_COMPLETE_LINE}\n`, },),)
+              .toEqual({ kind: 'in-progress', },);
+          },
+        },),
+        it({
+          name: 'does not read the line from a sentence that merely mentions it, because the whole line has to be the line',
+          fn: async () => {
+            expect(completionIn({ shown: `The brief asks for "${REVIEW_COMPLETE_LINE}" at the top.\n`, },),)
+              .toEqual({ kind: 'neither', },);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: statementIn.name,
       children: [
         it({
@@ -199,7 +267,8 @@ await describe({
           name: 'reads both lines whatever markdown decorates them, because a review file is written by hand',
           fn: async () => {
             expect(statementIn({
-              shown: '**Not final.**\n\n- **Ranges reviewed:** `main...fix/a`\n- Files read in full: 1 of 2\n',
+              shown: `**Not final and not approved.**\n\n${REVIEW_COMPLETE_LINE}\n\n`
+                + '- **Ranges reviewed:** `main...fix/a`\n- Files read in full: 1 of 2\n',
             },),).toEqual({
               ranges: ['main...fix/a',],
               filesRead: 1,
@@ -210,7 +279,7 @@ await describe({
         it({
           name: 'states nothing for a review whose file carries neither line',
           fn: async () => {
-            expect(statementIn({ shown: 'Not final.\n\nNo concrete defects found.\n', },),).toEqual({},);
+            expect(statementIn({ shown: `${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.\n`, },),).toEqual({},);
           },
         },),
         it({
@@ -328,7 +397,7 @@ await describe({
           name: 'says a review that states no range does not cover its change, naming the ranges it was given',
           fn: async () => {
             expect(coverageOf({
-              shown: 'Not final.\n\nNo concrete defects found.\n',
+              shown: `${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.\n`,
               reading: theReadingGiven({ files: theFilesGiven(), },),
             },),).toEqual({
               kind: 'no-range',
@@ -340,7 +409,7 @@ await describe({
           name: 'says a review that states no count of the files it read does not cover its change',
           fn: async () => {
             expect(coverageOf({
-              shown: `Ranges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`,
+              shown: `${REVIEW_COMPLETE_LINE}\nRanges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`, 
               reading: theReadingGiven({ files: theFilesGiven(), },),
             },),).toEqual({
               kind: 'no-count',
@@ -370,7 +439,7 @@ await describe({
           name: 'says whether a review written before the statement was asked for covers its change cannot be told, and names the record',
           fn: async () => {
             expect(coverageOf({
-              shown: 'Not final.\n\nNo concrete defects found.\n',
+              shown: `${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.\n`,
               reading: theReadingGiven({},),
             },),).toEqual({
               kind: 'cannot-be-told',
@@ -379,9 +448,56 @@ await describe({
           },
         },),
         it({
+          name: 'says a review whose runs are still going does not cover its change, and names the line it still carries',
+          fn: async () => {
+            expect(coverageOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: theFilesGiven().length,
+                filesListed: theFilesGiven().length,
+                completion: 'in-progress',
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({ kind: 'unfinished', },);
+          },
+        },),
+        it({
+          name: 'says a review whose file carries neither completion line does not cover its change',
+          fn: async () => {
+            expect(coverageOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: theFilesGiven().length,
+                filesListed: theFilesGiven().length,
+                completion: 'neither',
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({ kind: 'no-completion', },);
+          },
+        },),
+        it({
+          name: 'reads a finished review that carries the usual not-final marking and the completion line as one that covers its change',
+          fn: async () => {
+            expect(coverageOf({
+              shown: `**Not final and not approved.**\n\n${REVIEW_COMPLETE_LINE}\n\n${
+                 aReviewStating({
+                  ranges: theRangesGiven(),
+                  filesRead: theFilesGiven().length,
+                  filesListed: theFilesGiven().length,
+                },)}`,
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              kind: 'covers',
+              ranges: theRangesGiven(),
+              filesRead: theFilesGiven().length,
+              filesListed: theFilesGiven().length,
+            },);
+          },
+        },),
+        it({
           name: 'says whether a review with no record beside it covers its change cannot be told, and names the record',
           fn: async () => {
-            expect(coverageOf({ shown: 'Not final.\n', },),).toEqual({
+            expect(coverageOf({ shown: `${REVIEW_COMPLETE_LINE}\n`, },),).toEqual({
               kind: 'cannot-be-told',
               why: `nothing kept in ${theReadingFile()} can be read as what this review was given`,
             },);
@@ -427,9 +543,45 @@ await describe({
           },
         },),
         it({
+          name: 'does not cover the change for a review whose runs are still going, and says its reviewer stopped before finishing it',
+          fn: async () => {
+            expect(answerOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: theFilesGiven().length,
+                filesListed: theFilesGiven().length,
+                completion: 'in-progress',
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              covers: false,
+              sentence: 'which does not cover its change: it still carries the line that opens a review whose runs are still '
+                + 'going, so its reviewer stopped before finishing it',
+            },);
+          },
+        },),
+        it({
+          name: 'does not cover the change for a file that carries neither completion line, and names both lines it lacks',
+          fn: async () => {
+            expect(answerOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: theFilesGiven().length,
+                filesListed: theFilesGiven().length,
+                completion: 'neither',
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              covers: false,
+              sentence: 'which does not cover its change: it carries neither the line that opens a review whose runs are still '
+                + 'going nor the line that replaces it when they have finished',
+            },);
+          },
+        },),
+        it({
           name: 'does not cover the change when nothing can be told, and says that rather than calling the review clean',
           fn: async () => {
-            expect(answerOf({ shown: 'Not final.\n', },),).toEqual({
+            expect(answerOf({ shown: `${REVIEW_COMPLETE_LINE}\n`, },),).toEqual({
               covers: false,
               sentence: `and whether it covers its change cannot be told: nothing kept in ${theReadingFile()} can be read as `
                 + 'what this review was given',

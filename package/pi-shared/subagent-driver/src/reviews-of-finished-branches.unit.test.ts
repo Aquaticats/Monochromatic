@@ -369,9 +369,46 @@ await describe({
             const started = await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
             expect(started.lines,).toEqual([`${runNameOfAReview({ review: aChange(), },)}: already reviewed`,],);
             expect(started.statuses,).toEqual([],);
+            expect(started.reviewsWithoutCoverage,).toBe(0,);
             expect(asked.starts,).toEqual([],);
+            // The review that is already written is judged like one this call finished, so its own file is read before the
+            // starter says it is reviewed.
+            expect(asked.saves,).toEqual([aChange(),],);
             // Every line is also shown as it happens, so a reader sees a review that is already done without waiting for the rest.
             expect(asked.shown,).toEqual(started.lines,);
+          },
+        },),
+        it({
+          name: 'judges a review already written that does not cover its change, says which review and why, counts it, and leaves starting it to its caller',
+          fn: async () => {
+            /**
+             The line the save seam answers for a review that is there and does not cover its change.
+             */
+            const notCovering = `${aChange()}: has its review.md, which does not cover its change: it still carries the line `
+              + 'that opens a review whose runs are still going, so its reviewer stopped before finishing it';
+            /**
+             The seams, with the review already written and its own file not covering.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map(),
+              starts: new Map(),
+              saves: new Map([[aChange(), { line: notCovering, covers: false, },],]),
+              written: [aChange(),],
+              merges: [],
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
+            // The caller reads which review and why, the status counts it, and nothing is started again for it.
+            expect(started.lines,).toEqual([
+              notCovering,
+              'no review was started, and 1 does not cover its change',
+            ],);
+            expect(started.statuses,).toEqual([],);
+            expect(started.reviewsWithoutCoverage,).toBe(1,);
+            expect(asked.starts,).toEqual([],);
+            expect(statusOfStartedReviews({ started, },),).toBe(1,);
           },
         },),
         it({

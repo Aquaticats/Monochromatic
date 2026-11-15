@@ -95,9 +95,15 @@ export {
 export {
   FILES_READ_LABEL,
   RANGES_REVIEWED_LABEL,
+  type ReviewCompletion,
   type ReviewStatement,
+  completionIn,
   statementIn,
 } from './a-review-statement-lines.ts';
+export {
+  REVIEW_COMPLETE_LINE,
+  REVIEW_IN_PROGRESS_LINE,
+} from './review-completion-lines.ts';
 export {
   codeSpanOf,
   codeSpansIn,

@@ -3,16 +3,22 @@
  answer from: the command that saves a review's last message, and the command that starts reviews of finished branches.
 
  A review that reads a part of a change and answers "nothing found" has its verdict taken for the whole. So a review covers its
- change only when its own file states the ranges it was given and that it read every listed file, which is what the project's rule
- for a review asks of it: it reads the paths its brief names, whole files, and the diff. Fewer than all, no statement at all, and
- a record that cannot be read are each not covering.
+ change only when its own file says its work is done and states the ranges it was given and that it read every listed file, which
+ is what the project's rule for a review asks of it: it reads the paths its brief names, whole files, and the diff. A review whose
+ runs are still going, a part of the files, no statement at all, and a record that cannot be read are each not covering.
 
- The brief asks for two lines at the top of the review file, the first copied from the brief and the second the reviewer's count:
+ The brief asks for one line that says whether the review's work is done, and two more that say what it covered, the first of the
+ two copied from the brief and the second the reviewer's count:
 
  ```text
+ Review complete: every run it started has finished, and this is its verdict.
  Ranges reviewed: `main...fix/a`
  Files read in full: 12 of 12
  ```
+
+ The line that says whether the work is done is one of the two the brief gives in `review-completion-lines.ts`, and it is not the
+ mark that says the report is not final and not approved: every report of an agent carries that mark, and only the repository's
+ owner declares work complete, so a check that refused the mark would refuse every honest review.
 
  ## The answers, and what each command says and answers with
 
@@ -20,7 +26,8 @@
  message as review.md (N characters)"). The status is the same the first time and when the same save is repeated, because it is
  read from the review's own file and its record, never from whether this run wrote the file.
 
- - `covers`: the ranges stated are the ranges given, and every listed file was read.
+ - `covers`: the file says every run the review started has finished, the ranges stated are the ranges given, and every listed
+   file was read.
    Sentence: "which states the ranges it was given (`A`) and 12 of 12 listed files read in full".
    Save command exit `0`; starter exit `0`.
  - `another-range`: the review states a range it was not given, or leaves one out.
@@ -41,6 +48,15 @@
  - `cannot-be-told`: the record is missing, unreadable, or was written before a review stated what it read.
    Sentence: "and whether it covers its change cannot be told: <why>".
    Save command exit `1`; starter exit `1`.
+ - `unfinished`: the file still carries the line that opens a review whose runs are going, as a reviewer killed before it replaced
+   the line leaves it.
+   Sentence: "which does not cover its change: it still carries the line that opens a review whose runs are still going, so its
+   reviewer stopped before finishing it". Save command exit `1`; starter exit `1`. The starter prints this review's own line and
+   counts it; it does not start the review again, because the review's branch is fixed by its name and starting over is the
+   caller's decision (`README.md`, "`start-reviews-of-finished-branches`").
+ - `no-completion`: the file carries neither line.
+   Sentence: "which does not cover its change: it carries neither the line that opens a review whose runs are still going nor the
+   line that replaces it when they have finished". Save command exit `1`; starter exit `1`.
 
  A review that wrote no file at all answers none of these: the save command prints why it wrote none ("no review.md and no finished
  run", the run's end reason, or an empty last message), and both commands answer `1`, the first time and again.
@@ -50,7 +66,10 @@
 
 import { rangesInALine, } from './ranges-in-words.ts';
 import type { ReviewReading, } from './material-of-a-review.ts';
-import { statementIn, } from './a-review-statement-lines.ts';
+import {
+  completionIn,
+  statementIn,
+} from './a-review-statement-lines.ts';
 
 /**
  What a finished review is answered as, one kind per row of the table in this module's doc.
@@ -58,7 +77,7 @@ import { statementIn, } from './a-review-statement-lines.ts';
 export type ReviewCoverage =
   | {
     /**
-     The review states the ranges it was given, and that it read every listed file.
+     The review says every run it started has finished, states the ranges it was given, and says it read every listed file.
      */
     readonly kind: 'covers';
 
@@ -162,6 +181,18 @@ export type ReviewCoverage =
        Why nothing can be told, naming the record that would have said it.
        */
       readonly why: string;
+    }
+    | {
+      /**
+       The review's own file still carries the line that opens a review whose runs are going, so its reviewer stopped mid-work.
+       */
+      readonly kind: 'unfinished';
+    }
+    | {
+      /**
+       The review's own file carries neither the line that opens a review whose runs are going nor the line that replaces it.
+       */
+      readonly kind: 'no-completion';
     };
 
 /**
@@ -248,6 +279,17 @@ export function coverageOfAReview({
   readonly reading?: ReviewReading;
   readonly readingFile: string;
 }): ReviewCoverage {
+  /**
+   What the review's own file says about whether its work is done, which is read first: a file its reviewer was killed before
+   finishing is not a review of the change, whatever its record says.
+   */
+  const completion = completionIn({ shown, },);
+  if (completion.kind === 'in-progress') {
+    return { kind: 'unfinished', };
+  }
+  if (completion.kind === 'neither') {
+    return { kind: 'no-completion', };
+  }
   if (reading === undefined) {
     return {
       kind: 'cannot-be-told',
@@ -352,6 +394,14 @@ function sentenceOfCoverage({ coverage, }: { readonly coverage: ReviewCoverage }
   if (coverage.kind === 'no-count') {
     return `which does not cover its change: it states no count of the files it read, `
       + `and the brief listed ${String(coverage.filesListed,)}`;
+  }
+  if (coverage.kind === 'unfinished') {
+    return 'which does not cover its change: it still carries the line that opens a review whose runs are still going, '
+      + 'so its reviewer stopped before finishing it';
+  }
+  if (coverage.kind === 'no-completion') {
+    return 'which does not cover its change: it carries neither the line that opens a review whose runs are still going '
+      + 'nor the line that replaces it when they have finished';
   }
   return `and whether it covers its change cannot be told: ${coverage.why}`;
 }

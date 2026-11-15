@@ -17,6 +17,10 @@
  */
 
 import { codeSpansIn, } from './markdown-code-spans.ts';
+import {
+  REVIEW_COMPLETE_LINE,
+  REVIEW_IN_PROGRESS_LINE,
+} from './review-completion-lines.ts';
 
 /**
  The label the line that names the ranges a review read begins with, as the brief writes it.
@@ -295,20 +299,32 @@ function countStatedIn(text: string,): StatedFileCount {
  ```
  */
 function statedRangeIn(piece: string,): string {
-  /**
-   The piece without the sentence's end at either side.
-   */
-  const ended = withoutSentenceEnding(piece,);
+  return withoutEmphasisAround(withoutSentenceEnding(piece,),);
+}
+
+/**
+ Reads a line without the emphasis a reviewer may have put around the whole of it.
+
+ @param text - the line's text, trimmed
+
+ @returns the text without a matched run of emphasis at its two ends
+
+ @example
+ ```ts
+ const line = withoutEmphasisAround('**Review complete: every run it started has finished.**');
+ ```
+ */
+function withoutEmphasisAround(text: string,): string {
   for (const run of EMPHASIS_RUNS) {
-    if ((ended.length > (2 * run.length)) && ended.startsWith(run,)
-      && ended.endsWith(run,)) {
-      return ended.slice(
+    if ((text.length > (2 * run.length)) && text.startsWith(run,)
+      && text.endsWith(run,)) {
+      return text.slice(
         run.length,
         -run.length,
       );
     }
   }
-  return ended;
+  return text;
 }
 
 /**
@@ -500,4 +516,59 @@ export function statementIn({ shown, }: { readonly shown: string },): ReviewStat
     filesRead: counted.filesRead,
     filesTotal: counted.filesTotal,
   };
+}
+
+/**
+ What a review's own file says about whether its work is done: the line the brief gives it while its runs are still going, the line
+ that replaces it when every run has finished, or neither.
+ */
+export type ReviewCompletion =
+  | {
+    /**
+     The file still carries the line that opens a review whose runs are going.
+     */
+    readonly kind: 'in-progress';
+  }
+    | {
+      /**
+       The file carries the line that says every run has finished.
+       */
+      readonly kind: 'complete';
+    }
+    | {
+      /**
+       The file carries neither line.
+       */
+      readonly kind: 'neither';
+    };
+
+/**
+ Reads whether a review's own file says its work is done, by the exact words the brief gives it.
+
+ A file that still carries the line that opens a review whose runs are going decides, even when both lines are there: the reviewer
+ replaced the file's text and left the opening behind, and a review that says its runs are going has not finished.
+
+ @param shown - the review's own file, as it was written
+
+ @returns which line the file carries, or that it carries neither
+
+ @example
+ ```ts
+ const completion = completionIn({ shown: 'Review complete: every run it started has finished.\n', },);
+ ```
+ */
+export function completionIn({ shown, }: { readonly shown: string },): ReviewCompletion {
+  /**
+   Every line of the file, read without the emphasis a reviewer may have put around a whole line.
+   */
+  const lines = new Set(shown.split('\n',)
+    .map(function withoutItsEmphasis(line,) {
+      return withoutEmphasisAround(line.trim(),);
+    },));
+  if (lines.has(REVIEW_IN_PROGRESS_LINE,)) {
+    return { kind: 'in-progress', };
+  }
+  return lines.has(REVIEW_COMPLETE_LINE,)
+    ? { kind: 'complete', }
+    : { kind: 'neither', };
 }

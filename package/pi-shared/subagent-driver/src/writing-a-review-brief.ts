@@ -140,24 +140,11 @@ export async function writeReviewBrief({
     material.diff,
     'utf8',
   );
-  await writeFile(
-    briefFile,
-    briefOfAReview({
-      review,
-      commit,
-      ranges,
-      source,
-      files: material.files,
-      focus,
-      reviewsFolder,
-      runsFolder,
-      rulesFile,
-    },),
-    'utf8',
-  );
-  // What the review read is kept beside its files: a branch moves on as soon as anyone commits to it, and a fix that answers
-  // this review has to start at the commit the review actually read. The files the brief listed are kept with it, so what the
-  // review's own file states it covered can be judged against what it was given.
+  // The record of what the review was given is written before the brief, so that no folder holds a brief without its record: a
+  // reviewer copies the ranges from the brief and the check reads them against this record, and a run killed between two writes
+  // must not leave a brief whose review can only be answered as one that cannot be told. The record is also what a fix that
+  // answers this review starts at, since a branch moves on as soon as anyone commits to it, and it keeps the files the brief
+  // listed, so what the review's own file states it covered is judged against what it was given.
   await writeFile(
     readingFileOfAReview({
       reviewsFolder,
@@ -174,6 +161,21 @@ export async function writeReviewBrief({
       undefined,
       2
     )}\n`,
+    'utf8',
+  );
+  await writeFile(
+    briefFile,
+    briefOfAReview({
+      review,
+      commit,
+      ranges,
+      source,
+      files: material.files,
+      focus,
+      reviewsFolder,
+      runsFolder,
+      rulesFile,
+    },),
     'utf8',
   );
   return {

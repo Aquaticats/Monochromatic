@@ -23,6 +23,8 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   CLEAN_END_REASONS,
+  REVIEW_COMPLETE_LINE,
+  REVIEW_IN_PROGRESS_LINE,
   DEFAULT_REVIEWS_FOLDER_IN_HOME,
   END_REASONS,
   SAVED_REVIEW_NOTE,
@@ -189,10 +191,11 @@ function reviewOfAChange({
   readonly filesRead: number;
   readonly filesListed: number;
 },): string {
-  return `Not final.\n\nRanges reviewed: ${ranges.map(function inBackticks(range,) {
-    return `\`${range}\``;
-  },)
-    .join(', ',)}\nFiles read in full: ${String(filesRead,)} of ${String(filesListed,)}\n\nNo concrete defects found.\n`;
+  return `Not final and not approved.\n\n${REVIEW_COMPLETE_LINE}\n\nRanges reviewed: `
+    + `${ranges.map(function inBackticks(range,) {
+      return `\`${range}\``;
+    },)
+      .join(', ',)}\nFiles read in full: ${String(filesRead,)} of ${String(filesListed,)}\n\nNo concrete defects found.\n`;
 }
 
 
@@ -409,11 +412,10 @@ await describe({
               review: 'a-round-1',
               saved: true,
               covers: false,
-              coverage: {
-                kind: 'cannot-be-told',
-                why: `nothing kept in ${join(reviewFolder, 'a-round-1', 'what-the-review-read.json',)} can be read as what this review was given`,
-              },
-              line: `a-round-1: saved its last message as review.md (${String('a finding that matters'.length,) } characters), and whether it covers its change cannot be told: nothing kept in ${join(reviewFolder, 'a-round-1', 'what-the-review-read.json',)} can be read as what this review was given`,
+              coverage: { kind: 'no-completion', },
+              line: `a-round-1: saved its last message as review.md (${String('a finding that matters'.length,) } characters), `
+                + 'which does not cover its change: it carries neither the line that opens a review whose runs are still going '
+                + 'nor the line that replaces it when they have finished',
             },);
             expect(await readFile(join(reviewFolder, 'a-round-1', 'review.md',), 'utf8',),).toBe(`<!-- ${SAVED_REVIEW_NOTE} ${runNameOfAReview({ review: 'a-round-1', },)}-3 -->\n\na finding that matters\n`,);
           },
@@ -432,11 +434,9 @@ await describe({
               review: 'a-round-1',
               saved: false,
               covers: false,
-              coverage: {
-                kind: 'cannot-be-told',
-                why: `nothing kept in ${join(folder.path, 'a-round-1', 'what-the-review-read.json',)} can be read as what this review was given`,
-              },
-              line: `a-round-1: has its review.md, and whether it covers its change cannot be told: nothing kept in ${join(folder.path, 'a-round-1', 'what-the-review-read.json',)} can be read as what this review was given`,
+              coverage: { kind: 'no-completion', },
+              line: 'a-round-1: has its review.md, which does not cover its change: it carries neither the line that opens a '
+                + 'review whose runs are still going nor the line that replaces it when they have finished',
             },);
           },
         },),
@@ -522,7 +522,10 @@ await describe({
               review: 'a-round-1',
               files: theFilesGiven(),
             },);
-            await writeFile(join(folder.path, 'a-round-1', 'review.md',), 'Not final.\n\nNo concrete defects found.\n',);
+            await writeFile(
+              join(folder.path, 'a-round-1', 'review.md',),
+              `${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.\n`,
+            );
             /**
              What saving that review answered.
              */
@@ -574,6 +577,36 @@ await describe({
           },
         },),
         it({
+          name: 'reads a placeholder that says its runs are still going as one that did not cover its change, whatever ranges it states',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: folder.path,
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            // The state a reviewer leaves when it writes its file early and is killed before it replaces the line: the ranges and
+            // the count are right, and no verdict was written.
+            await writeFile(
+              join(folder.path, 'a-round-1', 'review.md',),
+              `Not final and not approved.\n\n${REVIEW_IN_PROGRESS_LINE}\n\nRanges reviewed: `
+                + `${theRangesGiven().join('`, `',)}\nFiles read in full: ${String(theFilesGiven().length,)} of `
+                + `${String(theFilesGiven().length,)}\n\nNo verdict yet.\n`,
+            );
+            /**
+             What saving that review answered.
+             */
+            const saved = await saveTheLastMessage({
+              runsFolder: join(folder.path, 'runs',),
+              reviewFolder: folder.path,
+              review: 'a-round-1',
+            },);
+            expect(saved.coverage,).toEqual({ kind: 'unfinished', },);
+            expect(saved.covers,).toBe(false,);
+            expect(saved.line,).toContain('it still carries the line that opens a review whose runs are still going',);
+          },
+        },),
+        it({
           name: 'says whether a review written before the statement was asked for covers its change cannot be told, rather than that it does not',
           fn: async () => {
             await using folder = await makeFolder();
@@ -581,7 +614,10 @@ await describe({
               reviewFolder: folder.path,
               review: 'a-round-1',
             },);
-            await writeFile(join(folder.path, 'a-round-1', 'review.md',), 'Not final.\n\nNo concrete defects found.\n',);
+            await writeFile(
+              join(folder.path, 'a-round-1', 'review.md',),
+              `${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.\n`,
+            );
             /**
              What saving that review answered.
              */
@@ -719,7 +755,10 @@ await describe({
               review: 'a-round-1',
               files: theFilesGiven(),
             },);
-            await writeFile(join(folder.path, 'reviews', 'a-round-1', 'review.md',), 'Not final.\n\nNo concrete defects found.\n',);
+            await writeFile(
+              join(folder.path, 'reviews', 'a-round-1', 'review.md',),
+              `${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.\n`,
+            );
             /**
              What the command answered.
              */
@@ -747,7 +786,10 @@ await describe({
              The session file the run's summary names.
              */
             const sessionFile = join(folder.path, 'session.jsonl',);
-            await writeFile(sessionFile, `${sessionLine('assistant', ['Not final.\n\nNo concrete defects found.'],)}\n`,);
+            await writeFile(
+              sessionFile,
+              `${sessionLine('assistant', [`${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.`],)}\n`,
+            );
             /**
              The run's folder.
              */
@@ -768,6 +810,63 @@ await describe({
             expect(ended.status,).toBe(1,);
             expect(ended.stdout,).toContain('saved its last message as review.md',);
             expect(ended.stdout,).toContain('which does not cover its change: it states no range',);
+          },
+        },),
+        it({
+          name: 'ends with a status of 1 and says a placeholder whose runs are still going did not cover its change',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: join(folder.path, 'reviews',),
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            await writeFile(
+              join(folder.path, 'reviews', 'a-round-1', 'review.md',),
+              `${REVIEW_IN_PROGRESS_LINE}\n\nRanges reviewed: ${theRangesGiven().join('`, `',)}\n`
+                + `Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`,
+            );
+            /**
+             What the command answered.
+             */
+            const ended = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            expect(ended.status,).toBe(1,);
+            expect(ended.stdout,).toContain('which does not cover its change: it still carries the line that opens a review '
+              + 'whose runs are still going',);
+          },
+        },),
+        it({
+          name: 'ends with a status of 0 for a finished review that carries the usual not-final marking and the completion line',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: join(folder.path, 'reviews',),
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            // Every report of an agent is marked not final and not approved, and only the owner declares work complete; the
+            // marking is not what tells this review from a placeholder, and a check that refused it would refuse every honest
+            // review.
+            await writeFile(
+              join(folder.path, 'reviews', 'a-round-1', 'review.md',),
+              `**Not final and not approved.**\n\n${REVIEW_COMPLETE_LINE}\n\nRanges reviewed: `
+                + `${theRangesGiven().join('`, `',)}\nFiles read in full: ${String(theFilesGiven().length,)} of `
+                + `${String(theFilesGiven().length,)}\n\nNo concrete defects found.\n`,
+            );
+            /**
+             What the command answered.
+             */
+            const ended = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            expect(ended.status,).toBe(0,);
+            expect(ended.stdout,).toContain('which states the ranges it was given',);
           },
         },),
         it({
@@ -809,7 +908,10 @@ await describe({
              The session file the run's summary names.
              */
             const sessionFile = join(folder.path, 'session.jsonl',);
-            await writeFile(sessionFile, `${sessionLine('assistant', ['Not final.\n\nNo concrete defects found.'],)}\n`,);
+            await writeFile(
+              sessionFile,
+              `${sessionLine('assistant', [`${REVIEW_COMPLETE_LINE}\n\nNo concrete defects found.`],)}\n`,
+            );
             /**
              The run's folder.
              */
