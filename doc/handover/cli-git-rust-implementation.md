@@ -1670,6 +1670,53 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's scan for work a run left running answers its review: recorded work is told from a later process at its number (2026-11-15T18:45:24-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+The author's second run on
+`fix/pi-shared-subagent-driver-scan-for-work-a-run-left-running-treats-a-process-that-has-gone-as-gone`
+ended at 18:39:14 with the tip `3fd0963ae7`
+(a merge of `main` on top of `7f772a87ae` and `c2d5ce1c6a`).
+Its report is `keep/report.md` in `~/temp/agent/scan-for-work-a-run-left-running-scratch/`,
+and its last message answers the three findings of the review of `8d7e5b4a5c`:
+
+- **A reused process number.**
+  A `processes` feed line now carries the start time the kernel gave each process,
+  and the scan counts recorded work as running only when the state is not one an ended process holds
+  and the start time equals the recorded one.
+  A record with no start time counts as gone.
+- **A wake whose send failed.**
+  The catch covers the read alone;
+  a failed send is a state of its own, sent once, with the run kept from ending idle until a reply settles.
+- **A good read clears the note of a failed one**,
+  so a failure after a good read is recorded again.
+
+The author took each fix out and quotes the failing output of seven new tests;
+the package's whole suite exited zero with no failing group by its log.
+The review of `main...3fd0963ae7` is queued tenth
+(`pi-shared-subagent-driver-scan-for-work-recorded-work-is-told-from-a-later-process-at-its-number`,
+twelve code files that are not tests).
+
+What the author reports and left alone, each open:
+
+- Six summaries under the runs folder carry the `ESRCH` failure and ended `idle`,
+  where the brief expected two.
+- A run kept because its scan cannot finish ends on its wall clock, which can be hours.
+  Whether it gets a shorter bound of its own is a cost decision nobody has made.
+- A helper in a `systemd-run --scope` of its own is seen by the scan while the run lives
+  only when its working folder is inside the run's folders;
+  the driver never signals one.
+  Which of those limits explains the 42 scopes this session stopped on 2026-11-14 the kept table cannot say,
+  and nothing was built to stop helpers.
+- The start time is read synchronously as the feed line is written,
+  with one lint suppression recorded in `doc/lint/sync-read-of-one-process-line.md` of the package.
+  The review is asked nothing extra about it by this session; LN3 is the rule it is held against.
+
+Round checks at 18:45:09: twenty Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree, six changed files in the main checkout.
+
 ##### A held push's holder spelled another way was taken for gone, and so was a claim's owner; four more readers in `main` have the shape by reading and get a run (2026-11-15T18:39:51-05:00)
 
 Not final and not approved:
