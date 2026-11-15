@@ -515,7 +515,7 @@ await describe({
       },
     },),
     it({
-      name: 'keeps a message whose claim folder names no process at all',
+      name: 'leaves a message whose claim folder names no process at all, because nothing proves its owner gone',
       fn: async () => {
         await using folder = await makeFolder();
         /**
@@ -532,9 +532,73 @@ await describe({
           processFolder,
         },);
         await recoverClaimsOfGoneDrivers({ watch, },);
+        // The message stays under its own name inside the claim, and no driver may take it on a guess.
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([INBOX_CLAIMS_FOLDER,],);
         /**
-         What the inbox holds now.
+         The message as the claim still holds it.
          */
+        const text = await readFile(join(folder.path, 'inbox', INBOX_CLAIMS_FOLDER, 'not-an-owner', MESSAGE_NAME,), 'utf8',);
+        expect(text,).toBe(MESSAGE_TEXT,);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'leaves a claim whose owner start could not be read while its process number names something',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder that holds a process at the number the claim names.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await writeProcess({
+          processFolder,
+          pid: OWNER_PID,
+          start: OWNER_START,
+        },);
+        await writeClaim({
+          folder: folder.path,
+          owner: `${OWNER_PID}-unknown`,
+        },);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // The number names something, which may be the driver that claimed the message; no start was recorded, so nothing here
+        // proves that driver gone.
+        const entries = await entriesOf(join(folder.path, 'inbox',),);
+        expect(entries,).toEqual([INBOX_CLAIMS_FOLDER,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'keeps a claim whose owner start could not be read once its process number is gone',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        await writeClaim({
+          folder: folder.path,
+          owner: `${OWNER_PID}-unknown`,
+        },);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // A number that names nothing cannot belong to a live driver, which is the one proof an unreadable start leaves.
         const entries = await entriesOf(join(folder.path, 'inbox',),);
         expect(entries,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
         /**

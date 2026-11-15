@@ -6,7 +6,11 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
+import { rmSync, } from 'node:fs';
+import {
+  type ChildProcess,
+  spawn,
+} from 'node:child_process';
 import { once, } from 'node:events';
 import {
   mkdir,
@@ -26,6 +30,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   answerModelError,
+  type CommandAnswer,
   type CommandRequest,
   type ConnectionToPi,
   COMMAND_ANSWER_MILLISECONDS,
@@ -903,6 +908,30 @@ async function markerIsThere(marker: string,): Promise<boolean> {
 }
 
 /**
+ Ends a child with SIGKILL and waits for it to be reaped, on every way out of a test helper.
+
+ The wait is registered before the signal, so a child that has already ended settles it; an ended child is not signalled again.
+
+ @param child - the child to end
+
+ @param exited - the wait for its exit, registered when it was started
+
+ @returns nothing, once the child has gone
+ */
+async function endChild({
+  child,
+  exited,
+}: {
+  readonly child: ChildProcess;
+  readonly exited: Promise<unknown>
+},): Promise<void> {
+  if ((child.exitCode === null) && (child.signalCode === null)) {
+    child.kill('SIGKILL',);
+  }
+  await exited;
+}
+
+/**
  Runs a child that claims its message and reaches its seam, then ends it with SIGKILL, as a driver killed at that instruction ends.
 
  @param folder - the test's folder, where the child's script and its run folder live
@@ -940,27 +969,42 @@ async function killChildAtItsSeam({
     stdio: 'ignore',
   },);
   /**
-   When the test gives up on the child reaching its seam.
+   The wait for the child's exit, registered before any signal so a child that ends by itself is still waited for.
    */
-  const deadline = Date.now() + MARKER_WAIT_MILLISECONDS;
-  for (;;) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- the child writes the marker as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
-    const marked = await markerIsThere(join(folder, CLAIM_MARKER,),);
-    if (marked) {
-      break;
+  const exited = once(child, 'exit',);
+  try {
+    /**
+     When the test gives up on the child reaching its seam.
+     */
+    const deadline = Date.now() + MARKER_WAIT_MILLISECONDS;
+    for (;;) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the child writes the marker as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+      const marked = await markerIsThere(join(folder, CLAIM_MARKER,),);
+      if (marked) {
+        break;
+      }
+      if (child.exitCode !== null) {
+        throw new Error('the child ended before it claimed its message',);
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`the child did not claim its message within ${String(MARKER_WAIT_MILLISECONDS,)} ms`,);
+      }
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the same look, again, after the wait between looks; see doc/lint/sequential-awaits.md
+      await wait(MARKER_LOOK_MILLISECONDS,);
     }
-    if (child.exitCode !== null) {
-      throw new Error('the child ended before it claimed its message',);
-    }
-    if (Date.now() >= deadline) {
-      child.kill('SIGKILL',);
-      throw new Error(`the child did not claim its message within ${String(MARKER_WAIT_MILLISECONDS,)} ms`,);
-    }
-    // oxlint-disable-next-line eslint/no-await-in-loop -- the same look, again, after the wait between looks; see doc/lint/sequential-awaits.md
-    await wait(MARKER_LOOK_MILLISECONDS,);
   }
-  child.kill('SIGKILL',);
-  await once(child, 'exit',);
+  catch (error) {
+    // A test that fails or is stopped here still ends its child: a live child would keep working beside the tests after it.
+    await endChild({
+      child,
+      exited,
+    },);
+    throw error;
+  }
+  await endChild({
+    child,
+    exited,
+  },);
 }
 
 await describe({
@@ -2023,6 +2067,191 @@ await describe({
           sessionStats: null,
         },);
         expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'keeps and names a claim whose driver dies after the watch has looked once',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The run folder whose inbox holds the claim.
+         */
+        const runFolder = folder.path;
+        /**
+         The inbox the claim is in.
+         */
+        const inbox = join(runFolder, 'inbox',);
+        /**
+         The process folder that says whether the claim's driver is still there.
+         */
+        const processFolder = join(runFolder, 'proc',);
+        await mkdir(join(processFolder, '4242',), { recursive: true, },);
+        /**
+         The fields a process record holds after its command name, the last of which is when it began.
+         */
+        const fields = Array.from(
+          { length: 20, },
+          function field(_unused, at,) {
+            if (at === 0) {
+              return 'S';
+            }
+            return (at === 19) ? '900' : '0';
+          },
+        );
+        await writeFile(join(processFolder, '4242', 'stat',), `4242 (node) ${fields.join(' ',)}\n`, { encoding: 'utf8', },);
+        /**
+         The claim of a driver that is alive at the first look.
+         */
+        const ownerFolder = join(inbox, '.claims', '4242-900',);
+        await mkdir(ownerFolder, { recursive: true, },);
+        await writeFile(join(ownerFolder, MESSAGE_NAME,), MESSAGE_TEXT, { encoding: 'utf8', },);
+        /**
+         The run's own record, with a settled turn so the run may end idle once its silence passes.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'feed.jsonl',
+        ), },);
+        record.observe({
+          event: { type: 'agent_start', },
+          declineDialog: refuseDialog,
+        },);
+        record.observe({
+          event: { type: 'turn_start', },
+          declineDialog: refuseDialog,
+        },);
+        record.observe({
+          event: {
+            type: 'message_end',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'finished', },],
+              stopReason: 'stop',
+              usage: {},
+            },
+          },
+          declineDialog: refuseDialog,
+        },);
+        record.observe({
+          event: { type: 'agent_settled', },
+          declineDialog: refuseDialog,
+        },);
+        /**
+         Whether the drivers' records have been looked at once already.
+         */
+        let looked = false;
+        const connection: ConnectionToPi = {
+          hasExited: function hasExited() {
+            if (!looked) {
+              looked = true;
+              // The claim's driver dies after the first look's checks, as the review's reproduction has it.
+              rmSync(join(processFolder, '4242',), {
+                recursive: true,
+                force: true,
+              },);
+            }
+            return false;
+          },
+          exitDetails: () => ({}),
+          write: function write() {
+            throw new Error('the watch was not expected to write without waiting for an answer',);
+          },
+          send: async function send(): Promise<CommandAnswer> {
+            throw new Error('the watch was not expected to send a message',);
+          },
+          shutDown: async () => ({ stopped: true, }),
+        };
+        const endReason = await watchUntilEnded({
+          connection,
+          record,
+          options: optionsOf({
+            runFolder,
+            idleSeconds: 0.15,
+          },),
+          inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          processFolder,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('idle',);
+        /**
+         What the inbox holds now, and where the message was kept.
+         */
+        const entries = await readdir(inbox,);
+        expect(entries,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.orphaned-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+        /**
+         What the summary says about the message.
+         */
+        const summary = record.summarize({
+          endReason: 'idle',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'leaves a message in the inbox and names it when this driver cannot read its own process start',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The run folder whose inbox holds the message.
+         */
+        const runFolder = folder.path;
+        /**
+         The inbox the message is in.
+         */
+        const inbox = join(runFolder, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        await writeFile(join(inbox, MESSAGE_NAME,), MESSAGE_TEXT, { encoding: 'utf8', },);
+        /**
+         The process folder of a driver whose own start cannot be read: it holds no entry for this process.
+         */
+        const processFolder = join(runFolder, 'proc-with-no-self',);
+        await mkdir(processFolder,);
+        /**
+         The messages Pi was sent, which the unclaimable message must not be among.
+         */
+        const sent: string[] = [];
+        /**
+         The run's own record.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'feed.jsonl',
+        ), },);
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record,
+          options: optionsOf({ runFolder, },),
+          inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          processFolder,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        // The message is never claimed, so it stays in the inbox under its own name and is not sent.
+        expect(sent,).toEqual([],);
+        expect(await readdir(inbox,),).toEqual([MESSAGE_NAME,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+        /**
+         The feed's own line for the reason it stays.
+         */
+        const feed = await feedOf(runFolder,);
+        expect(
+          feed.some((entry,) => String(entry.problem,).includes('cannot read the start time of its own process')),
+        ).toBe(true,);
       },
     },),
     it({
