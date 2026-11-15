@@ -329,10 +329,13 @@ export {
 } from './split-pi-output.ts';
 
 /**
- Exported so a test can hand the writer a folder of its own and read what it left there, beside a summary that was there first.
- @internal
+ A run's summary, which a folder holds once: written whole or not at all, refused when a summary is already there, and refused at
+ the start of a run that was given the folder of one.
  */
 export {
+  SummaryAlreadyThereError,
+  refuseWhenTheFolderHoldsASummary,
+  summaryIsThereProblemOf,
   writeSummary,
 } from './write-summary.ts';
 

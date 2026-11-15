@@ -11,6 +11,7 @@
 import {
   mkdtemp,
   readFile,
+  readdir,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -22,7 +23,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  SummaryAlreadyThereError,
   type RunSummary,
+  refuseWhenTheFolderHoldsASummary,
+  summaryIsThereProblemOf,
   writeSummary,
 } from '../dist/final/node/index.mjs';
 
@@ -130,13 +134,18 @@ await describe({
               runFolder: folder.path,
               summary: FIRST_SUMMARY,
             },);
-            expect(JSON.parse(await readFile(
+            /**
+             What the writer left, as a reader reads it.
+             */
+            const written = await readFile(
               join(
                 folder.path,
                 SUMMARY_FILE_NAME,
               ),
               'utf8',
-            ),),).toEqual(FIRST_SUMMARY,);
+            );
+            expect(JSON.parse(written,),).toEqual(FIRST_SUMMARY,);
+            expect(await readdir(folder.path,),).toEqual([SUMMARY_FILE_NAME,],);
           },
         },),
         it({
@@ -170,7 +179,8 @@ await describe({
             catch (error) {
               caught = error;
             }
-            expect(caught,).toBeInstanceOf(Error,);
+            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            expect((caught as Error).message,).toContain(folder.path,);
             expect(await readFile(
               join(
                 folder.path,
@@ -178,6 +188,50 @@ await describe({
               ),
               'utf8',
             ),).toBe(before,);
+          },
+        },),
+        it({
+          name: 'writes no summary and refuses a folder that already holds one at the start of a run',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await writeARunFolder({
+              folder: folder.path,
+              summary: FIRST_SUMMARY,
+            },);
+            /**
+             What refusing a folder that holds a summary answered.
+             */
+            let caught: unknown;
+            try {
+              await refuseWhenTheFolderHoldsASummary({ runFolder: folder.path, },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+          },
+        },),
+        it({
+          name: 'refuses nothing for a folder that holds no summary, and writes none of its own',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await refuseWhenTheFolderHoldsASummary({ runFolder: folder.path, },);
+            expect(await readdir(folder.path,),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'names the summary that is kept, the folder it is in, and both ways of giving a run a folder of its own',
+          fn: async () => {
+            /**
+             What a run answers a folder that holds a summary with.
+             */
+            const problem = summaryIsThereProblemOf({ runFolder: '/runs/a-5', },);
+            expect(problem,).toContain(join(
+              '/runs/a-5',
+              SUMMARY_FILE_NAME,
+            ),);
+            expect(problem,).toContain('--run=<number>',);
+            expect(problem,).toContain('runs folder of its own',);
           },
         },),
       ],

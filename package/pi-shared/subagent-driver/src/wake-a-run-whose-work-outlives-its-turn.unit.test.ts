@@ -601,17 +601,21 @@ await describe({
             name: `keeps --${optionCase.option} with the value the launcher read, whether it is written attached, detached, before the other options, after them, or both ways at once`,
             fn: async () => {
               for (const [spelling, commandLine,] of spellingsOf(optionCase,)) {
-                expect(
-                  `${spelling}: ${String(optionCase.read(launcherOptionsIn(commandLine,),),)}`,
-                ).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
+                /**
+                 What the launcher read from the command line as it was written.
+                 */
+                const readAsWritten = optionCase.read(launcherOptionsIn(commandLine,),);
+                expect(`${spelling}: ${String(readAsWritten,)}`,).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
                 /**
                  The words the session is resumed with.
                  */
                 const resumed = resumedWordsOf(commandLine,);
                 expect(resumed,).toContain(`--${optionCase.option}=${optionCase.value}`,);
-                expect(
-                  `${spelling}: ${String(optionCase.read(launcherOptionsIn(resumed,),),)}`,
-                ).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
+                /**
+                 What the launcher reads from the words the session is resumed with.
+                 */
+                const readAsResumed = optionCase.read(launcherOptionsIn(resumed,),);
+                expect(`${spelling}: ${String(readAsResumed,)}`,).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
               }
             },
           },);
@@ -625,14 +629,18 @@ await describe({
                  The words the session is resumed with.
                  */
                 const resumed = resumedWordsOf(commandLine,);
-                expect(
-                  `${spelling}: ${String(optionCase.read(launcherOptionsIn(resumed,),),)}`,
-                ).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
-                expect(
-                  `${spelling}: ${JSON.stringify(resumed.filter(function namesIt(word,) {
-                    return (word === `--${optionCase.option}`) || word.startsWith(`--${optionCase.option}=`,);
-                  },),)}`,
-                ).toBe(`${spelling}: ${JSON.stringify((optionCase.replacement === undefined) ? [] : [optionCase.replacement,],)}`,);
+                /**
+                 What the launcher reads from those words.
+                 */
+                const readAsResumed = optionCase.read(launcherOptionsIn(resumed,),);
+                expect(`${spelling}: ${String(readAsResumed,)}`,).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
+                /**
+                 The resumed words that name the option at all, which is the wake's own word for it where it needs one.
+                 */
+                const naming = resumed.filter(function namesIt(word,) {
+                  return (word === `--${optionCase.option}`) || word.startsWith(`--${optionCase.option}=`,);
+                },);
+                expect(`${spelling}: ${JSON.stringify(naming,)}`,).toBe(`${spelling}: ${JSON.stringify((optionCase.replacement === undefined) ? [] : [optionCase.replacement,],)}`,);
               }
             },
           },);

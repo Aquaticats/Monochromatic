@@ -1,6 +1,6 @@
 /**
  What a launcher settles before it makes anything: which checkout it works in, that the prompt can be read, that the base names a
- commit, and that the run's unit name is free.
+ commit, that the run's unit name is free, and that the run folder holds no summary of a run that finished.
 
  @module
  */
@@ -23,6 +23,7 @@ import {
   CHECKOUT_MARKER,
   CheckoutNotFoundError,
   ENTRY_REASON_CHARACTERS,
+  SUMMARY_FILE_NAME,
   type CommandOutput,
   type GitRunner,
   type RunCommand,
@@ -35,6 +36,7 @@ import {
   promptProblemIn,
   reasonInFailedStart,
   startRefusalsIn,
+  summaryProblemIn,
   unitNameOfGiven,
 } from '../dist/final/node/index.mjs';
 
@@ -394,6 +396,46 @@ await describe({
       ],
     },),
     describe({
+      name: summaryProblemIn.name,
+      children: [
+        it({
+          name: 'says nothing about a folder that holds no summary, which a run may write into',
+          fn: async () => {
+            await using folder = await makeFolder();
+            expect(await summaryProblemIn({ runFolder: folder.path, },),).toEqual({},);
+            expect(await summaryProblemIn({ runFolder: join(folder.path, 'not-made-yet',), },),).toEqual({},);
+          },
+        },),
+        it({
+          name: 'names the summary a run folder already holds, so a run is given a folder of its own',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run folder a run was given, holding the summary of the run before it.
+             */
+            const runFolder = join(folder.path, 'copy-route-5',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(
+              join(
+                runFolder,
+                SUMMARY_FILE_NAME,
+              ),
+              '{"endReason":"idle"}\n',
+            );
+            /**
+             What the check answered.
+             */
+            const { problem, } = await summaryProblemIn({ runFolder, },);
+            expect(problem,).toContain(join(
+              runFolder,
+              SUMMARY_FILE_NAME,
+            ),);
+            expect(problem,).toContain('--run=<number>',);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: startRefusalsIn.name,
       children: [
         it({
@@ -426,11 +468,66 @@ await describe({
                   };
               },
               runName: 'copy-route',
+              runFolder: join(folder.path, 'copy-route-1',),
               sessionPath: '/bin',
               home: folder.path,
               runsFolder: folder.path,
             },);
             expect(refusals.length,).toBe(3,);
+          },
+        },),
+        it({
+          name: 'refuses a start whose run folder already holds a summary, so no run writes over the record of one',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A prompt file a run could be given.
+             */
+            const prompt = join(folder.path, 'a-prompt.md',);
+            await writeFile(prompt, 'Answer with one line.\n',);
+            /**
+             The run folder a run was given, holding the summary of the run before it.
+             */
+            const runFolder = join(folder.path, 'copy-route-5',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(
+              join(
+                runFolder,
+                SUMMARY_FILE_NAME,
+              ),
+              '{"endReason":"idle"}\n',
+            );
+            /**
+             What every check of a start that could otherwise go ahead answered.
+             */
+            const { refusals, warnings, } = await startRefusalsIn({
+              promptFile: prompt,
+              git: answering({
+                status: 0,
+                stdout: 'a-commit\n',
+                stderr: '',
+              },).git,
+              checkoutFolder: folder.path,
+              base: 'main',
+              run: async function answered() {
+                return {
+                  status: 0,
+                  stdout: 'not-found\n',
+                  stderr: '',
+                };
+              },
+              runName: 'copy-route',
+              runFolder,
+              sessionPath: '/bin',
+              home: folder.path,
+              runsFolder: folder.path,
+            },);
+            expect(warnings,).toEqual([],);
+            expect(refusals.length,).toBe(1,);
+            expect(refusals[0],).toContain(join(
+              runFolder,
+              SUMMARY_FILE_NAME,
+            ),);
           },
         },),
         it({
@@ -459,6 +556,7 @@ await describe({
                 };
               },
               runName: 'copy-route',
+              runFolder: join(folder.path, 'copy-route-1',),
               sessionPath: '/bin',
               home: folder.path,
               runsFolder: folder.path,
@@ -505,6 +603,7 @@ await describe({
                   };
               },
               runName: 'copy-route',
+              runFolder: join(folder.path, 'copy-route-1',),
               sessionPath: '/bin',
               home: folder.path,
               runsFolder: folder.path,

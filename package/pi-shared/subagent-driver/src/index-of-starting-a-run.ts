@@ -100,6 +100,7 @@ export {
   WorktreeLauncherOptionsError,
   parseWorktreeLauncherOptions,
   worktreeFolderOf,
+  writtenWordsIn,
 } from './parse-worktree-launcher-options.ts';
 export {
   SessionFileUnreadableError,
@@ -137,6 +138,7 @@ export {
   nameProblemIn,
   promptProblemIn,
   startRefusalsIn,
+  summaryProblemIn,
 } from './checks-before-a-start.ts';
 export {
   ENTRY_REASON_CHARACTERS,
