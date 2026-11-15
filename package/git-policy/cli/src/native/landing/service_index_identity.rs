@@ -13,6 +13,17 @@
 //! and a reader that cannot compare like with like answers unknown,
 //! which keeps the lock and proves nothing,
 //! instead of reading a number of another namespace as a local process and calling a live service gone.
+//! Each part after the birth stands in its own place and in one spelling,
+//! so a part that is not the kind of text it stands for,
+//! or that is that text written another way,
+//! is unknown too:
+//! a writer that cannot read the boot ID of its host leaves that part out,
+//! a boot copied as the kernel prints it carries dashes,
+//! a machine part with nothing in it names no machine,
+//! and two spellings of one boot or one start tick are not two boots or two processes;
+//! read as a part of this reader's own,
+//! each would name a boot that has ended,
+//! and the lock of a holder that runs would go.
 //! The module is split from `service_index_marker.rs`,
 //! which re-exports the public items here under their old names.
 //!
@@ -21,8 +32,11 @@
 //! const identity = ownIdentity(); const state = holderState(holder, readerView); // 'gone' | 'running' | 'unknown'
 //! ```
 
-use crate::claim_time::{current_boot_id, current_machine_id, is_machine_id};
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
+/// A boot ID without its dashes and in its one spelling,
+/// a PID namespace number and a machine ID,
+/// the kinds of text the parts after the birth stand for.
+use crate::claim_time::{current_boot_id, current_machine_id, is_boot_id, is_machine_id};
+use crate::process_identity::{ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity};
 use crate::service_index_marker::marker_of;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -70,6 +84,23 @@ pub struct ReaderView<'a> {
     pub procfs_agrees: bool,
 }
 
+/// What:
+///  Whether `text` is a PID namespace number:
+///  digits and nothing else,
+///  which is what `/proc/self/ns/pid` writes inside `pid:[...]`
+///  and what an identity carries after its boot.
+/// Why:
+///   A part of an identity is compared only when it is the kind of text it stands for,
+///  and the namespace is the one part a writer can name without a boot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^\d+$/.test(text)
+/// ```
+fn is_pid_scope(text: &str) -> bool {
+    return !text.is_empty() && text.as_bytes().iter().all(u8::is_ascii_digit);
+}
+
 /// The number inside the `pid:[...]` a `/proc/self/ns/pid` link reads,
 /// when the text is exactly that with digits only.
 /// Why:
@@ -82,7 +113,7 @@ pub struct ReaderView<'a> {
 /// ```
 pub fn scope_of_link(text: &str) -> Option<String> {
     let number: &str = text.strip_prefix("pid:[")?.strip_suffix(']')?;
-    return (!number.is_empty() && number.as_bytes().iter().all(u8::is_ascii_digit)).then_some(number.to_string());
+    return is_pid_scope(number).then_some(number.to_string());
 }
 
 /// The PID namespace of this process as `/proc/self/ns/pid` names it (the number inside `pid:[...]`),
@@ -298,6 +329,8 @@ fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>, Option<&str>) 
 ///   A boot that has ended ends every process in it,
 /// whatever the reader's numbering.
 /// Beyond that the reader compares like with like or says unknown:
+/// a part of the text that is not the kind of text it stands for, or that is that text in another spelling,
+/// is no part it can compare,
 /// its `/proc` must agree with its own PID,
 /// it must know its boot when the marker names one,
 /// and its PID namespace must be the marker's when the marker names one.
@@ -317,6 +350,25 @@ pub fn holder_state_in(
     //  service's on another machine, so it is never read as gone.
     let Some((pid, birth)) = holder else { return HolderState::Unknown };
     let (identity, boot, scope, machine) = split_birth(birth.as_str());
+    // A part of an identity stands for one value in one spelling, so a part written another way is no part this reader
+    //  can compare: two spellings of one boot read as two boots, and a text read as another boot or another process is
+    //  proof that the holder is gone and loses the lock of a Git that runs. A part that is not the kind of text it stands
+    //  for was written by another shape of writer: one that cannot read the boot ID of its host leaves that part out and
+    //  its PID namespace stands where the boot belongs, a boot keeps the dashes the kernel prints where a writer copied
+    //  it as it is, and a machine part with nothing in it names no machine.
+    if !is_birth_identity(identity) {
+        return HolderState::Unknown;
+    }
+    if let Some(recorded) = boot
+        && !is_boot_id(recorded)
+    {
+        return HolderState::Unknown;
+    }
+    if let Some(recorded) = scope
+        && !is_pid_scope(recorded)
+    {
+        return HolderState::Unknown;
+    }
     // A service on another machine, or one whose machine ID is not valid, is never gone: a different boot ID there says
     //  nothing about it.
     if let Some(recorded) = machine
