@@ -776,3 +776,111 @@ fn a_record_entry_that_cannot_be_read_keeps_the_launcher_its_link_names() {
 }
 
 //endregion
+
+//region The ninth review: every folder a link can live in, a person's alias, and the record's read bound
+
+/// A rig with a stale launcher and its record, and the postinstall record readable, so retirement may retire it.
+fn rig_with_a_stale_launcher() -> (Rig, PathBuf) {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    fs::write(rig.scope.launcher_dir.join(".postinstall-links.json"), "{\"links\":{}}\n").expect("write a readable link record");
+    return (rig, launcher);
+}
+
+/// One state a folder of links can be in, and whether the launcher must survive it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LinkFolderState {
+    /// A link stands in a folder that can be listed and cannot be written: the link is seen and cannot go, so the
+    /// launcher stays.
+    ListedWithALink,
+    /// No folder holds a link: the launcher goes.
+    Absent,
+    /// A link stands in a folder that cannot be listed: this pass cannot tell, so the launcher stays.
+    UnlistableWithALink,
+}
+
+#[test]
+fn a_folder_of_links_that_cannot_be_listed_keeps_the_launcher_and_says_why() {
+    for state in [LinkFolderState::ListedWithALink, LinkFolderState::Absent, LinkFolderState::UnlistableWithALink] {
+        let (rig, launcher) = rig_with_a_stale_launcher();
+        let folder: PathBuf = rig.scope.root.join(".cache").join("old-bin");
+        let link: Option<PathBuf> = match state {
+            LinkFolderState::ListedWithALink | LinkFolderState::UnlistableWithALink => {
+                fs::create_dir_all(&folder).expect("make the link folder");
+                let link: PathBuf = folder.join("alias");
+                symlink(&launcher, &link).expect("make the link the folder holds");
+                Some(link)
+            }
+            LinkFolderState::Absent => None,
+        };
+        let mode: u32 = match state {
+            LinkFolderState::ListedWithALink => 0o555,
+            LinkFolderState::Absent => 0o755,
+            LinkFolderState::UnlistableWithALink => 0o000,
+        };
+        if link.is_some() {
+            fs::set_permissions(&folder, std::os::unix::fs::PermissionsExt::from_mode(mode)).expect("give the folder its mode");
+        }
+
+        let notices: LauncherNotices = retire(&rig);
+
+        let _ = fs::set_permissions(&folder, std::os::unix::fs::PermissionsExt::from_mode(0o755));
+        let launcher_survives: bool = exists_at(&launcher);
+        let must_survive: bool = match state {
+            LinkFolderState::Absent => false,
+            LinkFolderState::ListedWithALink | LinkFolderState::UnlistableWithALink => true,
+        };
+        assert_eq!(
+            launcher_survives, must_survive,
+            "folder state {:?}: the launcher's survival must follow what this pass could find out; {notices:?}",
+            state
+        );
+        if let (LinkFolderState::UnlistableWithALink, Some(link)) = (&state, &link) {
+            assert!(exists_at(link), "the pass cannot remove a link it cannot see: {notices:?}");
+            assert!(
+                notices.warnings.iter().any(|line| return line.contains("cannot be listed")),
+                "the sentence names the folder it could not list: {notices:?}"
+            );
+        }
+        if let (LinkFolderState::ListedWithALink, Some(link)) = (&state, &link) {
+            assert!(exists_at(link), "a link the folder does not let this pass remove stays: {notices:?}");
+        }
+    }
+}
+
+#[test]
+fn a_link_no_record_names_is_a_person_s_and_is_left_alone() {
+    let (rig, launcher) = rig_with_a_stale_launcher();
+    fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let farm_alias: PathBuf = rig.scope.exposure_dir.join("a-person-s-alias");
+    symlink(&launcher, &farm_alias).expect("a person makes an alias in the farm");
+    let bin_folder: PathBuf = rig.scope.root.join(".cache").join("a-tool-bin");
+    fs::create_dir_all(&bin_folder).expect("make a tool's link folder");
+    let tool_alias: PathBuf = bin_folder.join("another-alias");
+    symlink(&launcher, &tool_alias).expect("a person makes an alias in a tool's folder");
+
+    let notices: LauncherNotices = retire(&rig);
+
+    assert!(exists_at(&farm_alias), "a link no record names is a person's, and it stays: {notices:?}");
+    assert!(exists_at(&tool_alias), "a link no record names is a person's, and it stays: {notices:?}");
+}
+
+#[test]
+fn a_launcher_record_past_the_read_bound_is_refused_as_unreadable() {
+    let (rig, launcher) = rig_with_a_stale_launcher();
+    let record: PathBuf = record_path(&launcher);
+    let past_the_bound: fs::File = fs::File::create(&record).expect("replace the record with a larger file");
+    // Sparse: past the bound without costing the disk it names.
+    past_the_bound.set_len(super::ordinary_file::MAX_ORDINARY_BYTES + 1).expect("make the record past the read bound");
+    drop(past_the_bound);
+
+    let notices: LauncherNotices = retire(&rig);
+
+    assert!(exists_at(&launcher), "a record this tool cannot read keeps its launcher: {notices:?}");
+    assert!(
+        notices.warnings.iter().any(|line| return line.contains("larger than the")),
+        "the sentence names the bound the read stopped at: {notices:?}"
+    );
+}
+
+//endregion

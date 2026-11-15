@@ -363,6 +363,8 @@ pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<()
     // What the guard buys is in one place: `GUARD_WAIT`'s reason.
     let guard: Option<Guard> = acquire_guard(scope)?;
     let observed: Revisions = read_revisions(scope)?;
+    #[cfg(test)]
+    seam::after_the_revision_read();
     if expected != &observed.plan {
         drop(guard);
         return Err(ToolchainError::drift(format!(
@@ -374,4 +376,30 @@ pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<()
     let result: Result<(), ToolchainError> = write_atomically_keeping_mode(&scope.plan_file, text);
     drop(guard);
     return result;
+}
+
+/// The step a control uses to run a second publisher between this one's revision read and its write.
+/// Why:
+/// The ninth review placed a whole second publish there: with the guard held by a third command, both publishers read
+/// one revision and wrote, and the later rename erased the earlier one. Compiled in tests only.
+#[cfg(test)]
+pub(crate) mod seam {
+    /// Imports `Mutex` from `std`.
+    use std::sync::Mutex;
+
+    /// The hook a control sets.
+    static AFTER_THE_REVISION_READ: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
+
+    /// Sets (or with `None` clears) the hook run after the observed revisions are read.
+    pub(crate) fn set_after_the_revision_read(hook: Option<Box<dyn Fn() + Send>>) {
+        *AFTER_THE_REVISION_READ.lock().expect("the seam is not poisoned") = hook;
+    }
+
+    /// Runs the hook once, when there is one.
+    pub(crate) fn after_the_revision_read() {
+        let waiting: Option<Box<dyn Fn() + Send>> = AFTER_THE_REVISION_READ.lock().expect("the seam is not poisoned").take();
+        if let Some(hook) = waiting {
+            hook();
+        }
+    }
 }

@@ -506,3 +506,71 @@ fn a_record_that_cannot_take_the_folders_lock_is_not_written() {
     );
     drop(guard);
 }
+
+//region The ninth review: an older install of the same tool, and a records lock that stays held
+
+/// The repository-published tool of the sample lock, whose declared bin the fixtures use.
+const SHADOW_TOOL_ID: &str = "cargo:monochromatic-mpm-shadow";
+
+/// The bin that tool declares a launcher for.
+const SHADOW_BIN: &str = "mpm-shadow";
+
+#[test]
+fn a_late_install_of_the_same_tool_leaves_the_newer_record_under_the_lock_on_disk() {
+    let rig = Rig::new();
+    let older_real: PathBuf = rig.scope.root.join("older").join("current").join("bin").join(SHADOW_BIN);
+    let newer_real: PathBuf = rig.scope.root.join("newer").join("current").join("bin").join(SHADOW_BIN);
+    write_executable(&older_real);
+    write_executable(&newer_real);
+    let mut newer_lock = rig.lock.clone();
+    newer_lock
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.declaration.id == SHADOW_TOOL_ID)
+        .expect("the sample lock holds the tool")
+        .version = "99.0.0".to_string();
+    let scope_in_hook = rig.scope.clone();
+    let newer_real_in_hook: PathBuf = newer_real.clone();
+    // The newer install of the same tool finishes, lock and record, while this one stands after placing its program.
+    super::launcher::seam::set_after_the_place(Some(Box::new(move || {
+        fs::write(&scope_in_hook.lock_file, super::lock::render_lock(&newer_lock)).expect("publish the newer lock");
+        ensure_launcher(&scope_in_hook, SHADOW_TOOL_ID, SHADOW_BIN, &newer_real_in_hook).expect("the newer install finishes");
+    })));
+
+    ensure_launcher(&rig.scope, SHADOW_TOOL_ID, SHADOW_BIN, &older_real).expect("the delayed install finishes");
+
+    super::launcher::seam::set_after_the_place(None);
+    let launcher: PathBuf = rig.scope.launcher_dir.join(SHADOW_BIN);
+    let text: String = fs::read_to_string(record_path(&launcher)).expect("read the final record");
+    let record = parse_record(&text).expect("parse the final record");
+    assert_eq!(
+        record.real, newer_real,
+        "the delayed install of the same tool put its older real path back under a lock that pins the newer version; \
+         final record: {text}"
+    );
+}
+
+#[test]
+fn a_held_records_lock_leaves_the_record_to_the_next_install() {
+    let rig = Rig::new();
+    fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher folder");
+    let lock_path: PathBuf = rig.scope.launcher_dir.join(".launch-records.lock");
+    let guard: fs::File = fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path).expect("open the records lock");
+    // Another install is inside its record write, or stopped inside it.
+    guard.lock().expect("hold the records lock");
+    let real: PathBuf = rig.scope.root.join("store").join(SHADOW_BIN);
+    write_executable(&real);
+
+    let outcome = ensure_launcher(&rig.scope, SHADOW_TOOL_ID, SHADOW_BIN, &real);
+
+    let record: PathBuf = record_path(&rig.scope.launcher_dir.join(SHADOW_BIN));
+    let written: bool = fs::symlink_metadata(&record).is_ok();
+    drop(guard);
+    assert!(
+        outcome.is_ok(),
+        "a records lock that stays held must leave the record to the next install, never fail the install: {outcome:?}"
+    );
+    assert!(!written, "no record is written without the records lock ({})", record.display());
+}
+
+//endregion
