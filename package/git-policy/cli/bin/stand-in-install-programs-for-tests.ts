@@ -21,7 +21,7 @@ import {
   join,
 } from 'node:path';
 
-import { fixtureGit } from './install-fixture-checkout-reads-for-tests.ts';
+import { fixtureGit } from './fixture-git-that-is-never-the-wrapper-for-tests.ts';
 
 /**
  Permission bits that give the owner alone access.

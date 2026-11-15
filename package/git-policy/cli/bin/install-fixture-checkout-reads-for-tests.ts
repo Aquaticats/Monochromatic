@@ -3,74 +3,13 @@
 
  These are the questions a test asks after an install ran, kept beside the fixture that makes the checkout
  (`stand-in-install-programs-for-tests.ts`) and apart from it, so the stand-in programs and the fixture stay one file of
- their own.
+ their own. The Git these reads run is `fixture-git-that-is-never-the-wrapper-for-tests.ts`, which owns that rule for
+ every fixture of this package.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { runGateCommandOrThrow } from './native-gate-run.ts';
-
-/**
- Milliseconds one git command of a fixture is given, which is far more than a throwaway checkout needs.
- */
-const fixtureGitDeadlineMilliseconds = 120_000;
-
-/**
- The directories a fixture's git commands find their Git in, which are the system ones and never this repository's wrapper.
-
- A fixture is a throwaway checkout, so its commits want the gate's Git, pacman's current one, and not the wrapper this
- repository puts first on `PATH`: the wrapper routes a commit through the service of the checkout it runs in, and a
- fixture must not need a service to test a command. Reading the wrapper's output instead of Git's also hid which program
- answered.
- */
-const systemGitPath = '/usr/bin:/bin';
-
-/**
- The variables a fixture's git commands run with, so no user configuration decides what a fixture's commit does.
-
- @returns the environment of one fixture git command
- */
-function fixtureGitEnvironment(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    PATH: systemGitPath,
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-  };
-}
-
-/**
- Runs one git command in a fixture checkout and answers what it printed.
-
- @param directory - the checkout to run in
-
- @param args - the arguments after the `-C <checkout>` pair
-
- @returns what git printed on standard output
-
- @example
- ```ts
- await fixtureGit({ directory: fixture.repository, args: ['log', '--format=%s'] });
- ```
- */
-export async function fixtureGit({
-  directory,
-  args,
-}: {
-  readonly directory: string;
-  readonly args: readonly string[];
-}): Promise<string> {
-  return (await runGateCommandOrThrow({
-    program: 'git',
-    args: [
-      '-C',
-      directory,
-      ...args,
-    ],
-    deadlineMilliseconds: fixtureGitDeadlineMilliseconds,
-    environment: fixtureGitEnvironment(),
-  })).stdout;
-}
+import { fixtureGit } from './fixture-git-that-is-never-the-wrapper-for-tests.ts';
 
 /**
  The commits one fixture checkout holds, newest first.

@@ -13,8 +13,8 @@ import {
 import {
   type GateCommandOutcome,
   runGateCommand,
-  runGateCommandOrThrow,
 } from './native-gate-run.ts';
+import { fixtureGit } from './fixture-git-that-is-never-the-wrapper-for-tests.ts';
 import {
   type GateStandIn,
   createGateScratchDirectory,
@@ -44,8 +44,12 @@ const shortShaDigits = 10;
 /**
  A throwaway checkout with a clean gate worktree one commit behind `main`, which is the state the command moves.
 
- Nothing in this fixture is the real repository: the worktree is made by the wrapper's own `git worktree add` in a
+ Nothing in this fixture is the real repository: the worktree is made with the system Git's own `git worktree add` in a
  directory under the scratch parent, so a test can move and dirty it without touching anyone's work.
+
+ The system Git makes the fixture (`fixture-git-that-is-never-the-wrapper-for-tests.ts`) and reads the commits it left, so
+ this checkout needs no commit service of the account's user manager. The command under test is untouched by that: it
+ still runs the `git` on its own `PATH`, which is this repository's wrapper in real use, as it does when a person runs it.
  */
 export type ThrowawayCheckout = {
   /**
@@ -71,34 +75,11 @@ export type ThrowawayCheckout = {
 };
 
 /**
- Run one git command in the fixture and answer what it printed.
-
- @param directory - the checkout or worktree to run in
-
- @param args - arguments after the program name
-
- @returns what git printed on standard output
- */
-async function git({
-  directory,
-  args,
-}: {
-  readonly directory: string;
-  readonly args: readonly string[];
-}): Promise<string> {
-  return (await runGateCommandOrThrow({
-    program: 'git',
-    args: [
-      '-C',
-      directory,
-      ...args,
-    ],
-    deadlineMilliseconds: testDeadlineMilliseconds,
-  })).stdout;
-}
-
-/**
  Make a checkout whose `main` holds the package a gate works on, one commit ahead of a clean gate worktree.
+
+ Every git command here and in the assertions below is `fixtureGit`, the system Git by a `PATH` that holds no wrapper, so
+ nothing of this fixture asks the account's user manager for a commit service and no assertion reads the wrapper's output
+ as Git's.
 
  @param parent - directory to make the checkout in
 
@@ -167,11 +148,11 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
     '-c',
     'user.name=Gate Test',
   ];
-  await git({
+  await fixtureGit({
     directory: repository,
     args: ['init', '--quiet', '--initial-branch=main', '.',],
   });
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       'add',
@@ -179,7 +160,7 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
       'package/git-policy/cli/package.json',
     ],
   });
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       ...identity,
@@ -191,7 +172,7 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
       'package/git-policy/cli/package.json',
     ],
   });
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       'worktree',
@@ -204,7 +185,7 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
   /**
    The commit the gate worktree is left at.
    */
-  const gateSha = (await git({
+  const gateSha = (await fixtureGit({
     directory: worktreePath,
     args: [
       'rev-parse',
@@ -219,11 +200,11 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
     ),
     'later\n',
   );
-  await git({
+  await fixtureGit({
     directory: repository,
     args: ['add', 'later.txt',],
   });
-  await git({
+  await fixtureGit({
     directory: repository,
     args: [
       ...identity,
@@ -238,7 +219,7 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
     repository,
     worktree,
     worktreePath,
-    mainSha: (await git({
+    mainSha: (await fixtureGit({
       directory: repository,
       args: [
         'rev-parse',
@@ -252,6 +233,10 @@ export async function createThrowawayCheckout({ parent }: { readonly parent: str
 
 /**
  Run the command under test.
+
+ Its environment is the stand-in's, which is this process's own with the stand-in programs first on `PATH`, so the `git`
+ the command runs is the one a person's run gets: this repository's wrapper, on the `PATH` this test was started with.
+ Only the fixture's own Git is held off the wrapper, never the command under test's.
 
  @param standIn - the fixture whose stand-in `systemd-run` goes first on `PATH`
 
@@ -373,7 +358,7 @@ await describe({
         expect(checkout.gateSha,).not.toBe(checkout.mainSha,);
         expect(launched.stdout,).toContain(`gate worktree at ${checkout.mainSha}`,);
         expect(launched.stdout,).toContain('launch status 0',);
-        expect((await git({
+        expect((await fixtureGit({
           directory: checkout.worktreePath,
           args: [
             'rev-parse',
@@ -423,7 +408,7 @@ await describe({
         expect(launched.status,).toBe(2,);
         expect(launched.stdout,).toContain('the gate worktree is not clean, so it was not moved',);
         expect(launched.stdout,).toContain('uncommitted.txt',);
-        expect((await git({
+        expect((await fixtureGit({
           directory: checkout.worktreePath,
           args: [
             'rev-parse',

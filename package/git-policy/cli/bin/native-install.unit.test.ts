@@ -22,9 +22,9 @@ import {
   commitSubjects,
   committedFileText,
   fileTextOf,
-  fixtureGit,
   stagedPathNames,
 } from './install-fixture-checkout-reads-for-tests.ts';
+import { fixtureGit } from './fixture-git-that-is-never-the-wrapper-for-tests.ts';
 import {
   type InstallFixture,
   createInstallFixture,
