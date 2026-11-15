@@ -243,3 +243,31 @@ fn measures_the_length_of_every_file_below() {
 
     assert_eq!(tree_size(&version), 1024);
 }
+
+/// What:
+/// The directory name a store row becomes is one plain directory name or nothing:
+/// a crate name, a tool id and the reserved names of the store are refused.
+/// Why:
+/// Every caller joins this name onto the store root,
+/// and the review of this change showed a `cargo-binstall` row's `packageId` of `../../outside` becoming
+/// `cargo/../../outside`, which let the cleanup scan and delete a directory outside the store.
+#[test]
+fn a_store_directory_name_is_one_plain_name_or_nothing() {
+    for refused in ["../../outside", "..", ".", "", "a/b", "cargo", "downloads"] {
+        assert_eq!(
+            install_directory_name(Route::CargoBinstall, refused),
+            None,
+            "a cargo-binstall crate named {refused:?} became a directory"
+        );
+        assert_eq!(
+            install_directory_name(Route::Archive, refused),
+            None,
+            "an archive tool named {refused:?} became a directory"
+        );
+    }
+    assert_eq!(
+        install_directory_name(Route::CargoBinstall, "fd-find"),
+        Some("cargo/fd-find".to_string()),
+        "an ordinary crate name stays what it was"
+    );
+}

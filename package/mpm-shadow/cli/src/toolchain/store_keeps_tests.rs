@@ -244,3 +244,74 @@ fn a_process_scan_that_could_not_finish_keeps_the_version() {
 }
 
 //endregion
+
+/// What:
+/// A version a process of this account holds is kept even when the kernel will not describe that process,
+/// and the line says an unspecified process may run it.
+/// Why:
+/// The review of this change ran a same-user process that opened a file under a version, moved into the version and
+/// made itself undumpable: the scan could read neither its programs nor its folders, so no held path named the
+/// version, and the newest-only removals would have deleted a version in active use.
+#[test]
+fn a_version_a_process_hides_its_use_of_is_kept() {
+    let rig = Rig::new();
+    let directory: PathBuf = version_directory(&rig, "0.2.0");
+    let program: PathBuf = directory.join("release-folder").join(FIXTURE_BIN);
+    fs::create_dir_all(directory.join("release-folder")).expect("make the version directory");
+    fs::write(&program, b"#!/bin/sh\n").expect("write a file of the version");
+    let _hiding: HiddenUse = HiddenUse::started_in(&directory, &program);
+
+    let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
+    let kept: Option<String> = keeps.keep_reason(FIXTURE_DIRECTORY, "0.2.0", &directory);
+
+    let line: String = kept.expect("an opaque process holding this version keeps it");
+    assert!(line.contains("it is in use"), "the line says the version is in use: {line}");
+    assert!(line.contains("runs"), "the line says what the process may run: {line}");
+    assert!(line.contains("may"), "the line says the scan cannot tell which version: {line}");
+}
+
+/// What:
+/// A process of this account that the kernel will not describe:
+/// it works inside `directory`,
+/// holds `program` open,
+/// and has made itself undumpable,
+/// so the scan can read neither.
+/// Why:
+/// This is the case the rule exists for and the one no ordinary program produces:
+/// it is the only way a version in use leaves no held path in the process table.
+struct HiddenUse {
+    /// The started process.
+    child: Child,
+}
+
+/// The methods of `HiddenUse`.
+impl HiddenUse {
+    /// Starts the hiding process in `directory`, holding `program` open, and waits until it is hidden.
+    fn started_in(directory: &Path, program: &Path) -> HiddenUse {
+        let ready: PathBuf = directory.join(".hidden-use-ready");
+        let child: Child = Command::new("python3")
+            .arg("-c")
+            .arg(format!(
+                "import ctypes,os,time; os.chdir({:?}); f=open({:?},'rb'); ctypes.CDLL(None).prctl(4,0,0,0,0); open({:?},'w').close(); time.sleep(300)",
+                directory,
+                program,
+                ready,
+            ))
+            .spawn()
+            .expect("start the hidden stand-in");
+        let give_up: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !ready.exists() {
+            assert!(std::time::Instant::now() < give_up, "the stand-in never became opaque");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        return HiddenUse { child };
+    }
+}
+
+/// Stops the hidden process and waits for it, so nothing of this test outlives it.
+impl Drop for HiddenUse {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}

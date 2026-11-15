@@ -280,3 +280,76 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
 }
 
 //endregion
+
+//region names and paths a lock can give a link
+
+/// What:
+/// A link name a lock gives must be one file name: `../escape` is refused, naming the field.
+/// Why:
+/// The name is joined onto the link's directory and the link is written there,
+/// so a name with a separator in it writes outside the directory the plan names.
+#[test]
+fn a_link_name_that_is_not_one_name_is_refused() {
+    let text: String = super::fixtures::SAMPLE_PLAN.replace(
+        "\"linkName\": \"mpm-shadow\"",
+        "\"linkName\": \"../escape\"",
+    );
+    let refused = super::plan::parse_plan(&text, "a plan");
+    let message: String = refused.expect_err("a link name with a separator is refused").to_string();
+    assert!(message.contains("linkName"), "the refusal names the field: {message}");
+}
+
+/// What:
+/// A link directory a lock gives may not climb out of the scope: `../../outside` is refused, naming the field.
+/// Why:
+/// The directory is joined onto the scope's root (or used as it stands when absolute),
+/// so a path that climbs out writes the link somewhere the tool does not own.
+#[test]
+fn a_link_directory_that_climbs_out_is_refused() {
+    let text: String = super::fixtures::SAMPLE_PLAN.replace(
+        "\"linkDir\": \".cache/mpm-shadow-bin\"",
+        "\"linkDir\": \"../../outside\"",
+    );
+    let refused = super::plan::parse_plan(&text, "a plan");
+    let message: String = refused.expect_err("a link directory that climbs out is refused").to_string();
+    assert!(message.contains("linkDir"), "the refusal names the field: {message}");
+}
+
+/// What:
+/// The global scope retires only links under the person's home:
+/// a record naming a path outside it leaves that path alone, with a warning.
+/// Why:
+/// The record holds absolute paths and the global scope's links live under the home;
+/// a path outside it is one the tool cannot prove it made.
+#[test]
+fn the_global_scope_leaves_a_recorded_link_outside_the_home() {
+    let rig = Rig::new();
+    let global = super::scope::global_scope(&rig.env).expect("a global scope");
+    fs::create_dir_all(&global.launcher_dir).expect("make the global launcher directory");
+    let outside: PathBuf = rig._directory.path().join("outside-the-home");
+    fs::create_dir_all(outside.parent().expect("the outside path has a parent")).expect("make the outside directory");
+    fs::write(&outside, "x").expect("write the outside target");
+    let link: PathBuf = outside.with_file_name("a-recorded-link");
+    std::os::unix::fs::symlink(&outside, &link).expect("make the recorded link");
+    fs::write(
+        global.launcher_dir.join(".postinstall-links.json"),
+        format!("{{\"links\":{{\"{}\":\"{}\"}}}}", link.display(), outside.display()),
+    )
+    .expect("write the record");
+    let context = super::context::Context {
+        scope: &global,
+        env: &rig.env,
+        runner: &rig.runner,
+        http: &rig.http,
+        host: &rig.host,
+        tools: &rig.lock.tools,
+    };
+
+    let notices = sync_postinstall_links(&context, &[]).expect("the pass succeeds");
+
+    assert!(exists_at(&link), "the global scope removed a link outside the home");
+    assert!(notices.retired.is_empty(), "nothing was retired: {notices:?}");
+    assert_eq!(notices.warnings.len(), 1, "the pass says why it left it: {notices:?}");
+}
+
+//endregion

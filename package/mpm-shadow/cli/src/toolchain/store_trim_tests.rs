@@ -278,7 +278,6 @@ fn skips_a_lock_that_is_gone() {
 /// the oldest node version written two days ago.
 struct Fixture {
     /// Held so the disposable directory lives as long as the test.
-    #[expect(dead_code)]
     directory: tempfile::TempDir,
     root: PathBuf,
 }
@@ -1234,6 +1233,306 @@ fn a_marker_that_cannot_be_written_stops_the_removal() {
         "the line says why nothing was removed: {:?}",
         outcome.lines
     );
+}
+
+//endregion
+
+//region names read from a lock, and paths that must lie under the store
+
+/// The lock text of a crafted `cargo-binstall` row.
+fn crafted_cargo_lock(crate_name: &str, version: &str) -> String {
+    return format!(
+        "{{\"tools\":{{\"cargo:crafted\":{{\"packageId\":\"{crate_name}\",\"version\":\"{version}\",\"route\":\"cargo-binstall\"}}}}}}"
+    );
+}
+
+/// A crafted lock written beside the fixture, and its path.
+fn crafted_lock(fixture: &Fixture, text: &str) -> PathBuf {
+    let path: PathBuf = fixture.directory.path().join("crafted.lock");
+    fs::write(&path, text).expect("write the crafted lock");
+    return path;
+}
+
+/// What:
+/// A crate name a lock gives cannot make the cleanup judge a directory outside the store:
+/// the row is refused and the lock is named.
+/// Why:
+/// The review of this change put `../../outside` in a `cargo-binstall` row's `packageId`,
+/// and the cleanup scanned and deleted a directory outside the store.
+#[test]
+fn a_lock_crate_name_that_is_not_one_name_is_refused() {
+    let fixture = Fixture::new();
+    let lock: PathBuf = crafted_lock(&fixture, &crafted_cargo_lock("../../outside", "1.0.0"));
+
+    let named = read_named_versions(std::slice::from_ref(&lock));
+
+    let refused: String = named.unreadable.clone().expect("a crate name that is not one directory name is refused");
+    assert!(refused.contains(&lock.display().to_string()), "the refusal names the lock: {refused}");
+    assert!(refused.contains("outside"), "the refusal names the name: {refused}");
+    assert!(
+        !named.tool_directories().iter().any(|tool| return tool.contains("outside")),
+        "the refused name became a tool directory: {:?}",
+        named.tool_directories()
+    );
+}
+
+/// What:
+/// A version a lock gives cannot make the cleanup judge a directory outside the store either.
+/// Why:
+/// The version becomes a directory name under the crate's, so the same rule applies to it.
+#[test]
+fn a_lock_version_that_is_not_one_name_is_refused() {
+    let fixture = Fixture::new();
+    let lock: PathBuf = crafted_lock(&fixture, &crafted_cargo_lock("somecrate", "../../outside"));
+
+    let named = read_named_versions(std::slice::from_ref(&lock));
+
+    let refused: String = named.unreadable.clone().expect("a version that is not one directory name is refused");
+    assert!(refused.contains(&lock.display().to_string()), "the refusal names the lock: {refused}");
+}
+
+/// What:
+/// A tool id a lock gives cannot make the cleanup judge a directory outside the store:
+/// an archive row whose id leaves the store is refused, and the lock is named.
+#[test]
+fn a_lock_tool_id_that_is_not_one_name_is_refused() {
+    let fixture = Fixture::new();
+    let lock: PathBuf = crafted_lock(
+        &fixture,
+        "{\"tools\":{\"../outside\":{\"version\":\"1.0.0\",\"route\":\"archive\",\"bins\":[\"x\"]}}}",
+    );
+
+    let named = read_named_versions(std::slice::from_ref(&lock));
+
+    let refused: String = named.unreadable.clone().expect("a tool id that is not one directory name is refused");
+    assert!(refused.contains(&lock.display().to_string()), "the refusal names the lock: {refused}");
+}
+
+/// What:
+/// A tool directory that resolves outside the store is not judged:
+/// a store whose tool directory is a link elsewhere lists no version under it.
+/// Why:
+/// The name is one directory name, but what stands at it is a link,
+/// so the gathered path leaves the store and the cleanup must not act on it.
+#[test]
+fn a_tool_directory_that_resolves_outside_the_store_is_not_judged() {
+    let fixture = Fixture::new();
+    let outside: PathBuf = fixture.directory.path().join("outside");
+    fs::create_dir_all(outside.join("9.9.9")).expect("make a version outside the store");
+    fs::write(outside.join("9.9.9").join("payload"), b"user data").expect("write user data outside the store");
+    std::os::unix::fs::symlink(&outside, fixture.root.join("node")).expect("point the tool directory outside the store");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let (candidates, incomplete) = candidates_of(std::slice::from_ref(&fixture.root), &tools, far_deadline());
+
+    assert!(
+        !candidates.iter().any(|found| return found.directory.starts_with(&outside)),
+        "the cleanup listed a version outside the store: {candidates:?}"
+    );
+    assert!(!incomplete.is_empty(), "the scan says why it left something out: {incomplete:?}");
+}
+
+/// What:
+/// A removal refuses a candidate whose directory is not under the root it was found in,
+/// even when the plan carries it.
+/// Why:
+/// The plan is made from names, and the belt that proves the path at the instant of the act is what stands between a
+/// mistake in one of them and a directory outside the store.
+#[test]
+fn a_removal_refuses_a_directory_outside_its_root() {
+    let fixture = Fixture::new();
+    let outside: PathBuf = fixture.directory.path().join("outside");
+    fs::create_dir_all(outside.join("0.9.0")).expect("make a directory outside the store");
+    fs::write(outside.join("0.9.0").join("payload"), b"user data").expect("write user data outside the store");
+    let directory: PathBuf = outside.join("0.9.0");
+    let written: SystemTime = fs::symlink_metadata(&directory).expect("read it").modified().expect("write time");
+    let candidate = TrimCandidate {
+        root: fixture.root.clone(),
+        tool: "node".to_string(),
+        version: "0.9.0".to_string(),
+        directory: directory.clone(),
+        downloads: None,
+        bytes: 9,
+        written,
+        naming: crate::toolchain::store_versions::EntryNaming::of(&fs::symlink_metadata(&directory).expect("read it")),
+        leftover: false,
+    };
+    let plan: TrimPlan = TrimPlan { total_bytes: 9, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
+
+    let outcome = apply_trim(&plan, &fixture.run());
+
+    assert_eq!(outcome.removed, 0, "the removal acted on a path outside its root: {:?}", outcome.lines);
+    assert!(directory.join("payload").is_file(), "the removal deleted a directory outside its root");
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("does not lie under")),
+        "the line says why it stayed: {:?}",
+        outcome.lines
+    );
+}
+
+//endregion
+
+//region a kill at each step of a removal, and what a later pass does
+
+/// What a killed removal leaves for the tests below:
+/// the fixture's store with one version and its archives,
+/// and whichever of the removal's names the row says were written.
+enum KilledAt {
+    /// After the root's recovery marker, before anything moved.
+    Marker,
+    /// After the downloads claim, before anything moved.
+    DownloadsClaim,
+    /// After the archives were moved aside, before the version was claimed.
+    DownloadsMoved,
+    /// After the version was claimed, before it was moved to its removal name.
+    VersionClaimed,
+    /// After the version took its removal name, before the deletes.
+    VersionMoved,
+    /// After the deletes, before the marker went.
+    Deleted,
+}
+
+/// The state one row leaves, with the names it wrote.
+struct Killed {
+    /// The fixture.
+    fixture: Fixture,
+    /// The version directory.
+    version: PathBuf,
+    /// The archives directory.
+    downloads: PathBuf,
+}
+
+/// Builds the state a kill at `step` leaves.
+fn killed_at(step: KilledAt) -> Killed {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the archives directory");
+    fs::write(downloads.join("node.tar.gz"), b"archive").expect("write the archives");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the marker the pass runs for");
+    let maker: ProcessIdentity = ProcessIdentity { pid: A_PROCESS_NUMBER_NO_MACHINE_HAS, started: 987_654 };
+    match step {
+        KilledAt::Marker => {}
+        KilledAt::DownloadsClaim => {
+            let claim: PathBuf = downloads.with_file_name(".26.11.0.download-removal");
+            fs::write(&claim, format!("{}.{}\n", maker.pid, maker.started)).expect("leave the claim a kill leaves");
+        }
+        KilledAt::DownloadsMoved => {
+            fs::rename(&downloads, tombstone_of(&downloads)).expect("move the archives aside");
+        }
+        KilledAt::VersionClaimed => {
+            fs::rename(&downloads, tombstone_of(&downloads)).expect("move the archives aside");
+            fs::rename(&version, fixture.root.join("node").join(claimed_name_made_by("26.11.0", maker)))
+                .expect("claim the version");
+        }
+        KilledAt::VersionMoved => {
+            fs::rename(&downloads, tombstone_of(&downloads)).expect("move the archives aside");
+            fs::rename(&version, tombstone_of(&version)).expect("move the version aside");
+        }
+        KilledAt::Deleted => {
+            fs::remove_dir_all(&downloads).expect("the archives went");
+            fs::remove_dir_all(&version).expect("the version went");
+        }
+    }
+    return Killed { fixture, version, downloads };
+}
+
+/// Runs the recovery pass and the marker pass over a killed removal's root,
+/// and answers every line.
+fn recover(killed: &Killed) -> Vec<String> {
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&killed.fixture.root), &tools, &killed.fixture.run());
+    settle_markers(std::slice::from_ref(&killed.fixture.root), &tools, &unfinished);
+    return lines;
+}
+
+/// What:
+/// A kill after the root's recovery marker loses nothing:
+/// the next pass finds nothing in progress and takes the marker away.
+#[test]
+fn a_kill_after_the_marker_leaves_the_version_and_its_archives() {
+    let killed: Killed = killed_at(KilledAt::Marker);
+
+    let _lines: Vec<String> = recover(&killed);
+
+    assert!(killed.version.join("program").is_file(), "the version is still there");
+    assert!(killed.downloads.join("node.tar.gz").is_file(), "the archives are still there");
+    assert!(!has_unfinished_removal(&killed.fixture.root), "the marker went with nothing in progress");
+}
+
+/// What:
+/// A kill after the downloads claim loses nothing:
+/// the claim names a dead maker, so the next pass clears it and takes the marker away.
+#[test]
+fn a_kill_after_the_downloads_claim_leaves_the_version_and_its_archives() {
+    let killed: Killed = killed_at(KilledAt::DownloadsClaim);
+
+    let _lines: Vec<String> = recover(&killed);
+
+    assert!(killed.version.join("program").is_file(), "the version is still there");
+    assert!(killed.downloads.join("node.tar.gz").is_file(), "the archives are still there");
+    assert!(!has_unfinished_removal(&killed.fixture.root), "the marker went with nothing in progress");
+}
+
+/// What:
+/// A kill after the archives were moved aside and before the version was claimed loses nothing:
+/// the version is still at its own name, so the removal had not begun, and the next pass puts the archives back.
+/// Why:
+/// The review of this change showed the pass deleting them, which leaves the version without the files it was
+/// installed with.
+#[test]
+fn a_kill_before_the_version_claim_puts_the_archives_back() {
+    let killed: Killed = killed_at(KilledAt::DownloadsMoved);
+
+    let lines: Vec<String> = recover(&killed);
+
+    assert!(killed.version.join("program").is_file(), "the version is still there");
+    assert!(
+        killed.downloads.join("node.tar.gz").is_file(),
+        "a version that was never claimed lost its archives: {lines:?}"
+    );
+    assert!(!has_unfinished_removal(&killed.fixture.root), "the marker went with nothing in progress");
+}
+
+/// What:
+/// A kill after the version was claimed loses nothing:
+/// the next pass gives the version back and its archives with it.
+#[test]
+fn a_kill_after_the_version_claim_gives_the_version_back() {
+    let killed: Killed = killed_at(KilledAt::VersionClaimed);
+
+    let _lines: Vec<String> = recover(&killed);
+
+    assert!(killed.version.join("program").is_file(), "the claimed version came back");
+    assert!(killed.downloads.join("node.tar.gz").is_file(), "its archives came back with it");
+    assert!(!has_unfinished_removal(&killed.fixture.root), "the marker went with nothing left");
+}
+
+/// What:
+/// A kill after the version took its removal name loses nothing that was kept:
+/// the version was judged and taken out of use, so the next pass finishes the deletion and nothing is left hidden.
+#[test]
+fn a_kill_after_the_version_moved_is_finished_by_the_next_pass() {
+    let killed: Killed = killed_at(KilledAt::VersionMoved);
+
+    let _lines: Vec<String> = recover(&killed);
+
+    assert!(!killed.version.exists(), "the version the removal took out of use is gone");
+    assert!(!killed.downloads.exists(), "and its archives with it");
+    assert!(!tombstone_of(&killed.version).exists(), "no removal name is left behind");
+    assert!(!tombstone_of(&killed.downloads).exists(), "no archives name is left behind");
+    assert!(!has_unfinished_removal(&killed.fixture.root), "the marker went with nothing left");
+}
+
+/// What:
+/// A kill after the deletes leaves only the marker, which the next pass takes away.
+#[test]
+fn a_kill_after_the_deletes_takes_the_marker_away() {
+    let killed: Killed = killed_at(KilledAt::Deleted);
+
+    let _lines: Vec<String> = recover(&killed);
+
+    assert!(!has_unfinished_removal(&killed.fixture.root), "the marker went with nothing left");
 }
 
 //endregion

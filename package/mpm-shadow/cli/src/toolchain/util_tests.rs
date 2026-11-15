@@ -6,7 +6,7 @@ use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
 
 use super::fixtures::sample_lock;
-use super::util::{all_ascii_digits, contains_any, ends_with_any, file_name_os, file_name_text, find_tool, number_or_zero, starts_with_ascii_digit};
+use super::util::{ProcessIdentity, all_ascii_digits, contains_any, ends_with_any, file_name_os, file_name_text, find_tool, number_or_zero, starts_with_ascii_digit};
 
 #[test]
 fn digit_predicates_accept_only_ascii_digits() {
@@ -242,3 +242,52 @@ fn the_next_write_clears_a_temporary_of_a_process_that_is_gone_and_keeps_a_live_
 }
 
 //endregion The mode of the temporary an atomic write builds
+
+/// What:
+/// A process that has ended and waits to be collected has ended,
+/// so the claim it held is free, and it is not "there" for the sweep either.
+/// Why:
+/// The review of this change killed a child, left it unreaped, and showed `process_has_ended` answering no because its
+/// `/proc` entry and start time were still there: every later install of that version then waited out the claim until
+/// some parent collected the child.
+#[test]
+fn a_zombie_has_ended() {
+    let mut child: std::process::Child = std::process::Command::new("sleep").arg("300").spawn().expect("start a child");
+    let pid: u32 = child.id();
+    let started: u64 = started_of(pid).expect("the child's start time is readable");
+    let identity: ProcessIdentity = ProcessIdentity { pid, started };
+    child.kill().expect("kill the child");
+    let give_up: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let state: Option<char> = state_of(pid);
+        if state == Some('Z') {
+            break;
+        }
+        assert!(std::time::Instant::now() < give_up, "the killed child did not become a zombie: {state:?}");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    let ended: bool = super::util::process_has_ended(&identity);
+    let gone: bool = super::util::process_is_gone(pid);
+    child.wait().expect("reap the zombie");
+
+    assert!(ended, "a zombie with the same start time was treated as a live claim holder");
+    assert!(gone, "a zombie was treated as a process that is there");
+}
+
+/// The start time `/proc/<pid>/stat` gives `pid`,
+/// in ticks since the machine booted,
+/// or `None` when that cannot be read.
+fn started_of(pid: u32) -> Option<u64> {
+    let line: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after_name: &str = line.rsplit_once(')')?.1;
+    return after_name.split_whitespace().nth(19)?.parse().ok();
+}
+
+/// The state letter `/proc/<pid>/stat` gives `pid`,
+/// or `None` when that cannot be read.
+fn state_of(pid: u32) -> Option<char> {
+    let line: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after_name: &str = line.rsplit_once(')')?.1;
+    return after_name.split_whitespace().next()?.chars().next();
+}
