@@ -1330,6 +1330,100 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 47 is in `main` with no release, as a change to tests alone; the lock-holders folder goes to review; the brief writer for every kind of code goes back for its tests (2026-11-14T21:25:41-05:00)
+
+Not final and not approved:
+what one pass,
+one author and one review report,
+how the coordinating session weighed them,
+and what it merged,
+measured and queued.
+
+- **Integration pass 47** (tip `fc21e4ab55`:
+  the test that renders every failure variant refuses a variant with no sample and two under one number)
+  reported fit at 21:22:18,
+  holding `main` at `5729029e19`:
+  one conflict with pass 44's new variant,
+  resolved to keep both sides;
+  build,
+  both test compiles and Clippy clean;
+  the changed file's fourteen tests passing at 600% and at 400%;
+  both guard modules passing;
+  the whole suites failing only among the gate's 28,
+  and in one earlier round two more that pass alone
+  (a `repair/` control and the control of two adds at once,
+  each with a run of its own).
+  `main` held one handover commit and nothing under the wrapper that the tip lacked,
+  and the range changes one file,
+  `landing/service_messages_tests.rs`.
+  Merged as `92385d3581` at 21:24:43.
+- **No release from it**,
+  adopted by this session and open to veto:
+  a change to tests alone builds the program `0.6.1-alpha.36` already is,
+  so a release would give a number and nothing to install.
+  `0.6.1-alpha.37` goes to the next pass that changes the program.
+  The gate was started on `92385d3581` at 21:25:29 all the same,
+  since it is where the changed test runs in the container;
+  one background command waits for its verdict and compares.
+  The fuzz sidecar's type check on `main` at `92385d3581`:
+  exit 0 at 21:25:41.
+  Pass 48,
+  going,
+  was told.
+- **Two things pass 47 met under the installed wrapper**,
+  each one agent's report:
+  two merges in its worktree,
+  at 20:51:03 and 20:58:58 under `0.6.1-alpha.36`,
+  ended with "the commit service did not start. Run git push when ready" and their pushes were not handed over
+  (the user journal from 20:45 to 21:05 holds no failed start of a wrapper service);
+  and at 18:38,
+  under `0.6.1-alpha.34`,
+  a commit waited on `git rev-parse` as "a quick query step" past five seconds and took 13.3 s.
+  The first has a fresh run
+  (`~/temp/agent/pi-runs/commit-in-an-agents-worktree-whose-commit-service-did-not-start-has-its-cause-found-prompt.md`);
+  the second is added as a sighting to the queued brief on that read's ceiling.
+  The pass also asks whether a merge of `main` that changes no wrapper source costs a round of the whole suites;
+  this session's reading,
+  open to veto,
+  is the pass's own:
+  it does not,
+  and the report names the commits.
+- **The lock-holders folder of a repository**,
+  a fresh run,
+  ended 21:19:50 at `2af2ecb879`.
+  By its report the two gate controls it was given fail on the host and in the gate's image for one reason,
+  the folder `cli-git-lock-holders` left in a Git directory by commands that needed no record.
+  Changed in the wrapper:
+  the record is written in the repository the command works on,
+  immediately before the process becomes Git;
+  a command that ends without becoming Git sweeps its own record;
+  the folder goes with its last record.
+  Both controls pass on the host and in the gate's image;
+  the subvolume control another round named has the same cause and passes too.
+  Its review is queued second
+  (`main...2af2ecb879`,
+  six code files).
+- **The review-brief writer that reads every kind of code file** (`8ec4b92ff0`),
+  its review,
+  ended 21:22:44,
+  six of six files,
+  two things by scripts on real paths of this repository:
+  a change to a Kotlin test alone gets the brief for code,
+  since the test rule knows neither `src/test` nor `*Test.kt`;
+  and a test with the JSON fixture it uses is refused as nothing to review,
+  since `fixture/` is no folder the rule knows.
+  Weighed:
+  the change counted the repository's code kinds and left the test rule a guess,
+  and a kind read as code needs its tests known as tests.
+  The author is resumed to count the test and fixture markings the same way
+  (`~/temp/agent/pi-runs/review-brief-writer-for-every-kind-of-code-file-answers-its-review-of-2026-11-14-prompt.md`).
+- Read at 21:23:58:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going.
+  The resumed session is not named by the credential scan.
+
 ##### The killed-Git lock's author fixes both findings in part and cannot make the whole hold; a fresh run takes it from `f4b1fdf476` (2026-11-14T21:20:31-05:00)
 
 Not final and not approved:
