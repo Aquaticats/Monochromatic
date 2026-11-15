@@ -41,8 +41,8 @@ const DIGEST_NAME_BYTES: usize = 8;
 /// and the fixture root under the build directory is far too long to build one under.
 /// The room below the folder is what is left once its own path and the name are taken,
 /// and it is shorter where the home directory's path is longer or the process number has more digits:
-/// the gate's container leaves seven bytes under `$HOME/temp/agent`, where a name of `at-the-longest` plus padding
-/// needs thirteen.
+/// the gate's container leaves seven bytes under `$HOME/temp/agent`,
+/// where a name of `at-the-longest` plus padding needs thirteen.
 /// So the folder is asked for by the room the name needs,
 /// and a control here never depends on how long this account's home directory is.
 fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
@@ -74,7 +74,8 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
 /// and the room a runtime directory of a fixed length leaves for its own name is what stays past the folder it stands in,
 /// which depends on this account and on this process.
 /// The binary controls cannot use the library's test support (`#[cfg(test)]` is not compiled into this target),
-/// so this is the same choice the unit controls make, named here for the one thing they share.
+/// so this is the same choice the unit controls make,
+/// named here for the one thing they share.
 fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf {
     let name: String = format!("{prefix}{}", std::process::id());
     let mut places: Vec<PathBuf> = Vec::new();

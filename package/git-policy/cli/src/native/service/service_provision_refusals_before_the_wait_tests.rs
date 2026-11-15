@@ -127,7 +127,8 @@ fn short_parent() -> PathBuf {
 /// That room is what stays below the folder once the folder's own path and the name are taken,
 /// and it is shorter where the home directory's path is longer or the process number has more digits:
 /// the gate's container leaves seven bytes under `$HOME/temp/agent`,
-/// and a name of `longest`, which is seven bytes, is what the control on the last byte of an address asks for.
+/// and what the control on the last byte of an address asks for is seven bytes:
+/// the name `longest`.
 /// So the folder is asked for by the room the name needs,
 /// and a control here never depends on how long this account's home directory is.
 ///

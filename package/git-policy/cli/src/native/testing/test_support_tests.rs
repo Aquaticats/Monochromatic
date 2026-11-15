@@ -343,7 +343,8 @@ fn restoring_the_owner_access_keeps_group_and_other_bits_and_leaves_a_link_s_tar
 
 /// What:
 ///  The folder a runtime directory stands in is the longest place this account offers that stays inside the room a
-///  control asks for, and asking for one byte less of room moves it to a shorter place.
+///  control asks for,
+/// and asking for one byte less of room moves it to a shorter place.
 /// Why:
 ///   A runtime directory of a fixed length leaves whatever is past its folder for its name,
 /// and how much that is depends on this account and this process:
@@ -409,7 +410,8 @@ fn a_runtime_directory_is_named_for_its_tag_or_for_a_digest_of_it() {
 }
 
 /// What:
-///  A runtime directory whose name has less room than the name needs is refused, naming the folder and the room.
+///  A runtime directory whose name has less room than the name needs is refused,
+/// naming the folder and the room.
 /// Why:
 ///   The alternative is a control that builds a name the length cannot hold,
 /// which is what a truncated digest or a padded tag would be:
@@ -425,7 +427,8 @@ fn a_runtime_directory_with_no_room_for_its_name_is_refused() {
 }
 
 /// What:
-///  A room no place this account offers can give is refused, naming how much room was needed and every place tried.
+///  A room no place this account offers can give is refused,
+/// naming how much room was needed and every place tried.
 /// Why:
 ///   The refusal is what a person reads when a control cannot run where they are,
 /// and it has to say what to change rather than fail as a name that does not fit its own length.
