@@ -627,7 +627,8 @@ pub fn the_shadow_holds_what_a_build_needs(tree: &Path, template: &ShadowTemplat
     if !the_shadow_holds_what_a_creation_makes(tree, template) {
         return false;
     }
-    // A reftable repository's shadow is Git's own tables, which no loose file and no packed file of ours stands for.
+    // A reftable repository's shadow keeps its refs in Git's own tables, so no loose ref and no packed file of ours stands
+    //  for one; the creation's question has already asked for the list of those tables.
     if template.ref_format == RefFormat::Reftable {
         return true;
     }
@@ -673,8 +674,14 @@ pub fn the_shadow_holds_what_a_creation_makes(tree: &Path, template: &ShadowTemp
     if !is_a_directory(&tree.join("refs")) {
         return false;
     }
-    // A reftable repository's shadow is Git's own tables, which no entry of a creation stands for beyond these.
-    let _ = template;
+    // A reftable repository's shadow is Git's own tables, and the list of them is the one entry a table store always has:
+    //  `git init --ref-format=reftable` makes it, and a tree without it is one Git refuses every transaction in
+    //  (`fatal: reftable: transaction prepare: I/O error`).
+    if template.ref_format == crate::transaction_journal::RefFormat::Reftable
+        && !is_a_file(&tree.join("reftable").join("tables.list"))
+    {
+        return false;
+    }
     return true;
 }
 

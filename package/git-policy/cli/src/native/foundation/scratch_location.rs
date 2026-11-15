@@ -288,7 +288,39 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 /// ```ts
 /// const tree = prepareCommitScratch(commonDir, gitDir, name);
 /// ```
-pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
+pub fn prepare_commit_scratch(
+    common_dir: &Path,
+    git_dir: &Path,
+    name: &str,
+    ceiling: Duration,
+) -> std::io::Result<(PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>)> {
+    let tree: PathBuf = make_a_commit_scratch(common_dir, git_dir, name, ceiling)?;
+    // What: The tree is claimed as it is made, before this call returns it.
+    // Why:  A sweep that listed a tree as stale and removes it later must find the claim of the maker that made it:
+    //       a tree claimed from its first instant is one `may_go` spares and a removal's whole take refuses,
+    //       so no sweep can remove a tree a command is about to work in
+    //       (`service_scratch_abandonment.rs`,
+    //       `sweep_stale`).
+    //       A volume that cannot answer leaves the tree to its modification time, as every tree was kept before the claim existed.
+    let claim: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::hold(tree.as_path()) {
+        crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => Some(claim),
+        crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken
+        | crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => None,
+    };
+    return Ok((tree, claim));
+}
+
+/// What:
+///  Makes one commit scratch tree and answers where it is.
+/// Why:
+///   It is the making on its own,
+///  which the claim above is taken on as soon as it is a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = makeACommitScratch(commonDir, gitDir, name);
+/// ```
+fn make_a_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
     let covered: Option<PathBuf> = match prepare_repository_scratch_for_a_commit(common_dir) {
         Ok(directory) => Some(directory),
         Err(error) => {
@@ -657,6 +689,19 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
     stale.sort_by(older_first);
     let mut removed: usize = 0;
     for (_, path) in stale.iter().take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND) {
+        // What: The entry is taken whole as the last thing before its removal, and removed only while that claim is held.
+        // Why:  The listing above and this removal are two steps, and a maker that takes its claim between them is a live
+        //       holder of a tree this sweep listed as stale: a sweep that removed what it listed would take a tree a command is
+        //       about to work in (the review's fourth finding; a clock step is what opens the window).
+        //       The claim's whole take is the one answer no clock moves, and a maker has it from the tree's first instant
+        //       (`prepare_commit_scratch`), so the two never overlap.
+        let claim: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::take_to_remove(path.as_path()) {
+            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => Some(claim),
+            // A live holder, and no entry of this sweep's to remove.
+            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken => continue,
+            // A volume that cannot say who holds a file leaves the age to decide, as it did before the claim existed.
+            crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => None,
+        };
         // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the
         //  next sweep, instead of holding the command that asked for scratch for as long as the device takes.
         match remove_within(path.as_path(), ceiling) {
@@ -664,6 +709,8 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
             Removal::Unfinished => debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str()),
             Removal::Failed(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
         }
+        // The claim goes with the removal: an entry that outlived its removal keeps it, and the next sweep asks again.
+        drop(claim);
     }
     return removed;
 }

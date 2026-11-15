@@ -35,7 +35,7 @@ use crate::commit_build_part_durations::{BuildPartClock, note_build_part};
 use crate::commit_transaction::TransactionStop;
 use crate::global_arguments::global_layout;
 use crate::shadow_create::take_or_create_shadow;
-use crate::transaction_git::GitContext;
+use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -238,9 +238,39 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     //  when the person typed it.
     let (globals, commit_args): (Vec<OsString>, Vec<OsString>) =
         private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
+    // What: The two inputs this command was given, taken before anything can remove them, so what Git makes can be held
+    //       against them.
+    // Why:  A file under the scratch tree can go at any instant, whoever takes it: a sweep, a cleaner of temporary files, a
+    //       full drive, a kill. A list of files to look at before Git starts can only be longer, never enough, because Git
+    //       reads them after the look. What cannot be evaded is holding the commit Git made against the index and the
+    //       conclusion state the command began with, and that is asked here, before the request is built and before
+    //       anything of the real repository's merge state is touched.
+    //       The index is kept as a copy because Git reads the private one and updates it; the copy is the tree this command
+    //       asked to commit, whoever removes the private one afterwards.
+    let captured_index: PathBuf = input.scratch.join(CAPTURED_INDEX);
+    if std::fs::copy(input.commit_index, captured_index.as_path()).is_err() {
+        return Err(TransactionStop::Message(format!(
+            "the private index {} this commit reads went before Git was asked to build in it, so nothing was committed and nothing landed",
+            input.commit_index.display()
+        )));
+    }
+    let asked_for: AskedForCommit = the_commit_that_was_asked_for(input, &expected_parents_of(input)?)?;
     let mut attempt: usize = 0;
     loop {
         attempt += 1;
+        // What: A second build starts from a tree of its own and from the index this command was given.
+        // Why:  The first attempt's tree has the ref store and the conclusion copies it wrote,
+        //       and writing them again into the same tree fails on the wrapper's own files ("File exists");
+        //       a tree of its own is what the commit's scratch name gives every attempt of a command,
+        //       and the code that takes or makes one is the same code the first attempt ran.
+        if attempt > 1 {
+            let _gone: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(own_shadow.as_path(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
+            // The conclusion copies the first attempt made are made again from the real repository's state, which this
+            //  command's captures leave as it was.
+            let copies: PathBuf = input.scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+            let _cleared: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(copies.as_path(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
+            let _restored: std::io::Result<u64> = std::fs::copy(captured_index.as_path(), input.commit_index);
+        }
         // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
         let tree: crate::shadow_create::ShadowTree = take_or_create_shadow(
             input.context,
@@ -338,8 +368,153 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
                 return Err(error.into());
             }
         };
+        // What: The commit Git made is held against the index and the conclusion state this command began with, before the
+        //       request is built and before anything of the real repository's merge state is touched.
+        // Why:  A commit of the wrong parents or the wrong tree is a commit the person did not write, and a merge that lands
+        //       as one parent also takes the real merge state with it when its conclusion is cleaned
+        //       (`conclusion_cleanup.rs`). Nothing has landed here: the request is not built, the branch has not moved and the
+        //       real conclusion state is untouched, so a difference is answered with one more build from the captures, and a
+        //       second difference is said plainly with what differed (`SPEC.md`, "Merges and commits never fail").
+        if let Err(differed) = asked_for.holds(&prepared) {
+            note_build_part(THE_COMMIT_DIFFERED_PART, Duration::ZERO, Duration::ZERO);
+            crate::diagnostic_log::debug("serviceNative", format!("the commit Git built is not the one this command asked for: {differed}").as_str());
+            if attempt == 1 {
+                *input.handed = None;
+                continue;
+            }
+            return Err(TransactionStop::Message(format!("the commit Git built is not the one this command asked for: {differed}, so nothing landed and nothing in the repository changed")));
+        }
         return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid, drawn });
     }
+}
+
+/// The copy of the private index a build is judged against,
+/// under the commit's own scratch tree and beside the index Git reads.
+pub const CAPTURED_INDEX: &str = "captured.captured-index";
+
+/// The name a commit's own timing record carries when Git's commit was not the one the command asked for and it built again:
+///  a fixed name and never a path,
+///  because a build part holds a name a person can read and nothing of a machine's own.
+pub const THE_COMMIT_DIFFERED_PART: &str = "commit differed";
+
+/// What:
+///  The commit this command asked for:
+///  the parents it must have, and the tree it must hold, taken before Git runs.
+/// Why:
+///  It is the whole of the question a landable commit answers,
+///  and it is answered from the captures and not from the scratch tree,
+///  so no file that goes under the scratch tree can change the answer after the captures were taken.
+///  A parent list that cannot be told (an amend's,
+///  whose parents are the amended commit's)
+///  is left out of the question and the tree still stands for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AskedForCommit = { parents?: string[]; tree?: string };
+/// ```
+#[derive(Debug)]
+pub struct AskedForCommit {
+    /// The parents Git's commit must name,
+    /// in order,
+    /// or nothing when the command's form does not settle them.
+    parents: Option<Vec<String>>,
+    /// The tree Git's commit must hold,
+    /// or nothing when the index this command was given could not name one.
+    tree: Option<String>,
+}
+
+impl AskedForCommit {
+    /// What:
+    ///  Whether the commit Git made is the one this command asked for,
+    ///  or what differs.
+    /// Why:
+    ///  The two differences a person would meet are named in the words a person reads:
+    ///  a parent that is not the one the command began with (a conclusion that lost its other side),
+    ///  and a tree that is not the one the index held (a commit that would delete what the person kept).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// asked.holds(prepared) // ok, or the words of what differs
+    /// ```
+    fn holds(&self, prepared: &PreparedCommit) -> Result<(), String> {
+        if let Some(asked) = self.parents.as_ref() {
+            let made: Vec<String> = parents_of(prepared.raw.as_slice());
+            if &made != asked {
+                return Err(format!("its parents are {} where the command began with {}", made.join(", "), asked.join(", ")));
+            }
+        }
+        if let Some(asked) = self.tree.as_ref()
+            && &prepared.tree_oid != asked
+        {
+            return Err(format!("its tree is {} where the index this command was given holds {}", prepared.tree_oid, asked));
+        }
+        return Ok(());
+    }
+}
+
+/// What:
+///  The parents the command asked for,
+///  taken from the real repository before Git runs in the shadow.
+/// Why:
+///  A commit's first parent is the captured base,
+///  and a merge's other parents are the commits its real `MERGE_HEAD` names, in order.
+///  A cherry-pick's or a revert's commit has the base alone,
+///  so its own head file adds nothing.
+///  An amend's parents are the amended commit's and are not knowable here without reading that commit,
+///  so the command's form leaves them out and its tree is what stands for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parents = amends ? undefined : [base, ...mergeHeadLines(gitDir)];
+/// ```
+fn expected_parents_of(input: &BuildInput<'_>) -> Result<Option<Vec<String>>, TransactionStop> {
+    let amends: bool = input.arguments.iter().any(|argument| { return argument == "--amend"; });
+    if amends {
+        return Ok(None);
+    }
+    let mut parents: Vec<String> = Vec::new();
+    if let crate::transaction_journal::Base::Commit(base) = &input.capture.base {
+        parents.push(base.clone());
+    }
+    let merge_head: PathBuf = input.capture.layout.git_dir.join("MERGE_HEAD");
+    if let Ok(text) = std::fs::read_to_string(merge_head.as_path()) {
+        for line in text.lines() {
+            let name: &str = line.trim();
+            if !name.is_empty() {
+                parents.push(String::from(name));
+            }
+        }
+    }
+    return Ok(Some(parents));
+}
+
+/// What:
+///  The index and the conclusion state this command was given,
+///  with the tree Git's commit must hold read out of the kept copy of the index.
+/// Why:
+///  The tree is one `git write-tree` on the copy,
+///  which writes no new object when the commit is the one asked for (Git has just written that tree),
+///  and names exactly what the person staged when it is not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asked = { parents, tree: writeTree(capturedIndex) };
+/// ```
+fn the_commit_that_was_asked_for(input: &BuildInput<'_>, parents: &Option<Vec<String>>) -> Result<AskedForCommit, TransactionStop> {
+    let captured: PathBuf = input.scratch.join(CAPTURED_INDEX);
+    let mut request: GitRequest = GitRequest::new(input.cwd, &["write-tree"]);
+    request.without_prefix = true;
+    // The index this command was given, and the store its trees are written to, exactly as the build reads them.
+    request.index = Some(captured.clone());
+    request.object_directory = Some(input.capture.layout.object_directory.clone());
+    let tree: Option<String> = match run_git_checked(input.context, &request) {
+        Ok(output) => Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()),
+        Err(error) => {
+            crate::diagnostic_log::debug("serviceNative", format!("the tree this commit asked for cannot be read from {}: {error}", captured.display()).as_str());
+            None
+        }
+    };
+    return Ok(AskedForCommit { parents: parents.clone(), tree });
 }
 
 /// The name a commit's own timing record carries when the shadow it built in went and it built again:
