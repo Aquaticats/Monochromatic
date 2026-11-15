@@ -280,15 +280,38 @@ impl CommandRepository {
         ] {
             add(LockCandidate::Exactly(objects.join(name)));
         }
-        // A linked worktree's own administrative directory holds its index, HEAD, shallow file, rerere record and
-        //  sequencer state, and its own commands meet them; the wrapper clears them on the same proof.
-        if let Ok(listed) = std::fs::read_dir(common.join("worktrees")) {
-            let mut linked: Vec<PathBuf> = listed.flatten().map(|entry| { return entry.path(); }).collect();
+        // What: A linked worktree's own state is the entries of `<common>/worktrees` that are really folders there.
+        // Why:  `Path::is_dir` follows a symbolic link, so a link planted at that name sent the candidates into the folder
+        //       it pointed at, and a wrapped command deleted a person's `HEAD.lock` outside every repository
+        //       (a review of `3ac1254a73`,
+        // finding 1).
+        //       So the entry's own type decides, and the folder it names is resolved once and shown to lie under the
+        //       common directory's `worktrees` before a single candidate is built from it.
+        //       Every candidate is then `<that folder>/<name>` with a name Git writes there, so nothing outside it is
+        //       reachable.
+        let linked_root: PathBuf = common.join("worktrees");
+        if let Ok(listed) = std::fs::read_dir(linked_root.as_path()) {
+            let resolved_root: Option<PathBuf> = std::fs::canonicalize(linked_root.as_path()).ok();
+            let mut linked: Vec<PathBuf> = listed
+                .flatten()
+                .filter(|entry| { return matches!(entry.file_type(), Ok(kind) if kind.is_dir()); })
+                .map(|entry| { return entry.path(); })
+                .collect();
             linked.sort();
             for directory in linked {
-                if !directory.is_dir() {
+                let Ok(resolved) = std::fs::canonicalize(directory.as_path()) else {
+                    continue;
+                };
+                if resolved_root.as_ref().is_none_or(|root| { return !resolved.starts_with(root); }) {
                     continue;
                 }
+                // The index and the shallow file of a linked worktree lie in its own Git directory, and only the
+                //  worktree that runs there names them; the walk of any other worktree holds them all the same, so a
+                //  record they need is never called unused
+                //  (a review of `3ac1254a73`,
+                // finding 2).
+                add(LockCandidate::Exactly(locked_name(directory.join("index").as_path())));
+                add(LockCandidate::Exactly(locked_name(directory.join("shallow").as_path())));
                 add_git_directory_candidates(directory.as_path(), &mut add);
             }
         }

@@ -292,6 +292,54 @@ pub fn name_the_child(child: &mut std::process::Child) -> std::io::Result<()> {
 }
 
 /// What:
+///  Put this command's record in place before the Git it is about to start can take a lock:
+///  this process's own line, written here,
+///  and the child's own line, which the child writes between `fork` and `exec` (`own_record_before_becoming_git.rs`).
+///  `std::io::Result<()>` is the error that stops the start.
+/// Why:
+///   There must be no instant at which a Git of the wrapper's holds a lock and no record names it,
+///  and a parent that records its child after starting it always has a window:
+///  the child can take `index.lock` and die inside it,
+///  and the wrapper itself can be killed inside it
+///  (a review of `3ac1254a73`,
+/// finding 3).
+///  The child cannot be held for the parent, because `std::process::Command::spawn` waits for it to reach `execve`,
+///  so the child writes its own line before it becomes Git,
+///  with the calls that are safe between `fork` and `exec`,
+///  and this function only prepares that line and writes the writer's own.
+///  The rule of `doc/planning/cli-git-no-self-invocation.md` ("The rule") is kept:
+///  nothing here starts the wrapper's own executable,
+///  and nothing here writes shell text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordThisProcessBeforeAGitStarts(); command.preExec(() => preparedChildLine.write())
+/// ```
+pub fn record_the_git_this_command_starts(command: &mut Command) -> std::io::Result<()> {
+    // What: The writer's own line first, so the record names its writer before any child appends to it.
+    // Why:  A file that names no writer may not be removed by another command, and the child's line alone would leave
+    //       exactly that when the parent is killed.
+    crate::lock_holder_records::record_this_process_before_a_git_starts()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        let prepared: Option<crate::own_record_before_becoming_git::OwnLineBeforeBecomingGit> =
+            crate::lock_holder_records::remembered_repository().and_then(|common| { return crate::own_record_before_becoming_git::own_line_for(common); });
+        let Some(prepared) = prepared else {
+            // A command that remembers no repository (or whose names cannot be handed to `open`) keeps the slower shape:
+            //  the parent names the child as soon as the start returns.
+            return Ok(());
+        };
+        // SAFETY: the closure runs in the child between `fork` and `exec` and calls only `mkdir`, `open`, `read`,
+        //  `write`, `close` and `getpid`, on bytes this value brought with it; it allocates nothing and takes no lock.
+        unsafe {
+            command.pre_exec(move || { return prepared.write(); });
+        }
+    }
+    return Ok(());
+}
+
+/// What:
 ///  Start the child `command` builds and name it in the repository's record,
 ///  stopping and reaping it when the record cannot be written.
 /// Why:
@@ -300,9 +348,10 @@ pub fn name_the_child(child: &mut std::process::Child) -> std::io::Result<()> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const child = command.spawnRetrying(); nameTheChild(child); return child;
+/// recordTheGitThisCommandStarts(command); const child = command.spawnRetrying(); nameTheChild(child); return child;
 /// ```
 pub fn spawn_naming_its_child(command: &mut Command) -> std::io::Result<std::process::Child> {
+    record_the_git_this_command_starts(command)?;
     let mut child: std::process::Child = command.spawn_retrying()?;
     name_the_child(&mut child)?;
     return Ok(child);

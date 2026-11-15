@@ -1,0 +1,347 @@
+//! What:
+//!  The line a Git the wrapper starts writes about itself between `fork` and `exec`,
+//!  when it already knows its own number and can read its own birth,
+//!  so that no instant exists at which a Git of the wrapper's can hold a lock and no record names it.
+//! Why:
+//!   A parent that records its child after starting it always has a window:
+//!  the child can take `index.lock` and be killed inside it,
+//!  and the wrapper can be killed inside it too,
+//!  which leaves a lock nothing can ever explain and a commit that fails on `File exists`
+//!  (a review of `3ac1254a38`,
+//! findings 1 and 3 of the two rounds before it).
+//!  A parent that holds the child before it runs cannot help either: `std::process::Command::spawn` waits on its
+//!  own error pipe until the child reaches `execve`, so a child held in `pre_exec` never lets `spawn` return.
+//!   What is left is this: the child writes its own line, in the parent's own record file, before `execve`.
+//!  Everything here runs in the child between `fork` and `exec`,
+//!  so it uses only the calls the standard lists as safe there:
+//!  `mkdir`, `open`, `read`, `write`, `close` and `getpid`,
+//!  with no allocation and no lock.
+//!   The line names the process and its start tick,
+//!  without the boot, the PID namespace and the machine:
+//!  the pass judges a holder on a lock of one of this machine's own file systems,
+//!  where a record of this machine is the only one that can explain it,
+//!  and the parent adds the full identity beside it as soon as it can.
+//!  A child that then fails to `exec` is a process that never took a lock,
+//!  so its line is one a later pass finds gone and sweeps with the record.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const own = prepareOwnLine(); command.preExec(() => own.write()); // mkdir folder; open file; read /proc/self/stat; write line
+//! ```
+
+/// The bytes a record starts with, and the separator the line needs.
+use crate::lock_holder_records::RECORD_HEADER;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+use std::path::{Path, PathBuf};
+
+/// What:
+///  Everything the child needs to write its line:
+///  the folder and file as C strings the child can hand to `open`,
+///  and the header a new file starts with.
+/// Why:
+///   The child may not allocate,
+///  so every byte it writes is prepared here,
+///  in the parent,
+///  where a `CString` costs nothing later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwnLineBeforeBecomingGit = { folder: Buffer; file: Buffer; header: Buffer };
+/// ```
+#[cfg(unix)]
+pub struct OwnLineBeforeBecomingGit {
+    /// The record folder, NUL-terminated for `mkdir`.
+    folder: std::ffi::CString,
+    /// The record file, NUL-terminated for `open`.
+    file: std::ffi::CString,
+    /// The header a new file starts with, newline included.
+    header: Vec<u8>,
+}
+
+/// What:
+///  Prepare the child's own-line writer for the record `path` in `folder`,
+///  or nothing when either name is not text this platform can hand to `open`.
+/// Why:
+///   The two names come from the repository's own path and this process's identity,
+///  and a name that cannot be a C string is one no child can open:
+///  the parent then records the child itself and the caller keeps the slower shape it had.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// prepareOwnLine('/repo/.git/cli-git-lock-holders', '/repo/.git/cli-git-lock-holders/42.abc')
+/// ```
+#[cfg(unix)]
+pub fn prepare_own_line(folder: &Path, path: &Path) -> Option<OwnLineBeforeBecomingGit> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let folder: std::ffi::CString = std::ffi::CString::new(folder.as_os_str().as_bytes()).ok()?;
+    let file: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut header: Vec<u8> = RECORD_HEADER.as_bytes().to_vec();
+    header.push(b'\n');
+    return Some(OwnLineBeforeBecomingGit { folder, file, header });
+}
+
+/// What:
+///  The start tick of a process's record in `/proc/<pid>/stat` when the kernel keeps it,
+///  read from bytes the caller already has.
+/// Why:
+///   The last `)` ends the command name,
+///  which may hold spaces and brackets,
+///  and the start tick is the twentieth field after it
+///  (`process_identity.rs`,
+/// `LINUX_START_FIELD_INDEX`).
+///  A missing field or no digits is no birth.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// startTickOf('/proc/self/stat bytes') // '16474396', undefined when the record has no such field
+/// ```
+fn start_tick_of(stat: &[u8]) -> Option<u64> {
+    let end: usize = stat.iter().rposition(|byte| { return *byte == b')'; })?;
+    let mut index: usize = end + 1;
+    // The state is the first field after `) `, so the start tick is nineteen spaces further on.
+    let mut fields_seen: usize = 0;
+    while index < stat.len() && fields_seen <= 19 {
+        while index < stat.len() && stat[index] == b' ' {
+            index += 1;
+        }
+        if index >= stat.len() {
+            return None;
+        }
+        fields_seen += 1;
+        if fields_seen == 20 {
+            let began: usize = index;
+            let mut value: u64 = 0;
+            while index < stat.len() && stat[index].is_ascii_digit() {
+                value = value.checked_mul(10)?.checked_add(u64::from(stat[index] - b'0'))?;
+                index += 1;
+            }
+            return (index > began).then_some(value);
+        }
+        while index < stat.len() && stat[index] != b' ' {
+            index += 1;
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The bytes of the line this process writes about itself:
+///  `child <pid> linux:<start tick>` and a newline,
+///  made in a buffer the caller owns.
+/// Why:
+///   The child may not allocate,
+///  so the number and the tick are written by hand into a fixed buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ownLineBytes(42, 16474396) // 'child 42 linux:16474396\n'
+/// ```
+fn own_line_bytes(pid: u32, tick: u64, out: &mut [u8]) -> Option<usize> {
+    let mut at: usize = 0;
+    for byte in b"child " {
+        *out.get_mut(at)? = *byte;
+        at += 1;
+    }
+    at += write_decimal(pid as u64, out.get_mut(at..)?)?;
+    for byte in b" linux:" {
+        *out.get_mut(at)? = *byte;
+        at += 1;
+    }
+    at += write_decimal(tick, out.get_mut(at..)?)?;
+    *out.get_mut(at)? = b'\n';
+    return Some(at + 1);
+}
+
+/// What:
+///  Write `value` in decimal into `out`,
+///  and answer how many bytes it took.
+/// Why:
+///   The child's buffer is written by hand,
+///  and this is the one place a number is turned into bytes there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeDecimal(42, out) // 2
+/// ```
+fn write_decimal(value: u64, out: &mut [u8]) -> Option<usize> {
+    let mut digits: [u8; 20] = [0; 20];
+    let mut count: usize = 0;
+    let mut left: u64 = value;
+    loop {
+        digits[count] = b'0' + u8::try_from(left % 10).ok()?;
+        count += 1;
+        left /= 10;
+        if left == 0 {
+            break;
+        }
+    }
+    for index in 0..count {
+        *out.get_mut(index)? = digits[count - 1 - index];
+    }
+    return Some(count);
+}
+
+#[cfg(unix)]
+impl OwnLineBeforeBecomingGit {
+    /// What:
+    ///  Write this process's own line,
+    ///  making the folder and the file first when they are not there.
+    ///  `std::io::Result<()>` is the error that stops the child from becoming Git.
+    /// Why:
+    ///   This runs in the child between `fork` and `exec`,
+    ///  so it calls only `mkdir`, `open`, `read`, `write`, `close` and `getpid`,
+    ///  and it touches no memory it did not bring with it.
+    ///  An error here is the child's own answer to the parent,
+    ///  which then starts nothing:
+    ///  a Git that cannot be recorded does not run.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// mkdirSync(folder, { recursive: true }); const fd = openSync(file, 'a+'); writeSync(fd, headerWhenNew + line)
+    /// ```
+    pub fn write(&self) -> std::io::Result<()> {
+        // SAFETY: `mkdir` takes a NUL-terminated path this value owns and a mode; it touches no other memory.
+        let made: libc::c_int = unsafe { libc::mkdir(self.folder.as_ptr(), 0o700) };
+        if made != 0 {
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.kind() != std::io::ErrorKind::AlreadyExists {
+                return Err(error);
+            }
+        }
+        let mut stat: [u8; 1024] = [0; 1024];
+        let read: usize = read_bounded(c"/proc/self/stat".as_ptr(), &mut stat)?;
+        let Some(tick) = start_tick_of(stat.get(..read).unwrap_or(&[])) else {
+            return Err(std::io::Error::other("this process's start tick could not be read, so no Git ran"));
+        };
+        let mut line: [u8; 64] = [0; 64];
+        // SAFETY: `getpid` takes nothing and returns this process's number.
+        let pid: u32 = unsafe { libc::getpid() }.cast_unsigned();
+        let Some(line_len) = own_line_bytes(pid, tick, &mut line) else {
+            return Err(std::io::Error::other("this process's line did not fit, so no Git ran"));
+        };
+        let line: &[u8] = line.get(..line_len).unwrap_or(&[]);
+        // The file is made once and appended to afterwards, so the header goes only with the creation.
+        let created: libc::c_int = unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC, 0o600) };
+        if created >= 0 {
+            let wrote_header: std::io::Result<()> = write_all(created, self.header.as_slice());
+            let wrote_line: std::io::Result<()> = wrote_header.and_then(|()| { return write_all(created, line); });
+            close(created);
+            return wrote_line;
+        }
+        let error: std::io::Error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::AlreadyExists {
+            return Err(error);
+        }
+        let appended: libc::c_int = unsafe { libc::open(self.file.as_ptr(), libc::O_WRONLY | libc::O_APPEND | libc::O_CLOEXEC) };
+        if appended < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let wrote: std::io::Result<()> = write_all(appended, line);
+        close(appended);
+        return wrote;
+    }
+}
+
+/// What:
+///  Read a small file into `buffer` and answer how many bytes arrived.
+/// Why:
+///   The child reads `/proc/self/stat` into a buffer of its own,
+///  and one read of a small record is all it needs;
+///  a read that is interrupted is tried again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fd = openSync(path, 'r'); const n = readSync(fd, buffer); closeSync(fd)
+/// ```
+#[cfg(unix)]
+fn read_bounded(path: *const libc::c_char, buffer: &mut [u8]) -> std::io::Result<usize> {
+    // SAFETY: the path is NUL-terminated and owned by the caller, and the flags are the ones `open` takes.
+    let descriptor: libc::c_int = unsafe { libc::open(path, libc::O_RDONLY | libc::O_CLOEXEC) };
+    if descriptor < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    let mut filled: usize = 0;
+    while filled < buffer.len() {
+        // SAFETY: the pointer is the buffer's own start offset by `filled`, inside its bounds.
+        let got: libc::ssize_t = unsafe { libc::read(descriptor, buffer.as_mut_ptr().add(filled).cast(), buffer.len() - filled) };
+        if got > 0 {
+            filled += usize::try_from(got).unwrap_or(0);
+            continue;
+        }
+        if got == 0 {
+            break;
+        }
+        let error: std::io::Error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::Interrupted {
+            close(descriptor);
+            return Err(error);
+        }
+    }
+    close(descriptor);
+    return Ok(filled);
+}
+
+/// What:
+///  Write every byte of `bytes` to `descriptor`.
+/// Why:
+///   A short write is normal on a pipe and possible on a file,
+///  and a half-written line would name nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (bytes.length) bytes = bytes.subarray(writeSync(fd, bytes))
+/// ```
+#[cfg(unix)]
+fn write_all(descriptor: libc::c_int, bytes: &[u8]) -> std::io::Result<()> {
+    let mut written: usize = 0;
+    while written < bytes.len() {
+        // SAFETY: the pointer is the slice's own start offset by `written`, inside its bounds.
+        let count: libc::ssize_t = unsafe { libc::write(descriptor, bytes.as_ptr().add(written).cast(), bytes.len() - written) };
+        if count > 0 {
+            written += usize::try_from(count).unwrap_or(0);
+            continue;
+        }
+        if count == 0 {
+            return Err(std::io::Error::other("the record took no bytes"));
+        }
+        let error: std::io::Error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+    return Ok(());
+}
+
+/// What:
+///  Close a descriptor, ignoring the answer.
+/// Why:
+///   The line is already written by then,
+///  and a close that fails has no place to be reported in a child about to `exec`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { closeSync(fd) } catch {}
+/// ```
+#[cfg(unix)]
+fn close(descriptor: libc::c_int) {
+    // SAFETY: the descriptor is one this call opened and closes once.
+    let _closed: libc::c_int = unsafe { libc::close(descriptor) };
+}
+
+/// What:
+///  The folder and file a child would write to for `common_dir`,
+///  or nothing when this process's identity or those names cannot be prepared.
+/// Why:
+///   The caller needs the same two names the record writer uses,
+///  so a child and its parent write one file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ownLineFor('/repo/.git') // the prepared writer, or undefined
+/// ```
+#[cfg(unix)]
+pub fn own_line_for(common_dir: &Path) -> Option<OwnLineBeforeBecomingGit> {
+    let folder: PathBuf = crate::lock_holder_records::folder_of(common_dir);
+    let path: PathBuf = crate::lock_holder_records::this_process_record_path(common_dir)?;
+    return prepare_own_line(folder.as_path(), path.as_path());
+}

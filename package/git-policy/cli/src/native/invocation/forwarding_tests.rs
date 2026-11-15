@@ -577,12 +577,100 @@ fn a_git_that_dies_before_its_identity_is_read_is_still_named_and_its_lock_is_cl
     assert!(matches!(ended, Ok(ChildOutcome::Signaled(9))), "the stand-in Git ended itself: {ended:?}");
     let record: PathBuf = this_process_record_path(common.as_path()).expect("this process's record path");
     let text: String = std::fs::read_to_string(record.as_path()).expect("the record the start wrote, though the Git died at once");
-    assert!(text.matches("child ").count() == 1, "the Git that died is named: {text:?}");
+    // What: The child is named, and by the full identity the parent adds as well as by the line it wrote itself.
+    // Why:  The child writes its own line between `fork` and `exec`, and the parent adds the identity with the boot,
+    //       the PID namespace and the machine beside it; both name one process and the proof judges both.
+    assert!(text.matches("child ").count() >= 1, "the Git that died is named: {text:?}");
+    assert!(
+        text.lines().any(|line| { return line.starts_with("child ") && line.matches('#').count() == 3; }),
+        "the full identity of that Git is named too: {text:?}"
+    );
     assert!(lock.exists() && pid_file.exists(), "the lock and its PID file are the ones the stand-in left");
     // The PID file names the shell that made it, and the record names the same process: the proof is the one a later
     //  command has, and it is enough.
     let outcome = clear_abandoned_locks(candidates_of_git_directory(common.as_path()).as_slice(), common.as_path(), common.as_path());
     assert_eq!(outcome.cleared.len(), 1, "the next pass clears the lock on the record the start wrote");
     assert!(!lock.exists(), "the lock the dead Git left is gone");
+    remove(root.as_path());
+}
+
+/// The variable that makes this control's own test binary the wrapper a control kills.
+const KILLED_WRAPPER_FIXTURE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_KILLED_WRAPPER_FIXTURE";
+
+/// What:
+///  A wrapper killed between starting a Git and naming it leaves that Git named all the same,
+///  because the Git wrote its own line before it could take a lock,
+///  and the next pass clears the lock it left.
+/// Why:
+///  The record was written by the parent after the start, so a kill of the wrapper in that window left a lock nothing
+///  could ever explain, and the next commit failed on `File exists`
+///  (a review of `3ac1254a73`,
+/// finding 3).
+///  The kill is placed by the change's own test-only hold, before the identity is read, so this control is about that
+///  instant and not about a race;
+///  the positive control runs the same arm without a kill.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(currentTestBinary, [thisTest, '--exact'], { env: { ...env, KILLED_WRAPPER_FIXTURE_VARIABLE: fixture } });
+/// await waitFor(existsSync(join(common, 'index~pid.lock'))); child.kill('SIGKILL');
+/// expect(recordLines(common).some((line) => line.startsWith('child '))).toBe(true);
+/// expect(clearAbandonedLocks(...).cleared).toHaveLength(1);
+/// ```
+#[test]
+fn a_wrapper_killed_between_starting_a_git_and_naming_it_leaves_that_git_named() {
+    // What: The arm that runs as the "wrapper" is this very test, started again by the control that kills it.
+    // Why:  The kill must hit a process whose only job is to start that Git, and the test binary is the library under test.
+    if let Some(fixture) = std::env::var_os(KILLED_WRAPPER_FIXTURE_VARIABLE) {
+        let root: PathBuf = PathBuf::from(fixture);
+        let common: PathBuf = root.join(".git");
+        remember_repository(common.as_path());
+        let program: PathBuf = root.join("slow-git");
+        let script: String = format!(
+            "#!/bin/sh\n: > '{0}/index.lock'\nsleep 0.02\necho pid $$ > '{0}/index~pid.lock'\nkill -9 $$\n",
+            common.display()
+        );
+        executable(program.as_path(), script.as_bytes());
+        hold_the_identity_read(Some(std::time::Duration::from_millis(600)));
+        let _ran = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(60), StartOwner::Wrapper);
+        return;
+    }
+    let root: PathBuf = fixture("forward-killed-wrapper");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.join("objects").as_path()).expect("the object directory");
+    std::fs::create_dir_all(common.join("refs/heads").as_path()).expect("the references");
+    std::fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+    let lock: PathBuf = common.join("index.lock");
+    let pid_file: PathBuf = common.join("index~pid.lock");
+    let mut arm: std::process::Command = std::process::Command::new(std::env::current_exe().expect("this test binary"));
+    arm.args(["--exact", "invocation::forwarding::tests::a_wrapper_killed_between_starting_a_git_and_naming_it_leaves_that_git_named", "--nocapture", "--test-threads=1"])
+        .env(KILLED_WRAPPER_FIXTURE_VARIABLE, root.as_os_str())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let mut child: std::process::Child = arm.spawn().expect("the arm starts");
+    // The arm is killed once its Git holds the lock and names itself, which is the window the record is written in.
+    let began: std::time::Instant = std::time::Instant::now();
+    while !pid_file.exists() {
+        assert!(began.elapsed() < std::time::Duration::from_secs(20), "the arm's Git took the lock in time");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let _killed = child.kill();
+    let _waited = child.wait().expect("the arm ends");
+    let folder: PathBuf = crate::lock_holder_records::folder_of(common.as_path());
+    let mut names_the_git: bool = false;
+    if let Ok(listed) = std::fs::read_dir(folder.as_path()) {
+        for entry in listed.flatten() {
+            let text: String = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            if text.lines().any(|line| { return line.starts_with("child "); }) {
+                names_the_git = true;
+            }
+        }
+    }
+    assert!(names_the_git, "the Git the killed wrapper started is named in the record it wrote itself");
+    assert!(lock.exists(), "the lock the killed Git left stands");
+    let outcome = crate::abandoned_locks::clear_abandoned_locks(candidates_of_git_directory(common.as_path()).as_slice(), common.as_path(), common.as_path());
+    assert_eq!(outcome.cleared.len(), 1, "the next pass clears the lock on the record the Git wrote");
+    assert!(!lock.exists(), "the lock is gone");
     remove(root.as_path());
 }

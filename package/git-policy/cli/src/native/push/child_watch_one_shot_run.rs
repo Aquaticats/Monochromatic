@@ -175,6 +175,10 @@ pub fn output_watched_within_for_a_stop(
     // What: The child is held before it can run, its record is written, and only then is it let go.
     // Why:  A step that takes a lock in its first instruction would otherwise be one no record could name
     //       (a review of `429503238b`, finding 1).
+    // What: This command's record is in place before the Git it starts can take a lock.
+    // Why:  A child recorded after its start can take `index.lock` and die in the window
+    //       (a review of `3ac1254a73`, finding 3).
+    crate::forwarding::record_the_git_this_command_starts(command)?;
     let mut child: Child = command.spawn_retrying()?;
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {

@@ -95,7 +95,23 @@ pub fn remember_repository(common_dir: &Path) {
     let _set = REPOSITORY.set(common_dir.to_path_buf());
 }
 
-/// Whether a repository is remembered,
+/// What:
+///  The repository this command works in,
+///  or nothing when it works in none (or is the commit service).
+/// Why:
+///   The caller that is about to start a Git needs both names the record needs:
+///  the folder its children write in and the file this process writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberedRepository() // '/repo/.git' or undefined
+/// ```
+pub fn remembered_repository() -> Option<&'static Path> {
+    return REPOSITORY.get().map(|common| { return common.as_path(); });
+}
+
+/// What:
+///  Whether a repository is remembered,
 /// which a control asks so it knows whether its fixture is armed.
 pub fn remembers_a_repository() -> bool {
     return REPOSITORY.get().is_some();
@@ -302,6 +318,27 @@ pub fn this_process_has_a_record(common_dir: &Path) -> bool {
         return false;
     };
     return path.exists();
+}
+
+/// What:
+///  Note this process in the remembered repository before a Git it starts can run,
+///  and answer whether the line was written.
+/// Why:
+///   A child appends its own line to this file between `fork` and `exec`
+///  (`own_record_before_becoming_git.rs`),
+///  and a file whose writer is not named is one no other command may remove;
+///  so the writer's line goes first,
+///  before the first child exists.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordThisProcessBeforeAGitStarts() // writes the `self` line, or throws
+/// ```
+pub fn record_this_process_before_a_git_starts() -> std::io::Result<()> {
+    let Some(common_dir) = REPOSITORY.get() else {
+        return Ok(());
+    };
+    return record_this_process(common_dir.as_path());
 }
 
 /// What:

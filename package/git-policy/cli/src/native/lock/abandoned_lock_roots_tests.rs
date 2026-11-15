@@ -177,3 +177,78 @@ fn a_persons_file_named_like_a_lock_beside_an_alternate_index_is_left_untouched(
     assert!(!index_lock.exists(), "the lock of the index Git was told to use is cleared on the record");
     remove(root.as_path());
 }
+
+/// What:
+///  A symbolic link among the entries of `<common>/worktrees` is not a worktree,
+///  and the pass judges nothing in the folder it points at.
+/// Why:
+///  `Path::is_dir` follows a link, so a link planted at that name made the pass build lock candidates in its target and
+///  delete a person's `HEAD.lock` outside every repository
+///  (a review of `3ac1254a73`,
+/// finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(outside, join(common, 'worktrees', 'not-a-worktree')); plantLock(join(outside, 'HEAD.lock'), deadPid);
+/// meetTheLocks(repository); expect(readFileSync(join(outside, 'HEAD.lock'))).toEqual(bytes);
+/// ```
+#[test]
+fn a_link_among_the_worktree_entries_is_not_a_worktree() {
+    let (root, repository, gone, _record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository("lock-roots-a-linked-worktree-entry");
+    let common: PathBuf = repository.common_dir.clone().expect("the common directory");
+    let outside: PathBuf = root.join("outside-every-repository");
+    std::fs::create_dir_all(outside.as_path()).expect("the folder the link points at");
+    std::fs::create_dir_all(common.join("worktrees").as_path()).expect("the worktrees folder");
+    std::os::unix::fs::symlink(outside.as_path(), common.join("worktrees/not-a-worktree").as_path()).expect("the link");
+    let persons_file: PathBuf = outside.join("HEAD.lock");
+    let persons_bytes: &[u8] = b"a person's data outside every repository\n";
+    std::fs::write(persons_file.as_path(), persons_bytes).expect("the person's file");
+    make_pid_file_after_the_lock(persons_file.as_path(), gone);
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "nothing outside the repository is judged or removed");
+    remove(root.as_path());
+}
+
+/// What:
+///  A pass in the main worktree clears the abandoned index lock of a linked worktree,
+///  because that worktree's own locks are candidates wherever the pass runs.
+/// Why:
+///  The walk once held only the current worktree's index and shallow file,
+///  so a pass in the main worktree never saw a linked worktree's `index.lock`,
+///  removed the record that explained it as unneeded,
+///  and left the lock for the worktree's own pass to find with no proof
+///  (a review of `3ac1254a73`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdir(join(common, 'worktrees', 'defect')); plantLock(join(common, 'worktrees', 'defect', 'index.lock'), deadPid);
+/// meetTheLocks(mainRepository); expect(existsSync(join(common, 'worktrees', 'defect', 'index.lock'))).toBe(false);
+/// ```
+#[test]
+fn a_pass_in_the_main_worktree_clears_a_linked_worktrees_index_lock() {
+    let (root, repository, gone, record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository("lock-roots-a-linked-worktree-index");
+    let common: PathBuf = repository.common_dir.clone().expect("the common directory");
+    let linked: PathBuf = common.join("worktrees/defect");
+    std::fs::create_dir_all(linked.as_path()).expect("the linked worktree's Git directory");
+    let lock: PathBuf = locked_index_of(linked.as_path());
+    plant_the_lock(lock.as_path(), gone);
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(!lock.exists(), "the main worktree's pass clears the lock the linked worktree's dead Git left");
+    assert!(!record.exists(), "and the record goes with the lock it explained, because the pass that removed it held that lock");
+    remove(root.as_path());
+}
+
+/// What:
+///  The name of the lock Git writes for the index in a Git directory.
+/// Why:
+///   The control names the lock the same way Git does,
+///  so a change to the naming shows here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lockedIndexOf = (gitDir) => join(gitDir, 'index.lock');
+/// ```
+fn locked_index_of(git_dir: &Path) -> PathBuf {
+    return git_dir.join("index").with_extension("lock");
+}

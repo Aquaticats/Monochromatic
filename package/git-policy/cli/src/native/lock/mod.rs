@@ -102,6 +102,9 @@ pub mod forwarded_lock_notice;
 /// with the arm a control hides or coarsens.
 pub mod lock_birth_times;
 
+/// The line a Git the wrapper starts writes about itself between `fork` and `exec`.
+pub mod own_record_before_becoming_git;
+
 /// The record a command writes about the processes it starts in a repository,
 /// and the proof that one of them is gone.
 pub mod lock_holder_records;
