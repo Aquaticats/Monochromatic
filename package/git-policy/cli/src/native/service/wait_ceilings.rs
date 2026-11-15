@@ -655,6 +655,16 @@ pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
 /// one minute is 17 times the longest.
 pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 
+/// How long a commit may wait for the landing thread to take its group before the service names, in its log and to the
+/// person waiting, what the wait is in.
+/// Why:
+///  The bound this project puts on a commit is the greater of five seconds and twice what real Git takes for the same commit
+///  (`SPEC.md`), and a wait past it that the service cannot explain is the defect of 2026-11-15, when two commits waited
+///  120,560 ms and 78,864 ms before their groups began and no line of the journal said which step held them.
+///  Five seconds is the floor of that bound: the service does not measure real Git's commit, so a wait past the floor is
+///  reported with whatever the landing thread was inside.
+pub const A_QUEUE_WAIT_NAMED_AFTER: Duration = Duration::from_secs(5);
+
 /// The longest the after-commit work waits for one step that reads or writes state which is not a Git command:
 /// the plan of the pushes waiting for a new try,
 /// the applied changes of a round,

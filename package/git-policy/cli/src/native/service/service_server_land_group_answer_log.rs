@@ -141,6 +141,10 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         steps: steps.as_slice(),
         steps_dropped,
     });
+    // What: A wait that passed this project's bound on a commit names the step it was in, or says that no step was recorded.
+    // Why:  Two commits of 2026-11-15 spent 120,560 ms and 78,864 ms in the queue and the journal held no line saying which step
+    //       held them, so the wait could not be attributed to anything (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
+    let board: Option<String> = crate::service_busy_step_record_on_this_thread::words_of_a_long_queue_wait(queued, Some(times.queued_behind));
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
     let fields: [(&str, String); 4] = [
@@ -150,4 +154,7 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         ("CLI_GIT_BATCH", times.batch.to_string()),
     ];
     log_entry(priority, line.as_str(), &fields);
+    if let Some(words) = board {
+        crate::service_warn!("the request {} waited, and {words}", request.id);
+    }
 }

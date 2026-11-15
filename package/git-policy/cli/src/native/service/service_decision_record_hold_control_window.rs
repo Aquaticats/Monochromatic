@@ -67,8 +67,8 @@ pub(crate) fn the_decision_record_waits_where_a_control_says() {
 
 /// `the_decision_record_waits_where_a_control_says` with the place and the ceiling a control states,
 ///  so its own case holds nothing of the process's environment and waits out no minute.
-pub(crate) fn the_decision_record_waits_where_a_control_says_within(named: Option<&OsStr>, ceiling: Duration) {
-    let Some(named) = named else { return };
+pub(crate) fn the_decision_record_waits_where_a_control_says_within(place: Option<&OsStr>, ceiling: Duration) {
+    let Some(named) = place else { return };
     let where_the_control_holds_it: PathBuf = PathBuf::from(named);
     let reached: PathBuf = marker(where_the_control_holds_it.as_path(), "reached");
     if let Err(error) = std::fs::write(reached.as_path(), b"") {

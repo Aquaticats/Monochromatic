@@ -147,7 +147,7 @@ fn where_no_thread_can_start_the_note_of_a_beat_is_left_out() {
     }
     let (shared, _jobs) = shared_in("connection-no-thread-note");
     let ((), _ticks) = with_a_ticker_beside(async {
-        let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")));
+        let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")), None);
         assert_eq!(notice.note().await, None, "no note, and no panic");
     });
 }
@@ -666,4 +666,28 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
     })
     .expect("the process runtime runs this control");
     assert_eq!(outcome, ServiceMessage::Landed { id: String::from("held-pool"), commit: String::from("c"), already: false, landing: None }, "the answer is written while every place is held");
+}
+
+/// What:
+///  A request that has waited past the bound with no write recorded is told what its wait is in,
+///  once,
+///  and one whose wait is inside the bound is told nothing.
+/// Why:
+///   Two commits of 2026-11-15 waited 120,560 ms and 78,864 ms and the person was told only that the service had not said
+///  where the commit stood; the board can name the step the wait was in, or say that it recorded none
+///  (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
+#[test]
+fn a_request_that_waited_past_the_bound_is_told_what_the_wait_is_in() {
+    let (shared, _jobs) = shared_in("connection-queue-wait-words");
+    let bound: Duration = crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER;
+    let inside: Instant = Instant::now().checked_sub(bound / 2).expect("a moment inside the bound");
+    assert_eq!(note_from_the_board(&shared.board, Some("a-request"), Some(inside), None), (None, None), "a wait inside the bound is told nothing");
+    let past: Instant = Instant::now().checked_sub(bound * 2).expect("a moment past the bound");
+    let (message, key) = note_from_the_board(&shared.board, Some("a-request"), Some(past), None);
+    let Some(ServiceMessage::Waiting { text }) = message else { panic!("the words of the wait are said: {message:?}") };
+    assert!(text.contains("had recorded no write"), "{text}");
+    assert!(key.is_some(), "the words are the key that keeps them from being said again");
+    let said: Option<String> = key;
+    assert_eq!(note_from_the_board(&shared.board, Some("a-request"), Some(past), said.clone()).0, None, "and they are said once");
+    assert_eq!(note_from_the_board(&shared.board, Some("a-request"), None, None), (None, None), "a connection whose wait is not a commit's is told nothing");
 }

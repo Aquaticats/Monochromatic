@@ -93,8 +93,8 @@ pub(crate) struct ConnectionShared {
 /// ```ts
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
-pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>) -> StuckNotice {
-    return StuckNotice { board, request, last: None, still_reading: None };
+pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>, accepted: Option<Instant>) -> StuckNotice {
+    return StuckNotice { board, request, accepted, last: None, still_reading: None };
 }
 
 /// The answer of one read of the journal for a beat's note:
@@ -136,6 +136,10 @@ pub(crate) struct StuckNotice {
     /// The identity of the request the connection serves,
     /// when it serves one.
     request: Option<String>,
+    /// When the connection was accepted,
+    /// which is when the request began to wait,
+    /// and nothing for a connection whose wait is not a commit's.
+    accepted: Option<Instant>,
     /// The key of the words said last.
     last: Option<String>,
     /// The read of this connection's note that is still running,
@@ -148,7 +152,7 @@ pub(crate) struct StuckNotice {
 /// The board is files of the journal,
 /// which can wait on storage,
 /// so the reads run on the blocking pool.
-fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option<String>) -> (Option<ServiceMessage>, Option<String>) {
+fn note_from_the_board(board: &LandingBoard, request: Option<&str>, accepted: Option<Instant>, last: Option<String>) -> (Option<ServiceMessage>, Option<String>) {
     // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
     #[cfg(test)]
     crate::service_fault::hooks::run_on_any_thread(IN_THE_NOTE_READ);
@@ -164,11 +168,27 @@ fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option
         }
         return (Some(ServiceMessage::InsideWrite { text: words }), Some(key));
     }
-    let Some(words) = board.describe() else { return (None, last) };
-    if last.as_deref() == Some(words.as_str()) {
+    if let Some(words) = board.describe() {
+        if last.as_deref() == Some(words.as_str()) {
+            return (None, last);
+        }
+        return (Some(ServiceMessage::Waiting { text: words.clone() }), Some(words));
+    }
+    // What: A request that has waited past the bound a commit may wait, with no write recorded, is told what the wait is in.
+    // Why:  Two commits of 2026-11-15 waited 120,560 ms and 78,864 ms and the person was told only that the service had not said
+    //       where the commit stood; the board can name the step the queue stood behind, or say that it recorded none
+    //       (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
+    let Some(waited_before_now) = accepted.map(|since| { return since.elapsed(); }) else { return (None, last) };
+    if waited_before_now < crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER {
         return (None, last);
     }
-    return (Some(ServiceMessage::Waiting { text: words.clone() }), Some(words));
+    let Some(behind) = board.words_of_a_queue_wait(waited_before_now, None) else { return (None, last) };
+    // The words are the key: they carry no moment, so a connection is told them once.
+    if last.as_deref() == Some(behind.as_str()) {
+        return (None, last);
+    }
+    let text: String = format!("monochromatic-git-policy-cli: the commit service has not taken this commit yet: {behind}.\n");
+    return (Some(ServiceMessage::Waiting { text: text.clone() }), Some(behind));
 }
 
 impl NoteSource for StuckNotice {
@@ -176,10 +196,11 @@ impl NoteSource for StuckNotice {
         if self.still_reading.is_none() {
             let board: Arc<LandingBoard> = Arc::clone(&self.board);
             let request: Option<String> = self.request.clone();
+            let accepted: Option<Instant> = self.accepted;
             // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
-            self.still_reading = Some(Box::pin(run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), last); })));
+            self.still_reading = Some(Box::pin(run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), accepted, last); })));
         }
         let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
         // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
@@ -408,7 +429,7 @@ where
     let answering: UnboundedSender<ServiceMessage> = reply.sender();
     let queue: UnboundedSender<Job> = shared.queue.clone();
     // What a beat asks for before it, held here because the writer borrows it for the whole wait.
-    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()));
+    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()), Some(accepted));
     // What the check's answer is written with, and what it does with the request it decides about.
     let checking = async move {
         match decide.await {
@@ -465,7 +486,7 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
             let _queued = shared.queue.send(Job::Withdraw(id, reply));
             // The connection keeps the identity of the request, so a client that withdrew too early to have been told it is
             // inside the write is told now.
-            write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing))).await;
+            write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing), None)).await;
         }
     };
 }

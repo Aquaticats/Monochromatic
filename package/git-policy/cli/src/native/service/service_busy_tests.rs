@@ -663,3 +663,28 @@ fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_threa
         (Decision::Lost(_), Decision::Lost(_)) => panic!("neither thread won; the file says `{content}`"),
     }
 }
+
+/// What:
+///  A wait shorter than the bound names nothing,
+///  the wait that reaches it names the last write the landing thread was inside,
+///  and one that follows no recorded write says so.
+/// Why:
+///   A wait over the bound must name the step it is in, in the log and to the person waiting,
+/// and the service that cannot name one says that instead of saying nothing
+/// (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
+#[test]
+fn a_wait_over_the_bound_names_the_write_the_landing_thread_was_last_inside() {
+    let record: Arc<LandingBoard> = board();
+    let bound: Duration = crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER;
+    assert_eq!(record.words_of_a_queue_wait(bound - Duration::from_millis(1), Some(0)), None, "a wait inside the bound is named by the answered line alone");
+    let unrecorded: String = record.words_of_a_queue_wait(bound, Some(0)).expect("a wait at the bound is named");
+    assert!(unrecorded.contains("had recorded no write"), "{unrecorded}");
+    assert!(unrecorded.contains("nothing of its own batch was ahead of it"), "{unrecorded}");
+    record.note_the_write_it_left("git update-ref --stdin in /repo");
+    let named: String = record.words_of_a_queue_wait(bound * 2, Some(3)).expect("a wait past the bound is named");
+    assert!(named.contains("git update-ref --stdin in /repo"), "{named}");
+    assert!(!named.contains("had recorded no write"), "{named}");
+    assert!(named.contains("3 commits of the service were still waiting"), "{named}");
+    let unknown: String = record.words_of_a_queue_wait(bound, None).expect("a wait at the bound is named");
+    assert!(unknown.contains("is not known to the board"), "{unknown}");
+}

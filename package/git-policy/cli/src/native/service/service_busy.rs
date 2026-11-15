@@ -83,7 +83,7 @@ use crate::private_storage::write_private_file_unsynced;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// The directory of the record inside the journal.
 const DIRECTORY: &str = "busy";
@@ -157,17 +157,38 @@ pub struct LandingBoard {
     /// The directory of the record.
     pub(crate) directory: PathBuf,
     /// Lock kept:
-    ///  the requests the landing thread has taken for the group it is landing,
-    ///  as the identities a connection thread must leave to it:
+    ///  the requests the landing thread has taken for the group it is landing and the last write it was inside,
+    ///  as the identities a connection thread must leave to it and the words a wait over the bound is told:
     /// the landing thread claims each identity as it takes a group and gives it back when the group is over,
-    ///  a connection thread reads the claims while a write that never ends holds the landing,
+    ///  and it writes down each write that ends beside them,
+    ///  a connection thread reads both while a request waits,
     ///  and no storage is touched under the lock.
     /// It is a lock and not a file because a file was the commit's own wait:
     ///  creating one per request put a write of the journal's drive between a commit and its landing,
     ///  which took two commits 120,560 ms and 78,864 ms on 2026-11-15
     ///  (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`),
-    ///  while the claims of a landing die with the landing and nothing of them outlives the service.
-    held: std::sync::Mutex<Vec<String>>,
+    ///  while the claims and the words of a landing die with the landing and nothing of them outlives the service.
+    held: std::sync::Mutex<TheLandingsOwn>,
+}
+
+/// What the landing thread owns in memory:
+/// the identities it holds for the group it lands,
+/// and the last write it was inside.
+struct TheLandingsOwn {
+    /// The requests the landing thread has taken and not yet given back.
+    group: Vec<String>,
+    /// The command of the last write that ended,
+    /// and when it ended.
+    last: Option<TheWriteItWasInside>,
+}
+
+/// One write the landing thread was inside,
+/// as the words a wait over the bound names it by.
+struct TheWriteItWasInside {
+    /// The command, as the step record names it.
+    command: String,
+    /// When the write ended.
+    ended: Instant,
 }
 
 /// What:
@@ -210,7 +231,7 @@ impl LandingBoard {
         let directory: PathBuf = journal.join(DIRECTORY);
         let _removed = std::fs::remove_dir_all(directory.as_path());
         let _made = std::fs::create_dir_all(directory.as_path());
-        return Arc::new(Self { slow_after, journal, directory, held: std::sync::Mutex::new(Vec::new()) });
+        return Arc::new(Self { slow_after, journal, directory, held: std::sync::Mutex::new(TheLandingsOwn { group: Vec::new(), last: None }) });
     }
 
     /// The decision file of a request.
@@ -358,8 +379,8 @@ impl LandingBoard {
     /// ```
     fn recorded_withdrawal(&self, id: &str) -> RecordedWithdrawal {
         match crate::private_storage::open_regular_file(self.decision_path(id).as_path()) {
-            Err(crate::private_storage::ReadRefusal::Missing) => RecordedWithdrawal::None,
-            Err(_) => RecordedWithdrawal::Unknown,
+            Err(crate::private_storage::ReadRefusal::Missing) => return RecordedWithdrawal::None,
+            Err(_) => return RecordedWithdrawal::Unknown,
             Ok(mut file) => {
                 let mut text: String = String::new();
                 if std::io::Read::read_to_string(&mut file, &mut text).is_err() {
@@ -372,23 +393,98 @@ impl LandingBoard {
 
     /// Whether this board holds `id` for the group the landing thread is landing.
     fn holds(&self, id: &str) -> bool {
-        return self.held.lock().expect("the requests the landing thread holds").iter().any(|held| { return held == id; });
+        return self.held.lock().expect("the landing thread's own").group.iter().any(|held| { return held == id; });
     }
 
     /// Take `id` for the landing thread,
     /// once however many copies of it come.
     fn hold(&self, id: &str) {
-        let mut held = self.held.lock().expect("the requests the landing thread holds");
-        if !held.iter().any(|claimed| { return claimed == id; }) {
-            held.push(String::from(id));
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        if !owned.group.iter().any(|claimed| { return claimed == id; }) {
+            owned.group.push(String::from(id));
         }
     }
 
     /// Give `id` back,
     /// so a later withdrawal of it is decided by a connection thread again.
     fn give_back(&self, id: &str) {
-        let mut held = self.held.lock().expect("the requests the landing thread holds");
-        held.retain(|claimed| { return claimed != id; });
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        owned.group.retain(|claimed| { return claimed != id; });
+    }
+
+    /// What:
+    ///  Write down the write the landing thread has just left,
+    ///  so a commit that waits past the bound is told what the wait was in.
+    /// Why:
+    ///   The step record names the write the landing thread is inside now and is removed with it,
+    /// so a wait that outlasts the write would have nothing to name;
+    /// the words of the last one say which step the queue stood behind, which is what the two commits of
+    ///  2026-11-15 waited for and no line of the journal gave.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// board.noteTheWriteItLeft('git update-ref --stdin in /repo');
+    /// ```
+    pub fn note_the_write_it_left(&self, command: &str) {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        owned.last = Some(TheWriteItWasInside { command: String::from(command), ended: Instant::now() });
+    }
+
+    /// What:
+    ///  The words that name the step a commit waited in before its group began:
+    /// the last write the landing thread was inside and how long ago it ended,
+    /// or that the landing thread recorded no write at all.
+    /// Why:
+    ///   The step record names the write the landing thread is inside now and is removed with it,
+    /// so a wait that outlasts that write would have nothing to name;
+    /// these words say which step the queue stood behind,
+    /// which is what the two commits of 2026-11-15 waited for and no line of the journal gave
+    /// (`wait_ceilings.rs`,
+    /// `A_QUEUE_WAIT_NAMED_AFTER`).
+    /// They carry no moment of their own, so a waiting client is told them once and the client's own line carries the
+    /// seconds.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const words = board.wordsOfTheStepAQueueWaitIsIn(); // 'the landing thread was last inside `…`' | 'the landing thread had recorded no write'
+    /// ```
+    pub fn words_of_the_step_a_queue_wait_is_in(&self) -> String {
+        return match self.held.lock().expect("the landing thread's own").last.as_ref() {
+            Some(last) => format!(
+                "the landing thread was last inside `{}`, which ended {} seconds before this answer",
+                last.command,
+                last.ended.elapsed().as_secs()
+            ),
+            None => String::from("the landing thread had recorded no write it was inside, so the wait was in the work before its first write"),
+        };
+    }
+
+    /// What:
+    ///  The sentence the service's log carries for a commit that waited `queued` for the landing thread to take its
+    ///  group,
+    ///  and nothing while that wait is inside the bound.
+    /// Why:
+    ///   A wait past this project's bound on a commit must name the step it is in, in the service's log,
+    /// and a service that cannot name one says so instead of saying nothing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const words = board.wordsOfAQueueWait(queued, behind); // undefined while queued < BOUND
+    /// ```
+    pub fn words_of_a_queue_wait(&self, queued: Duration, behind: Option<usize>) -> Option<String> {
+        if queued < crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER {
+            return None;
+        }
+        let ahead: String = match behind {
+            Some(0) => String::from("nothing of its own batch was ahead of it"),
+            Some(waiting) => format!("{waiting} commits of the service were still waiting when it was answered"),
+            None => String::from("what was ahead of it is not known to the board"),
+        };
+        return Some(format!(
+            "a commit waited {} seconds for the landing thread to take its group, and {ahead}; {}",
+            queued.as_secs(),
+            self.words_of_the_step_a_queue_wait_is_in()
+        ));
     }
 
     /// The group is landed (or given up):

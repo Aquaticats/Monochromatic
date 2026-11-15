@@ -19,6 +19,7 @@ use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_stat
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use crate::service_busy::{LandingBoard, STEP_FILE, now_millis};
 
 /// What:
@@ -108,15 +109,22 @@ pub fn detail(text: String) -> DetailGuard {
 }
 
 /// Clears the running step when the write ends,
-/// however it ends.
+/// however it ends,
+/// and writes down which write it was,
+/// so a commit that waits past the bound after it names it.
 pub struct StepGuard {
     /// The file that names the step.
     file: PathBuf,
+    /// The board the step was recorded in.
+    board: Arc<LandingBoard>,
+    /// The command the step ran.
+    command: String,
 }
 
 impl Drop for StepGuard {
     fn drop(&mut self) {
         let _removed = std::fs::remove_file(self.file.as_path());
+        self.board.note_the_write_it_left(self.command.as_str());
     }
 }
 
@@ -149,8 +157,31 @@ pub fn enter_step(command: String) -> Option<StepGuard> {
     let board: Arc<LandingBoard> = on_the_landing_state((), board_of_the_landing)?;
     let detail: Option<String> = on_the_landing_state((), detail_of_the_landing);
     let file: PathBuf = board.directory.join(STEP_FILE);
-    let text: String = format!("{}\n{}\n{}\n", now_millis(), one_line(command.as_str()), detail.as_deref().map_or_else(String::new, one_line));
+    let named: String = one_line(command.as_str());
+    let text: String = format!("{}\n{}\n{}\n", now_millis(), named, detail.as_deref().map_or_else(String::new, one_line));
     // A step that cannot be recorded is still run; the clients just are not told about it.
     let _recorded = publish(file.as_path(), text.as_str());
-    return Some(StepGuard { file });
+    return Some(StepGuard { file, board: Arc::clone(&board), command: named });
+}
+
+/// What:
+///  The words for a commit that has waited `queued` for the landing thread to take its group,
+///  from the board of the landing this code runs in,
+///  and nothing while that wait is inside the bound or this landing has no board.
+/// Why:
+///   The words belong to the board (`service_busy.rs`),
+///  and the landing is the only place that has one;
+/// a caller on the landing thread reaches it here rather than carrying the board through every step of a batch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = wordsOfALongQueueWait(queued, behind); // board?.wordsOfAQueueWait(queued, behind)
+/// ```
+pub fn words_of_a_long_queue_wait(queued: Duration, behind: Option<usize>) -> Option<String> {
+    return on_the_landing_state((queued, behind), words_from_the_board);
+}
+
+/// `words_of_a_long_queue_wait` with the state the caller runs in.
+fn words_from_the_board(state: &LandingState, (queued, behind): (Duration, Option<usize>)) -> Option<String> {
+    return state.board.borrow().as_ref()?.words_of_a_queue_wait(queued, behind);
 }
