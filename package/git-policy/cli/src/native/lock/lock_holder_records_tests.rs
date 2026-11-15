@@ -19,12 +19,15 @@
 //! expect(holdersOf(recordText([['self', 42, id]]))).toEqual([[42, id]]);
 //! ```
 
-use crate::lock_holder_record_reads::{Record, every_record, identities_recorded, remove_records_no_one_needs, remove_this_process_record_if_no_lock_needs_it};
+use crate::lock_holder_record_reads::{
+    Record, every_record, identities_recorded, proved_gone_writer, remove_records_no_one_needs, remove_this_process_record_if_no_lock_needs_it,
+};
 use crate::lock_holder_records::{
     CHILD_KIND, RECORD_HEADER, SELF_KIND, folder_of, identity_of_birth, identity_of_process, record_a_child_started, record_line, record_text,
     this_process_record_path, write_a_record_line_once,
 };
-use crate::record_proof_test_support::a_dead_process;
+use crate::git_directory_roots::CommandRepository;
+use crate::record_proof_test_support::{a_dead_process, make_pid_file_after_the_lock};
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
@@ -299,5 +302,60 @@ fn an_attempt_whose_folder_is_not_under_the_file_reports_it_and_makes_nothing() 
     .expect_err("a file whose directory is not there cannot be made");
     assert_eq!(failed.kind(), std::io::ErrorKind::NotFound, "the failure says the folder or the file is not there: {failed}");
     assert!(!unreachable.exists(), "nothing was written");
+    remove(root.as_path());
+}
+
+/// How many unrelated records the bound control plants before the record a lock needs.
+/// It is one more than the bound a sweep reads, so the record a lock names would fall past that bound.
+const MORE_RECORDS_THAN_A_SWEEP_READS: usize = 513;
+
+/// What:
+///  A record a lock's PID file names is found and used even when the folder holds more records than one sweep reads and
+///  every other name sorts before it.
+/// Why:
+///  A bound on how many records a pass reads is right, since a folder can hold anything;
+///  but the proof asks about one number,
+///  and a bounded listing of the whole folder answered "no record" for a lock whose record was there.
+///  Whether a commit failed then depended on lexical order
+///  (a review of `4e9b9fff1d`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let n = 0; n < 513; n++) writeRecord(folder, `${String(n).padStart(4, '0')}.unrelated`);
+/// writeRecord(folder, `${deadPid}.record`); plantLock(indexLock, deadPid);
+/// meetTheLocks(repository); expect(existsSync(indexLock)).toBe(false);
+/// ```
+#[test]
+fn a_record_a_locks_number_names_is_found_past_the_bound_a_sweep_reads() {
+    let root: PathBuf = fixture("record-past-the-bound");
+    let folder: PathBuf = folder_of(root.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the folder");
+    let (gone, identity): (i64, String) = a_dead_process();
+    let unrelated_identity: String = identity_of_birth("linux:4242");
+    for index in 0..MORE_RECORDS_THAN_A_SWEEP_READS {
+        let name: String = format!("{index:04}.unrelated");
+        std::fs::write(folder.join(name.as_str()), record_text(&[(SELF_KIND, 4242, unrelated_identity.clone())]).as_bytes()).expect("an unrelated record");
+    }
+    let record: PathBuf = folder.join(format!("{gone}.record"));
+    std::fs::write(record.as_path(), record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity)]).as_bytes()).expect("the record the lock needs");
+    assert!(
+        proved_gone_writer(root.as_path(), gone).is_some(),
+        "the proof reads the record of the number the lock names, whatever else the folder holds and in whatever order"
+    );
+    let lock: PathBuf = root.join("index.lock");
+    std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock a killed Git left");
+    make_pid_file_after_the_lock(lock.as_path(), gone);
+    // The pass over one plain repository: its Git directory is its common directory, and the index lies in it.
+    let repository: CommandRepository = CommandRepository {
+        start: root.clone(),
+        git_dir: Some(root.clone()),
+        common_dir: Some(root.clone()),
+        index_file: Some(root.join("index")),
+        shallow_file: Some(root.join("shallow")),
+        object_dir: Some(root.join("objects")),
+    };
+    crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(!lock.exists(), "the lock is cleared on the record the number names, past the bound a sweep reads");
     remove(root.as_path());
 }

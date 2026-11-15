@@ -129,6 +129,12 @@ mod lock_holder_records_tests;
 #[path = "abandoned_lock_record_removal_tests.rs"]
 mod abandoned_lock_record_removal_tests;
 
+/// Controls of the directories the pass searches and the record folder it reads, for the settings that move a locked
+/// file out of the Git directory.
+#[cfg(test)]
+#[path = "abandoned_lock_roots_tests.rs"]
+mod abandoned_lock_roots_tests;
+
 /// The state a control plants for a record's proof: a process that ran and ended, and a PID file born after its lock.
 #[cfg(test)]
 #[path = "record_proof_test_support.rs"]

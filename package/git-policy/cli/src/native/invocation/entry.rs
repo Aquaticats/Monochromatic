@@ -355,14 +355,16 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     }
     // From here on every real-Git start of this process runs with traditional hooks off.
     crate::hooks_off::activate();
-    let met: Vec<PathBuf> = meet_the_locks_here(arguments, environment);
+    let repository: CommandRepository = meet_the_locks_here(arguments, environment);
     let code: i32 = perform_the_action(arguments, environment);
     // What: A record this command wrote for a Git it started explains a lock that Git may have left; once the command
     //       ends and no lock of the repository names any process the record names, the record and its folder go.
     // Why:  A command that changed nothing else then leaves the Git directory exactly as it found it. A command that
     //       became Git never reaches this line, and its record is what proves its own lock's holder gone, so it stays
     //       until the next command's pass sweeps it.
-    crate::abandoned_locks::sweep_the_records_the_command_left(met.as_slice());
+    if let Some(common) = repository.common_dir.as_deref() {
+        crate::abandoned_locks::sweep_the_records_the_command_left(repository.lock_roots().as_slice(), common);
+    }
     return code;
 }
 
@@ -385,7 +387,7 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
 /// ```ts
 /// const roots = meetTheLocksFor(args, env); const code = perform(args, env); sweepAfter(roots); return code;
 /// ```
-fn meet_the_locks_here(arguments: &[OsString], environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
+fn meet_the_locks_here(arguments: &[OsString], environment: &[(OsString, OsString)]) -> CommandRepository {
     let globals: StrippedInvocation = strip_wrapper_controls(arguments);
     // `&globals.arguments[..prefix_len]` borrows the globals before the command word: the wrapper's own controls are
     //  stripped out first, so no control is read as one of Git's options.
@@ -394,7 +396,8 @@ fn meet_the_locks_here(arguments: &[OsString], environment: &[(OsString, OsStrin
     // Why:  The `-C` chain, the named Git directory and the named common directory must be applied once each: a second
     //       application of a relative `-C` looked in a repository nobody named (a review of `2af2ecb879`, finding 1).
     let repository: CommandRepository = repository_a_command_works_on(std::env::current_dir().unwrap_or_default().as_path(), prefix, environment);
-    return crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    return repository;
 }
 
 /// What:

@@ -65,6 +65,8 @@ pub(crate) fn take_index_lock(
     //       lands at once instead of the wait reaching its ceiling and withdrawing the change.
     let _cleared: usize = crate::abandoned_locks::clear_abandoned_locks_telling(
         crate::abandoned_locks::roots_of_git_directory(first.index.parent().unwrap_or(repository)).as_slice(),
+        first.index.parent().unwrap_or(repository),
+        crate::git_directory_roots::common_dir_for(first.index.parent().unwrap_or(repository)).as_path(),
         &mut std::io::stderr(),
     );
     let waiting_since: Instant = Instant::now();

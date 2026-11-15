@@ -27,6 +27,16 @@ pub const GIT_DIRECTORY_VARIABLE: &str = "GIT_DIR";
 /// where its records and its shared references live.
 pub const GIT_COMMON_DIRECTORY_VARIABLE: &str = "GIT_COMMON_DIR";
 
+/// The variable that names the index file Git reads and locks (`environment.h`, line 19).
+pub const GIT_INDEX_FILE_VARIABLE: &str = "GIT_INDEX_FILE";
+
+/// The variable that names the shallow file Git locks (`environment.h`, line 17).
+pub const GIT_SHALLOW_FILE_VARIABLE: &str = "GIT_SHALLOW_FILE";
+
+/// The variable that names the object directory Git locks its pack and graph files in
+/// (`environment.h`, line 14).
+pub const GIT_OBJECT_DIRECTORY_VARIABLE: &str = "GIT_OBJECT_DIRECTORY";
+
 /// What:
 ///  The text of an option value that names a path,
 /// and where in the prefix the next option starts.
@@ -139,7 +149,28 @@ pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
 /// lastGitDirOption(['-C', 'sub', '--git-dir=../cfg.git']) // '../cfg.git', unjoined
 /// ```
 pub fn last_git_dir_option(global_prefix: &[OsString]) -> Option<PathBuf> {
-    let mut named_git_dir: Option<PathBuf> = None;
+    return last_option_value(global_prefix, "--git-dir");
+}
+
+/// What:
+///  The last value the global options give `name`,
+///  as it was written,
+///  or nothing when they give none.
+///  `&[OsString]` borrows the tokens before the subcommand.
+/// Why:
+///  Git keeps the last of two options that name the same thing,
+///  and each value is read from the directory the `-C` chain ends in,
+///  which that chain's own reader answers once.
+///  `--git-dir` and `--shallow-file` are the two globals of this shape that move a file Git locks
+///  (`git.c`,
+/// lines 306 to 311 for `--shallow-file`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lastOptionValue(['-C', 'sub', '--shallow-file=../shallow'], '--shallow-file') // '../shallow', unjoined
+/// ```
+pub fn last_option_value(global_prefix: &[OsString], name: &str) -> Option<PathBuf> {
+    let mut named: Option<PathBuf> = None;
     let mut index: usize = 0;
     while index < global_prefix.len() {
         let token: &OsString = &global_prefix[index];
@@ -147,8 +178,8 @@ pub fn last_git_dir_option(global_prefix: &[OsString]) -> Option<PathBuf> {
             index += 2;
             continue;
         }
-        if let Some((value, next)) = path_option_value(global_prefix, index, "--git-dir") {
-            named_git_dir = Some(value);
+        if let Some((value, next)) = path_option_value(global_prefix, index, name) {
+            named = Some(value);
             index = next;
             continue;
         }
@@ -159,7 +190,7 @@ pub fn last_git_dir_option(global_prefix: &[OsString]) -> Option<PathBuf> {
         let takes_value: bool = VALUE_OPTIONS.contains(&token.as_encoded_bytes());
         index += if takes_value { 2 } else { 1 };
     }
-    return named_git_dir;
+    return named;
 }
 
 /// What:

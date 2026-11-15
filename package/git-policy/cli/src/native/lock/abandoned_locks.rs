@@ -16,17 +16,146 @@
 //! and it names every lock it removed;
 //!  a lock it cannot prove keeps the bounded wait and the report it always had.
 //!  The walk reads directory entries by their own file type,
-//!  so a symbolic link is never followed,
-//!  and it skips the object store,
-//! whose files are a pack writer's own.
+//!  so a symbolic link is never followed.
 //!  The pass runs from the wrapper's own process before the command reaches Git,
 //!  in the repository the command works on rather than the one its working directory belongs to,
 //!  and from the commit service before its landing waits for an index lock,
 //!  so the next command of any kind meets a clear repository.
 //!
+//! Every file Git can lock for the commands the wrapper forwards,
+//! where it lies under each setting that moves it,
+//! and the root of the one answer (`CommandRepository::lock_roots`) that covers it.
+//!  A lock lies beside the file it protects, as `<file>.lock` with `<file>~pid.lock` beside it
+//!  (`lockfile.c`,
+//! lines 99 to 110;
+//! `lockfile.h`,
+//! lines 132 to 136):
+//!
+//!  - the index:
+//!    `<git-dir>/index`,
+//!    or `GIT_INDEX_FILE` (`repository.c`,
+//! lines 191 and 192);
+//!    root:
+//!    the index file's own directory,
+//!    which is the Git directory unless the variable names another.
+//!  - the references (files backend):
+//!    `<common-dir>/refs/**`
+//!    (`refs/files-backend.c`,
+//! lines 855, 1276 and 3609);
+//!    root:
+//!    the common directory and the Git directory.
+//!  - `packed-refs`:
+//!    `<common-dir>/packed-refs`
+//!    (`refs/packed-backend.c`,
+//! line 1258);
+//!    root:
+//!    the common directory.
+//!  - the reftable backend's list of tables:
+//!    `<common-dir>/reftable/tables.list`
+//!    (`reftable/system.c`,
+//! line 71);
+//!    root:
+//!    the common directory.
+//!  - the shallow file:
+//!    `<git-dir>/shallow`,
+//!    or `GIT_SHALLOW_FILE` or `--shallow-file` (`path.c`,
+//! line 1656;
+//! `environment.h`,
+//! line 17;
+//! `git.c`,
+//! lines 306 to 311);
+//!    root:
+//!    the shallow file's own directory.
+//!  - the repository's config:
+//!    `<common-dir>/config`,
+//!    or the file `GIT_CONFIG` names (`config.c`,
+//! lines 3090 and 3436);
+//!    root:
+//!    the common directory when it is the repository's config;
+//!    a file the person names with `--file`, the per-user file and the system file are outside every root.
+//!  - the sequencer's state and the index it stages into:
+//!    `<git-dir>/sequencer/*`,
+//!    `<git-dir>/rebase-merge/*`,
+//!    `<git-dir>/rebase-apply/*` and `<git-dir>/next-index-<pid>`
+//!    (`sequencer.c`,
+//! lines 578, 3745, 4018 and 4543;
+//! `builtin/commit.c`,
+//! line 543);
+//!    root:
+//!    the Git directory.
+//!  - the rerere cache's `MERGE_RR`:
+//!    `<git-dir>/MERGE_RR`
+//!    (`rerere.c`,
+//! line 944);
+//!    root:
+//!    the Git directory.
+//!  - the sparse-checkout file:
+//!    `<git-dir>/info/sparse-checkout`
+//!    (`builtin/sparse-checkout.c`,
+//! line 344);
+//!    root:
+//!    the Git directory.
+//!  - garbage collection's own files:
+//!    `<git-dir>/gc.pid` and `<git-dir>/gc.log`
+//!    (`builtin/gc.c`,
+//! lines 440 and 710);
+//!    root:
+//!    the Git directory.
+//!  - the maintenance and schedule locks:
+//!    `<object-dir>/maintenance` and `<object-dir>/schedule`
+//!    (`builtin/gc.c`,
+//! lines 1404 and 2979),
+//!    and the loose object index `<object-dir>/loose-object-idx` (`loose.c`,
+//! line 191);
+//!    root:
+//!    the object directory itself, listed and not descended.
+//!  - the alternates file:
+//!    `<object-dir>/info/alternates`
+//!    (`odb/source-files.c`,
+//! line 116);
+//!    root:
+//!    `<object-dir>/info`.
+//!  - the commit-graph:
+//!    `<object-dir>/info/commit-graph`
+//!    (`commit-graph.c`,
+//! lines 2133 and 2152);
+//!    root:
+//!    `<object-dir>/info`.
+//!  - the multi-pack index and its chain:
+//!    `<object-dir>/pack/multi-pack-index` and `<object-dir>/pack/multi-pack-index-chain`
+//!    (`midx-write.c`,
+//! lines 1629 and 1649;
+//! `repack-midx.c`,
+//! line 957);
+//!    root:
+//!    `<object-dir>/pack`.
+//!  - a linked worktree's own index:
+//!    `<common-dir>/worktrees/<id>/index`
+//!    (`repository.c`,
+//! line 192 with the worktree's Git directory);
+//!    root:
+//!    the worktree's Git directory,
+//!    which is the Git directory of a command run in it.
+//!
+//! A lock no root covers is a lock this pass can never clear:
+//!  the per-user and system config files,
+//!  a config file named with `--file`,
+//!  the credential store (`builtin/credential-store.c`,
+//! line 71),
+//!  a bundle's own path (`bundle.c`,
+//! line 532),
+//!  a marks file (`builtin/fast-import.c`,
+//! line 1782)
+//!  and the maintenance scheduler's socket (`unix-stream-server.c`,
+//! line 50).
+//!  Those lie outside the repository the pass is defined over,
+//!  and Git's own tools refuse or clear them;
+//!  a record whose Git only ever locked one of them explains nothing this pass could do,
+//!  which is why the removal of records is bounded by roots that cover every lock inside the repository.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = clearAbandonedLocks(roots); stderr.write(outcome.notice());
+//! const outcome = clearAbandonedLocks(repository); stderr.write(outcome.notice());
 //! ```
 
 /// The proof and the removal of one lock.
@@ -37,6 +166,8 @@ use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
 use crate::git_directory_roots::common_dir_for;
+/// One directory a lock can lie in, and whether the walk goes below it.
+use crate::git_directory_roots::LockRoot;
 /// The records themselves:
 /// the repository this command works in,
 /// which every Git it starts is noted in.
@@ -129,7 +260,7 @@ impl Outcome {
 /// ```ts
 /// function lockCandidates(roots: string[]): string[];
 /// ```
-pub fn lock_candidates(roots: &[PathBuf]) -> Vec<PathBuf> {
+pub fn lock_candidates(roots: &[LockRoot]) -> Vec<PathBuf> {
     return walked(roots).locks;
 }
 
@@ -170,17 +301,25 @@ pub struct Walked {
 /// ```ts
 /// function walked(roots: string[]): Walked;
 /// ```
-pub fn walked(roots: &[PathBuf]) -> Walked {
+pub fn walked(roots: &[LockRoot]) -> Walked {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut complete: bool = true;
     let mut seen: usize = 0;
     for root in roots {
-        let mut pending: Vec<(PathBuf, usize)> = vec![(root.clone(), 0)];
+        // A root without descent is listed and nothing below it is: Git locks a file beside it, and the object
+        //  store's subdirectories hold loose objects by the hundred thousand and no lock.
+        let downward: usize = if root.below { MOST_DEPTH } else { 0 };
+        let mut pending: Vec<(PathBuf, usize)> = vec![(root.path.clone(), 0)];
         while let Some((directory, depth)) = pending.pop() {
-            let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
+            let entries: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
+                Ok(listed) => listed,
+                // A directory that is not there holds no lock of this repository, and its absence proves nothing missed.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 // A directory this account may not read may hold a lock.
-                complete = false;
-                continue;
+                Err(_unreadable) => {
+                    complete = false;
+                    continue;
+                }
             };
             for entry in entries.flatten() {
                 seen += 1;
@@ -196,12 +335,13 @@ pub fn walked(roots: &[PathBuf]) -> Walked {
                     if SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
                         continue;
                     }
-                    if depth < MOST_DEPTH {
+                    if depth < downward {
                         pending.push((entry.path(), depth + 1));
-                    } else {
+                    } else if root.below {
                         // Deeper than this walk goes: what it holds is a lock no sweep may call litter.
                         complete = false;
                     }
+                    // A root without descent names a directory whose subdirectories Git never locks in, so nothing is missed.
                     continue;
                 }
                 if kind.is_file() && is_a_lock_name(entry.file_name().to_string_lossy().as_ref()) {
@@ -269,14 +409,18 @@ fn stands_in_the_way(lock: &Path, git_dir: &Path, common_dir: &Path) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function clearAbandonedLocks(roots: string[]): Outcome; // read the records, walk, clear, remove litter
+/// function clearAbandonedLocks(roots: LockRoot[], gitDir: string, commonDir: string): Outcome; // read the records, walk, clear, remove litter
 /// ```
-pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
+pub fn clear_abandoned_locks(roots: &[LockRoot], git_dir: &Path, common_dir: &Path) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
-    let Some(first) = roots.first() else {
+    if roots.is_empty() {
         return outcome;
-    };
-    let common_dir: PathBuf = common_dir_for(first.as_path());
+    }
+    // What: The record folder is the one the one answer names, never one guessed from a root: with `GIT_COMMON_DIR` the
+    //       records live in the common directory while a lock of the worktree's state lives in the Git directory.
+    // Why:  A pass that read the records out of the Git directory wrote them in the common one and could not explain the
+    //       lock it was meant to clear (a review of `4e9b9fff1d`, finding 1).
+    let common_dir: PathBuf = common_dir.to_path_buf();
     // What: The records are read first, so the walk below is the sight of the locks a removal is decided on.
     // Why:  A record removed on a walk older than its reading loses the proof of a lock made in between.
     let records: Vec<Record> = every_record(common_dir.as_path());
@@ -292,7 +436,7 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
                 //  it cannot release itself, and nothing here may remove it.
                 //  Words stay where the person is: a lock of another linked worktree's own state is that worktree's,
                 //  and a command of this one neither waits for it nor reports it.
-                if stands_in_the_way(lock.as_path(), first.as_path(), common_dir.as_path())
+                if stands_in_the_way(lock.as_path(), git_dir, common_dir.as_path())
                     && let Some(line) = standing_lock_line(lock.as_path(), common_dir.as_path())
                 {
                     outcome.unexplained.push(line);
@@ -321,8 +465,8 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
 /// ```ts
 /// function clearAbandonedLocksTelling(roots, stderr): number;
 /// ```
-pub fn clear_abandoned_locks_telling(roots: &[PathBuf], out: &mut dyn std::io::Write) -> usize {
-    let outcome: Outcome = clear_abandoned_locks(roots);
+pub fn clear_abandoned_locks_telling(roots: &[LockRoot], git_dir: &Path, common_dir: &Path, out: &mut dyn std::io::Write) -> usize {
+    let outcome: Outcome = clear_abandoned_locks(roots, git_dir, common_dir);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
         let written: std::io::Result<()> = out.write_all(notice.as_bytes());
@@ -354,20 +498,19 @@ pub fn clear_abandoned_locks_telling(roots: &[PathBuf], out: &mut dyn std::io::W
 /// ```ts
 /// removeMyRecordAfterTheCommand(roots) // nothing when this process wrote no record, or the walk was not whole
 /// ```
-pub fn sweep_the_records_the_command_left(roots: &[PathBuf]) {
-    let Some(first) = roots.first() else {
+pub fn sweep_the_records_the_command_left(roots: &[LockRoot], common: &Path) {
+    if roots.is_empty() {
         return;
-    };
-    let common: PathBuf = common_dir_for(first.as_path());
+    }
     // A command that started no Git wrote no record, and the walk below would have nothing to decide.
-    if !crate::lock_holder_records::this_process_has_a_record(common.as_path()) {
+    if !crate::lock_holder_records::this_process_has_a_record(common) {
         return;
     }
     let searched: Walked = walked(roots);
     if !searched.complete {
         return;
     }
-    remove_this_process_record_if_no_lock_needs_it(common.as_path(), pids_named_by_standing_locks(searched.locks.as_slice()).as_slice());
+    remove_this_process_record_if_no_lock_needs_it(common, pids_named_by_standing_locks(searched.locks.as_slice()).as_slice());
 }
 
 /// What:
@@ -409,11 +552,11 @@ fn proving_pid_file(lock: &Path) -> PathBuf {
 /// ```ts
 /// function rootsOfGitDirectory(gitDir: string): string[]; // [gitDir, commonDir] when they differ
 /// ```
-pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
+pub fn roots_of_git_directory(git_dir: &Path) -> Vec<LockRoot> {
     let common: PathBuf = common_dir_for(git_dir);
-    let mut roots: Vec<PathBuf> = vec![git_dir.to_path_buf()];
+    let mut roots: Vec<LockRoot> = vec![LockRoot { path: git_dir.to_path_buf(), below: true }];
     if common != git_dir {
-        roots.push(common);
+        roots.push(LockRoot { path: common, below: true });
     }
     return roots;
 }
@@ -442,14 +585,15 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// meetTheLocks(repository) // the -C chain, --git-dir or GIT_DIR, and GIT_COMMON_DIR, resolved once
 /// ```
-pub fn meet_the_locks_of_the_repository_the_command_works_on(repository: &CommandRepository) -> Vec<PathBuf> {
+pub fn meet_the_locks_of_the_repository_the_command_works_on(repository: &CommandRepository) {
     let Some(common) = repository.common_dir.as_ref() else {
-        return Vec::new();
+        return;
+    };
+    let Some(git_dir) = repository.git_dir.as_ref() else {
+        return;
     };
     remember_repository(common.as_path());
-    let roots: Vec<PathBuf> = repository.roots();
-    clear_abandoned_locks_telling(roots.as_slice(), &mut std::io::stderr());
-    return roots;
+    clear_abandoned_locks_telling(repository.lock_roots().as_slice(), git_dir.as_path(), common.as_path(), &mut std::io::stderr());
 }
 
 /// Controls of the answer that decides which locks are named stay out of the release executable.

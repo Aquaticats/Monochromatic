@@ -27,7 +27,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 /// The one walk of the global options that answers the directory a `-C` chain ends in and the Git directory a
 ///  `--git-dir` names, so neither is resolved twice.
-use crate::repository_link_paths::{GIT_COMMON_DIRECTORY_VARIABLE, GIT_DIRECTORY_VARIABLE, chain_directory, last_git_dir_option};
+use crate::repository_link_paths::{GIT_COMMON_DIRECTORY_VARIABLE, GIT_DIRECTORY_VARIABLE, chain_directory, last_git_dir_option, last_option_value};
+/// The variables that move a file Git locks out of the Git directory.
+///  `GIT_INDEX_FILE`, `GIT_SHALLOW_FILE` and `GIT_OBJECT_DIRECTORY` (`environment.h`,
+/// lines 14, 17 and 19).
+use crate::repository_link_paths::{GIT_INDEX_FILE_VARIABLE, GIT_OBJECT_DIRECTORY_VARIABLE, GIT_SHALLOW_FILE_VARIABLE};
 
 /// The common Git directory a linked worktree's Git directory names in its `commondir` file,
 /// or the directory itself.
@@ -133,6 +137,39 @@ pub struct CommandRepository {
     /// The common Git directory,
     ///  where a linked worktree's shared references and the record folder live.
     pub common_dir: Option<PathBuf>,
+    /// The index file the command reads and writes,
+    ///  `GIT_INDEX_FILE` or `<git-dir>/index`.
+    pub index_file: Option<PathBuf>,
+    /// The shallow file it reads and writes,
+    ///  `GIT_SHALLOW_FILE`, `--shallow-file` or `<git-dir>/shallow`.
+    pub shallow_file: Option<PathBuf>,
+    /// The object directory its pack and graph files are locked in,
+    ///  `GIT_OBJECT_DIRECTORY` or `<common-dir>/objects`.
+    pub object_dir: Option<PathBuf>,
+}
+
+/// What:
+///  One directory the pass searches,
+///  and whether a lock may lie below it or only inside it.
+/// Why:
+///  Git locks a file beside it,
+///  so a lock lies in the file's own directory;
+///  the Git directory and the common one hold locked files in subdirectories (`refs/`, `reftable/`,
+///  `worktrees/<id>/`),
+///  while the index and shallow files lie in a directory whose subdirectories Git never locks
+///  and the object directory's subdirectories hold loose objects by the hundred thousand and no lock.
+///  A walk that descended into those would spend its entry bound on files that cannot be a lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LockRoot = { path: string; below: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LockRoot {
+    /// The directory to list.
+    pub path: PathBuf,
+    /// Whether the walk goes below it.
+    pub below: bool,
 }
 
 impl CommandRepository {
@@ -158,6 +195,61 @@ impl CommandRepository {
             && common != git_dir
         {
             roots.push(common.clone());
+        }
+        return roots;
+    }
+
+    /// What:
+    ///  Every directory a lock of this command's repository can lie in,
+    ///  each with whether the walk goes below it.
+    /// Why:
+    ///  Git locks a file beside it,
+    ///  and which files it locks is fixed by its own layout while where they lie follows the settings this answer
+    ///  read:
+    ///  the index beside `GIT_INDEX_FILE` or the Git directory,
+    ///  the shallow file beside `GIT_SHALLOW_FILE` or the Git directory,
+    ///  the references and the repository's config under the common directory,
+    ///  and the object store's own locks at the top of the object directory and under its `info` and `pack`.
+    ///  The table of every locked file, and which root covers it, is in `abandoned_locks.rs`.
+    ///  One answer for all of them is what keeps the writer of a record,
+    ///  the walk that looks for locks and the removal of records from disagreeing
+    ///  (a review of `4e9b9fff1d`,
+    /// findings 1 and 2).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// repository.lockRoots() // [{path: '/repo/.git', below: true}, {path: '/alt', below: false}, ...]
+    /// ```
+    pub fn lock_roots(&self) -> Vec<LockRoot> {
+        let Some(git_dir) = self.git_dir.as_ref() else {
+            return Vec::new();
+        };
+        let mut roots: Vec<LockRoot> = vec![LockRoot { path: git_dir.clone(), below: true }];
+        // A directory already searched below covers one named again without descent, and the wider search wins.
+        let mut add = |path: &PathBuf, below: bool| {
+            if let Some(named) = roots.iter_mut().find(|root| { return root.path == *path; }) {
+                named.below = named.below || below;
+                return;
+            }
+            roots.push(LockRoot { path: path.clone(), below });
+        };
+        if let Some(common) = self.common_dir.as_ref() {
+            add(common, true);
+        }
+        if let Some(index) = self.index_file.as_ref()
+            && let Some(directory) = index.parent()
+        {
+            add(&directory.to_path_buf(), false);
+        }
+        if let Some(shallow) = self.shallow_file.as_ref()
+            && let Some(directory) = shallow.parent()
+        {
+            add(&directory.to_path_buf(), false);
+        }
+        if let Some(objects) = self.object_dir.as_ref() {
+            add(objects, false);
+            add(&objects.join("info"), false);
+            add(&objects.join("pack"), false);
         }
         return roots;
     }
@@ -198,13 +290,36 @@ pub fn repository_a_command_works_on(cwd: &Path, global_prefix: &[OsString], env
         None => git_directory_of(start.as_path()),
     };
     let Some(git_dir_found) = git_dir.as_ref() else {
-        return CommandRepository { start, git_dir: None, common_dir: None };
+        return CommandRepository { start, ..CommandRepository::default() };
     };
     let common_dir: PathBuf = match environment_value(environment, GIT_COMMON_DIRECTORY_VARIABLE) {
         Some(value) => start.join(value),
         None => common_dir_for(git_dir_found.as_path()),
     };
-    return CommandRepository { start, git_dir: Some(git_dir_found.clone()), common_dir: Some(common_dir) };
+    // What: The three files Git may lock outside the Git directory are named from the same settings Git reads.
+    // Why:  A pass that searched only the Git and common directories never saw an alternate index's lock, and then called
+    //       the dead writer's record unused (a review of `4e9b9fff1d`, finding 2).
+    let index_file: PathBuf = match environment_value(environment, GIT_INDEX_FILE_VARIABLE) {
+        Some(value) => start.join(value),
+        None => git_dir_found.join("index"),
+    };
+    let shallow_file: PathBuf = match last_option_value(global_prefix, "--shallow-file")
+        .or_else(|| { return environment_value(environment, GIT_SHALLOW_FILE_VARIABLE).map(PathBuf::from); }) {
+        Some(value) => start.join(value),
+        None => git_dir_found.join("shallow"),
+    };
+    let object_dir: PathBuf = match environment_value(environment, GIT_OBJECT_DIRECTORY_VARIABLE) {
+        Some(value) => start.join(value),
+        None => common_dir.join("objects"),
+    };
+    return CommandRepository {
+        start,
+        git_dir: Some(git_dir_found.clone()),
+        common_dir: Some(common_dir),
+        index_file: Some(index_file),
+        shallow_file: Some(shallow_file),
+        object_dir: Some(object_dir),
+    };
 }
 
 /// What:

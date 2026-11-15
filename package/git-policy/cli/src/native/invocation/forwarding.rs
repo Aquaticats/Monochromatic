@@ -421,6 +421,11 @@ pub fn run_real_git_until(
 ) -> std::io::Result<ChildOutcome> {
     let mut command: Command = git_command(real_git, arguments, overlay, owner);
     let mut child: std::process::Child = command.spawn_retrying()?;
+    // What: This Git is named in the repository's record the moment it exists, as every other start of one is.
+    // Why:  A step with a ceiling is killed when the ceiling ends it, and the lock it was holding stands afterwards;
+    //       the record is the only proof a later command can use to clear that lock, and a start that wrote none left a
+    //       lock nothing could explain (a review of `4e9b9fff1d`, finding 4).
+    crate::lock_holder_records::note_child_started(child.id());
     let began: std::time::Instant = std::time::Instant::now();
     loop {
         match child.try_wait() {

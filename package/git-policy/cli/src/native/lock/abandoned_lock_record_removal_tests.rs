@@ -18,6 +18,7 @@
 
 use crate::abandoned_lock_pass_fault_hooks_test_support::place_after_the_records_are_read;
 use crate::abandoned_locks::clear_abandoned_locks;
+use crate::git_directory_roots::LockRoot;
 use crate::abandoned_lock_words::clearance_line;
 use crate::lock_holder_records::{CHILD_KIND, SELF_KIND, folder_of, record_text};
 use crate::record_proof_test_support::{a_dead_process, make_pid_file_after_the_lock};
@@ -91,7 +92,8 @@ fn a_lock_made_after_the_records_are_read_is_cleared_and_its_record_is_used() {
     let record: PathBuf = folder.join("record-of-the-gone-holder");
     let at_the_seam: PathBuf = common.clone();
     place_after_the_records_are_read(Box::new(move || { return make_the_lock(at_the_seam.as_path(), gone); }));
-    let outcome = clear_abandoned_locks(std::slice::from_ref(&common));
+    let roots: [LockRoot; 1] = [LockRoot { path: common.clone(), below: true }];
+    let outcome = clear_abandoned_locks(roots.as_slice(), common.as_path(), common.as_path());
     assert_eq!(outcome.cleared.len(), 1, "the pass cleared the lock the record it read explains: {:?}", outcome.cleared.iter().map(clearance_line).collect::<Vec<String>>());
     assert!(!lock.exists(), "the lock that was made after the reading is gone");
     assert!(!record.exists(), "and the record goes with the lock it explained, because nothing needs it any more");

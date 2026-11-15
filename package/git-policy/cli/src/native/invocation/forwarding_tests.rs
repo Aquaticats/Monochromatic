@@ -14,6 +14,7 @@
 /// Import the forwarding functions under test and shared fixtures.
 use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
 use crate::hooks_off::StartOwner;
+use crate::lock_holder_records::{SELF_KIND, remember_repository, this_process_record_path};
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
@@ -491,5 +492,42 @@ fn a_ceiling_says_what_a_caller_reading_the_stream_to_its_end_sees() {
     assert!(!still_alive(helper), "the control ends the helper it let run");
     assert!(said.contains("a caller reading this command's standard error to its end waits until that helper closes it"), "the line says what the caller's end of file means: {said}");
     assert!(said.contains("and Git ended"), "and what is known about Git: {said}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A step with a ceiling names the Git it starts in the repository's record,
+///  so a lock that Git was holding when the ceiling killed it has a proof a later command can use.
+/// Why:
+///  The ceiling ends Git with `SIGKILL`, and the index lock it held then stands on disk.
+///  Unlike `run_real_git_naming`, this start once named nothing,
+///  so the lock it left could never be proved abandoned and a later write failed on it
+///  (a review of `4e9b9fff1d`,
+/// finding 4).
+///  The record is kept by this process's own line and a child line for the Git the ceiling ended,
+///  which is exactly what the proof reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberRepository(common); awaitReject(runRealGitUntil(slow, [], [], 200ms));
+/// expect(readFileSync(thisProcessRecordPath(common))).toContain('child ');
+/// ```
+#[test]
+fn a_step_with_a_ceiling_names_the_git_it_starts_in_the_record() {
+    let root: PathBuf = fixture("forward-ceiling-record");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the Git directory");
+    // The repository this process works in is a value for the whole process, so this control's fixture is named for
+    //  itself and nothing else in this binary sets it.
+    remember_repository(common.as_path());
+    let program: PathBuf = root.join("slow-git");
+    executable(program.as_path(), b"#!/bin/sh\nexec sleep 600\n");
+    let _ended = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_millis(200), StartOwner::Wrapper)
+        .expect_err("the ceiling ends the step");
+    let record: PathBuf = this_process_record_path(common.as_path()).expect("this process's record path");
+    let text: String = std::fs::read_to_string(record.as_path()).expect("the record the start wrote");
+    assert!(text.starts_with("monochromatic-git-policy-cli lock-holder-record v1"), "a record starts with its header: {text:?}");
+    assert!(text.contains(format!("{SELF_KIND} {} ", std::process::id()).as_str()), "the record names this process: {text:?}");
+    assert!(text.matches("child ").count() == 1, "the one Git the ceiling ended is named: {text:?}");
     remove(root.as_path());
 }

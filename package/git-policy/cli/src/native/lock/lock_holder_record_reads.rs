@@ -32,6 +32,14 @@
 //!  A record left a little longer loses nothing, and a record removed too early turns a lock that could be proved
 //!  abandoned into a commit that fails.
 //!
+//! A record is named after the process that wrote it, `<pid>.<digest of its identity>`,
+//!  so the record a lock's PID file asks about is found by that number and not by whatever sorts first:
+//!  a bound on how many records a sweep reads may never turn "there is a record" into "there is none"
+//!  (a review of `4e9b9fff1d`,
+//! finding 3).
+//!  A sweep reads at most `MOST_RECORDS` files and says in the log when it stopped at that bound;
+//!  a removal is never decided on a list the bound cut.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const identity = recordedIdentity(commonDir, pid); const gone = provenGone(commonDir, pid);
@@ -48,12 +56,21 @@ use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
-/// How many record files one lookup reads,
+/// How many record files one sweep reads,
 /// so a folder a broken command filled cannot hold a command.
+/// It bounds reading, not finding: a record a lock names is looked for by its own name.
 const MOST_RECORDS: usize = 512;
+
+/// How many records one number may have before the proof answers unknown.
+/// Two are ordinary (a number used again after a reuse); a folder that holds more records for one number is one a
+///  person filled, and the proof then keeps the lock instead of guessing.
+const MOST_RECORDS_FOR_ONE_NUMBER: usize = 16;
 
 /// The longest record one read takes.
 const RECORD_LIMIT: u64 = SMALL_FILE_LIMIT;
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What:
 ///  The lines one record file names:
@@ -137,6 +154,42 @@ pub struct Record {
 /// for (const name of readdirSync(folder).sort()) { records.push(parseRecord(name)) }
 /// ```
 pub fn every_record(common_dir: &Path) -> Vec<Record> {
+    let names: Vec<std::ffi::OsString> = record_names(common_dir);
+    let mut records: Vec<Record> = Vec::new();
+    // What: A sweep that runs past the bound says so, and never reads the rest of the folder as holding nothing.
+    // Why:  The removal decided here is only ever of a record that was read, so stopping short costs the folder some litter
+    //       and nothing else; a reader of the log can see why the folder stops shrinking.
+    if names.len() > MOST_RECORDS {
+        crate::diagnostic_log::debug(
+            TAG,
+            format!("{} record files are more than the {MOST_RECORDS} a sweep reads, so {} were left in the folder", names.len(), names.len() - MOST_RECORDS).as_str(),
+        );
+    }
+    let folder: PathBuf = folder_of(common_dir);
+    for name in names.into_iter().take(MOST_RECORDS) {
+        let path: PathBuf = folder.join(name);
+        if let Some(record) = record_at(path.as_path()) {
+            records.push(record);
+        }
+    }
+    return records;
+}
+
+/// What:
+///  The names in a repository's record folder,
+///  in file-name order,
+///  without reading any of them.
+/// Why:
+///   Two questions read this folder and both need its names first:
+///  a sweep, which reads the first `MOST_RECORDS` of them,
+///  and the proof about one number, which reads the records named after that number and ignores the rest.
+///  Listing a folder is one pass over its entries; reading the files is what the bound on a sweep pays for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordNames(commonDir) // readdirSync(folder).filter(isFile).sort()
+/// ```
+fn record_names(common_dir: &Path) -> Vec<std::ffi::OsString> {
     let folder: PathBuf = folder_of(common_dir);
     let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
         return Vec::new();
@@ -149,14 +202,67 @@ pub fn every_record(common_dir: &Path) -> Vec<Record> {
         }
     }
     names.sort();
+    return names;
+}
+
+/// What:
+///  The records that can name `pid`, read by the name a record of that process has.
+///  `Option<Vec<Record>>` is those records, or nothing when the folder holds more of them than the proof accepts.
+/// Why:
+///   A record is named `<pid>.<digest of the writer's identity>`,
+///  so every record that can name a process number is one whose name starts with that number and a dot.
+///  Reading them by that name answers the proof whatever else the folder holds and in whatever order,
+///  which a bounded listing of the whole folder cannot
+///  (a review of `4e9b9fff1d`,
+/// finding 3).
+///  A folder that holds more records for one number than `MOST_RECORDS_FOR_ONE_NUMBER` is one a person filled,
+///  and the answer is then nothing,
+///  which keeps the lock rather than guessing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordsOfNumber(commonDir, 4242) // every record named '4242.*', or undefined when there are too many
+/// ```
+fn records_of_number(common_dir: &Path, pid: i64) -> Option<Vec<Record>> {
+    let names: Vec<std::ffi::OsString> = record_names(common_dir);
+    let folder: PathBuf = folder_of(common_dir);
+    let prefix: String = format!("{pid}.");
+    let mut named: Vec<std::ffi::OsString> = names
+        .iter()
+        .filter(|name| { return name.to_string_lossy().starts_with(prefix.as_str()); })
+        .cloned()
+        .collect();
+    if named.len() > MOST_RECORDS_FOR_ONE_NUMBER {
+        crate::diagnostic_log::debug(
+            TAG,
+            format!("{} records name PID {pid}, more than the {MOST_RECORDS_FOR_ONE_NUMBER} a proof reads, so the lock is kept", named.len()).as_str(),
+        );
+        return None;
+    }
+    // What: A record whose name is not the number it names is read too, as long as the folder fits in one sweep.
+    // Why:  The name is the writer's own spelling, and a record a person renamed, or one a control planted, still names the
+    //       holder by its content; the proof must not lose a lock to a file name.
+    //       When the folder is larger than one sweep and no record is named after the number, the bound has hidden the
+    //       answer, and a bound that hides an answer keeps the lock rather than clearing it.
+    if named.is_empty() {
+        if names.len() > MOST_RECORDS {
+            crate::diagnostic_log::debug(
+                TAG,
+                format!("{} record files are more than the {MOST_RECORDS} a proof reads and none is named for PID {pid}, so the lock is kept", names.len()).as_str(),
+            );
+            return None;
+        }
+        named = names;
+    }
+    named.sort();
     let mut records: Vec<Record> = Vec::new();
-    for name in names.into_iter().take(MOST_RECORDS) {
+    for name in named {
         let path: PathBuf = folder.join(name);
         if let Some(record) = record_at(path.as_path()) {
             records.push(record);
         }
     }
-    return records;
+    return Some(records);
 }
 
 /// What:
@@ -212,8 +318,11 @@ fn record_at(path: &Path) -> Option<Record> {
 /// const identities = recordedIdentities(commonDir, pid); // ['linux:1234#…', …]
 /// ```
 pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
+    let Some(records) = records_of_number(common_dir, pid) else {
+        return Vec::new();
+    };
     let mut found: Vec<String> = Vec::new();
-    for held in every_record(common_dir) {
+    for held in records {
         for (holder, identity) in held.holders {
             if holder == pid && !found.contains(&identity) {
                 found.push(identity);
@@ -259,6 +368,12 @@ pub fn identities_recorded(common_dir: &Path, pid: i64) -> Vec<String> {
 /// const gone = pidIsFree(pid) && recordedIdentities(commonDir, pid).every((id) => holderState([pid, id]) === 'gone');
 /// ```
 pub fn proved_gone_writer(common_dir: &Path, pid: i64) -> Option<String> {
+    // What: The records are read by the number the lock names, never out of a bounded listing of the folder.
+    // Why:  A lookup that stopped at a bound would answer "no record" for a lock whose record is there, and the lock would
+    //       stand although the repository holds the proof that its holder is gone (a review of `4e9b9fff1d`, finding 3).
+    if records_of_number(common_dir, pid).is_none() {
+        return None;
+    }
     let identities: Vec<String> = identities_recorded(common_dir, pid);
     if identities.is_empty() {
         return None;

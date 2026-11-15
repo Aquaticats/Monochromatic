@@ -10242,6 +10242,64 @@ Two things remove a record, and each says what it knows
 A writer proved gone cannot append,
 so the reading is of a file nothing can change any more,
 and a walk made after that reading sees every lock the reading could not know about.
+
+#### Which directories the pass searches
+
+Git locks a file beside it,
+as `<file>.lock` with `<file>~pid.lock` beside it
+(`lockfile.c`,
+lines 99 to 110;
+`lockfile.h`,
+lines 132 to 136),
+and which files it locks is fixed by its own layout while where they lie follows the settings a command carries.
+The one answer reads those settings (`repository_a_command_works_on`,
+`CommandRepository::lock_roots`):
+
+- the Git directory:
+  `--git-dir`,
+  else `GIT_DIR`,
+  else the directory found by walking up;
+- the common directory:
+  `GIT_COMMON_DIR`,
+  else the `commondir` file;
+- the index file's directory:
+  `GIT_INDEX_FILE`,
+  else `<git-dir>/index`;
+- the shallow file's directory:
+  `--shallow-file` or `GIT_SHALLOW_FILE`,
+  else `<git-dir>/shallow`;
+- the object directory,
+  and its `info` and `pack` subdirectories:
+  `GIT_OBJECT_DIRECTORY`,
+  else `<common-dir>/objects`.
+
+The walk lists the Git and common directories and everything below them,
+and lists the other four without descending,
+because Git locks nothing in their subdirectories and the object store's fanout holds loose objects by the hundred
+thousand.
+The table of every file Git can lock for the commands the wrapper forwards,
+with the file and line of Git's source that locks it,
+is the doc comment of `src/native/lock/abandoned_locks.rs`.
+
+A lock outside every one of those directories is one this pass can never clear:
+the per-user and system config files,
+a config file named with `--file`,
+the credential store,
+a bundle's path,
+a marks file and the maintenance scheduler's socket.
+Those lie outside the repository the pass is defined over,
+and a record whose Git only locked one of them explains nothing this pass could do,
+which is why the removal of records is bounded by roots that cover every lock inside the repository.
+
+A record is named after the process that wrote it,
+`<pid>.<digest of its identity>`,
+so the record a lock's PID file asks about is read by that number and not out of a listing of the folder:
+a bound on how many records a sweep reads may never turn "there is a record" into "there is none"
+(`records_of_number`,
+`proved_gone_writer`).
+The sweep still reads at most `MOST_RECORDS` files,
+and says so in the log when it stops at that bound,
+which costs the folder some litter and decides nothing about a lock.
 The two together are the whole proof:
 a removal decided on a reading of the records but on an older sight of the locks loses the record of a lock made in
 between (a review of `2af2ecb879`,
@@ -10452,7 +10510,8 @@ The pass runs once in the wrapper's own process before the command reaches Git
 (`entry.rs`,
 `meet_the_locks_of_the_repository_the_command_works_on`),
 in the repository the command works on,
-resolved once before it by `repository_a_command_works_on`.
+resolved once before it by `repository_a_command_works_on`,
+and over every directory that answer names as a home of a lock (see "Which directories the pass searches").
 So every command of any kind meets a clear repository,
 and a command that names another repository changes nothing in the one it runs in.
 The commit service runs it before its landing waits for the index
