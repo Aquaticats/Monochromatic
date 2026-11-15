@@ -1567,11 +1567,11 @@ fn a_removal_whose_option_follows_the_path_is_judged_too() {
 
     // A second worktree, for the words whose option stands after a `--`: Git reads them as two arguments, answers with
     // its usage, and removes nothing, so nothing here is judged and Git's own answer is the one a person sees.
-    let scene: Scene = a_repository_with_a_recorded_worktree("removal-option-after-a-double-dash");
-    let task: String = scene.task.display().to_string();
-    scene.hide_an_edit();
-    let usage: Observed = scene.remove_with(&["worktree", "remove", task.as_str(), "--", "--no-force"]);
+    let usage_scene: Scene = a_repository_with_a_recorded_worktree("removal-option-after-a-double-dash");
+    let usage_task: String = usage_scene.task.display().to_string();
+    usage_scene.hide_an_edit();
+    let usage: Observed = usage_scene.remove_with(&["worktree", "remove", usage_task.as_str(), "--", "--no-force"]);
     assert_eq!(usage.code, Some(129), "Git answers two arguments with its usage: {}", stderr_of(&usage));
-    assert!(scene.task.join(TRACKED).exists(), "and removes nothing");
-    remove(&scene.fixture);
+    assert!(usage_scene.task.join(TRACKED).exists(), "and removes nothing");
+    remove(&usage_scene.fixture);
 }

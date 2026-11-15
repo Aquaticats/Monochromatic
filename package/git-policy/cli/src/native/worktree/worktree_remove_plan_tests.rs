@@ -337,12 +337,12 @@ fn every_spelling_of_the_removal_option_in_every_position_reads_as_git_reads_it(
     let mut spellings: Vec<String> = force_spellings();
     spellings.extend(usage_spellings());
     for (index, spelling) in spellings.iter().enumerate() {
-        for (position, words) in rows_with(spelling, PLACEHOLDER).into_iter().enumerate() {
+        for (position, written) in rows_with(spelling, PLACEHOLDER).into_iter().enumerate() {
             // A directory that needs quoting: a space, an apostrophe and a dollar sign, which Git reads as bytes.
             let worktree: PathBuf = root.join(format!("linked worktree {index} {position} 'quoted $odd"));
             let operand: String = worktree.display().to_string();
             crate::test_support::git(repository.as_path(), &["worktree", "add", "--quiet", "--detach", operand.as_str()]);
-            let words: Vec<String> = words.into_iter().map(|one| return one.replace(PLACEHOLDER, operand.as_str())).collect();
+            let words: Vec<String> = written.into_iter().map(|one| return one.replace(PLACEHOLDER, operand.as_str())).collect();
             let mut arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove")];
             arguments.extend(words.iter().map(|one| return OsString::from(one.as_str())));
             let removed: bool = git_removes(repository.as_path(), words.as_slice(), worktree.as_path());
@@ -359,8 +359,8 @@ fn every_spelling_of_the_removal_option_in_every_position_reads_as_git_reads_it(
                     described(&shape)
                 ));
             }
-            if let RemovalShape::Served { force, operand_at, operand } = &shape {
-                if !(*operand_at < arguments.len() && arguments[*operand_at] == *operand) {
+            if let RemovalShape::Served { force, operand_at, operand: named } = &shape {
+                if !(*operand_at < arguments.len() && arguments[*operand_at] == *named) {
                     misspoken.push(format!("{words:?}: the directory it names is not the word at {operand_at}"));
                 }
                 // The force the words carry, as Git shows it: the same words on a worktree holding an edit Git sees,
@@ -369,7 +369,7 @@ fn every_spelling_of_the_removal_option_in_every_position_reads_as_git_reads_it(
                 let dirty_operand: String = dirty.display().to_string();
                 crate::test_support::git(repository.as_path(), &["worktree", "add", "--quiet", "--detach", dirty_operand.as_str()]);
                 std::fs::write(dirty.join("tracked.txt"), "an edit Git sees\n").expect("the edit");
-                let elsewhere: Vec<String> = words.iter().map(|one| return one.replace(operand.to_string_lossy().as_ref(), dirty_operand.as_str())).collect();
+                let elsewhere: Vec<String> = words.iter().map(|one| return one.replace(named.to_string_lossy().as_ref(), dirty_operand.as_str())).collect();
                 // A worktree holding an edit Git sees is removed when the force is on and refused when it is off, so what
                 // Git did with it is the force these words carry.
                 let git_force: bool = git_removes(repository.as_path(), elsewhere.as_slice(), dirty.as_path());

@@ -195,8 +195,8 @@ pub(crate) fn removal_shape(arguments: &[OsString], subcommand_index: usize) -> 
     // Where each word that is not an option stands, in the order the person wrote them.
     let mut operands: Vec<usize> = Vec::new();
     let mut options_ended: bool = false;
-    for at in subcommand_index + 2..arguments.len() {
-        let bytes: &[u8] = arguments[at].as_encoded_bytes();
+    for (at, argument) in arguments.iter().enumerate().skip(subcommand_index + 2) {
+        let bytes: &[u8] = argument.as_encoded_bytes();
         // The `--`, the single `-`, and every word that does not start with a `-` are arguments, in any position.
         if options_ended || !bytes.starts_with(b"-") || bytes == b"-" {
             operands.push(at);
@@ -206,10 +206,10 @@ pub(crate) fn removal_shape(arguments: &[OsString], subcommand_index: usize) -> 
             options_ended = true;
             continue;
         }
-        if asks_for_usage(&arguments[at]) {
+        if asks_for_usage(argument) {
             return RemovalShape::NotARemoval;
         }
-        match force_reading(&arguments[at]) {
+        match force_reading(argument) {
             Some(on) => force = on,
             None => {
                 // A wrapper control written where this command does not read it is the one option a person meets and
