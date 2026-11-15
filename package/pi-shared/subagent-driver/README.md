@@ -286,6 +286,13 @@ or start a run it would refuse.
   the run folder's number.
   Without it the next number no folder of that name holds is taken,
   so a restart never writes over an earlier run's summary.
+  A number whose folder already holds a summary refuses the launch,
+  and so does the driver when it is given that folder,
+  because a summary is the record of what a run did and said
+  and no run writes over one.
+  The refusal names the summary it keeps
+  and asks for a launch with no `--run`,
+  whose folder then takes the next number.
 - `--turn-cap`:
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
@@ -383,6 +390,12 @@ then resumes the agent's session with a short note naming what it left running,
 at most five wakes per run name.
 A resumed run gets a folder number of its own,
 so it never writes over the summary the first run wrote.
+The number is dropped however it was written,
+attached as `--run=5` or detached as `--run 5`,
+because the resumed words are built from what the launcher's own parser read
+and not from the text of the first command line,
+and every other option is carried the same way,
+with the value that first command line gave it.
 
 A process counts as the run's own work only when its working folder is the run's worktree or run folder,
 or when one whole path component of that folder is the run's own name.
@@ -992,6 +1005,9 @@ the launcher that builds the session's environment asks it, once, before it make
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
+  A folder holds one summary and no run writes over one:
+  the file takes its name by a link of a file already written whole,
+  so a name that is taken makes the run refuse instead of replacing the record there.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
