@@ -32,8 +32,18 @@
 //!  and the tracker holds the whole run unprovable from it
 //!  (`Tracker::feed`).
 //!  A folder made after the watch began is watched in its turn,
+//!  the folders are watched one depth at a time so the bound reaches the ones locks are taken in
+//!  first,
 //!  and a folder the watch's bound leaves unwatched reports nothing:
 //!  a lock taken there gets no record, and a lock with no record is kept.
+//!  A repository whose Git directory holds more folders than the bound
+//!  (this repository's does) therefore keeps a lock in a deep folder,
+//!  and the sentence about that lock says what is known.
+//!  Every Git the wrapper starts for its own ladder is watched too,
+//!  from a watcher thread of its own:
+//!  those steps wait for their Git through pipes, a descriptor and a progress watch,
+//!  and a branch write is one of them,
+//!  so a merge killed while it moved the branch leaves a lock whose record exists.
 //!  What a kill at each step of a run leaves,
 //!  and who removes it:
 //!
@@ -106,6 +116,11 @@ const MOST_NAMES: usize = 1024;
 /// A folder this bound leaves unwatched costs only what an unwatched folder cost before the watch
 /// learned to descend:
 /// a lock taken there gets no record, and is then cleared only by a proof that does not need one.
+/// The walk spends the bound one depth at a time,
+/// so the folders locks are taken in are watched first;
+/// this repository's common Git directory alone holds more folders than this
+/// (more than 3500 on 2026-11-14, most of them the rerere cache's and the linked worktrees' own),
+/// so a lock in one of its deeper folders is met by a command that keeps it and says why.
 const MOST_WATCHED_FOLDERS: usize = 1024;
 
 /// How deep below a root the watch descends,
@@ -371,6 +386,21 @@ impl Tracker {
         }
     }
 
+    /// Whether this run has already seen something no record of it may be kept through,
+    /// so a watcher may stop reading and holding its watch.
+    /// Why:
+    ///  An overflow, a watch that ended or too many names make every candidate unprovable,
+    ///  so no later event of this run can produce a record,
+    ///  and a run that waits for a long Git then costs no descriptor and no thread.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// tracker.nothingMoreCanBeRecorded() // true after an overflow
+    /// ```
+    pub fn nothing_more_can_be_recorded(&self) -> bool {
+        return self.unprovable;
+    }
+
     /// What:
     ///  The locks a child of this process took,
     ///  each with the file its creation left at the path.
@@ -570,33 +600,48 @@ impl Watch {
 
     /// What:
     ///  Open a watch on `directory`,
-    ///  and on every folder below it that the bounds leave room for.
+    ///  and on every folder below it that the bounds leave room for,
+    ///  the shallowest folders first.
     /// Why:
     ///  One walk covers the folders that are there when the watch opens,
     ///  and the events the walk's own watches report cover the folders made later.
+    ///  The walk goes one depth at a time,
+    ///  so the bound of `MOST_WATCHED_FOLDERS` is spent on the folders locks are taken in first:
+    ///  `refs/heads`, `refs/tags`, `reftable` and a linked worktree's own directory all sit a few steps below a root,
+    ///  and a deep tree of a program's own files
+    ///  (this repository's `.git` holds more than three thousand folders,
+    ///  most of them the rerere cache's) would otherwise use the whole bound before the walk reached them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// watchFolderAndBelow(gitDir) // gitDir, refs, refs/heads, …, bounded
+    /// watchFolderAndBelow(gitDir) // gitDir, then refs and the other shallow folders, one depth at a time
     /// ```
     fn watch_folder_and_below(&mut self, directory: &Path) {
-        let mut pending: Vec<(PathBuf, usize)> = vec![(directory.to_path_buf(), 0)];
-        while let Some((folder, depth)) = pending.pop() {
+        let mut pending: std::collections::VecDeque<(PathBuf, usize)> = std::collections::VecDeque::new();
+        pending.push_back((directory.to_path_buf(), 0));
+        while let Some((folder, depth)) = pending.pop_front() {
             if self.watch_one(folder.as_path()) && depth < MOST_WATCH_DEPTH {
                 let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
                     continue;
                 };
+                let mut below: Vec<PathBuf> = Vec::new();
                 for entry in entries.flatten() {
-                    if self.directories.len() >= MOST_WATCHED_FOLDERS {
-                        return;
-                    }
                     let Ok(kind) = entry.file_type() else {
                         continue;
                     };
                     let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
                     if kind.is_dir() && !UNWATCHED_FOLDERS.contains(&name.as_ref()) {
-                        pending.push((entry.path(), depth + 1));
+                        below.push(entry.path());
                     }
+                }
+                // One folder's names are read in the order the file system lists them, and sorted so two runs of the
+                //  same repository watch the same folders within the bound.
+                below.sort();
+                for path in below {
+                    if self.directories.len() >= MOST_WATCHED_FOLDERS {
+                        return;
+                    }
+                    pending.push_back((path, depth + 1));
                 }
             }
         }
@@ -677,6 +722,41 @@ impl Watch {
             return Vec::new();
         }
         return self.read_events();
+    }
+
+    /// Whether the child's own descriptor is open,
+    /// so its end wakes this watch and is readable from it.
+    /// Why:
+    ///  A watcher that reads instead of waiting for the child needs to know whether it can ask this watch
+    ///  about the child's end at all, or has to ask the process table.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watch.hasChildDescriptor()
+    /// ```
+    fn has_child_descriptor(&self) -> bool {
+        return self.child.is_some();
+    }
+
+    /// Whether the child this watch follows has ended,
+    /// asked without waiting.
+    /// Why:
+    ///  A watcher that is not the child's waiter still has to stop when the child ends,
+    ///  and the descriptor reports the end whether or not the waiter has collected the child.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watch.theChildHasEnded() // poll(pidfd, 0) > 0
+    /// ```
+    fn the_child_has_ended(&self) -> bool {
+        let Some(child) = self.child else {
+            return false;
+        };
+        let mut entry: libc::pollfd = libc::pollfd { fd: child, events: libc::POLLIN, revents: 0 };
+        // SAFETY: the entry is one this call owns and the timeout is nothing, so the call cannot block; it reports
+        //         whether the child's descriptor is ready and touches no memory beyond the entry.
+        let ready: i32 = unsafe { libc::poll(&mut entry, 1, 0) };
+        return ready > 0;
     }
 
     /// The step one wait sleeps for at most:
@@ -846,24 +926,241 @@ pub fn wait_and_bind(
     identity: &str,
 ) -> std::io::Result<std::process::ExitStatus> {
     watch.follow(child.id());
-    let mut tracker: Tracker = Tracker::new();
-    let mut bound: Vec<Written> = Vec::new();
-    let child_pid: i64 = i64::from(child.id());
+    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: common_dir.to_path_buf(), child_pid: i64::from(child.id()), identity: identity.to_owned() };
     loop {
         if let Some(status) = child.try_wait()? {
-            tracker.feed(watch.read_events().as_slice());
-            bind_what_the_child_took(&tracker, common_dir, child_pid, identity, &mut bound);
-            forget_what_the_child_finished(&mut bound);
+            binding.drain(&mut watch);
             return Ok(status);
         }
         // Each lock's creation and each lock's rename away wake this wait, so a take that is gone is taken away
         //  before the next one is written: what this run holds for one path is one take, and two in the instant
         //  between them.
-        tracker.feed(watch.wait(watch.step()).as_slice());
-        bind_what_the_child_took(&tracker, common_dir, child_pid, identity, &mut bound);
-        forget_what_the_child_finished(&mut bound);
+        binding.look(&mut watch);
     }
 }
+
+/// What:
+///  What one run's watch has been turned into so far:
+///  the events read,
+///  the records written,
+///  and the Git those records may name.
+/// Why:
+///  Turning events into records is one job,
+///  and two callers need it:
+///  a wait that blocks on the child's own end (`wait_and_bind`),
+///  and a thread that reads the same watch while its caller waits for the child some other way
+///  (`bind_while_the_caller_waits`,
+///  which is how a Git of the wrapper's own ladder is watched).
+///  Written once, the two cannot disagree about when a record is pinned or taken away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Binding { look(watch); drain(watch); } // feed, pin, forget
+/// ```
+struct Binding {
+    /// What the events read so far say about every name.
+    tracker: Tracker,
+    /// The records this run wrote and still holds.
+    bound: Vec<Written>,
+    /// The common Git directory the records are written under.
+    common_dir: PathBuf,
+    /// The Git this run may write records about.
+    child_pid: i64,
+    /// That Git's birth identity, read while it ran.
+    identity: String,
+}
+
+impl Binding {
+    /// What:
+    ///  Read what one wait reported, and turn it into records.
+    /// Why:
+    ///  The wait reports every creation and every removal between two looks,
+    ///  and a take that is gone is taken away before the next one is written.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// binding.look(watch)
+    /// ```
+    fn look(&mut self, watch: &mut Watch) {
+        let events: Vec<Event> = watch.wait(watch.step());
+        self.take(events);
+    }
+
+    /// What:
+    ///  Read everything the kernel holds for this watch now, and turn it into records.
+    /// Why:
+    ///  The queue outlives the child,
+    ///  so the last look finds what arrived while the run was collecting it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// binding.drain(watch)
+    /// ```
+    fn drain(&mut self, watch: &mut Watch) {
+        let events: Vec<Event> = watch.read_events();
+        self.take(events);
+    }
+
+    /// What:
+    ///  Turn `events` into the records they prove, and take away the records of the takes they end.
+    /// Why:
+    ///  One place, so a wait and a watcher thread record the same thing for the same events.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// binding.take(watch.readEvents())
+    /// ```
+    fn take(&mut self, events: Vec<Event>) {
+        self.tracker.feed(events.as_slice());
+        bind_what_the_child_took(&self.tracker, self.common_dir.as_path(), self.child_pid, self.identity.as_str(), &mut self.bound);
+        forget_what_the_child_finished(&mut self.bound);
+    }
+}
+
+/// How long a binder's caller waits for the watcher thread once the child has ended.
+/// Why:
+///  The thread wakes at the child's end at once where the platform offers a descriptor for it,
+///  and this bound only covers the microseconds of the drain that follows,
+///  so a caller that waits for its child is never held by the watcher.
+const BINDER_FINISH_WAIT: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// What:
+///  A thread that turns one child's lock takes into records while somebody else waits for that child.
+/// Why:
+///  The record must exist before a kill that takes the command and its Git together,
+///  so it cannot wait for the child's end,
+///  and the wrapper's own ladder steps cannot be watched by their waiter:
+///  they wait for their Git through pipes, a pidfd and a progress watch,
+///  on the runtime,
+///  and the caller of such a step is no place to read a watch.
+///  So the watch is read on a thread of its own,
+///  which ends when the child ends,
+///  and the caller finishes it after its own wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const binder = bindWhileTheCallerWaits(watched, child.id()); await step(); binder.finish();
+/// ```
+pub struct Binder {
+    /// The end of the watcher thread, which says its last look was made.
+    ended: Option<std::sync::mpsc::Receiver<()>>,
+    /// The watcher thread itself, so it is not waited for when the caller left its child running.
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Binder {
+    /// What:
+    ///  Wait, briefly, for the watcher's last look after the child has ended.
+    /// Why:
+    ///  A caller that collected its child is about to go on,
+    ///  and a record of the child's last take has to be written before the command can be killed.
+    ///  The wait is short because the thread ends with the child,
+    ///  and a command never waits longer for its own bookkeeping than for its Git.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// binder.finish()
+    /// ```
+    pub fn finish(mut self) {
+        if let Some(ended) = self.ended.take() {
+            let _outlived = ended.recv_timeout(BINDER_FINISH_WAIT);
+        }
+    }
+}
+
+impl Drop for Binder {
+    /// Leave the thread to end with its child,
+    /// which is what a step the command stopped waiting for needs.
+    fn drop(&mut self) {
+        let _thread = self.thread.take();
+        let _end = self.ended.take();
+    }
+}
+
+/// What:
+///  Watch the child `child_pid` in the directories `watched` names,
+///  from a thread of its own,
+///  and write a record for each lock it is seen to take.
+/// Why:
+///  A step of the wrapper's own ladder starts its Git through the transaction runner,
+///  which waits for it through pipes and a progress watch;
+///  the Git that moves a branch (`merge --ff-only`, `update-ref`) takes `refs/heads/<name>.lock` there,
+///  and a watch opened only for the command's own forwarded child never sees it:
+///  a merge killed while it moved the branch left a reference lock no later command could clear
+///  (the fifth review's finding 1,
+///  and `a_reference_lock_of_a_killed_merge_is_cleared_by_its_record`).
+///  A command outside a repository,
+///  and one whose plan remembered no directories,
+///  watches nothing.
+///  A thread that cannot start leaves the lock to the bounded wait it had before this watch existed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bindWhileTheCallerWaits(watched, child.id()) // Binder | undefined
+/// ```
+pub fn bind_while_the_caller_waits(watched: Option<(Watch, Watched)>, child_pid: u32) -> Option<Binder> {
+    let (mut watch, about) = watched?;
+    let child_pid_named: i64 = i64::from(child_pid);
+    let identity: String = crate::lock_holder_records::identity_of_process(child_pid_named)?;
+    watch.follow(child_pid);
+    let (ended, listened) = std::sync::mpsc::channel::<()>();
+    let thread: std::thread::JoinHandle<()> = std::thread::Builder::new()
+        .name(String::from("cli-git-lock-binder"))
+        .spawn(move || {
+            bind_until_the_child_ends(watch, about, child_pid_named, identity, ended);
+        })
+        .ok()?;
+    return Some(Binder { ended: Some(listened), thread: Some(thread) });
+}
+
+/// What:
+///  Read the watch until the child it follows has ended,
+///  turning every take into a record,
+///  then read what the kernel holds once more and say the watch is done.
+/// Why:
+///  The thread is the waiter of nothing but the watch:
+///  its child's end is read from the child's own descriptor,
+///  or from the process table where the platform has none,
+///  so it never waits for the process the command itself collects.
+///  A run whose events were lost stops at once: no later event of it can produce a record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (!childEnded()) { binding.look(watch) } binding.drain(watch);
+/// ```
+fn bind_until_the_child_ends(mut watch: Watch, about: Watched, child_pid: i64, identity: String, ended: std::sync::mpsc::Sender<()>) {
+    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: about.common_dir, child_pid, identity };
+    loop {
+        binding.look(&mut watch);
+        if binding.tracker.nothing_more_can_be_recorded() || the_child_has_ended(&watch, child_pid, binding.identity.as_str()) {
+            break;
+        }
+    }
+    binding.drain(&mut watch);
+    drop(ended);
+}
+
+/// What:
+///  Whether the child `child_pid` has ended,
+///  by its own descriptor where the watch has one,
+///  and by the process table otherwise.
+/// Why:
+///  A watcher that is not the child's waiter still has to end with the child,
+///  and a process number alone is no proof:
+///  a number the table gives to another process is another birth,
+///  which is what the record names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watch.hasChildDescriptor() ? watch.theChildHasEnded() : identityOfProcess(pid) !== identity
+/// ```
+fn the_child_has_ended(watch: &Watch, child_pid: i64, identity: &str) -> bool {
+    if watch.has_child_descriptor() {
+        return watch.the_child_has_ended();
+    }
+    return !matches!(crate::lock_holder_records::identity_of_process(child_pid), Some(now) if now == identity);
+}
+
 
 /// What:
 ///  Write a record for every lock the tracker now reports and this run has not recorded.

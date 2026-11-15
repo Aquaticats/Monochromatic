@@ -10007,10 +10007,30 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   and on **every folder below them** at the depth the lock pass reads,
   so a lock Git takes one folder down (`refs/heads/main.lock`, `refs/tags/x.lock`, the reftable's
   table list) is reported like one at the root;
+  the walk goes one depth at a time,
+  so the count bound (`MOST_WATCHED_FOLDERS`, `src/native/lock/lock_watch.rs`) is spent on the
+  folders locks are taken in first
+  (`refs/heads`, `refs/tags`, `reftable` and a linked worktree's own directory all sit a few steps
+  below a root);
   a folder made while the watch runs (a branch name with a slash in it, a reftable that appears) is
   watched in its turn,
   and a folder the count bound leaves unwatched reports nothing, so a lock there keeps the bounded
   wait instead of a record (a review of `fee5557595`, finding 1);
+  a repository above that bound keeps every folder the walk reached first and gets no record for a
+  lock in one it did not;
+  this repository's own common Git directory holds more folders than the bound
+  (more than 3500 on 2026-11-14, most of them the rerere cache's and the linked worktrees' own),
+  so a lock in one of its deeper folders is cleared only by a proof that does not need a record,
+  and the sentence about a lock that is kept says so;
+- every Git the wrapper's own ladder starts is watched, not only the command's forwarded child:
+  a merge moves the branch with `git merge --ff-only <commit>` and an `update-ref` moves any other
+  reference, both from a step of the wrapper's own transaction runner,
+  whose wait reads pipes, the child's descriptor and a progress watch,
+  so the watch of such a step is read by a thread of its own
+  (`bind_while_the_caller_waits`),
+  which ends with the child and whose last look is taken before the step returns;
+  a step whose watch was not opened, and a Git the wrapper starts outside every watched step, leave
+  their locks to the bounded wait and the report, and the record of the very lock never describes them;
   an event that says the kernel dropped events or ended a watch (`IN_Q_OVERFLOW`,
   `IN_IGNORED`, `IN_UNMOUNT`, `IN_MOVE_SELF`) is delivered whatever watch descriptor it carries, and
   it makes that run's record say nothing, because an incomplete event sequence must never be read as a

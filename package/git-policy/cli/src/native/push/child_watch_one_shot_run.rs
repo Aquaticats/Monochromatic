@@ -172,6 +172,12 @@ pub fn output_watched_within_for_a_stop(
     };
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
+    // What: The watch on the directories this Git writes in is opened before it starts.
+    // Why:  A lock this Git takes is created microseconds after it starts, and a watch opened after the start would
+    //       miss the event that proves whose lock it is. A step of the wrapper's own ladder moves a branch through
+    //       such a lock (`merge --ff-only`, `update-ref`), and this wait is no place a watch can be read, so the
+    //       record is written by a watcher thread of its own (`lock_watch.rs`).
+    let watched: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
     let spawned: std::io::Result<Child> = command.spawn_retrying();
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {
@@ -180,6 +186,9 @@ pub fn output_watched_within_for_a_stop(
     let child: Child = spawned?;
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
+    // A killed `merge --ff-only` otherwise left `refs/heads/<name>.lock` with no record, and the next command kept it
+    //  (the fifth review's finding 1).
+    let binder: Option<crate::lock_watch::Binder> = crate::lock_watch::bind_while_the_caller_waits(watched, child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
@@ -262,6 +271,11 @@ pub fn output_watched_within_for_a_stop(
         }
     };
     watch.end();
+    // The watcher's last look is taken now that the child has ended, so a record of its last take exists before the
+    //  command can be killed. A step the command stopped waiting for keeps its watcher, which ends with the child.
+    if let Some(watcher) = binder {
+        watcher.finish();
+    }
     // The stop ended the step: the caller is told so, whatever the step's own end looked like.
     let outlived: Outlived = Outlived {
         ended_by_the_stop: watch.ended_by_the_stop(),
