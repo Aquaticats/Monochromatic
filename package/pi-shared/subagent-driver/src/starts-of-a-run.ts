@@ -43,7 +43,10 @@ import {
   putTheRunAway,
 } from './put-the-run-away.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
-import type { SecretValue, } from './secret-value-masking.ts';
+import type {
+  TextMasking,
+  SecretValue
+} from './secret-value-masking.ts';
 import {
   SECRET_VALUES_DESCRIPTOR_VARIABLE,
   SECRET_VALUES_FD,
@@ -176,6 +179,8 @@ function stopReasonOf({
 
  @param standardErrorFile - the file Pi's standard error is kept in, for every start
 
+ @param mask - the masking Pi's standard error goes through as it is kept
+
  @returns the last Pi, why the run ended, and every start that failed before it took the prompt
 
  @example
@@ -192,6 +197,7 @@ export async function startsOfARun({
   secretValues,
   maskingArguments,
   standardErrorFile,
+  mask,
 }: {
   readonly options: DriverOptions;
   readonly record: RecordOfPiRun;
@@ -201,6 +207,7 @@ export async function startsOfARun({
   readonly secretValues: readonly SecretValue[];
   readonly maskingArguments: readonly string[];
   readonly standardErrorFile: string;
+  readonly mask: TextMasking;
 },): Promise<StartsOfARun> {
   /**
    When the driver's whole sequence of starts must be over: one start-up bound from now, and never past the run's own wall clock.
@@ -267,6 +274,7 @@ export async function startsOfARun({
       },
       secretValuesHandover: secretValuesHandover({ values: secretValues, },),
       standardErrorFile,
+      mask,
       standardErrorAppends: attempt > 1,
       listeners: {
         onEvent: function onEvent(event,) {

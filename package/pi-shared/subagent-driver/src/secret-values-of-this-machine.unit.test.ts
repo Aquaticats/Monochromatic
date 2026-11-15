@@ -23,6 +23,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { spawnSync, } from 'node:child_process';
 import {
   readSecretValuesOfThisMachine,
   SecretEnvironmentUnreadableError,
@@ -48,6 +49,21 @@ const PI_KEY_VALUE = 'stand-in-provider-key-abcdefghij';
  A stand-in provider key of Pi's other file, which must differ from the first so both names are kept.
  */
 const PI_MODEL_KEY_VALUE = 'stand-in-model-key-uvwxyzabcd';
+
+/**
+ A stand-in OAuth access token of Pi's own credential file.
+ */
+const OAUTH_ACCESS_VALUE = 'stand-in-oauth-access-0123456789';
+
+/**
+ A stand-in OAuth refresh token of Pi's own credential file.
+ */
+const OAUTH_REFRESH_VALUE = 'stand-in-oauth-refresh-9876543210';
+
+/**
+ A stand-in provider key that begins with a slash, which is a key and not a path.
+ */
+const SLASH_KEY_VALUE = '/stand-in-provider-key-abcdefghij';
 
 /**
  A stand-in token of the shell start-up file.
@@ -255,6 +271,146 @@ await describe({
         expect(said.message,).not.toContain(STORE_VALUE,);
         // The cause names what a reader has to fix, and decryption is what failed rather than a missing tool.
         expect(said.message.toLowerCase(),).toContain('decrypt',);
+      },
+    },),
+    it({
+      name: 'arms an OAuth credential Pi own schema names, a shell value with a comment after it, and a key that begins with a slash',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [STORE_NAME]: STORE_VALUE, }, },);
+        await using home = await makeFolder({ prefix: 'pi-secret-values-schema-home-', },);
+        /**
+         Pi's own agent folder, holding a credential in the shape Pi's schema documents.
+         */
+        const agentFolder = join(
+          home.path,
+          '.pi',
+          'agent',
+        );
+        await mkdir(
+          agentFolder,
+          { recursive: true, },
+        );
+        await writeFile(
+          join(agentFolder, 'auth.json',),
+          JSON.stringify({
+            example: {
+              type: 'oauth',
+              access: OAUTH_ACCESS_VALUE,
+              refresh: OAUTH_REFRESH_VALUE,
+              expires: 0,
+            },
+          },),
+        );
+        await writeFile(
+          join(agentFolder, 'models.json',),
+          JSON.stringify({ providers: { example: { apiKey: SLASH_KEY_VALUE, }, }, },),
+        );
+        await writeFile(
+          join(home.path, '.bashrc',),
+          `export ${SHELL_NAME}="${SHELL_VALUE}" # an ordinary inline comment\n`,
+        );
+        /**
+         What reading found, through the sources a run reads.
+         */
+        const read = await readSecretValuesOfThisMachine({
+          environment: {
+            PATH: process.env.PATH ?? '',
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+          home: home.path,
+          checkoutFolder: home.path,
+        },);
+        /**
+         The values, by the names a marker gives them.
+         */
+        const byName = new Map(read.values.map(function toEntry(value,) {
+          return [value.name, value.value,] as const;
+        },),);
+        expect(byName.get('auth.json example.access',),).toBe(OAUTH_ACCESS_VALUE,);
+        expect(byName.get('auth.json example.refresh',),).toBe(OAUTH_REFRESH_VALUE,);
+        expect(byName.get(`models.json providers.example.apiKey`,),).toBe(SLASH_KEY_VALUE,);
+        // The shell exports the quoted literal and not the comment after it.
+        expect(byName.get(`.bashrc ${SHELL_NAME}`,),).toBe(SHELL_VALUE,);
+      },
+    },),
+    it({
+      name: 'stops the run when Pi own credential file is there and cannot be read',
+      fn: async () => {
+        await using home = await makeFolder({ prefix: 'pi-secret-values-malformed-home-', },);
+        /**
+         Pi's own agent folder, holding a file that is not JSON.
+         */
+        const agentFolder = join(
+          home.path,
+          '.pi',
+          'agent',
+        );
+        await mkdir(
+          agentFolder,
+          { recursive: true, },
+        );
+        await writeFile(
+          join(agentFolder, 'auth.json',),
+          `{"example":{"key":"${PI_KEY_VALUE}"`,
+        );
+        /**
+         The read that must stop the run.
+         */
+        const read = readSecretValuesOfThisMachine({
+          environment: { PATH: process.env.PATH ?? '', },
+          home: home.path,
+          checkoutFolder: home.path,
+        },);
+        await expect(read,).rejects.toBeInstanceOf(SecretEnvironmentUnreadableError,);
+        /**
+         The message the run would say, which names the file and holds no value.
+         */
+        const said: { message: string } = { message: '', };
+        try {
+          await read;
+        }
+        catch (error) {
+          said.message = String(error,);
+        }
+        expect(said.message,).toContain('auth.json',);
+        expect(said.message,).not.toContain(PI_KEY_VALUE,);
+      },
+    },),
+    it({
+      name: 'refuses a named pipe at a source path instead of waiting on it',
+      fn: async () => {
+        await using home = await makeFolder({ prefix: 'pi-secret-values-fifo-home-', },);
+        /**
+         Pi's own agent folder, whose credential file is a named pipe with no writer.
+         */
+        const agentFolder = join(
+          home.path,
+          '.pi',
+          'agent',
+        );
+        await mkdir(
+          agentFolder,
+          { recursive: true, },
+        );
+        /**
+         The program that makes a named pipe.
+         */
+        const made = spawnSync(
+          'mkfifo',
+          [join(agentFolder, 'auth.json',),],
+          { encoding: 'utf8', },
+        );
+        expect(made.status,).toBe(0,);
+        /**
+         The read, which must answer rather than wait for a writer.
+         */
+        const read = readSecretValuesOfThisMachine({
+          environment: { PATH: process.env.PATH ?? '', },
+          home: home.path,
+          checkoutFolder: home.path,
+        },);
+        await expect(read,).rejects.toBeInstanceOf(SecretEnvironmentUnreadableError,);
       },
     },),
     it({

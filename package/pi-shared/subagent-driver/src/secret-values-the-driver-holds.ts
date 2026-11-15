@@ -8,17 +8,19 @@
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
+import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   resolveSopsIdentity,
   type SopsIdentity,
 } from '@monochromatic-dev/env-local-json-core/ts/identity.ts';
 import { carriesCredentialName, } from './environment-without-credentials.ts';
-import type { SecretValue, } from './secret-value-masking.ts';
+import {
+  isMaskableValue,
+  type SecretValue,
+} from './secret-value-masking.ts';
 import {
   type EnvironmentOfThisMachine,
   isKeptDespiteItsName,
-  isMaskableValue,
   plainCauseOf,
 } from './secret-values-in-the-files-of-this-machine.ts';
 
@@ -32,6 +34,61 @@ import {
  */
 // oxlint-disable-next-line no-restricted-syntax/no-regex -- finding a key in an identity file needs a pattern; see the comment above.
 const AGE_SECRET_KEY_PATTERN = /AGE-SECRET-KEY-1[A-Z0-9]+/gu;
+
+/**
+ The variables whose value names where a secret is kept rather than being the secret: a socket, an authority cookie or a
+ configuration key's number. Masking one would hide an ordinary path or number from an agent and protect nothing, so the rule that
+ arms a credential-named variable skips these by their names.
+
+ The environment rule that keeps a variable from Pi altogether has its own allow list in `environment-without-credentials.ts`;
+ this list is about masking only.
+ */
+const VARIABLES_WHOSE_VALUES_ARE_NOT_THE_SECRET: ReadonlySet<string> = new Set([
+  'SSH_AUTH_SOCK',
+  'ICEAUTHORITY',
+  'XAUTHORITY',
+  'GIT_AUTHOR_NAME',
+  'STARSHIP_SESSION_KEY',
+]);
+
+/**
+ The name endings that say a variable names a place a secret is kept in rather than the secret: a file, a folder, a path or a
+ socket. A variable called `SOPS_AGE_KEY_FILE` holds the path of a key, and masking that path would hide an ordinary file name from
+ an agent while protecting nothing.
+
+ A credential whose name ends one of these ways is read from the file it names, by the source that owns that file, which is where
+ its value is armed.
+ */
+const NAME_ENDINGS_THAT_NAME_A_PLACE: readonly string[] = [
+  '_FILE',
+  '_PATH',
+  '_DIR',
+  '_SOCK',
+];
+
+/**
+ The name beginnings that say a variable names a Git configuration key rather than a secret.
+ */
+const NAME_BEGINNINGS_THAT_ARE_NOT_THE_SECRET: readonly string[] = [
+  'GIT_CONFIG_KEY_',
+];
+
+/**
+ Says whether a variable's own name says its value is not a secret, which is what the rule above is about.
+
+ @param name - the variable's name
+
+ @returns whether the name says the value is a place, or a Git configuration key
+ */
+function nameSaysTheValueIsNotASecret(name: string,): boolean {
+  return VARIABLES_WHOSE_VALUES_ARE_NOT_THE_SECRET.has(name,)
+    || NAME_ENDINGS_THAT_NAME_A_PLACE.some(function endsThatWay(ending,) {
+      return name.endsWith(ending,);
+    },)
+    || NAME_BEGINNINGS_THAT_ARE_NOT_THE_SECRET.some(function beginsThatWay(beginning,) {
+      return name.startsWith(beginning,);
+    },);
+}
 
 //endregion Constants
 
@@ -72,7 +129,7 @@ export function valuesInTheEnvironment({
     if ((!carriesCredentialName({ name, },)) && (!alsoTheseNames.has(name,))) {
       continue;
     }
-    if ((isKeptDespiteItsName(name,)) || (!isMaskableValue(value,))) {
+    if ((isKeptDespiteItsName(name,)) || (nameSaysTheValueIsNotASecret(name,)) || (!isMaskableValue(value,))) {
       continue;
     }
     values.push({
@@ -197,10 +254,7 @@ async function valuesOfTheIdentity({ identity, }: { readonly identity: SopsIdent
     /**
      The identity file's text.
      */
-    const text = await readFile(
-      identity.value,
-      'utf8',
-    );
+    const text = await readOrdinaryFile(identity.value,);
     return {
       source,
       values: [...text.matchAll(AGE_SECRET_KEY_PATTERN),].map(function toValue([key,],) {

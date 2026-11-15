@@ -30,32 +30,33 @@ The commands before those results:
 - `cat ~/.pi/agent/models.json`:
   Pi's own provider file, which holds keys in clear.
 
-## Every path text takes to the model
+## Every place a value could be written or sent, and the point before it that masks
 
-From Pi 1.5.2 as installed, with what this package's masking does about each.
+A list of Pi's hooks is what this package started with, and it was short by one twice: a tool result's `details` and every
+message Pi keeps. So the write-down starts from the places a value could be written or sent, not from the hooks.
 
-- **A tool result**, whatever tool made it:
-  bash, read, grep, ls, find, edit, write, and any extension tool.
-  `tool_result` fires before Pi ends the call and keeps the message
-  (`dist/core/agent-session.js:403`, and `finalizeExecutedToolCall` then `createToolResultMessage` in
-  `dist/bundle/chunks/chunk-VEJDBY3O.js`), so masking there covers the model, the session file and the
-  run's feed at once. Covered.
-- **A tool that threw**: its error text becomes the tool result before the hook runs, so it is covered by the same hook.
-- **The whole transcript before a request**, which is where a resumed session's earlier tool results,
-  the first prompt, a steer or a note from the inbox, the system prompt (AGENTS.md, the skills),
-  a compaction summary and every earlier assistant message travel:
-  `context_with_system` sees all of it (`dist/core/extensions/runner.js:1011`,
-  wired at `dist/core/sdk.js:277`). Masked on the way out. Covered.
-- **Pi's compaction and branch summarization requests**:
-  these build their own conversation text from the session
-  (`dist/core/compaction/compaction.js:494` and `:524`, `dist/core/compaction/branch-summarization.js:208`)
-  and do not run `context_with_system`.
-  A value that a *new* run's session never holds is out of reach of them;
-  a value an old session already holds could travel inside one. Not covered.
-- **Pi's provider payload** (`before_provider_request`) can hold any of the above.
-  Not used: masking the transcript is provider-neutral, and a payload rewrite would have to know each
-  provider's shape.
-- **A file the agent reads with the read tool** is a tool result, so it is covered the same way.
+| Place | Where it happens, in Pi 1.5.2 as installed | The one point before it that masks |
+| --- | --- | --- |
+| A tool result message: `content`, `details`, `structuredContent` | `dist/core/agent-session.js:403` (`_afterToolCall`), then `finalizeExecutedToolCall` and `createToolResultMessage` in `dist/bundle/chunks/chunk-VEJDBY3O.js` | the `tool_result` handler, which returns every field masked (`secret-value-masking-extension.ts`) |
+| Any message Pi keeps, of every role and every field: the first prompt, a steer, an inbox prompt, an assistant message with its tool-call arguments, a tool result, a custom message | `dist/core/agent-session.js:994` (`emitMessageEnd`), the replacement applied at `:1000-1013`, then the append at `:814` and the write at `dist/core/session-manager.js:813` | the `message_end` handler, which returns the masked message before Pi keeps it |
+| An ordinary model request, with the whole transcript | `dist/core/extensions/runner.js:1011` (`emitContext`), wired at `dist/core/sdk.js:277` | the `context_with_system` handler |
+| Pi's compaction request | `dist/core/agent-session.js:2338` (`getBranch`), `:2302` (`_runDefaultCompaction`), `dist/core/compaction/compaction.js:494` and `:524` | no hook runs before it; it is built from the session's own messages, which the `message_end` handler has already masked, so it can hold no value |
+| Pi's branch-summary request | `dist/core/compaction/branch-summarization.js:208` | the same: it reads the session, which is masked at `message_end` |
+| The file Pi keeps a truncated tool's whole output in | `dist/utils/output-files.js`, `dist/core/tools/output-accumulator.js:81` | the `tool_result` handler, which masks it and puts the masked text in place through a file of its own renamed over it |
+| The driver's `feed.jsonl`, every record: tool arguments, tool results, an inbox preview, Pi's event detail, a problem | `src/record-of-pi-run.ts` (`note`) | one boundary there: every entry is masked whole before the line is written |
+| The driver's `summary.json`: the last reply, a tool error, what Pi printed when a start failed | `src/write-summary.ts` | the same masking, applied to the whole summary before it is written |
+| The driver's `stderr.log`, which holds Pi's own diagnostics and an extension's | `src/keep-standard-error.ts` | the masking on the way into the file, holding back the longest form's length between two writes so a value split across them is still matched |
+| The session file at rest: compaction and branch-summary entries, context edits, and a custom entry an extension wrote | `dist/core/session-manager.js:816` (`_appendEntry`) for every kind | no hook runs before `appendCompaction`, `appendContextEdit` or `appendCustomEntry`, and Pi's interface gives an extension no way to intercept them; the file is masked whole once the run is over (`src/session-file-at-rest.ts`), which is before any later request and before any reader of the run's folder |
+
+Two of those are not "before the sink" and are named as such: the compaction and branch-summary requests, which are covered
+by the session being masked rather than by a hook of their own, and the session file at rest, which is masked after the run
+because Pi offers no point before those three entry kinds.
+
+What the run does about a place it cannot cover: it does not start. A store, Pi's credential file, a shell start-up file or
+the age identity that is there and cannot be read stops the run before Pi is started, and a Pi that does not answer a command
+list saying the masking is armed is sent no prompt. An entry an extension writes during the run is the one place no hook
+reaches: it never reaches a model request (compaction reads messages, not custom entries), and it does not survive the run,
+because the file is masked at rest.
 
 ## What the masking does not cover
 

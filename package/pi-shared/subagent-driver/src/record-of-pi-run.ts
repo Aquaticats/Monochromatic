@@ -14,6 +14,10 @@ import {
   FEED_PREVIEW_CHARACTERS,
 } from './driver-constants.ts';
 import {
+  MASKING_NOTHING,
+  type TextMasking,
+} from './secret-value-masking.ts';
+import {
   type Feed,
   startFeed,
 } from './feed-of-a-run.ts';
@@ -124,6 +128,14 @@ export type RecordOfPiRunRequest = {
    Where the record reads the time. A test gives its own, so a silence is measured instead of waited for.
    */
   readonly now?: () => number;
+
+  /**
+   The masking every feed line goes through, which is one boundary for every record a run writes: a tool's arguments, a tool's
+   result, an inbox preview, a problem, and Pi's own event detail all pass it.
+
+   A run whose values are not read yet, and a test of this record alone, pass nothing and every line is written as it came.
+   */
+  readonly mask?: TextMasking;
 };
 
 /**
@@ -143,6 +155,7 @@ export type RecordOfPiRunRequest = {
 export function startRecordOfPiRun({
   feedFile,
   now = Date.now,
+  mask = MASKING_NOTHING,
 }: RecordOfPiRunRequest,): RecordOfPiRun {
   /**
    When the run started.
@@ -220,7 +233,9 @@ export function startRecordOfPiRun({
    */
   function note(entry: PiRecord,): void {
     activity.at = now();
-    feed.note(entry,);
+    // One boundary for every line: the entry is masked whole, so a field nobody thought of is covered as the ones that were.
+    feed.note(mask.maskDeeply(entry,)
+      .value,);
   }
 
   /**

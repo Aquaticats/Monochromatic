@@ -10,6 +10,10 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import type { RunSummary, } from './driver-types.ts';
+import {
+  MASKING_NOTHING,
+  type TextMasking,
+} from './secret-value-masking.ts';
 
 /**
  Writes a run's summary, appearing whole and last.
@@ -17,6 +21,8 @@ import type { RunSummary, } from './driver-types.ts';
  @param runFolder - folder the run writes to
 
  @param summary - what to write
+
+ @param mask - the masking every string of it goes through
 
  @example
  ```ts
@@ -26,9 +32,11 @@ import type { RunSummary, } from './driver-types.ts';
 export async function writeSummary({
   runFolder,
   summary,
+  mask = MASKING_NOTHING,
 }: {
   readonly runFolder: string;
-  readonly summary: RunSummary
+  readonly summary: RunSummary;
+  readonly mask?: TextMasking;
 },): Promise<void> {
   /**
    Where the summary is written first.
@@ -40,7 +48,10 @@ export async function writeSummary({
   await writeFile(
     unfinished,
     `${JSON.stringify(
-      summary,
+      // The summary carries what a tool error said, what the last reply said, and what Pi printed when a start failed, so it goes
+      // through the same masking as every other file a run writes.
+      mask.maskDeeply(summary,)
+        .value,
       null,
       2,
     )}\n`,

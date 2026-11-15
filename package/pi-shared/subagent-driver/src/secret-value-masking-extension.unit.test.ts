@@ -16,7 +16,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { spawn, } from 'node:child_process';
+import { spawn, spawnSync, } from 'node:child_process';
 import { Writable, } from 'node:stream';
 import { randomBytes, } from 'node:crypto';
 import type {
@@ -86,7 +86,7 @@ type Recording = {
 
  @returns what the arming registered
  */
-function armRecording(): Recording {
+function armRecording({ piOutputFolder, }: { readonly piOutputFolder?: string } = {},): Recording {
   /**
    The handlers and commands the arming registers.
    */
@@ -125,6 +125,7 @@ function armRecording(): Recording {
     noteFailure: function note(text,) {
       recorded.failures.push(text,);
     },
+    ...(piOutputFolder === undefined ? {} : { piOutputFolder, }),
   },);
   return recorded;
 }
@@ -275,12 +276,13 @@ await describe({
   name: 'the extension that masks secret values',
   children: [
     it({
-      name: 'registers the two hooks and one command saying how many values are armed',
+      name: 'registers the three hooks and one command saying how many values are armed',
       fn: async () => {
         const recording = armRecording();
         expect([...recording.handlers.keys(),],).toEqual([
           'tool_result',
           'context_with_system',
+          'message_end',
         ],);
         expect(recording.commands,).toEqual([{
           name: MASKING_ARMED_COMMAND,
@@ -419,7 +421,7 @@ await describe({
           folder: folder.path,
           text: `${TOKEN_NAME}=${TOKEN_VALUE}\n`,
         },);
-        const recording = armRecording();
+        const recording = armRecording({ piOutputFolder: folder.path, },);
         await maskOneResult(
           recording,
           bashResultOf({
@@ -439,6 +441,83 @@ await describe({
       },
     },),
     it({
+      name: 'leaves Pi own output whole when the masked text cannot be put in its place',
+      fn: async () => {
+        await using folder = await makeFolder({ prefix: 'pi-unwritable-spare-copy-', },);
+        /**
+         The file Pi saved the whole output in, which the masked text cannot replace once the folder refuses a new file.
+         */
+        const path = await writeSpareCopy({
+          folder: folder.path,
+          text: `${TOKEN_NAME}=${TOKEN_VALUE}\n`,
+        },);
+        const recording = armRecording({ piOutputFolder: folder.path, },);
+        await chmod(
+          folder.path,
+          0o500,
+        );
+        try {
+          await maskOneResult(
+            recording,
+            bashResultOf({
+              text: 'the output was longer than Pi shows',
+              details: { fullOutputPath: path, },
+            },),
+          );
+        }
+        finally {
+          await chmod(
+            folder.path,
+            0o700,
+          );
+        }
+        // The original is the whole original: the masked text never got in its way.
+        expect(await readFile(
+          path,
+          'utf8',
+        ),).toBe(`${TOKEN_NAME}=${TOKEN_VALUE}\n`,);
+        expect(recording.failures.join('\n',),).toContain('could not be rewritten',);
+      },
+    },),
+    it({
+      name: 'does not wait on a named pipe a tool result calls Pi own output',
+      fn: async () => {
+        await using folder = await makeFolder({ prefix: 'pi-output-pipe-', },);
+        /**
+         The named pipe, at a path Pi's name and folder rules accept.
+         */
+        const path = join(folder.path, 'pi-output-no-writer.txt',);
+        /**
+         The program that makes a named pipe.
+         */
+        const made = spawnSync(
+          'mkfifo',
+          [path,],
+          { encoding: 'utf8', },
+        );
+        expect(made.status,).toBe(0,);
+        const recording = armRecording({ piOutputFolder: folder.path, },);
+        /**
+         The answer of the hook, which must come without waiting for a writer that never comes.
+         */
+        const answered = await Promise.race([
+          maskOneResult(
+            recording,
+            bashResultOf({
+              text: 'ordinary result',
+              details: { fullOutputPath: path, },
+            },),
+          ),
+          new Promise<'waited'>(function waitTooLong(resolve,) {
+            setTimeout(() => {
+              resolve('waited',);
+            }, 5_000,);
+          },),
+        ],);
+        expect(answered,).not.toBe('waited',);
+      },
+    },),
+    it({
       name: 'leaves a file of its own name alone, so only the files Pi made are rewritten',
       fn: async () => {
         await using folder = await makeFolder({ prefix: 'pi-unrelated-file-', },);
@@ -450,7 +529,7 @@ await describe({
           path,
           `${TOKEN_NAME}=${TOKEN_VALUE}\n`,
         );
-        const recording = armRecording();
+        const recording = armRecording({ piOutputFolder: folder.path, },);
         await maskOneResult(
           recording,
           bashResultOf({

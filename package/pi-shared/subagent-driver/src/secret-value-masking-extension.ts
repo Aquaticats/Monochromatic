@@ -2,16 +2,20 @@
  The extension a run's Pi loads before it takes a prompt: it masks every value of this machine's secret environment in each tool
  result, and again in the whole transcript on its way to the model.
 
- Two hooks, and why both:
+ Three hooks, and why each:
 
  `tool_result` fires after a tool has run and before Pi emits the end of the call and the tool result message, so a value masked
  there never reaches the model, never reaches Pi's session file, and never reaches the run's feed, which reads the same event
  (`dist/core/agent-session.js:403` in Pi 1.5.2, and `finalizeExecutedToolCall` then `createToolResultMessage` in its bundle).
 
+ `message_end` fires before Pi keeps a message in its session (`dist/core/agent-session.js:994`, then the append at `:814` and the
+ write at `dist/core/session-manager.js:813`), so the first prompt, a steer, an inbox note, an assistant message with its tool
+ calls, and every other message of a run are masked before the session file holds them. That is also what keeps Pi's compaction
+ and branch-summarization requests free of values: both build their own text from the session and run no context hook
+ (`dist/core/compaction/compaction.js:494`).
+
  `context_with_system` fires before every model request with the whole transcript, so a value that a session already held (a run
- resumed from a session of before this extension, or a value a command wrote into a file the agent read before the sources knew
- it) is masked on its way out as well. Pi's compaction and branch summarization build their own request from the session and do
- not run this hook (`dist/core/compaction/compaction.js:524`), which is named as a limit of this masking.
+ resumed from a session of before this extension) is masked on its way out as well.
 
  What an agent reads in a tool result is a marker that names the variable, and never the value.
 
@@ -23,14 +27,10 @@ import {
   readFileSync,
   readSync,
 } from 'node:fs';
-import {
-  readFile,
-  writeFile,
-} from 'node:fs/promises';
-import { basename, } from 'node:path';
 import type {
   ContextWithSystemEvent,
   ExtensionAPI,
+  MessageEndEvent,
   ToolResultEvent,
   ToolResultEventResult,
 } from '@earendil-works/pi-coding-agent';
@@ -45,9 +45,10 @@ import {
   type SecretValueMasking,
 } from './secret-value-masking.ts';
 import {
-  fieldsOf,
-  textOf,
-} from './read-pi-fields.ts';
+  maskSpareCopyOfToolOutput,
+  spareCopyOfToolOutput,
+} from './pi-output-file-of-a-tool-result.ts';
+import { fieldsOf, } from './read-pi-fields.ts';
 import {
   descriptorOfSecretValues,
   MASKING_ARMED_COMMAND,
@@ -204,108 +205,6 @@ export function readTheSecretValuesHandedOver({ fd, }: { readonly fd: number },)
 //region Masking a tool result
 
 /**
- Reads the path of the file Pi keeps a tool's whole output in, which it writes when it shows only part of that output.
-
- @param details - the tool result's own details, of any shape
-
- @returns the path, or nothing when the tool kept no such file
- */
-function spareCopyOfToolOutput(details: unknown,): { readonly path: string } | { readonly absent: true } {
-  /**
-   The field Pi puts the path in.
-   */
-  const path = fieldsOf(details,)
-    .fullOutputPath;
-  if ((typeof path) !== 'string') {
-    return { absent: true, };
-  }
-  return isSpareCopyOfToolOutput(path,)
-    ? { path, }
-    : { absent: true, };
-}
-
-/**
- Says whether a path is one of the files Pi keeps tool output in, which is the only kind of file this extension rewrites.
-
- @param path - the path the result's details name
-
- @returns whether Pi made that file for the output of a tool call
- */
-function isSpareCopyOfToolOutput(path: string,): boolean {
-  return basename(path,)
-    .startsWith(SPARE_COPY_FILE_NAME_PREFIX,);
-}
-
-/**
- Masks the file Pi saved a truncated tool output in, so a value masked in what the model reads is not left in what Pi wrote.
-
- Pi writes those files with mode 0600, and a path that is not one of them is left alone: this code rewrites only a file Pi made
- for the result it is masking.
-
- @param path - the file Pi saved the output in
-
- @param masking - the masking
- */
-async function maskSpareCopyOfToolOutput({
-  path,
-  masking,
-}: {
-  readonly path: string;
-  readonly masking: SecretValueMasking;
-},): Promise<void> {
-  /**
-   The file's text, or nothing when it has already gone.
-   */
-  const text = await textOfTheSpareCopy({ path, },);
-  if ('absent' in text) {
-    return;
-  }
-  /**
-   The same text with every value masked.
-   */
-  const masked = masking.maskText(text.text,);
-  if (masked === text.text) {
-    return;
-  }
-  try {
-    await writeFile(
-      path,
-      masked,
-      { mode: 0o600, },
-    );
-  }
-  catch (error) {
-    process.stderr
-      .write(`the whole output of a masked tool result could not be rewritten: ${Error.isError(error,) ? error.name : 'a failure'}\n`,);
-  }
-}
-
-/**
- Reads the text of the file Pi saved a tool's whole output in.
-
- @param path - the file
-
- @returns its text, or that it is not there to read
- */
-async function textOfTheSpareCopy({ path, }: { readonly path: string },): Promise<
-  | { readonly text: string }
-    | { readonly absent: true }
-  > {
-  try {
-    return { text: await readFile(
-      path,
-      'utf8',
-    ), };
-  }
-  catch (error) {
-    if (!Error.isError(error,)) {
-      throw error;
-    }
-    return { absent: true, };
-  }
-}
-
-/**
  Masks the text parts of a tool result, keeping images and every other part as they were.
 
  @param content - the tool result's parts
@@ -394,6 +293,10 @@ function maskedToolResultPart({
 /**
  Masks one tool result, which is what Pi calls after the tool has run and before the result becomes a message.
 
+ Every field Pi copies into the message is masked: the content, the details a tool declared, and the structured content a tool
+ declared an output schema for. A field that changed is returned as its masked self, and every other field is returned as it came,
+ because Pi reads a patch that leaves a field out as a reason to drop it.
+
  @param event - Pi's tool result event
 
  @param masking - the masking
@@ -423,17 +326,25 @@ export function maskedToolResult({
     masking,
   },);
   /**
+   The details a tool declared, masked field by field.
+   */
+  const details = masking.maskDeeply(event.details,);
+  /**
    The structured content a tool declared an output schema for, masked field by field, when the tool declared any.
    */
   const structured = (event.structuredContent === undefined)
     ? undefined
     : masking.maskDeeply(event.structuredContent,);
-  if ((!content.changed) && (structured?.changed !== true)) {
+  if ((!content.changed) && (!details.changed)
+    && (structured?.changed !== true)) {
     return undefined;
   }
   return {
     content: content.parts,
-    ...((structured === undefined) || (!structured.changed) ? {} : { structuredContent: structured.value, }),
+    details: details.value,
+    ...(structured?.changed === true ? { structuredContent: structured.value, } : {}),
+    // Pi drops a structured field a patch leaves out, so the field is returned as it came even when nothing in it was masked.
+    ...((structured !== undefined) && (!structured.changed) ? { structuredContent: structured.value, } : {}),
   };
 }
 
@@ -478,6 +389,11 @@ export type ArmingOfSecretValueMasking = {
    Where a failure of this extension is written, which is Pi's standard error and holds no value.
    */
   readonly noteFailure?: (text: string,) => void;
+
+  /**
+   The folder Pi writes the files it keeps a tool's whole output in, which a test names for its own disposable folder.
+   */
+  readonly piOutputFolder?: string;
 };
 
 /**
@@ -489,6 +405,8 @@ export type ArmingOfSecretValueMasking = {
 
  @param noteFailure - where a failure of this extension is written
 
+ @param piOutputFolder - the folder Pi writes its own output files in, when a caller names one
+
  @example
  ```ts
  armSecretValueMasking({ pi, values, },);
@@ -498,6 +416,7 @@ export function armSecretValueMasking({
   pi,
   values,
   noteFailure = writeToStandardError,
+  piOutputFolder,
 }: ArmingOfSecretValueMasking,): void {
   /**
    The masking of every value handed over.
@@ -524,7 +443,10 @@ export function armSecretValueMasking({
     /**
      The path Pi saved the result's whole output in, if it saved one.
      */
-    const spareCopy = spareCopyOfToolOutput(event.details,);
+    const spareCopy = spareCopyOfToolOutput({
+      details: event.details,
+      ...(piOutputFolder === undefined ? {} : { piOutputFolder, }),
+    },);
     return {
       isError: true,
       content: [{
@@ -550,12 +472,21 @@ export function armSecretValueMasking({
         /**
          The path Pi saved the result's whole output in, if it saved one.
          */
-        const spareCopy = spareCopyOfToolOutput(event.details,);
+        const spareCopy = spareCopyOfToolOutput({
+          details: event.details,
+          ...(piOutputFolder === undefined ? {} : { piOutputFolder, }),
+        },);
         if (!('absent' in spareCopy)) {
-          await maskSpareCopyOfToolOutput({
+          /**
+           Why the file kept what Pi wrote, when it did.
+           */
+          const rewritten = await maskSpareCopyOfToolOutput({
             path: spareCopy.path,
             masking,
           },);
+          if (rewritten.problem !== undefined) {
+            noteFailure(rewritten.problem,);
+          }
         }
         return patch;
       }
@@ -582,6 +513,25 @@ export function armSecretValueMasking({
       }
       catch (error) {
         noteFailure(`${MASKING_ARMED_COMMAND}: the transcript could not be masked: ${Error.isError(error,) ? error.name : 'a failure'}`,);
+        return undefined;
+      }
+    },
+  );
+
+  pi.on(
+    'message_end',
+    function maskTheMessageBeforePiKeepsIt(event: ForeignBorrowed<MessageEndEvent>,) {
+      try {
+        /**
+         The message with every string in it masked.
+         */
+        const message = masking.maskDeeply(event.message,);
+        return message.changed ? { message: message.value, } : undefined;
+      }
+      catch (error) {
+        // Pi keeps the message it has when a handler throws, so this fails closed the way the run's start does: nothing is kept
+        // unmasked without the driver hearing about it, and a tool result that reached here is already masked at its own hook.
+        noteFailure(`${MASKING_ARMED_COMMAND}: a message could not be masked before Pi kept it: ${Error.isError(error,) ? error.name : 'a failure'}`,);
         return undefined;
       }
     },

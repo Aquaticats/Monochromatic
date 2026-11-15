@@ -9,7 +9,8 @@
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
+import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 import { ENV_PATH_VARIABLE_NAME, } from '@monochromatic-dev/env-local-json-core/ts/constants.ts';
 import {
   NO_STORE_FOUND,
@@ -36,20 +37,6 @@ const STORE_FILE_NAME = '.env.local.json';
 const SOPS_METADATA_KEY = 'sops';
 
 //endregion Constants
-
-//region Errors
-
-/**
- The checkout's secret environment is there and cannot be read, so this code does not know which values to mask.
- */
-export class SecretEnvironmentUnreadableError extends Error {
-  /**
-   The name printed with the message.
-   */
-  override readonly name = 'SecretEnvironmentUnreadableError';
-}
-
-//endregion Errors
 
 //region Where the store is and what it declares
 
@@ -143,15 +130,13 @@ async function textOfTheStore({ storePath, }: { readonly storePath: string },): 
     | { readonly cause: string }
   > {
   try {
-    return { text: await readFile(
-      storePath,
-      'utf8',
-    ), };
+    return { text: await readOrdinaryFile(storePath,), };
   }
   catch (error) {
     if (isMissingPathFailure({ error, },)) {
       return { cause: `${storePath} is not there to read`, };
     }
+    // A named pipe, a device or a folder is there and cannot be read as a store: the read refuses it instead of waiting on it.
     return { cause: plainCauseOf(error,), };
   }
 }
@@ -228,7 +213,10 @@ export async function valuesInTheCheckoutStore({
     return { absent: true, };
   }
   if ('cause' in found) {
-    throw new SecretEnvironmentUnreadableError(found.cause,);
+    throw new SecretEnvironmentUnreadableError({
+      source: `the ${STORE_FILE_NAME} of ${checkoutFolder}`,
+      cause: found.cause,
+    },);
   }
   /**
    The store's values, read by the reader that owns the store rather than by a second copy of its rules.
@@ -241,10 +229,10 @@ export async function valuesInTheCheckoutStore({
     checkoutFolder,
   },);
   if ('cause' in read) {
-    throw new SecretEnvironmentUnreadableError(
-      read.cause,
-      { cause: read.failure, },
-    );
+    throw new SecretEnvironmentUnreadableError({
+      source: `the ${STORE_FILE_NAME} of ${checkoutFolder}`,
+      cause: read.cause,
+    },);
   }
   return {
     storePath: found.storePath,

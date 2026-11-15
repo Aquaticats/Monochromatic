@@ -15,6 +15,9 @@ export {
 } from './secret-value-masking-extension.ts';
 export {
   createSecretValueMasking,
+  isMaskableValue,
+  MASKING_NOTHING,
+  type TextMasking,
   MASKED_VALUE_CLOSING,
   MASKED_VALUE_OPENING,
   type MaskedDeeply,
@@ -24,14 +27,23 @@ export {
   SecretValueMaskingError,
   type SecretValueMasking,
 } from './secret-value-masking.ts';
+export { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 export {
-  SecretEnvironmentUnreadableError,
   storeOfTheCheckout,
   valuesInTheCheckoutStore,
 } from './secret-values-in-the-checkout-store.ts';
 export {
+  valuesInPiFile,
+  isPiCredentialField,
+  PI_CREDENTIAL_FIELD_NAMES,
+} from './pi-credential-values.ts';
+export {
+  exportedCredentialValues,
+  type WrittenValue,
+  writtenValue,
+} from './shell-assignments-of-a-start-up-file.ts';
+export {
   isKeptDespiteItsName,
-  isMaskableValue,
   plainCauseOf,
   readJSONFile,
   type SecretValueSourceReport,

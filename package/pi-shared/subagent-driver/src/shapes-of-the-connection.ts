@@ -9,6 +9,7 @@ import type {
   PiExit,
   PiRecord,
 } from './driver-types.ts';
+import type { TextMasking, } from './secret-value-masking.ts';
 
 /**
  What the connection tells the run about.
@@ -53,6 +54,13 @@ export type ConnectionRequest = {
    a Pi whose extension reports no values in place refuses to work (`take-the-first-prompt.ts`).
    */
   readonly secretValuesHandover?: string;
+
+  /**
+   The masking Pi's standard error goes through as it is kept, which is the one place that text passes before the file holds it.
+
+   A caller that passes none keeps it as Pi wrote it, which is what a test of this seam alone wants.
+   */
+  readonly mask?: TextMasking;
 
   /**
    How long Pi gets at each stage of ending; tests shorten it.

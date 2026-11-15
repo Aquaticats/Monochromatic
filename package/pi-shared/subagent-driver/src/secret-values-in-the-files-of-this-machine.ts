@@ -8,7 +8,10 @@
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
+import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
+import { valuesInPiFile, } from './pi-credential-values.ts';
+import { exportedCredentialValues, } from './shell-assignments-of-a-start-up-file.ts';
 import { join, } from 'node:path';
 import type { EnvLocalJsonEnvironment, } from '@monochromatic-dev/env-local-json-core/ts';
 import {
@@ -17,6 +20,7 @@ import {
 } from './environment-without-credentials.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
+  isMaskableValue,
   MINIMUM_MASKED_VALUE_LENGTH,
   type SecretValue,
 } from './secret-value-masking.ts';
@@ -46,25 +50,6 @@ const SHELL_START_FILE_NAMES: readonly string[] = [
   '.bashrc',
   '.bash_profile',
   '.profile',
-];
-
-/**
- An assignment of a shell start-up file: the variable's name, then its value as written.
-
- A regular expression is what reads one line of a shell file into a name and a value: the alternative is a shell parser, and a
- value may hold spaces, quotes and `=` of its own. The pattern is anchored at the line's start, has no nested quantifier, and each
- line is one line of a file this machine owns, so matching it is linear in the line and cannot backtrack.
- */
-const SHELL_ASSIGNMENT_PATTERN =
-  // oxlint-disable-next-line no-restricted-syntax/no-regex -- reading `NAME=value` from one line needs a pattern; see the comment above.
-  /^\s*(?:export\s+|declare\s+-[a-zA-Z]*x[a-zA-Z]*\s+)?(?<name>[A-Za-z_][A-Za-z0-9_]*)=(?<written>.*)$/u;
-
-/**
- What marks a value in a shell start-up file as computed when the shell loads, which this code cannot know.
- */
-const SHELL_EXPANSION_MARKERS: readonly string[] = [
-  '$',
-  '`',
 ];
 
 /**
@@ -172,25 +157,6 @@ export function isMissingPathFailure({ error, }: { readonly error: unknown },): 
 //region Value rules
 
 /**
- Says whether a value is one this masking replaces.
-
- A value shorter than the floor appears in ordinary text by chance, and a value that is an absolute path is where a secret is kept
- rather than a secret, so masking it would hide an ordinary file name from an agent and protect nothing.
-
- @param value - the value read from a source
-
- @returns whether a marker stands in its place
-
- @example
- ```ts
- const maskable = isMaskableValue('ghp_example',);
- ```
- */
-export function isMaskableValue(value: string,): boolean {
-  return (value.length >= MINIMUM_MASKED_VALUE_LENGTH) && (!value.startsWith('/',));
-}
-
-/**
  Says whether a variable's name is one the credential rule keeps on purpose, so the rule that takes a name from Pi's environment
  does not make this code mask a value that was judged worth keeping.
 
@@ -253,10 +219,9 @@ export function withoutRepeatedValues(values: readonly SecretValue[],): readonly
  */
 export async function textOfAFile({ path, }: { readonly path: string },): Promise<TextOfAFile> {
   try {
-    return { text: await readFile(
-      path,
-      'utf8',
-    ), };
+    // An ordinary file only, read without waiting: a named pipe at a source's path would otherwise hold the run's start open until
+    // somebody wrote to it, and a device would read forever.
+    return { text: await readOrdinaryFile(path,), };
   }
   catch (error) {
     if (isMissingPathFailure({ error, },)) {
@@ -437,9 +402,9 @@ async function valuesInOnePiCredentialFile({
   if ('cause' in read) {
     return { cause: read.cause, };
   }
-  return { values: valuesUnderCredentialFields({
-    name: fileName,
-    value: read.parsed,
+  return { values: valuesInPiFile({
+    fileName,
+    parsed: read.parsed,
   },), };
 }
 
@@ -483,11 +448,11 @@ export async function valuesInPiCredentialFiles({ home, }: { readonly home: stri
       continue;
     }
     if ('cause' in read) {
-      unread.push({
+      // A file that is there and cannot be read is a place a value stands that this code would not know: the run does not start.
+      throw new SecretEnvironmentUnreadableError({
         source: fileName,
         cause: read.cause,
       },);
-      continue;
     }
     values.push(...read.values,);
     sources.push({
@@ -506,56 +471,6 @@ export async function valuesInPiCredentialFiles({ home, }: { readonly home: stri
 //endregion Pi's own credential files
 
 //region A shell start-up file of this machine
-
-/**
- Takes the quotes a shell file writes around a value, when the value wears a matching pair.
-
- @param written - the value as the assignment wrote it
-
- @returns the value the shell would export
-
- @example
- ```ts
- const value = unquote({ written: '"ghp_example"', },);
- ```
- */
-function unquote({ written, }: { readonly written: string },): string {
-  /**
-   The value without the spaces an assignment may end with.
-   */
-  const trimmed = written.trimEnd();
-  for (const quote of [
-    '"',
-    "'",
-  ]) {
-    if ((trimmed.length >= 2) && (trimmed.startsWith(quote,))
-      && (trimmed.endsWith(quote,))) {
-      return trimmed.slice(
-        1,
-        -1,
-      );
-    }
-  }
-  return trimmed;
-}
-
-/**
- Says whether a value is written out in the file rather than computed when the shell loads.
-
- @param value - the value as the shell would export
-
- @returns whether this code can know the value
-
- @example
- ```ts
- const written = isWrittenOut({ value: 'ghp_example', },);
- ```
- */
-function isWrittenOut({ value, }: { readonly value: string },): boolean {
-  return !SHELL_EXPANSION_MARKERS.some(function appearsIn(marker,) {
-    return value.includes(marker,);
-  },);
-}
 
 /**
  Reads the assignments of one shell start-up file that export a credential-named variable, as written.
@@ -599,33 +514,19 @@ async function valuesInOneShellStartFile({
    The values the file exports.
    */
   const values: SecretValue[] = [];
-  for (const line of read.text
-    .split('\n',)) {
-    /**
-     The assignment this line is, if it is one.
-     */
-    const assignment = SHELL_ASSIGNMENT_PATTERN.exec(line,);
-    if (assignment === null) {
-      continue;
-    }
-    /**
-     The variable's name and its value as written.
-     */
-    const [, name, written,] = assignment;
-    if ((name === undefined) || (written === undefined)
-      || (!carriesCredentialName({ name, },))) {
-      continue;
-    }
-    /**
-     The value without the quotes a shell file writes around it.
-     */
-    const unquoted = unquote({ written, },);
-    if ((!isMaskableValue(unquoted,)) || (!isWrittenOut({ value: unquoted, },))) {
+  for (const {
+    name,
+    value,
+  } of exportedCredentialValues({
+    text: read.text,
+    fileName,
+  },)) {
+    if (!isMaskableValue(value,)) {
       continue;
     }
     values.push({
-      name: `${fileName} ${name}`,
-      value: unquoted,
+      name,
+      value,
     },);
   }
   return { values, };
@@ -674,11 +575,11 @@ export async function valuesInShellStartFiles({ home, }: { readonly home: string
       continue;
     }
     if ('cause' in read) {
-      unread.push({
+      // A file that is there and cannot be read is a place a value stands that this code would not know: the run does not start.
+      throw new SecretEnvironmentUnreadableError({
         source: fileName,
         cause: read.cause,
       },);
-      continue;
     }
     values.push(...read.values,);
     sources.push({

@@ -62,6 +62,8 @@ export type {
 
  @param secretValuesHandover - the secret values Pi's extension reads from its own descriptor, when this run masks any
 
+ @param mask - the masking Pi's standard error is kept through
+
  @param graceMilliseconds - how long Pi gets at each stage of ending
 
  @returns the connection
@@ -80,6 +82,7 @@ export function startConnectionToPi(
     standardErrorAppends = false,
     listeners,
     secretValuesHandover,
+    mask,
     graceMilliseconds = SHUTDOWN_GRACE_MILLISECONDS,
   }: ConnectionRequest,
 ): ConnectionToPi {
@@ -148,6 +151,7 @@ export function startConnectionToPi(
     file: standardErrorFile,
     onProblem: listeners.onProblem,
     append: standardErrorAppends,
+    ...(mask === undefined ? {} : { mask, }),
   },);
   /**
    What changes while Pi runs.

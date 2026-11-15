@@ -78,7 +78,7 @@ async function noteStartingState({
   deadline,
 }: WatchRequest,): Promise<{
   readonly commands: unknown;
-  readonly answered: boolean
+  readonly answer: CommandAnswer
 }> {
   /**
    Pi's state, waited for only as long as the run has left.
@@ -116,60 +116,42 @@ async function noteStartingState({
   },);
   return {
     commands,
-    answered: answer.ending === 'answered',
+    answer,
   };
 }
 
 /**
- Says whether Pi came back with the extension that masks secret values in place, and notes it when it did not.
-
- Pi loads its extensions before it takes a prompt, so a command list asked for before the first prompt is the answer: the
- extension registers a command whose description holds how many values it armed with, and a list without it is a Pi whose tool
- results would reach a model unmasked. A start that answered nothing has not said anything about the masking, and the run's own
- bounds end it exactly as they did before the masking existed.
+ Notes that the masking could not be confirmed, which is a run that sends no prompt.
 
  @param watch - what the run needs
 
- @param starting - the command list Pi answered with, and whether it answered at all
+ @param handedOver - how many values the driver handed Pi
 
- @returns whether the run may send its first prompt
+ @param commands - the command list Pi answered with, of any shape, which is empty when it answered none
+
+ @param answered - whether Pi answered its command list at all
  */
-function maskingIsInPlace({
+function noteMaskingNotArmed({
   watch,
-  starting,
+  handedOver,
+  commands,
+  answered,
 }: {
   readonly watch: WatchRequest;
-  readonly starting: {
-    readonly commands: unknown;
-    readonly answered: boolean
-  };
-},): boolean {
-  /**
-   How many values the driver handed Pi, when this run handed any.
-   */
-  const handedOver = watch.secretValuesHandedOver;
-  if (handedOver === undefined) {
-    return true;
-  }
-  if (maskingIsArmedIn({
-    commands: starting.commands,
-    count: handedOver,
-  },)) {
-    return true;
-  }
-  if (!starting.answered) {
-    return true;
-  }
+  readonly handedOver: number;
+  readonly commands: unknown;
+  readonly answered: boolean;
+},): void {
   watch.record
     .note({
       kind: 'masking_not_armed',
       handedOver,
-      commands: recordsIn(starting.commands,)
+      answered,
+      commands: recordsIn(commands,)
         .map(function nameOf(command,) {
           return command.name;
         },),
     },);
-  return false;
 }
 
 /**
@@ -314,10 +296,36 @@ export async function endReasonOfRun(watch: WatchRequest,): Promise<Ending> {
      Pi's own state and command list, and whether the masking of secret values is in place before any work begins.
      */
     const starting = await noteStartingState(watch,);
-    if (!maskingIsInPlace({
-      watch,
-      starting,
-    },)) {
+    /**
+     How many values the driver handed Pi, when this run handed any.
+     */
+    const handedOver = watch.secretValuesHandedOver;
+    if ((handedOver !== undefined) && (starting.answer
+      .ending
+      !== 'answered')) {
+      // No prompt without the answer that says the masking is in place. The run ends for the reason that kept the answer from
+      // coming, which is what a reader has to fix.
+      noteMaskingNotArmed({
+        watch,
+        handedOver,
+        commands: starting.commands,
+        answered: false,
+      },);
+      return { endReason: endReasonOfPromptWait({
+        answer: starting.answer,
+        passedDeadline: millisecondsLeftUntil(watch.deadline,) === 0,
+      },), };
+    }
+    if ((handedOver !== undefined) && (!maskingIsArmedIn({
+      commands: starting.commands,
+      count: handedOver,
+    },))) {
+      noteMaskingNotArmed({
+        watch,
+        handedOver,
+        commands: starting.commands,
+        answered: true,
+      },);
       return { endReason: 'masking-not-armed', };
     }
     /**

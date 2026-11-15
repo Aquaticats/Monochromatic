@@ -140,6 +140,12 @@ function folderOfSops(): readonly string[] {
 }
 
 /**
+ How long a run whose Pi answers nothing may last, in seconds: long enough for the start's own bound to end the wait for the
+ command list, and short enough that the test spends no minute on it.
+ */
+const SILENT_RUN_WALL_SECONDS = 2;
+
+/**
  The stand-in value the two masking controls put in a store, long enough to be masked.
  */
 const MASKED_STORE_VALUE = 'stand-in-store-value-0123456789';
@@ -1865,6 +1871,58 @@ await describe({
         expect(run.standardError,).not.toContain(MASKED_STORE_VALUE,);
         // No Pi was started, so the stand-in wrote nothing: a run whose masking cannot be armed does not begin.
         expect(run.logWasWritten,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'sends no prompt while the command list says nothing about the masking',
+      fn: async () => {
+        // A Pi that answers nothing: the run's own bound ends the wait for its command list, and no prompt is sent on silence.
+        const run = await runDriver({
+          scenario: 'silent',
+          wallSeconds: SILENT_RUN_WALL_SECONDS,
+        },);
+        expect(run.commands,).not.toContain('prompt',);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        /**
+         What the feed says about the silence, which names how many values were handed over and that nothing answered.
+         */
+        const noted = run.feed.find((entry,) => entry.kind === 'masking_not_armed',);
+        expect(typeof noted?.handedOver,).toBe('number',);
+        expect(noted?.answered,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'masks the session a run leaves behind, whatever wrote an entry of it',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session file Pi will name, which holds a value no hook of this run would have seen.
+         */
+        const sessionFile = join(sessionFolder.path, 'session.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`,
+        );
+        const run = await runDriver({
+          scenario: 'normal',
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_SESSION_FILE: sessionFile,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        /**
+         What the session holds once the run is over.
+         */
+        const kept = await readFile(
+          sessionFile,
+          'utf8',
+        );
+        expect(kept,).not.toContain(MASKED_STORE_VALUE,);
+        expect(kept,).toContain('[masked secret value of',);
       },
     },),
     it({

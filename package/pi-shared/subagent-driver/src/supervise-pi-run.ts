@@ -24,7 +24,13 @@ import {
   readSecretValuesOfThisMachine,
   type SecretValuesOfThisMachine,
 } from './secret-values-of-this-machine.ts';
-import type { SecretValue, } from './secret-value-masking.ts';
+import {
+  createSecretValueMasking,
+  MASKING_NOTHING,
+  type MaskedDeeply,
+  type SecretValue,
+  type TextMasking,
+} from './secret-value-masking.ts';
 import { maskingExtensionArguments, } from './secret-values-handed-to-pi.ts';
 import {
   DRIVER_USAGE,
@@ -42,6 +48,7 @@ import {
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
 import { startsOfARun, } from './starts-of-a-run.ts';
 import { endingLineOf, } from './the-line-a-driver-ends-with.ts';
+import { maskTheSessionAtRest, } from './session-file-at-rest.ts';
 import { writeSummary, } from './write-summary.ts';
 
 /**
@@ -71,6 +78,40 @@ async function secretValuesOrNoRun({
     await record.close();
     throw error;
   }
+}
+
+/**
+ Reads the session file a run leaves behind.
+
+ Pi's own statistics name it after the run is put away, and a run that resumed a session named the file itself, which is the answer
+ when Pi said nothing.
+
+ @param sessionStats - what Pi answered when it was asked for its statistics, of any shape
+
+ @param named - the session file the run was started with, when it was
+
+ @returns the session file, or nothing when neither named one
+ */
+function sessionFileIn({
+  sessionStats,
+  named,
+}: {
+  readonly sessionStats: unknown;
+  readonly named?: string;
+}): { readonly path: string } | { readonly absent: true } {
+  /**
+   The path Pi put in its statistics, of any shape.
+   */
+  const reported: unknown = ((typeof sessionStats) === 'object') && (sessionStats !== null)
+    ? Reflect.get(
+      sessionStats,
+      'sessionFile',
+    )
+    : undefined;
+  if ((typeof reported) === 'string') {
+    return { path: reported, };
+  }
+  return (named === undefined) ? { absent: true, } : { path: named, };
 }
 
 /**
@@ -158,12 +199,38 @@ export async function supervisePiRun(
     { recursive: true, },
   );
   /**
+   The masking this run's own files are written through, which is the pass-through until the values are read a few lines below: the
+   refusal of a store that cannot be read is noted while nothing is masked yet, and every line after that goes through the values.
+   */
+  const writeMasking: { masking: TextMasking } = { masking: MASKING_NOTHING, };
+  /**
    The run's feed and counts, which every start of it writes to, so the run's record covers all of them.
    */
-  const record = startRecordOfPiRun({ feedFile: join(
-    options.runFolder,
-    'feed.jsonl',
-  ), },);
+  const record = startRecordOfPiRun({
+    feedFile: join(
+      options.runFolder,
+      'feed.jsonl',
+    ),
+    mask: {
+      /**
+       The longest form of any armed value, which is what a writer of Pi's standard error holds back between two writes.
+       
+       @returns the length the masking has at this moment
+       */
+      get longestFormLength(): number {
+        return writeMasking.masking
+          .longestFormLength;
+      },
+      maskText: function maskTextOfAFeedLine(text,) {
+        return writeMasking.masking
+          .maskText(text,);
+      },
+      maskDeeply: function maskDeeplyInAFeedLine<Value>(value: Value,): MaskedDeeply<Value> {
+        return writeMasking.masking
+          .maskDeeply(value,);
+      },
+    },
+  },);
   /**
    What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
    `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not
@@ -192,6 +259,11 @@ export async function supervisePiRun(
       },);
     },
   },);
+  /**
+   Every file this run writes from here on goes through the values: the feed, the summary, Pi's standard error, and the session at
+   rest.
+   */
+  writeMasking.masking = createSecretValueMasking({ values: secretValues.values, },);
   record.note({
     kind: 'secret_values',
     sources: secretValues.sources,
@@ -225,6 +297,7 @@ export async function supervisePiRun(
     secretValues: values,
     maskingArguments,
     standardErrorFile,
+    mask: writeMasking.masking,
   },);
   /**
    The Pi of the run's last start, whose ending the summary reads.
@@ -280,9 +353,32 @@ export async function supervisePiRun(
     ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
     ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),
   },);
+  /**
+   The session file the run leaves behind, which Pi reports in its own statistics and which a resumed run named itself.
+   */
+  const sessionFile = sessionFileIn({
+    sessionStats: putAway.sessionStats,
+    ...(options.session === undefined ? {} : { named: options.session, }),
+  },);
+  /**
+   What masking that file found: Pi's own hooks should have kept every value out of it, and this closes what no hook reaches.
+   */
+  const sessionAtRest = ('path' in sessionFile)
+    ? await maskTheSessionAtRest({
+      sessionFile: sessionFile.path,
+      mask: writeMasking.masking,
+    },)
+    : { rewritten: false, };
+  if (sessionAtRest.problem !== undefined) {
+    record.note({
+      kind: 'session_at_rest',
+      problem: sessionAtRest.problem,
+    },);
+  }
   await writeSummary({
     runFolder: options.runFolder,
     summary,
+    mask: writeMasking.masking,
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
     throw new PiRunEndedEarlyError(endingLineOf({

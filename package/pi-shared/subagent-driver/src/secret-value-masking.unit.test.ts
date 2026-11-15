@@ -260,6 +260,55 @@ await describe({
           },
         },),
         it({
+          name: 'never puts an armed value, or a form of one, inside a marker it writes',
+          fn: async () => {
+            /**
+             A name that is another value's own text, which is the case a marker could disclose a value through.
+             */
+            const collidingName = 'STAND_IN_SHARED_KEY';
+            /**
+             The masking of a value whose name is another armed value, and of the value that name holds.
+             */
+            const colliding = createSecretValueMasking({
+              values: [
+                { name: collidingName, value: TOKEN_VALUE, },
+                { name: 'STAND_IN_SECOND_KEY', value: collidingName, },
+              ],
+            },);
+            /**
+             What masking one of the values wrote.
+             */
+            const masked = colliding.maskText(`${TOKEN_VALUE} and ${collidingName}`,);
+            for (const value of [TOKEN_VALUE, collidingName,]) {
+              expect(masked,).not.toContain(value,);
+            }
+            expect(masked,).toContain('[masked secret value of',);
+          },
+        },),
+        it({
+          name: 'changes nothing when it runs over its own answer a second time',
+          fn: async () => {
+            /**
+             Every stand-in value in one text, which is what a tool result holding a store's output looks like.
+             */
+            const text = `${TOKEN_NAME}=${TOKEN_VALUE}\n${OTHER_NAME}=${OTHER_VALUE}\n${TOKEN_AS_BASE64}`;
+            /**
+             The masking of both values.
+             */
+            const both = createSecretValueMasking({
+              values: [
+                { name: TOKEN_NAME, value: TOKEN_VALUE, },
+                { name: OTHER_NAME, value: OTHER_VALUE, },
+              ],
+            },);
+            /**
+             What one pass wrote.
+             */
+            const once = both.maskText(text,);
+            expect(both.maskText(once,),).toBe(once,);
+          },
+        },),
+        it({
           name: 'looks for more than the value itself, which is what covers an encoder and a URL',
           fn: async () => {
             // This stand-in holds nothing a JSON escape or a URL escapes, so its forms are the value and its base64 forms.

@@ -112,7 +112,7 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
   [
     'get_session_stats',
     {
-      sessionFile: 'stand-in-session.jsonl',
+      sessionFile: env.STAND_IN_PI_SESSION_FILE ?? 'stand-in-session.jsonl',
       cost: 0.5,
     },
   ],
