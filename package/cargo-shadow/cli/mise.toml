@@ -19,7 +19,7 @@ description = "Apply clippy's machine-applicable suggestions in place"
 run = "cargo clippy --fix --allow-dirty --allow-staged"
 
 [tasks.test]
-description = "cargo nextest run --release where this host can give the tests a delegated control group; where it cannot (a container, a check with no user manager) a run whose totals are of the tests that ran, naming every test it left out with the reason and the command that runs it, and reporting none of them as passed or as a failure of cargo-shadow; it runs the suite twice there, once to find those tests and once to report; the task takes no arguments (run `cargo nextest run --release <filter>` for a subset)"
+description = "cargo nextest run --release where this host can give the tests a delegated control group; where it cannot (a container, a check with no user manager) a run whose totals are of the tests that ran, naming every test it left out with the reason and the command that runs it, and reporting none of them as passed or as a failure of cargo-shadow; such a run ends with its own status, sysexits' EX_UNAVAILABLE (69), which is neither success nor a failed test, and any run with a failed test ends with nextest's failed-test status (100) whatever it left out; it runs the suite twice there, once to find those tests and once to report; the task takes no arguments (run `cargo nextest run --release <filter>` for a subset)"
 shell = "node --input-type=module-typescript -e"
 run = '''
 const { spawnSync } = await import('node:child_process')
@@ -32,9 +32,15 @@ const NOT_RUN_EVERYWHERE = /cargo-shadow tests: not run \[([^\]]+)\]: ([^\n]*)/g
 const SUMMARY = /(\d+) tests run: (\d+) passed(?:, (\d+) failed)?, (\d+) skipped/
 // The per-test lines of a nextest run: a line that says a test passed, failed or was retried.
 const VERDICT = /^\s*(?:PASS|FAIL|LEAK|ABORT|SIGSEGV|SIGBUS|TIMEOUT|TRY \d+ (?:PASS|FAIL))\b/
-// The question is a test, so its answer is a status: 0 when a scope can be had, 100 when this host has none, anything else when the
-// question could not be asked at all (a build error, or a filter that names no test), which leaves nothing out.
-const NO_DELEGATED_CONTROL_GROUP = 100
+// The question is a test, so its answer is a status: 0 when a scope can be had, nextest's failed-test status when this host has none,
+// anything else when the question could not be asked at all (a build error, or a filter that names no test), which leaves nothing
+// out.
+const FAILED_TEST_STATUS = 100
+// The status of a run that left tests out and failed none, so that no caller can read it as another ending. It is sysexits'
+// EX_UNAVAILABLE (`/usr/include/sysexits.h`), whose meaning is that a support program this run needs is not here. Nothing else in
+// play uses 69: a passed run is 0, this task's own accounting error is 1, mise's own errors are 1 and 2, and nextest's own are 4 (no
+// tests selected), 100 (a failed test) and 101 (a build failure).
+const TESTS_LEFT_OUT_STATUS = 69
 // A captured run of the whole suite is larger than node's one-megabyte default, and a capture that overflows it kills the child, so
 // every capture that is not streamed says how much it may hold.
 const CAPTURE = { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }
@@ -46,6 +52,11 @@ const totals = (output) => {
   const found = SUMMARY.exec(output)
   return found === null ? undefined : { ran: Number(found[1]), passed: Number(found[2]), failed: Number(found[3] ?? '0'), skipped: Number(found[4]) }
 }
+// Every ending names itself and the meaning of its status in words, because whoever reads only the status cannot tell a run of every
+// test from a run that left tests out.
+const ending = (status, meaning) => {
+  console.error(`cargo-shadow tests: ending: ${meaning} (status ${status}).`)
+}
 
 const main = () => {
   // The question, asked alone: it is the guard every test that needs a delegated control group begins with.
@@ -55,19 +66,29 @@ const main = () => {
     // Nothing is left out when the question itself did not answer: its own output is all there is to show.
     process.stderr.write(answer)
     console.error(why)
+    ending(status, 'no test was left out, because this task could not ask this host its question')
     return status
   }
-  if (asked.status !== 0 && asked.status !== NO_DELEGATED_CONTROL_GROUP) {
+  if (asked.status !== 0 && asked.status !== FAILED_TEST_STATUS) {
     return refuse(`the test task could not ask this host whether it can give the tests a delegated control group (status ${asked.status}); nothing was left out`, asked.status === null ? 1 : asked.status)
   }
   const answered = answer.split('\n').map((line) => { return NOT_RUN.exec(line.trim()); }).find((found) => { return found !== null && found[1] === QUESTION; })
-  if (asked.status === NO_DELEGATED_CONTROL_GROUP && answered === undefined) {
+  if (asked.status === FAILED_TEST_STATUS && answered === undefined) {
     return refuse(`the question failed (status ${asked.status}) without saying that this host cannot give it a delegated control group; nothing was left out`, asked.status)
   }
 
   if (asked.status === 0) {
     // The gate as it always was: every test runs, and a test that cannot get the scope it needs fails the run.
-    return spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast'], { stdio: 'inherit' }).status ?? 1
+    const gate = spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast'], { stdio: 'inherit' })
+    const status = gate.status ?? 1
+    if (status === 0) {
+      ending(status, 'every test this host can run ran here, and all of them passed')
+    } else if (status === FAILED_TEST_STATUS) {
+      ending(status, 'every test this host can run ran here, and at least one of them failed')
+    } else {
+      ending(status, 'nextest ended this run of the whole suite with a status that is neither a passed run nor a failed test')
+    }
+    return status
   }
 
   // This host has none. Which tests need one cannot be known without running them, and a run that lets them into its totals counts
@@ -81,7 +102,9 @@ const main = () => {
   if (notRun.length === 0) {
     process.stderr.write(learnedText)
     console.error(`the question said this host cannot give a delegated control group, but no test said it did not run (status ${learned.status}); nothing was left out`)
-    return learned.status === 0 || learned.status === null ? 1 : learned.status
+    const status = learned.status === 0 || learned.status === null ? 1 : learned.status
+    ending(status, 'the tests this host cannot run were not found, so this run cannot say what it left out')
+    return status
   }
 
   // The report run: the same suite with those tests left out by nextest's own filter, so its total counts the tests that ran.
@@ -129,8 +152,13 @@ const main = () => {
   }
   if (problems.length > 0) {
     console.error(['', 'cargo-shadow tests: this run does not report, because its accounting is wrong:', ...problems.map((problem) => { return `  ${problem}`; }), ''].join('\n'))
+    ending(1, "this task's own accounting did not check out, so it reports no run at all")
     return 1
   }
+  // A failed test outranks the left-out status: a caller that treats a run with tests left out as acceptable must still hear about a
+  // failure, and the report run is the one whose totals were just checked.
+  const failedHere = reportedTotals.failed > 0 || reported.status === FAILED_TEST_STATUS
+  const status = failedHere ? FAILED_TEST_STATUS : TESTS_LEFT_OUT_STATUS
   console.error(
     [
       '',
@@ -139,7 +167,15 @@ const main = () => {
       '',
     ].join('\n'),
   )
-  return reported.status === null ? 1 : reported.status
+  if (failedHere) {
+    ending(status, 'the tests named above were left out, and some of the tests that ran failed, so this run ends as a failed test')
+  } else {
+    ending(
+      status,
+      "the tests named above were left out, and none of the tests that ran failed; sysexits' EX_UNAVAILABLE says a support program these tests need is not here, so this is neither success nor a failed test, and a caller that can accept it must name this status itself",
+    )
+  }
+  return status
 }
 
 // The exit code is set and the script ends, never process.exit(): an exit taken while captured output is still queued loses it.

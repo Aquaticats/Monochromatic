@@ -1580,6 +1580,7 @@ and this closing line:
 ```text
 cargo-shadow tests: 805 tests ran here (805 passed, 0 failed), and nextest counted the 67 that did not run as skipped, not as passed.
 cargo-shadow tests: this run is a degraded run: it is no evidence for the tests named above.
+cargo-shadow tests: ending: the tests named above were left out, and none of the tests that ran failed; sysexits' EX_UNAVAILABLE says a support program these tests need is not here, so this is neither success nor a failed test, and a caller that can accept it must name this status itself (status 69).
 ```
 
 The task then checks that accounting before it exits:
@@ -1589,6 +1590,67 @@ A run that fails that check exits non-zero rather than reporting a pass nobody e
 `cargo nextest list` cannot be asked which tests need a scope,
 so there is nothing cheaper than the first run,
 and the cost is one more pass over the suite on a host that cannot delegate.
+
+### What the test task's status says
+
+Each ending of the task has a status of its own,
+so a caller that reads only the status cannot take a run which left tests out for a run of all of them:
+
+- `0`:
+  every test this host can run ran here,
+  and all of them passed.
+- `100`:
+  a test failed.
+  That is nextest's own status for it (`NextestExitCode::TEST_RUN_FAILED`),
+  and it is also the status when tests were left out and one of the tests that did run failed,
+  because a failed test outranks a degraded run.
+- `69`:
+  tests were left out,
+  and none of the tests that ran failed.
+  It is sysexits' `EX_UNAVAILABLE` (`/usr/include/sysexits.h`),
+  which says that a support program the run needed is not here,
+  and it is neither success nor a failed test.
+- `1`:
+  the task's own error,
+  in either of two cases:
+  its accounting did not check out,
+  or nextest could not be started at all.
+- the status nextest itself ended with,
+  when the question could not be asked:
+  `101` is a build failure,
+  and `4` is nextest's "no tests to run";
+  such a run left nothing out,
+  because it ran nothing to leave out.
+
+mise passes a task's status through unchanged,
+and mise's own failures are `1` and `2`;
+neither is `69`.
+nextest's documented statuses are `0`,
+`4`,
+`5`,
+`10`,
+`70`,
+`80` to `82`,
+`90`,
+`92` to `96`,
+and `100` to `110`,
+so `69` is none of them either.
+
+A caller that can treat a run with tests left out as acceptable says so itself,
+by name,
+instead of reading the task's success:
+
+```sh
+# package/cargo-shadow/cli/README.md
+mise run //package/cargo-shadow/cli:test || [ $? -eq 69 ]
+```
+
+The repository's root `test` task does not accept it:
+its package fanout counts every non-zero package status as a failed package,
+which is its stated policy that nothing is excluded by platform or cost,
+so on a host without a user manager a root run now names `//package/cargo-shadow/cli:test` as failed,
+where before it passed with 67 tests never executed.
+
 The tests run where this account has a user manager on a cgroup v2 mount:
 
 ```sh
@@ -1602,6 +1664,21 @@ exit status 0,
 67 names listed,
 and no per-test line naming any of them.
 Before this change that host reported `872 tests run: 872 passed` with the same 67 tests never executed.
+That record's exit status is now 69:
+measured 2026-11-16T03:52:25-05:00 in the same condition,
+the run ended with status 69,
+`Summary [  24.762s] 805 tests run: 805 passed, 88 skipped`,
+the same 67 names,
+and the ending line above in place of nothing.
+With its user manager,
+the same host measured 2026-11-16T03:50:50-05:00 ended with status 0,
+`Summary [  49.254s] 872 tests run: 872 passed, 21 skipped`,
+and `every test this host can run ran here, and all of them passed (status 0)`.
+A `podman` container with cargo,
+nextest and node but no user manager was measured 2026-11-16T03:45:04-05:00:
+the same task and script ended with status 69 there,
+on a three-test stand-in crate
+(building this crate inside that container is a separate cost and is not what that measurement needed).
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store
