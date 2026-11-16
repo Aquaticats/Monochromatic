@@ -1632,6 +1632,81 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The review of the empty-tree fix meets "Merge when shown to narrow"; the wg tests are read and four of five change the host; six more runs read (2026-11-15T21:05:52-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **The fix for the empty-tree commit** (`3882e11ddf`, whole range against `main`, 19 of 19 files and the whole diff, both wrappers built from archived sources).
+  The review's conclusion: three findings remain and none is an outcome `main` does not also have or have worse.
+  The pair that shows the narrowing is the reviewer's own, at the seam both builds have (`service-staged`), since the branch's control waits for a marker `main` lacks:
+  `keep/staged-ordinary-main.log`, exit 0 with `files=[]`; `keep/staged-ordinary-tip.log`, exit 1 with `HEAD` unchanged.
+  The branch's control with the index lost after the capture passes at the tip with exit 0 and both files (`keep/direct-index-tip.log`).
+  What discriminates is "no commit lands with a tree other than the one asked for", not "the commit succeeds".
+  The three findings: a message's value spelled `--fixup=reword:HEAD` switches the tree check off, and with the index lost after the capture the empty tree lands (high, tip; `main` lands it for every message);
+  an index gone before the first capture is refused where `main` lands the empty tree (a commit that fails, narrower than `main`);
+  a sweep that finished is taken for a volume that cannot answer (tip and `main`, at function level). The two property tables pass on a refused row.
+  **A reading of this session, not run:** `the_form_of_the_commit` compares to the exact text `--amend`, and `gitcli(7)` says "git commit --amen behaves as if you typed git commit --amend";
+  so an abbreviated amend would be held to an ordinary commit's parents and refused with its index intact, where `main` makes it. The author measures that first.
+  The owner, asked with this stated: "Merge anyway; the fix follows".
+  **So:** the branch goes into a pass of its own after pass 56 is in `main` (both touch the binary test target), then a release and the gate. That release is the one after pass 56's.
+  The pass reports the explicit control that asserts exit 0, since a green table says nothing about refused rows.
+  After the install: count the text "cannot be told after" and "is not the one this command asked for" in the commit services' journals, to see whether the new stops fire in practice.
+  Author's tenth run queued first at 21:03:28 (the measurement into `keep/abbreviated-options-measured.md` first, then the findings, the tables, and the span for a drawn tree the owner asked for).
+- **wg lifecycle branch, the five tests read from their sources** (a same-vendor agent's reading, with file and line; nothing was run by it).
+  Confined: `cli-quicker:test:integration:block` (no `sudo`; every `nft`, `ip` and `sysctl` call runs inside `unshare --user --net --map-root-user`).
+  Not confined: `:bypass` (veth ends with addresses in the host's namespace, a `wg-quicker-sentinel-*` unit in the system manager, queries to the host's resolver);
+  `:route` (writes `/etc/opensnitchd/system-fw.json` as root and the daemon reloads);
+  `cli-quicker-exempt:test:functional` (23 tests as root in the host's cgroup root, the shared BPF pin folder and lock, a sentinel unit; it cannot end green as written);
+  `:test:functional:protocols` (one root test on one throwaway cgroup; whether it disturbs the live watcher could not be told by reading).
+  Against `main`, by reading: F2, F3, F5 and F6 are the same code there; F4 is worse there (no deadline at all); F7's code is absent there.
+  The owner's answers are in "Owner decisions in force", round eighteen: the four in a VM, the branch merged with its findings fixed on `main`.
+  The confined test ran at the tip in a throwaway worktree (removed after) and ended with exit 0 and its line "wg-quicker traffic block integration passed";
+  its whole output is `~/temp/agent/wg-lifecycle-tip-the-one-confined-test-run-2026-11-15/keep/test-integration-block-at-cd83212379-output.txt`.
+  **The branch is merged into `main` as `5242fb4202` (2026-11-15T21:07:12-05:00)**: 95 files, all under `package/wg` but one troubleshooting doc, no conflict.
+  Nothing is deployed, and nothing is deployed until the six findings are answered and reviewed and the four privileged tests have run in a VM.
+  Two fresh runs queued at about 21:08 on top of `main`: the six findings (ninth in the queue), and the four privileged tests made to run in a virtual machine (seventeenth).
+- **Landing never waits**, seventh run ended at `c9bde6d446` (four findings answered per its report). Review queued third at 21:03:28 (50 code files). Passes 29 and 34 wait on it.
+- **Reviews that ended with reproduced findings, each author queued again by 21:11:24:**
+  the review brief writer for every kind of code file (`0b12de46fc`, four: a rename hides the old code, `tests.rs` taken for code, a deleted test gives an impossible task, paths with an apostrophe or a backslash; sixth run);
+  the review brief writer for tests alone (`58c53b167b`, three: a missing reviews folder ends the batch, a change name with a slash, a truncated record; tenth run);
+  the owed-push control (`ec33aef65b`, one, in test support: `remove` deletes a fixture while a landing-note writer still runs, since that thread is not in the count it waits for; second run);
+  a tool command that says nothing (`79ef7325d6`, 11 of 11 files, three: an accepted recovery prompt taken for a finished turn; the recovery message leaves out a command the same abort ended; a later notice threshold blocks an earlier ending threshold; fourth run);
+  the lock-holders folder (`b0ea691cc1`, 18 of 18 files, four, the first also through the built executable: a `HEAD` of `ref: \0` that real Git rejects passes the repository proof and a lock file there is unlinked; the pre-exec writer appends through a linked record folder; a stale record snapshot is unlinked after a live child appended to it; a linked lock root counts as a complete walk; eighth run, eighth in the queue).
+- **The gate-script unit test's fixture Git** (`cc7f52e8d7`): two reproduced at one line, the caller's `GIT_DIR` and dates reaching the fixture, so that a fixture commit lands in the caller's repository. Author's second run queued at 20:49:05.
+- **Two authors ended at about 21:27 and 21:30, reviews queued at 21:31:44:**
+  the commit that does not wait behind the service's writes, fourth run, at `6d67fbc5fb` (16 code files; per its report the runtime guard now follows calls and found this branch's own path first,
+  then 35 files of `service/` and `landing/` whose tasks still reach a blocking function, listed so that the list can only shrink; a regression of its own found and fixed, 6,135 ms back to 103 ms; cost ratio 0.96);
+  the one settle wait of the binary controls, from the two branches that each repaired it, at `7b8eb40e99` (one code file that is not a test).
+- **The specification's statement of how the automatic removal reads processes** ended at 21:34 at `323260fa9c` (one insertion in `SPEC.md`, comments in two source files, no message changed). Review queued at 21:39:47.
+  Its report notices, by reading and without a run, three things in `worktree/worktree_process_inside.rs` on `main`:
+  a process table that cannot be listed answers "nothing works there", so the removal goes on with no proof; paths are compared as text, so a worktree reached through a link or a bind mount reads as elsewhere; a file mapped and then closed is not seen.
+  The first is outside the gap the owner accepted. A fresh run is queued at 21:39:47 (fourteenth in the queue) to produce each, fix the first, and argue from the records whether the other two are defects or limits.
+- **Landed removal** (`09fd2138d7`, whole range, 22 of 22 files, against a binary built from that commit): one thing reproduced, and it loses a commit.
+  A reflog lock file (`.git/logs/HEAD.lock`, as a killed Git can leave one) is read as a surviving reflog, so the removal of a detached worktree that alone names a commit is allowed;
+  after `git gc --prune=now` the commit object is gone (`worktree/worktree_removal_keeps_git_work.rs`, lines 682 to 698 and 904 to 925).
+  That file is absent from `main` (`git show main:<path>` answers that the path does not exist), so this is on the unmerged branch only.
+  Author's eighteenth run queued at 21:45:59, tenth in the queue: a generated control over every file under `logs` and `refs` that is not a name, and the same question put to its other proofs.
+- **The launcher that ends when its run has ended** (`35d724bdbe`, whole range): six things, each reproduced.
+  Concurrent queue writes discard an entry; a concurrent settler deletes the only recovery record of a start in progress; an entry name escapes the runs folder and overwrites a file;
+  the timeout's forced kill is lost when the caller exits; a launcher is left out of the going set while its wake path still resumes that run; a finished batch entry keeps its place and stalls the queue.
+  The first belongs to the queue-as-a-folder branch by the owner's answer, so the author keeps its control and builds no second answer; the other five are its own. Fourth run queued at 21:53:05, seventeenth in the queue.
+- **Landing never waits** (`c9bde6d446`, whole range, 49 of 49 files): four things.
+  Reproduced: a reused process number makes a second relink replace and then lose a launcher record that was kept after a kill (`repair/package_repair_toolchain.rs` lines 424 to 439, 529 to 540);
+  an end of the connection before the service reads a wake is answered as a hand-over that succeeded, so a landed commit can stay unpushed (`service/service_client.rs` lines 570 to 599).
+  By reading: the removal of a journal's stage falls back to a plain `remove_dir_all` with no bound. Trigger by reading, state reproduced: a failed staging marker makes every prewarm attempt refuse the moved-aside state.
+  Author's eighth run queued at 22:11:00, fourth in the queue, and asked whether `main` has each. Passes 29 and 34 keep waiting.
+  Read in `main`'s own files at 22:14 (reading, no run on `main`): the first three are there in the same shape.
+  `repair/package_repair_toolchain.rs` line 425 has the counter as a `static` that starts at zero in each process, line 436 the name `<record>.removing-<pid>-<token>`, line 438 a plain `rename`, and line 538 the test that a process of that number exists, with no birth;
+  `service/service_client.rs` lines 564 to 581 reject `Wrote::Ended` alone and answer `Ok(())` when `read_message` gives nothing;
+  `worktree_copying/worktree_copy_journal_removal.rs` line 445 falls back to `std::fs::remove_dir_all(path)`.
+  The fourth is in code only the branch has (`note_that_a_filling_made` and `a_filling_made_this` do not occur in `main`'s `package_repair_prewarm_job.rs`).
+- **The service logs of a control under a limit**, fresh run ended at 22:09 at `b0f446fe7b` (four files, test support). Review queued at 22:11:00.
+- **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
+  three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
+  no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
+- **Queue of runs as a folder:** the author of `7f8d9e5abb` is queued with the decision, and the review of the lock version is taken out of the queue (kept in `keep/entry-taken-out-2026-11-15T2046-review-of-the-queue-claims-lock-version.json`).
+- A fresh, documents-only run is queued to bring the wrapper's `SPEC.md` in line with the decisions of the evening.
+
 ##### The masking's fifth run ends and its review on the narrow line is queued first; a claim made to the owner about the wg branch is withdrawn (2026-11-15T20:43:37-05:00)
 
 Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
@@ -39820,6 +39895,15 @@ Rounds fifteen to seventeen (asked between 20:25 and 20:39, written here at 2026
 - monochromatic-lint, a line the fixer breaks inside a blockquote: **"Add `>` to the new line (Recommended)"**.
 - The "release-artifact gate" of the umbrella list: **"What exists is the gate (Recommended)"**: the lock's sha256, `native:perf` on the published archive's binary, and the sample commit after an install. No listing check is built.
 
+Round eighteen (asked and answered between 21:03 and 21:05, written here at 2026-11-15T21:05:52-05:00), after the session's wrong description of the wg branch was corrected to the owner in the question itself:
+
+- The four wg tests that change the host (`cli-quicker:test:integration:bypass` and `:route`, `cli-quicker-exempt:test:functional` and `:test:functional:protocols`): **"In a VM, none on the host (Recommended)"**.
+  This replaces "You run them now. sudo passwordless.", which was given on the wrong description. Only `cli-quicker:test:integration:block` (no `sudo`, its own user and network namespaces) is run on the host.
+- The wg branch `cd83212379`, with six reproduced findings of which four are the same code in `main`, one is worse in `main` and one is in code only the branch has: **"Merge; findings fixed on main (Recommended)"**.
+  The merge is made once the one confined test passes; an author answers the six on `main`; nothing is deployed until they are answered, reviewed and the privileged tests have run in a VM.
+- The fix for the empty-tree commit (`3882e11ddf`), if its author's measurement confirms that an abbreviated `git commit --amen` is refused with its index intact: **"Merge anyway; the fix follows (Recommended)"**.
+- The push of a branch another worktree shows, when a path still holds the old content after the whole wait: **"Stop the command, as built (Recommended)"**. The question held for that author's report is hereby asked and closed.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
@@ -39840,8 +39924,6 @@ Adopted from the same prepared batch without asking, each because a recorded rul
 
 Held and not asked, with the reason:
 
-- The push of a branch that is not checked out, when a path still holds the old tip and another program's index lock blocks the repair for five seconds (stop the command, or let it through with a note):
-  the report it comes from is of 15:16 and a later run of that author is under way, so it is asked on that run's report.
 - Relinking the dangling `node_modules` links counted on 2026-11-08: counted again first, read-only, since the number is a week old.
 - The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.
 
