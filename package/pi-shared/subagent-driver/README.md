@@ -1008,6 +1008,7 @@ the launcher that builds the session's environment asks it, once, before it make
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   `workProblem` says what the driver could not read when it asked what the run left running,
+  `stopProblem` says what ending Pi took when it took more than its input closing,
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
@@ -1655,10 +1656,35 @@ measured with a real `pi --mode rpc` against a throwaway `PI_CODING_AGENT_DIR` o
 so a run that used it would change the setting of every later run,
 and a Pi killed before the driver could put the setting back would leave it changed.
 
-`pi-not-stopped` means Pi was still alive when every bound on ending it ran out,
+`pi-not-stopped` means Pi's leaving was never seen while every bound on ending it ran out,
 so the summary claims nothing about Pi having gone.
 A run started as a systemd unit gets its processes cleaned up by the unit,
 which is what ends a Pi that outlived these signals.
+
+A Pi whose exit was seen is never `pi-not-stopped`,
+whatever the ending's own bounds said about it:
+an exit the operating system reported is a process that left,
+and a process that left is not one the bounds ran out on.
+Eight of the 2,564 runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-13 carried both that reason and Pi's exit,
+two of them with `code` 0 and six with `signal` `SIGKILL`.
+The first of those,
+`merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-1`,
+wrote down Pi's exit with status 0 one millisecond after a problem line saying Pi was still running 5000 ms after SIGKILL.
+Its Pi began its own shutdown when its input closed and spent 16.9 s in it,
+so the driver's three stages of 5 s each ran out inside a process that had already gone;
+a process killed by a signal is reported with the signal,
+so `code` 0 is what proves the driver's own signals changed nothing.
+
+A run whose agent settled and whose Pi then needed a signal,
+or outlived the ending's own bounds,
+still ends as the run it was:
+its summary keeps the reason it earned and carries `stopProblem`,
+which names the signals the driver had to send,
+or the bound that ran out before it saw Pi leave.
+An ending that needed nothing but Pi's input closing carries no `stopProblem`,
+so a run whose summary has none was put away as it always was.
+The feed reports an ending whose bound ran out as a `problem` line with the same words;
+a signal that worked is not a problem, and only the summary says what it cost.
 
 A run that ended on its own terms still fails as `pi-exited` when Pi left afterwards with a status other than zero,
 such as while the driver was asking it for the run's statistics.
