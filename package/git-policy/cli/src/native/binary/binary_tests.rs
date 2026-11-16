@@ -193,6 +193,12 @@ mod discard_in_the_way_matrix;
 #[path = "binary_discard_pathspec_mode_axis_tests.rs"]
 mod discard_pathspec_mode_axis;
 
+/// Every option of every guarded table,
+/// given to a form that would write over an edit a `skip-worktree` mark hides,
+/// with real Git as the oracle of which options write it.
+#[path = "binary_discard_option_axis_tests.rs"]
+mod discard_option_axis;
+
 /// The remote settings every worktree of a repository shares:
 /// refused from a linked worktree,
 /// unchanged in the main checkout,
