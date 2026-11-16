@@ -6,7 +6,7 @@
 > `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
 > `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
 > `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
-> (renamed to `package/hall-monitor/daemon` on 2026-10-29, paused 2026-11-16);
+> (renamed to `package/hall-monitor/daemon` on 2026-10-29 and paused 2026-11-16);
 > `package/webapp-productivity/done` is now `package/done/app`;
 > `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
 > `package/webapp-productivity/rss` is now `package/rss/app`;
