@@ -451,6 +451,10 @@ pub mod service_work_common_directory;
 /// settling and replanning of the service's work.
 pub mod service_work_handlers_replanning_and_acceptance;
 
+/// How the plan of a try and the plan of a record the person is owed are kept,
+/// and what becomes of either when the repository is away or gone.
+pub mod service_work_replanning_keeps_the_record_it_owes;
+
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 

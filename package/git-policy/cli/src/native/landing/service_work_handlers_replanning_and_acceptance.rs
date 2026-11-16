@@ -20,10 +20,8 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{Due, FIRST_PAUSE, RetryChange, Retrying, pause_before};
-/// The record a plan owes the person instead of another try,
-/// which travels in the plan's own file.
-use crate::push_retry_store::OwedRecord;
+use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
+use crate::service_work_replanning_keeps_the_record_it_owes::{keep_what_the_plan_owes, say_what_a_gone_plan_owes};
 use crate::push_retry_cause_line::cause_line;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
@@ -659,79 +657,6 @@ impl Replanning {
     fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool, taken: Option<Due>) {
         self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable, taken });
     }
-
-    /// What:
-    ///  Keep the plan of the try `attempt` of the branch of `item` on disk now,
-    /// before any words that promise it reach the person,
-    /// and answer whether it
-    ///  is kept.
-    /// Why:
-    ///   The loop applies the changes a worker asks only once every repository of the round is drained,
-    /// so a kill before it applies them would take the plan,
-    /// and a notice that says the service keeps trying would be the only statement left and it would be false.
-    /// A worker writes only its own branch's plan,
-    /// whose file name the branch key and the try number make,
-    /// and the loop writes no file:
-    /// what it applies is the list it reads.
-    ///  A plan that cannot be written answers that it is not kept,
-    /// so the caller promises nothing the next service cannot keep.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// return savePlans(this.plans, { gitDir, item, attempt });
-    /// ```
-    pub(crate) async fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) -> bool {
-        return self.keep_a_plan(git_dir, item, attempt, None).await;
-    }
-
-    /// What:
-    ///  Keep the plan of a push whose end owes the person `owed`,
-    /// for the look that writes that record,
-    /// and ask the list to look at the branch again when the look is due.
-    /// Why:
-    ///   The words of the record and the plan that promises to write them are one statement:
-    /// a plan removed before the record is written leaves neither the notice nor anything that would write it.
-    /// The file goes before the list changes, as a try's does,
-    /// so a kill between the two leaves the words in the journal.
-    /// A plan the storage refused answers that it is not kept,
-    /// and the list is asked for the look anyway:
-    /// the caller keeps the push as a try in that case, whose own end says the same words again.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const kept = await savePlans(this.plans, { gitDir, item, attempt, owes }); this.changes.push({ plan: { gitDir, item, attempt, due, owes } }); return kept;
-    /// ```
-    pub(crate) async fn keep_the_owed_record(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, owed: OwedRecord) -> bool {
-        let kept: bool = self.keep_a_plan(git_dir, item, attempt, Some(owed.clone())).await;
-        let pause: Duration = pause_before(attempt, self.first.unwrap_or(FIRST_PAUSE));
-        self.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause, owes: Some(owed) });
-        return kept;
-    }
-
-    /// Keep one plan on disk,
-    /// answer whether it is kept,
-    /// and say so when the storage refused it.
-    /// Why:
-    ///   A try and a record the person is owed are the same file,
-    /// so both are written here and only the words they carry differ.
-    async fn keep_a_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32, owes: Option<OwedRecord>) -> bool {
-        let Some(directory) = self.plans.as_deref() else {
-            // A plan kept in memory only is kept as long as the service that keeps it lives.
-            return true;
-        };
-        let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, owes };
-        return match crate::push_retry_store::save_awaiting(directory, &plan).await {
-            Ok(()) => true,
-            Err(reason) => {
-                crate::service_warn!(
-                    "the plan of {:?} {} could not be kept for a restart: {reason}",
-                    item.branch_ref,
-                    crate::service_timing::in_the_repository_at(item.repository.as_path())
-                );
-                false
-            }
-        };
-    }
 }
 
 /// What:
@@ -866,13 +791,7 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
         // A plan that owed the person a record cannot write it now: the directory the record goes in is gone, so the words are
         //  said where a person can read them instead of going with the plan.
-        if let Some(owed) = due.owes.as_ref() {
-            crate::service_error!(
-                "the record of the push of {} cannot be written for the person, because the repository is gone, so the journal holds what it says:\n{}",
-                due.item.oid,
-                owed.words
-            );
-        }
+        say_what_a_gone_plan_owes(due);
         replanning.forget_when_unreachable(git_dir, due).await;
     }
     // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here while its
@@ -890,12 +809,14 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
 /// its work stays where it is for the next command,
 /// and every push that was due keeps its plan with the next pause,
 /// doubled the way a failed try doubles it,
-/// while a plan that owes the person a record keeps that record and its words for the same look.
+/// while a plan that owes the person a record keeps that record and its words
+/// for the same look.
 /// Why:
 ///  The push is not given up on and never runs on another path;
 /// the plan is asked again for the pause that follows,
 /// so the push is tried when the directory is back,
-/// and a record owed there is written then, never pushed for.
+/// and a record owed there is written then,
+/// and never pushed for.
 /// Without a first pause (a drain that keeps no plan) nothing is planned.
 /// The person's failure record is inside the directory and is not touched.
 ///
@@ -912,16 +833,7 @@ pub(crate) async fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retr
     for due in &retrying.due {
         if due.git_dir == git_dir {
             let cause: String = format!("the repository at {} is not reachable now (is its drive mounted?)", git_dir.display());
-            // A plan that owes the person a record keeps it, with the words it holds: the record's own path is inside this
-            //  unreachable directory, so the look is postponed rather than turned into a try that would drop the words.
-            match due.owes.clone() {
-                Some(owed) => {
-                    let _kept: bool = replanning.keep_the_owed_record(git_dir, &due.item, due.attempt + 1, owed).await;
-                }
-                None => {
-                    let _said: PlannedRetry = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str()).await;
-                }
-            }
+            keep_what_the_plan_owes(&mut replanning, git_dir, due, first, cause.as_str()).await;
         }
     }
     return Drained { wait: None, changes: replanning.changes };

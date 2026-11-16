@@ -5,7 +5,8 @@
 //! and a storage that keeps refusing it is given up on after `OWED_RECORD_LOOKS` looks.
 //! Why:
 //!  The plan is the only durable record that the push waits for the person,
-//! and the item is in `failed`, which nothing scans:
+//! and the item is in `failed`,
+//! which nothing scans:
 //! a plan dropped with the refused record is a backup silently given up on
 //! (`never discard user data`) and a refusal nobody reads,
 //! which is what the review of 2026-11-14 reproduced as its finding 1.
@@ -29,6 +30,7 @@ use crate::push_retry::PushRetries;
 use crate::push_retry_store::{OwedRecord, OwedRecordKind, StoredPlan, load, save};
 use crate::service_work_run_round::run_planned_round;
 use crate::test_support::{fixture, remove, shown_notices};
+use crate::work_item::WorkItem;
 use crate::work_item::WorkKind;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -76,7 +78,9 @@ fn a_round(git_dir: &Path, handlers: &Arc<Scripted>, retries: &mut PushRetries) 
 /// so the only push a round can run is the plan's,
 ///  and every look below starts from `PushRetries::restored`,
 /// which reads the plan back from its file as a service that restarted does.
-/// The first pause is zero, so each look is due the moment the round takes it and a control never waits on a clock.
+/// The first pause is zero,
+/// so each look is due the moment the round takes it,
+/// and a control never waits on a clock.
 fn world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, PathBuf, Arc<Scripted>) {
     let root: PathBuf = fixture(name);
     let repository: PathBuf = root.join("worktree");
@@ -126,11 +130,17 @@ fn owed_by_its_plan(plans: &Path, owed_kind: OwedRecordKind) -> OwedRecord {
 }
 
 /// What:
-///  A refusal no retry mends, whose record the storage refused, keeps its plan and its words,
+///  A refusal no retry mends,
+/// whose record the storage refused,
+/// keeps its plan and its words,
 ///  and the plan's next look writes the record and ends the plan without pushing again.
 /// Why:
-///  The defect this control holds shut: the arm wrote the record, logged the refusal and dropped the plan anyway,
-///  so the plan file, the notice and every later automatic try were gone together,
+///  The defect this control holds shut:
+/// the arm wrote the record,
+/// logged the refusal,
+/// and dropped the plan anyway,
+/// so the plan file,
+/// the notice and every later automatic try were gone together,
 ///  and the commit waited for a push by hand nobody was told to make.
 #[test]
 fn a_refusal_no_retry_mends_keeps_the_plan_and_its_words_until_a_look_writes_them() {
@@ -189,7 +199,8 @@ fn a_skip_the_storage_refused_keeps_the_plan_and_its_words_until_a_look_writes_t
 ///  as it did before the plan could keep a record.
 /// Why:
 ///  Nothing may get slower or wait longer where the storage works:
-/// the record goes first, the plan ends with it,
+/// the record goes first,
+/// the plan ends with it,
 /// and no look is kept for a record that is already written.
 #[test]
 fn a_refusal_a_writable_storage_takes_ends_the_plan_in_the_same_look() {
@@ -213,7 +224,9 @@ fn a_refusal_a_writable_storage_takes_ends_the_plan_in_the_same_look() {
 /// its words stay in the journal's own line of that push's end,
 ///  and the branch is not pushed again for a failure no retry mends.
 /// The control counts the looks rather than trusting the constant:
-/// a plan still standing after the bound, or one given up before it, fails here.
+/// a plan still standing after the bound,
+/// or one given up before it,
+/// fails here.
 #[test]
 fn a_storage_that_keeps_refusing_the_record_is_asked_for_it_the_owed_looks_and_no_more() {
     const REFUSAL: &str = "error: a hook on the server declined the push the plan tried again";

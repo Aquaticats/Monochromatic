@@ -67,6 +67,10 @@ pub mod push_retry_cause_line;
 /// so that a restarted service keeps trying the pushes it was trying.
 pub mod push_retry_store;
 
+/// The record a plan owes the person instead of another try,
+/// and how a plan's file keeps it.
+pub mod push_retry_owed_record;
+
 /// The per-branch file name of the push failure notice:
 /// a reversible,
 /// flat,

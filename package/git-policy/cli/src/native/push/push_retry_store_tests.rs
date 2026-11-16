@@ -422,7 +422,8 @@ fn a_plan_whose_record_could_not_be_read_is_kept_and_read_again() {
 }
 
 /// What:
-///  A plan that owes the person a record comes back with its kind, its words and the looks it has left.
+///  A plan that owes the person a record comes back with its kind,
+/// its words and the looks it has left.
 /// Why:
 ///   The words in that file are the only copy of what the server said at a push's end,
 /// and a look that read the plan without them would end the plan and tell the person nothing.

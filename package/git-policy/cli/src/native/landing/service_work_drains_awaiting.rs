@@ -373,7 +373,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
 /// Why:
 ///   The plan is the only durable record that the push waits for the person,
 /// and the words of its end are the only copy of what the server said:
-/// the item is in `failed`, which nothing scans,
+/// the item is in `failed`,
+/// which nothing scans,
 /// so a plan dropped before the record is written leaves neither a notice nor anything that would try the branch again.
 /// The words travel in the plan itself,
 /// which is also what keeps the branch from being pushed again:
@@ -383,7 +384,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
 /// so the plan ends and the words stand in the journal alone,
 /// as they do for the report of a push that landed whose record the storage refused.
 ///  A plan whose own file refused the words keeps the push as a try instead:
-/// the server says the same thing at that try's end, and nothing is left that only the journal holds.
+/// the server says the same thing at that try's end,
+/// and nothing is left that only the journal holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -474,3 +476,9 @@ async fn write_the_record_it_owes(git_dir: &Path, due: &Due, owed: &OwedRecord, 
         }
     }
 }
+
+/// A push whose end the storage could not record keeps its plan and the words the person is owed,
+/// and a look writes them without pushing again.
+#[cfg(test)]
+#[path = "service_push_retry_owed_record_tests.rs"]
+mod tests;

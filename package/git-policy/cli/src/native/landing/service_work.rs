@@ -767,9 +767,3 @@ mod tests;
 #[cfg(test)]
 #[path = "service_push_retry_tests.rs"]
 mod push_retry_tests;
-
-/// A push whose end the storage could not record keeps its plan and the words the person is owed,
-/// and a look writes them without pushing again.
-#[cfg(test)]
-#[path = "service_push_retry_owed_record_tests.rs"]
-mod push_retry_owed_record_tests;

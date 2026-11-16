@@ -40,6 +40,10 @@ use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_o
 use crate::path_bytes_in_records as path_bytes;
 use crate::private_storage::{ReadRefusal, create_private_directory_all, read_regular_file, write_private_file_unsynced};
 use crate::push_failure_notice::{LONGEST_REASON, fnv_hex};
+/// The record a plan owes the person,
+/// and the member a plan's file keeps it under.
+pub use crate::push_retry_owed_record::{OwedRecord, OwedRecordKind, owed_record_of};
+use crate::push_retry_owed_record::kept_member;
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use crate::work_item::WorkItem;
 use serde_json::{Map, Value};
@@ -62,8 +66,11 @@ const LONGEST_PATH_BYTES: u64 = 4096;
 
 /// The most bytes one plan's file may hold.
 /// Why:
-///   A plan is one JSON object naming a directory, a push item, and sometimes the person's words.
-/// The directory goes in twice, as text and as the hex of its bytes,
+///   A plan is one JSON object naming a directory,
+/// a push item,
+/// and sometimes the person's words.
+/// The directory goes in twice,
+/// as text and as the hex of its bytes,
 /// the worktree once as text,
 /// a backslash or a quote in a name doubles its bytes in the JSON,
 /// and so does the hex,
@@ -87,55 +94,6 @@ pub struct StoredPlan {
     /// What the plan owes the person at its next look instead of another try,
     /// or nothing when its next look tries the push again.
     pub owes: Option<OwedRecord>,
-}
-
-/// What:
-///  What a plan owes the person at its next look instead of another try:
-/// the record of how its push ended,
-/// which the storage refused when that end was decided.
-/// Why:
-///   The plan is the only durable record that a push waits for the person,
-/// and the words of that record are the only copy of what the server said at its end.
-/// Keeping both in one file means a look that finds the plan can write the record,
-/// and a kill leaves the plan with its words rather than neither;
-/// a release that does not know this field tries the push once more instead,
-/// which asks the server to say the same thing again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type OwedRecord = { kind: 'refused' | 'skipped'; words: string; looksLeft: number }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OwedRecord {
-    /// The kind of record the plan owes.
-    pub kind: OwedRecordKind,
-    /// The words the record carries, cleaned and cut as the record itself keeps them.
-    pub words: String,
-    /// How many looks are left that may write it,
-    /// so that a storage that keeps refusing it is given up on rather than asked for ever.
-    pub looks_left: u32,
-}
-
-/// The records a push's end can owe the person.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum OwedRecordKind {
-    /// A push Git refused,
-    /// whose record says what the server said.
-    Refused,
-    /// A push the service did not make,
-    /// whose record says why in the service's own words.
-    Skipped,
-}
-
-/// Methods over the kind.
-impl OwedRecordKind {
-    /// The name the kind is kept under.
-    fn kept_name(self) -> &'static str {
-        return match self {
-            Self::Refused => "refused",
-            Self::Skipped => "skipped",
-        };
-    }
 }
 
 /// The part of every file name that belongs to one branch of one Git directory.
@@ -173,44 +131,9 @@ fn encode(plan: &StoredPlan) -> String {
     path_bytes::write_field(&mut fields, "gitDir", plan.git_dir.as_path());
     fields.insert(String::from("item"), Value::from(plan.item.encode()));
     if let Some(owed) = plan.owes.as_ref() {
-        let mut kept: Map<String, Value> = Map::new();
-        kept.insert(String::from("kind"), Value::from(owed.kind.kept_name()));
-        kept.insert(String::from("words"), Value::from(owed.words.clone()));
-        kept.insert(String::from("looks"), Value::from(owed.looks_left));
-        fields.insert(String::from("owes"), Value::Object(kept));
+        fields.insert(String::from("owes"), kept_member(owed));
     }
     return format!("{}\n", Value::Object(fields));
-}
-
-/// What:
-///  The record a plan owes the person, as a file keeps it,
-/// or why the file names none it can be read as.
-/// Why:
-///   A file whose words or looks cannot be read schedules no look that could write them,
-/// so a plan it holds is one this store did not write and `load` removes it rather than
-///  keeping a push nobody is told about.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// owedRecordOf(kept) // { kind, words, looksLeft }
-/// ```
-fn owed_record_of(kept: &Value) -> Result<OwedRecord, String> {
-    let kind: OwedRecordKind = match kept.get("kind").and_then(Value::as_str) {
-        Some("refused") => OwedRecordKind::Refused,
-        Some("skipped") => OwedRecordKind::Skipped,
-        Some(other) => return Err(format!("the plan owes a record of a kind this release does not know: {other}")),
-        None => return Err(String::from("the plan owes a record and names no kind")),
-    };
-    let Some(words) = kept.get("words").and_then(Value::as_str) else {
-        return Err(String::from("the plan owes a record and names no words"));
-    };
-    let Some(looks) = kept.get("looks").and_then(Value::as_u64) else {
-        return Err(String::from("the plan owes a record and names no looks"));
-    };
-    let Ok(looks_left) = u32::try_from(looks) else {
-        return Err(String::from("the plan owes a record and names no looks"));
-    };
-    return Ok(OwedRecord { kind, words: String::from(words), looks_left });
 }
 
 /// What:

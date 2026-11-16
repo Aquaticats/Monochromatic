@@ -75,7 +75,11 @@ pub const LONGEST_PAUSE: Duration = Duration::from_secs(10 * 60);
 /// Why:
 ///   The plan's own schedule spaces the looks:
 /// each pause doubles and none passes `LONGEST_PAUSE`,
-/// so a look after a first try that ended comes at 20, 40, 80, 160, 320 and 600 seconds,
+/// so a look after a first try that ended comes at the pauses of 20 seconds,
+/// then 40,
+/// 80,
+/// 160,
+/// 320 and 600 seconds,
 /// which adds up to `ANSWER_CEILING`,
 /// the twenty minutes a client already waits for the commit service's answer (`wait_ceilings.rs`,
 /// 3.9 times the longest answer wait in the timing log of 2026-11-03),
