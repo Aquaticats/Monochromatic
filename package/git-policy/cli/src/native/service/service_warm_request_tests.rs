@@ -152,6 +152,16 @@ fn a_look_whose_read_never_answers_gives_the_request_up_at_its_ceiling() {
     assert_eq!(answered, Ok(false), "the look gives up at its ceiling and says no service runs, and it took {waited:?}");
     assert!(waited >= WARM_SCAN_CEILING, "the ceiling is what ended the look, and it took {waited:?}");
     assert!(waited < WARM_SCAN_CEILING * 4, "the wait is the ceiling and not a wait of its own: {waited:?}");
+    // The read the look gave up on waits in the kernel, and a fixture removal waits for the jobs this process handed over
+    //  (`test_support.rs`, `remove`), so this control ends it: a pipe opened for writing without blocking connects to that
+    //  read, and closing it gives the read its end of file, so the job ends before the tree goes.
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let writer: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(process.join("cmdline").as_path())
+        .expect("a writer for the pipe the look reads");
+    drop(writer);
     crate::test_support::remove(root.as_path());
 }
 
