@@ -388,7 +388,7 @@ fn review_a_record_a_rollback_wrote_does_not_outlive_it() {
 fn review_a_persons_file_that_ends_in_the_parked_suffix_migrates() {
     let (parent, root) = checkout_with_worktree("parked-suffix");
     let platform: PlainPlatform = PlainPlatform::new();
-    let name: &str = "b.txt.cli-git-migrate-displaced";
+    let name: &str = ".cli-git-migrate-parked-0123456789abcdef0123456789abcdef";
     std::fs::write(root.join(name), b"a person's own file\n").expect("a file with that ending");
     let (code, said) = run(&platform, &migrate_arguments(), root.as_path());
     assert_eq!(code, DONE, "{said}");
