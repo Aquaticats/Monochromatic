@@ -247,7 +247,12 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
             // Why: the reference has not moved yet, so a refusal here leaves the branch where it was and the checkout as the switch
             //      left it, and the report says the branch is not at the merge.
             if !still_on_the_branch(git, branch_ref, local).await? {
-                match bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await {
+                // What: the checkout went to another branch inside the write, so it is not the move's own checkout and
+                // an absent path there is never the move's step.
+                // Why:  anything absent there is what the other branch has, and writing a path the move added over a
+                // checkout that moved away would undo what a person did to it
+                //  (a review of commit `4a2425a378`, its finding 2).
+                match bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid, false).await {
                     Brought::NoOldTip { .. } => {}
                     Brought::OldTipLeft { paths, why } => {
                         return Ok(Err(format!(

@@ -309,12 +309,12 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
     // Why: a record of another branch is another worktree's to finish, and reading one file is what that
     //      costs: no Git is started for the ordinary case of a repository with a record it does not own
     //      (a review of commit `4ca7aebcdb`, its finding 4).
-    let git_dir: PathBuf = match the_git_directory_of(git) {
+    let git_dir: PathBuf = match crate::auto_push_reconcile_branch_checkout_files::the_git_directory_of(git) {
         Ok(Some(directory)) => directory,
         Ok(None) => return Ok(Settled::Yes),
         Err(why) => return Ok(Settled::Unknown { why }),
     };
-    let shown: Option<String> = match the_branch_this_worktree_shows(git_dir.as_path()) {
+    let shown: Option<String> = match crate::auto_push_reconcile_branch_checkout_files::the_branch_this_worktree_shows(git_dir.as_path()) {
         Ok(branch) => branch,
         Err(why) => return Ok(Settled::Unknown { why }),
     };
@@ -375,7 +375,12 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
         // worktree's HEAD can change between any two of this command's questions: keying the question to the
         // branch HEAD names left a switch away from the branch with a reversal nothing repaired
         //  (a review of commit `7aef6368e7`, its findings 1 and 3).
-        let ours: bool = match this_worktree_holds_what_the_move_wrote(git, &movement).await {
+        // What: whether this worktree is the checkout the move is for: it shows the record's branch.
+        // Why:  an absent index entry is the move's own step only in that checkout, and in a worktree that shows
+        // another branch it is what a person's `git rm` leaves
+        //  (a review of commit `4a2425a378`, its finding 2, its `git rm` case).
+        let shows_the_record: bool = shown.as_deref() == Some(movement.target_ref.as_str());
+        let ours: bool = match this_worktree_holds_what_the_move_wrote(git, &movement, shows_the_record).await {
             Ok(holds) => holds,
             Err(why) => {
                 debug_line(out, &format!("this worktree's files could not be read ({why}), so the record {} is left", record.display()));
@@ -384,15 +389,36 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
             }
         };
         if !ours {
-            // What: a worktree that shows the record's branch and stands at the tip that branch names agrees with it,
-            // so the record has nothing left to finish and goes.
+            // What: a worktree that shows the record's branch and stands at the tip that branch names has nothing of
+            // the move left to write, so the record goes; the paths where the checkout still differs from that tip
+            // are the person's and are named.
             // Why:  the record exists to finish a checkout an interrupted move left behind, and this one is not it;
             // nothing else removed a record for a branch no worktree took, so every command paid its Git starts for
             // ever  (a review of commit `4a2425a378`, its finding 1; `README.md` and `SPEC.md` say the record is removed
-            // when a command in the worktree that shows the branch agrees with it).
-            let agrees: bool = shown.as_deref() == Some(movement.target_ref.as_str())
+            // when a command in the worktree that shows the branch agrees with it, and that changes which are the
+            // person's own are left to them and named).
+            // Taking their absence for the move's leftover would write over a deletion they made, which is what a
+            // command must never do  (the same review, its finding 2).
+            let agrees: bool = shows_the_record
                 && crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git).await.is_ok_and(|head| return head == tip);
             if agrees {
+                let theirs: Vec<Vec<u8>> = match crate::auto_push_reconcile_branch_checkout::the_moves_paths_awaiting(git, movement.old_oid.as_str(), movement.new_oid.as_str()).await {
+                    Ok(paths) => match crate::auto_push_reconcile_branch_checkout_files::the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths.as_slice()).await {
+                        Ok(differing) => differing,
+                        // A read that failed is not the answer "nothing differs": the record stays, as for every
+                        // other failed read here.
+                        Err(why) => {
+                            debug_line(out, &format!("this worktree's checkout could not be read ({why}), so the record {} is left", record.display()));
+                            settled = Settled::Unknown { why: format!("{why}") };
+                            continue;
+                        }
+                    },
+                    Err(why) => {
+                        debug_line(out, &format!("the paths of the move could not be read ({why}), so the record {} is left", record.display()));
+                        settled = Settled::Unknown { why: format!("{why}") };
+                        continue;
+                    }
+                };
                 crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement.clone())
                     .finish(crate::auto_push_branch_move_record::AFinishedRecord::TheCheckoutHoldsTheTip(
                         crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip::from_the_checkout(
@@ -400,6 +426,13 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                             tip.as_str(),
                         ),
                     ));
+                if !theirs.is_empty() {
+                    let _said = writeln!(
+                        out,
+                        "monochromatic-git-policy-cli: {} there hold a change of your own and were left as they are.",
+                        crate::auto_push_dirty_paths::listed(&theirs)
+                    );
+                }
             }
             continue;
         }
@@ -416,6 +449,7 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                 git,
                 movement.old_oid.as_str(),
                 movement.new_oid.as_str(),
+                shows_the_record,
             )
             .await;
         match brought {
@@ -426,7 +460,7 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                 // says nothing about the worktree the move is for
                 //  (a review of commit `777c491325`, its findings 3 to 5, and commit `7aef6368e7`, its finding 3).
                 repair.finish();
-                if shown.as_deref() != Some(movement.target_ref.as_str()) {
+                if !shows_the_record {
                     continue;
                 }
                 crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement.clone())
@@ -490,8 +524,8 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
 /// ```ts
 /// for (const end of [old, new]) for (const path of diff(end, HEAD)) if (indexHolds(end, path) || fileHolds(end, path)) return true
 /// ```
-async fn this_worktree_holds_what_the_move_wrote(git: &PushGit, movement: &BranchMove) -> Result<bool, String> {
-    return holds_what_a_move_wrote(git, movement.old_oid.as_str(), movement.new_oid.as_str()).await;
+async fn this_worktree_holds_what_the_move_wrote(git: &PushGit, movement: &BranchMove, the_moves_own_checkout: bool) -> Result<bool, String> {
+    return holds_what_a_move_wrote(git, movement.old_oid.as_str(), movement.new_oid.as_str(), the_moves_own_checkout).await;
 }
 
 /// What:
@@ -499,12 +533,16 @@ async fn this_worktree_holds_what_the_move_wrote(git: &PushGit, movement: &Branc
 /// Why:
 ///   The question is the same for a record's move and for the move a push just made in a worktree that could not
 /// follow it, so it is asked once.
+///  `the_moves_own_checkout` says whether this worktree shows the branch the move is about: only there is an
+/// absent index entry the move's own step, while in a worktree that shows another branch it is what a person's
+/// `git rm` leaves, which nothing may write back
+///  (a review of commit `4a2425a378`, its finding 2, its `git rm` case).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holdsWhatAMoveWrote({ git, old, merge }) // HEAD contains merge && (index or file holds old or merge on a differing path)
+/// holdsWhatAMoveWrote({ git, old, merge, theMovesOwnCheckout }) // HEAD contains merge && (index or file holds old or merge on a differing path)
 /// ```
-pub(crate) async fn holds_what_a_move_wrote(git: &PushGit, old_oid: &str, new_oid: &str) -> Result<bool, String> {
+pub(crate) async fn holds_what_a_move_wrote(git: &PushGit, old_oid: &str, new_oid: &str, the_moves_own_checkout: bool) -> Result<bool, String> {
     let target: String = crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git)
         .await
         .map_err(|error| format!("this worktree's HEAD could not be read: {error}"))?;
@@ -537,7 +575,7 @@ pub(crate) async fn holds_what_a_move_wrote(git: &PushGit, old_oid: &str, new_oi
         // untracked with `git rm --cached`, holds nothing an end wrote  (a review of commit `4a2425a378`, its
         // findings 2 and 3).
         let wrote: Vec<Vec<u8>> =
-            crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, end, paths.as_slice())
+            crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, end, paths.as_slice(), the_moves_own_checkout)
                 .await
                 .map_err(|error| format!("this worktree's index and files could not be read: {error}"))?;
         if !wrote.is_empty() {
@@ -545,62 +583,6 @@ pub(crate) async fn holds_what_a_move_wrote(git: &PushGit, old_oid: &str, new_oi
         }
     }
     return Ok(false);
-}
-
-/// What:
-///  This worktree's own Git directory,
-/// read from the `.git` entry at its root.
-/// Why:
-///   The command runs at the worktree's root (the wrapper refuses any other directory),
-/// and `.git` there is the directory itself, or a file naming one for a linked worktree:
-///  reading it costs one file and no Git start, which is what a record of another branch must cost.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const entry = join(cwd, '.git'); const meta = statSync(entry); if (meta.isDirectory()) return entry; const named = readFileSync(entry,'utf8').trim().slice('gitdir: '.length); return resolve(cwd, named);
-/// ```
-fn the_git_directory_of(git: &PushGit) -> Result<Option<PathBuf>, String> {
-    let entry: PathBuf = git.cwd.join(".git");
-    match std::fs::metadata(entry.as_path()) {
-        Ok(meta) if meta.is_dir() => return Ok(Some(entry)),
-        Ok(_) => {}
-        // What: a `.git` that cannot be read is a read that failed, and never "this is no repository".
-        // Why: the sweep's answer lets a command go on, so a state that could not be read must not be taken for a
-        // state that needs nothing
-        //  (a review of commit `7aef6368e7`, its finding 2).
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
-            return Err(format!("this worktree's .git could not be read: {error}"));
-        }
-        Err(_) => return Ok(None),
-    }
-    let text: String = std::fs::read_to_string(entry.as_path()).map_err(|error| format!("this worktree's .git could not be read: {error}"))?;
-    let Some(named) = text.trim().strip_prefix("gitdir: ") else {
-        return Err(format!("this worktree's .git does not name a Git directory: {}", entry.display()));
-    };
-    let directory: PathBuf = PathBuf::from(named);
-    return Ok(Some(if directory.is_absolute() { directory } else { git.cwd.join(directory) }));
-}
-
-/// What:
-///  The branch this worktree shows,
-/// read from the `HEAD` file of its own Git directory.
-/// Why:
-///   A record of another branch is another worktree's, and a command in a repository with a record must not
-/// start a Git just to learn that
-///  (a review of commit `4ca7aebcdb`, its finding 4).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim(); return head.startsWith('ref: ') ? head.slice(5) : undefined;
-/// ```
-fn the_branch_this_worktree_shows(git_dir: &Path) -> Result<Option<String>, String> {
-    let path: PathBuf = git_dir.join("HEAD");
-    let head: String = std::fs::read_to_string(path.as_path()).map_err(|error| format!("{} could not be read: {error}", path.display()))?;
-    let Some(named) = head.trim().strip_prefix("ref: ") else {
-        // A detached HEAD names no branch, which is an answer.
-        return Ok(None);
-    };
-    return Ok(if named.starts_with("refs/heads/") { Some(String::from(named)) } else { None });
 }
 
 /// What:

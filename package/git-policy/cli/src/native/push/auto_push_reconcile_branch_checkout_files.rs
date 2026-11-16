@@ -130,6 +130,146 @@ pub(crate) async fn the_paths_the_checkout_disagrees_with_its_branch_awaiting(
 }
 
 /// What:
+///  The paths of `paths` where the entry `tree` holds is an entry this checkout still holds, in its index or in
+/// its file.
+/// Why:
+///  What proves a path is a move's own leftover is an entry the move wrote there, and an absent file is not an
+/// entry: `git diff <tree> -- <path>` answers "no difference" when neither the tree nor the worktree has the
+/// path, so a file the merge added and a person then deleted read as the move's debris and the repair wrote it
+/// back  (a review of commit `4a2425a378`, its finding 2), and `git rm --cached` with the file still there
+/// stopped every command (its finding 3).
+///  An absent entry in the index proves the same thing only in the checkout the move is for: there the absence is
+/// the step the move has not written yet, while in a worktree that shows another branch an absent index entry is
+/// what a person's `git rm` leaves, and writing it back would undo their removal (a review of commit
+/// `4a2425a378`, its finding 2, its `git rm` case).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const present = await lsTree(tree, paths); return present.filter((path) => indexHoldsOrFileHolds(tree, path))
+/// ```
+pub(crate) async fn the_paths_the_move_wrote_awaiting(
+    git: &PushGit,
+    tree: &str,
+    paths: &[Vec<u8>],
+    an_absent_entry_counts: bool,
+) -> Result<Vec<Vec<u8>>, SingleFlightError> {
+    // What: a path an end of the move really wrote: the index holds that end's entry, or the file is there and
+    // holds its bytes; an entry the tree does not have counts only in the checkout the move is for.
+    // Why:  an absent file is not an entry: a file the merge added and a person then deleted, or untracked with
+    // `git rm --cached`, holds nothing the move wrote, while a file still holding the moved-from bytes is the
+    // move's own leftover and is brought forward
+    //  (a review of commit `4a2425a378`, its findings 2 and 3; commit `cae78e1d7e`, its finding 3).
+    let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, tree, paths).await?;
+    let in_the_file: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, tree, paths).await?;
+    let with_an_entry: Option<Vec<Vec<u8>>> = match an_absent_entry_counts {
+        true => None,
+        false => Some(the_paths_with_an_entry_in_the_tree_awaiting(git, tree, paths).await?),
+    };
+    let mut wrote: Vec<Vec<u8>> = Vec::new();
+    for path in paths {
+        let entry_is_there: bool = match &with_an_entry {
+            Some(there) => there.contains(path),
+            None => true,
+        };
+        if in_the_index.contains(path) && entry_is_there {
+            wrote.push(path.clone());
+            continue;
+        }
+        let present: bool = std::fs::symlink_metadata(git.cwd.join(crate::path_bytes::os_from_path_bytes(path.as_slice()))).is_ok();
+        if present && in_the_file.contains(path) {
+            wrote.push(path.clone());
+        }
+    }
+    return Ok(wrote);
+}
+
+/// What:
+///  The paths of `paths` that hold an entry in `tree` at all.
+/// Why:
+///  A path the tree has no entry for is what a `git rm` of a file the move added leaves behind, and the index's
+/// silence there is not the tree's own state
+///  (a review of commit `4a2425a378`, its finding 2, its `git rm` case).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// diffPaths((await git(['ls-tree','--name-only','-z',tree,'--',...paths])).stdout)
+/// ```
+pub(crate) async fn the_paths_with_an_entry_in_the_tree_awaiting(
+    git: &PushGit,
+    tree: &str,
+    paths: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, SingleFlightError> {
+    let arguments: Vec<OsString> = naming(paths, argv(&["--no-optional-locks", "ls-tree", "--name-only", "-z", tree, "--"]));
+    let listed = run_query_awaiting(git, &arguments).await?;
+    if listed.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: format!("ls-tree --name-only -z {tree}"),
+            code: listed.code,
+            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
+        });
+    }
+    return Ok(diff_paths(&listed.stdout));
+}
+
+/// What:
+///  This worktree's own Git directory,
+/// read from the `.git` entry at its root.
+/// Why:
+///   The command runs at the worktree's root (the wrapper refuses any other directory),
+/// and `.git` there is the directory itself, or a file naming one for a linked worktree:
+///  reading it costs one file and no Git start, which is what a record of another branch must cost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entry = join(cwd, '.git'); const meta = statSync(entry); if (meta.isDirectory()) return entry; const named = readFileSync(entry,'utf8').trim().slice('gitdir: '.length); return resolve(cwd, named);
+/// ```
+pub(crate) fn the_git_directory_of(git: &PushGit) -> Result<Option<std::path::PathBuf>, String> {
+    let entry: std::path::PathBuf = git.cwd.join(".git");
+    match std::fs::metadata(entry.as_path()) {
+        Ok(meta) if meta.is_dir() => return Ok(Some(entry)),
+        Ok(_) => {}
+        // What: a `.git` that cannot be read is a read that failed, and never "this is no repository".
+        // Why: the sweep's answer lets a command go on, so a state that could not be read must not be taken for a
+        // state that needs nothing
+        //  (a review of commit `7aef6368e7`, its finding 2).
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            return Err(format!("this worktree's .git could not be read: {error}"));
+        }
+        Err(_) => return Ok(None),
+    }
+    let text: String = std::fs::read_to_string(entry.as_path()).map_err(|error| format!("this worktree's .git could not be read: {error}"))?;
+    let Some(named) = text.trim().strip_prefix("gitdir: ") else {
+        return Err(format!("this worktree's .git does not name a Git directory: {}", entry.display()));
+    };
+    let directory: std::path::PathBuf = std::path::PathBuf::from(named);
+    return Ok(Some(if directory.is_absolute() { directory } else { git.cwd.join(directory) }));
+}
+
+/// What:
+///  The branch this worktree shows,
+/// read from the `HEAD` file of its own Git directory.
+/// Why:
+///   A record of another branch is another worktree's, and a command in a repository with a record must not
+/// start a Git just to learn that
+///  (a review of commit `4ca7aebcdb`, its finding 4).
+///   Whether this checkout is the one a move is for decides whether an absent index entry is the move's step or a
+/// person's removal, which is a question on a command's path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim(); return head.startsWith('ref: ') ? head.slice(5) : undefined;
+/// ```
+pub(crate) fn the_branch_this_worktree_shows(git_dir: &std::path::Path) -> Result<Option<String>, String> {
+    let path: std::path::PathBuf = git_dir.join("HEAD");
+    let head: String = std::fs::read_to_string(path.as_path()).map_err(|error| format!("{} could not be read: {error}", path.display()))?;
+    let Some(named) = head.trim().strip_prefix("ref: ") else {
+        // A detached HEAD names no branch, which is an answer.
+        return Ok(None);
+    };
+    return Ok(if named.starts_with("refs/heads/") { Some(String::from(named)) } else { None });
+}
+
+/// What:
 ///  The paths of `paths` that still hold exactly what the old tip held,
 /// which is this record's own leftover and not a change of the person's.
 /// Why:
@@ -143,47 +283,6 @@ pub(crate) async fn the_paths_the_checkout_disagrees_with_its_branch_awaiting(
 /// ```ts
 /// paths.filter((path) => !movedOn.includes(path)) // movedOn = git diff --name-only <local> -- <paths>
 /// ```
-/// What:
-///  The paths of `paths` where the entry `tree` holds is present there and is what this checkout holds, in its
-/// index or in its file.
-/// Why:
-///  What proves a path is a move's own leftover is an entry the move wrote there, and an absent path is not an
-/// entry: `git diff <tree> -- <path>` answers "no difference" when neither the tree nor the worktree has the
-/// path, so a file the merge added and a person then deleted read as the move's debris and the repair wrote it
-/// back  (a review of commit `4a2425a378`, its finding 2), and `git rm --cached` with the file still there
-/// stopped every command (its finding 3).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const present = await lsTree(tree, paths); return present.filter((path) => indexHoldsOrFileHolds(tree, path))
-/// ```
-pub(crate) async fn the_paths_the_move_wrote_awaiting(
-    git: &PushGit,
-    tree: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    // What: a path an end of the move really wrote: the index holds that end's entry exactly, or the file is there
-    // and holds its bytes.
-    // Why:  an absent file is not an entry: a file the merge added and a person then deleted, or untracked with
-    // `git rm --cached`, holds nothing the move wrote, while a file still holding the moved-from bytes is the
-    // move's own leftover and is brought forward
-    //  (a review of commit `4a2425a378`, its findings 2 and 3; commit `cae78e1d7e`, its finding 3).
-    let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, tree, paths).await?;
-    let in_the_file: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, tree, paths).await?;
-    let mut wrote: Vec<Vec<u8>> = Vec::new();
-    for path in paths {
-        if in_the_index.contains(path) {
-            wrote.push(path.clone());
-            continue;
-        }
-        let present: bool = std::fs::symlink_metadata(git.cwd.join(crate::path_bytes::os_from_path_bytes(path.as_slice()))).is_ok();
-        if present && in_the_file.contains(path) {
-            wrote.push(path.clone());
-        }
-    }
-    return Ok(wrote);
-}
-
 pub(crate) async fn the_paths_still_holding_the_old_tip_awaiting(
     git: &PushGit,
     local: &str,

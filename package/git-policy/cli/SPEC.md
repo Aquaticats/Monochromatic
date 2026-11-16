@@ -9455,6 +9455,14 @@ in-process reader can) gives every value of the multi-valued keys.
   A record is finished when every worktree that has its branch checked out shows the tip the branch was
   moved to, in its index and in its files, or holds changes that are a person's own, which are left to
   them and named.
+  What proves a path is a leftover of the move is an entry the move wrote there: the index's entry for an
+  end of the move exactly, or the file's bytes while the file is there.
+  An absent entry of the tip the branch moved from proves nothing on its own, because a person's `git rm`
+  of a file the merge added leaves the same index and the same files; a command that finishes a record
+  therefore never creates such a path and names it instead, while the command that made the move writes
+  it, because that command knows it wrote this checkout
+  (a review of commit `4a2425a378`,
+  its findings 2 and 3).
   A record's writer is the move and not the process that hosts moves:
   every exit after the record is written hands it on,
   by a type whose value is the record and whose end publishes it as left
@@ -9498,7 +9506,8 @@ in-process reader can) gives every value of the multi-valued keys.
   - The look at the checkout after the compare-and-swap (`the_checkout_after_the_move_awaiting`): the act
     writes only the paths whose stored entry is the old tip's or the merge's, and the write itself refuses
     the rest, path by path, by applying the patch between those two trees with `git apply`, which fails when
-    the file no longer holds the old tip's content
+    the file no longer holds the old tip's content; this command made the move a moment ago, so it may also
+    write a path the old tip has no entry for
     (a review of commit `4ca7aebcdb`,
     finding 1).
   - The intent record written before a move of a checked-out branch, and settled after it
@@ -9512,7 +9521,9 @@ in-process reader can) gives every value of the multi-valued keys.
     or when the branch's tip is no longer the record's.
   - The repair's own questions (`bring_the_checkout_to_its_branch_awaiting`): the two-tree
     `read-tree -u -m` refuses where the index disagrees with what was read, and the per-path apply refuses
-    where the file does. Nothing these write can discard a change made after the look.
+    where the file does. Nothing these write can discard a change made after the look; a command that only
+    finishes a record never writes a path the old tip has no entry for, because a person's `git rm` of a file
+    the move adds leaves the same state  (a review of commit `4a2425a378`, its findings 2 and 3).
   - The record's owner and its liveness in the sweep (`finish_branch_moves_awaiting`): the look is now only
     about the move; the repair is safe whatever the writing process is doing, and the removal rests on the
     proof above, so no live process can hold a record for its own life.

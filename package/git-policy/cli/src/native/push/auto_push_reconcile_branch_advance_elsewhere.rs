@@ -279,7 +279,9 @@ async fn leave_a_record_for(there: &PushGit, branch_ref: &str, local: &str, merg
     // Why:  a worktree that already holds the merge's tree on those paths needs nothing, and a record for it would
     // be finished by the next command there with nothing to write
     //  (a review of commit `986a82bbab`, its finding 2).
-    let holds: bool = match crate::auto_push_branch_move_repairs::holds_what_a_move_wrote(there, local, merge_oid).await {
+    // This is a worktree the listing said shows the branch, so an absent index entry here is the move's own step and
+    // not a person's `git rm`  (a review of commit `4a2425a378`, its finding 2).
+    let holds: bool = match crate::auto_push_branch_move_repairs::holds_what_a_move_wrote(there, local, merge_oid, true).await {
         Ok(holds) => holds,
         // A worktree whose questions fail leaves nothing: the report names it, and a record keyed on a failed read
         // would be answered wrongly later.

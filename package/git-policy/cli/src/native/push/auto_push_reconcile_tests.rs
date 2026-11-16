@@ -4126,9 +4126,14 @@ fn a_checkout_a_reset_left_holding_the_old_files_is_brought_to_the_branch() {
     assert!(said.contains("remote.txt"), "and the answer names it: {said}");
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "D remote.txt\n?? local.txt", "the deletion is still the checkout's");
     assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is told and gone");
+    // What: the person's commit stages the absence the repair left and records it.
+    // Why:  a checkout that is the person's to commit from must be commit-able, and what the commit records is their
+    // own choice; a commit that reinstated the merge's file would be the wrapper's, which it is not
+    //  (`README.md`: "holds changes that are yours, which are left to you and named").
     let committed = crate::testing::test_support::git_output(&taker, &["commit", "--quiet", "--all", "--message=commit after the repair"]);
-    assert!(!committed.status.success(), "there is nothing left to commit over the merge");
-    assert_eq!(text_of(&taker, &["ls-tree", "--name-only", "HEAD", "--", "remote.txt"]), "remote.txt", "so the merge's file stands");
+    assert!(committed.status.success(), "the person's commit runs over what the repair left: {}", String::from_utf8_lossy(&committed.stderr));
+    assert_eq!(text_of(&taker, &["ls-tree", "--name-only", "HEAD", "--", "remote.txt"]), "", "and records their absence, not the merge's file");
+    assert_eq!(text_of(&taker, &["rev-parse", "HEAD^"]), s.merge, "over the merge, so nothing of it is reversed but that path");
     remove(&s.scenario.root);
 }
 
@@ -4209,9 +4214,11 @@ fn a_persons_edit_beside_a_leftover_is_kept_and_named() {
     );
     assert!(!taker.join("added.txt").exists(), "and the file the merge adds, which this checkout does not have, is left: {}", String::from_utf8_lossy(&stderr));
     let said: String = String::from_utf8_lossy(&stderr).into_owned();
-    assert!(said.contains("a.txt there hold a change of your own"), "the answer names the person's path: {said}");
+    assert!(said.contains("added.txt"), "the answer names the merge's path it left: {said}");
+    assert!(said.contains("a.txt"), "and the person's own path: {said}");
+    assert!(said.contains("there hold a change of your own"), "as changes that are theirs: {said}");
     // The read trims, so the first column's space is not in the answer.
-    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "M a.txt\n?? local.txt", "and that change is still theirs");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "M a.txt\n D added.txt\n?? local.txt", "and that change is still theirs");
     assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is told and gone");
     remove(&s.scenario.root);
 }
@@ -4266,7 +4273,7 @@ fn a_checkout_that_took_the_branch_before_the_write_and_was_killed_is_finished_b
         "the checkout is finished: {}",
         String::from_utf8_lossy(&stderr)
     );
-    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "?? local.txt", "and holds only the person's untracked file");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and nothing there is left pending");
     assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is gone");
     remove(&s.scenario.root);
 }
@@ -4777,7 +4784,6 @@ fn a_patch_that_could_not_be_read_keeps_the_record() {
     let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
         git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old.as_str()]);
         git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
-        git(&stale, &["reset", "--quiet"]);
     });
     let shim: PathBuf = s.scenario.root.join("patch-read-fails.ts");
     std::fs::write(
@@ -5016,12 +5022,15 @@ fn a_symbolic_ref_that_failed_changes_nothing_the_repair_writes() {
 
 /// What:
 ///  A switch away before the repair's first read is finished by the next command in that worktree,
-///  whichever branch it shows by then, and the commit after it records that branch's own tree.
+///  whichever branch it shows by then: the entries the old tip has are brought to that branch, and a path the move
+///  added that the checkout has no file for is left, and named.
 /// Why:
 ///  The repair returned when the checkout no longer showed the pushed branch, and every later sweep skipped the
 ///  record because its branch was not the one shown, so a commit on the branch the switch chose recorded the
 ///  moved-from tree
 ///  (a review of commit `7aef6368e7`, its finding 3).
+///  A path the move adds is left because the same bytes are what a person's `git rm` of that file leaves, and a
+///  removal is the person's  (a review of commit `4a2425a378`, its finding 2, its `git rm` case).
 #[test]
 fn a_switch_away_before_the_first_repair_read_is_finished_by_the_next_command() {
     use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
@@ -5044,12 +5053,20 @@ fn a_switch_away_before_the_first_repair_read_is_finished_by_the_next_command() 
     let mut stderr: Vec<u8> = Vec::new();
     let settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr).expect("the sweep answers");
     assert!(matches!(settled, Settled::Yes), "the sweep settles the checkout it is in: {settled:?} / {}", String::from_utf8_lossy(&stderr));
-    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout holds its own branch's tree");
-    assert_eq!(
-        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
-        "remote side\n",
-        "the file the branch names is there"
-    );
+    // What: the entries the old tip has are brought to the branch this checkout now shows, and a path it has no file
+    // for is left: a person's `git rm` of a file the move added leaves the same bytes, and nothing may write that
+    // back.
+    // Why:  the sweep cannot tell the move's unfinished step from the person's removal in a checkout that shows
+    // another branch, so it writes what it can prove and names the rest
+    //  (a review of commit `4a2425a378`, its finding 2, its `git rm` case; `README.md`: "a file still holding the tip
+    // the branch moved from is the move's own leftover and is brought to the branch, and a file holding anything else
+    // is yours").
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "D  remote.txt", "and the paths it could not prove are left as they are");
+    // What: this checkout shows another branch, so the record's own line is not printed here: the record is the
+    // worktree that shows its branch's to finish.
+    // Why:  the answer's sentence says the checkout now holds the record's branch, which is false here
+    //  (`README.md`: the record is removed "when a command in the worktree that shows it agrees with it").
+    assert!(!taker.join("remote.txt").exists(), "the file the branch names is not written back over a removal it cannot tell apart");
     assert_eq!(list_branch_moves(common.as_path()).expect("the records").len(), 1, "the record waits for the worktree that shows its branch");
     remove(&s.scenario.root);
 }

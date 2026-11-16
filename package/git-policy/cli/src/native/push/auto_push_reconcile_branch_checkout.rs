@@ -166,8 +166,21 @@ pub(crate) enum Brought {
 /// ```ts
 /// async function bringTheCheckoutToItsBranch({ git, branchRef, local, mergeOid }): Promise<Brought>;
 /// ```
-pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(git: &PushGit, old_oid: &str, tip_oid: &str) -> Brought {
-    return match the_checkout_brought_awaiting(git, old_oid, tip_oid).await {
+/// What:
+///  What became of the checkout a move wrote, and the writing itself.
+/// Why:
+///  The answer is the proof a record may end on, so the write and the answer are one step.
+///  `the_moves_own_checkout` says whether this checkout is the one the move is for (it shows the branch the
+/// move is about): there an entry the tree has no path for is a step the move has not written yet, and elsewhere
+/// it is what a person's `git rm` leaves and is never written back
+///  (a review of commit `4a2425a378`, its finding 2, its `git rm` case).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function bringTheCheckoutToItsBranch({ git, branchRef, local, mergeOid, theMovesOwnCheckout }): Promise<Brought>;
+/// ```
+pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(git: &PushGit, old_oid: &str, tip_oid: &str, the_moves_own_checkout: bool) -> Brought {
+    return match the_checkout_brought_awaiting(git, old_oid, tip_oid, the_moves_own_checkout).await {
         Ok(brought) => brought,
         // A read or a write that failed is not an answer, so nothing follows from it and a record stays.
         Err(error) => Brought::CouldNotTell {
@@ -191,7 +204,7 @@ pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(git: &PushGit, old
 /// of HEAD is a reading of another branch's checkout
 ///  (a review of commit `7aef6368e7`, its findings 1 and 3).
 ///  A path holding anything else is a person's and is left, and the answer says so.
-async fn the_checkout_brought_awaiting(git: &PushGit, old_oid: &str, tip_oid: &str) -> Result<Brought, SingleFlightError> {
+async fn the_checkout_brought_awaiting(git: &PushGit, old_oid: &str, tip_oid: &str, the_moves_own_checkout: bool) -> Result<Brought, SingleFlightError> {
     let mut from: [String; 2] = [old_oid.to_owned(), tip_oid.to_owned()];
     let mut differing: Vec<Vec<u8>> = Vec::new();
     for attempt in 0..2 {
@@ -231,7 +244,7 @@ async fn the_checkout_brought_awaiting(git: &PushGit, old_oid: &str, tip_oid: &s
                     all.push(path.clone());
                 }
             }
-            refused.extend(bring_the_paths_forward_awaiting(git, end.as_str(), target.as_str(), paths.as_slice()).await?);
+            refused.extend(bring_the_paths_forward_awaiting(git, end.as_str(), target.as_str(), paths.as_slice(), the_moves_own_checkout).await?);
             // What: what still holds this end, asked after the write.
             // Why:  that is the question the gate's and the record's proof is about, and it is asked at the moment
             // it is answered.
@@ -239,7 +252,7 @@ async fn the_checkout_brought_awaiting(git: &PushGit, old_oid: &str, tip_oid: &s
             // Why:  an absent path holds nothing, so a person's deletion or `git rm --cached` is never read as the
             // move's leftover  (a review of this commit, its findings 2 and 3).
             let wrote: Vec<Vec<u8>> =
-                crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, end.as_str(), paths.as_slice()).await?;
+                crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, end.as_str(), paths.as_slice(), the_moves_own_checkout).await?;
             for path in wrote {
                 if !left.contains(&path) {
                     left.push(path);
@@ -316,11 +329,13 @@ async fn bring_the_paths_forward_awaiting(
     from: &str,
     to: &str,
     paths: &[Vec<u8>],
+    the_moves_own_checkout: bool,
 ) -> Result<Vec<String>, SingleFlightError> {
     // What: only the paths this checkout holds an end of the move on, and not one a person changed after it.
     // Why:  a file the merge added that the person deleted or untracked, or one they edited, is theirs
     //  (a review of commit `4a2425a378`, its findings 2 and 3).
-    let wrote: Vec<Vec<u8>> = crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, from, paths).await?;
+    let wrote: Vec<Vec<u8>> =
+        crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, from, paths, the_moves_own_checkout).await?;
     let mut in_the_index: Vec<Vec<u8>> = Vec::new();
     let mut in_the_file_only: Vec<Vec<u8>> = Vec::new();
     let holds_in_the_index: Vec<Vec<u8>> =
@@ -457,7 +472,12 @@ pub(crate) async fn the_checkout_after_the_move_awaiting(
 ) -> Result<Checkout, SingleFlightError> {
     #[cfg(test)]
     play_in_the_window(Window::AfterTheBranchMoved);
-    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await;
+    // What: this command made the move a moment ago, so the checkout it wrote is the move's own and an entry the old
+    // tip has no path for is the step this command has not written yet.
+    // Why:  only a later command has to tell the move's unfinished step from a person's removal; this one knows it
+    // wrote this checkout, and a switch inside that write leaves the checkout holding the merge's tree under a branch
+    // that must keep its own  (a review of commit `b0c133f42b`, its finding).
+    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid, true).await;
     // What: the branch the checkout shows is read after the repair, never reused from before it.
     // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows, which is a
     //      wrong report although every write stayed content-guarded
