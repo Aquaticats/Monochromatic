@@ -37,10 +37,18 @@ fn a_snapshot_made_after_the_record_is_proved() {
 
 /// A snapshot a person made before the record is not proved,
 /// because the filesystem says it was made in or before the transaction the record names.
+/// Why this control commits the filesystem before the snapshot:
+///  a transaction that still runs is written into the subvolume's `generation` by the commit that ends it,
+/// so a snapshot made while the source holds the fixture's own uncommitted writes would carry the transaction
+///  the record names and the control would pass without the property holding.
+/// A repository outside a control has been committed many times by other writers of the filesystem,
+/// and this is the state that leaves: the person's snapshot in a transaction of its own,
+/// with the source's tree committed before it.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_snapshot_made_before_the_record_is_not_proved() {
     let Some((root, source)) = source_and_a_written_journal("origin-before") else { return };
+    crate::fs_btrfs_test_support::commit_the_filesystem(source.as_path());
     let person: PathBuf = root.join("a-persons-snapshot");
     crate::fs_btrfs_ioctl::snapshot_create_at(source.as_path(), person.as_path()).expect("the person's snapshot");
     write_atomic(journal_root(source.join(".git").as_path()).join("anchor").as_path(), b"anchor\n", "anchor").expect("a later durable write");
