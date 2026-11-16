@@ -1632,6 +1632,85 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 56 is queued with the door for diagnostics; sixteen ended runs are read and routed; the firewall and three small removals are done (2026-11-15T20:04:22-05:00)
+
+Not final and not approved:
+what reviews and authors report, how the coordinating session weighed them, and what it did on the owner's answers of the evening.
+
+**Integration pass 56 is queued first (20:02:01).**
+Brief: `~/temp/agent/pi-runs/integration-pass-56-with-the-door-for-diagnostics-and-six-branches-of-tests-and-comments-prompt.md`.
+Seven branches at these tips:
+
+- `093e5d4aab`, the door for diagnostics, the one that changes code the wrapper is built from.
+  Its review (6 of 6 files, reproduced) found a command's own direct write to standard error still waiting for its reader;
+  the owner's answer of the evening ("Only where another command can be held") makes that the intended behaviour for a one-shot command.
+  So the release that follows this pass is `0.6.1-alpha.44`.
+- `b193af3bdf`, the shared wait's fix: its review reproduced a false timeout when a command killed itself before a delayed wait. Test support.
+- `aee5c756a2`, `e031918c33`, `12942c99dd`: as recorded at 19:08:31.
+- `b8ad219841`, the wrapper under the gate container's Git: its review reproduced one query taking the seam another armed and holding it. Under `#[cfg(test)]`.
+- `ac8e10f27a`, the long-runtime-directory controls: one finding by reading, a stale cleanup entry removing a folder another run made at the same name. Test support.
+
+The six others go in by the owner's "Yes, tests too"; the brief tells the pass to leave out any of them whose merge changes a file the wrapper is built from.
+Each open finding in tests still needs an owner; none has a run yet.
+
+**Back with their authors, runs queued:**
+
+- The landing that never waits, `da9c767270`: its review (48 of 48 files, the wrapper built, six controls run) reproduced four:
+  a staging name that only looks right lets a prewarm record delete an unrelated directory;
+  a failure to list descendants is taken for an empty process tree;
+  a cancelled queued slow job keeps the slow place;
+  the look for a landed record has no bound (4,096 records, deadline 1 ms, took 120 ms).
+  Seventh run queued fifth (20:03:50). Passes 29 and 34 keep waiting on it.
+- The held push's holder, `bc5f76067f`: two reproduced, pulling opposite ways:
+  a birth of blank space makes a live owner gone; a birth in another spelling makes a gone owner immortal.
+  Second run queued eighth (20:03:50), with a table of cases as its control and the `SPEC.md` sentence the owner said to correct.
+
+**Reviews queued for authors' new tips** (positions as the script printed them, counted from zero):
+the lock-holders folder `b0ea691cc1` (3), the landed removal `09fd2138d7` (3, before the former was put in), the checkout migration `28254ad188` (8),
+the owed-push control `ec33aef65b` (9), the resumed wake's folder `34514a502f` (12),
+the queue's claims `7f8d9e5abb` (14), the driver's suites under load `34f33041af` (16).
+
+**Read and not yet routed:**
+cargo-shadow's two tests `f0c4ca0150` (two findings, both in test files: a helper that waits on an inherited pipe past its deadline, reproduced; a regression its control can miss);
+the review of the branch that keeps a Pi run out of the main checkout (`0aaf6a11d7`), not yet opened.
+
+**Done on the owner's answers of the evening:**
+
+- The firewall, per program.
+  Two rule files written as root, modelled on the owner's codex rule, each pattern ending in named programs:
+  `000-allow-monochromatic-built-tools.json` (`mpm-shadow`, `cargo-shadow`, `file-enforcer`, `monochromatic-browserslist` at `package/<their folder>/target/(debug|release)/<name>` in the checkout or a worktree, and the `mpm-shadow` and `cargo-shadow` launchers in `.cache/toolchain-bin` and `.cache/toolchain-launchers`, for the checkout's three paths)
+  and `000-allow-tool-managers-in-agent-throwaway-homes.json` (`pnpm`, `uv`, `cargo-binstall` under `installs/<name>/…`, and `rustup`, `cargo`, `cargo-binstall`, `go` under `bin/`, below the three agent scratch roots).
+  Thirty-eight per-program rules they replace (29 allow, 9 reject) were moved to `/etc/opensnitchd/rules.removed-2026-11-15/`.
+  The daemon's log shows the ruleset reloaded for both files at 19:59:19.
+  What was written and moved: `~/temp/agent/firewall-per-program-allow-rules-written-2026-11-15/keep/what-was-written-and-moved.txt`.
+  Not written: a pattern for the build volume, because no built program was found there to take its shape from; and nothing for `pnpr`, which no package of that name builds.
+  The owner's own older rule still allows any name in the launcher folders at the checkout's two old paths; it was left as it is.
+- The two root-owned folders under `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-11/` were looked at (empty folders and two small files) and removed with `sudo rm`.
+  Three more `wg-quicker-*` folders stand beside one of them, owned by this account.
+- The three files of the old name `cli-git-native` were moved from the main checkout's `.cache` to
+  `~/temp/agent/old-name-cli-git-native-launcher-files-moved-out-of-the-main-checkout-cache-2026-11-15/`.
+- The fuzz sidecar's type check on `main` with pass 55 in: exit 0
+  (`~/temp/agent/gate/keep/fuzz-sidecar-type-check-on-main-with-pass-55-in-2026-11-15T1959.txt`).
+- The string after `PNPR_SECRET=` that no tracked file holds: no commit on any ref adds or removes it;
+  it stands eighteen times in one Claude Code transcript last written 2026-09-17, beside `PNPR_PUBLIC_URL` and `RUST_LOG` on the same lines.
+  Whether it equals a value in the secret store now is being compared in memory as this is written.
+
+**Owed from the owner's answers and not started** (each a run or an act of its own):
+the `rn-*-0` and `rt-*-0` folders older than a day deleted and the tests made to clean up;
+`hall-monitor` moved to `package-paused`;
+`monochromatic-lint --fix` following oxlint's;
+the IDE's wrap tests moved to the CSS rule;
+images of containers exited for 24 hours removed by cargo-shadow's cleanup;
+every build on the lock's nightly (gate image and release workflow);
+the binary tests' fixture root made private;
+the four retired rule codes into the owner's local file;
+the mount unit's stop; the dead old-name units and the 0.5.34 folder;
+the tests of `wg-quicker-exempt` that leave root-owned files;
+the masking's line ("plain case and no damage") into its author's brief and its next review;
+the mpm-shadow, cargo-shadow and driver answers into their authors' briefs;
+the restart of a thin review on another model;
+and the remaining questions an agent is preparing.
+
 ##### Integration pass 55 is in `main`; seven other runs ended during the owner's questions and are not yet read (2026-11-15T19:47:56-05:00)
 
 Not final and not approved:
