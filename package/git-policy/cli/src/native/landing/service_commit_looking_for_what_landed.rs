@@ -24,7 +24,7 @@
 use crate::held_commit_record::Held;
 use crate::service_branch_shows::what_the_branch_shows;
 use crate::service_messages::WhatTheBranchShows;
-use crate::service_journal::{Intent, OPEN_EXTENSION, list_intents_read_only, newest_finished_batches_read_only};
+use crate::service_journal::{Intent, OPEN_EXTENSION, list_intents_read_only};
 use crate::service_protocol::CommitRequest;
 use crate::service_units_of_removed_worktrees::journal_of;
 use crate::scratch_location::state_directory;
