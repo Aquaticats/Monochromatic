@@ -81,9 +81,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// The directory of the record inside the journal.
 const DIRECTORY: &str = "busy";
 
-/// The file that names the write the landing thread is inside.
-pub(crate) const STEP_FILE: &str = "step";
-
 /// How many withdrawals the record remembers:
 /// the same as the journal's count of finished records (`DONE_RETAINED`),
 /// and as the service's own
@@ -187,6 +184,10 @@ struct TheLandingsOwn {
     starting: Option<StartingStep>,
     /// The requests the landing thread has taken and not yet given back.
     group: Vec<Taken>,
+    /// The write the landing thread is inside now,
+    /// and when it began,
+    /// for the words a waiting client is told.
+    step: Option<TheWriteItIsInside>,
     /// The command of the last write that ended,
     /// and when it ended.
     last: Option<TheWriteItWasInside>,
@@ -216,6 +217,23 @@ struct Taken {
 struct StartingStep {
     /// What the step is doing, in the words a person reads.
     step: String,
+    /// When it began.
+    began: Instant,
+}
+
+/// The write the landing thread is inside now:
+/// the command, the detail of what it does, and when it began.
+/// Why:
+///  It is read by the connection threads that beat a waiting client and written by the landing thread,
+/// so it is memory of the board and not a file:
+///  a file here was a write and a rename of the journal's drive before every Git child of every landing,
+/// which a stalled drive held (the fifth review of this branch, finding 4, and `main` had it too).
+struct TheWriteItIsInside {
+    /// The command, as the step record names it.
+    command: String,
+    /// What the write does,
+    /// when the landing knows.
+    detail: Option<String>,
     /// When it began.
     began: Instant,
 }
@@ -298,6 +316,30 @@ fn record_text(path: &std::path::Path) -> Option<String> {
     return Some(text);
 }
 
+/// What:
+///  Whether this service may say that a request it does not hold will never land,
+///  and when it may not, which of the reasons it is.
+/// Why:
+///  The reason decides the words a client reads: only one of them is another service,
+/// and the others are this service's own place or a read that gave no answer
+///  (`words_of_a_promise_it_cannot_make`, and the fifth review of this branch, finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PromiseOfNeverLanding = 'yes' | 'another-service-writes-this-journal' | 'this-service-holds-no-place' | 'the-places-gave-no-answer';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PromiseOfNeverLanding {
+    /// This service holds its place in the journal and no other live service writes it.
+    Yes,
+    /// Another live service writes the same journal.
+    AnotherServiceWritesThisJournal,
+    /// This service's place was not written, so it cannot tell who else writes the journal.
+    ThisServiceHoldsNoPlace,
+    /// The places could not be read in time, so nothing about them is known.
+    ThePlacesGaveNoAnswer,
+}
+
 impl LandingBoard {
     /// A board for the service whose journal is `journal`,
     /// where a write counts as stuck after `slow_after`.
@@ -316,7 +358,7 @@ impl LandingBoard {
             journal: journal.clone(),
             directory: journal.join(DIRECTORY),
             place: std::sync::Mutex::new(None),
-            held: std::sync::Mutex::new(TheLandingsOwn { loop_begun: false, starting: None, group: Vec::new(), last: None, withdrawals: Vec::new() }),
+            held: std::sync::Mutex::new(TheLandingsOwn { loop_begun: false, starting: None, group: Vec::new(), step: None, last: None, withdrawals: Vec::new() }),
         });
     }
 
@@ -337,6 +379,45 @@ impl LandingBoard {
         let board: Arc<Self> = Self::new(journal, slow_after);
         assert!(board.take_its_place_within(Duration::from_secs(5)), "a control's board takes its place in its journal");
         return board;
+    }
+
+    /// What:
+    ///  Keeps trying for this service's place in its journal until it has one,
+    ///  beside the loop that lands, with a pause that grows between attempts,
+    ///  and stops when the place is taken or when the pause has reached its longest.
+    /// Why:
+    ///  A place that is late is late and not lost:
+    /// the journal's drive can hold that one write for as long as it likes
+    /// (it took 109,241 ms for a 4 KiB write-and-sync on 2026-11-15),
+    ///  so a service that could not write it at its start tries again rather than refusing commits for its whole life
+    /// (the fifth review of this branch, finding 1).
+    ///  It runs on a task of its own, so the loop that lands reads its queue at once and the first commit does not wait
+    /// for that write; the requests wait in the queue until the place is there.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// keepTryingForItsPlace(board, ceiling, firstPause); // a task; returns at once
+    /// ```
+    pub fn keep_trying_for_its_place(self: &Arc<Self>, ceiling: Duration, first_pause: Duration) {
+        let board: Arc<Self> = Arc::clone(self);
+        let trying = async move {
+            let mut failures: u32 = 0;
+            loop {
+                if board.holds_its_place() {
+                    return;
+                }
+                if board.take_its_place_within(ceiling) {
+                    crate::service_log!("this service took its place in its journal after {failures} attempts that did not");
+                    return;
+                }
+                failures = failures.saturating_add(1);
+                // A pause that grows with each failure, never past the longest this service lets a wait be.
+                tokio::time::sleep(crate::push_retry::pause_before(failures, first_pause)).await;
+            }
+        };
+        if crate::lazy_runtime::spawn_on_runtime(trying).is_none() {
+            crate::service_warn!("this service has no runtime to keep trying for its place in its journal, so it lands only what it can once the place is there");
+        }
     }
 
     /// What:
@@ -519,16 +600,6 @@ impl LandingBoard {
                 admission.dropped.push(id.clone());
                 owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
             }
-            // What: A service that took no place of its own lands nothing.
-            // Why:  It cannot tell whether another service took a place and confirmed a withdrawal for this request,
-            //       so its own memory is not evidence that the request may still land
-            //       (the fourth review of this branch, finding 1):
-            //       the requests are answered with a failure that says so.
-            if !self.holds_its_place() {
-                owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
-                admission.refused.push(id.clone());
-                continue;
-            }
         }
         return admission;
     }
@@ -553,13 +624,13 @@ impl LandingBoard {
         return self.place.lock().expect("the place this service holds").is_some();
     }
 
-    pub fn may_promise_a_request_never_lands(&self) -> bool {
+    pub fn promise_of_never_landing(&self) -> PromiseOfNeverLanding {
         // What: A service that holds no place of its own promises nothing.
         // Why:  A place it could not take is "could not tell", and that is never the best case
         //       (the third review of this branch, finding 1).
         let held: Option<Arc<crate::service_journal_holders::HeldPlace>> = self.place.lock().expect("the place this service holds").clone();
         let Some(place) = held else {
-            return false;
+            return PromiseOfNeverLanding::ThisServiceHoldsNoPlace;
         };
         // What: The places are read on a thread of their own, under a bound, and no promise is made at it.
         // Why:  This runs on the landing thread, the one thread that lands and answers: a read there that storage holds
@@ -569,8 +640,9 @@ impl LandingBoard {
         let answer: Option<crate::service_journal_holders::Holders> =
             crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::HOLDERS_ANSWER_CEILING, move || { return crate::service_journal_holders::holders(journal.as_path(), place.as_ref()); });
         return match answer {
-            Some(crate::service_journal_holders::Holders::Alone) => true,
-            Some(crate::service_journal_holders::Holders::Shared | crate::service_journal_holders::Holders::Unknown) | None => false,
+            Some(crate::service_journal_holders::Holders::Alone) => PromiseOfNeverLanding::Yes,
+            Some(crate::service_journal_holders::Holders::Shared) => PromiseOfNeverLanding::AnotherServiceWritesThisJournal,
+            Some(crate::service_journal_holders::Holders::Unknown) | None => PromiseOfNeverLanding::ThePlacesGaveNoAnswer,
         };
     }
 
@@ -589,6 +661,23 @@ impl LandingBoard {
         return String::from(
             "monochromatic-git-policy-cli: another service writes this journal, so this one cannot say that the commit will never land: another service may be landing it now, and the result is not known here.\n",
         );
+    }
+
+    /// The words for each reason this service cannot promise that a request will never land:
+    ///  each says what happened,
+    ///  and only the one that saw another service names one
+    ///  (the fifth review of this branch, finding 3: words a person reads are true).
+    pub fn words_of_a_promise_it_cannot_make(&self, reason: PromiseOfNeverLanding) -> String {
+        return match reason {
+            PromiseOfNeverLanding::Yes => String::new(),
+            PromiseOfNeverLanding::AnotherServiceWritesThisJournal => self.words_of_a_journal_this_service_shares(),
+            PromiseOfNeverLanding::ThisServiceHoldsNoPlace => String::from(
+                "monochromatic-git-policy-cli: this service holds no place in its journal, because that write did not finish when it started, so it cannot say that the commit will never land: the result is not known here.\n",
+            ),
+            PromiseOfNeverLanding::ThePlacesGaveNoAnswer => String::from(
+                "monochromatic-git-policy-cli: the list of the services that write this journal gave no answer in time, so this one cannot say that the commit will never land: the result is not known here.\n",
+            ),
+        };
     }
 
     /// Whether this board holds `id` for the group the landing thread is landing.
@@ -802,15 +891,40 @@ impl LandingBoard {
     /// as `(millis when it began, command, detail, millis it has run)`,
     /// when there is one.
     fn running(&self) -> Option<(u128, String, Option<String>, u128)> {
-        let text: String = record_text(self.directory.join(STEP_FILE).as_path())?;
-        let mut lines = text.lines();
-        let began: u128 = lines.next()?.parse().ok()?;
-        let command: String = String::from(lines.next()?);
-        let detail: Option<String> = match lines.next() {
-            Some(line) if !line.is_empty() => Some(String::from(line)),
-            _ => None,
-        };
-        return Some((began, command, detail, now_millis().saturating_sub(began)));
+        let owned = self.held.lock().expect("the landing thread's own");
+        let step: &TheWriteItIsInside = owned.step.as_ref()?;
+        return Some((now_millis(), step.command.clone(), step.detail.clone(), step.began.elapsed().as_millis()));
+    }
+
+    /// What:
+    ///  Records that the landing thread is inside `command`,
+    ///  with `detail` saying what the write does,
+    ///  and that it is over when the guard that ends it is dropped.
+    /// Why:
+    ///   The record lets a waiting client be told what the service is stuck in,
+    /// and it is memory now:
+    /// a file here was a write and a rename of the journal's drive before every Git child of every landing,
+    /// which a stalled drive held (the fifth review of this branch, finding 4).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const step = board.enterStep('git update-ref --stdin in /repo');
+    /// ```
+    pub(crate) fn set_step(&self, command: &str, detail: Option<String>) {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        owned.step = Some(TheWriteItIsInside { command: String::from(command), detail, began: Instant::now() });
+    }
+
+    /// The write is over:
+    ///  the record of the write now ends,
+    ///  and the words a wait over the bound is told name this last write.
+    pub(crate) fn clear_step(&self, command: &str) {
+        let mut owned = self.held.lock().expect("the landing thread's own");
+        if owned.step.as_ref().is_some_and(|step| { return step.command == command; }) {
+            owned.step = None;
+        }
+        drop(owned);
+        self.note_the_write_it_left(command);
     }
 
     /// The words that tell a client what the service is stuck in,
@@ -906,7 +1020,7 @@ impl LandingBoard {
         // Why:  The promise that it will never land is one service's to keep only where one service writes the journal;
         //       with two, the other may be landing it now, and the landing thread answers what it knows instead
         //       (`may_promise_a_request_never_lands`).
-        if !self.may_promise_a_request_never_lands() {
+        if !matches!(self.promise_of_never_landing(), PromiseOfNeverLanding::Yes) {
             return EarlyAnswer::Queued;
         }
 

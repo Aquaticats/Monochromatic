@@ -61,6 +61,11 @@ const STAGING_EXTENSION: &str = "service-staging";
 /// unread.
 const LEFT_OVER_FOR: Duration = Duration::from_secs(120);
 
+/// The words a control holds the write of this service's place with,
+/// and the name the journal gives that step
+/// (`service_start_step_hold_control_window.rs`).
+pub const THE_PLACE_STEP: &str = "it writes this service's place in its journal";
+
 /// The staging name of the place that will be `path`:
 /// the same name with the staging extension.
 fn beside_the_final_name(path: &Path) -> PathBuf {
@@ -133,6 +138,8 @@ pub fn take_ones_place(journal: &Path) -> Option<HeldPlace> {
         crate::service_warn!("the places of the services of this journal could not be made, so this one cannot tell whether it is alone: {error}");
         return None;
     }
+    // A control holds this write where a stalled drive would; nothing but its own variable arms it.
+    crate::service_start_step_hold_control_window::the_start_step_waits_where_a_control_says(THE_PLACE_STEP);
     let pid: u32 = std::process::id();
     let identity: String = match crate::process_identity::current_birth_identity() {
         Ok(identity) => identity,

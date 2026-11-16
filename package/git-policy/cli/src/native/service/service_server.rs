@@ -48,7 +48,7 @@ use crate::service_server_own_worktree_question::own_worktree_gone_now;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
-use crate::service_protocol::{FailureCode, RELEASE, ServiceMessage};
+use crate::service_protocol::{RELEASE, ServiceMessage};
 use std::collections::HashMap;
 use std::os::unix::net::UnixListener;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -295,6 +295,11 @@ fn start_the_after_commit_work_or_exit(
     }
 }
 
+/// How long the first pause between two attempts at this service's place in its journal is:
+/// the pause a round takes before it looks at a repository again (`LOOK_AGAIN_AFTER`),
+/// so a drive that is answering again is used within a few seconds and one that is not is asked rarely.
+const PLACE_RETRY_PAUSE: Duration = crate::service_claim_watch::LOOK_AGAIN_AFTER;
+
 /// The words the journal uses for the reading of the plan and the watch at a start,
 /// which is the step the door's ceiling names.
 const RESTORE_STEP: &str = "the read of the plan and the watch at a start";
@@ -354,6 +359,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
     let mut captures: CaptureMemory = CaptureMemory::default();
+
     let (sender, mut receiver): (UnboundedSender<Job>, UnboundedReceiver<Job>) = unbounded_channel();
     let acceptor_queue: UnboundedSender<Job> = sender.clone();
     // After-commit work (push, upkeep) runs as a task of its own, so a slow network never delays a landing.
@@ -418,7 +424,13 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     //       A place that gave no answer, or that could not be taken, is a service that lands nothing: it answers each
     //       commit with a failure and says why in the journal, rather than landing a request another service may have
     //       confirmed a withdrawal for.
-    board.take_its_place_within(settings.holds_its_place_ceiling);
+    // What: The place is tried for here, after the acceptor, and on a task of its own that keeps trying.
+    // Why:  The write is the journal's drive's, and a drive can hold it for as long as it likes;
+    //       the loop below reads its queue at once, so a commit lands as `main`'s does and never waits for this write,
+    //       and the place is taken as soon as the drive answers
+    //       (the fifth review of this branch, finding 1: a place that is late is late and not lost,
+    //       and a commit is never failed for it).
+    board.keep_trying_for_its_place(settings.holds_its_place_ceiling, PLACE_RETRY_PAUSE);
     // What: The plan and the watch are read in the task that runs the after-commit work, never before a commit can land.
     // Why:  Only that work uses them, and a request that arrives meanwhile waits in the queue (`service_server.rs`, the steps
     //       below): a reading of the service's state directory is one of the steps that had no reason to be waited for.
@@ -533,7 +545,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             if let Job::Withdraw(id, reply) = job {
                 match landed.get(id) {
                     Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true, landing: None }),
-                    None if board.may_promise_a_request_never_lands() => {
+                    None if matches!(board.promise_of_never_landing(), crate::service_busy::PromiseOfNeverLanding::Yes) => {
                         withdrawn.insert(id.clone());
                         reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
                     }
@@ -546,7 +558,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                         crate::service_log!(
                             "the withdrawal of {id} is left unanswered: another service writes this journal, so this one cannot say that the commit will never land"
                         );
-                        reply.send(&ServiceMessage::Waiting { text: board.words_of_a_journal_this_service_shares() });
+                        reply.send(&ServiceMessage::Waiting { text: board.words_of_a_promise_it_cannot_make(board.promise_of_never_landing()) });
                     }
                 }
             }
@@ -610,21 +622,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             for id in &admission.dropped {
                 crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
             }
-            // What: A request this service will not land is answered with a failure that names why, and never with silence.
-            // Why:  A service that took no place in its journal cannot tell whether another service confirmed a withdrawal
-            //       for this request, so it lands nothing (`service_busy.rs`, `begin_group`);
-            //       the person is told the service cannot serve this commit, and running it again meets the service the
-            //       manager starts next.
-            for (request, stream, _) in &queued_group {
-                if admission.refused.contains(&request.id) {
-                    crate::service_warn!("refused the request {} because this service holds no place in its journal", request.id);
-                    stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable });
-                }
-            }
-            // A dropped or refused request is not landed here; the rest are.
+            // A dropped request is not landed here; the rest are.
             let mut admitted: Vec<Queued> = Vec::new();
             for queued in queued_group {
-                if admission.dropped.contains(&queued.0.id) || admission.refused.contains(&queued.0.id) {
+                if admission.dropped.contains(&queued.0.id) {
                     continue;
                 }
                 admitted.push(queued);

@@ -439,53 +439,30 @@ fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
     });
 }
 
-/// How long a control gives the board to answer about a record it must not read:
-/// far above the read of a small file,
-/// and as long as a client waits before it gives up on the service (`HEARTBEAT_SILENCE`).
-#[cfg(unix)]
-const TIME_TO_ANSWER_ABOUT_A_RECORD: Duration = Duration::from_secs(5);
-
 /// What:
-///  A record that is not a regular file is answered without being read.
+///  The record of the write the landing thread is inside is memory:
+///  nothing of it is a file, so no name another program plants can hold a waiting client's beat.
 /// Why:
-///  The beat of every waiting client asks this board what the landing thread is inside,
-/// and the question opens the step record,
-///  so a named pipe at that name would make the open wait for a writer that never comes:
-/// the client then hears nothing for the five seconds it allows (`HEARTBEAT_SILENCE`),
-///  sends the commit again,
-/// and may report it failed although it landed.
-///  Nothing but this process writes these records,
-/// so a pipe at one of their names is another program's,
-///  and it names no write the landing thread is inside.
-#[cfg(unix)]
+///  It was a file under the journal's `busy` directory,
+/// which is a write and a rename of the journal's drive before every Git child of every landing,
+///  and a pipe at that name held the landing thread for ever
+///  (the fifth review of this branch, finding 4, which `main` has too).
 #[test]
-fn a_step_record_that_is_a_named_pipe_is_not_read() {
-    use std::os::unix::ffi::OsStrExt as _;
-    use std::os::unix::fs::OpenOptionsExt as _;
-    let record: Arc<LandingBoard> = board();
-    let step: std::path::PathBuf = record.directory.join(STEP_FILE);
-    let named: std::ffi::CString = std::ffi::CString::new(step.as_os_str().as_bytes()).expect("no NUL in a fixture path");
-    // SAFETY: `named` is a NUL-terminated path that outlives the call, and the mode is the record's own.
-    assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "a named pipe where the step record belongs");
-    let (answered, heard) = std::sync::mpsc::channel::<Option<String>>();
-    let asking = std::thread::spawn(move || {
-        let _sent = answered.send(record.describe());
+fn the_step_record_is_memory_and_reaches_no_file() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        assert_eq!(record.describe(), None, "nothing runs");
+        let guard = enter_step(String::from("git update-ref --stdin in /repo")).expect("this thread has a board");
+        std::thread::sleep(A_MOMENT);
+        let words: String = record.describe().expect("the step is stuck at once");
+        assert!(words.contains("git update-ref --stdin in /repo"), "{words}");
+        drop(guard);
+        assert_eq!(record.describe(), None, "the step ended");
+        // What the board holds after a step: the words of the last write it left, and no file of its own.
+        assert_eq!(record.words_of_the_step_a_queue_wait_is_in("a-request"), record.words_of_the_step_a_queue_wait_is_in("a-request"));
+        assert!(!record.directory.join("step").exists(), "a step writes no record under the board's directory");
     });
-    let waited: Result<Option<String>, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(TIME_TO_ANSWER_ABOUT_A_RECORD);
-    // The pipe is let go of whatever the answer was, so a failing run leaves no thread behind: a write with no reader fails at
-    //  once, and a reader that opened it reads the end of its file.
-    {
-        use std::io::Write as _;
-        let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
-        options.write(true).custom_flags(libc::O_NONBLOCK);
-        if let Ok(mut half) = options.open(step.as_path()) {
-            let _written = half.write_all(b"");
-        }
-    }
-    let _removed = std::fs::remove_file(step.as_path());
-    let said: Option<String> = waited.expect("the board answers about a record it does not read without waiting for a writer");
-    asking.join().expect("the asking thread ends");
-    assert_eq!(said, None, "a pipe names no write the landing thread is inside");
 }
 
 /// What:
@@ -632,7 +609,11 @@ fn a_service_with_no_place_of_its_own_never_promises_a_request_will_not_land() {
         let without_a_place: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
         assert!(!without_a_place.take_its_place_within(Duration::from_secs(5)), "the second service took no place");
         std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore the fixture");
-        assert!(!without_a_place.may_promise_a_request_never_lands(), "a service with no place of its own cannot promise anything");
+        assert_eq!(
+            without_a_place.promise_of_never_landing(),
+            crate::service_busy::PromiseOfNeverLanding::ThisServiceHoldsNoPlace,
+            "a service with no place of its own cannot promise anything, and says which reason it is",
+        );
         // A request it does not hold, while the other service is inside a write, is left to the landing thread.
         use_on_this_thread(Arc::clone(&landing));
         let _step = enter_step(String::from("git update-ref --stdin in /repo"));
@@ -682,12 +663,13 @@ fn a_service_that_took_no_place_of_its_own_lands_nothing() {
         let answer: EarlyAnswer = withdrawing.withdraw_early("a-request");
         assert!(matches!(answer, EarlyAnswer::Withdrawn(_)), "the journal's only live service may say the request will never land: {answer:?}");
         drop(_stuck);
-        // What: And the service that took no place lands nothing of that request.
-        // Why:  Its own memory holds no withdrawal, so only its refusal keeps it from landing one another service may
-        //       have been asked about.
+        // What: The service that took no place refuses nothing: it takes the request to the queue it reads.
+        // Why:  A place that is late is late and not lost (the fifth review of this branch, finding 1):
+        //       the service keeps trying for its place beside its loop, and the request lands once it has one.
         use_on_this_thread(Arc::clone(&unregistered));
         let admission: GroupAdmission = unregistered.begin_group(&[String::from("a-request")]);
-        assert_eq!(admission.refused, ids(&["a-request"]), "a service with no place of its own refuses to land");
-        assert!(!unregistered.is_in_flight("a-request"), "and holds nothing for its landing");
+        assert_eq!(admission, GroupAdmission::default(), "a service with no place of its own still takes the request");
+        assert!(unregistered.is_in_flight("a-request"), "and holds it for the landing its place will allow");
+        unregistered.end_group(&[String::from("a-request")]);
     });
 }

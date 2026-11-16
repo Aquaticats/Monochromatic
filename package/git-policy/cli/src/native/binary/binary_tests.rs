@@ -972,3 +972,8 @@ mod commit_cost_beside_the_service_record_write;
 /// the removal of old finished records, and a start step that does stand between a commit and its landing.
 #[path = "binary_a_first_commit_after_a_start_tests.rs"]
 mod a_first_commit_after_a_start;
+
+/// A commit made while the service's own place in its journal is late, impossible to write, or already landed:
+/// it lands and is answered as landed, within this project's bound on a commit.
+#[path = "binary_a_commit_while_the_place_is_late_tests.rs"]
+mod a_commit_while_the_place_is_late;

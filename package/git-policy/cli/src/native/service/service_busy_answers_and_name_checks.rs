@@ -39,9 +39,6 @@ pub struct GroupAdmission {
     /// and answered to nobody,
     /// because their clients were told already.
     pub dropped: Vec<String>,
-    /// The requests this service will not land because it took no place of its own in its journal,
-    /// so it cannot be sure that no other service would land one it promises never to land.
-    pub refused: Vec<String>,
 }
 
 /// What the journal says about a request.

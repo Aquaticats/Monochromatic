@@ -16,11 +16,9 @@
 
 use std::cell::RefCell;
 use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
-use std::io::Write;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use crate::service_busy::{LandingBoard, STEP_FILE, now_millis};
+use crate::service_busy::LandingBoard;
 
 /// What:
 ///  Whether the calling thread has a landing board.
@@ -113,8 +111,6 @@ pub fn detail(text: String) -> DetailGuard {
 /// and writes down which write it was,
 /// so a commit that waits past the bound after it names it.
 pub struct StepGuard {
-    /// The file that names the step.
-    file: PathBuf,
     /// The board the step was recorded in.
     board: Arc<LandingBoard>,
     /// The command the step ran.
@@ -123,20 +119,8 @@ pub struct StepGuard {
 
 impl Drop for StepGuard {
     fn drop(&mut self) {
-        let _removed = std::fs::remove_file(self.file.as_path());
-        self.board.note_the_write_it_left(self.command.as_str());
+        self.board.clear_step(self.command.as_str());
     }
-}
-
-/// Write `text` to `path` as a complete file or not at all:
-/// a rename of a file written beside it.
-pub(crate) fn publish(path: &Path, text: &str) -> bool {
-    let beside: PathBuf = path.with_extension("tmp");
-    let written: bool = match std::fs::File::create(beside.as_path()) {
-        Ok(mut file) => file.write_all(text.as_bytes()).is_ok(),
-        Err(_refused) => false,
-    };
-    return written && std::fs::rename(beside.as_path(), path).is_ok();
 }
 
 /// What:
@@ -156,12 +140,9 @@ pub(crate) fn publish(path: &Path, text: &str) -> bool {
 pub fn enter_step(command: String) -> Option<StepGuard> {
     let board: Arc<LandingBoard> = on_the_landing_state((), board_of_the_landing)?;
     let detail: Option<String> = on_the_landing_state((), detail_of_the_landing);
-    let file: PathBuf = board.directory.join(STEP_FILE);
     let named: String = one_line(command.as_str());
-    let text: String = format!("{}\n{}\n{}\n", now_millis(), named, detail.as_deref().map_or_else(String::new, one_line));
-    // A step that cannot be recorded is still run; the clients just are not told about it.
-    let _recorded = publish(file.as_path(), text.as_str());
-    return Some(StepGuard { file, board: Arc::clone(&board), command: named });
+    board.set_step(named.as_str(), detail.map(|text| { return one_line(text.as_str()); }));
+    return Some(StepGuard { board, command: named });
 }
 
 /// What:
