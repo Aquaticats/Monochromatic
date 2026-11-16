@@ -150,8 +150,18 @@ In the order a run that names no model of its own takes them:
   2026-11-11:
   "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
-  20 runs of Kimi K3.1 Pro flex,
-  taken only by a run that names that model.
+  Kimi K3.1 Pro flex,
+  taken only by a run that names that model,
+  closed to new runs since 2026-11-15 while it keeps its limit of 20 (the room it returns to).
+  The owner,
+  2026-11-15:
+  "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+  Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish.
+  Anyway, I'll probably figure out something better in the next week."
+  The runs already on it are still counted there and left to end,
+  and a run that names its model gets no room while it is closed.
+  `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens it for one command.
 - `qwen-token-plan`:
   5 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
@@ -181,8 +191,10 @@ and any number above zero is the room it takes again.
 ```sh
 # reopen OpenCode Go once the owner says the week has reset
 PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
-# close Neuralwatt's Kimi flex pool for the day
-PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --counts-only
+# reopen Neuralwatt's Kimi flex pool, which the owner closed on 2026-11-15, for one command
+PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20 start-pi-run-when-a-pool-has-room --counts-only
+# close the qwen plan's `qwen4-max-preview` pool for the day
+PI_RUNS_POOL_LIMITS=qwen-token-plan=0 start-pi-run-when-a-pool-has-room --counts-only
 ```
 
 A pair naming no pool,
@@ -286,6 +298,16 @@ or start a run it would refuse.
   the run folder's number.
   Without it the next number no folder of that name holds is taken,
   so a restart never writes over an earlier run's summary.
+  A number whose folder already holds anything refuses the launch,
+  and so does the driver when it is given that folder,
+  because whatever is there is another attempt's record,
+  whether that attempt finished its summary or was killed before it,
+  and no run writes over one.
+  The refusal names the folder and what it found there,
+  and offers three ways out:
+  a launch with no `--run`, whose folder takes the next number,
+  a runs folder of its own,
+  or moving that folder aside when nobody needs what it holds.
 - `--turn-cap`:
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
@@ -383,6 +405,12 @@ then resumes the agent's session with a short note naming what it left running,
 at most five wakes per run name.
 A resumed run gets a folder number of its own,
 so it never writes over the summary the first run wrote.
+The number is dropped however it was written,
+attached as `--run=5` or detached as `--run 5`,
+because the resumed words are built from what the launcher's own parser read
+and not from the text of the first command line,
+and every other option is carried the same way,
+with the value that first command line gave it.
 
 A process counts as the run's own work only when its working folder is the run's worktree or run folder,
 or when one whole path component of that folder is the run's own name.
@@ -992,6 +1020,13 @@ the launcher that builds the session's environment asks it, once, before it make
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
+  A folder holds one summary and no run writes over one:
+  the file takes its name by a link of a file already written whole,
+  so a name that is taken makes the run refuse instead of replacing the record there.
+  That file is written under a name of its own made from random bytes
+  and created rather than opened,
+  so a writer killed between two of its steps
+  leaves a name no later write can derive or truncate.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
