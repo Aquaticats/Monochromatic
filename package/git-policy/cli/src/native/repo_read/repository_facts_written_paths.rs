@@ -343,7 +343,8 @@ pub(super) enum WrittenPlace {
 ///  or why this reading cannot tell.
 ///  `&[u8]` borrows the word, `&Path` the directory the command runs in.
 /// Why:
-///  The word is read the way the kernel reads it:
+///  The word is read the way the kernel reads it up to the name Git writes,
+///  and no further:
 ///  joined to the directory the command runs in,
 ///  every link on the way resolved as far as the path exists,
 ///  and every `.` and `..` applied there,
@@ -353,6 +354,17 @@ pub(super) enum WrittenPlace {
 ///  (`git mv -f a.txt link-out/b.txt` writes the link's target, measured on this host with native
 ///  Git 2.56.0,
 ///  2026-11-15).
+///  The last component is kept as the person spelled it,
+///  because Git replaces the entry at a written name and does not write through it:
+///  a forced move replaces the link standing at its destination
+///  (`git mv -f a.txt dest.txt` with `dest.txt -> target.txt` left `target.txt` untouched and
+///  replaced the link, measured on this host with native Git 2.56.0, 2026-11-16),
+///  and so do `checkout -f`, `restore`, `reset --hard`, `read-tree --reset -u` and
+///  `checkout-index -f` at a path the index holds.
+///  Resolving the last component would name the file the link reaches,
+///  which is a file Git does not touch,
+///  and would leave the link itself unwatched
+///  (the ninth review's fourth finding).
 ///  Both resolutions run in one job the command waits for only until the worktree lookup ceiling,
 ///  because a `canonicalize` on a mount whose server stopped answering never returns,
 ///  and a path it cannot read is an `Err` that names the word rather than a place it guessed.
@@ -370,12 +382,31 @@ fn the_place_a_word_names(facts: &mut GitFacts, run_in: &Path, word: &[u8]) -> R
             String::from_utf8_lossy(word)
         ));
     };
-    let named: PathBuf = if word.starts_with(b"/") {
-        PathBuf::from(path_from_bytes(word))
-    } else {
-        run_in.join(path_from_bytes(word))
+    // The name Git writes is the last component as the person spelled it; everything before it is the way
+    //  the kernel resolves. A word that names the directory itself is no file Git writes, and a form that
+    //  names one is Git's own refusal.
+    let trimmed: &[u8] = without_trailing_separators(word);
+    let (way_bytes, kept_last): (&[u8], &[u8]) = match trimmed.iter().rposition(|byte| return *byte == b'/') {
+        Some(slash) => (&trimmed[..slash], &trimmed[slash + 1..]),
+        None => (&[], trimmed),
     };
-    let (resolved_root, resolved_named): (PathBuf, PathBuf) = match resolve_within_a_ceiling(root, named.as_path()) {
+    if kept_last.is_empty() || kept_last == b"." || kept_last == b".." {
+        return Err(format!(
+            "the guard could not place the path `{}` this command writes: it names a directory, which is no file",
+            String::from_utf8_lossy(word)
+        ));
+    }
+    let way: PathBuf = if way_bytes.is_empty() {
+        run_in.to_path_buf()
+    } else {
+        let spelled: PathBuf = path_from_bytes(way_bytes).into();
+        if spelled.is_absolute() {
+            spelled
+        } else {
+            run_in.join(spelled)
+        }
+    };
+    let (resolved_root, resolved_way): (PathBuf, PathBuf) = match resolve_within_a_ceiling(root, way.as_path()) {
         Some(found) => found,
         None => {
             return Err(format!(
@@ -385,7 +416,8 @@ fn the_place_a_word_names(facts: &mut GitFacts, run_in: &Path, word: &[u8]) -> R
             ));
         }
     };
-    return place_of(resolved_root.as_path(), resolved_named, word);
+    let written: PathBuf = resolved_way.join(path_from_bytes(kept_last));
+    return place_of(resolved_root.as_path(), written, word);
 }
 
 /// What:
