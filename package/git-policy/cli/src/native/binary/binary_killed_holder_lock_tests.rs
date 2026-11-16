@@ -484,7 +484,11 @@ fn a_lock_whose_file_system_records_no_birth_time_is_kept_and_named() {
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
     assert!(after.lock_stands, "nothing proves the order, so the lock stays: {}", after.said);
     assert!(after.said.contains("no birth time"), "the line says the file system records none: {}", after.said);
-    assert!(after.said.contains("this command removes the lock"), "the line says what clears it: {}", after.said);
+    assert!(
+        after.said.contains("rm --") && after.said.contains("index~pid.lock"),
+        "the line says what clears it, and clears the PID file with the lock: {}",
+        after.said
+    );
     assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}");
     super::commit::remove_settled(&fixture);
 }
@@ -859,7 +863,10 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
     assert!(!after.said.contains("cleared"), "nothing may claim an unproven lock was cleared: {}", after.said);
     assert!(after.said.contains("index.lock"), "the message must name the lock (exit {:?}): {}", after.code, after.said);
     assert!(after.said.contains("no record"), "the message must say no record of the wrapper's commands explains that number: {}", after.said);
-    assert!(after.said.contains("this command removes the lock"), "the message must say what clears it: {}", after.said);
+    // No record explains the number, so nothing shows the holder gone: the lock is named, and no removal is offered
+    //  for it (a review of `bbda166ce2`, finding 1).
+    assert!(!after.said.contains("rm --"), "no removal may be offered for a lock whose holder cannot be told: {}", after.said);
+    assert!(after.said.contains("no removal is offered"), "the message says the lock is left and nothing is offered: {}", after.said);
     super::commit::remove_settled(&fixture);
 }
 
