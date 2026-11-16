@@ -77,7 +77,7 @@ use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
 use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
 use crate::worktree_removal_worktrees_it_takes::{Taken, the_worktrees_it_takes};
 use crate::worktree_remove_plan::{RemovalShape, removal_shape};
-use crate::worktree_remove_registry::{OperandWorktree, Registration, git_worktree_for_operand, registered_worktree};
+use crate::worktree_remove_registry::{OperandUnresolved, OperandWorktree, Registration, git_worktree_for_operand, registered_worktree};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -261,9 +261,12 @@ fn answers_with(globals: &[OsString]) -> Vec<OsString> {
 ///  so no flag that skips another step can skip this one.
 ///   The operand is resolved by Git's own answer,
 ///  and nothing is resolved by a guess:
-///  a name this program cannot resolve to a worktree Git lists is refused rather than forwarded,
-///  because three reviews found a name Git resolves and this program did not
-///  (`528279d099`, `9e6c8619a9`, `e615fb599b`).
+///  a name Git's own resolution names no worktree for is Git's to answer,
+///  because Git refuses it and removes nothing,
+///  while a name two worktrees resolve to is refused,
+///  because Git removes the first of them and this program cannot say which that is
+///  (three reviews found a name Git resolves and this program did not,
+///  `528279d099`, `9e6c8619a9` and `e615fb599b`).
 ///  The words judged are the words Git runs
 ///  (`the_removal_it_judges`),
 ///  and the questions below are asked of every worktree the removal takes,
@@ -326,7 +329,22 @@ pub(crate) fn typed_removal<F: RepositoryFacts>(command: &ResolvedCommand, escap
                 false => TypedRemoval::AsWritten { picked: None },
             };
         }
-        Err(reason) => return unanswered(asked, command, judged.words.as_slice(), judged.subcommand_index, reason),
+        // Git's own resolution names no worktree for this name, so Git refuses the removal and removes nothing: there
+        // is no worktree for a guard to judge here, and the name is left to Git as the person wrote it. Measured on
+        // the builds of `main` and of this branch: a name that differs from a worktree's only by case where the
+        // repository folds no case, a name two registrations match, a worktree of another repository, and an empty name
+        // all end in Git's own `'<name>' is not a working tree` and take no file with them.
+        Err(OperandUnresolved::NoWorktree(reason)) => {
+            // The decision this stands on is measured, so it is logged with the reason Git's own resolution gave.
+            crate::diagnostic_log::debug("typedRemoval", format!("the removal is left to Git: {reason}").as_str());
+            return TypedRemoval::AsWritten { picked: None };
+        }
+        // A name two worktrees resolve to is a removal Git does make, of whichever its list puts first, and nothing
+        // here can name that worktree: refused rather than handed to Git, because standing down here let a removal Git
+        // resolved go with the edit a mark hid (a review of `528279d099`, finding 1).
+        Err(OperandUnresolved::Ambiguous(reason) | OperandUnresolved::Unreadable(reason)) => {
+            return unanswered(asked, command, judged.words.as_slice(), judged.subcommand_index, reason);
+        }
     };
     if !asked {
         return TypedRemoval::AsWritten { picked: Some(target) };

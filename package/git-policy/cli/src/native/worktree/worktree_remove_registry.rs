@@ -284,6 +284,38 @@ pub enum OperandWorktree {
 }
 
 /// What:
+///  Why Git's own resolution names no worktree for an operand,
+///  and which of those answers leaves the removal to Git.
+/// Why:
+///   The two answers are not the same thing to a guard:
+///  a name Git's own resolution names no worktree for is a name Git refuses,
+///  and it removes nothing,
+///  so the command is Git's to answer as the person wrote it;
+///  a name two worktrees resolve to is a removal Git makes,
+///  of whichever its list puts first,
+///  and nothing here can judge that worktree.
+///  One sentence per answer keeps the guard from reading the second as the first
+///  (`worktree_removal_typed_git_work.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OperandUnresolved = { kind: 'no-worktree', reason: string } | { kind: 'ambiguous', reason: string } | { kind: 'unreadable', reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OperandUnresolved {
+    /// Git's own resolution of the name names no worktree of this repository,
+    ///  so Git refuses the removal and removes nothing.
+    NoWorktree(String),
+    /// More than one worktree of this repository resolves to the name,
+    ///  so which one Git removes is its list's order.
+    Ambiguous(String),
+    /// Nothing here can read Git's list,
+    ///  or a listed path cannot be resolved,
+    ///  so what Git would do is unknown.
+    Unreadable(String),
+}
+
+/// What:
 ///  Every worktree Git lists for the repository,
 ///  in Git's own order,
 ///  which puts the main one first.
@@ -343,7 +375,7 @@ pub fn worktrees_of_a_git_listing(bytes: &[u8]) -> Vec<ListedWorktree> {
 
 /// What:
 ///  The worktree Git's own `git worktree remove <operand>` picks for `operand`,
-///  or the reason this cannot be told.
+///  or why Git's own resolution names none.
 /// Why:
 ///  Git resolves the operand in two steps (`find_worktree` in `worktree.c`, Git 2.56.0):
 ///  first the whole operand as the last components of a listed path,
@@ -356,25 +388,27 @@ pub fn worktrees_of_a_git_listing(bytes: &[u8]) -> Vec<ListedWorktree> {
 ///  (`fspathcmp` in `dir.c`),
 ///  and the paths are Git's own, from `git worktree list`,
 ///  so the answer is the worktree the command itself names.
-///  Anything else is the reason:
-///  a name Git's own resolution cannot resolve,
-///  a name no listed worktree answers,
-///  and a name two of them answer.
-///  Nothing here answers "Git will refuse":
-///  a removal goes to real Git only once it was judged, and the path it hands Git is the answer below
-///  (`worktree_removal_typed_git_work.rs`).
+///  A name whose own resolution names no path,
+///  and a name no listed worktree answers,
+///  are what Git answers by dying on `'<name>' is not a working tree`,
+///  so `OperandUnresolved::NoWorktree` says so and the removal stays Git's to answer:
+///  nothing is removed there and no guard has a worktree to judge.
+///  A name two listed worktrees answer is not that:
+///  Git removes whichever its list puts first,
+///  so nothing here can prove which worktree a guard would judge,
+///  and `OperandUnresolved::Ambiguous` refuses instead.
+///  A listing that cannot be read,
+///  and a listed path that cannot be resolved,
+///  are `OperandUnresolved::Unreadable`: what Git would do is unknown.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function gitWorktreeForOperand({ context, commonDir, operand, start, foldCase }): OperandWorktree; // throws the reason
+/// function gitWorktreeForOperand({ context, commonDir, operand, start, foldCase }): OperandWorktree | OperandUnresolved;
 /// ```
 ///
 /// # Errors
 ///
-/// The words for a listing that cannot be read,
-/// for a name Git's own resolution cannot resolve,
-/// for a name no listed worktree answers,
-/// and for a name two listed worktrees answer.
+/// The three answers above, each with the sentence naming why.
 pub fn git_worktree_for_operand(
     context: &crate::transaction_git::GitContext,
     common_dir: &Path,
@@ -382,8 +416,11 @@ pub fn git_worktree_for_operand(
     start: &Path,
     fold_case: bool,
     answers_with: &[OsString],
-) -> Result<OperandWorktree, String> {
-    let listed: Vec<ListedWorktree> = listed_by_git(context, common_dir, answers_with)?;
+) -> Result<OperandWorktree, OperandUnresolved> {
+    let listed: Vec<ListedWorktree> = match listed_by_git(context, common_dir, answers_with) {
+        Ok(found) => found,
+        Err(reason) => return Err(OperandUnresolved::Unreadable(reason)),
+    };
     // Git's first step: the whole operand as the last components of a listed path, at a directory boundary.
     let mut by_suffix: Vec<&ListedWorktree> = Vec::new();
     for one in &listed {
@@ -398,7 +435,10 @@ pub fn git_worktree_for_operand(
         }
     }
     if by_suffix.len() == 1 {
-        return resolved_operand(by_suffix[0]);
+        return match resolved_operand(by_suffix[0]) {
+            Ok(found) => Ok(found),
+            Err(reason) => Err(OperandUnresolved::Unreadable(reason)),
+        };
     }
     // Two listed paths ending in the name is no answer here, as it is none to Git: `find_worktree` falls to the
     // resolved path for both no match and more than one.
@@ -409,10 +449,10 @@ pub fn git_worktree_for_operand(
     let resolved: PathBuf = match crate::worktree_path_as_git_resolves_it::git_real_path(joined.as_path()) {
         Some(found) => found,
         None => {
-            return Err(format!(
+            return Err(OperandUnresolved::NoWorktree(format!(
                 "Git's own resolution of the name {} names no path: a component before the last one is not there, a separator follows a last component that is not there, or links lead back to themselves",
                 joined.display()
-            ));
+            )));
         }
     };
     let mut by_path: Option<&ListedWorktree> = None;
@@ -423,16 +463,19 @@ pub fn git_worktree_for_operand(
             continue;
         }
         if by_path.is_some() {
-            return Err(format!(
+            return Err(OperandUnresolved::Ambiguous(format!(
                 "more than one worktree of this repository resolves to {}, so which one Git picks is its list's order and nothing this program can read",
                 resolved.display()
-            ));
+            )));
         }
         by_path = Some(one);
     }
     return match by_path {
-        Some(only) => resolved_operand(only),
-        None => Err(format!("no worktree of this repository resolves from the name {}", joined.display())),
+        Some(only) => match resolved_operand(only) {
+            Ok(found) => Ok(found),
+            Err(reason) => Err(OperandUnresolved::Unreadable(reason)),
+        },
+        None => Err(OperandUnresolved::NoWorktree(format!("no worktree of this repository resolves from the name {}", joined.display()))),
     };
 }
 

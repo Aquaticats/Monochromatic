@@ -386,30 +386,36 @@ fn a_case_differing_name_is_guarded_where_git_resolves_it() {
 }
 
 /// What:
-///  Without `core.ignorecase`, the case-differing name is refused by this program,
-///  and the opt-out it prints still runs, ending as real Git ends.
+///  Without `core.ignorecase`, the case-differing name is left to Git,
+///  and Git's own answer is the one the person sees.
 /// Why:
-///  A case-differing name is a name this program resolves to no worktree of Git's own list,
-///  and a removal is not handed to real Git on the guess that Git would refuse it:
-///  the guard words the refusal and names the opt-out,
-///  which is where Git's own answer to that name is heard.
-///  Nothing is removed either way, and the opt-out shows the person the answer Git gives.
+///  Git folds ASCII case only when the repository sets `core.ignorecase`
+///  (`fspathcmp` in `dir.c`,
+///  Git 2.56.0),
+///  so without it the name's bytes are the comparison and no registered path ends in them.
+///  Measured on this system on the build of `main` and on this branch's build
+///  (`keep/removal-name-facts-after-the-edits.json`,
+///  shape `case-differs`):
+///  real Git, `main`'s wrapper and this branch's wrapper all answer
+///  `fatal: 'TOPIC' is not a working tree` with status 128,
+///  no worktree is removed,
+///  and the hidden edit's bytes are still there after each of the three.
+///  `SPEC.md` says the same thing in words:
+///  a name that differs from every registered path only by case names no worktree here,
+///  so it is Git's,
+///  which applies its own setting.
+///  The hidden edit is in the fixture so that a removal Git made would be visible.
 #[test]
-fn without_ignorecase_a_case_differing_name_is_refused_and_the_opt_out_is_gits_own_answer() {
+fn without_ignorecase_a_case_differing_name_is_gits_own_answer() {
     let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignorecase-off");
     scene.hide_an_edit();
     run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "false"]);
     let refused: Observed = scene.remove_with(&["worktree", "remove", "TASK"]);
     let said: String = stderr_of(&refused);
-    assert_eq!(refused.code, Some(1), "the name is refused rather than handed to Git on a guess: {said}");
-    assert!(said.contains("nothing here proves which worktree"), "{said}");
+    assert_eq!(refused.code, Some(128), "Git's own refusal answers a name it does not resolve: {said}");
+    assert!(said.contains("is not a working tree"), "in Git's own words: {said}");
     assert!(scene.task.join(TRACKED).exists(), "and nothing was removed");
-    let printed: String = scene.printed_command(&said);
-    let ran: Observed = scene.run_through_a_shell(printed.as_str());
-    let answer: String = stderr_of(&ran);
-    assert_eq!(ran.code, Some(128), "the opt-out answers as real Git answers this name: {answer}");
-    assert!(answer.contains("is not a working tree"), "{answer}");
-    assert!(scene.task.join(TRACKED).exists(), "and still nothing was removed");
+    assert!(scene.task.join(".git").is_file(), "the registration is exactly as it was");
     remove(&scene.fixture);
 }
 
@@ -668,7 +674,8 @@ fn parent_of(fixture: &Inside) -> String {
 
 /// What:
 ///  Every spelling of one worktree that Git itself resolves to it keeps a hidden edit,
-///  and the clean worktree still goes for every spelling Git removes.
+///  the clean worktree still goes for every spelling Git removes,
+///  and a spelling Git itself refuses is left to Git with Git's own answer.
 /// Why:
 ///  Three reviews found a name Git resolves and this program did not:
 ///  a typed `core.ignorecase`, a suffix two worktrees share, and a case-differing name behind a `.` component or a
@@ -676,12 +683,24 @@ fn parent_of(fixture: &Inside) -> String {
 ///  Each was mended at one more place of the guard's own resolving,
 ///  so the answer is now Git's own list and Git's own path resolution,
 ///  and every spelling Git removes for is guarded while the clean worktree of the same spelling still goes.
-///  The Unicode spellings are the ones Git on this system refuses under `core.precomposeUnicode`,
-///  which folds no form here: they are in the sweep so it says what this program does with them,
-///  and Git's own answer is stated beside each spelling
+///  The three spellings Git on this system removes nothing for are Git's:
+///  a case-differing last component behind a trailing slash under `core.ignorecase`,
+///  and the two Unicode forms under `core.precomposeUnicode`,
+///  which folds no form on this filesystem.
+///  Measured on this system on the build of `main` and on this branch's build
+///  (`keep/removal-name-facts-after-the-edits.json`,
+///  shapes `inside-trailing-slash`, `inside-nfd-against-nfc` and `inside-nfc-against-nfd`):
+///  real Git, `main`'s wrapper and this branch's wrapper all answer
+///  `fatal: '<name>' is not a working tree` with status 128,
+///  and no worktree is removed.
+///  `SPEC.md` says the same thing in words:
+///  a name that differs from every registered path only by case names no worktree here,
+///  so it is Git's,
+///  which applies its own setting.
+///  Each spelling states Git's own answer beside it
 ///  (`keep/probe-operand-shapes-against-real-git-3.log`).
 #[test]
-fn every_spelling_that_names_a_worktree_is_guarded_and_a_clean_one_still_goes() {
+fn every_spelling_git_resolves_is_guarded_and_a_spelling_git_refuses_is_gits() {
     let spellings: [Spelling; 17] = [
         Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-name", operand: |_| return String::from("sub/task") },
         Spelling { directory: "task", ignorecase: false, git_removes: true, name: "relative-last-component", operand: |_| return String::from("task") },
@@ -752,9 +771,12 @@ fn every_spelling_that_names_a_worktree_is_guarded_and_a_clean_one_still_goes() 
                 assert_eq!(refused.code, Some(1), "{}: the guard is active on this spelling: {said}", spelling.name);
                 assert!(said.contains(TRACKED), "{}: and the refusal names the hidden edit: {said}", spelling.name);
             }
-            // Git itself resolves no worktree from this spelling, and this program refuses it rather than forward a
-            // removal on the guess that Git would.
-            false => assert_eq!(refused.code, Some(1), "{}: a spelling Git refuses is refused here as well: {said}", spelling.name),
+            // Git itself resolves no worktree from this spelling, so Git refuses it and this program hands the
+            // command to Git as the person wrote it: the answer, the status and the untouched worktree are Git's.
+            false => {
+                assert_eq!(refused.code, Some(128), "{}: a spelling Git refuses is Git's own answer: {said}", spelling.name);
+                assert!(said.contains("is not a working tree"), "{}: in Git's own words: {said}", spelling.name);
+            }
         }
         let kept: String = std::fs::read_to_string(hidden.task.join(TRACKED)).expect("the edit is still there");
         assert_eq!(kept, "my edit, only here\n", "{}: and the edit's own bytes are untouched", spelling.name);
@@ -764,9 +786,11 @@ fn every_spelling_that_names_a_worktree_is_guarded_and_a_clean_one_still_goes() 
         let answer: String = stderr_of(&removed);
         match spelling.git_removes {
             true => assert_eq!(removed.code, Some(0), "{}: a clean worktree goes through the same spelling: {answer}", spelling.name),
-            // Git itself refuses this spelling on this system, and this program refuses it too rather than forwarding
-            // a removal on the guess that Git would.
-            false => assert_eq!(removed.code, Some(1), "{}: a spelling Git refuses is refused here as well: {answer}", spelling.name),
+            // Git itself refuses this spelling on this system, and the person reads Git's own answer.
+            false => {
+                assert_eq!(removed.code, Some(128), "{}: a spelling Git refuses is Git's own answer: {answer}", spelling.name);
+                assert!(answer.contains("is not a working tree"), "{}: in Git's own words: {answer}", spelling.name);
+            }
         }
         assert_eq!(!clean.task.exists(), spelling.git_removes, "{}: and the worktree ends exactly as Git ends it", spelling.name);
         remove(&hidden.fixture);
