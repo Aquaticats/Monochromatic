@@ -16,6 +16,13 @@
  is in `filesOfCode`, so the brief asks the project's requirements for it, and in `filesOfAnUnlistedKind`, so the line prints the
  notice. The brief and the line take those answers and add nothing of their own.
 
+ Read with what Git did to the path, the table has six cells, and every cell has one instruction: an added, changed or mode-alone
+ path of a kind the row reads is in `files`, read in full; a removed path of such a kind is in `filesRemoved`, read in the change diff;
+ an added, changed or mode-alone test is also in `filesOfTests`, so a break is asked under it; a removed test is not, because nothing
+ is left to run; and a path of a kind the row leaves out is in `filesLeftOut` with its reason, whether the commit holds it or not. A
+ renamed path is two cells, the old one removed and the new one added, because the range is read without rename detection. A cell with
+ no instruction would be a row this plan cannot answer, and the walk over the table would fail rather than fall into a neighbour.
+
  A path the reviewed commit no longer holds is still a path the range touched, and its kind is the kind its name says: a removed
  code file makes the change one to code, and the brief names it as removed and says the change's diff is where it is read, because
  a reviewer cannot open it. So a row's read kinds are in `files` where a reviewer can open them and in `filesRemoved` where the
