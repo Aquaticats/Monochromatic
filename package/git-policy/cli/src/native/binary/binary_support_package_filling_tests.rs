@@ -23,7 +23,11 @@ use std::os::unix::process::ExitStatusExt as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
+
+/// A stamp of a filling that was handed over long before any control here runs,
+/// so a record that carries it is an earlier filling of the same worktree path.
+const AN_EARLIER_FILLING: &str = "2026-01-01T00:00:00.000Z";
 
 /// How long a control waits for the reader to answer before it says the reader did not.
 ///  The reader's own bound is the harness's patience, which is far longer; a control that waits this long has already
@@ -140,7 +144,8 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
     std::fs::create_dir_all(git_dir.as_path()).expect("the repository's Git directory");
     let worktree: PathBuf = fixture.root.join("deeper/stale");
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
-    // The record an add hands the service for this worktree's filling.
+    // The record an add hands the service for this worktree's filling, and the moment that add was taken up.
+    let started: SystemTime = SystemTime::now();
     let item: WorkItem = WorkItem {
         kind: WorkKind::Prewarm,
         repository: worktree.clone(),
@@ -164,7 +169,7 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
     // The state a consumer that gave up on a filling leaves it in.
     std::fs::create_dir_all(state_directory(work.as_path(), FAILED).as_path()).expect("the failed state");
     std::fs::rename(state_directory(work.as_path(), PENDING).join(id.as_str()), state_directory(work.as_path(), FAILED).join(id.as_str())).expect("the record moves to failed");
-    let said: String = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).expect("a filling whose record failed did not run to its end");
+    let said: String = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started).expect("a filling whose record failed did not run to its end");
     assert!(said.contains(FAILED), "the sentence names where the record stands: {said}");
     assert!(said.contains("could not be filled"), "the sentence quotes the service's own reason: {said}");
     assert!(said.contains("stopped by signal 9"), "and how the clean ended: {said}");
@@ -172,7 +177,7 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
     std::fs::create_dir_all(state_directory(work.as_path(), DONE).as_path()).expect("the done state");
     std::fs::rename(state_directory(work.as_path(), FAILED).join(id.as_str()), state_directory(work.as_path(), DONE).join(id.as_str())).expect("the record settles");
     assert!(
-        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).is_none(),
+        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started).is_none(),
         "a record that settled in done is a filling that ran to its end"
     );
 }
@@ -196,6 +201,7 @@ fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
     std::fs::create_dir_all(git_dir.as_path()).expect("the repository's Git directory");
     let worktree: PathBuf = fixture.root.join("deeper/stale");
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let started: SystemTime = SystemTime::now();
     let item: WorkItem = WorkItem {
         kind: WorkKind::Prewarm,
         repository: worktree.clone(),
@@ -218,7 +224,7 @@ fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
         std::fs::create_dir_all(settling.as_path()).expect("the done state");
         std::fs::rename(held.as_path(), settling.join(id.as_str())).expect("the record settles");
     });
-    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
     settler.join().expect("the thread that settles the record ends");
     assert!(said.is_none(), "a filling the queue held while it ran and settled in done did not fail: {said:?}");
 }
@@ -332,10 +338,11 @@ fn a_queue_entry_that_is_not_a_regular_file_does_not_keep_the_reader_waiting() {
     let (sender, answers) = std::sync::mpsc::channel::<Option<String>>();
     let reader: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let (fixture, git_dir, worktree, work) = a_queue("filling-with-a-pipe-in-the-queue");
+        let started: SystemTime = SystemTime::now();
         a_fifo(state_directory(work.as_path(), DONE).join("gate").as_path());
         a_fifo(state_directory(work.as_path(), FAILED).join("gate").as_path());
         write_record(work.as_path(), FAILED, &a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str()));
-        let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+        let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
         sender.send(said).expect("the control receives the reader's answer");
     });
     let answered: Option<String> = answers
@@ -363,6 +370,7 @@ fn a_queue_entry_that_is_not_a_regular_file_does_not_keep_the_reader_waiting() {
 #[test]
 fn a_record_that_settles_during_the_look_is_the_answer() {
     let (fixture, git_dir, worktree, work) = a_queue("filling-settled-during-the-look");
+    let started: SystemTime = SystemTime::now();
     let item: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
     write_record(work.as_path(), CLAIMED, &item);
     let id: String = item.id();
@@ -378,7 +386,7 @@ fn a_record_that_settles_during_the_look_is_the_answer() {
             std::fs::rename(claimed.as_path(), done.as_path()).expect("the record settles to done");
         }
     };
-    let said: Option<String> = a_filling_that_did_not_run_to_its_end_watching(&fixture, git_dir.as_path(), worktree.as_path(), &mut looking);
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end_watching(&fixture, git_dir.as_path(), worktree.as_path(), started, &mut looking);
     assert!(done.is_file(), "the record is in done, so the filling ran to its end");
     assert!(said.is_none(), "a filling that settled in done did not fail: {said:?}");
 }
@@ -401,22 +409,24 @@ fn a_record_that_settles_during_the_look_is_the_answer() {
 #[test]
 fn an_earlier_record_of_the_same_path_does_not_decide_the_current_filling() {
     let (fixture, git_dir, worktree, work) = a_queue("filling-with-an-earlier-record");
-    let earlier: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
+    let earlier: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), AN_EARLIER_FILLING);
+    let started: SystemTime = SystemTime::now();
     let current: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
     assert_ne!(earlier.id(), current.id(), "two hand-overs of one path are two records");
     // An earlier filling that ran to its end, and the current one that failed.
     write_record(work.as_path(), DONE, &earlier);
     write_record(work.as_path(), FAILED, &current);
-    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
     let words: String = said.unwrap_or_else(|| { return panic!("the current filling failed, so the reader says so, and an earlier done record does not hide it"); });
     assert!(words.contains(FAILED), "the sentence names the current filling's state: {words}");
     assert!(words.contains("stopped by signal 9"), "and quotes the service's reason: {words}");
     // The other way round: an earlier failure, and a current filling that ran to its end.
     let later: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
+    assert!(git_policy_cli::iso_time::instant_of_iso(later.created.as_str()).expect("a stamp") >= started, "the current filling's record is the one the add taken up at the moment wrote");
     std::fs::remove_file(state_directory(work.as_path(), FAILED).join(current.id().as_str())).expect("the previous control state goes");
     std::fs::remove_file(state_directory(work.as_path(), DONE).join(earlier.id().as_str())).expect("the previous control state goes");
     write_record(work.as_path(), FAILED, &earlier);
     write_record(work.as_path(), DONE, &later);
-    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
     assert!(said.is_none(), "the current filling ran to its end, and an earlier failed record does not make it fail: {said:?}");
 }

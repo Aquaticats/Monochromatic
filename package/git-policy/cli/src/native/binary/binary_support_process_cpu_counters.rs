@@ -1,45 +1,76 @@
 //! What:
 //!  The clock ticks one process used,
 //! as the kernel counts them,
-//! summed over every thread of it.
+//! read from the process's own file and never summed over a listing of its threads.
 //! Why:
-//!   `/proc/<pid>/stat` is the main thread's alone,
-//! and a commit service does its looking on a worker of its runtime:
-//! a reading of the main thread alone showed no processor time and no switch for a service that looked every five seconds
+//!   The first round of this branch summed one reading per thread,
+//! on the comment that `/proc/<pid>/stat` is the main thread's alone and that a service does its looking on a worker of
+//! its runtime,
+//!  so a reading of the main thread alone showed no processor time for a service that looked every five seconds
 //! (`binary_a_record_nothing_announced_is_found_tests.rs`).
-//! A process starts and ends threads while it serves
-//! (the build of its runtime,
-//! the bounded wait of one connection),
-//! so a thread a listing names can be gone before its own file is read,
-//! and a read that failed over that thread would name a service that is still there as one that ended
-//! (the gate of 2026-11-15T06:00-05:00,
-//! `a_record_nothing_announced_is_found::an_idle_service_runs_no_work`,
-//! whose first reading met the thread that builds the service's runtime as it went).
-//! So the sum counts the threads each moment has,
-//! and the one answer that means "no counters" is the process itself being gone.
+//! Measured on this machine, the process's own file reports the whole thread group and keeps what a thread spent after the
+//! thread ends:
+//! 4 ticks before a worker thread's work, 123 while it worked, and 123 again after the worker ended,
+//!  while the sum over the threads fell back to 3.
+//! So the sum was never what made the look's work visible, and it is the one reading that loses a thread that ends:
+//! a service starts and ends threads while it serves,
+//!  and a difference of two sums then goes down and overflows
+//!  (the review of 2026-11-15, its fourth and fifth findings: 8 ticks before and 5 after in its reproduction).
+//! Liveness is asked of the process's state and not of a file being readable,
+//! because the files of a killed child stay readable until something reaps it.
+//!  The listing of the threads stays for what only it can say,
+//! which is what one thread spent (`thread_ticks`) and what the threads of one moment sum to (`ticks_of_threads`),
+//! and a control shows there what a sum cannot promise.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const used = ticksOfThreads(pid, taskNumbers(pid)); // both read now, and a thread that went spends nothing more
+//! const used = ticksOfProcess(readFile(`/proc/${pid}/stat`)); // undefined for a zombie or a process that is gone
 //! ```
 
 /// What:
 ///  The clock ticks one process used,
-///  over every thread of it,
-///  or nothing when the process is gone.
+///  or nothing when the process does not live.
 /// Why:
-///   The process's own file is the one thing that has to be readable:
-/// it is there while the process runs and gone once it ended,
-///  while a thread's own file can be gone while the process that had it serves.
+///   The process's own file reports every thread of it,
+/// and it keeps the ticks of a thread that ended,
+/// so this number never goes down while the process lives
+///  and a difference of two readings is a duration.
+/// A process that ended is answered nothing even while its file is still there:
+/// a zombie is a process that nothing has reaped yet, not one that lives,
+///  and a liveness check that accepted it would accept a service that had died
+///  (the review of 2026-11-15, its fifth finding: `cpu_ticks` answered `Some(0)` for a zombie).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const used = ticksOf(readFile(`/proc/${pid}/stat`)) ? ticksOfThreads(pid, taskNumbers(pid)) : undefined;
+/// const stat = readFile(`/proc/${pid}/stat`); return stat && lives(stateOf(stat)) ? userOf(stat) + systemOf(stat) : undefined;
 /// ```
 pub fn cpu_ticks(pid: u32) -> Option<u64> {
-    let _process: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    let threads: Vec<u32> = thread_numbers(pid).ok()?;
-    return Some(ticks_of_threads(pid, threads.as_slice()));
+    let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // The program's name may hold spaces and brackets, and the state is the first field after it.
+    let after_name: &str = stat.rsplit_once(')')?.1;
+    let fields: Vec<&str> = after_name.split_whitespace().collect();
+    if !lives(*fields.first()?) {
+        return None;
+    }
+    let user: u64 = fields.get(11)?.parse().ok()?;
+    let system: u64 = fields.get(12)?.parse().ok()?;
+    return Some(user + system);
+}
+
+/// What:
+///  Whether a state letter of `/proc/<pid>/stat` names a process that lives.
+/// Why:
+///   `R`, `S`, `D`, `I`, `T`, `t`, `W` and `P` are states of a process that is running, waiting or stopped,
+/// and `Z` is a process that ended and waits to be reaped;
+/// `X` and `x` are a process that is dead.
+///  The letter is read from the same file as the times, so liveness and the reading are one moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lives = (state) => !['Z', 'X', 'x'].includes(state);
+/// ```
+fn lives(state: &str) -> bool {
+    return !matches!(state, "Z" | "X" | "x");
 }
 
 /// What:
@@ -71,6 +102,10 @@ pub fn thread_numbers(pid: u32) -> std::io::Result<Vec<u32>> {
 ///   A thread that went between the listing and its own read spent nothing more,
 /// and the process that had it is still there:
 /// the sum is of the threads this moment has, and no absence among them is a reason to answer nothing.
+///  This is what one moment's threads sum to, and it is not a number a difference may be taken on:
+/// a thread that ends takes its ticks out of every later sum,
+/// which is why `cpu_ticks` reads the process's own file instead
+/// (the review of 2026-11-15, its fourth finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

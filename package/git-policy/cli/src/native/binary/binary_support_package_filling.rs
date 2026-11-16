@@ -77,15 +77,22 @@ pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::
 /// because the states that mean "still to come" are not the three the commit cases wait on:
 /// a filling the drain holds stands in `held` while it runs,
 /// and a control that counted only `pending`, `claimed` and `recovering` read an empty folder in that window.
+/// `started` is the moment the add that wrote the record was taken up,
+/// which is what tells this fill's record from an earlier filling of the same path.
 /// The sentence then names where the record stands and quotes the service's words about this worktree,
 /// which is the whole of what a reader needs to know why nothing is there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const said = aFillingThatDidNotRunToItsEnd(fixture, gitDir, worktree); // undefined when the record settled in done
+/// const said = aFillingThatDidNotRunToItsEnd(fixture, gitDir, worktree, startedAt); // undefined when the record settled in done
 /// ```
-pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::path::Path, worktree: &std::path::Path) -> Option<String> {
-    return a_filling_that_did_not_run_to_its_end_watching(fixture, git_dir, worktree, &mut |_state: &str| {});
+pub fn a_filling_that_did_not_run_to_its_end(
+    fixture: &Fixture,
+    git_dir: &std::path::Path,
+    worktree: &std::path::Path,
+    started: std::time::SystemTime,
+) -> Option<String> {
+    return a_filling_that_did_not_run_to_its_end_watching(fixture, git_dir, worktree, started, &mut |_state: &str| {});
 }
 
 /// What:
@@ -99,12 +106,13 @@ pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::p
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const said = aFillingThatDidNotRunToItsEndWatching(fixture, gitDir, worktree, (state) => { if (state === 'claimed') settle(); });
+/// const said = aFillingThatDidNotRunToItsEndWatching(fixture, gitDir, worktree, startedAt, (state) => { if (state === 'recovering') settle(); });
 /// ```
 pub fn a_filling_that_did_not_run_to_its_end_watching(
     fixture: &Fixture,
     git_dir: &std::path::Path,
     worktree: &std::path::Path,
+    started: std::time::SystemTime,
     watching: &mut dyn FnMut(&str),
 ) -> Option<String> {
     let work: std::path::PathBuf = git_policy_cli::service_work::work_directory(git_dir);
@@ -112,9 +120,14 @@ pub fn a_filling_that_did_not_run_to_its_end_watching(
     // A record the queue still holds is a filling that may yet run: it is waited for, and a wait that ends with the record
     //  still open says so instead of claiming a verdict it did not see.
     let standing: Standing = loop {
-        let standing: Standing = where_the_filling_stands(work.as_path(), worktree, watching);
-        if !matches!(standing, Standing::Open(_)) || began.elapsed() >= crate::support_observation::SERVICE_WORK_PATIENCE {
-            break standing;
+        let first: Standing = look(work.as_path(), worktree, started, watching);
+        let second: Standing = look(work.as_path(), worktree, started, watching);
+        // What the queue has settled is an answer, and so is a queue that answered the same twice, because a record found
+        //  nowhere is only believed when two looks agree: a record that moved while the first look read the states is read
+        //  again by the second.
+        let answered: bool = matches!(second, Standing::Done | Standing::GivenUp(_)) || (first == second && matches!(second, Standing::Nowhere));
+        if answered || began.elapsed() >= crate::support_observation::SERVICE_WORK_PATIENCE {
+            break second;
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
     };
@@ -142,6 +155,7 @@ pub fn a_filling_that_did_not_run_to_its_end_watching(
 
 /// What:
 ///  Where one worktree's filling stands in its queue.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Standing {
     /// Its record settled in `done`: the service ran the filling to its end.
     Done,
@@ -157,69 +171,105 @@ pub enum Standing {
 /// It is not a state of the queue: no record there means the add handed nothing over, which is its own answer.
 const NAMED_NOWHERE: &str = "no state of the work directory";
 
+/// The states of the queue in the order a record moves through them:
+/// `pending` to `recovering` to `claimed`, and from there to `done` or `failed`,
+/// with `held` beside a claim for the work a gate holds.
+/// The order is what keeps a record that moves during one look from being missed:
+/// a record only moves on, so it is met by a state read after the one it left.
+const WHERE_A_RECORD_MOVES: [&str; 6] = [
+    git_policy_cli::work_item::PENDING,
+    git_policy_cli::work_item::RECOVERING,
+    git_policy_cli::work_item::CLAIMED,
+    git_policy_cli::work_item::HELD,
+    git_policy_cli::work_item::DONE,
+    git_policy_cli::work_item::FAILED,
+];
+
 /// What:
-///  The state of the work directory that holds this worktree's prewarm record now.
+///  Where this worktree's filling stands, read in one pass through the states a record moves through.
 /// Why:
-///   A record the queue holds in `pending`, `claimed`, `recovering` or `held` is work that may yet run,
-/// and `held` is where a filling the drain is running stands,
-/// so a reader that wants to know how a filling ended waits while any of them holds it.
-/// A record in `failed` is the consumer's answer that the work was given up,
-/// and one that no state holds was never handed over.
+///   One pass answers what the queue holds now,
+/// and reading the states in the order records move through them is what makes a record that moves during the pass
+///  meet a state the pass has not read yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const standing = states.find((state) => standsIn(work, state, worktree)) ?? 'nowhere';
+/// const standing = states.find((state) => holds(work, state, worktree, started)) ?? 'nowhere';
 /// ```
-fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path, watching: &mut dyn FnMut(&str)) -> Standing {
-    if stands_in(work, git_policy_cli::work_item::DONE, worktree, watching) {
-        return Standing::Done;
-    }
-    if stands_in(work, git_policy_cli::work_item::FAILED, worktree, watching) {
-        return Standing::GivenUp(git_policy_cli::work_item::FAILED);
-    }
-    for state in [
-        git_policy_cli::work_item::HELD,
-        git_policy_cli::work_item::PENDING,
-        git_policy_cli::work_item::RECOVERING,
-        git_policy_cli::work_item::CLAIMED,
-    ] {
-        if stands_in(work, state, worktree, watching) {
-            return Standing::Open(state);
+fn look(work: &std::path::Path, worktree: &std::path::Path, started: std::time::SystemTime, watching: &mut dyn FnMut(&str)) -> Standing {
+    for state in WHERE_A_RECORD_MOVES {
+        if !holds_the_record(work, state, worktree, started, watching) {
+            continue;
         }
+        return match state {
+            git_policy_cli::work_item::DONE => Standing::Done,
+            git_policy_cli::work_item::FAILED => Standing::GivenUp(git_policy_cli::work_item::FAILED),
+            open => Standing::Open(open),
+        };
     }
     return Standing::Nowhere;
 }
 
 /// What:
-///  Whether the work directory holds this worktree's prewarm record in `state` now.
+///  Whether the work directory holds this worktree's filling in `state` now,
+///  of the records the add taken up at `started` wrote.
 /// Why:
-///   The record of a filling is named by its own object and branch,
-/// and only a prewarm of this worktree says what this control is waiting for;
-/// a claim's file holds the record itself, so every state is read the same way.
+///   The record of a filling is a regular file holding the work item,
+/// and only a prewarm of this worktree whose stamp is not older than `started` is this fill's:
+/// a worktree removed and added again at one path leaves the earlier filling's record in the queue,
+/// and what became of that fill is no answer about this one.
+///  Only a regular file is read: a queue directory is a place anything with write access can put anything,
+/// and opening a pipe for reading waits for a writer that may never come,
+/// which no deadline of this reader can end because the open happens inside one look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stands = readdir(stateDir).some((name) => { const item = decode(readFile(name)); return item.kind === 'prewarm' && item.repository === worktree; });
+/// const holds = entries(stateDir).some((e) => e.isFile() && (r = decode(read(e))) && r.kind === 'prewarm' && r.repository === worktree && Date.parse(r.created) >= started);
 /// ```
-fn stands_in(work: &std::path::Path, state: &str, worktree: &std::path::Path, watching: &mut dyn FnMut(&str)) -> bool {
+fn holds_the_record(
+    work: &std::path::Path,
+    state: &str,
+    worktree: &std::path::Path,
+    started: std::time::SystemTime,
+    watching: &mut dyn FnMut(&str),
+) -> bool {
     let directory: std::path::PathBuf = git_policy_cli::work_item::state_directory(work, state);
-    let found: bool = match std::fs::read_dir(directory) {
-        Ok(entries) => {
-            let mut found: bool = false;
-            for entry in entries.flatten() {
-                let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
-                let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else { continue };
-                if item.kind == git_policy_cli::work_item::WorkKind::Prewarm && item.repository == worktree {
-                    found = true;
-                    break;
-                }
+    let found: bool = std::fs::read_dir(directory).ok().is_some_and(|entries| {
+        return entries.flatten().any(|entry| {
+            let Ok(kind) = entry.file_type() else { return false };
+            if !kind.is_file() {
+                return false;
             }
-            found
-        }
-        Err(_unreadable) => false,
-    };
+            let Ok(text) = std::fs::read_to_string(entry.path()) else { return false };
+            let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else { return false };
+            if item.kind != git_policy_cli::work_item::WorkKind::Prewarm || item.repository != worktree {
+                return false;
+            }
+            let not_older: std::time::SystemTime = the_millisecond_of(started);
+            return git_policy_cli::iso_time::instant_of_iso(item.created.as_str()).is_some_and(|created| { return created >= not_older; });
+        });
+    });
     watching(state);
     return found;
+}
+
+/// What:
+///  The instant `moment` names, cut down to the millisecond a record's stamp is written in.
+/// Why:
+///   A record's `created` is written in whole milliseconds,
+/// and a moment read from the clock carries finer parts,
+/// so a record written in the same millisecond as the add was taken up names an instant a fraction of a millisecond before it:
+/// compared as it stands, the fill's own record would be older than the moment its add was taken up,
+///  and the reader would answer for an earlier filling's record or for none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const toTheMillisecond = (moment) => new Date(Math.floor(moment.getTime() / 1000) * 1000 + Math.floor(moment.getMilliseconds()));
+/// ```
+fn the_millisecond_of(moment: std::time::SystemTime) -> std::time::SystemTime {
+    let Ok(since_the_epoch) = moment.duration_since(std::time::UNIX_EPOCH) else { return moment };
+    let millis: u64 = u64::try_from(since_the_epoch.as_millis()).unwrap_or(u64::MAX);
+    return std::time::UNIX_EPOCH + std::time::Duration::from_millis(millis);
 }
 
 /// What:

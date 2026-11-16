@@ -962,6 +962,8 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     // A run may ask for the ending the gate of 2026-11-15T06:00-05:00 met: the filling's own clean ended by a signal from
     //  outside the runner's ceiling and quiet window, and the resolution after it refused.
     end_the_fills_clean(&fixture);
+    // The moment the fill is taken up, which is what tells this fill's record from an earlier filling of the same path.
+    let started: std::time::SystemTime = std::time::SystemTime::now();
     let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "stale", "../deeper/stale");
     let worktree: PathBuf = fixture.root.join("deeper/stale");
     assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
@@ -972,7 +974,7 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     // A filling that did not run to its end displaced nothing, so a failure names the filling's own reason rather than an
     //  empty folder: at the gate of 2026-11-15T06:00-05:00 the machine ended this filling's clean and the control reported
     //  only that the bytes were not kept, which sent a reader after a clean that never took a byte.
-    if let Some(said) = a_filling_that_did_not_run_to_its_end(&fixture, repo.join(".git").as_path(), worktree.as_path()) {
+    if let Some(said) = a_filling_that_did_not_run_to_its_end(&fixture, repo.join(".git").as_path(), worktree.as_path(), started) {
         panic!("{said}");
     }
     // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
