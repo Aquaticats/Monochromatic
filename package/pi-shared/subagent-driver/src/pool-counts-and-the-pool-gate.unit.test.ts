@@ -602,12 +602,26 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order, which reaches Neuralwatt flex first because the qwen plan pool and standard Neuralwatt before it are closed, and skips a pool that takes only its own model',
+          name: 'takes the owner order, which reaches opencode-go first because the qwen plan pool before it is closed, goes on to Neuralwatt flex once opencode-go is full, and skips a pool that takes only its own model',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(OPENCODE_GO,);
             // Runs still going on the pool the owner took out are counted there, and take no room from the pool a new run goes to.
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, NEURALWATT_DEEPSEEK_FLEX.limit,), },),
+              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, OPENCODE_GO.limit,), },),
+            },),).toEqual(OPENCODE_GO,);
+            // The pool the owner prefers is taken until it is full, and only then the next one.
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({ runs: runsIn(OPENCODE_GO, OPENCODE_GO.limit - 1,), },),
+            },),).toEqual(OPENCODE_GO,);
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({ runs: runsIn(OPENCODE_GO, OPENCODE_GO.limit,), },),
+            },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+            // With the preferred pool closed by a caller, as when its week is spent, the next one is taken at once.
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({
+                runs: [],
+                pools: poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },),
+              },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
           },
         },),

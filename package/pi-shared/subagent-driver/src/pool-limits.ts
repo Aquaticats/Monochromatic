@@ -120,8 +120,8 @@ export const NEURALWATT_STANDARD: ProviderPool = {
 };
 
 /**
- Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes first, the two pools before it in the table
- being closed.
+ Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes when `opencode-go` has no room or is
+ closed: the owner prefers that pool since 2026-11-16, and the other pools before this one in the table are closed.
 
  The owner, 2026-11-10: "You can use -flex postfix on neuralwatt models. They have their own separate pool of 22 slots. They're
  around 100% slower than standard in practice." A flex run therefore gets twice the wall clock, which is what `wallFactor` is
@@ -142,14 +142,20 @@ export const NEURALWATT_DEEPSEEK_FLEX: ProviderPool = {
 };
 
 /**
- The `opencode-go` pool, which a run that names no model of its own takes when Neuralwatt's flex pool has no room.
+ The `opencode-go` pool, which a run that names no model of its own takes first.
 
  Its account has a weekly limit. The owner, 2026-11-11T17:1x-05:00: "Be careful with opencode go as it has a weekly limit and
  I'm 99% through the weekly limit." The pool was closed from then until the owner, 2026-11-16 between 14:40 and 14:46 (-05:00),
  wrote: "My opencode-go limits have been reset." So it is open again at 20, the limit it had before it was closed.
 
- The owner ranked it below Neuralwatt's flex: "In practice, opencode-go may have worse inference quality and worse speed than
- neuralwatt's flex, so prefer neuralwatt." That is why it stands after the flex pool in {@link PROVIDER_POOLS}.
+ Its place is the owner's. On 2026-11-11 the owner ranked it below Neuralwatt's flex: "In practice, opencode-go may have worse
+ inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt." On 2026-11-16, shortly before 14:54 (-05:00),
+ the owner reversed that: "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub." So it stands
+ before both Neuralwatt pools in {@link PROVIDER_POOLS}, and Neuralwatt's flex pool takes what this one has no room for.
+
+ Its wall factor is the flex pool's, 2, on the owner's words that its speed may be worse than flex's: a run moved here from a
+ caller that asked for a standard pool's wall clock is given no less time than flex would give it. No timing of this pool has
+ been taken since it reopened, so the factor is a floor read from those words and is measured from this pool's own runs.
 
  When its week is spent again it is closed for one command, or for a unit's whole life, with
  `PI_RUNS_POOL_LIMITS=opencode-go=0`, and here once the owner says so.
@@ -159,7 +165,7 @@ export const OPENCODE_GO: ProviderPool = {
   provider: 'opencode-go',
   model: 'deepseek-v4.1-flash',
   limit: 20,
-  wallFactor: 1,
+  wallFactor: 2,
   takesDefaultRuns: true,
 };
 
@@ -232,17 +238,17 @@ export const QWEN_PLAN_QWEN4_MAX_PREVIEW: ProviderPool = {
 };
 
 /**
- The pools a run is counted in, in the owner's order: the qwen plan's DeepSeek pool, then Neuralwatt's standard pool, its
- DeepSeek flex pool and `opencode-go`, then the two pools only a run naming their own model takes.
+ The pools a run is counted in, in the owner's order: the qwen plan's DeepSeek pool, then `opencode-go`, then Neuralwatt's
+ standard pool and its DeepSeek flex pool, then the two pools only a run naming their own model takes.
 
  This is also the order a run that names no model of its own takes them in, skipping each closed pool and each pool that takes
  only its own model, and the order the counts line prints them in.
  */
 export const PROVIDER_POOLS: readonly ProviderPool[] = [
   QWEN_PLAN_DEEPSEEK,
+  OPENCODE_GO,
   NEURALWATT_STANDARD,
   NEURALWATT_DEEPSEEK_FLEX,
-  OPENCODE_GO,
   NEURALWATT_KIMI_FLEX,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
 ];

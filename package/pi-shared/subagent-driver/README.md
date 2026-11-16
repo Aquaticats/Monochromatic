@@ -130,6 +130,24 @@ In the order a run that names no model of its own takes them:
   "Remove Qwen hosted Deepseek from the pool."
   It took 18 runs before.
   The runs already on it are still counted there and finish there.
+- `opencode-go`:
+  20 runs,
+  which a run that names no model of its own takes first.
+  Its account has a weekly limit.
+  The owner,
+  2026-11-11:
+  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
+  It was closed from then until the owner wrote,
+  on 2026-11-16:
+  "My opencode-go limits have been reset."
+  It stands before both Neuralwatt pools because the owner ranked it so the same day:
+  "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."
+  That reverses the ranking of 2026-11-11
+  ("In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."),
+  whose words about its speed are why a run moved there gets twice the wall clock it asked for, as on flex,
+  until this pool's own runs have been timed.
+  `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again,
+  and default runs then go to `neuralwatt-flex`.
 - `neuralwatt`:
   standard DeepSeek,
   closed to new runs (limit 0),
@@ -141,22 +159,9 @@ In the order a run that names no model of its own takes them:
 - `neuralwatt-flex`:
   DeepSeek flex,
   20 runs,
-  which a run that names no model of its own takes first now.
+  which a run that names no model of its own takes when `opencode-go` is full or closed.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
-- `opencode-go`:
-  20 runs,
-  which a run that names no model of its own takes when `neuralwatt-flex` has no room.
-  Its account has a weekly limit.
-  The owner,
-  2026-11-11:
-  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
-  It was closed from then until the owner wrote,
-  on 2026-11-16:
-  "My opencode-go limits have been reset."
-  It stands behind flex because the owner ranked it so:
-  "In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."
-  `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again.
 - `neuralwatt-kimi-flex`:
   Kimi K3.1 Pro flex,
   taken only by a run that names that model,
