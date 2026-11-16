@@ -1135,6 +1135,7 @@ pub const SERVICE_GONE_AFTER_A_STOP: Duration = Duration::from_secs(2);
 ///    or one that names no holder: that one is waited for to the lock's ceiling and then reported as held,
 ///    which is the one line here that costs a commit a wait and a message rather than nothing,
 ///    and it is a state a `SIGTERM` leaves the same day. No record here is kept for the exit's sake alone.
+///
 ///  Measured:
 ///  a service asked to retire with both places of the lane of slow work held was still there ten seconds later,
 ///  and ended only when the control killed it (2026-11-15,
