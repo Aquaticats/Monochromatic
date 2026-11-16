@@ -301,8 +301,8 @@ fn a_table_with_a_hidden_process(root: &Path, pid: u32) -> PathBuf {
 /// the folder carried `2026-11-08T08:33:27.265Z` while the worktree's record was born eleven hours after the service
 ///  manager started,
 ///  and the sweep left the worktree in place).
-///  The record the add writes is not a snapshot's, so the time it names separates the worktree's own work from
-///  every process older than it.
+///  The record the add writes is not a snapshot's,
+///  so the time it names separates the worktree's own work from every process older than it.
 ///  The process table is written rather than read from the machine,
 ///  because no control can choose when this machine's own programs started.
 ///
@@ -339,8 +339,8 @@ fn btrfs_a_worktree_made_as_a_snapshot_is_removed_when_the_process_that_hides_it
     );
     let younger: SystemTime = made + SystemTime::now().duration_since(made).expect("the worktree was made a moment ago") / 2;
     let younger_table: PathBuf = a_table_of_a_hidden_process_started_at(root.as_path(), 6666, younger);
-    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: common.as_path(), proc_root: younger_table.as_path(), source: Some(repo.as_path()) };
-    let why: Option<String> = why_the_worktree_stays(&look, worktree.as_path(), admin.as_path());
+    let younger_look: SecondLook<'_> = SecondLook { context: &context, common_dir: common.as_path(), proc_root: younger_table.as_path(), source: Some(repo.as_path()) };
+    let why: Option<String> = why_the_worktree_stays(&younger_look, worktree.as_path(), admin.as_path());
     let said: String = why.expect("a process that started after the worktree was made may be working inside it");
     assert!(said.contains("process 6666"), "the reason names the process: {said}");
     assert!(said.contains("hides its working folder"), "{said}");
