@@ -41,7 +41,8 @@ fn a_claimed_tree_says_a_process_holds_it_until_the_claim_ends() {
 fn a_tree_that_is_not_there_is_neither_claimed_nor_held() {
     let root: PathBuf = fixture("tree-claim-missing");
     let gone: PathBuf = root.join("a-tree-that-is-not-there");
-    assert!(matches!(hold(gone.as_path()), ClaimTaken::CannotBeAsked), "nothing claims a tree that is not there");
+    // A tree that is not there is gone, and not a volume that cannot answer: a maker makes another.
+    assert!(matches!(hold(gone.as_path()), ClaimTaken::Gone), "nothing claims a tree that is not there");
     assert_eq!(whether_held(gone.as_path()), WhetherHeld::CannotBeAsked, "and the volume answered no question about it");
     remove(root.as_path());
 }

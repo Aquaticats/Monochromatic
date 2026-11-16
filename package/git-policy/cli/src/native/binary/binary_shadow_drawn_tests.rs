@@ -1245,6 +1245,8 @@ fn a_fixup_amend_whose_private_index_goes_is_still_the_commit_that_was_asked_for
 #[test]
 fn a_unique_prefix_of_an_amend_is_an_amend() {
     let case: Case = case("prefix-of-an-amend");
+    // The commit this amend replaces, and the parents it has: an amend keeps them.
+    let amended_parents: Vec<String> = head_and_its_parents(&case);
     std::fs::write(case.repo.join("a.txt"), b"base\nstaged\n").expect("the staged edit");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt"]);
     let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--no-only", "--amen"]);
@@ -1264,8 +1266,12 @@ fn a_unique_prefix_of_an_amend_is_an_amend() {
         .map(String::from)
         .collect();
     assert_eq!(landed, vec![String::from("a.txt")], "the amended commit keeps the file and carries the staged edit");
-    assert_eq!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]), "base\nstaged", "the staged edit is in it");
-    assert_eq!(head_and_its_parents(&case), Vec::<String>::new(), "and it amends the only commit there was, which had no parent");
+    assert_eq!(
+        super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]).trim_end(),
+        "base\nstaged",
+        "the staged edit is in it"
+    );
+    assert_eq!(head_and_its_parents(&case), amended_parents, "and it is the amended commit's own parents");
     remove_settled(&case.fixture);
 }
 
@@ -1288,7 +1294,7 @@ fn a_unique_prefix_of_a_reword_fixup_is_a_reword_fixup() {
     let seen: Observed = observe(&mut command, b"");
     let words: String = stderr_of(&seen);
     assert_eq!(seen.code, Some(0), "the commit Git makes with an abbreviated option must land: {words}");
-    assert_eq!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]), "base", "a reword fixup keeps the reworded commit's tree");
+    assert_eq!(super::commit::git_text(&case.fixture, case.repo.as_path(), &["show", "HEAD:a.txt"]).trim_end(), "base", "a reword fixup keeps the reworded commit's tree");
     assert_eq!(head_and_its_parents(&case), vec![base], "and its only parent is the commit it rewords");
     remove_settled(&case.fixture);
 }
