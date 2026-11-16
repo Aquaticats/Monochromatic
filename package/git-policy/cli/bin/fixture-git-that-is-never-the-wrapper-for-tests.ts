@@ -21,8 +21,12 @@ const fixtureGitDeadlineMilliseconds = 120_000;
  A search order is what a wrapper install changes: this repository puts the wrapper first on `PATH`
  (`native-gate-paths.ts`, `gitProgram`), and the fixture asks for the program a person's package manager installed
  (`/usr/bin/git`, the path the package's benchmark and end-to-end fixtures name).
+
+ It is exported because the controls must ask the same program what it reads from its environment
+ (`fixture-git-that-is-never-the-wrapper-for-tests.unit.test.ts`), rather than naming a path of their own that a later
+ change here could leave behind.
  */
-const systemGitProgram = '/usr/bin/git';
+export const fixtureGitProgram = '/usr/bin/git';
 
 /**
  The directories a fixture's git commands find the programs Git itself starts in, which are the system ones and never a
@@ -68,7 +72,7 @@ export async function fixtureGit({
   readonly args: readonly string[];
 }): Promise<string> {
   return (await runGateCommandOrThrow({
-    program: systemGitProgram,
+    program: fixtureGitProgram,
     args: [
       '-C',
       directory,
