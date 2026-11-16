@@ -39729,6 +39729,12 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
 - **What is left, measured at 11:33 because the owner asked for a better estimate than a count of tasks:** the queue holds 81 entries (49 reviews of a branch tip, 21 authors resumed, 11 fresh runs); 214 work branches are not merged into `main`, 91 of them with a commit in the last three days;
   of 139 run names active in those three days the median has had two runs, 31 have had five or more, the longest eighteen. Five Sonnet reviews returned in the 57 minutes from 10:31 to 11:28 at a mean of about 24 minutes.
   No date of completion can be given from this: how many new branches each review brings was not measured, and no pass has merged today.
+- **Both canaries through `main` ended well at 11:41:26** (the fresh start: four turns; the resume: three turns and its `session_resumed` line; each with its `secret_values` line and no `session-unmasked`). The rehearsal worktree is removed and its branch and the four canary branches are deleted here; each of their tips is a commit of `main`, and the rehearsal's merge has the same tree under `package/` and the lock file as the real merge.
+- **The Sonnet review of the service stop is back and accepted (`0855d37daa`, about twenty-eight minutes; independent; 4 of 4 files; 22 library tests and 8 binary controls by name; its transcript names `claude-sonnet-5-5`).** The author's control is valid (with the sweep put back inline it fails at the alarm) and does not show that the gate's stall was the sweep.
+  Two findings are the branch's own, which stops it by the owner's rule: a sweep that takes longer than 250 ms now leaves its markers (reproduced with the author's own hold point; a later service and one commit then removed them), and when the service gives up the sweep it says nothing. A third names four other waits of the stop path with no bound, which `main` has too.
+  The author's second run is queued third (11:41:56). The reviewer left a folder of empty directories at `/var/home/user/h`, made to keep socket paths short; it held no file and was deleted. Launch prompts now forbid any folder or link outside the review folder.
+- Reviews started at about 11:43, four going with landing never waits: the resumed wake folder (`cc6efd4d28`), the tunnel tooling's six findings (`a1c911d2f8`; its prompt forbids every test that changes the host and any script outside namespaces it creates) and the copy owner (`03d56470fa`; its prompt states the owner's course A as decided). Each asks, per finding, whether `main` has it.
+- The commit-time run for many changed files ended at `a13faa0d55`: by its report 20,000-file edits, new files and renames are inside five seconds by median; a 10,000-file final-newline correction still takes 7.5 to 7.9 seconds against real Git's half second. Its review is queued; the correction's cost is not accepted until it is split into what the guarantee costs and what it does not.
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
@@ -39747,6 +39753,12 @@ Seven answers of the owner, asked through the question tool when the owner wrote
 One more answer, at about 11:34 on 2026-11-16, asked with the morning's measurements beside it (reviews finish at up to about 7 an hour at three places, author runs end at about 6 to 7 an hour, so 49 queued reviews do not shrink):
 
 - **How the 18 agent places are split: "5 reviews, 13 Pi runs (Recommended)".** Five Sonnet reviews at once; the unit that fills Pi places runs at level 13 since 11:34:59 (no going run is stopped). The cap of 18 is unchanged.
+
+And at about 11:42 on 2026-11-16, asked once the second masking merge was in `main` and a fresh-start canary and a resume canary had both ended well through `main` (11:41:26):
+
+- **When the credential values are rotated: "Rotate now, runs going (Recommended)".** The owner rotates the values and edits the store. This session's part: the unit that fills run places was stopped at 11:43:25 (it was starting nothing, fourteen Pi runs going against its level of thirteen);
+  when the owner says the rotation is done, a fresh-start canary and a resume canary run through `main`, and the filling unit is started again at level 13. A going run that loses a provider or Git call to the old values is resumed afterwards.
+  Until the owner says the values are rotated, the sessions the scan names stay untouched and unresumed.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
