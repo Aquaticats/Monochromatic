@@ -14538,6 +14538,19 @@ and left the earlier records unread
 (the review of this change,
 finding 6,
 reproduced).
+An answer of "nothing proven" is also what a file-system resolution that gives no answer within its quarter second gives
+(`PLACE_LOOK_CEILING`):
+a stall therefore writes such a run's records into the account's state directory,
+which the sentences above already allow,
+because the alternative is a session's retry plan in storage a logout clears.
+Measured on 2026-11-16
+(the ninth review's pair):
+the stall's answer wrote four small files into the account's state directory and lost nothing,
+and the retry plan outlived a logout and was retried;
+the other answer lost the plan at logout
+while the next command still said the push would be tried again.
+The wrapper's first rule is that it never discards a person's data,
+so the stall answers "nothing proven".
 The cost is the other way for a run given a runtime directory of its own whose inherited bus is abstract:
 its records go where its own `XDG_STATE_HOME` or `HOME` names,
 which for a run that isolates its home is still not the account's real state directory,
