@@ -64,6 +64,7 @@ fn head_contents(oid: &str) -> Vec<(&'static str, Vec<u8>)> {
         ("symref-one-level", b"ref: HEAD\n".to_vec()),
         ("symref-no-space", b"ref:refs/heads/main\n".to_vec()),
         ("symref-unborn", b"ref: refs/heads/unborn\n".to_vec()),
+        ("symref-reftable-invalid", b"ref: refs/heads/.invalid\n".to_vec()),
         ("symref-another-alphabet", "ref: refs/heads/caf\u{e9}\n".as_bytes().to_vec()),
         ("symref-tags", b"ref: refs/tags/v1\n".to_vec()),
         ("symref-bare-refs", b"ref: refs/\n".to_vec()),
@@ -128,7 +129,7 @@ fn no_head_the_proof_accepts_is_one_real_git_refuses() {
     for (name, bytes) in head_contents(oid.as_str()) {
         std::fs::write(git_dir.join("HEAD"), bytes.as_slice()).expect("the HEAD under test");
         let git_uses_the_folder: bool = real_git_runs(git_dir.as_path(), repository.as_path());
-        let proof_accepts: bool = prove_git_directory(git_dir.as_path(), git_dir.as_path()).is_some();
+        let proof_accepts: bool = prove_git_directory(git_dir.as_path(), git_dir.as_path(), Some(git_dir.join("objects").as_path())).is_some();
         assert!(
             !(proof_accepts && !git_uses_the_folder),
             "the proof accepted `{name}`, whose bytes real Git refuses as no repository"
@@ -144,6 +145,7 @@ fn no_head_the_proof_accepts_is_one_real_git_refuses() {
     //       wrong reason, and the cases Git refuses are the ones the defect was made of.
     assert!(accepted.contains(&"valid-symref") && accepted.contains(&"valid-detached"), "the proof accepts the two spellings a real repository carries: {accepted:?}");
     assert!(accepted.contains(&"symref-another-alphabet"), "the proof accepts a reference name of another alphabet, which real Git allows: {accepted:?}");
+    assert!(accepted.contains(&"symref-reftable-invalid"), "the proof accepts the reftable backend's HEAD, which real Git allows and which cleared locks before: {accepted:?}");
     assert!(accepted.len() >= 2, "the comparison holds cases both accept: {accepted:?}");
     assert!(!accepted.contains(&"symref-nul"), "the proof refuses a symref carrying a NUL, which real Git refuses");
     assert!(!accepted.contains(&"hex-40-missing"), "the proof refuses a detached HEAD whose object is not there, which real Git refuses");

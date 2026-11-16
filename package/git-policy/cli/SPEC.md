@@ -10297,22 +10297,42 @@ and no place a record is written
 (a review of `551084db3c`,
 finding 3).
 
-The `HEAD` reading is not a loose match (`head_of`,
-`is_a_full_refname`,
-`object_exists`).
-It takes exactly one line with an optional final newline and refuses a carriage return,
-a second line or a NUL;
-a `ref: ` line must name a full reference (a `refs/` name of the bytes Git allows, no empty component,
-none beginning with a dot or ending in `.lock`, no `..` or `@{`, none of ``~^:?*[\``);
-and a lone object name must be lowercase hexadecimal of this repository's length whose object the store really holds,
-because Git refuses a folder whose detached `HEAD` names an object it does not have.
-A spelling Git accepts and this refuses costs the pass in that repository and nothing else,
-so the reading errs towards refusing.
-The control that holds it to Git is a comparison over generated `HEAD` contents, bytes below 0x20 and 0x7f among them:
-no `HEAD` the proof accepts is one real Git refuses as no repository
-(`src/native/repo_read/git_directory_proof_tests.rs`;
-a review of `b0ea691cc1`,
+The `HEAD` reading follows Git's own repository check (`head_answer`):
+a `ref: ` line is a repository when what follows it starts with `refs/`,
+which is the whole of what Git asks,
+and so `ref: refs/heads/.invalid` (the reftable backend's `HEAD`) is a repository
+and `ref: ` followed by anything else is not
+(the NUL case of a review of `b0ea691cc1`,
 finding 1).
+The file is read through a link at `HEAD` itself,
+which Git follows and `core.preferSymlinkRefs` writes,
+from a regular file only and without waiting.
+A lone object name is a repository only when the object is not proved absent:
+the loose name is one plain-file open,
+and after it every pack index of the store and of its alternates is read on its own,
+the index's fanout and a binary search inside it,
+which opens no pack at all and allocates nothing that grows with a number the file claims
+(`repo_read_pack.rs`,
+`index_names_the_object`).
+A store this cannot read that way answers unknown,
+and unknown is a repository,
+because `main` took every folder for one and refusing a repository Git works in switches the clearing of a killed
+Git's lock off
+(a review of `faf314ba2f`,
+finding 2);
+an alternates entry that is stale or quoted is skipped as Git skips it,
+and a pipe at a pack index or a pack's name is never opened,
+because one blocking open there held every command for good
+(the same review,
+finding 1).
+Two controls hold this:
+a comparison over generated `HEAD` contents, bytes below 0x20 and 0x7f among them,
+where no `HEAD` the proof accepts is one real Git refuses as no repository
+(`src/native/repo_read/git_directory_proof_tests.rs`),
+and the built wrapper with real Git beside it,
+where a pipe at either pack name never holds a command
+and every repository shape real Git works in keeps its clearing
+(`src/native/binary/binary_lock_holder_proof_tests.rs`).
 And each root below those two folders is reached by one walk that opens every component as the folder it is named as
 (`src/native/lock/abandoned_locks.rs`,
 `folder_below_proven`),

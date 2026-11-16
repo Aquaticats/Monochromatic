@@ -160,6 +160,10 @@ fn assert_the_lock_is_cleared(fixture: &Fixture, repo: &Path, shape: &str) {
 fn a_pipe_named_like_a_pack_index_never_holds_a_command() {
     let fixture: Fixture = fixture("pipe-named-like-a-pack-index");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    // What: The commit is packed first, so this repository's store holds a pack folder the proof may read.
+    // Why:  A loose object is answered by one plain-file open and the packs are never looked at; the review's hold was
+    //       in the pack folder, so the fixture must reach it.
+    git(&fixture, repo.as_path(), &["gc", "--quiet"]);
     git(&fixture, repo.as_path(), &["checkout", "--quiet", "--detach"]);
     let pipe: PathBuf = repo.join(".git/objects/pack/pack-x.idx");
     let made: std::io::Result<std::process::ExitStatus> = Command::new("mkfifo").arg(pipe.as_path()).status();
@@ -208,6 +212,46 @@ fn an_index_whose_pack_is_a_pipe_never_holds_a_command() {
     let wrapped: super::support::Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--short"]);
     assert_eq!(native.code, Some(0), "real Git returns at once with a pipe at a pack's name");
     assert_eq!(wrapped.code, native.code, "a pipe at a name the proof reads must not hold the command: the wrapper ended with {:?}", wrapped.code);
+    remove(&fixture);
+}
+
+/// What:
+///  A store whose only pack indexes are pipes never holds the wrapper's command,
+///  whatever the order the folder is read in.
+/// Why:
+///   The first control's pack folder also holds the real index,
+///  so a reader that opened one index at a time might reach the real one first and never touch the pipe;
+///  here every index name is a pipe,
+///  so a reader that opens the indexes as the pack reader did waits on one of them however the folder is ordered
+///  (a review of `faf314ba2f`,
+/// finding 1).
+///  Real Git fails in this store too now, because the object it was packed into is gone,
+///  and the point of this control is only that the wrapper returns the same way Git does, not held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gc(repo); rm(pack/*.idx, pack/*.pack); for (const n of [1,2,3]) mkfifo(`pack-pipe${n}.idx`); expect(runWrapped(repo, ['status']).code).toBe(runDirect(repo, ['status']).code)
+/// ```
+#[test]
+fn a_store_whose_only_pack_indexes_are_pipes_never_holds_a_command() {
+    let fixture: Fixture = fixture("only-pack-indexes-are-pipes");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["gc", "--quiet"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    let pack: PathBuf = repo.join(".git/objects/pack");
+    for entry in std::fs::read_dir(pack.as_path()).expect("the pack folder").flatten() {
+        let path: PathBuf = entry.path();
+        if matches!(path.extension(), Some(extension) if extension == OsStr::new("idx") || extension == OsStr::new("pack")) {
+            std::fs::remove_file(path.as_path()).expect("the packed object goes");
+        }
+    }
+    for name in ["pack-pipe1.idx", "pack-pipe2.idx", "pack-pipe3.idx"] {
+        let made: std::io::Result<std::process::ExitStatus> = Command::new("mkfifo").arg(pack.join(name).as_path()).status();
+        assert!(made.map(|status| { return status.success(); }).unwrap_or(false), "the control made a pipe at a pack index's name");
+    }
+    let native: super::support::Observed = run_direct(&fixture, repo.as_path(), &["status", "--short"]);
+    let wrapped: super::support::Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--short"]);
+    assert_eq!(wrapped.code, native.code, "the wrapper ends as Git does, never held: the wrapper ended with {:?}", wrapped.code);
     remove(&fixture);
 }
 
@@ -295,6 +339,10 @@ fn repositories_real_git_works_in_keep_their_lock_clearing() {
 fn a_repository_whose_pack_name_is_a_pipe_still_answers_with_git() {
     let fixture: Fixture = fixture("pack-name-is-a-pipe-still-answers");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    // What: The commit is packed first, so this repository's store holds a pack folder the proof may read.
+    // Why:  A loose object is answered by one plain-file open and the packs are never looked at; the review's hold was
+    //       in the pack folder, so the fixture must reach it.
+    git(&fixture, repo.as_path(), &["gc", "--quiet"]);
     git(&fixture, repo.as_path(), &["checkout", "--quiet", "--detach"]);
     let pipe: PathBuf = repo.join(".git/objects/pack/pack-x.idx");
     let made: std::io::Result<std::process::ExitStatus> = Command::new("mkfifo").arg(pipe.as_path()).status();

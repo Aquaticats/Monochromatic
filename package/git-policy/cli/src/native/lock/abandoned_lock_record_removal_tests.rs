@@ -95,7 +95,7 @@ fn a_lock_made_after_the_records_are_read_is_cleared_and_its_record_is_used() {
     let at_the_seam: PathBuf = common.clone();
     place_after_the_records_are_read(Box::new(move || { return make_the_lock(at_the_seam.as_path(), gone); }));
     let roots: [LockCandidate; 1] = [LockCandidate::EveryLockBelowProven { base: crate::git_directory_roots::ProvenFolder::CommonDirectory, components: Vec::new(), recursive: false }];
-    let proven = crate::git_directory_proof::prove_git_directory(common.as_path(), common.as_path()).expect("the fixture is a Git directory");
+    let proven = crate::git_directory_proof::prove_git_directory(common.as_path(), common.as_path(), Some(common.join("objects").as_path())).expect("the fixture is a Git directory");
     let outcome = clear_abandoned_locks(&proven, roots.as_slice());
     assert_eq!(outcome.cleared.len(), 1, "the pass cleared the lock the record it read explains: {:?}", outcome.cleared.iter().map(clearance_line).collect::<Vec<String>>());
     assert!(!lock.exists(), "the lock that was made after the reading is gone");

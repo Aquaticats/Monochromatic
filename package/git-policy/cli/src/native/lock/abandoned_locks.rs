@@ -664,7 +664,12 @@ fn proving_pid_file(lock: &Path) -> PathBuf {
 /// function rootsOfGitDirectory(gitDir: string): string[]; // [gitDir, commonDir] when they differ
 /// ```
 pub fn candidates_of_git_directory(git_dir: &Path, common_dir: &Path) -> Option<(ProvenGitDirectory, Vec<LockCandidate>)> {
-    let proven: ProvenGitDirectory = prove_git_directory(git_dir, common_dir)?;
+    // What: The object store this call can name is the common directory's own, because a caller here knows only the two
+    //       folders; the command's own proof is the one that reads `GIT_OBJECT_DIRECTORY`.
+    // Why:  A detached `HEAD` whose object is in a store this cannot name must not turn into a refusal
+    //       (a review of `faf314ba2f`,
+    // finding 2).
+    let proven: ProvenGitDirectory = prove_git_directory(git_dir, common_dir, Some(common_dir.join("objects").as_path()))?;
     let repository: CommandRepository = CommandRepository {
         start: proven.path().to_path_buf(),
         git_dir: Some(proven.path().to_path_buf()),

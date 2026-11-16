@@ -3695,11 +3695,15 @@ which is `refs`, `worktrees` and the sequencer's three folders.
 Nothing is opened or unlinked in a folder Git itself does not accept as a Git directory,
 and every folder of it is reached by a path with no link in any component,
 so a `--git-dir` naming an ordinary folder, or a link at `refs` or `worktrees`, is no place the pass touches.
-Whether a folder is one is answered on the files Git reads,
-and a `HEAD` this package cannot parse whole,
-or a detached `HEAD` whose object is not in the store,
-is no repository here,
-because Git refuses such a folder itself.
+Whether a folder is one is answered on the files Git reads, as Git's own repository check reads them:
+a `ref: ` line under `refs/` (the reftable backend's `ref: refs/heads/.invalid` included),
+read through a link at `HEAD` itself,
+or a detached object name whose object is not proved absent.
+A detached name is looked up in the loose store and in each pack index on its own,
+never in a pack,
+so a pipe at either pack name cannot hold a command;
+and a store this cannot read that way leaves the proof standing aside as `main` did,
+because refusing a repository Git works in would switch off the clearing of a killed Git's lock.
 A record the wrapper cannot write is a warning, never a failed command:
 a file standing where the record folder would be is left exactly as it is.
 The folder itself is opened once and every record is opened, read and unlinked relative to it,

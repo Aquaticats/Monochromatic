@@ -35,6 +35,95 @@ const DELTA_DEPTH_LIMIT: usize = 100;
 /// and a stop at a fixed size keeps a long listing from growing without bound.
 const CACHE_BYTE_LIMIT: usize = 32 * 1024 * 1024;
 
+/// What one pack index says about an object name,
+/// read from the index file alone.
+/// Why:
+///  A name may be asked for before any Git runs,
+///  on a path a person or another program can write:
+///  the answer must come from a regular file opened without blocking,
+///  and the pack itself must not be opened at all,
+///  because a pack that is a pipe holds an open for good
+///  (a review of `faf314ba2f`,
+/// finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IndexAnswer = 'names' | 'does-not-name' | 'unreadable';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IndexAnswer {
+    /// The index lists this object name.
+    Names,
+    /// The index was read whole and does not list it.
+    DoesNotName,
+    /// The index is not a version 2 index this reader understands,
+    /// or it cannot be read as a regular file.
+    Unreadable,
+}
+
+/// What:
+///  Whether the version 2 index at `index_path` lists `name`,
+///  reading at most a few dozen bytes at a time from the index file
+///  and opening nothing else.
+/// Why:
+///   The proof asks the object store whether the object a detached `HEAD` names is there,
+///  before Git has started and on a store a program may have put a pipe in:
+///  a lookup that opened the pack held every command for good
+///  (a review of `faf314ba2f`,
+/// finding 1).
+///  The fanout table bounds the names a first byte can have,
+///  and a binary search inside those bounds reads one name per step,
+///  so no allocation grows with a number the file claims.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const index = openPlainFile(indexPath); const fanout = readFanout(index); binarySearch(fanout[first - 1], fanout[first], (i) => readName(index, i))
+/// ```
+pub fn index_names_the_object(index_path: &Path, name: &[u8], hash_length: usize) -> IndexAnswer {
+    use std::os::unix::fs::FileExt as _;
+    if name.is_empty() || name.len() != hash_length {
+        return IndexAnswer::Unreadable;
+    }
+    let Ok(index): std::io::Result<File> = crate::plain_file::open_plain_file(index_path) else {
+        return IndexAnswer::Unreadable;
+    };
+    let mut magic: [u8; 8] = [0; 8];
+    if index.read_exact_at(&mut magic, 0).is_err() || magic != [0xff, b't', b'O', b'c', 0, 0, 0, 2] {
+        return IndexAnswer::Unreadable;
+    }
+    let mut fanout_bytes: [u8; 256 * 4] = [0; 256 * 4];
+    if index.read_exact_at(&mut fanout_bytes, 8).is_err() {
+        return IndexAnswer::Unreadable;
+    }
+    let fanout_at = |ordinal: usize| -> u64 {
+        let at: usize = ordinal * 4;
+        return u64::from(u32::from_be_bytes([fanout_bytes[at], fanout_bytes[at + 1], fanout_bytes[at + 2], fanout_bytes[at + 3]]));
+    };
+    let first: usize = usize::from(name[0]);
+    let low: u64 = if first == 0 { 0 } else { fanout_at(first - 1) };
+    let high: u64 = fanout_at(first);
+    if high < low {
+        return IndexAnswer::Unreadable;
+    }
+    let width: u64 = hash_length as u64;
+    let mut left: u64 = low;
+    let mut right: u64 = high;
+    while left < right {
+        let middle: u64 = left + (right - left) / 2;
+        let mut candidate: [u8; 32] = [0; 32];
+        let at: u64 = FANOUT_END + middle * width;
+        if index.read_exact_at(&mut candidate[..hash_length], at).is_err() {
+            return IndexAnswer::Unreadable;
+        }
+        match candidate[..hash_length].cmp(name) {
+            std::cmp::Ordering::Less => left = middle + 1,
+            std::cmp::Ordering::Greater => right = middle,
+            std::cmp::Ordering::Equal => return IndexAnswer::Names,
+        }
+    }
+    return IndexAnswer::DoesNotName;
+}
+
 /// The bytes of the index header and fanout table:
 /// magic,
 /// version,

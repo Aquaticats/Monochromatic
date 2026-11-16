@@ -72,7 +72,7 @@ pub struct ProvenGitDirectory {
 /// ```ts
 /// const proven = (gitDir, commonDir) => { const real = realpathSync(gitDir); const shared = realpathSync(commonDir); return isGitDirectory(real) && isGitDirectory(shared) ? { gitDir: real, commonDir: shared } : undefined };
 /// ```
-pub fn prove_git_directory(git_dir: &Path, common_dir: &Path) -> Option<ProvenGitDirectory> {
+pub fn prove_git_directory(git_dir: &Path, common_dir: &Path, object_store: Option<&Path>) -> Option<ProvenGitDirectory> {
     // What: Both folders are the ones the command's one resolver answered, resolved to real paths, and both are Git
     //       directories by Git's own test.
     // Why:  The common directory is never derived a second time here: with `GIT_COMMON_DIR` the resolver's answer is the
@@ -80,7 +80,16 @@ pub fn prove_git_directory(git_dir: &Path, common_dir: &Path) -> Option<ProvenGi
     //       never used (a review of `4e9b9fff1d`, finding 1).
     let resolved: PathBuf = std::fs::canonicalize(git_dir).ok()?;
     let common: PathBuf = std::fs::canonicalize(common_dir).ok()?;
-    if !is_a_git_directory(resolved.as_path(), common.as_path()) || !is_a_git_directory(common.as_path(), common.as_path()) {
+    // What: The object store is the one the command's resolver answered, `common/objects` when nothing moved it.
+    // Why:  `GIT_OBJECT_DIRECTORY` puts the objects elsewhere, and a detached `HEAD` whose object lives only there is a
+    //       repository Git works in: asking the wrong store would answer "no such object" and switch clearing off
+    //       (a review of `faf314ba2f`,
+    // finding 2).
+    let objects: PathBuf = match object_store {
+        Some(store) => std::fs::canonicalize(store).unwrap_or_else(|_unresolvable| { return store.to_path_buf(); }),
+        None => common.join("objects"),
+    };
+    if !is_a_git_directory(resolved.as_path(), objects.as_path()) || !is_a_git_directory(common.as_path(), objects.as_path()) {
         return None;
     }
     return Some(ProvenGitDirectory { git_dir: resolved, common_dir: common });
@@ -88,26 +97,34 @@ pub fn prove_git_directory(git_dir: &Path, common_dir: &Path) -> Option<ProvenGi
 
 /// What:
 ///  Whether Git would find a repository at `directory`,
-///  whose objects are in the store under `object_store`:
-///  a `HEAD` this module reads whole,
+///  whose objects are in `object_store`:
+///  a `HEAD` Git's own repository check accepts,
 ///  and an object store with a reference folder,
 ///  or a `commondir` file.
 /// Why:
 ///   This is `setup.c`'s own list (`is_git_directory`),
 ///  read from the files and never from a name,
 ///  so a folder of a person's that merely sits where a Git directory would cannot be proven a repository.
-///  The `HEAD` reading is this module's own and refuses every spelling it cannot fully parse
-///  (`head_names_a_reference_or_object`),
-///  because Git later refuses such a folder itself and the pass must not open anything there first
-///  (a review of `b0ea691cc1`,
-/// finding 1).
+///  The `HEAD` reading is this module's own, and it answers three ways:
+///  a reference,
+///  a detached object name,
+///  or no repository at all.
+///  A detached name is looked up in the object store without opening anything that is not a regular file,
+///  because a pipe at a pack's name held every command before Git started
+///  (a review of `faf314ba2f`,
+/// finding 1);
+///  and where the store cannot be read that way the proof stands aside as `main` did,
+///  because refusing a repository Git works in switches the clearing of a killed Git's lock off
+///  (the same review,
+/// finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isGitDirectory = (dir, objectStore) => validHead(dir + '/HEAD', objectStore) && ((isDir(dir + '/objects') && isDir(dir + '/refs')) || isFile(dir + '/commondir'));
+/// const isGitDirectory = (dir, objectStore) => headAnswer(dir + '/HEAD', objectStore) !== 'not-a-repository' && ((isDir(dir + '/objects') && isDir(dir + '/refs')) || isFile(dir + '/commondir'));
 /// ```
 pub fn is_a_git_directory(directory: &Path, object_store: &Path) -> bool {
-    if !head_names_a_reference_or_object(directory.join("HEAD").as_path(), object_store) {
+    let head: HeadAnswer = head_answer(directory.join("HEAD").as_path(), object_store);
+    if matches!(head, HeadAnswer::NotARepository) {
         return false;
     }
     // What: The object store and the reference folder are read as Git reads them, a link followed once at the last
@@ -122,175 +139,222 @@ pub fn is_a_git_directory(directory: &Path, object_store: &Path) -> bool {
 }
 
 /// What:
-///  What a `HEAD` file names,
-///  when its bytes are one of the two shapes a repository really has.
+///  What a `HEAD` file says a folder is,
+///  in the three answers Git's own repository check gives.
 /// Why:
-///   The question "is this a repository" is answered on these bytes alone,
-///  so the shapes are spelled out rather than matched loosely:
-///  a loose match accepted a symref carrying a NUL,
-///  and Git refused the folder after the pass had already unlinked a file in it
-///  (a review of `b0ea691cc1`,
-/// finding 1).
+///  The first two are repositories and the third is none,
+///  and the difference decides whether the pass runs,
+///  whether a record is written,
+///  and whether a lock a killed Git left is ever cleared.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Head = { kind: 'symref'; name: string } | { kind: 'detached'; hex: string };
+/// type HeadAnswer = { kind: 'reference' } | { kind: 'detached'; hex: string } | { kind: 'not-a-repository' };
 /// ```
-enum Head {
-    /// A `ref: <name>` line.
-    Symref(String),
-    /// A lone object name.
-    Detached(String),
+enum HeadAnswer {
+    /// `ref: <a name under refs/>`, which Git's check accepts.
+    Reference,
+    /// A lone object name, whose object must be in the store.
+    ///  The name is kept for the words a caller may say about it.
+    Detached(#[expect(dead_code, reason = "the name is what a caller may report; the answer itself is the variant")] String),
+    /// Everything else: no `ref: ` line, a name that does not start with `refs/`, or nothing Git reads.
+    NotARepository,
 }
 
 /// What:
-///  Whether `HEAD` names a reference or an object that is really there,
-///  which is the one file every Git directory has.
+///  What `HEAD` says about the folder,
+///  read through a link at `HEAD` itself,
+///  from a regular file only,
+///  and with the object looked up for a detached name.
 /// Why:
-///   `HEAD` is either `ref: <name>` or an object's hexadecimal text,
-///  and a folder with no such file is no repository to Git.
-///  Everything else is refused:
-///  the bytes must be one line,
-///  the reference name must be a full name Git could store,
-///  and a lone object name must be a lowercase hexadecimal name of this repository's length whose object the store
-///  holds,
-///  because Git refuses a folder whose detached `HEAD` names an object it does not have
-///  (a review of `b0ea691cc1`,
-/// finding 1).
-///  A spelling Git accepts and this refuses costs the lock pass in that repository and nothing else,
-///  so the reading errs towards refusing.
+///   Git's own repository check reads `HEAD` and asks two things:
+///  a `ref: ` line names something under `refs/`,
+///  or the file is an object name.
+///  It accepts `ref: refs/heads/.invalid` (the reftable backend's `HEAD`) and a `HEAD` that is a symbolic link,
+///  and this reading must not refuse repositories Git works in
+///  (a review of `faf314ba2f`,
+/// finding 2).
+///  It refuses `ref: ` followed by anything else, which is the NUL case a review of `b0ea691cc1` named.
+///  A detached name is an object name only for the two lengths this reader knows,
+///  in lowercase,
+///  and its object must not be proved absent;
+///  a store this cannot read that way answers unknown,
+///  and unknown is a repository,
+///  which is what `main` took every folder for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const validHead = (path, objectStore) => { const head = parseHead(readText(path)); return head?.kind === 'symref' ? isFullRefname(head.name) : head?.kind === 'detached' && objectExists(objectStore, head.hex) };
+/// const headAnswer = (path, objectStore) => { const bytes = readThroughLinks(path, 65536); if (bytes.startsWith('ref: ')) return bytes.slice(5).startsWith('refs/') ? 'reference' : 'not-a-repository'; const hex = text(bytes).trimEnd(); return /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(hex) && objectAnswer(objectStore, hex) !== 'absent' ? { kind: 'detached', hex } : 'not-a-repository' };
 /// ```
-fn head_names_a_reference_or_object(path: &Path, object_store: &Path) -> bool {
-    let bytes: Vec<u8> = match crate::plain_file::read_plain_file(path, HEAD_LIMIT) {
+fn head_answer(path: &Path, object_store: &Path) -> HeadAnswer {
+    let bytes: Vec<u8> = match crate::plain_file::read_plain_file_through_links(path, HEAD_LIMIT) {
         Ok(read) => read,
-        Err(_unreadable) => return false,
+        // A name a pipe, a folder or nothing at all stands at is no `HEAD` Git reads either.
+        Err(_unreadable) => return HeadAnswer::NotARepository,
     };
-    return match head_of(bytes.as_slice()) {
-        Some(Head::Symref(name)) => is_a_full_refname(name.as_str()),
-        Some(Head::Detached(hex)) => object_exists(object_store, hex.as_str()),
-        None => false,
+    if let Some(named) = bytes.strip_prefix(b"ref: ".as_slice()) {
+        if named.starts_with(b"refs/".as_slice()) {
+            return HeadAnswer::Reference;
+        }
+        return HeadAnswer::NotARepository;
+    }
+    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
+    let trimmed: &str = text.trim_end_matches('\n');
+    let lowercase_hexadecimal: bool = matches!(trimmed.len(), 40 | 64) && trimmed.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); });
+    if !lowercase_hexadecimal {
+        return HeadAnswer::NotARepository;
+    }
+    return match object_answer(object_store, trimmed) {
+        ObjectAnswer::Absent => HeadAnswer::NotARepository,
+        ObjectAnswer::Present | ObjectAnswer::Unknown => HeadAnswer::Detached(trimmed.to_owned()),
     };
 }
 
 /// What:
-///  The shape `bytes` are,
-///  or nothing when they are not exactly one of the two.
+///  What the object store says about one object name,
+///  read without opening anything that is not a regular file:
+///  the loose object itself,
+///  then the pack indexes of the store and of its alternates,
+///  never a pack.
 /// Why:
-///   One line, an optional final newline,
-///  no carriage return,
-///  no second line:
-///  anything else is text Git's own reader does not take as a name,
-///  and a reader of this one must not take it either.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const headOf = (bytes) => { const line = bytes.at(-1) === 0x0a ? bytes.subarray(0, -1) : bytes; if (line.includes(0x0a) || line.includes(0x0d)) return undefined; return line.startsWith('ref: ') ? { kind: 'symref', name: utf8(line.subarray(5)) } : { kind: 'detached', hex: utf8(line) } };
-/// ```
-fn head_of(bytes: &[u8]) -> Option<Head> {
-    let line: &[u8] = match bytes.last() {
-        Some(b'\n') => bytes.get(..bytes.len() - 1)?,
-        _ => bytes,
-    };
-    if line.contains(&b'\n') || line.contains(&b'\r') {
-        return None;
-    }
-    if let Some(named) = line.strip_prefix(b"ref: ") {
-        let name: String = std::str::from_utf8(named).ok()?.to_owned();
-        return Some(Head::Symref(name));
-    }
-    let hex: String = std::str::from_utf8(line).ok()?.to_owned();
-    return Some(Head::Detached(hex));
-}
-
-/// What:
-///  Whether `name` is a full reference name Git could store:
-///  `refs/` and components of bytes Git allows,
-///  none of them empty,
-///  beginning with a dot,
-///  or ending in `.lock`.
-/// Why:
-///   This is `check_refname_format`'s rule for a full name,
-///  and it is what keeps the proof from accepting a name Git's own update would refuse:
-///  a reference name cannot hold a space,
-///  a control byte,
-///  a NUL,
-///  `..`,
-///  `@{`,
-///  or one of ``~^:?*[\``.
-///  A one-level name such as `HEAD` is refused,
-///  although Git accepts it there,
-///  because Git's repository check accepts only `refs/`-prefixed text at this place
-///  (a review of `b0ea691cc1`,
+///   A pipe at `objects/pack/pack-x.idx`,
+///  or a pack index whose `.pack` is a pipe,
+///  held every command for good when this lookup opened the pack
+///  (a review of `faf314ba2f`,
 /// finding 1).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isFullRefname = (name) => name.startsWith('refs/') && !/[\x00-\x20\x7f~^:?*[\\]/.test(name) && !name.includes('..') && !name.includes('@{') && !name.endsWith('/') && !name.endsWith('.') && name.split('/').every((part) => part && !part.startsWith('.') && !part.endsWith('.lock'));
-/// ```
-fn is_a_full_refname(name: &str) -> bool {
-    if !name.starts_with("refs/") || name.ends_with('/') || name.ends_with('.') {
-        return false;
-    }
-    if name.contains("..") || name.contains("@{") {
-        return false;
-    }
-    for byte in name.bytes() {
-        // What: Every byte Git allows in a reference name, and no other.
-        // Why:  Git refuses a space, a control byte and 0x7f, and allows the rest, a name of another alphabet included;
-        //       refusing a name Git allows would cost the pass in that repository and nothing else, but it would cost it
-        //       on every command, so the rule follows Git's own.
-        let allowed: bool = byte > 0x20 && byte != 0x7f;
-        let special: bool = matches!(byte, b'~' | b'^' | b':' | b'?' | b'*' | b'[' | b'\\');
-        if !allowed || special {
-            return false;
-        }
-    }
-    for component in name.split('/') {
-        if component.is_empty() || component.starts_with('.') || component.ends_with(".lock") {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
-///  Whether the object store under `object_store` holds the object `hex` names.
-/// Why:
-///   Git refuses a folder whose detached `HEAD` names an object it cannot read
+///  An index answers from its own bytes,
+///  so the pack is never opened,
+///  and an index this reader cannot read makes the answer unknown rather than absent:
+///  absent is what a repository Git refuses looks like
 ///  (`fatal: bad object HEAD`),
-///  and the pass may not unlink anything there,
-///  so the object is looked for before the folder is proven
-///  (a review of `b0ea691cc1`,
-/// finding 1).
-///  A store this cannot open,
-///  a name of another length,
-///  and one that is not lowercase hexadecimal all answer no,
-///  which keeps the lock and touches nothing.
+///  and unknown is a repository this proof stands aside on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const objectExists = (objectStore, hex) => { const format = hex.length === 64 ? 'sha256' : hex.length === 40 ? 'sha1' : undefined; return format !== undefined && /^[0-9a-f]+$/.test(hex) && openOdb(objectStore, format)?.contains(fromHex(hex, format)) === true };
+/// const objectAnswer = (store, hex) => { if (openPlainFile(join(store, hex.slice(0, 2), hex.slice(2)))) return 'present'; for (const root of [store, ...alternates]) for (const idx of packIndexes(root)) { const a = indexNamesTheObject(idx, hex); if (a === 'names') return 'present'; if (a === 'unreadable') unknown = true } return unknown ? 'unknown' : 'absent' };
 /// ```
-fn object_exists(object_store: &Path, hex: &str) -> bool {
+fn object_answer(object_store: &Path, hex: &str) -> ObjectAnswer {
     let format: crate::repo_read_layout::ObjectFormat = match hex.len() {
         40 => crate::repo_read_layout::ObjectFormat::Sha1,
         64 => crate::repo_read_layout::ObjectFormat::Sha256,
-        _ => return false,
+        _ => return ObjectAnswer::Absent,
     };
-    if !hex.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); }) {
-        return false;
-    }
     let Some(name) = crate::repo_read_object::from_hex(hex.as_bytes(), format) else {
-        return false;
+        return ObjectAnswer::Absent;
     };
-    let Some(database) = crate::repo_read_odb::ObjectDatabase::open(object_store, None, format) else {
-        return false;
+    let mut roots: Vec<PathBuf> = vec![object_store.to_path_buf()];
+    let mut unknown: bool = false;
+    object_roots(object_store, 0, &mut roots, &mut unknown);
+    for root in &roots {
+        // What: The loose name first: it is one plain-file open, and a program that put a pipe at it is unknown.
+        // Why:  A packed object is the usual case after a clone, but a loose one needs no pack at all.
+        let loose: PathBuf = root.join(hex.get(..2).unwrap_or_default()).join(hex.get(2..).unwrap_or_default());
+        match crate::plain_file::open_plain_file(loose.as_path()) {
+            Ok(_found) => return ObjectAnswer::Present,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_not_a_regular_file) => unknown = true,
+        }
+        let pack: PathBuf = root.join("pack");
+        match std::fs::read_dir(pack.as_path()) {
+            Ok(listing) => {
+                for entry in listing.flatten() {
+                    let path: PathBuf = entry.path();
+                    if path.extension() != Some(std::ffi::OsStr::new("idx")) {
+                        continue;
+                    }
+                    match crate::repo_read_pack::index_names_the_object(path.as_path(), name.as_slice(), name.len()) {
+                        crate::repo_read_pack::IndexAnswer::Names => return ObjectAnswer::Present,
+                        crate::repo_read_pack::IndexAnswer::DoesNotName => {}
+                        crate::repo_read_pack::IndexAnswer::Unreadable => unknown = true,
+                    }
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_unreadable) => unknown = true,
+        }
+    }
+    return match unknown {
+        true => ObjectAnswer::Unknown,
+        false => ObjectAnswer::Absent,
     };
-    return database.contains(name.as_slice());
+}
+
+/// What the object store's answer about one name is.
+enum ObjectAnswer {
+    /// A loose object or an index names it.
+    Present,
+    /// Every store read said no.
+    Absent,
+    /// A part of the store could not be read without opening something that is not a regular file.
+    Unknown,
+}
+
+/// What:
+///  Every object store this repository reads through `alternates` files,
+///  under the same rules Git uses with one allowance:
+///  an entry that cannot be resolved is skipped,
+///  and text that cannot be parsed makes the answer unknown.
+/// Why:
+///   A stale or quoted entry is one Git warns about and works past,
+///  so it may not turn the answer into absent
+///  (a review of `faf314ba2f`,
+/// finding 2);
+///  a file this cannot read at all leaves the answer unknown,
+///  which keeps the lock pass running as `main`'s did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const alternates = (root, depth, roots, unknown) => { const text = readThroughLinks(join(root, 'info/alternates')); for (const line of text.lines()) { const target = canonicalize(resolve(root, stripQuotes(line))); target ? (roots.push(target), alternates(target, depth + 1, roots, unknown)) : (unparseable ? unknown = true : undefined) } };
+/// ```
+fn object_roots(root: &Path, depth: usize, roots: &mut Vec<PathBuf>, unknown: &mut bool) {
+    /// The deepest alternates chain this follows.
+    const ALTERNATES_DEPTH: usize = 5;
+    /// The longest alternates file this reads.
+    const ALTERNATES_LIMIT: u64 = 1 << 16;
+    /// The most stores one lookup reads.
+    const ROOTS_LIMIT: usize = 64;
+    if depth >= ALTERNATES_DEPTH || roots.len() >= ROOTS_LIMIT {
+        return;
+    }
+    let text: String = match crate::plain_file::read_plain_file_through_links(root.join("info/alternates").as_path(), ALTERNATES_LIMIT) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(text) => text,
+            Err(_not_text) => {
+                *unknown = true;
+                return;
+            }
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(_unreadable) => {
+            *unknown = true;
+            return;
+        }
+    };
+    for line in text.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let unquoted: &str = trimmed.strip_prefix('"').and_then(|rest| { return rest.strip_suffix('"'); }).unwrap_or(trimmed);
+        if unquoted.contains('\\') || unquoted.is_empty() {
+            // Git reads a quoted entry with C escapes; a line this cannot parse is one Git warns about.
+            continue;
+        }
+        let named: PathBuf = PathBuf::from(unquoted);
+        let candidate: PathBuf = match named.is_absolute() {
+            true => named,
+            false => root.join(named),
+        };
+        let Ok(resolved) = std::fs::canonicalize(candidate.as_path()) else {
+            // The clone it names is gone: Git warns and works on with the stores it does have.
+            continue;
+        };
+        if roots.contains(&resolved) || roots.len() >= ROOTS_LIMIT {
+            continue;
+        }
+        roots.push(resolved.clone());
+        object_roots(resolved.as_path(), depth + 1, roots, unknown);
+    }
 }
 
 /// What:

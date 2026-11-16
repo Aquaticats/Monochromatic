@@ -278,7 +278,12 @@ impl CommandRepository {
     pub fn proven_git_directory(&self) -> Option<ProvenGitDirectory> {
         let git_dir: &Path = self.git_dir.as_deref()?;
         let common_dir: &Path = self.common_dir.as_deref().unwrap_or(git_dir);
-        return prove_git_directory(git_dir, common_dir);
+        // What: The object store is the one this answer resolved, so a detached `HEAD` is looked up where Git looks.
+        // Why:  `GIT_OBJECT_DIRECTORY` moves the objects, and a proof that asked `common/objects` would answer "absent"
+        //       for a repository Git works in (a review of `faf314ba2f`,
+        // finding 2).
+        let object_store: Option<&Path> = self.object_dir.as_deref();
+        return prove_git_directory(git_dir, common_dir, object_store);
     }
 
     /// What:
