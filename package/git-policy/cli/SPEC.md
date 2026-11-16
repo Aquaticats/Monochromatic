@@ -9733,7 +9733,7 @@ in-process reader can) gives every value of the multi-valued keys.
   which justify the kill and the sweep and not five seconds;
   an open question for the owner),
   and reported with exit code 124.
-  The whole stop is bounded by `STOP_CEILING`,
+  The whole stop of a push is bounded by `STOP_CEILING`,
   measured from the moment it asks the child to end:
   inside the grace it waits whatever its tree's state,
   past the grace only while a member sits in an uninterruptible call,
@@ -9762,6 +9762,12 @@ in-process reader can) gives every value of the multi-valued keys.
   (`lock/push_lock_clearing.rs`).
   Neither lives only inside a task of the runtime, which a thread or memory limit may refuse to start
   (finding 1 of the review of `374f34c4b9`).
+  The ceiling is the push's stop:
+  the stop of a watched Git step (`push/child_watch_clock_marks_and_stopping.rs`, `stop_process`) reads it twice,
+  once before the kill and once after,
+  so it takes about twice it
+  (measured 2026-11-16: 36,224 ms against an 18,095 ms ceiling on both `main` and this branch;
+  finding 1 of the review of `41b3ca5e5e`).
   The report names what was cut short,
   says that the remote may or may not have taken the push,
   and says whether a retry is planned;

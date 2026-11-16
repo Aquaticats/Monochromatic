@@ -38,14 +38,33 @@
 use crate::process_tree::{TreeMember, in_uninterruptible_sleep};
 use std::time::Duration;
 
-/// The longest a stop of a Git the wrapper started may take in all,
+/// What:
+///  The longest a stop of a **push** may take in all,
 /// measured from the moment it asks the tree to end:
-/// the owner's multiple
-///  of the longest delay measured.
-///  Every wait of a stop is taken out of this one bound,
-/// because the bound is what a person waits,
-/// and a bound that
-///  each wait reads on its own is spent as many times as the stop has waits.
+/// the owner's multiple of the
+///  longest delay measured.
+/// Why:
+///   Every wait of that stop is taken out of this one bound
+/// (`push/stop_of_a_push_and_sweep_of_its_locks.rs`),
+///  because the bound is
+/// what a person waits,
+/// and a bound that each wait reads on its own is spent as many times as the stop has waits.
+///  Limit:
+/// it is the push's stop,
+/// and no other stop is made to fit it.
+/// The stop of a watched Git step
+///  (`push/child_watch_clock_marks_and_stopping.rs`,
+/// `stop_process`) reads the same ceiling twice:
+/// once while it waits for a member
+///  that cannot be interrupted,
+/// and again after the kill,
+/// from a clock that starts at the kill,
+/// so it can take about
+///  twice it (measured 2026-11-16: 36,224 ms against an 18,095 ms ceiling).
+/// That is `main`'s state and
+///  not this bound's;
+/// a stop of a watched step that ends within one ceiling is a change in that file and has its
+///  own work.
 pub const STOP_CEILING: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
 
 /// What a control may change on its own thread:
