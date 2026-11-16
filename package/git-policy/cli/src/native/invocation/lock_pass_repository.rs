@@ -46,8 +46,9 @@ use crate::git_directory_roots::git_directory_of;
 ///  read as plain text with the reader's bound.
 use crate::private_storage::read_regular_file;
 use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
-/// The name of the file beside a Git directory that names its common directory.
-use std::ffi::OsStr;
+/// The name every main worktree gives its Git directory,
+///  and the operating-system text of the command's arguments and environment.
+use std::ffi::{OsStr, OsString};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -77,8 +78,8 @@ const DOT_GIT: &str = ".git";
 ///   return canEnter(gitDir) ? gitDir : undefined;
 /// }
 /// ```
-pub fn git_directory_of_command_in(current: &Path, arguments: &[std::ffi::OsString], environment: &[(std::ffi::OsString, std::ffi::OsString)]) -> Option<PathBuf> {
-    let prefix: Vec<std::ffi::OsString> = global_prefix(arguments);
+pub fn git_directory_of_command_in(current: &Path, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Option<PathBuf> {
+    let prefix: Vec<OsString> = global_prefix(arguments);
     let selected: SelectedRepository = selected_repository(current, prefix.as_slice(), environment);
     let moved: bool = selected.directory != current;
     // Git changes into the directory its `-C` chain names before it reads anything else, and refuses the command
@@ -110,7 +111,7 @@ pub fn git_directory_of_command_in(current: &Path, arguments: &[std::ffi::OsStri
 /// ```ts
 /// const gitDir = gitDirectoryOfThisCommand(args, env);
 /// ```
-pub fn git_directory_of_this_command(arguments: &[std::ffi::OsString], environment: &[(std::ffi::OsString, std::ffi::OsString)]) -> Option<PathBuf> {
+pub fn git_directory_of_this_command(arguments: &[OsString], environment: &[(OsString, OsString)]) -> Option<PathBuf> {
     let current: PathBuf = std::env::current_dir().ok()?;
     return git_directory_of_command_in(current.as_path(), arguments, environment);
 }
@@ -127,9 +128,9 @@ pub fn git_directory_of_this_command(arguments: &[std::ffi::OsString], environme
 /// ```ts
 /// const prefix = globalPrefix(withoutWrapperControls(args));
 /// ```
-fn global_prefix(arguments: &[std::ffi::OsString]) -> Vec<std::ffi::OsString> {
+fn global_prefix(arguments: &[OsString]) -> Vec<OsString> {
     let mut controls: Controls = no_controls();
-    let cleaned: Vec<std::ffi::OsString> = strip_global_controls(arguments, &mut controls);
+    let cleaned: Vec<OsString> = strip_global_controls(arguments, &mut controls);
     let layout: GlobalLayout = global_layout(cleaned.as_slice());
     return cleaned[..layout.prefix_len].to_vec();
 }
