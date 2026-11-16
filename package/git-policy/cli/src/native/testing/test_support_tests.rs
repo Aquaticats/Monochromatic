@@ -64,6 +64,11 @@ const WHILE_A_WRITER_IS_HELD: std::time::Duration = std::time::Duration::from_se
 /// How long a control waits for its own pieces to settle once it has let them go.
 const SETTLING: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// The ceiling the held note of the control below is granted:
+/// short,
+/// so that control ends in seconds.
+const A_HELD_NOTES_CEILING: std::time::Duration = std::time::Duration::from_millis(400);
+
 /// What:
 ///  A fixture is removed only after the threads this process started have ended.
 /// Why:
@@ -114,6 +119,47 @@ fn a_fixture_is_removed_after_the_threads_this_process_started_have_ended() {
     writer.join().expect("the writer ends");
     assert!(!returned_while_writing, "the fixture was removed while a thread this process started was still writing into it");
     assert!(the_write_found_its_fixture, "the writer wrote into a tree the removal had already taken");
+    assert!(!root.exists(), "the removal did not remove the fixture");
+}
+
+/// What:
+///  A fixture is removed only after the note a landing handed to a thread of its own has ended.
+/// Why:
+///   `note_for_the_next_service_within` writes the note on a thread of its own (`work_within_reporting`)
+///  and stops waiting for it at its ceiling,
+///  so a store that gives no answer inside the ceiling leaves that thread writing
+///  (`landing/service_claim_watch_note_within_a_ceiling.rs`).
+///  Every counted job of a landing has ended by then,
+///  because the note's thread is not one of them,
+///  and the fixture goes out from under a writer that then makes its directories again:
+///  the review of this branch reproduced exactly that
+///  (`REPRO_REMOVE_RETURNED_WHILE_NOTE_WRITER_WAS_HELD: the late note writer recreated the tree: true`).
+///  The note here is held at the fault point the landing reaches,
+/// so "while the note writes" is a state and not a duration.
+#[test]
+fn a_fixture_is_removed_after_the_note_a_landing_left_behind_has_ended() {
+    let root: PathBuf = fixture("guard-note-writer");
+    let git_dir: PathBuf = root.join("repo.git");
+    std::fs::create_dir_all(git_dir.join(crate::work_item::WORK_DIRECTORY)).expect("the work directory of the Git directory");
+    let store: PathBuf = root.join("journal").join(crate::service_claim_watch::WATCH_DIRECTORY);
+    let (_reached, let_go): (tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) = crate::service_fault::hooks::hold_the_point(crate::service_claim_watch::IN_THE_NEXT_SERVICE_NOTE);
+    // Held on the thread that writes it, the note gives no answer within its ceiling and is left behind.
+    let answered: crate::service_claim_watch_note_within_a_ceiling::NoteForTheNextService = crate::service_claim_watch_note_within_a_ceiling::note_for_the_next_service_within(A_HELD_NOTES_CEILING, store.as_path(), None, git_dir.as_path());
+    assert_eq!(answered, crate::service_claim_watch_note_within_a_ceiling::NoteForTheNextService::NoAnswer, "a held note is left behind at its ceiling");
+    let (calling_sent, calling): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
+    let (removed_sent, removed): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel::<()>();
+    let removing: PathBuf = root.clone();
+    let remover = std::thread::spawn(move || {
+        // Said before the call, so the window below opens where the removal begins and not where its thread does.
+        let _said = calling_sent.send(());
+        remove(removing.as_path());
+        let _told = removed_sent.send(());
+    });
+    calling.recv().expect("the removal is about to run");
+    let returned_while_the_note_was_held: bool = removed.recv_timeout(WHILE_A_WRITER_IS_HELD).is_ok();
+    let _let_go = let_go.send(());
+    remover.join().expect("the removal ends");
+    assert!(!returned_while_the_note_was_held, "the fixture was removed while the note a landing left behind was still writing into it");
     assert!(!root.exists(), "the removal did not remove the fixture");
 }
 
