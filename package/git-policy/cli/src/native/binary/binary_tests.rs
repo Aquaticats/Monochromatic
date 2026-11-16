@@ -455,6 +455,13 @@ mod worktree_copy_forms;
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
+/// The one allowance the wrapper's own steps of an add share:
+/// an add whose child never answers ends at its allowance and leaves no worktree,
+/// an add after it works,
+/// and one whose child answers the second time still lands.
+#[path = "binary_worktree_add_allowance_tests.rs"]
+mod worktree_add_allowance;
+
 /// A removal goes around a subvolume or a mount point it did not make:
 /// the worktree and its registration go, what was not the removal's stays as it stood,
 /// and the person is told what frees the path.
