@@ -3,7 +3,10 @@
  machine's own process table holds, reports it the way the `process` tool reports one, and ends its turn. A driver that reads the
  run's feed and the process table has something real to find, and the process it finds belongs to no stub.
 
- The plays here are the two a wake is judged by: work that ends while the run has time left, and work that outlasts it.
+ The play here is the one a wake is judged by: work that ends while the run has time left, so the agent is sent back to read it.
+ (A play whose work outlasts the run went with the test that used it: that test's bound had to be above the start-up, and no such
+ bound holds on every machine. What the driver does when a run's bound passes while it waits is judged where a test owns the run's
+ clock.)
 
  @module
  */
@@ -26,11 +29,6 @@ import {
  that the driver looks at the process table more than once while it runs.
  */
 export const WORK_MILLISECONDS = 1_500;
-
-/**
- Milliseconds the work takes when it outlasts the run, so the run can only end on its own wall clock.
- */
-export const WORK_BEYOND_THE_RUN_MILLISECONDS = 30_000;
 
 /**
  Milliseconds in a second, which `sleep` takes its argument in.
@@ -170,15 +168,6 @@ export const workPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<st
       void leaveWorkRunning({
         id,
         milliseconds: WORK_MILLISECONDS,
-      },);
-    },
-  ],
-  [
-    'leaves-work-running-past-its-wall-clock',
-    function leaveWorkThatOutlasts(id,) {
-      void leaveWorkRunning({
-        id,
-        milliseconds: WORK_BEYOND_THE_RUN_MILLISECONDS,
       },);
     },
   ],
