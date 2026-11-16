@@ -58,8 +58,8 @@ export type ProviderPool = {
 };
 
 /**
- The limit a pool carries while it takes no new run, which three of them do: one the owner replaced, the one that replaced it
- and was then taken out, and one they closed while its week is used up.
+ The limit a pool carries while it takes no new run, which those the owner took out of use do: one the owner replaced, and the
+ one that replaced it and was then taken out. A pool with a weekly limit carried it too while its week was spent.
 
  A closed pool keeps its place in the table because its runs are still counted where they are, and because a run that names the
  launcher's default provider and model is still read as a default run, which the first pool with room then takes.
@@ -142,25 +142,25 @@ export const NEURALWATT_DEEPSEEK_FLEX: ProviderPool = {
 };
 
 /**
- The `opencode-go` pool, which no new run takes until the owner says its week has reset.
+ The `opencode-go` pool, which a run that names no model of its own takes when Neuralwatt's flex pool has no room.
 
- The owner, 2026-11-11T17:1x-05:00: "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
- So the limit is {@link CLOSED_POOL_LIMIT}, and it was 20. The owner ranked it below Neuralwatt's flex: "In practice,
- opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."
+ Its account has a weekly limit. The owner, 2026-11-11T17:1x-05:00: "Be careful with opencode go as it has a weekly limit and
+ I'm 99% through the weekly limit." The pool was closed from then until the owner, 2026-11-16 between 14:40 and 14:46 (-05:00),
+ wrote: "My opencode-go limits have been reset." So it is open again at 20, the limit it had before it was closed.
 
- A run a caller must not risk anywhere else is started by reopening this pool with its own room, as the README says, rather than
- by changing this file.
+ The owner ranked it below Neuralwatt's flex: "In practice, opencode-go may have worse inference quality and worse speed than
+ neuralwatt's flex, so prefer neuralwatt." That is why it stands after the flex pool in {@link PROVIDER_POOLS}.
+
+ When its week is spent again it is closed for one command, or for a unit's whole life, with
+ `PI_RUNS_POOL_LIMITS=opencode-go=0`, and here once the owner says so.
  */
 export const OPENCODE_GO: ProviderPool = {
   name: 'opencode-go',
   provider: 'opencode-go',
   model: 'deepseek-v4.1-flash',
-  limit: CLOSED_POOL_LIMIT,
+  limit: 20,
   wallFactor: 1,
   takesDefaultRuns: true,
-  closed: {
-    reason: "the owner's weekly limit was 99% spent on 2026-11-11",
-  },
 };
 
 /**
@@ -251,8 +251,9 @@ export const PROVIDER_POOLS: readonly ProviderPool[] = [
  The variable that sets one or more pools' limits for one command, as `name=<n>` pairs separated by commas, so a pool whose
  provider has a weekly or monthly quota is closed and reopened without a code change.
 
- A limit of zero closes the pool, and any number above zero is the room it takes again, so `PI_RUNS_POOL_LIMITS=opencode-go=20`
- reopens the pool the owner set aside, and `PI_RUNS_POOL_LIMITS=qwen-token-plan=0` closes another for the day.
+ A limit of zero closes the pool, and any number above zero is the room it takes again, so
+ `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens the pool the owner closed, and `PI_RUNS_POOL_LIMITS=opencode-go=0` closes
+ the pool whose week is spent.
  */
 export const POOL_LIMITS_VARIABLE = 'PI_RUNS_POOL_LIMITS';
 

@@ -456,12 +456,12 @@ await describe({
           },
         },),
         it({
-          name: 'says the pool the qwen plan replaced, the qwen plan pool the owner took out, the pool whose week is used up and the Kimi pool the owner closed take no new run, and the pools that were given room do',
+          name: 'says the pool the qwen plan replaced, the qwen plan pool the owner took out and the Kimi pool the owner closed take no new run, and the pools that were given room do, the one whose week has reset among them',
           fn: async () => {
             expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
-            expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(true,);
             expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(true,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(true,);
+            expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_DEEPSEEK_FLEX, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, },),).toBe(false,);
           },
@@ -646,25 +646,43 @@ await describe({
       name: poolsWithTheseLimits.name,
       children: [
         it({
-          name: 'opens a pool the owner set aside, closes one a caller set to zero, and leaves every other pool as it ships',
+          name: 'opens a pool the owner closed, closes an open one a caller set to zero, and leaves every other pool as it ships',
           fn: async () => {
             /**
-             The shipped pool the owner set aside.
+             The shipped pool the owner closed.
              */
-            const setAside = PROVIDER_POOLS.find(function isOpencodeGo(pool,) {
-              return pool.name === OPENCODE_GO.name;
-            },) ?? OPENCODE_GO;
+            const setAside = PROVIDER_POOLS.find(function isKimiFlex(pool,) {
+              return pool.name === NEURALWATT_KIMI_FLEX.name;
+            },) ?? NEURALWATT_KIMI_FLEX;
             expect(roomIn(setAside,),).toBe(0,);
             /**
              The same pool with the room a caller gives it, which is another open pool's own limit rather than a number written
              down here.
              */
-            const opened = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, NEURALWATT_DEEPSEEK_FLEX.limit],]), },)
+            const opened = poolsWithTheseLimits({ limits: new Map([[NEURALWATT_KIMI_FLEX.name, NEURALWATT_DEEPSEEK_FLEX.limit],]), },)
+              .find(function isKimiFlex(pool,) {
+                return pool.name === NEURALWATT_KIMI_FLEX.name;
+              },) ?? NEURALWATT_KIMI_FLEX;
+            expect(opened.closed,).toBeUndefined();
+            expect(roomIn(opened,),).toBe(NEURALWATT_DEEPSEEK_FLEX.limit,);
+            /**
+             The pool with a weekly limit, which ships open and which a caller closes when its week is spent.
+             */
+            const shippedOpen = PROVIDER_POOLS.find(function isOpencodeGo(pool,) {
+              return pool.name === OPENCODE_GO.name;
+            },) ?? OPENCODE_GO;
+            expect(roomIn(shippedOpen,),).toBe(OPENCODE_GO.limit,);
+            expect(shippedOpen.closed,).toBeUndefined();
+            /**
+             That pool with a caller's zero, which says who closed it.
+             */
+            const spent = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },)
               .find(function isOpencodeGo(pool,) {
                 return pool.name === OPENCODE_GO.name;
               },) ?? OPENCODE_GO;
-            expect(opened.closed,).toBeUndefined();
-            expect(roomIn(opened,),).toBe(NEURALWATT_DEEPSEEK_FLEX.limit,);
+            expect(roomIn(spent,),).toBe(0,);
+            expect(poolTakesNoNewRun({ pool: spent, },),).toBe(true,);
+            expect(spent.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
             /**
              A pool a caller closed, which keeps the room it returns to and says who closed it.
              */
