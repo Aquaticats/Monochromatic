@@ -1670,6 +1670,100 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Four reviews end with findings; two of them found what the coordinating session's own briefs had told the authors to build (2026-11-15T19:03:49-05:00)
+
+Not final and not approved:
+what four reviews (Kimi K3.1 Pro) report and what the coordinating session queued.
+The four reviews ended between 18:50:25 and 18:56:33.
+
+**The session's doing, twice.**
+Two of the briefs it wrote for the round before stated an idea of its own as the shape to build,
+and each review found that idea built as written.
+Both sentences are withdrawn in the new briefs, each named as the session's and not the project's.
+
+- The killed-Git lock's brief of the round before said the PID file "is never required" for a binding.
+  `package/git-policy/cli/SPEC.md` in `main`, under "The rule: a lock is removed only on a proof about its holder",
+  had settled the opposite at lines 11081 to 11085 and 11148 to 11152:
+  a lock with no PID file is unproven, "a live foreign writer's lock cannot be told from it",
+  and such a lock "is left and reported".
+  The session had not read that section before it wrote the brief.
+- The add-never-skips brief of the round before offered "the descriptor of the directory it was made in" as proof of having made an entry.
+  A descriptor of the parent says nothing about which entry stands under a name inside it.
+
+**The lock a killed Git left, tip `412fb03192`: five things, three reproduced, two by reading.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-lock-a-killed-git-left-what-the-wrapper-saw-is-the-evidence/review.md`
+(14 of 14 files; three tests through the production binder and `clear_one` in a disposable copy).
+
+- A live foreign writer's lock, made while a watched child lives and with no PID file,
+  is bound to the child and unlinked once the child has gone. Reproduced. This is the withdrawn sentence built.
+- A kill before the binder's asynchronous write leaves a lock with equal birth times unprovable. Reproduced.
+- A clearance on the PID file's proof alone, killed after it unlinked the PID file, leaves a lock nothing can prove. Reproduced.
+- The resident service never switches the watch on. By reading.
+- Opening the watch walks the roots with no deadline before Git starts, on a runtime worker. By reading.
+
+Read in `main` at 19:04 and not run:
+`main` holds `lock/abandoned_lock_proving.rs` and neither `lock_watch.rs` nor `lock_bindings.rs`,
+and its `clear_one` unlinks the lock first (line 262) and the PID file after (line 270),
+the other order from the branch's.
+So by that reading none of the five is in the installed release.
+The author's sixth run is queued fifth (19:02:07):
+the record's sentences quoted, a second arm for its walk (a live stranger's lock at every step still stands),
+a control first for the two read claims, and the blocking guard left to the run that already owns widening it.
+
+**Add never skips the Cargo repair, tip `e0064f633d`: four things, each reproduced.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-add-never-skips-the-cargo-repair-a-name-is-no-proof-of-having-made/review.md`
+(13 of 13 files and the whole diff; four tests that plant another command's entry at the seam between two real functions; each failed on the assertion that the entry still stands).
+
+- A failed clone removes a staging directory another command made after the marker was written.
+- A marker a killed filling left lets the next filling remove a replacement staging directory.
+- An old filling clones into a replacement worktree through absolute paths; the Cargo half of this is by reading.
+- Marker cleanup unlinks a file renamed over the marker after it was read.
+
+This is the fourth review in a row to find an entry removed on the strength of a name, each at a seam the one before had not looked at.
+The author's twelfth run is queued sixth (19:02:07) with one generated control over every seam of a filling
+(another command's entry planted between every two steps and at every kill point, asserted to stand) before any fix.
+
+Read in `main`'s `repair/package_repair_prewarm_job.rs` between 18:55 and 19:01 and not run:
+`names_for` writes the marker and makes no directory (line 266);
+`fill_the_staging` clones to the absolute `names.staging` (line 810) and on a refusal calls `remove_dir_all` on that path (line 812);
+a marker a killed filling left makes the next one `remove_dir_all` both usual names (lines 258 and 259).
+So the first three shapes are, by reading, in `0.6.1-alpha.43` as installed here.
+What it takes: another command putting a directory at a worktree's staging name inside a window of one filling.
+The author is asked to show per finding whether `main` has it by its control, not by reading.
+
+**The discarding guard, tip `f2b308d075`: six things, each reproduced against the built executable; one is a decision, five stand.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-discarding-guard-a-path-it-cannot-place-is-never-no-path/review.md` (45 of 45 files).
+
+- Shell aliases pass the guard: settled by the owner's "Forward them unguarded". Not a defect; the author is asked only to read the sentence that documents it as a person who lost an edit would.
+- `--ignore-skip-worktree-bits` lets `checkout-index`, `checkout` and `restore` overwrite an edit a `skip-worktree` mark hides.
+- The caller's global `--literal-pathspecs` empties two of the guard's own reads (`ls-files` for hidden edits; the index paths of `checkout-index --prefix`).
+- A forced `mv` onto a destination that is itself a link is checked at the link's target, where Git replaces the link.
+- `checkout -f --recurse-submodules` discards an edit inside a submodule the outer status hides.
+
+The author's walk of 60 rows held each form's options fixed and treated every link as the file it reaches.
+Its fourth run is queued seventh (19:02:07) with three axes for the walk
+(options that widen what a form writes, the caller's global options reaching the guard's own reads, what a submodule holds)
+and the link row corrected, and is asked per finding whether `main` has it.
+
+Deferred, with its reason:
+the owner's "Sweep on another trigger" for the `discarded/` folder goes to a fresh run of its own once this branch has settled,
+not into this resume (one agent, one thing)
+and not beside it (two runs in one helper at once is the failure recorded at 18:31:31).
+
+**Controls of a service under an address-space limit, tip `aee5c756a2`: two things, both in test support.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-controls-of-a-service-under-an-address-space-limit-the-two-facts-kept-apart/review.md`
+(six of six listed files; four of the branch's controls run, all passed).
+
+- The limited log and the recovery log are read while the copier thread may still hold bytes, so text can come out under the wrong label. Reproduced (4,096 bytes read at once, 8,192 once settled).
+- `settle_the_service_log(bound)` takes its bound once per caller ahead of it. By reading. A count shows the function in `main` too.
+
+What the branch holds beyond `main` is two commits to `binary_fault_limits_tests.rs` and a merge.
+By the owner's "Yes, tests too" the tip is fit for the next pass as it stands.
+A fresh run for the two findings is queued thirteenth (19:03:49), starting at that tip.
+
+Round checks at 18:55:05: nineteen Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree.
+
 ##### The driver's scan for work a run left running answers its review: recorded work is told from a later process at its number (2026-11-15T18:45:24-05:00)
 
 Not final and not approved:
