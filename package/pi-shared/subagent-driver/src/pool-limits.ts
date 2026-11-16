@@ -266,12 +266,15 @@ export const PROVIDER_POOLS: readonly ProviderPool[] = [
 ];
 
 /**
- The variable that sets one or more pools' limits for one command, as `name=<n>` pairs separated by commas, so a pool whose
- provider has a weekly or monthly quota is closed and reopened without a code change.
+ The variable that sets one or more pools' limits for one command, or for the whole life of a batch's unit, as `name=<n>` pairs
+ separated by commas, so a pool whose provider has a weekly or monthly quota is closed and reopened without a code change.
 
  A limit of zero closes the pool, and any number above zero is the room it takes again, so
  `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens the pool the owner closed, and `PI_RUNS_POOL_LIMITS=opencode-go=0` closes
  the pool whose week is spent.
+
+ A unit inherits nothing from the shell that asked for it, so `start-a-batch-in-its-own-unit` reads this value and gives it to
+ the unit it starts, and the pool gate inside the batch reads it there.
  */
 export const POOL_LIMITS_VARIABLE = 'PI_RUNS_POOL_LIMITS';
 

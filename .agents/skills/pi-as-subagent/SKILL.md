@@ -102,13 +102,16 @@ So `neuralwatt/deepseek-v4.1-flash-flex` is a pool of its own.
 Picking all three pools,
 standard Neuralwatt,
 flex and `opencode-go`,
-the owner wrote:
+the owner wrote on 2026-11-11:
 "In practice,
 opencode-go may have worse inference quality and worse speed than neuralwatt's flex,
 so prefer neuralwatt."
-New runs fill standard Neuralwatt,
+The owner reversed that on 2026-11-16:
+"Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."
+Standard Neuralwatt is closed to new runs,
+so a run that names no model fills `opencode-go` first,
 then flex with twice the wall clock,
-then `opencode-go`.
+which `opencode-go` carries too.
 On 2026-11-11 from 01:19Z,
 16 runs ended on Neuralwatt's 429
 "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
@@ -199,8 +202,11 @@ because "Neuralwatt rate limits are per model." (the owner,
 2026-11-10).
 Neuralwatt's rate-limit endpoint (`https://api.neuralwatt.com/v1/rate_limits`,
 read 2026-11-10) gives `moonshotai/Kimi-K3.1-Pro` an `effective_concurrency` of 20 and lists no `-flex` model;
-the Kimi flex pool holds 22 runs of its own,
-under the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something." (2026-11-10).
+the Kimi flex pool holds 20 runs of its own,
+the number the owner gave every flex pool on 2026-11-11
+("Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model."),
+where it had the 22 of 2026-11-10
+("Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something.").
 Default runs never take the Kimi pool;
 only a run that names that model does.
 Synthetic sets no limit on runs at once;

@@ -143,9 +143,19 @@ In the order a run that names no model of its own takes them:
   It stands before both Neuralwatt pools because the owner ranked it so the same day:
   "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."
   That reverses the ranking of 2026-11-11
-  ("In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."),
-  whose words about its speed are why a run moved there gets twice the wall clock it asked for, as on flex,
-  until this pool's own runs have been timed.
+  ("In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt.").
+  The 20 is the number the first table gave this pool on 2026-11-11 with no word and no measurement beside it;
+  the owner's sentence of 2026-11-16 is about the weekly limit being reset,
+  not about how many runs go at once,
+  and nothing on record measures the concurrency this account takes.
+  A run moved there gets twice the wall clock it asked for, as on flex.
+  The one timing of this pool (2026-11-16, 15:07:31 to 15:22:55,
+  the model's time for one answer from the going runs' feeds:
+  medians of 3,034 ms and 5,492 ms over its two runs,
+  against 57,612 ms to 71,746 ms over eleven flex runs)
+  has one and then two runs on a pool of twenty places,
+  so it says nothing of this pool's speed with thirteen going or near its weekly limit;
+  the factor stays, and is set from a reading taken with more runs going.
   `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again,
   and default runs then go to `neuralwatt-flex`.
 - `neuralwatt`:
@@ -214,13 +224,35 @@ A pair naming no pool,
 or holding anything but a whole number,
 is refused rather than counted,
 because a mistyped name would otherwise close nothing and read as though it had.
+The variable is read in the process that asks for a slot:
+by `start-pi-run-when-a-pool-has-room`,
+and so by `retry-pi-run-start-until-a-pool-has-room` and `start-pi-runs-from-a-batch-list`,
+which start the gate with the environment they were given.
+`start-a-batch-in-its-own-unit` hands the setting to the unit it starts,
+because a unit inherits nothing from the shell that asked for it:
+the setting is read and written again before any unit is made,
+so a setting the gate could not read stops the command and names the variable,
+and a setting written with a space after a comma reaches systemd as one word.
+A pool closed that way takes no run of that batch,
+for the whole life of its unit.
+A pool the launcher starts on its own, without the gate, reads the variable nowhere.
+
 A run that names a model only one pool takes stays on that pool.
-A run that resumes a session stays on the pool it named while that pool takes new runs,
+A run that resumes a session and names the pool it resumes on stays there while that pool takes new runs,
 with no wall factor;
 a resume whose pool is closed takes the first pool with room,
 because staying on a closed pool would refuse the run for ever.
 Every other run takes the first pool with room,
-in the order above.
+in the order the table lists them:
+`qwen-plan-deepseek`, `opencode-go`, `neuralwatt`, `neuralwatt-flex`,
+then the pools only their own model takes.
+A resume is one of those whenever its own words name no provider and no model,
+because the gate reads the words a caller wrote and not the provider the session ran on:
+such a session now moves to `opencode-go` where it used to stay on flex,
+and Pi drops the thinking blocks of an assistant message whose provider or model changes,
+so the session keeps its text and its tool calls and loses its thinking.
+A fresh run that names `neuralwatt-flex` is moved the same way,
+since flex takes default runs and is taken in the owner's order whoever names it.
 
 A run is counted from its launcher's own command line while the launcher is still running,
 and from the unit's `ExecStart` once the launcher has gone,
@@ -539,7 +571,7 @@ four processors,
 since the launchers only link dependencies and wait while the agents work in units of theirs,
 and its `RuntimeMaxSec` is two days,
 which bounds the longest run,
-a flex pool's doubled wall clock and the wakes that may resume it.
+a pool that doubles the wall clock (`neuralwatt-flex` and `opencode-go`) and the wakes that may resume it.
 Both streams go to the list's own name and `.out` beside it,
 and nowhere else,
 because a unit has no terminal.
@@ -637,7 +669,9 @@ so the review waits for a slot of the review pool instead of refusing.
 The run's words are fixed here,
 with the reasons beside them in `src/reviews-of-finished-branches.ts`:
 its worktree starts at the branch's tip;
-its wall is six hours;
+its wall is four hours (14,400 seconds),
+which is what a review needs to read a whole change, build it and run its reproductions,
+while its start keeps asking for a slot of the review pool for six hours (21,600 seconds);
 its turn cap is a quarter above the longest review measured on 2026-11-11,
 156 turns of the 172 reviews that ended on their own terms (median 51),
 so the cap is 195;

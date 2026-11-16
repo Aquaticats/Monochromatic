@@ -427,6 +427,9 @@ await describe({
               `${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)}\n${NEURALWATT_DEEPSEEK_FLEX.name}=${String(CLOSED_POOL_LIMIT,)}`,
               `-${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)}`,
             ];
+            // One unreadable setting after another, each its own folder of stand-in programs and its own program run, so the
+            // settings cannot share a log or a folder.
+            /* oxlint-disable eslint/no-await-in-loop -- see doc/lint/sequential-awaits.md */
             for (const setting of unreadable) {
               await using folder = await makeFolderWithPrograms();
               /**
@@ -446,7 +449,6 @@ await describe({
               /**
                What the command answered.
                */
-              // oxlint-disable-next-line eslint/no-await-in-loop -- one unreadable setting after another, each its own program run; see doc/lint/sequential-awaits.md
               const refused = await runTheCommand({
                 folder,
                 words: [`--batch-file=${join(folder.path, 'list.json',)}`,],
@@ -458,6 +460,7 @@ await describe({
               // No unit was made: the stand-in systemd-run was never run.
               expect(await askedPrograms(log,),).toEqual([],);
             }
+            /* oxlint-enable eslint/no-await-in-loop */
           },
         },),
       ],

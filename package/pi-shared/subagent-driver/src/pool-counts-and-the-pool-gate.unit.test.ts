@@ -669,10 +669,10 @@ await describe({
             /**
              The shipped pool the owner closed.
              */
-            const setAside = PROVIDER_POOLS.find(function isKimiFlex(pool,) {
+            const asItShips = PROVIDER_POOLS.find(function isKimiFlex(pool,) {
               return pool.name === NEURALWATT_KIMI_FLEX.name;
             },) ?? NEURALWATT_KIMI_FLEX;
-            expect(roomIn(setAside,),).toBe(0,);
+            expect(roomIn(asItShips,),).toBe(0,);
             /**
              The same pool with the room a caller gives it, which is another open pool's own limit rather than a number written
              down here.

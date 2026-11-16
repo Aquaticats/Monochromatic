@@ -143,7 +143,8 @@ for (const line of outcome.lines) {
 // room and nothing says who closed it or what would reopen it. The gate says so once, on its standard error, and the answer
 // above stands as it was.
 if ((outcome.action === 'no-room') && (outcome.closedPoolLine !== undefined)) {
-  process.stderr.write(`${outcome.closedPoolLine}\n`,);
+  process.stderr
+    .write(`${outcome.closedPoolLine}\n`,);
 }
 
 if (outcome.action !== 'start') {

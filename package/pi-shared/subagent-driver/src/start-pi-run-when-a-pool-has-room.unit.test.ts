@@ -59,21 +59,23 @@ const SETENV_OPTION = '--setenv=';
 
  @param words - the unit's command words
 
- @returns the value the unit gets, or nothing when the caller set no limits
+ @returns the value the unit gets, or nothing in `value` when the caller set no limits
 
  @example
  ```ts
- const limits = limitsTheBatchUnitCarries(['--setenv=PI_RUNS_POOL_LIMITS=opencode-go=0']);
+ const limits = limitsTheBatchUnitCarries(['--setenv=PI_RUNS_POOL_LIMITS=opencode-go=0']).value;
  ```
  */
-function limitsTheBatchUnitCarries(words: readonly string[],): string | undefined {
+function limitsTheBatchUnitCarries(words: readonly string[],): { readonly value?: string } {
   /**
    The word that sets the variable, when the command carries one.
    */
   const word = words.find(function setsTheLimits(candidate,) {
     return candidate.startsWith(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`,);
   },);
-  return (word === undefined) ? undefined : word.slice(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`.length,);
+  return (word === undefined)
+    ? {}
+    : { value: word.slice(`${SETENV_OPTION}${POOL_LIMITS_VARIABLE}=`.length,), };
 }
 
 /**
@@ -742,7 +744,7 @@ await describe({
       },
     },),
     it({
-      name: 'closes and reopens a pool from the environment alone, which is how a spent weekly quota is set aside',
+      name: 'closes and reopens a pool from the environment alone, which is how a pool whose quota is spent is closed',
       fn: async () => {
         await using folder = await makeBareFolder();
         await writeStandIns({
@@ -814,7 +816,7 @@ await describe({
          The limits the batch's unit carries, read from the command that starts it, which is the only way they reach the gate
          inside the batch.
          */
-        const carried = limitsTheBatchUnitCarries(batchUnitCommandOf({
+        const limitsTheUnitCarries = limitsTheBatchUnitCarries(batchUnitCommandOf({
           batchFile: join(folder.path, 'list.json',),
           deadlineSeconds: 7_200,
           outputFile: join(folder.path, 'list.out',),
@@ -825,7 +827,11 @@ await describe({
           checkoutFolder: folder.path,
           poolLimits: closesThePool,
         },).words,);
-        expect(carried,).toBe(closesThePool,);
+        expect(limitsTheUnitCarries.value,).toBe(closesThePool,);
+        /**
+         The setting the unit carries, once it is known to carry one.
+         */
+        const carried = limitsTheUnitCarries.value;
         if (carried === undefined) {
           throw new Error('the batch\'s unit carries no limits, so no run of that batch could be closed by the caller\'s setting',);
         }

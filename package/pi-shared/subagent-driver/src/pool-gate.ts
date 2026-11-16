@@ -168,6 +168,21 @@ function countedPool({
 }
 
 /**
+ A pool that takes no new run, with the reason written beside it: the pool a run's own words name when that pool is closed.
+ */
+type ClosedPool = {
+  /**
+   The name the counts print the pool under.
+   */
+  readonly name: string;
+
+  /**
+   Why the pool takes no new run, as the owner wrote it.
+   */
+  readonly reason: string;
+};
+
+/**
  Says why the pool a run's own words name takes no new run, when it is closed and gives its reason.
 
  A run that names a pool only its own model takes is refused room for as long as that pool is closed, and the counts alone say
@@ -178,12 +193,12 @@ function countedPool({
 
  @param tallies - how many runs each pool holds, and the pools that were counted
 
- @returns the pool's name and the reason written beside it, or nothing when the run names no pool, its pool takes new runs, or
- no reason is written
+ @returns the pool in `closed` and the reason written beside it, or nothing in `closed` when the run names no pool, its pool
+ takes new runs, or no reason is written
 
  @example
  ```ts
- const closed = closedPoolOf({ requested: poolNamed({ provider: 'neuralwatt', model: 'kimi-k3.1-pro-flex' }), tallies },);
+ const closed = closedPoolOf({ requested: poolNamed({ provider: 'neuralwatt', model: 'kimi-k3.1-pro-flex' }), tallies }).closed;
  ```
  */
 function closedPoolOf({
@@ -192,9 +207,9 @@ function closedPoolOf({
 }: {
   readonly requested: PoolMembership;
   readonly tallies: PoolTallies;
-},): { readonly name: string; readonly reason: string } | undefined {
+},): { readonly closed?: ClosedPool } {
   if (requested.holds !== 'a-pool') {
-    return undefined;
+    return {};
   }
   /**
    The pool the run names, as the table being counted holds it.
@@ -203,12 +218,19 @@ function closedPoolOf({
     pool: requested.pool,
     tallies,
   },);
-  return ((pool.closed === undefined) || (!poolTakesNoNewRun({ pool, },)))
-    ? undefined
-    : {
+  /**
+   The reason the table writes beside the pool, when it carries one.
+   */
+  const { closed, } = pool;
+  if ((closed === undefined) || (!poolTakesNoNewRun({ pool, },))) {
+    return {};
+  }
+  return {
+    closed: {
       name: pool.name,
-      reason: pool.closed.reason,
-    };
+      reason: closed.reason,
+    },
+  };
 }
 
 /**
@@ -230,7 +252,7 @@ function closedPoolLineOf({
   pool,
 }: {
   readonly run: string;
-  readonly pool: { readonly name: string; readonly reason: string };
+  readonly pool: ClosedPool;
 },): string {
   return `not started: ${run}; the pool ${pool.name} takes no new run: ${pool.reason}. ${POOL_LIMITS_VARIABLE}=${pool.name}=<whole number> reopens it for one command.`;
 }
@@ -360,7 +382,7 @@ export async function gateOutcomeOf({
     /**
      Why the pool the run named takes no new run, when it is closed and says why.
      */
-    const closed = closedPoolOf({
+    const { closed, } = closedPoolOf({
       requested,
       tallies,
     },);
