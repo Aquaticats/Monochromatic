@@ -285,11 +285,11 @@ fn every_file_that_handles_the_stops_words_says_them_through_the_door() {
     let mut findings: Vec<String> = Vec::new();
     let mut seen: usize = 0;
     for (path, text) in &files {
-        let found: Vec<String> = findings_of_a_stops_words(text.as_str());
+        let wrong: Vec<String> = findings_of_a_stops_words(text.as_str());
         if text.contains(THE_STOPS_WORDS) {
             seen = seen.saturating_add(1);
         }
-        for sentence in found {
+        for sentence in wrong {
             findings.push(format!("{path}: {sentence}"));
         }
     }
@@ -308,8 +308,11 @@ fn the_stops_words_check_fails_on_a_file_that_writes_the_stream_itself() {
     let found: Vec<String> = findings_of_a_stops_words(writes.as_str());
     assert!(found.iter().any(|sentence| return sentence.contains("std::io::stderr()")), "the finding names the write: {found:?}");
     let silent: String = String::from("fn say(word: &WhatAStopWouldSay) { println!(\"{}\", word.len()); }\n");
-    let found: Vec<String> = findings_of_a_stops_words(silent.as_str());
-    assert!(found.iter().any(|sentence| return sentence.contains("no line through")), "the finding names the lost door: {found:?}");
+    let silent_found: Vec<String> = findings_of_a_stops_words(silent.as_str());
+    assert!(
+        silent_found.iter().any(|sentence| return sentence.contains("no line through")),
+        "the finding names the lost door: {silent_found:?}"
+    );
     let through_the_door: String = String::from("fn say(word: &WhatAStopWouldSay) { warn(TAG, word); }\n");
     assert!(
         findings_of_a_stops_words(through_the_door.as_str()).is_empty(),
