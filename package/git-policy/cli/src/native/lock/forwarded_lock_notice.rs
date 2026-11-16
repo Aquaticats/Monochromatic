@@ -24,7 +24,6 @@ use crate::child_environment::environment_value;
 use crate::diagnostic_log::debug;
 use crate::git_directory_roots::roots_for;
 use crate::stale_ref_lock_judge::Judge;
-use crate::stale_ref_locks::clear_stale_ref_locks;
 use crate::worktree_add_plan::start_directory;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -61,7 +60,10 @@ pub fn forwarded_lock_notice(word: &[u8], global_prefix: &[OsString], environmen
     if let Some(path) = environment_value(environment, "GIT_DIR") {
         named = Some(start.join(path));
     }
-    let outcome = clear_stale_ref_locks(roots_for(start.as_path(), named).as_slice(), judge);
+    // The judgement settles what a stopped push owed there as well: the marker a stop left goes with the sweep this call
+    //  makes (`lock/owed_lock_sweeps.rs`), so a person's next `git fetch` or `git push` is one of the readers of that record.
+    let roots: Vec<PathBuf> = roots_for(start.as_path(), named);
+    let outcome = crate::owed_lock_sweeps::settle(roots.as_slice(), judge);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
         // The notice itself is printed on standard error, so the log keeps only a one-line record of it.

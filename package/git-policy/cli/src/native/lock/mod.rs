@@ -63,6 +63,12 @@ pub mod index_writer_forward;
 /// found and removed once the child and what it started are gone.
 pub mod stopped_git_locks;
 
+/// The sweep a stopped push owed when its bound ran out:
+/// recorded in the repository's Git directory,
+/// and done by the next fetch,
+/// push or service start of that repository.
+pub mod owed_lock_sweeps;
+
 /// The reference locks a killed Git left behind:
 /// judged one by one,
 /// removed on a proof,

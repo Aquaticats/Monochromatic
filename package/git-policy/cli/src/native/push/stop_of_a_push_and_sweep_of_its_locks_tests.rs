@@ -247,6 +247,33 @@ fn ledger_over_an_orphan_staging_file(root: &std::path::Path) -> (LockLedger, st
     return (LockLedger::before_start(&command).with_judge(judge), staging);
 }
 
+/// The judge a control of the owed-sweep record uses:
+/// the fixture's own empty process table,
+/// and no margin,
+/// so a staging file it wrote a moment ago is judged.
+fn a_control_judge_over(root: &std::path::Path) -> crate::stale_ref_lock_judge::Judge {
+    let proc_root: std::path::PathBuf = root.join("proc");
+    std::fs::create_dir_all(proc_root.as_path()).expect("an empty disposable process table");
+    return crate::stale_ref_lock_judge::Judge {
+        proc_root,
+        margin: Duration::ZERO,
+        boot: None,
+        local_file_systems: ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"].into_iter().map(String::from).collect(),
+        scan_scope: Some(Vec::new()),
+    };
+}
+
+/// How many owed-sweep markers the repository of `locks` carries,
+/// read from the repository itself and not from this process's memory.
+fn markers_owed_for(locks: &LockLedger) -> usize {
+    return crate::owed_lock_sweeps::owed_markers_of(locks.roots()).len();
+}
+
+/// How many owed-sweep markers one Git directory carries.
+fn markers_in(git_dir: &std::path::Path) -> usize {
+    return usize::from(crate::owed_lock_sweeps::marker_in(git_dir).is_file());
+}
+
 /// What:
 ///  A stop whose bound is spent and whose runtime has no worker still reaps its child and still judges the locks it left.
 /// Why:
@@ -275,7 +302,7 @@ fn a_stop_with_no_worker_still_reaps_its_child_and_judges_the_locks_it_left() {
     let _no_worker = crate::lazy_runtime::a_control_refuses_every_task();
     let root: std::path::PathBuf = crate::test_support::fixture("stop-with-no-worker");
     let (locks, staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
-    let owed_before: usize = sweeps_owed();
+    let owed_before: usize = markers_owed_for(&locks);
     let child: std::process::Child = std::process::Command::new("sh").args(["-c", "trap '' TERM; exec sleep 30"]).spawn().expect("a child that ignores the polite stop");
     let id: u32 = child.id();
     let began: Instant = Instant::now();
@@ -284,7 +311,7 @@ fn a_stop_with_no_worker_still_reaps_its_child_and_judges_the_locks_it_left() {
     assert!(took < CEILING + SLACK, "the stop answered inside its bound: {took:?}");
     assert!(!is_zombie(id, ZOMBIE_BOUND), "the child of a stop with no worker was reaped, not left a zombie for the life of this process");
     assert!(!staging.exists(), "the sweep ran inside the stop without a task of the runtime");
-    assert_eq!(sweeps_owed(), owed_before, "and no sweep was recorded as owed, because none was");
+    assert_eq!(markers_in(root.join("git-dir").as_path()), owed_before, "and no sweep was recorded as owed in the repository, because none was");
     assert!(
         !said.warnings().contains("were not judged inside the bound"),
         "and the stop said no sweep was owed, because its sweep ran: {}",
@@ -300,8 +327,10 @@ fn a_stop_with_no_worker_still_reaps_its_child_and_judges_the_locks_it_left() {
 }
 
 /// What:
-///  A stop answers inside its bound while the blocking pool cannot run the sweep,
-/// and the sweep it could not run is recorded as owed.
+///  A stop whose blocking pool cannot run the sweep answers inside its bound,
+/// records the sweep as owed in the repository,
+/// and the repository's next push finishes it,
+/// with nobody asked.
 /// Why:
 ///   The inline sweep read `run_blocking_job`'s answer with no bound of its own,
 /// so a pool held by jobs that have not returned held the stop
@@ -309,20 +338,37 @@ fn a_stop_with_no_worker_still_reaps_its_child_and_judges_the_locks_it_left() {
 /// (finding 2 of the review of `374f34c4b9`:
 /// `stop_push` was still waiting
 ///  at 301 ms under a ceiling of 100 ms).
-/// The part of the bound kept for the sweep is what its answer is awaited for,
-/// and what does not run
-///  inside it is said to be owed (`sweeps_owed`),
-/// because the judgement before the next fetch or push clears what it left.
+/// The bound ends the waiting and not the duty (finding 3 of the review of `41b3ca5e5e`):
+///  the sweep
+/// the stop could not run used to be a list nothing read (`OWED_SWEEPS`),
+/// so the lock-like file the stopped push left stayed
+///  for good.
+/// Now the record is a marker in the repository's own Git directory (`lock/owed_lock_sweeps.rs`),
+/// and this control
+///  follows it the way the service does:
+/// the stop answers in bound with the staging file still there and the record written,
+/// and the
+///  next push of that repository
+/// (`bounded_push::run_bounded_push_awaiting`, which is the path the service's pushes and its retried
+///  pushes take) judges the locks and removes what the sweep can prove,
+/// without this control asking for a sweep.
 #[test]
-fn a_stop_answers_inside_its_bound_while_the_blocking_pool_cannot_sweep() {
-    const CEILING: Duration = Duration::from_millis(100);
+fn a_sweep_a_stop_owes_is_done_by_the_next_push_of_that_repository() {
+    const CEILING: Duration = Duration::from_millis(1000);
     const GRACE: Duration = Duration::from_millis(25);
-    const OUTER_BOUND: Duration = Duration::from_millis(300);
+    const OUTER_BOUND: Duration = Duration::from_secs(10);
     const BLOCKER_BOUND: Duration = Duration::from_secs(10);
     crate::lazy_runtime::cap_workers(1);
     let _rules = crate::stop_waits_while_a_member_cannot_be_interrupted::rules_for_this_thread(
         crate::stop_waits_while_a_member_cannot_be_interrupted::ControlRules { blocked: held_for_ever, ceiling: CEILING },
     );
+    let root: std::path::PathBuf = crate::test_support::fixture("stop-owes-a-sweep");
+    let (locks, staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
+    let git_dir: std::path::PathBuf = locks.roots().first().expect("the fixture's Git directory").clone();
+    // The reader judges with the machine's own process table and a seven-second margin, so this control states the judge its
+    //  own sweep uses: the fixture's empty table and no margin.
+    crate::owed_lock_sweeps::a_control_states_the_judge(a_control_judge_over(&root));
+    let owed_before: usize = markers_owed_for(&locks);
     let (holding_send, holding_receive) = std::sync::mpsc::channel();
     let (release_send, release_receive) = std::sync::mpsc::channel();
     let holder = crate::lazy_runtime::run_on_runtime(async move {
@@ -333,23 +379,80 @@ fn a_stop_answers_inside_its_bound_while_the_blocking_pool_cannot_sweep() {
     })
     .expect("the runtime starts the job that holds the pool");
     holding_receive.recv_timeout(BLOCKER_BOUND).expect("the only blocking thread is held");
-    let owed_before: usize = sweeps_owed();
     // The child answers the polite stop, so the stop reaches its sweep with the whole of its bound still to spend.
     let child: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a child that accepts the polite stop");
     let began: Instant = Instant::now();
-    let answered = crate::lazy_runtime::run_on_runtime(async {
-        return tokio::time::timeout(OUTER_BOUND, stop_push(adopt(child), GRACE, LockLedger::none())).await;
+    let said: WhatAStopWouldSay = crate::lazy_runtime::run_on_runtime(async {
+        let outcome: Result<WhatAStopWouldSay, tokio::time::error::Elapsed> = tokio::time::timeout(OUTER_BOUND, stop_push(adopt(child), GRACE, locks)).await;
+        return outcome;
     })
-    .expect("the runtime runs the bounded outer control");
+    .expect("the runtime runs the bounded outer control")
+    .expect("the stop answered, and the control's own bound is not what it met");
     let took: Duration = began.elapsed();
-    let owed_after: usize = sweeps_owed();
+    assert!(took < CEILING + OUTER_BOUND, "the stop answered inside its bound of {CEILING:?}: {took:?}");
+    assert!(staging.exists(), "the sweep the pool could not run removed nothing: the staging file is still there");
+    assert!(markers_in(git_dir.as_path()) > owed_before, "the sweep is recorded as owed in the repository's own Git directory");
+    let owed_line: String = said.warnings();
+    assert!(
+        owed_line.contains("were not judged inside the bound") && owed_line.contains("packed-refs.new"),
+        "the line a person reads names what was left: {owed_line}"
+    );
+    assert!(
+        owed_line.contains("next fetch, push or service start") && owed_line.contains("names the command that clears"),
+        "and it names who removes it: {owed_line}"
+    );
     release_send.send(()).expect("the holder still waits");
     crate::lazy_runtime::run_on_runtime(async {
         let _joined = tokio::time::timeout(BLOCKER_BOUND, holder).await;
     })
     .expect("the runtime releases the holder");
-    assert!(answered.is_ok(), "the stop answered inside its bound of {CEILING:?} and did not wait for the queued sweep: {took:?}");
-    assert!(owed_after > owed_before, "the sweep the pool could not run is recorded as owed ({owed_before} before, {owed_after} after)");
+    // The next push of that repository, entered where the service enters it: it settles the record before its Git starts.
+    let mut next: std::process::Command = std::process::Command::new("/bin/true");
+    next.current_dir(root.as_path());
+    next.env("GIT_DIR", git_dir.as_os_str());
+    let _attempt = crate::lazy_runtime::run_on_runtime(crate::bounded_push::run_bounded_push_awaiting(
+        next,
+        crate::bounded_push::Patience::Fixed(Duration::from_secs(10)),
+        GRACE,
+        crate::test_support::scratch_environment().as_slice(),
+    ))
+    .expect("the runtime runs the next push")
+    .expect("the next push of that repository runs");
+    assert!(!staging.exists(), "the next push of that repository removed what the owed sweep would have: the staging file is gone");
+    assert_eq!(markers_in(git_dir.as_path()), 0, "and the record went with the judgement it carried");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A stop with no part of its bound left to start the sweep with starts no job and records the sweep as owed.
+/// Why:
+///   `timeout_at` with a deadline that has passed polls the job once before it looks at the clock,
+/// so a job started there either
+///  ran with its answer thrown away or took the claim and never ran,
+/// and both were said as "not judged" with nothing to act on
+///  it (finding 3, folded in, of the review of `41b3ca5e5e`).
+/// No place of the blocking budget is taken and no job is started,
+/// and the record is what carries the duty.
+#[test]
+fn a_stop_with_no_bound_left_starts_no_sweep_and_records_what_it_owes() {
+    let root: std::path::PathBuf = crate::test_support::fixture("stop-owes-a-sweep-with-no-bound");
+    let (locks, staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
+    let git_dir: std::path::PathBuf = locks.roots().first().expect("the fixture's Git directory").clone();
+    let owed_before: usize = markers_owed_for(&locks);
+    let mut said: WhatAStopWouldSay = WhatAStopWouldSay::default();
+    let begun: Instant = Instant::now();
+    let sweeper = crate::lazy_runtime::run_on_runtime(settle_locks(Vec::new(), locks, Duration::ZERO, Duration::ZERO, &mut said))
+        .expect("the runtime runs the settling");
+    assert!(begun.elapsed() < Duration::from_secs(5), "no job was started, so nothing waits: {:?}", begun.elapsed());
+    assert!(sweeper.is_none(), "and no task was started either");
+    assert!(staging.exists(), "with no bound left the sweep removes nothing");
+    assert!(markers_in(git_dir.as_path()) > owed_before, "and it records what it owes in the repository");
+    assert!(
+        said.warnings().contains("no part of the bound was left"),
+        "the line says why the sweep did not run: {}",
+        said.warnings()
+    );
+    crate::test_support::remove(root.as_path());
 }
 
 //endregion
@@ -410,15 +513,17 @@ fn a_place_that_comes_late_does_not_let_the_stop_pass_its_ceiling() {
         std::thread::sleep(Duration::from_millis(1));
     }
     // The child answers the polite stop, so the stop reaches its sweep with the whole of its bound still to spend.
+    let root: std::path::PathBuf = crate::test_support::fixture("stop-with-a-late-place");
+    let (locks, _staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
+    let owed_before: usize = markers_in(root.join("git-dir").as_path());
     let child: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a child that accepts the polite stop");
-    let owed_before: usize = sweeps_owed();
     let began: Instant = Instant::now();
     let answered = crate::lazy_runtime::run_on_runtime(async {
-        return tokio::time::timeout(HOLD_BOUND, stop_push(adopt(child), GRACE, LockLedger::none())).await;
+        return tokio::time::timeout(HOLD_BOUND, stop_push(adopt(child), GRACE, locks)).await;
     })
     .expect("the runtime runs the bounded outer control");
     let took: Duration = began.elapsed();
-    let owed_after: usize = sweeps_owed();
+    let owed_after: usize = markers_in(root.join("git-dir").as_path());
     let _let_go = release.send(());
     crate::lazy_runtime::run_on_runtime(async {
         let _thread: Result<_, _> = tokio::time::timeout(HOLD_BOUND, thread_holder).await;
@@ -430,7 +535,8 @@ fn a_place_that_comes_late_does_not_let_the_stop_pass_its_ceiling() {
         took < CEILING + SLACK,
         "the stop spent what was left of its bound once waiting for a place and again waiting for the job: {took:?}, ceiling {CEILING:?}"
     );
-    assert!(owed_after > owed_before, "the sweep the pool could not run is recorded as owed ({owed_before} before, {owed_after} after)");
+    assert!(owed_after > owed_before, "the sweep the pool could not run is recorded as owed in the repository ({owed_before} before, {owed_after} after)");
+    crate::test_support::remove(root.as_path());
 }
 
 //endregion
@@ -618,12 +724,12 @@ fn the_stop_of_this_child_with_a_full_standard_error() {
     let (locks, staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
     fill_standard_error_without_a_reader();
     // From here nothing of this process may write to standard error: the pipe nobody drains would hold it.
-    let owed_before: usize = sweeps_owed();
+    let owed_before: usize = markers_owed_for(&locks);
     let child: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a child that accepts the polite stop");
     let began: Instant = Instant::now();
     let said: WhatAStopWouldSay = crate::lazy_runtime::run_on_runtime(stop_push(adopt(child), GRACE, locks.clone())).expect("the runtime runs the stop");
     let took: Duration = began.elapsed();
-    let owed_recorded: bool = sweeps_owed() > owed_before;
+    let owed_recorded: bool = markers_owed_for(&locks) > owed_before;
     let words_carry_the_owed_sweep: bool = said.warnings().contains("were not judged inside the bound");
     // The later push of the same repository: with the place free, its sweep runs at once and is not behind the one that was owed.
     let _let_go = release.send(());

@@ -348,6 +348,13 @@ pub fn run(arguments: &[String]) -> i32 {
         //  client of it may still read it, so it stops growing.
         let _pruned = prune_done(shared, DONE_RETAINED, &crate::claim_time::ClaimTime::read());
     }
+    // A stop of a push in this worktree may have owed the sweep of the reference locks its push left, and this start is the
+    //  next look that repository gets (`lock/owed_lock_sweeps.rs`): its locks are judged before anything is served, so the
+    //  first push this service runs never runs on the locks a stopped one left.
+    if let Some(git_dir) = settings.own_git_dir.clone() {
+        let _settled: Option<crate::owed_lock_sweeps::Outcome> =
+            crate::owed_lock_sweeps::settle_at_a_service_start(git_dir.as_path(), &crate::owed_lock_sweeps::the_judge_for_a_record());
+    }
     crate::service_log!("ready");
     // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
     //  filled before the first commit that would compile it.

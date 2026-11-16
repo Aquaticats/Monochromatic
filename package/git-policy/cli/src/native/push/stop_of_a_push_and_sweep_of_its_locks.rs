@@ -150,20 +150,6 @@ pub(crate) const REAP_AFTER_THE_KILL: Duration = Duration::from_millis(50);
 pub(crate) const SWEEP_AFTER_THE_STOP: Duration = Duration::from_millis(200);
 
 /// What:
-///  The ledgers of stopped pushes whose locks were not judged inside the bound of their stop.
-/// Why:
-///   A sweep that could not run,
-/// or did not answer inside the bound,
-/// removed nothing,
-/// and the judgement before every
-///  fetch and push of the wrapper's own (`push_lock_clearing.rs`) is what clears what a lock left that way holds;
-/// the
-///  ledger is kept here so that the line `keep_the_sweep_owed` writes is not the only place it can be read,
-/// and so a
-///  control can say how many sweeps a run owed.
-static OWED_SWEEPS: Mutex<Vec<LockLedger>> = Mutex::new(Vec::new());
-
-/// What:
 ///  What a stop would have said while it held the push's place,
 ///  handed back as words instead of written on the way.
 /// Why:
@@ -272,11 +258,6 @@ impl WhatAStopWouldSay {
             }
         }
     }
-}
-
-/// How many sweeps of stopped pushes this process owes a judgement.
-pub fn sweeps_owed() -> usize {
-    return OWED_SWEEPS.lock().map(|owed| { return owed.len(); }).unwrap_or(0);
 }
 
 /// Ask a running push to end,
@@ -405,8 +386,9 @@ impl Drop for HandedOver {
             keep_abandoned(unreleased);
         }
         // No word is written here: a `Drop` runs wherever the last holder lets go, which is a place that may not write.
-        //  The ledger is recorded, and the next fetch or push of that repository judges what it holds.
-        record_the_sweep_owed(sweep.locks);
+        //  The duty is recorded in the repository, and its next fetch, push or service start judges what it holds
+        //  (`lock/owed_lock_sweeps.rs`).
+        let _recorded: Vec<std::path::PathBuf> = record_the_sweep_owed(&sweep.locks, NO_TASK_TOOK_THE_SWEEP);
     }
 }
 
@@ -417,6 +399,13 @@ const THE_SWEEP_WAS_GIVEN_NO_THREAD: &str = "the blocking pool gave the job no t
 /// or was queued,
 /// and did not answer inside the bound.
 const THE_SWEEP_DID_NOT_ANSWER: &str = "the job did not answer inside the bound";
+
+/// What a sweep owed says when nothing of the stop's bound was left to start a job with.
+const THE_BOUND_WAS_SPENT: &str = "no part of the bound was left to start the job with";
+
+/// What a sweep owed says when no task of the runtime took the handover,
+/// so nothing was even started.
+const NO_TASK_TOOK_THE_SWEEP: &str = "the runtime gave the task no worker";
 
 /// What:
 ///  Keep `locks` as a sweep this process owes,
@@ -432,23 +421,31 @@ const THE_SWEEP_DID_NOT_ANSWER: &str = "the job did not answer inside the bound"
 fn keep_the_sweep_owed(said: &mut WhatAStopWouldSay, locks: LockLedger, why: &str) {
     let roots: Vec<String> = locks.roots().iter().map(|root| { return root.display().to_string(); }).collect();
     let of: String = if roots.is_empty() { String::from("that repository") } else { roots.join(", ") };
+    // The duty is written into the repository before the line is said, so the words and the record cannot disagree: the marker
+    //  is what the next fetch, push or service start of `of` acts on
+    //  (`lock/owed_lock_sweeps.rs`), and the line names what was left and who removes it.
+    let written: usize = record_the_sweep_owed(&locks, why).len();
+    let recorded: &str = if written == 0 {
+        "no file could be written for it, so the next fetch or push of that repository judges the locks only because every one does"
+    } else {
+        "that repository keeps the record of it, so its next fetch, push or service start judges the locks and names the command that clears the ones it will not remove"
+    };
     said.note_a_warning(format!(
-        "the locks of a stopped push were not judged inside the bound of its stop ({why}); the next fetch or push of {of} judges them"
+        "the locks of a stopped push were not judged inside the bound of its stop ({why}); what the sweep would have judged is still there in {of}: an orphan packed-refs.new a killed Git staged, and any reference lock it does not prove stale; {recorded}"
     ));
-    record_the_sweep_owed(locks);
 }
 
-/// Record `locks` as a sweep this process owes,
-/// without a word about it.
+/// What:
+///  Record `locks` as a sweep this repository owes,
+/// without a word about it,
+/// answering the markers written.
 /// Why:
 ///   A place that may not write still owes the record:
-/// the ledger is what `sweeps_owed` counts and what a
-///  diagnostic can name,
-/// and the judgement before the next fetch or push of that repository is what clears the locks.
-fn record_the_sweep_owed(locks: LockLedger) {
-    if let Ok(mut owed) = OWED_SWEEPS.lock() {
-        owed.push(locks);
-    }
+/// the marker `lock/owed_lock_sweeps.rs` writes is what the repository's
+///  next fetch,
+/// push or service start reads and acts on.
+fn record_the_sweep_owed(locks: &LockLedger, why: &str) -> Vec<std::path::PathBuf> {
+    return crate::owed_lock_sweeps::record(locks, why);
 }
 
 /// What:
@@ -814,6 +811,14 @@ pub async fn settle_locks(
         //  it leaves it owed rather than waited for.
         let inside: Duration = sweep_left.saturating_sub(waited.elapsed());
         let owed_if_no_answer: LockLedger = locks.clone();
+        // A bound already spent starts no job: `timeout_at` with a passed deadline polls the job once before it looks at the
+        //  clock, so a job started there either ran with its answer thrown away or took the claim and never ran, and both were
+        //  said as "not judged" with nothing to act on it. The duty is recorded instead, and the next reader of the repository
+        //  does it with a whole budget. `SWEEP_AFTER_THE_STOP` is kept back for this arm, so a stop that reaches it has time.
+        if inside.is_zero() {
+            keep_the_sweep_owed(said, owed_if_no_answer, THE_BOUND_WAS_SPENT);
+            return None;
+        }
         return match run_a_job_once_awaited_no_longer_than(inside, move || { return locks.sweep(); }).await {
             TheAnswerOfAJobAwaited::Ran(swept) => {
                 if !swept.notice.is_empty() {

@@ -42,6 +42,9 @@
 use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::{debug, warn};
+/// A blocking job awaited no longer than a ceiling,
+/// and what its answer says about the work it took.
+use crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited;
 /// How to allow a push longer,
 /// in the words of the program that runs it.
 use crate::push_deadline_advice::extend_clause;
@@ -477,6 +480,20 @@ pub async fn run_bounded_push_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
+    // A stop of a push in this repository may have owed the sweep of the reference locks its push left, and this push is the
+    //  next one of that repository (`lock/owed_lock_sweeps.rs`): it judges those locks before it starts, so the retry of a
+    //  stopped push never runs on the locks the stopped one left. With no marker the job is three `stat` calls; the walk and
+    //  the process table are paid only when a marker says a stop owed them, and the place of the blocking pool is waited for
+    //  no longer than `PROCESS_LOOK_CEILING`, which is the ceiling the wrapper gives a look at the process table.
+    let roots: Vec<std::path::PathBuf> = crate::git_directory_roots::roots_of_command(&command);
+    let settled: TheAnswerOfAJobAwaited<Option<crate::owed_lock_sweeps::Outcome>> =
+        crate::blocking_jobs_within_the_budget::run_a_job_once_awaited_no_longer_than(crate::wait_ceilings::PROCESS_LOOK_CEILING, move || {
+            return crate::owed_lock_sweeps::settle_if_owed(roots.as_slice(), &crate::owed_lock_sweeps::the_judge_for_a_record());
+        })
+        .await;
+    if let TheAnswerOfAJobAwaited::Ran(Some(_settled_outcome)) = settled {
+        // The judgement said its own line through the door; nothing more is owed by this push.
+    }
     // The service's shutdown waits for this push and ends it when the service is stopped; a push that would begin after the stop is not
     //  started, and is queued for the next service as every stopped push is.
     let mut unfinished: Unfinished = match begin_unfinished_work(false, "git push") {

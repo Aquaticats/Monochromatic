@@ -29,7 +29,6 @@ use crate::push_deadline_and_patience_settings::Patience;
 use crate::diagnostic_log::warn;
 use crate::git_directory_roots::roots_of_command;
 use crate::stale_ref_lock_judge::Judge;
-use crate::stale_ref_locks::clear_stale_ref_locks;
 use std::ffi::OsString;
 use std::process::Command;
 use std::time::Duration;
@@ -55,7 +54,9 @@ pub fn run_clearing_locks(
     environment: &[(OsString, OsString)],
     judge: &Judge,
 ) -> Result<PushAttempt, SingleFlightError> {
-    let outcome = clear_stale_ref_locks(roots_of_command(&command).as_slice(), judge);
+    // The judgement settles what a stopped push owed there as well: the marker a stop left goes with the sweep this call
+    //  makes (`lock/owed_lock_sweeps.rs`), so the wrapper's own next fetch or push is one of the readers of that record.
+    let outcome = crate::owed_lock_sweeps::settle(roots_of_command(&command).as_slice(), judge);
     let notice: String = outcome.notice();
     let mut attempt: PushAttempt = run_bounded_push_once(command, patience, grace, environment)?;
     // A push that delivered but could not update its tracking reference prints the refusal and exits 0, so the refusal is
