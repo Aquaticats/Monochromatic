@@ -173,3 +173,33 @@ fn the_private_file_a_killed_claimer_left_is_collected_by_a_later_claim() {
     assert!(!dead.exists(), "the claim's sweep collected the dead claimer's file");
     assert!(note.exists(), "and the note the claim made is there");
 }
+
+/// What:
+///  A note another service publishes in the instant between this claim's look and its act is put back and this claim
+///  refuses, instead of being removed so that two services serve one instance.
+/// Why:
+///  The ninth review of issue 6293 (finding 1): the stale-note removal was a `remove_file` by path, so a late claimer deleted
+///  the note a live service had published, and `bind_path` then took that service's address away.
+#[test]
+fn a_note_published_in_the_instant_between_look_and_act_is_put_back() {
+    let root = folder("claim-late");
+    let note = path(root.as_path(), "3f9a");
+    // A killed service's note: the state this claimer read as stale.
+    std::fs::write(note.as_path(), "1 linux:000000\n").expect("a killed service's note");
+    // The service that publishes its note in the instant this claim is between its look and its act.
+    let mut other: std::process::Child = std::process::Command::new("/bin/sleep").arg("60").spawn().expect("another service");
+    let pid: i32 = i32::try_from(other.id()).expect("a process number");
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("its record").expect("it is alive");
+    let published_by_another: std::path::PathBuf = note.clone();
+    // What: The other claimer publishes its live note at the instant this claim is between its look and its act.
+    // Why:  That instant is the whole of what this control is about, and no timing can produce it.
+    a_control_runs_before_the_publish(move || {
+        std::fs::write(&published_by_another, format!("{pid} {identity}\n")).expect("another service's live note");
+    });
+    let claimed = claim(note.as_path(), i32::try_from(std::process::id()).expect("a process number"));
+    let held: ServerProcess = read(note.as_path()).expect("a note is there when the claim answers");
+    let _killed = other.kill();
+    let _reaped = other.wait();
+    assert!(claimed.is_err(), "a note published by a live service refuses this claim");
+    assert_eq!(held.pid, pid, "and the note still names the service that published it, not this claimer");
+}

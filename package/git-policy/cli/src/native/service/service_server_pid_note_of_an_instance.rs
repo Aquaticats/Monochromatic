@@ -99,17 +99,46 @@ pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
         let _removed = std::fs::remove_file(private.as_path());
         match published {
             Ok(()) => return Ok(()),
-            // Another claimer published first. A note whose process is gone is a killed service's leftovers, which this claim
-            //  removes so the next round can publish; a note naming a live process is that service's, and is looked at again.
+            // What: The note a further claimer would have to replace is taken aside under a name of this claimer's own.
+            // Why:  Removing it by path was what let a late claimer delete the note a service had published between this
+            //       claimer's look and its act, so two services served one instance (the ninth review of issue 6293, finding 1).
+            // A rename gives the note's name to exactly one claimer, and what it took is then read: a live owner's note is put
+            //  back and this claim refuses, and a killed service's note is the leftovers the next round publishes over.
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                if held_by_another_live_process(note).is_none() {
-                    let _a_stale_note_removed = std::fs::remove_file(note);
+                let aside: PathBuf = taken_aside_name(note, pid);
+                if std::fs::rename(note, aside.as_path()).is_ok() {
+                    let taken: Option<ServerProcess> = read(aside.as_path());
+                    if let Some(held) = taken.filter(|service| { return is_still_the_process(service); }) {
+                        // A link puts the live owner's note back, and fails where another claimer published while it was aside:
+                        //  that claimer's note is never replaced by this one.
+                        let _restored = std::fs::hard_link(aside.as_path(), note);
+                        let _removed = std::fs::remove_file(aside.as_path());
+                        return Err(another_live_service_holds(held.pid));
+                    }
+                    // A killed service's leftovers: the next round publishes this claimer's note.
+                    let _removed = std::fs::remove_file(aside.as_path());
                 }
             }
             Err(refused) => return Err(refused),
         }
     }
     return Err(std::io::Error::other("another process claimed this instance at the same moment, so this one does not claim it"));
+}
+
+/// What:
+///  The name a claimer takes a note aside under,
+///  so that only one claimer can ask what the note says.
+/// Why:
+///  A rename gives the note's own name to exactly one process, which is the step the kernel arbitrates;
+/// two names that differed would let two claimers take the same note, one after the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takenAsideName(note, pid) // `${note}.${pid}.${counter}.taking`
+/// ```
+fn taken_aside_name(note: &Path, pid: i32) -> PathBuf {
+    let number: u64 = next_temporary_number();
+    return note.with_file_name(format!("{}.{pid}.{number}.taking", note.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("note")));
 }
 
 /// The refusal that names the process holding an instance.

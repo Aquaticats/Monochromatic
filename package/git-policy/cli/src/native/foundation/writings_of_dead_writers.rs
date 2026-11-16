@@ -36,7 +36,7 @@ pub const WRITING_ENDING: &str = ".writing";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// temporaryFile(publishedPath, number) // `<publishedPath>.<pid>.<birthIdentity>.<number>.writing`
+/// temporaryFile(publishedPath, number) // `<publishedPath>.<pid>.<birthIdentity>.<pidNamespace>.<number>${WRITING_ENDING}`
 /// ```
 pub fn temporary_file(published: &Path, number: u64) -> std::io::Result<PathBuf> {
     let identity: String = current_birth_identity().map_err(|unsupported| {
@@ -44,7 +44,29 @@ pub fn temporary_file(published: &Path, number: u64) -> std::io::Result<PathBuf>
     })?;
     let folder: &Path = published.parent().unwrap_or_else(|| { return Path::new("."); });
     let name: &str = published.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("published");
-    return Ok(folder.join(format!("{name}.{}.{identity}.{number}{WRITING_ENDING}", std::process::id())));
+    return Ok(folder.join(format!("{name}.{}.{identity}.{}.{number}{WRITING_ENDING}", std::process::id(), pid_namespace_digits())));
+}
+
+/// What:
+///  The PID namespace this process lives in, as digits,
+///  and `0` where the platform does not name one.
+/// Why:
+///  A process number means something only inside its own PID namespace,
+/// so a name that carried no namespace let a sweep read a container's live writer as a dead one
+/// (the ninth review of issue 6293, finding 3).
+/// A platform that names no namespace answers `0`, which no other namespace shares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pidNamespaceDigits() // '4026531836' from /proc/self/ns/pid, or '0'
+/// ```
+fn pid_namespace_digits() -> String {
+    let named: String = crate::pid_namespace::current_pid_namespace().unwrap_or_default();
+    let digits: String = named.chars().filter(char::is_ascii_digit).collect();
+    return match digits.is_empty() {
+        true => String::from("0"),
+        false => digits,
+    };
 }
 
 /// A number no other write of this process has taken, so two writes never share a temporary file.
@@ -80,9 +102,27 @@ pub fn remove_writings_of_dead_writers(published: &Path) {
         let Some(after_the_name) = text.strip_prefix(prefix.as_str()) else { continue };
         let Some(rest) = after_the_name.strip_suffix(WRITING_ENDING) else { continue };
         let mut parts = rest.split('.');
-        // The name carries the writer's number and its birth identity, so the proof is about that process and not about a number.
-        let (Some(pid_text), Some(identity)) = (parts.next(), parts.next()) else { continue };
+        // What: Only a name the writers' own function makes is ever a candidate: a process number, a birth identity of the
+        //       grammar the kernel prints, a PID namespace and a counter, each all digits where digits are asked for.
+        // Why:  A name's shape is not a proof of whose file it is: a person's own `backup` file beside the record had the shape
+        //       and was removed (the ninth review of issue 6293, finding 3).
+        let (Some(pid_text), Some(identity), Some(namespace), Some(number), None) =
+            (parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
+        else {
+            continue;
+        };
         let Ok(pid) = pid_text.parse::<i64>() else { continue };
+        let Some(tick) = identity.strip_prefix("linux:") else { continue };
+        if tick.is_empty() || !tick.chars().all(|character| { return character.is_ascii_digit(); }) {
+            continue;
+        }
+        if namespace != pid_namespace_digits() {
+            // A writer of another PID namespace: its number says nothing here, and it may be alive.
+            continue;
+        }
+        if number.is_empty() || !number.chars().all(|character| { return character.is_ascii_digit(); }) {
+            continue;
+        }
         match process_birth_identity(pid) {
             // The writer is still that process: its file stays, whoever else might be writing.
             Ok(Some(that_process)) if that_process.as_str() == identity => {}
@@ -150,7 +190,7 @@ mod tests {
         let published: std::path::PathBuf = root.join("note");
         // A name the writers' own function makes, for a number no process has: the writer is proved gone, and no child is started.
         let ended_pid: u32 = 999_999;
-        let dead: std::path::PathBuf = published.with_file_name(format!("note.{ended_pid}.linux:000000.1{WRITING_ENDING}"));
+        let dead: std::path::PathBuf = published.with_file_name(format!("note.{ended_pid}.linux:000000.{}.1{WRITING_ENDING}", pid_namespace_digits()));
         std::fs::write(&dead, b"half").expect("the file a killed writer left");
         write_atomically(published.as_path(), "whole\n").expect("the next write");
         assert!(!dead.exists(), "the sweep collected the dead writer's file");
@@ -167,13 +207,37 @@ mod tests {
         let root: std::path::PathBuf = folder("live-writer");
         let published: std::path::PathBuf = root.join("note");
         let identity: String = current_birth_identity().expect("this process's birth");
-        let ours: std::path::PathBuf = published.with_file_name(format!("note.{}.{identity}.1{WRITING_ENDING}", std::process::id()));
+        let ours: std::path::PathBuf = published.with_file_name(format!("note.{}.{identity}.{}.1{WRITING_ENDING}", std::process::id(), pid_namespace_digits()));
         std::fs::write(&ours, b"a live writer's half").expect("a live writer's file");
         // The same number with another birth identity is a stranger: the writer it named is gone, so the file is collected.
-        let stranger: std::path::PathBuf = published.with_file_name(format!("note.{}.linux:000000.2{WRITING_ENDING}", std::process::id()));
+        let stranger: std::path::PathBuf = published.with_file_name(format!("note.{}.linux:000000.{}.2{WRITING_ENDING}", std::process::id(), pid_namespace_digits()));
         std::fs::write(&stranger, b"the same number, another process").expect("the file of a writer whose number was reused");
         remove_writings_of_dead_writers(published.as_path());
         assert!(ours.exists(), "a live writer's own file stays");
         assert!(!stranger.exists(), "a number a stranger holds proves the writer gone, so its file is collected");
     }
+
+/// What:
+///  A file whose name merely has the shape is never a candidate, and neither is a writer of another PID namespace.
+/// Why:
+///  The ninth review of issue 6293 (finding 3): `real-git.1.backup.writing`, a person's own file, was removed because
+///  its name fitted, and a live writer in another PID namespace lost its file so its rename failed.
+#[test]
+fn only_a_name_the_writers_make_for_this_namespace_is_a_candidate() {
+    let root: std::path::PathBuf = folder("not-the-writers");
+    let published: std::path::PathBuf = root.join("note");
+    let theirs: std::path::PathBuf = published.with_file_name("note.1.backup.writing");
+    std::fs::write(&theirs, b"a person's own file").expect("a file nothing of the wrapper wrote");
+    // A namespace that is not this process's: this one's digits with a digit added, so the two can never be equal.
+    let another_namespace: String = format!("{}1", pid_namespace_digits());
+    let elsewhere: std::path::PathBuf = published.with_file_name(format!("note.{}.linux:0.{another_namespace}.3{WRITING_ENDING}", std::process::id()));
+    std::fs::write(&elsewhere, b"a live writer in another namespace").expect("a container's writer");
+    let no_counter: std::path::PathBuf = published.with_file_name(format!("note.{}.linux:0.{}{WRITING_ENDING}", std::process::id(), pid_namespace_digits()));
+    std::fs::write(&no_counter, b"no counter").expect("a name the writers never make");
+    remove_writings_of_dead_writers(published.as_path());
+    assert!(theirs.exists(), "a person's own file beside the record is left alone");
+    assert!(elsewhere.exists(), "a writer of another PID namespace may be alive, so its file stays");
+    assert!(no_counter.exists(), "a name without the counter the writers add is no writer's file");
+    crate::test_support::remove(root.as_path());
+}
 }

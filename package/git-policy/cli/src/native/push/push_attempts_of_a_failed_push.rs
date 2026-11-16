@@ -302,6 +302,17 @@ fn short_name(destination_ref: &str) -> &str {
 /// const failing = (output, configured) => output.split('\n').reverse().filter((l) => /^(fatal|error): /.test(l)).map(quoted).flatMap((q) => configured.includes(q) ? [q] : configured.includes(q.slice(0, -1)) && q.endsWith('/') ? [q.slice(0, -1)] : [])[0];
 /// ```
 fn address_git_failed_at(output: &str, configured: &[String]) -> Option<String> {
+    // What: An address that begins with `://` is named by Git's sentence about an empty protocol, not by its own text.
+    // Why:  Measured with Git 2.56.0: `fatal: protocol '' is not supported` is what it prints for `://host/x`, and the
+    // quoted run is empty, so the address among the configuration was never found and the plan was retried although the
+    // address can never be a remote (the ninth review of issue 6293, finding 4).
+    if output.contains(NO_PROTOCOL_NAMED) {
+        for address in configured {
+            if address.starts_with("://") {
+                return Some(address.clone());
+            }
+        }
+    }
     for line in output.lines().rev() {
         if !(line.starts_with("fatal: ") || line.starts_with("error: ")) {
             continue;
@@ -319,6 +330,9 @@ fn address_git_failed_at(output: &str, configured: &[String]) -> Option<String> 
     }
     return None;
 }
+
+/// Git's sentence for an address whose protocol has no name.
+const NO_PROTOCOL_NAMED: &str = "protocol '' is not supported";
 
 /// What:
 ///  The run between the first and the last single quote of a line,

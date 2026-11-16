@@ -182,6 +182,20 @@ fn only_the_recorded_refs_own_status_line_reports_an_arrival() {
 }
 
 /// What:
+///  An address that begins with `://` is named by Git's sentence about an empty protocol, and its push ends at once.
+/// Why:
+///  The ninth review of issue 6293 (finding 4): Git answers `fatal: protocol '' is not supported`, which quotes no configured
+/// address, so the address was never found and the plan was retried although the SPEC says it ends.
+#[test]
+fn an_address_with_no_protocol_name_is_found_by_git_sentence_about_it() {
+    let output: &str = "fatal: protocol '' is not supported\n";
+    let addresses: Vec<String> = configured(&["://host/x.git"]);
+    let read: FailedPushByAddress = failed_push_by_address(output, "refs/heads/main", addresses.as_slice());
+    assert_eq!(read.failing.as_deref(), Some("://host/x.git"), "the configured address is the one Git refused");
+    assert!(!read.arrived, "and nothing arrived");
+}
+
+/// What:
 ///  A push configured with two destination refspecs, of which the remote refuses the first and takes the second,
 ///  reports the arrival.
 /// Why:
