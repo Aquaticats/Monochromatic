@@ -28,7 +28,9 @@ use std::time::Duration;
 
 /// The quiet window a step of a bulk Git step carries before the allowance clamps it,
 /// in milliseconds.
-/// The shipped window is minutes; a control's is a moment, so the clamp is what the control sees.
+/// The shipped window is minutes;
+/// a control's is a moment,
+/// so the clamp is what the control sees.
 const CONTROL_WINDOW: Duration = Duration::from_millis(400);
 
 /// The ceiling a step of a bulk Git step carries before the allowance clamps it,

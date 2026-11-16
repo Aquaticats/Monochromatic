@@ -262,6 +262,13 @@ pub mod worktree_copy_source_still_being_filled;
 #[cfg(unix)]
 pub mod worktree_copy;
 
+/// What becomes of an add whose own steps have spent the allowance for them:
+/// what the ladder prepared is settled,
+/// its record is released,
+/// and the command says what stopped it.
+#[cfg(unix)]
+pub mod worktree_copy_allowance_stop;
+
 /// What is left to do once a created worktree holds its ignored state:
 /// its package-manager repair,
 /// and the trash a snapshot

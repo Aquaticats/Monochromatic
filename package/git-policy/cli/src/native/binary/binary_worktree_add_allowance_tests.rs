@@ -31,7 +31,8 @@
 //! expect(add.ending).toBe('itself'); expect(add.stderr).toContain('was not made');
 //! ```
 
-/// Import the shared fixtures, the bounded process helpers and the reading of who ended a command.
+/// Import the shared fixtures,
+/// the bounded process helpers and the reading of who ended a command.
 use super::support::{Fixture, Observed, bounded_for, executable, fixture, git, remove, repository, run_wrapped, stderr_of, wrapper_first_path};
 use crate::support_observation_bound::{Answer, Ending, wait_under_bound};
 use git_policy_cli::action::ENGINE_FAILURE_EXIT_CODE;
@@ -42,27 +43,34 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-/// The environment variable that sets the allowance of one add's own steps, in whole seconds.
+/// The environment variable that sets the allowance of one add's own steps,
+/// in whole seconds.
 const ALLOWANCE_VARIABLE: &str = "CLI_GIT_ADD_OWN_WORK_SECONDS";
 
-/// The variable that sets how long one Git step of the wrapper may show no sign of work, in whole seconds.
+/// The variable that sets how long one Git step of the wrapper may show no sign of work,
+/// in whole seconds.
 const CHILD_WAIT_VARIABLE: &str = "CLI_GIT_CHILD_WAIT_SECONDS";
 
-/// The allowance the control of a child that stalls every time gives the add, in seconds.
-/// It is a healthy add's own work many times over and far below the window of the step it ends, so
-/// the add ends in seconds and the control says so.
+/// The allowance the control of a child that stalls every time gives the add,
+/// in seconds.
+/// It is a healthy add's own work many times over and far below the window of the step it ends,
+/// so the add ends in seconds and the control says so.
 const STALLING_ALLOWANCE_SECONDS: &str = "15";
 
-/// The allowance the control of a child that stalls once gives the add, in seconds.
-/// Wide enough that a step's own quiet window is what ends the first try, not the allowance,
+/// The allowance the control of a child that stalls once gives the add,
+/// in seconds.
+/// Wide enough that a step's own quiet window is what ends the first try,
+/// not the allowance,
 /// so the second try has the allowance to answer in.
 const ONCE_ALLOWANCE_SECONDS: &str = "120";
 
 /// How long the first try of the untracked scan may show no sign of work before the step is ended,
-/// in seconds, for the control of a child that stalls once.
+/// in seconds,
+/// for the control of a child that stalls once.
 const ONCE_QUIET_WINDOW_SECONDS: &str = "2";
 
-/// The bound this control gives the wrapped add, in seconds:
+/// The bound this control gives the wrapped add,
+/// in seconds:
 /// wide enough for an add that ends at its allowance and its clean-up.
 /// The wrapped command's own `timeout` and this control's wait both take it,
 /// so whichever ends the command first is the bound's doing.

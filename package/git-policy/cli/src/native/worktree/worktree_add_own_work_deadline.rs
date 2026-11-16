@@ -31,6 +31,14 @@
 //!  so the clock stops while that command runs
 //!  (`SPEC.md`,
 //! "Every Git step the ladder starts itself").
+//!  Two things after the worktree is whole keep their own bounds and not this one:
+//!  a copy the allowance stops after
+//!  real Git made the worktree is a copy failure the next command settles,
+//!  as any other failed copy is,
+//!  and the
+//!  package repair after it keeps one ceiling per tool
+//!  (`REPAIR_TOOL_CEILING`);
+//!  neither can leave a worktree half made.
 //!  The allowance is one deadline and not a count of tries,
 //!  because a count of
 //!  tries cannot bound the time a copy of a large tree takes,
@@ -145,7 +153,8 @@ fn the_allowance() -> Duration {
 }
 
 /// What the clock of `spending` reads now:
-/// the stretches it ran, and the one it is in.
+/// the stretches it ran,
+/// and the one it is in.
 /// Why:
 ///  The pause for the person's command is the only stop,
 ///  so the spent time is what was recorded plus the stretch that is
@@ -261,7 +270,8 @@ fn arm(ceiling: Duration) -> TheAddsOwnClock {
 pub struct WhileGitRunsForThePerson;
 
 impl Drop for WhileGitRunsForThePerson {
-    /// Add the stretch that ran to what was spent, and stop.
+    /// Add the stretch that ran to what was spent,
+    /// and stop.
     fn drop(&mut self) {
         let Some(mut held) = look() else {
             return;
@@ -522,7 +532,8 @@ pub(crate) fn a_bound_within_the_allowance(bound: Option<Duration>, waiting_for:
 ///   A bound a step keeps is a bound that belongs to that step alone;
 ///  with an allowance the add's own end is the
 ///  earlier of the two,
-///  so the window, the notice grace and the bound all shrink to what is left.
+///  so the window,
+///  the notice grace and the bound all shrink to what is left.
 ///  A step that may not be run twice is never ended,
 ///  so it keeps that rule and the command stops waiting for it at the allowance instead.
 ///
