@@ -39684,6 +39684,11 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
   What held: changes before the exchange and appends after it reached the checkout, and every kill right after a plain rename recovered (15 kill points, 48 checkouts).
   The author's fifth run is queued second; it is asked which of the nine `main` has and what a person who migrated a checkout with `main`'s code and `--remove-old` should look for, since this repository's own checkout was migrated that way.
   The review of the unreadable process table (`8b50662351`) started at about 10:55 in its place.
+- **The Sonnet review of the discarding guard is back and accepted (`2ecc7486ed`, about twenty-four minutes; independent; 47 of 47 files; built, and its own scripts run against the built program with real Git 2.56.0 beside it; its transcript names `claude-sonnet-5-5`).**
+  Of the three findings before it, two are fixed and the third partly. Six new ones, each ending with status 0 and a person's change gone with no copy kept: a revision spelled `A...B` read as an unknown name; a name that is both a tag and a branch read as the tag where Git takes the branch;
+  `read-tree --prefix=<dir> -u` without a trailing slash read by `checkout-index`'s rule; a mode changed on the owner bit alone not seen under `assume-unchanged`; `checkout --ignore-skip-worktree-bits <path>` with no `--` read as a switch of branch; a link replaced by a regular file holding its target text read as unchanged.
+  Five reviews in a row have each found a word of the command line that the guard reads by a rule of its own. The author's sixth run (queued third at 10:55) is told that this is one cause: where Git can be asked what a word means, the guard asks Git; where it cannot, it refuses or saves a copy first.
+  The review of the branch that keeps a Pi run out of the main checkout (`78c415032b`) started at about 10:57 in its place.
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
