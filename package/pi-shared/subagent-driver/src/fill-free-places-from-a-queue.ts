@@ -146,7 +146,6 @@ async function runsGoing(): Promise<Awaited<ReturnType<typeof goingRunsNow>>> {
   const going = await goingRunsNow({
     run: runCommandWithChildProcess,
     processFolder: PROCESS_FOLDER,
-    runsFolder: options.runsFolder,
     launcherEntryNames: [
       ...LAUNCHER_ENTRY_NAMES,
       ...REPLACED_LAUNCHER_ENTRY_NAMES,

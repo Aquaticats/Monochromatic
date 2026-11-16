@@ -8,11 +8,6 @@
 import { stat, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
-import {
-  NO_FINISHED_RUN_OF_THAT_NAME,
-  SUMMARY_FILE_NAME,
-  newestFinishedRunOf,
-} from './newest-finished-run-of-a-name.ts';
 import type { RunCommand, } from './run-command.ts';
 
 /**
@@ -182,61 +177,4 @@ export async function startedAtOf({
     }
     throw error;
   }
-}
-
-/**
- Says whether the newest summary of a run's name was written by the run the launcher it is asked about started.
-
- A summary speaks for the attempt that wrote it and for no other: a run folder an earlier attempt left says nothing about a launcher
- that began after that attempt ended. So the summary's own time is held against the launcher's start, and only a summary written
- strictly after it says this launcher's run ended: two writes in the same tick of the file system's clock read as the same moment, and
- a moment that cannot be told apart counts as no evidence against a live launcher. A launcher whose start could not be read is going
- for the same reason.
-
- @param runsFolder - folder the driver writes one run folder per run into
-
- @param runName - the run's name, which every attempt's folder starts with
-
- @param since - when the launcher began, as ISO 8601, or empty text when that could not be read
-
- @returns whether a summary written strictly after that launcher began is there, which says its run ended
-
- @example
- ```ts
- const ended = await runEndedForLauncher({ runsFolder: '/runs', runName: 'a', since: '2026-11-15T09:00:00.000Z', },);
- ```
- */
-export async function runEndedForLauncher({
-  runsFolder,
-  runName,
-  since,
-}: {
-  readonly runsFolder: string;
-  readonly runName: string;
-  readonly since: string;
-},): Promise<boolean> {
-  // A launcher whose own start could not be read is going: nothing ties a summary to it, and dropping a live launcher from the
-  // counts hands its name to a second start.
-  if (since === '') {
-    return false;
-  }
-  /**
-   The newest attempt of that name that finished, which speaks for itself and for no other attempt.
-   */
-  const finished = await newestFinishedRunOf({
-    runsFolder,
-    runName,
-  },);
-  if (finished === NO_FINISHED_RUN_OF_THAT_NAME) {
-    return false;
-  }
-  /**
-   When that run's summary was written, which is held against the launcher's own start.
-   */
-  const written = await stat(join(
-    runsFolder,
-    finished,
-    SUMMARY_FILE_NAME,
-  ),);
-  return written.mtimeMs > Date.parse(since,);
 }

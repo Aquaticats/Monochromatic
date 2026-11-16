@@ -13,12 +13,12 @@
  @module
  */
 
-import {
-  readFile,
-  rename,
-  writeFile,
-} from 'node:fs/promises';
+import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import {
+  fileBesideTheRuns,
+  writeInOneStep,
+} from './a-name-as-one-path-segment.ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { NO_SLOT_EXIT_STATUS, } from './pool-gate.ts';
@@ -32,11 +32,6 @@ const MISSING_PATH_CODE = 'ENOENT';
  The end of the file one entry's start answer is written to, which sits beside the runs under the entry's name.
  */
 export const START_ANSWER_FILE_SUFFIX = '-start-answer.json';
-
-/**
- The end of the file an answer is written through, which is renamed over the answer.
- */
-const BEING_WRITTEN_SUFFIX = '.being-written';
 
 /**
  No start answer for that entry, as a symbol so no answer can be mistaken for one.
@@ -120,10 +115,11 @@ export function startAnswerFileOf({
   readonly runsFolder: string;
   readonly name: string;
 },): string {
-  return join(
+  return fileBesideTheRuns({
     runsFolder,
-    `${name}${START_ANSWER_FILE_SUFFIX}`,
-  );
+    name,
+    suffix: START_ANSWER_FILE_SUFFIX,
+  },);
 }
 
 /**
@@ -157,19 +153,14 @@ export async function writeStartAnswer({
     name: answer.name,
   },);
   try {
-    await writeFile(
-      `${file}${BEING_WRITTEN_SUFFIX}`,
-      `${JSON.stringify(
+    await writeInOneStep({
+      file,
+      text: `${JSON.stringify(
         answer,
         undefined,
         2,
       )}\n`,
-      { encoding: 'utf8', },
-    );
-    await rename(
-      `${file}${BEING_WRITTEN_SUFFIX}`,
-      file,
-    );
+    },);
     return file;
   }
   catch (error) {

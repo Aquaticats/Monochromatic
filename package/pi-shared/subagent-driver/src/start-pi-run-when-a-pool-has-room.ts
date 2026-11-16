@@ -103,7 +103,6 @@ const pools = poolsWithTheseLimits({ limits: limitsIn({ listed: env[POOL_LIMITS_
 const runs = await goingRunsNow({
   run: runCommandWithChildProcess,
   processFolder: PROCESS_FOLDER,
-  runsFolder: options.runsFolder,
   launcherEntryNames: [
     ...LAUNCHER_ENTRY_NAMES,
     ...REPLACED_LAUNCHER_ENTRY_NAMES,

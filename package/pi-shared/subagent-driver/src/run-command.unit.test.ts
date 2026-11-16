@@ -338,7 +338,7 @@ await describe({
             '  words: [child, marker, ],',
             `  timeoutMilliseconds: ${String(SHORT_BOUND_MILLISECONDS,)},`,
             '},);',
-            'process.stdout.write(`${JSON.stringify({ ending, })}\\n`,);',
+            String.raw`process.stdout.write(JSON.stringify({ ending, }) + "\n",);`,
             '',
           ].join('\n',),
         );
@@ -362,12 +362,16 @@ await describe({
           { stdio: 'ignore', },
         );
         /**
-         How the caller ended.
+         How the caller ended, as the runtime hands it back.
          */
-        const [status,] = await once(
+        const closing: readonly unknown[] = await once(
           started,
           'close',
         );
+        /**
+         The status the caller exited with, which is its first closing word.
+         */
+        const [status,] = closing;
         // The caller answered at its bound and exited; the child is not its to leave behind.
         expect(status,).toBe(0,);
         await passTime(POLITE_SIGNAL_GRACE_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);

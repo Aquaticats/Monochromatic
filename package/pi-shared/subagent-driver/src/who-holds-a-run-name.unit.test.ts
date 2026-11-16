@@ -348,7 +348,6 @@ await describe({
             const going = await goingRunsNow({
               run: systemd.run,
               processFolder: folder.processes,
-              runsFolder: folder.runs,
               launcherEntryNames: LAUNCHER_ENTRY_NAMES,
               onProblem: function onProblem(problem,) {
                 throw new Error(`nothing was expected to be a problem: ${problem}`);
@@ -401,7 +400,6 @@ await describe({
             const going = await goingRunsNow({
               run: systemd.run,
               processFolder: folder.processes,
-              runsFolder: folder.runs,
               launcherEntryNames: LAUNCHER_ENTRY_NAMES,
               onProblem: function onProblem(problem,) {
                 throw new Error(`nothing was expected to be a problem: ${problem}`);
@@ -446,7 +444,6 @@ await describe({
             const going = await goingRunsNow({
               run: systemd.run,
               processFolder: folder.processes,
-              runsFolder: folder.runs,
               launcherEntryNames: LAUNCHER_ENTRY_NAMES,
               onProblem: () => {},
             },);
@@ -488,7 +485,6 @@ await describe({
             const going = await goingRunsNow({
               run: systemd.run,
               processFolder: folder.processes,
-              runsFolder: folder.runs,
               launcherEntryNames: LAUNCHER_ENTRY_NAMES,
               onProblem: () => {},
             },);

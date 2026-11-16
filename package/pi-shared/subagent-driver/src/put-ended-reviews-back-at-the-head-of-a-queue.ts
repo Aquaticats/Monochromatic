@@ -153,7 +153,6 @@ try {
   const going = await goingRunsNow({
     run: runCommandWithChildProcess,
     processFolder: PROCESS_FOLDER,
-    runsFolder: runsFolderIn({ commandLine, },),
     launcherEntryNames: [
       ...LAUNCHER_ENTRY_NAMES,
       ...REPLACED_LAUNCHER_ENTRY_NAMES,

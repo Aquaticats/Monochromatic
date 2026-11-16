@@ -53,12 +53,12 @@ export type SettledStart = {
   /**
    What became of it.
    */
-  readonly outcome: 
+  readonly outcome:
     | 'the-run-exists'
       | 'put-back'
       | 'set-aside'
       | 'still-going'
-      | 'never-left-the-queue'
+      | 'cannot-tell'
       | 'batch-state-unread';
 
   /**
@@ -275,25 +275,6 @@ async function settleOneStart({
     };
   }
   /**
-   The queue as it stands.
-   */
-  const queue = await readQueueOfRuns({ queueFile, },);
-  // The batch is not going, so an entry still queued is a start that never got handed on: nothing is lost, the record goes and the
-  // next pass tries the entry again.
-  if (queue.some(function isStillQueued(entry,) {
-    return entry.name === record.name;
-  },)) {
-    await removeWatchedStart({
-      runsFolder,
-      name: record.name,
-    },);
-    return {
-      name: record.name,
-      outcome: 'never-left-the-queue',
-      line: `${time} ${record.name}: its entry never left the queue, so the record of its start is dropped and the entry is tried again`,
-    };
-  }
-  /**
    Whether the run the filling asked for exists now.
    */
   const exists = await runExistsFor({
@@ -302,6 +283,11 @@ async function settleOneStart({
     run,
   },);
   if (exists.there) {
+    // The run exists, so the entry must be out of the queue: a start the filling that was killed never took out is taken out here.
+    await takeAQueueEntryOut({
+      queueFile,
+      name: record.name,
+    },);
     await removeWatchedStart({
       runsFolder,
       name: record.name,
@@ -313,19 +299,29 @@ async function settleOneStart({
     };
   }
   /**
-   What the launcher said its start ended with, which is a field beside the runs and never the last line its batch printed.
+   Whether the entry the filling that wrote this record may still be about to take it out.
+   */
+  const queued = (await readQueueOfRuns({ queueFile, },)).some(function isStillQueued(entry,) {
+    return entry.name === record.name;
+  },);
+  /**
+   What the launcher said its start ended with, which is a field beside the runs and always means the start is over.
    */
   const answer = await startAnswerOf({
     runsFolder,
     name: record.name,
   },);
-  /**
-   What a launcher that said nothing leaves behind.
-   */
-  const why = (answer === NO_START_ANSWER)
-    ? 'its launcher ended with no run and wrote no start answer beside the runs'
-    : answer.line;
-  if ((answer !== NO_START_ANSWER) && answer.gaveUpWaitingForAPlace) {
+  if (answer === NO_START_ANSWER) {
+    // Neither the batch, nor a run, nor an answer says this start is over: the entry still queued beside a record whose unit is not
+    // visible is exactly the state a filling in flight leaves, so a settlement that cannot tell leaves the record and the entry.
+    if (queued) {
+      return {
+        name: record.name,
+        outcome: 'cannot-tell',
+        line: `${time} ${record.name}: its batch is not going, no run exists and its launcher wrote no answer, so whether its start is still in flight could not be told apart; its record and its entry are left as they are`,
+      };
+    }
+    // The entry is out of the queue and nothing wrote an answer: no batch will start it now, so it goes back to be tried again.
     await putAQueueEntryIn({
       queueFile,
       entry: record.entry,
@@ -338,9 +334,32 @@ async function settleOneStart({
     return {
       name: record.name,
       outcome: 'put-back',
-      line: `${time} put ${record.name} back at the head of the queue: it gave up waiting for a place before any run existed (${why})`,
+      line: `${time} put ${record.name} back at the head of the queue: its entry had left the queue and its launcher wrote no answer, so nothing else would start it`,
     };
   }
+  if (answer.gaveUpWaitingForAPlace) {
+    if (!queued) {
+      await putAQueueEntryIn({
+        queueFile,
+        entry: record.entry,
+        position: 0,
+      },);
+    }
+    await removeWatchedStart({
+      runsFolder,
+      name: record.name,
+    },);
+    return {
+      name: record.name,
+      outcome: 'put-back',
+      line: `${time} ${queued ? 'left' : 'put'} ${record.name} ${queued ? 'in' : 'back at the head of'} the queue: it gave up waiting for a place before any run existed (${answer.line})`,
+    };
+  }
+  // The start failed for a reason of its own: the entry leaves the queue and a record holds it whole with that reason.
+  await takeAQueueEntryOut({
+    queueFile,
+    name: record.name,
+  },);
   /**
    Where the entry set-aside record was written.
    */
@@ -349,7 +368,7 @@ async function settleOneStart({
     record: {
       name: record.name,
       entry: record.entry,
-      reason: why,
+      reason: answer.line,
       setAsideAt: time,
     },
   },);
@@ -360,6 +379,6 @@ async function settleOneStart({
   return {
     name: record.name,
     outcome: 'set-aside',
-    line: `${time} set aside ${record.name} (the-launcher); ${file}; its launcher ended with no run: ${why}`,
+    line: `${time} set aside ${record.name} (the-launcher); ${file}; its launcher ended with no run: ${answer.line}`,
   };
 }

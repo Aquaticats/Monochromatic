@@ -18,11 +18,13 @@
 
 import {
   readFile,
-  rename,
   rm,
-  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import {
+  fileBesideTheRuns,
+  writeInOneStep,
+} from './a-name-as-one-path-segment.ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
 import {
@@ -41,11 +43,6 @@ export const WATCHED_START_FILE_SUFFIX = '-queue-start.json';
 function noReport(): void {
   // A caller that reads the records without a report has already decided what to do with what it finds.
 }
-
-/**
- The end of the file a record is written through, which is renamed over the record.
- */
-const BEING_WRITTEN_SUFFIX = '.being-written';
 
 /**
  One start the filling made and has not settled.
@@ -118,10 +115,11 @@ export function watchedStartFileOf({
   readonly runsFolder: string;
   readonly name: string;
 },): string {
-  return join(
+  return fileBesideTheRuns({
     runsFolder,
-    `${name}${WATCHED_START_FILE_SUFFIX}`,
-  );
+    name,
+    suffix: WATCHED_START_FILE_SUFFIX,
+  },);
 }
 
 /**
@@ -275,9 +273,9 @@ export async function writeWatchedStart({
     name: record.name,
   },);
   try {
-    await writeFile(
-      `${file}${BEING_WRITTEN_SUFFIX}`,
-      `${JSON.stringify(
+    await writeInOneStep({
+      file,
+      text: `${JSON.stringify(
         {
           name: record.name,
           runName: start.runName,
@@ -290,12 +288,7 @@ export async function writeWatchedStart({
         undefined,
         2,
       )}\n`,
-      { encoding: 'utf8', },
-    );
-    await rename(
-      `${file}${BEING_WRITTEN_SUFFIX}`,
-      file,
-    );
+    },);
     return file;
   }
   catch (error) {

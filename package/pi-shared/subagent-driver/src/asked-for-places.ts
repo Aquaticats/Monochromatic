@@ -14,6 +14,7 @@
  @module
  */
 
+import { stat, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   BATCH_UNIT_START,
@@ -22,7 +23,12 @@ import {
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { poolAPlaceAskedForWouldHold, } from './entry-of-a-queue.ts';
 import { errorCodeOf, } from './error-code-of.ts';
-import { isThere, } from './newest-finished-run-of-a-name.ts';
+import {
+  NO_FINISHED_RUN_OF_THAT_NAME,
+  SUMMARY_FILE_NAME,
+  isThere,
+  newestFinishedRunOf,
+} from './newest-finished-run-of-a-name.ts';
 import type { GoingRun, } from './going-runs.ts';
 import {
   readQueueOfRuns,
@@ -104,7 +110,10 @@ async function entriesOfAList({
   readonly unitName: string;
   readonly runsFolder: string;
   readonly onProblem: (problem: string) => void;
-},): Promise<readonly QueueRecord[]> {
+},): Promise<{
+  readonly entries: readonly QueueRecord[];
+  readonly writtenAt: number
+}> {
   /**
    The list the unit's name gives.
    */
@@ -115,17 +124,72 @@ async function entriesOfAList({
   if (!(await isThere(file,))) {
     // A `launch-*` unit that is no batch of this runs folder (`launch-review-...` is a scope of the coordinator's own) names no
     // list at all, which is nothing to report.
-    return [];
+    return {
+      entries: [],
+      writtenAt: 0,
+    };
   }
   try {
-    return await readQueueOfRuns({ queueFile: file, },);
+    /**
+     When the list was written, which is what says whether a summary of an entry own name is a run of this batch.
+     */
+    const writtenAt = (await stat(file,)).mtimeMs;
+    return {
+      entries: await readQueueOfRuns({ queueFile: file, },),
+      writtenAt,
+    };
   }
   catch (error) {
     // A list that is there and cannot be read is a problem a reader must see, because the places it names are then missing from
     // the level's count.
     onProblem(`${unitName} names a batch list at ${file} that could not be read: ${caughtValueText(error,)}`);
-    return [];
+    return {
+      entries: [],
+      writtenAt: 0,
+    };
   }
+}
+
+/**
+ Says whether a run of that name finished after a moment, which is what a batch list own time says of its own entries.
+
+ @param runsFolder - folder the driver writes its runs into
+
+ @param runName - the run's name
+
+ @param moment - the moment the batch list was written, in milliseconds since the epoch
+
+ @returns whether a summary of that name was written strictly after it
+
+ @example
+ ```ts
+ const finished = await finishedSince({ runsFolder: '/runs', runName: 'a', moment: Date.now(), },);
+ ```
+ */
+async function finishedSince({
+  runsFolder,
+  runName,
+  moment,
+}: {
+  readonly runsFolder: string;
+  readonly runName: string;
+  readonly moment: number;
+},): Promise<boolean> {
+  /**
+   The newest attempt of that name that finished.
+   */
+  const finished = await newestFinishedRunOf({
+    runsFolder,
+    runName,
+  },);
+  if (finished === NO_FINISHED_RUN_OF_THAT_NAME) {
+    return false;
+  }
+  return (await stat(join(
+    runsFolder,
+    finished,
+    SUMMARY_FILE_NAME,
+  ),)).mtimeMs > moment;
 }
 
 /**
@@ -199,13 +263,23 @@ export async function placesAskedFor({
      The entries of the list the unit was started from, or the problem that kept them from being read.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one unit after another, and each list is its own file
-    const listedEntries = await entriesOfAList({
+    const asked = await entriesOfAList({
       unitName,
       runsFolder,
       onProblem,
     },);
-    for (const record of listedEntries) {
+    for (const record of asked.entries) {
       if (goingNames.has(record.name,)) {
+        continue;
+      }
+      // A run that finished after its batch list was written took this entry own place already, and that batch can never start it
+      // again: holding the place for it reports a free place as full and stalls the queue behind it.
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the run folders of the entry just read
+      if (await finishedSince({
+        runsFolder,
+        runName: record.name,
+        moment: asked.writtenAt,
+      },)) {
         continue;
       }
       places.push({

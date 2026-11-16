@@ -192,7 +192,7 @@ await describe({
       children: [
         ...NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
           return it({
-            name: `refuses the name "${bad.name.replaceAll('\n', '\\n',)}, which ${bad.why}`,
+            name: `refuses the name "${bad.name.replaceAll('\n', String.raw`\n`,)}, which ${bad.why}`,
             fn: async () => {
               /**
                How the join went.
@@ -210,7 +210,7 @@ await describe({
         },),
         ...ONE_SEGMENT.map(function joinsOne(good,) {
           return it({
-            name: `joins the name "${good.name.replaceAll('\n', '\\n',)}", which is ${good.why}`,
+            name: `joins the name "${good.name.replaceAll('\n', String.raw`\n`,)}", which is ${good.why}`,
             fn: async () => {
               expect(setAsideFileOf({
                 runsFolder: '/runs',
@@ -223,62 +223,56 @@ await describe({
     },),
     describe({
       name: watchedStartFileOf.name,
-      children: [
-        ...NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
-          return it({
-            name: `refuses the name "${bad.name.replaceAll('\n', '\\n',)}, which ${bad.why}`,
-            fn: async () => {
-              expect((await answered(function joinTheName() {
-                return watchedStartFileOf({
-                  runsFolder: '/runs',
-                  name: bad.name,
-                },);
-              },)).threw,).toBe(true,);
-            },
-          },);
-        },),
-      ],
+      children: NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
+        return it({
+          name: `refuses the name "${bad.name.replaceAll('\n', String.raw`\n`,)}, which ${bad.why}`,
+          fn: async () => {
+            expect((await answered(function joinTheName() {
+              return watchedStartFileOf({
+                runsFolder: '/runs',
+                name: bad.name,
+              },);
+            },)).threw,).toBe(true,);
+          },
+        },);
+      },),
     },),
     describe({
       name: startAnswerFileOf.name,
-      children: [
-        ...NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
-          return it({
-            name: `refuses the name "${bad.name.replaceAll('\n', '\\n',)}, which ${bad.why}`,
-            fn: async () => {
-              expect((await answered(function joinTheName() {
-                return startAnswerFileOf({
-                  runsFolder: '/runs',
-                  name: bad.name,
-                },);
-              },)).threw,).toBe(true,);
-            },
-          },);
-        },),
-      ],
+      children: NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
+        return it({
+          name: `refuses the name "${bad.name.replaceAll('\n', String.raw`\n`,)}, which ${bad.why}`,
+          fn: async () => {
+            expect((await answered(function joinTheName() {
+              return startAnswerFileOf({
+                runsFolder: '/runs',
+                name: bad.name,
+              },);
+            },)).threw,).toBe(true,);
+          },
+        },);
+      },),
     },),
     describe({
       name: shapeOfAQueueEntry.name,
-      children: [
-        ...NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
-          return it({
-            name: `reads an entry named "${bad.name.replaceAll('\n', '\\n',)} as unreadable, naming the name`,
-            fn: async () => {
+      children: NOT_ONE_SEGMENT.map(function refusesOne(bad,) {
+        return it({
+          name: `reads an entry named "${bad.name.replaceAll('\n', String.raw`\n`,)} as unreadable, naming the name`,
+          fn: async () => {
               /**
                What the entry read as.
                */
-              const shape = shapeOfAQueueEntry({
-                record: {
-                  name: bad.name,
-                  branch: 'feat/a',
-                },
-              },);
-              expect(shape.kind,).toBe('unreadable',);
-              expect('reason' in shape ? shape.reason : '',).toContain('one path segment',);
-            },
-          },);
-        },),
-      ],
+            const shape = shapeOfAQueueEntry({
+              record: {
+                name: bad.name,
+                branch: 'feat/a',
+              },
+            },);
+            expect(shape.kind,).toBe('unreadable',);
+            expect('reason' in shape ? shape.reason : '',).toContain('one path segment',);
+          },
+        },);
+      },),
     },),
     describe({
       name: 'a record write',
@@ -319,10 +313,12 @@ await describe({
               outside,
               'utf8',
             ),).toBe('ORIGINAL USER DATA\n',);
-            expect(JSON.parse(await readFile(
-              record,
-              'utf8',
-            ),),).toMatchObject({
+            expect(
+              JSON.parse(await readFile(
+                record,
+                'utf8',
+              ),),
+            ).toMatchObject({
               name: 'a',
               reason: 'it names no branch',
             },);

@@ -10,6 +10,7 @@
  @module
  */
 
+import { pathSegmentProblemOf, } from './a-name-as-one-path-segment.ts';
 import {
   type BatchEntry,
   BATCH_ENTRY_FIELDS,
@@ -313,6 +314,21 @@ function reviewOfARangeInAQueueEntry({ record, }: { readonly record: QueueRecord
  ```
  */
 export function shapeOfAQueueEntry({ record, }: { readonly record: QueueRecord },): ShapeOfAQueueEntry {
+  /**
+   Why the entry name is not one path segment, if it is not.
+   */
+  const { problem: nameProblem, } = pathSegmentProblemOf({ name: record.name, },);
+  if (nameProblem !== undefined) {
+    return {
+      kind: 'unreadable',
+      reason: `its name ${JSON.stringify(record.name,)} is not one path segment, and every file and folder of a run is named after it: ${nameProblem}`,
+    };
+  }
+  // The name is what every file and folder of the run is named after, so a name that is not one path segment is no run this package
+  // can read: it is refused here, where it enters, and again where a name becomes a path.
+  /**
+   Why the entry's name is not one path segment, if it is not.
+   */
   if ((typeof record.reviewOfRange) === 'string') {
     /**
      What reading the entry as a review of a range said.

@@ -13,11 +13,14 @@ import {
   access,
   readdir,
   readFile,
-  rename,
   rm,
-  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import {
+  PathSegmentError,
+  fileBesideTheRuns,
+  writeInOneStep,
+} from './a-name-as-one-path-segment.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   isQueueRecord,
@@ -36,11 +39,6 @@ const MISSING_PATH_CODE = 'ENOENT';
  The end of the file one entry's set-aside record is written to, which sits beside the runs under the entry's name.
  */
 export const SET_ASIDE_FILE_SUFFIX = '-set-aside.json';
-
-/**
- The end of the file a record is written through, which is renamed over the record.
- */
-const BEING_WRITTEN_SUFFIX = '.being-written';
 
 /**
  No set-aside record for that entry, as a symbol so no record can be mistaken for one.
@@ -108,10 +106,11 @@ export function setAsideFileOf({
   readonly runsFolder: string;
   readonly name: string;
 },): string {
-  return join(
+  return fileBesideTheRuns({
     runsFolder,
-    `${name}${SET_ASIDE_FILE_SUFFIX}`,
-  );
+    name,
+    suffix: SET_ASIDE_FILE_SUFFIX,
+  },);
 }
 
 /**
@@ -208,29 +207,21 @@ export async function writeSetAsideRecord({
   readonly record: SetAsideRecord;
 },): Promise<string> {
   /**
-   The record's path.
+   The record's path, inside the runs folder, which the name cannot leave.
    */
   const file = setAsideFileOf({
     runsFolder,
     name: record.name,
   },);
-  /**
-   The file written beside it and renamed over it.
-   */
-  const beside = `${file}${BEING_WRITTEN_SUFFIX}-${String(process.pid,)}`;
   try {
-    await writeFile(
-      beside,
-      `${JSON.stringify(
+    await writeInOneStep({
+      file,
+      text: `${JSON.stringify(
         record,
         undefined,
         2,
       )}\n`,
-    );
-    await rename(
-      beside,
-      file,
-    );
+    },);
     return file;
   }
   catch (error) {

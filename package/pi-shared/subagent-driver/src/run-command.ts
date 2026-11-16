@@ -11,6 +11,11 @@ import {
   spawn,
 } from 'node:child_process';
 import { once, } from 'node:events';
+import {
+  extname,
+  join,
+} from 'node:path';
+import { fileURLToPath, } from 'node:url';
 import { promisify, } from 'node:util';
 import {
   MILLISECONDS_PER_SECOND,
@@ -393,16 +398,9 @@ function aBoundOf({
       function endAtItsBound() {
         // The polite signal, so a launcher ended this way still prints the line it ends with.
         child.kill('SIGTERM',);
-        /**
-         The kill a stated grace after the polite signal, which runs on its own: the caller has its answer already.
-         */
-        const kill = setTimeout(
-          function killIt() {
-            child.kill('SIGKILL',);
-          },
-          POLITE_SIGNAL_GRACE_MILLISECONDS,
-        );
-        kill.unref();
+        // The forced kill must not depend on this caller living: a program started detached waits the grace and kills, so the program
+        // is ended even when this process is gone by then, which a timer of its own could not promise.
+        sendTheForcedKillLater({ child, },);
         // The caller does not wait for the program, so nothing it holds keeps the caller alive.
         child.unref();
         resolve({ endedByItsOwnBound: true, },);
@@ -420,6 +418,71 @@ function aBoundOf({
       }
     },
   };
+}
+
+/**
+ The program that waits a stated grace and kills a program its bound ended, beside this module in a checkout and in a build.
+
+ Its name carries this module own extension, because Node runs the TypeScript source of a checkout and the built file of an install.
+ */
+const FORCED_KILL_ENTRY = join(
+  import.meta.dirname,
+  `end-a-program-after-a-grace${extname(import.meta.filename,)}`,
+);
+
+/**
+ Starts the program that kills a program its bound ended, a stated grace after the polite signal.
+
+ It is started detached, so it is nobody child: the caller may answer and exit at once, and the kill still happens. When that program
+ cannot be started here, the kill falls back to a timer of this process, which keeps this process alive until it fires, because a kill
+ that never happens is worse than a caller that outlives its answer by a grace.
+
+ @param child - the program the bound is on
+
+ @example
+ ```ts
+ sendTheForcedKillLater({ child, },);
+ ```
+ */
+function sendTheForcedKillLater({ child, }: { readonly child: ChildProcess },): void {
+  /**
+   The number this caller got back when it started the program.
+   */
+  const {pid} = child;
+  // A program that never started has nothing to kill later.
+  if (pid === undefined) {
+    return;
+  }
+  try {
+    /**
+     The killer, which outlives this caller.
+     */
+    const killer = spawn(
+      process.execPath,
+      [
+        FORCED_KILL_ENTRY,
+        `--pid=${String(pid,)}`,
+        `--grace-milliseconds=${String(POLITE_SIGNAL_GRACE_MILLISECONDS,)}`,
+      ],
+      {
+        detached: true,
+        stdio: 'ignore',
+      },
+    );
+    killer.unref();
+  }
+  catch (error) {
+    /**
+     The kill this process keeps alive until it fires.
+     */
+    const theKill = setTimeout(
+      function killIt() {
+        child.kill('SIGKILL',);
+      },
+      POLITE_SIGNAL_GRACE_MILLISECONDS,
+    );
+    theKill.ref();
+  }
 }
 
 /**

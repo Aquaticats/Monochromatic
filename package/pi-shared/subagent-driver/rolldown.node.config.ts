@@ -35,6 +35,9 @@ const config: NodeFlavorConfig = nodeConfig({
     'list-the-entries-a-queue-set-aside': './src/list-the-entries-a-queue-set-aside.ts',
     'put-a-set-aside-entry-back-into-a-queue': './src/put-a-set-aside-entry-back-into-a-queue.ts',
     'put-ended-reviews-back-at-the-head-of-a-queue': './src/put-ended-reviews-back-at-the-head-of-a-queue.ts',
+    // Not a command a person runs: the program a bound starts detached to kill what the bound ended, which must exist in a build
+    // beside the module that starts it.
+    'end-a-program-after-a-grace': './src/end-a-program-after-a-grace.ts',
   },
 },);
 

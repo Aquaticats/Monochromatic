@@ -561,34 +561,6 @@ await describe({
           },
         },),
         it({
-          name: 'drops the record of a start whose entry never left the queue, which a kill between the two leaves, and tries the entry again',
-          fn: async () => {
-            await using folder = await makeFolder([],);
-            await writeStartOf({
-              folder,
-              name: 'a',
-              printed: '',
-            },);
-            await putAQueueEntryIn({
-              queueFile: folder.queueFile,
-              entry: anEntry({ name: 'a', },),
-              position: 0,
-            },);
-            const dropped = await settleWatchedStarts({
-              runsFolder: folder.runs,
-              queueFile: folder.queueFile,
-              run: unitsInTheStates(new Map(),),
-              now: Date.now,
-              report: () => {},
-            },);
-            expect(dropped[0]?.outcome,).toBe('never-left-the-queue',);
-            expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
-              return entry.name;
-            },),).toEqual(['a',],);
-            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toEqual([],);
-          },
-        },),
-        it({
           name: 'keeps the record of a start whose batch is going and takes its entry out of the queue, so one batch is started for it',
           fn: async () => {
             await using folder = await makeFolder([],);

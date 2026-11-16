@@ -38,7 +38,6 @@ import {
 } from './text-of-an-option.ts';
 import {
   type HolderOfARunName,
-  runEndedForLauncher,
   startedAtOf,
   unitFactsIn,
   unitFactsOf,
@@ -46,7 +45,6 @@ import {
 
 export {
   type HolderOfARunName,
-  runEndedForLauncher,
   startedAtOf,
   unitFactsIn,
   unitFactsOf,
@@ -377,18 +375,12 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
 export async function goingRunsNow({
   run,
   processFolder,
-  runsFolder,
   launcherEntryNames,
   pools = PROVIDER_POOLS,
   onProblem,
 }: {
   readonly run: RunCommand;
   readonly processFolder: string;
-  /**
-   Folder the driver writes one run folder per run into, which tells a launcher whose unit the manager collected from one that has
-   not made its unit yet.
-   */
-  readonly runsFolder?: string;
   readonly launcherEntryNames: readonly string[];
   readonly pools?: readonly ProviderPool[];
   readonly onProblem: (problem: string) => void;
@@ -402,13 +394,13 @@ export async function goingRunsNow({
     pools,
   },);
   /**
-   The launchers whose run has not ended, which is what a launcher process says of a run at all.
+   The runs going now, which is what a launcher process says of a run at all.
 
-   A launcher whose unit is there and is not going, and whose newest run folder holds a summary, is one that outlived its run: it is
-   in its after-run steps, where it waits for work the run left running, resumes the session or removes the worktree. Such a
-   launcher starts nothing more, so counting it kept its run's name taken after the run was over: on 2026-11-14 one held the name of
-   a finished review for three hours, and the start that asked for that run again was answered `ALREADY RUNNING` and lost. The run
-   folder is what tells a launcher that has not made its unit yet from one whose unit the manager has already collected.
+   A live launcher of a run's name is the holder of that name: it has not made its unit yet, or its unit is going, or it is in its
+   after-run steps, where it waits for work the run left running, resumes the session or removes the worktree. Counting every one of
+   them is one answer to "is this run going", which the launcher's own wake path shares: a count that dropped a launcher whose run had
+   ended let a replacement start while that launcher's wake resumed the same run into the same unit and worktree
+   (the review of `main...35d724bdbe` reproduced that).
    */
   const stillGoing: GoingRun[] = [];
   for (const launcher of launchers) {
@@ -440,28 +432,10 @@ export async function goingRunsNow({
       },);
       continue;
     }
-    // A manager that cannot be asked must never drop a live run from the counts, and a launcher whose unit is not there yet has not
-    // made it: both are counted. Only a summary written after this launcher began says its run ended.
-    /**
-     When this launcher began, which is the only moment a summary of its name can be held against.
-     */
-    const since = ((launcher.held
-      ?.kind
-      === 'launcher') ? (launcher.held
-        .since
-        ?? '') : '');
-    /**
-     Whether the run this launcher started has ended, which a summary written after the launcher began says.
-     */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- the run folders of the launcher just read
-    const runEnded = (runsFolder !== undefined) && (await runEndedForLauncher({
-      runsFolder,
-      runName: launcher.name,
-      since,
-    },));
-    if (!runEnded) {
-      stillGoing.push(launcher,);
-    }
+    // A launcher that outlived its run is the holder of the name until it exits: it is waiting for work the run left running, or
+    // removing its worktree, or about to resume that run, which the launch of its own wake still does for the same name. A count that
+    // dropped it here and a wake path that resumed the run would disagree, and a replacement could start into its unit and worktree.
+    stillGoing.push(launcher,);
   }
   /**
    The runs the launchers already account for.

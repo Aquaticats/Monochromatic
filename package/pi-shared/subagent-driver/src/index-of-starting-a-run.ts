@@ -65,7 +65,6 @@ export {
   goingRunsNow,
   launcherRunsIn,
   poolOfExecStart,
-  runEndedForLauncher,
   unitFactsIn,
   unitRunNamesIn,
 } from './going-runs.ts';
