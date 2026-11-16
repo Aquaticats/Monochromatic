@@ -30,6 +30,7 @@ import {
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
+  UNREADABLE_WORK_MILLISECONDS,
   askAboutItsWorkOrReportAFailure,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
@@ -400,6 +401,10 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
  them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
  stalled answer cannot keep the stop file or the wall clock from being seen.
 
+ A read of what the run left running that has failed is asked again on every tick rather than once the idle silence has passed
+ again, because the span after which such a run ends is counted by the clock: waiting for the silence would make it as long as the
+ run's own `--idle-seconds`.
+
  @param watch - watch request
 
  @returns why the run ended
@@ -410,6 +415,10 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
  ```
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
+  /**
+   How long the reads of the run's work may fail before the run ends as one whose leftover work could not be read.
+   */
+  const spanMilliseconds = watch.unreadableWorkMilliseconds ?? UNREADABLE_WORK_MILLISECONDS;
   /**
    Where the watch stands with the model error it last answered, so one error is answered by one attempt.
    */
@@ -466,19 +475,24 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
     }
     // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
     else if ((retry.owed === undefined)
-      && (mayEndIdle({
-        watch,
-        ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
-      },))) {
+      && ((waited.unreadableSince !== undefined)
+        || mayEndIdle({
+          watch,
+          ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
+        }))) {
       /**
        What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
        build compiled is waiting for that build, so the run is kept, and sent back to it once it is over. A read of that work that
        fails is reported under its own name and keeps the run too, because a run whose work is unknown must not read as one that
        finished.
+
+       A read that has failed is asked again on every tick rather than only once the idle silence has passed again: the span after
+       which such a run ends is counted by the clock, and a silence of the run's own `--idle-seconds` would stretch it to that.
        */
       const asked = await askAboutItsWorkOrReportAFailure({
         watch,
         waited,
+        spanMilliseconds,
       },);
       if (asked === 'refused') {
         // Pi would not take the message that sends the agent back to work it left, so the run cannot go on and must not read as

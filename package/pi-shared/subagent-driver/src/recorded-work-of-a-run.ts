@@ -100,7 +100,7 @@ export async function recordedWorkStands({
     // The number holds nothing, or the folder is this account's to read no more. A number that holds nothing is a process that has
     // gone, whatever the record kept: no start time is needed to know that.
     if (theNumberGivesNoLine({ code: line.code, },)) {
-      return (work.birth === undefined) ? 'unknown' : 'ended';
+      return processHasGone({ code: line.code, },) ? 'ended' : 'unknown';
     }
     throw (line.error instanceof ProcessFileUnreadableError) ? line.error : new ProcessFileUnreadableError({
       path,
