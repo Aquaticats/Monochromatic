@@ -6,6 +6,7 @@ use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use crate::worktree_copy_stage_claim_reaping::*;
 use crate::private_storage::{create_private_directory, take_directory_syncs, take_file_syncs};
 use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
+use crate::text_without_the_paths_a_fixture_chose::without_the_paths;
 use crate::worktree_add_binding::{Recorded, bind_registration, decode_record};
 use crate::worktree_copy_journal::{create_journal, ensure_journal_root, journal_root};
 use crate::worktree_copy_journal_encoding_and_validation::JOURNAL_PARENT_NAME;
@@ -1743,8 +1744,11 @@ fn two_sweeps_of_one_dead_stage_remove_it_once_and_neither_fails() {
     assert!(!record.exists(), "its record is gone");
     assert!(!stage_claims_exist(common.as_path()).expect("claims"), "its claim is gone");
     for notice in removals.iter().chain(other_removals.iter()) {
+        // The words alone: the notice names the stage by its path, and that path begins with the folder this run's
+        //  fixture stands in, which the run names and this control does not.
+        let words: String = without_the_paths(notice.as_str(), &[root.as_path()]);
         assert!(
-            !notice.contains("cannot") && !notice.contains("could not"),
+            !words.contains("cannot") && !words.contains("could not"),
             "neither sweep reports a failure: {notice}"
         );
     }

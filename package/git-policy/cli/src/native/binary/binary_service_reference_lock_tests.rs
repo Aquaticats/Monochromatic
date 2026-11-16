@@ -21,7 +21,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::support::{Fixture, FixtureService, Observed, bounded_for, fixture, git, observe, repository, start_fixture_service, wrapper_first_path};
+use super::support::{Fixture, FixtureService, Observed, bounded_for, fixture, git, observe, paths_the_fixture_chose, repository, start_fixture_service, without_the_paths, wrapper_first_path};
 use super::support_fixture_service_log::service_log;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -415,11 +415,14 @@ fn the_words_for_a_commit_a_lock_holds_never_call_it_refused() {
     // The lines about the batch itself, which are the ones that word what became of the commit: a wait for another program's
     //  index lock says `result=refused` and is about the lock, not about the commit.
     let about_a_batch: String = logged.lines().filter(|line| { return line.contains("batch "); }).collect::<Vec<&str>>().join("\n");
-    assert!(about_a_batch.contains("a reference lock stands in the way"), "the lock the commit waits for is said: {logged}");
-    assert!(!about_a_batch.contains("refus"), "a commit that is kept and lands is not one that was refused: {logged}");
-    assert!(about_a_batch.contains("the commit ") && about_a_batch.contains("is kept"), "the line says the commit is kept: {logged}");
-    assert!(about_a_batch.contains("has not moved yet"), "the line says the branch has not moved yet: {logged}");
-    assert!(about_a_batch.contains("removing the lock") && about_a_batch.contains("rm -- "), "the line says what the person may do and gives the command: {logged}");
+    // The words alone: every such line names the repository it is about, by design (the control above requires that), and
+    //  that path begins with the folder this run's fixture stands in, which the run names and this control does not.
+    let words: String = without_the_paths(about_a_batch.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(words.contains("a reference lock stands in the way"), "the lock the commit waits for is said: {logged}");
+    assert!(!words.contains("refus"), "a commit that is kept and lands is not one that was refused: {logged}");
+    assert!(words.contains("the commit ") && words.contains("is kept"), "the line says the commit is kept: {logged}");
+    assert!(words.contains("has not moved yet"), "the line says the branch has not moved yet: {logged}");
+    assert!(words.contains("removing the lock") && words.contains("rm -- "), "the line says what the person may do and gives the command: {logged}");
     drop(service);
     remove_settled(&fixture);
 }

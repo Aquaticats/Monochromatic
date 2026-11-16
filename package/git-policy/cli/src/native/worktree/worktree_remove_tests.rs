@@ -63,7 +63,10 @@ fn btrfs_a_clean_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
         assert!(!worktree.exists());
         assert!(!repo.join(".git/worktrees/wt").exists(), "the registration is gone too");
         let listing: String = String::from_utf8_lossy(&git(repo.as_path(), &["worktree", "list", "--porcelain"]).stdout).into_owned();
-        assert!(!listing.contains("wt"), "{listing}");
+        // The listing names every worktree by its path, so the name `wt` alone says nothing: the question is whether any line
+        //  still names this worktree, whose path begins with the folder the run chose and the control did not.
+        let still_listed: String = format!("worktree {}", worktree.display());
+        assert!(!listing.lines().any(|line| { return line == still_listed; }), "the removed worktree is still listed: {listing}");
     } else {
         assert!(worktree.join("tracked.txt").is_file(), "a refusal changes nothing");
     }

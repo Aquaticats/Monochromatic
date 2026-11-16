@@ -10,6 +10,7 @@ use super::*;
 use crate::auto_push_single_flight::PushGit;
 use crate::manual_push_porcelain::{PorcelainUpdate, RemoteBefore};
 use crate::test_support::{fixture, git, remove};
+use crate::text_without_the_paths_a_fixture_chose::without_the_paths;
 use std::path::{Path, PathBuf};
 
 /// Environment every Git child of these fixtures runs with.
@@ -427,7 +428,10 @@ fn an_unreadable_remote_is_the_unreachable_cause_and_masks_the_password() {
     let error = probe_manual_push_updates(&stand_in, &[], &post(&["origin", "main"])).expect_err("the remote cannot be listed");
     assert_eq!(error.cause, ManualPushCause::RemoteUnreachable, "{error}");
     assert_eq!(error.refusal, None);
-    assert!(!error.message.contains("hunter2"), "the password must not appear: {error}");
+    // The words alone: the message names the repository by its path, and that path begins with the folder this run's fixture
+    //  stands in, which the run names and this control does not.
+    let words: String = without_the_paths(error.message.as_str(), &[repo.parent().expect("root")]);
+    assert!(!words.contains("hunter2"), "the password must not appear: {error}");
     assert!(error.message.contains("example.invalid"), "the address is still named: {error}");
     remove(repo.parent().expect("root"));
 }

@@ -23,7 +23,7 @@ use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit_until_released;
 use super::service_landing_selection::base_repository;
 use super::strace::{strace_available, strace_program};
-use super::support::{Fixture, Observed, assert_nothing_in_group, bounded_for, fixture, git, group_of, kill_with_everything_it_started, observe, repository, spawn_owned, wrapper_first_path};
+use super::support::{Fixture, Observed, assert_nothing_in_group, bounded_for, fixture, git, group_of, kill_with_everything_it_started, observe, paths_the_fixture_chose, repository, spawn_owned, without_the_paths, wrapper_first_path};
 use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
@@ -315,7 +315,10 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     assert!(line.contains("lock-marker=queued"), "the flush of the lock marker is named: {line}");
     assert_eq!(ms_of(line, "syncs_waited"), 0, "an unset `core.fsync` waits for no sync: {line}");
     assert_eq!(ms_of(line, "sync_held_ms"), 0, "nothing was waited for, so nothing was held: {line}");
-    assert!(!line.contains("lock_holder"), "nobody held the index: {line}");
+    // The words alone: this line names the repository it answered for, and that path begins with the folder this run's
+    //  fixture stands in, which the run names and this control does not.
+    let words: String = without_the_paths(line, paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("lock_holder"), "nobody held the index: {line}");
     let everything: String = std::fs::read_to_string(&places.log).expect("log") + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
     assert!(!everything.contains(MESSAGE), "the commit's text is in a log");
     assert!(!everything.contains(address), "the committer's address is in a log");

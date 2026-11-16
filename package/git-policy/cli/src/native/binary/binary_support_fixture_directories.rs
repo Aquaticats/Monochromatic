@@ -1,10 +1,15 @@
 //! What:
 //!  Making and removing the disposable directory of a fixture,
-//! and the wrapper link inside it.
+//! the wrapper link inside it,
+//! and the paths that fixture chose,
+//! which a control takes out of the text it judges.
 //! Why:
 //!  Making a fixture needs the fixture type and the limits,
 //! and nothing in the file of the helpers that run commands uses anything but its result,
-//! so the directory work lives in a file of its own.
+//! so the directory work lives in a file of its own;
+//! and a control that judged a folder's name as if it were the wrapper's words failed by the name of the
+//! run it stood in
+//! (`text_without_the_paths_a_fixture_chose.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -244,6 +249,34 @@ pub fn remove(fixture: &Fixture) {
 mod fixture_executable;
 
 pub use fixture_executable::executable;
+
+/// Cutting the paths a fixture chose out of the text a control judges,
+/// shared with the unit tests.
+#[path = "../testing/text_without_the_paths_a_fixture_chose.rs"]
+mod text_without_the_paths_a_fixture_chose;
+
+pub use text_without_the_paths_a_fixture_chose::without_the_paths;
+
+/// What:
+///  The paths this fixture chose for its own things:
+/// the folder its tree stands in,
+/// and every folder its sockets stand in.
+/// Why:
+///   A control that judges the wrapper's words takes these out first
+/// (`without_the_paths`),
+/// so that a word in a folder this run's name reaches cannot decide it.
+///  The socket folders stand outside the fixture's tree,
+/// so a caller that named the tree alone would leave one of the fixture's own paths in the text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsTheFixtureChose(fixture) // [fixture.root, ...fixture.socketFolders.made]
+/// ```
+pub fn paths_the_fixture_chose(fixture: &Fixture) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = vec![fixture.root.clone()];
+    paths.extend(fixture.socket_folders.lock().expect("the fixture's socket folders").made_folders());
+    return paths;
+}
 
 /// What:
 ///  Copy an executable through a child `cp` process,

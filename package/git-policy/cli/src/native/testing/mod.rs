@@ -43,6 +43,13 @@ pub(crate) mod argument_limit;
 #[cfg(test)]
 pub(crate) mod test_support_dead_copy_owner;
 
+/// The text a control judges,
+/// with the paths a fixture chose taken out of it,
+/// so a folder's name cannot decide a control;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod text_without_the_paths_a_fixture_chose;
+
 /// The configuration and attribute locations a content decision reads in a fixture;
 /// never part of the release executable.
 #[cfg(all(test, target_os = "linux"))]

@@ -19,6 +19,7 @@ use crate::held_commit_record::{Held, Holding, hold, path_of};
 use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, write_intent, write_start};
 use crate::service_land_start::witness_of;
 use crate::test_support::{fixture, git, git_text, remove};
+use crate::text_without_the_paths_a_fixture_chose::without_the_paths;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 
@@ -499,7 +500,10 @@ fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kep
     assert!(said.contains(format!("in the repository at {}", repo.display()).as_str()), "the line names the repository: {said}");
     assert!(said.contains("is still held"), "the commit waits for the lock: {said}");
     assert!(said.contains("is kept"), "the line says the commit is kept: {said}");
-    assert!(!said.contains("refus"), "a commit that is kept is not one that was refused: {said}");
+    // The words alone: the line names the repository and the lock by design (the assertion above requires the repository),
+    //  and both paths begin with the folder this run's fixture stands in, which the run names and this control does not.
+    let words: String = without_the_paths(said, &[root.as_path()]);
+    assert!(!words.contains("refus"), "a commit that is kept is not one that was refused: {said}");
     remove(root.as_path());
 }
 
@@ -558,5 +562,8 @@ fn the_line_about_a_held_commit_names_only_the_locks_that_stand_now() {
     remove(root.as_path());
     assert_eq!(named, &vec![standing.clone()], "only the lock that can refuse this branch write is named");
     assert!(logged.contains("refs/heads/main.lock"), "the line names the lock that stands: {logged}");
-    assert!(!logged.contains("unrelated"), "the line names no lock of another reference: {logged}");
+    // The words alone: the line names the repository and the lock by path, and both begin with the folder this run's fixture
+    //  stands in, which the run names and this control does not.
+    let words: String = without_the_paths(logged.as_str(), &[root.as_path()]);
+    assert!(!words.contains("unrelated"), "the line names no lock of another reference: {logged}");
 }

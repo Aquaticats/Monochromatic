@@ -19,7 +19,7 @@
 //! plantDeadHolderLock(repo, 'index.lock'); expect(runWrapped(repo, ['add', 'a.txt']).code).toBe(0);
 //! ```
 
-use super::support::{Fixture, Observed, executable, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
+use super::support::{Fixture, Observed, executable, fixture, git, hermetic, own_group, paths_the_fixture_chose, porcelain, repository, run_wrapped, spawn_owned, stderr_of, without_the_paths, wrapper_first_path};
 use std::os::unix::process::CommandExt as _;
 use git_policy_cli::lock_holder_records::{folder_of, identity_of_process, record_text};
 use std::path::{Path, PathBuf};
@@ -382,7 +382,9 @@ fn an_index_lock_a_killed_merge_left_is_kept_when_its_birth_order_is_unproven() 
     let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")]);
     assert!(after.lock_stands, "an order the file system does not prove keeps the lock: {}", after.said);
     assert!(after.said.contains("cannot be told apart") || after.said.contains("no birth time"), "the line says why nothing was removed: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    // The words alone: the line names the lock, and a lock's path begins with the folder this run's fixture stands in.
+    let words: String = without_the_paths(after.said.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
     assert!(elapsed < GOES_ON_WITHIN, "the command that meets it still goes on at once: {elapsed:?}");
     let _ = pid_file;
     super::commit::remove_settled(&fixture);
@@ -510,7 +512,8 @@ fn a_lock_whose_record_names_a_live_process_is_kept() {
     plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-live");
     let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
     assert!(after.lock_stands, "a lock of a live holder must stay: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim a live holder's lock was cleared: {}", after.said);
+    let words: String = without_the_paths(after.said.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("cleared"), "nothing may claim a live holder's lock was cleared: {}", after.said);
     assert!(after.said.contains("index.lock"), "the refusal must name the lock: {}", after.said);
     let _killed = holder.kill();
     let _waited = holder.wait();
@@ -635,7 +638,8 @@ fn a_lock_whose_number_a_live_process_has_is_kept() {
     plant_lock(repo.as_path(), "index.lock", live_number, Some(&dead_identity), "record-reused");
     let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
     assert!(after.lock_stands, "a number a live process has is never proved gone: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    let words: String = without_the_paths(after.said.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
     assert!(after.said.contains("live process has now"), "the line says a live process has the number: {}", after.said);
     super::commit::remove_settled(&fixture);
 }
@@ -767,7 +771,8 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
     assert!(after.lock_stands, "a writer this account cannot look into keeps the lock: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    let words: String = without_the_paths(after.said.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
     let _killed = holder.kill();
     let _waited = holder.wait();
     super::commit::remove_settled(&fixture);
@@ -824,7 +829,8 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
     plant_lock(repo.as_path(), "index.lock", pid, None, "record-unused");
     let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
     assert!(after.lock_stands, "a lock no record explains must stay (exit {:?}): {}", after.code, after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim an unproven lock was cleared: {}", after.said);
+    let words: String = without_the_paths(after.said.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("cleared"), "nothing may claim an unproven lock was cleared: {}", after.said);
     assert!(after.said.contains("index.lock"), "the message must name the lock (exit {:?}): {}", after.code, after.said);
     assert!(after.said.contains("no record"), "the message must say no record of the wrapper's commands explains that number: {}", after.said);
     assert!(after.said.contains("removing the file"), "the message must say what a person can do: {}", after.said);
@@ -878,7 +884,10 @@ fn two_commands_meeting_one_dead_lock_clear_it_once_and_both_end_correctly() {
     }
     assert_eq!(codes, vec![Some(0), Some(0)], "both commands must end correctly: {said}");
     assert!(!repo.join(".git/index.lock").exists(), "the lock must be gone");
-    let cleared: usize = said.matches("cleared").count();
+    // The words alone: the message names the lock it cleared, and that path begins with the folder this run's fixture
+    //  stands in, which the run names and this control does not.
+    let words: String = without_the_paths(said.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    let cleared: usize = words.matches("cleared").count();
     assert!(cleared <= 1, "one removal is told once, and the other command finds no lock to clear: {said}");
     let staged: String = porcelain(&fixture, repo.as_path());
     assert!(staged.contains("first.txt"), "the writer's file is staged: {staged}");

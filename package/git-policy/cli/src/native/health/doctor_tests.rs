@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use crate::text_without_the_paths_a_fixture_chose::without_the_paths;
 use std::io::ErrorKind;
 
 /// Names of the paths in a list,
@@ -318,7 +319,10 @@ fn only_git_lfs_shims_exit_zero_with_the_explanation() {
     ] {
         assert!(stderr.contains(needle), "{needle}: {stderr}");
     }
-    assert!(!stderr.contains("unsupported"), "{stderr}");
+    // The words alone: the report names the shim files by their paths, and those begin with the folder this run's fixture
+    //  stands in, which the run names and this control does not.
+    let words: String = without_the_paths(stderr.as_str(), &[root.as_path()]);
+    assert!(!words.contains("unsupported"), "{stderr}");
     remove(root.as_path());
 }
 

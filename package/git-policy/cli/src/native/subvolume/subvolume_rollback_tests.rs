@@ -16,6 +16,7 @@ use crate::subvolume_preflight::layout_of;
 use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, index_inode, migrate_arguments, run_command};
 use std::os::unix::fs::MetadataExt;
 use crate::test_support::{git_text, remove};
+use crate::text_without_the_paths_a_fixture_chose::without_the_paths;
 use std::cell::RefCell;
 use std::fs::File;
 
@@ -1172,7 +1173,10 @@ fn a_rollback_preview_before_the_exchange_is_not_refused() {
     let (code2, lines2) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
     assert_eq!(code2, DONE, "{lines2:#?}");
     let said: String = lines2.join("\n");
-    assert!(said.contains("would restore") && !said.contains("refused"), "{said}");
+    // The words alone: a line names the trees it would restore by their paths, and those begin with the folder this run's
+    //  fixture stands in, which the run names and this control does not.
+    let words: String = without_the_paths(said.as_str(), &[parent.as_path()]);
+    assert!(words.contains("would restore") && !words.contains("refused"), "{said}");
     // The preview promised what the real mode does.
     let (code3, lines3) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code3, DONE, "{lines3:#?}");
@@ -1250,7 +1254,9 @@ fn a_rollback_preview_after_the_exchange_is_not_refused() {
     let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
     assert_eq!(preview_code, DONE, "{preview_lines:#?}");
     let said: String = preview_lines.join("\n");
-    assert!(said.contains("would restore") && !said.contains("refused"), "{said}");
+    // The words alone, for the reason the preview before the exchange gives above.
+    let words: String = without_the_paths(said.as_str(), &[parent.as_path()]);
+    assert!(words.contains("would restore") && !words.contains("refused"), "{said}");
     // The preview promised what the real mode does.
     let (real_code, real_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(real_code, DONE, "{real_lines:#?}");

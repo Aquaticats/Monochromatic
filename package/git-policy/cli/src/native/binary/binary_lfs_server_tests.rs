@@ -9,7 +9,7 @@
 //!  `binary_lfs_pre_push_tests.rs` cover the same paths there.
 
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, fixture, git, observe, paths_the_fixture_chose, repository, stderr_of, without_the_paths};
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -507,7 +507,10 @@ fn a_server_error_ends_a_typed_push_at_once() {
     assert_eq!(batches(&server), 1, "one refused batch request and no second run: {stderr}");
     assert!(!stderr.contains("retry 1"), "{stderr}");
     assert!(stderr.contains("from HTTP 503") && stderr.contains("nothing was published"), "{stderr}");
-    assert!(!stderr.contains("secret"), "{stderr}");
+    // The words alone: this output names the repository and the remote it pushed to, and those paths begin with the folder
+    //  this run's fixture stands in, which the run names and this control does not.
+    let words: String = without_the_paths(stderr.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("secret"), "{stderr}");
     assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
     assert!(server.uploads().is_empty());
     drop(server);
@@ -541,7 +544,10 @@ fn an_auto_push_that_meets_a_server_error_is_left_to_the_services_retry_plan() {
     assert_eq!(batches(&server), 1, "one refused batch request, and the new try is the plan's, far off: {report}");
     assert!(report.contains("tries this push again by itself"), "{report}");
     assert!(report.contains("http://<credentials>@127.0.0.1"), "{report}");
-    assert!(!report.contains("secret"), "{report}");
+    // The words alone: the report names the repository and the `git-lfs` log file by their paths, and those begin with the
+    //  folder this run's fixture stands in, which the run names and this control does not.
+    let words: String = without_the_paths(report.as_str(), paths_the_fixture_chose(&fixture).as_slice());
+    assert!(!words.contains("secret"), "{report}");
     assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{report}");
     drop(server);
     remove_settled(&fixture);

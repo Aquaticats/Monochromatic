@@ -25,7 +25,8 @@
 //! ```
 
 use super::support::{
-    Fixture, Observed, bounded_for, executable, fixture, git, remove, run_wrapped, stderr_of, wrapper_first_path,
+    Fixture, Observed, bounded_for, executable, fixture, git, paths_the_fixture_chose, remove, run_wrapped, stderr_of, without_the_paths,
+    wrapper_first_path,
 };
 use super::worktree_copy::repository_with_rules;
 use std::os::unix::io::AsRawFd;
@@ -109,6 +110,19 @@ impl Held {
             .output()
             .expect("the command starts");
         return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+    }
+
+    /// What:
+    ///  What a command of this fixture said on standard error,
+    /// with the paths the fixture chose taken out.
+    /// Why:
+    ///   A copy summary names the worktree it copied into,
+    /// and that path begins with the folder this run's fixture stands in,
+    /// which the run names and the control does not,
+    /// so judging the summary as it stands would let a folder's name decide the control
+    /// (`support::without_the_paths`).
+    fn words_of(&self, observed: &Observed) -> String {
+        return without_the_paths(stderr_of(observed).as_str(), paths_the_fixture_chose(&self.fixture).as_slice());
     }
 
     /// Start the add of `held` and wait until Git's checkout reached the stalled filter.
@@ -234,7 +248,7 @@ fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_
     assert_eq!(free.code, Some(0), "the second add waited or failed: {}", stderr_of(&free));
     assert!(held.held_is_running(), "the first add must still be inside its real Git when the second ends");
     let waiting: String = stderr_of(&free);
-    assert!(!waiting.contains("waiting"), "{waiting}");
+    assert!(!held.words_of(&free).contains("waiting"), "{waiting}");
     assert!(waiting.starts_with(COPY_SUMMARY_START), "{waiting}");
     assert!(waiting.ends_with(ONE_WORKTREE_SUMMARY_END), "the second add copied into more than its own worktree: {waiting}");
     let root: PathBuf = held.fixture.root.clone();
@@ -244,7 +258,7 @@ fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let summary: String = stderr_of(&first);
     assert!(summary.ends_with(ONE_WORKTREE_SUMMARY_END), "the first add copied into more than its own worktree: {summary}");
-    assert!(!summary.contains("recovered"), "{summary}");
+    assert!(!held.words_of(&first).contains("recovered"), "{summary}");
     assert_eq!(std::fs::read(root.join("held").join(RULES_FILE)).expect("held's rules"), format!("{}\n", super::worktree_copy::needle()).into_bytes());
     assert_eq!(std::fs::read(root.join("held/heavy/data")).expect("held's heavy tree"), b"payload\n");
     let common: PathBuf = std::fs::canonicalize(held.repo.join(".git")).expect("common directory");
@@ -279,7 +293,7 @@ fn a_removal_finishes_while_an_add_is_running() {
     held.start_held_add();
     let removed: Observed = held.run(held.repo.as_path(), &["worktree", "remove", "--force", "../old"]);
     assert_eq!(removed.code, Some(0), "the removal waited or failed: {}", stderr_of(&removed));
-    assert!(!stderr_of(&removed).contains("waiting"), "{}", stderr_of(&removed));
+    assert!(!held.words_of(&removed).contains("waiting"), "{}", stderr_of(&removed));
     assert!(!held.fixture.root.join("old").exists());
     assert!(held.held_is_running());
     let first: Observed = held.release_and_finish();
@@ -295,8 +309,8 @@ fn a_conversion_check_finishes_while_an_add_is_running() {
     held.start_held_add();
     let planned: Observed =
         held.run(held.repo.as_path(), &["monochromatic-git-policy-cli", "convert-worktree-to-subvolume", "--dry-run", "../old"]);
-    assert!(!stderr_of(&planned).contains("waiting"), "{}", stderr_of(&planned));
-    assert!(!stderr_of(&planned).contains("settlement"), "{}", stderr_of(&planned));
+    assert!(!held.words_of(&planned).contains("waiting"), "{}", stderr_of(&planned));
+    assert!(!held.words_of(&planned).contains("settlement"), "{}", stderr_of(&planned));
     assert!(held.held_is_running());
     let first: Observed = held.release_and_finish();
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
@@ -326,7 +340,7 @@ fn an_add_beside_a_running_conversion_neither_waits_nor_touches_it() {
     std::fs::write(admin.join("index.lock"), token).expect("conversion index lock");
     let added: Observed = held.run(old.as_path(), &["worktree", "add", "--quiet", "-b", "beside", "../beside"]);
     assert_eq!(added.code, Some(0), "the add waited or failed: {}", stderr_of(&added));
-    assert!(!stderr_of(&added).contains("waiting"), "{}", stderr_of(&added));
+    assert!(!held.words_of(&added).contains("waiting"), "{}", stderr_of(&added));
     assert!(held.fixture.root.join("beside/.git").exists());
     assert_eq!(std::fs::read(admin.join("index.lock")).expect("the conversion's index lock stays"), token);
     // SAFETY: as above; a second non-blocking lock from another open file shows the kernel lock is still held.
@@ -356,7 +370,7 @@ fn an_add_killed_inside_its_real_git_does_not_hold_up_the_next_add() {
     assert_ne!(killed.code, Some(0), "the killed add cannot have succeeded");
     let free: Observed = held.run(held.repo.as_path(), &["worktree", "add", "--quiet", "-b", "free", "../free"]);
     assert_eq!(free.code, Some(0), "the next add waited or failed: {}", stderr_of(&free));
-    assert!(!stderr_of(&free).contains("waiting"), "{}", stderr_of(&free));
+    assert!(!held.words_of(&free).contains("waiting"), "{}", stderr_of(&free));
     assert!(stderr_of(&free).ends_with(ONE_WORKTREE_SUMMARY_END), "{}", stderr_of(&free));
     assert!(held.fixture.root.join("free").join(RULES_FILE).exists());
     let again: Observed = run_wrapped(&held.fixture, held.fixture.root.join("free").as_path(), &["rev-parse", "--is-inside-work-tree"]);
