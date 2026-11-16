@@ -41,6 +41,7 @@ use super::commit::{git_text, remove_settled};
 use super::fault::{COMMIT_ARGUMENTS, staged_repository, verify_recovery, verify_recovery_with};
 use super::fault_run::{SWEEP_WIDTH, end_the_pressure, run_unsettled, run_watched, unbounded_wrapper};
 use super::support::{Fixture, FixtureService, LimitKind, ServiceEnd, ServiceLaunch, fixture};
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
@@ -195,7 +196,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     // The pressure ends here, which closes every service's stream; the limited attempt's words are then complete, and
     //  they are read now, because the recovery adds its own lines to the same file and its commit is not this case's.
     end_the_pressure(&fixture);
-    let limited_log: String = the_service_log_of(&fixture);
+    let limited_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
     let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
     let judged: Result<(), String> = if verify {
         first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); })
@@ -203,7 +204,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
         Ok(())
     };
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND));
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);
@@ -244,7 +245,10 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 /// so a read made before the recovery runs holds the limited attempt's words alone,
 /// and a read made after it holds both,
 /// which `the_log_of_the_recovery` tells apart by this text rather than by a byte count that changes between the reads.
-fn the_service_log_of(fixture: &Fixture) -> String {
+fn the_service_log_of(fixture: &Fixture, bound: std::time::Duration) -> String {
+    // This seam is the shape a case already read in; the wait this bound is for comes with the control below, which
+    //  fails here.
+    let _until_the_copy_is_waited_for = bound;
     return std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
 }
 
@@ -728,6 +732,199 @@ fn a_failure_carries_what_the_fixture_service_logged() {
     drop(repo);
 }
 
+/// The words a reading carries when the copy of a service's stream had not ended within the bound that reading gave:
+/// the words `the_service_log_of` writes,
+/// so the read that writes them and the control that expects them name them once.
+const A_READING_THAT_COULD_NOT_WAIT_SAYS_SO: &str = "the copy of a service's stream had not ended";
+
+/// The letter the stand-in for the limited attempt's service writes into its own stream.
+const THE_LIMITED_ATTEMPT_WRITES: u8 = b'l';
+
+/// The letter the stand-in for the service of the recovery writes into its own stream.
+const THE_RECOVERY_WRITES: u8 = b'r';
+
+/// What:
+///  The words one stand-in for a service writes:
+///  a letter of its own, so a byte of it in a reading belongs to that service and no other.
+/// Why not a line a service would say:
+///  the copy of a stream carries a service's words in chunks (`SERVICE_LOG_COPY_CHUNK_BYTES`),
+/// and a control that needs bytes the copy has not written yet needs more than one chunk of them.
+fn the_words_of_a_stand_in_service(letter: u8) -> String {
+    return String::from_utf8(vec![letter; super::support::SERVICE_LOG_COPY_CHUNK_BYTES * 2]).expect("an ASCII letter is text");
+}
+
+/// What:
+///  Records the end of a copy of a service's stream with the fixture's service,
+///  so a read of the log waits for the copies this control writes itself.
+/// Why:
+///  The fixture's own copies are the ones its services' streams started;
+/// a control that stands in for a service starts the pipe and the copy itself, so it is the one that tells the wait.
+fn record_a_copy_of_the_service_log(fixture: &Fixture, when_the_copy_ends: std::sync::mpsc::Receiver<()>) {
+    let service = fixture.service.lock().expect("the fixture's service lock");
+    let installed: &FixtureService = service.as_ref().expect("the fixture's service, which `service_runtime` installed");
+    installed.record_a_log_copy(when_the_copy_ends);
+}
+
+/// What:
+///  This test process's own error stream, taken and replaced by a pipe that is full and that nothing reads,
+///  and given back when this control ends however it ends.
+/// Why:
+///  The copy of a service's stream writes each chunk into the log and then into this process's error stream, in that
+/// order,
+/// so a stream that takes no more bytes holds the copy with the service's later bytes still in the pipe:
+/// a person's terminal that cannot keep up, and a host under load, leave the log in that state for a moment.
+///  The stream is the same one a panic writes to, and a panic that cannot write would hold the whole run,
+/// so a control holds the stream only across calls that cannot panic,
+///  asserts nothing until it is given back,
+/// and this guard gives it back on the way out and on the way out of a panic.
+struct StderrHeldAsAPipeThatIsFull {
+    /// The stream this control found and puts back on the same number.
+    found: Option<std::os::fd::OwnedFd>,
+    /// The end the words are read from when the copy must be let through.
+    reader: Option<std::io::PipeReader>,
+    /// The thread that reads them, joined when the stream is given back.
+    draining: Option<std::thread::JoinHandle<()>>,
+}
+
+impl StderrHeldAsAPipeThatIsFull {
+    /// Takes this process's error stream and puts a full pipe in its place.
+    fn hold() -> Self {
+        // SAFETY: `dup` takes a descriptor and returns one, and touches no memory of this process.
+        let found_number: libc::c_int = unsafe { libc::dup(libc::STDERR_FILENO) };
+        assert!(found_number >= 0, "this process's error stream is kept before the pipe stands in for it: {}", std::io::Error::last_os_error());
+        // SAFETY: the number is this process's own descriptor, and it is owned from here.
+        let found: std::os::fd::OwnedFd = unsafe { std::os::fd::OwnedFd::from_raw_fd(found_number) };
+        let (reader, mut writer): (std::io::PipeReader, std::io::PipeWriter) = std::io::pipe().expect("a pipe to stand in for this process's error stream");
+        // The pipe is filled first and left blocking after: the copy's own write must be able to wait, and one that
+        //  could not would end with an error nobody reads.
+        // SAFETY: `fcntl` reads and writes the flags of a descriptor this process owns.
+        let flags: libc::c_int = unsafe { libc::fcntl(writer.as_raw_fd(), libc::F_GETFL) };
+        assert!(flags >= 0, "the flags of the pipe's writing end are read: {}", std::io::Error::last_os_error());
+        // SAFETY: as above.
+        let made_nonblocking: libc::c_int = unsafe { libc::fcntl(writer.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) };
+        assert_eq!(made_nonblocking, 0, "the pipe takes what it is given until it is full: {}", std::io::Error::last_os_error());
+        let filler: Vec<u8> = vec![b' '; super::support::SERVICE_LOG_COPY_CHUNK_BYTES];
+        loop {
+            match std::io::Write::write(&mut writer, filler.as_slice()) {
+                Ok(written) if written > 0 => {}
+                // A pipe that takes nothing is full, which is the state this control needs.
+                Ok(_) => break,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => panic!("the pipe that stands in for this process's error stream is filled: {error}"),
+            }
+        }
+        // SAFETY: as above.
+        let made_blocking: libc::c_int = unsafe { libc::fcntl(writer.as_raw_fd(), libc::F_SETFL, flags) };
+        assert_eq!(made_blocking, 0, "the pipe's writing end is blocking again: {}", std::io::Error::last_os_error());
+        // SAFETY: `dup2` copies a descriptor this process owns onto a number it owns.
+        let put: libc::c_int = unsafe { libc::dup2(writer.as_raw_fd(), libc::STDERR_FILENO) };
+        assert_eq!(put, libc::STDERR_FILENO, "the pipe's writing end stands on this process's error stream: {}", std::io::Error::last_os_error());
+        drop(writer);
+        return Self { found: Some(found), reader: Some(reader), draining: None };
+    }
+
+    /// What:
+    ///  Reads the pipe, so the copy it holds writes the rest of the service's words and ends,
+    ///  as a terminal that takes the words again does.
+    fn let_the_copy_finish(&mut self) {
+        let Some(mut reader) = self.reader.take() else { return };
+        self.draining = Some(std::thread::spawn(move || {
+            let mut thrown_away: std::io::Sink = std::io::sink();
+            // The words stand in for a person's stream, so what comes out is thrown away and only the room matters.
+            let _copied: u64 = std::io::copy(&mut reader, &mut thrown_away).unwrap_or_default();
+        }));
+    }
+
+    /// Puts the stream this control found back where a person's output goes, and waits for the thread that read the
+    /// pipe: that thread ends when the pipe's last writing end goes with the stream's own number.
+    fn restore(&mut self) {
+        if let Some(found) = self.found.take() {
+            // SAFETY: `dup2` copies a descriptor this process owns onto a number it owns.
+            let _put_back: libc::c_int = unsafe { libc::dup2(found.as_raw_fd(), libc::STDERR_FILENO) };
+        }
+        if let Some(draining) = self.draining.take() {
+            let _joined = draining.join();
+        }
+    }
+}
+
+impl Drop for StderrHeldAsAPipeThatIsFull {
+    fn drop(&mut self) {
+        self.restore();
+    }
+}
+
+/// What:
+///  A case's two service logs hold what each service wrote,
+///  and a reading made while the copy of a stream still holds bytes says so
+///  instead of standing as that service's complete words under its label.
+/// Why:
+///  A case's failure names what the limited attempt's service wrote and, separately, what the service of the recovery
+/// wrote,
+/// and a person reads those two labels to learn which service said what.
+///  The copy of a service's stream runs on a thread of its own:
+/// it writes each chunk into the log and then into the person's stream,
+/// so the log holds what the service wrote only once that thread has ended,
+/// and a reading made before it is a strict prefix of the service's words.
+///  What the copy writes after that reading lands after the recovery's own words,
+/// and `the_log_of_the_recovery` takes the first reading off the front of the log,
+/// so the limited attempt's last words would be read as the recovery's, and the recovery's own could be short too.
+///  This control puts a copy in exactly that state by holding this process's error stream full,
+/// then reads the log the way a case does.
+#[test]
+fn a_case_reads_a_service_log_only_after_the_copy_of_its_stream_ended_or_says_it_could_not_wait() {
+    let ended_within: std::time::Duration = super::support::SERVICE_LOG_END_BOUND;
+    let fixture: Fixture = fixture("service-log-early-read");
+    let _runtime: Option<PathBuf> = super::support::service_runtime(&fixture);
+    let limited_words: String = the_words_of_a_stand_in_service(THE_LIMITED_ATTEMPT_WRITES);
+    let recovery_words: String = the_words_of_a_stand_in_service(THE_RECOVERY_WRITES);
+    let mut held: StderrHeldAsAPipeThatIsFull = StderrHeldAsAPipeThatIsFull::hold();
+    let (limited_writer, limited_end): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the words of the limited attempt's service");
+    record_a_copy_of_the_service_log(&fixture, limited_end);
+    let mut limited_stream: std::fs::File = std::fs::File::from(limited_writer);
+    std::io::Write::write_all(&mut limited_stream, limited_words.as_bytes()).expect("the limited attempt's words go into its stream");
+    // Closing the writing end is the service's own end: the copy then writes what it holds and ends.
+    drop(limited_stream);
+    let log_path: PathBuf = fixture.root.join(super::support::SERVICE_LOG_FILE);
+    let began: std::time::Instant = std::time::Instant::now();
+    let mut written: u64 = 0;
+    while written == 0 && began.elapsed() < ended_within {
+        written = std::fs::metadata(log_path.as_path()).map(|metadata| { return metadata.len(); }).unwrap_or_default();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The reading a case makes as soon as the pressure ended. Between here and the assertions below nothing may panic:
+    //  the error stream is a pipe this control fills and drains, so a panic's own words would go into that pipe.
+    let at_once: String = the_service_log_of(&fixture, A_WAIT_GIVES_UP_AFTER);
+    // The stream takes words again, as a terminal does when the person scrolls, so the copy ends and the log is whole.
+    held.let_the_copy_finish();
+    let settled: String = the_service_log_of(&fixture, ended_within);
+    // The recovery's service writes into the same log after that, and the copy of its words ends too.
+    let (recovery_writer, recovery_end): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the words of the recovery's service");
+    record_a_copy_of_the_service_log(&fixture, recovery_end);
+    let mut recovery_stream: std::fs::File = std::fs::File::from(recovery_writer);
+    std::io::Write::write_all(&mut recovery_stream, recovery_words.as_bytes()).expect("the recovery's words go into its stream");
+    drop(recovery_stream);
+    let whole: String = the_service_log_of(&fixture, ended_within);
+    held.restore();
+    assert!(written > 0, "the copy wrote nothing into the log within {ended_within:?}, so this control has no reading to judge");
+    assert!(
+        at_once == limited_words || at_once.contains(A_READING_THAT_COULD_NOT_WAIT_SAYS_SO),
+        "a reading made while the copy still held the service's later bytes must hold every byte the service wrote or say the copy had not ended, and it held {} of {} bytes and said nothing about the copy",
+        at_once.len(),
+        limited_words.len()
+    );
+    assert_eq!(settled, limited_words, "a reading made after the copy ended holds every byte the limited attempt's service wrote");
+    assert_eq!(whole, format!("{limited_words}{recovery_words}"), "the log after the recovery holds the words of both services, each once");
+    assert_eq!(
+        the_log_of_the_recovery(&settled, &whole),
+        recovery_words,
+        "the recovery's part is the recovery's own words, and none of the limited attempt's"
+    );
+    remove_settled(&fixture);
+}
+
 /// How long one wait for the log's copies is let run in the controls that hold a copy open:
 /// short, because the copy they hold cannot end in it,
 /// and a wait is judged by what it answers and not by how long it waited.
@@ -937,11 +1134,11 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let first: Result<(), String> = check_limited_run(label, &output, false);
     // The pressure ends here, so the limited attempt's words are complete and are read before the recovery adds its own.
     end_the_pressure(&fixture);
-    let limited_log: String = the_service_log_of(&fixture);
+    let limited_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
     let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
     let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND));
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);

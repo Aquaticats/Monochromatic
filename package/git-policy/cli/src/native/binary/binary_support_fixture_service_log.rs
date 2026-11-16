@@ -36,6 +36,13 @@ pub const SERVICE_LOG_FILE: &str = "service.log";
 /// and the rest would bury the failure it belongs to.
 const SERVICE_LOG_KEPT_BYTES: u64 = 8 * 1024;
 
+/// How many bytes of a service's stream the copy of it writes at a time:
+/// one read of the pipe, and one write into the log,
+/// so a service's words reach the log in steps and a copy can stand between two of them.
+/// A control that needs bytes the copy has not written yet writes more than one of these
+/// (`fault_limits::a_case_reads_a_service_log_only_after_the_copy_of_its_stream_ended_or_says_it_could_not_wait`).
+pub const SERVICE_LOG_COPY_CHUNK_BYTES: usize = 4096;
+
 /// What:
 ///  The writing end of a pipe whose other end copies what a service writes on standard error into
 ///  `SERVICE_LOG_FILE` under `root` and into this test's own error stream,
@@ -57,7 +64,7 @@ pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<(OwnedFd, std::sync::mps
     let (ended, when_it_ends): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut file: Option<std::fs::File> = std::fs::OpenOptions::new().create(true).append(true).open(path.as_path()).ok();
-        let mut chunk: [u8; 4096] = [0; 4096];
+        let mut chunk: [u8; SERVICE_LOG_COPY_CHUNK_BYTES] = [0; SERVICE_LOG_COPY_CHUNK_BYTES];
         loop {
             match std::io::Read::read(&mut reader, &mut chunk) {
                 Ok(0) => break,
