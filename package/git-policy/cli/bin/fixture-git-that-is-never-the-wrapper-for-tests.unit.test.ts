@@ -92,7 +92,7 @@ const documentedEnvironmentVariables = [
   'GIT_COMMITTER_DATE',
   'EMAIL',
   /**
-   Configuration from the environment or from a file: `commit.gpgsign` from here fails a commit that has no key.
+   Configuration from the environment or from a file: a setting Git cannot read fails the commit that inherits it.
    */
   'GIT_CONFIG',
   'GIT_CONFIG_PARAMETERS',
@@ -232,7 +232,7 @@ function hostileValueOf({
     case 'GIT_CONFIG_SYSTEM':
       return hostileConfig;
     case 'GIT_CONFIG_PARAMETERS':
-      return "'commit.gpgsign=true'";
+      return "'commit.cleanup=hostile'";
     case 'GIT_EXEC_PATH':
       return join(
         decoy,
@@ -584,7 +584,8 @@ async function buildUnderHostileEnvironment({
     'decoy',
   ), });
   /**
-   The configuration file a hostile `GIT_CONFIG*` names, whose one setting fails a commit that has no signing key.
+   The configuration file a hostile `GIT_CONFIG*` names, whose one setting is a value Git refuses, so a commit that
+   inherits it fails before it writes anything and no signing program is started.
    */
   const hostileConfig = join(
     scratchPath,
@@ -592,7 +593,7 @@ async function buildUnderHostileEnvironment({
   );
   await writeFile(
     hostileConfig,
-    '[commit]\n\tgpgsign = true\n'
+    '[commit]\n\tcleanup = hostile\n'
   );
   /**
    The decoy as it stands before the fixture is built.
