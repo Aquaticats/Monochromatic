@@ -1695,6 +1695,11 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   an end of the connection before the service reads a wake is answered as a hand-over that succeeded, so a landed commit can stay unpushed (`service/service_client.rs` lines 570 to 599).
   By reading: the removal of a journal's stage falls back to a plain `remove_dir_all` with no bound. Trigger by reading, state reproduced: a failed staging marker makes every prewarm attempt refuse the moved-aside state.
   Author's eighth run queued at 22:11:00, fourth in the queue, and asked whether `main` has each. Passes 29 and 34 keep waiting.
+  Read in `main`'s own files at 22:14 (reading, no run on `main`): the first three are there in the same shape.
+  `repair/package_repair_toolchain.rs` line 425 has the counter as a `static` that starts at zero in each process, line 436 the name `<record>.removing-<pid>-<token>`, line 438 a plain `rename`, and line 538 the test that a process of that number exists, with no birth;
+  `service/service_client.rs` lines 564 to 581 reject `Wrote::Ended` alone and answer `Ok(())` when `read_message` gives nothing;
+  `worktree_copying/worktree_copy_journal_removal.rs` line 445 falls back to `std::fs::remove_dir_all(path)`.
+  The fourth is in code only the branch has (`note_that_a_filling_made` and `a_filling_made_this` do not occur in `main`'s `package_repair_prewarm_job.rs`).
 - **The service logs of a control under a limit**, fresh run ended at 22:09 at `b0f446fe7b` (four files, test support). Review queued at 22:11:00.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
