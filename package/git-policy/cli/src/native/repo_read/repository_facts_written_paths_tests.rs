@@ -894,3 +894,77 @@ fn a_source_with_a_trailing_separator_is_read_as_its_name() {
 }
 
 //endregion
+
+//region The twelfth review's eighth finding: a word Git refuses itself as no commit
+
+/// What:
+///  A repository whose branch `other` adds `other.txt`,
+///  so `other`, `other^{tree}` and `other:` all name something and only the first is a commit.
+/// Why:
+///  The three words are the control this region needs:
+///  the branch is the tree a forced move writes,
+///  and the two tree spellings are the words Git's own `checkout`, `switch` and `reset --hard` refuse
+///  before they write anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repositoryWithABranchWhoseTreeHasAFile('written-no-commit');
+/// ```
+fn repository_with_a_branch_whose_tree_has_a_file(name: &str) -> (PathBuf, PathBuf) {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file(name);
+    git(repository.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repository.join("other.txt"), b"from the other branch\n").expect("the other branch's file");
+    git(repository.as_path(), &["add", "--", "other.txt"]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=other", "--", "other.txt"]);
+    git(repository.as_path(), &["checkout", "--quiet", "main"]);
+    return (directory, repository);
+}
+
+/// What:
+///  A word that names a tree, asked of a form whose own command writes a commit, writes no path;
+///  and the same word asked of a form whose command takes a tree still writes the tree's paths.
+/// Why:
+///  `git checkout -f other^{tree}`, `git switch -f --detach other^{tree}` and `git reset --hard other:`
+///  are Git's own refusals (`fatal: Cannot switch branch to a non-commit`,
+///  `error: object … is a tree, not a commit`), so the guard refusing the file the tree holds was a
+///  refusal of a command no person's data could be lost to, with a sentence about a loss that could not
+///  happen (the twelfth review's eighth finding).
+///  A path form and a `read-tree` do take a tree
+///  (`git restore --source=other^{tree} -- tracked.txt` exits 0, measured on this host with native Git
+///  2.56.0, 2026-11-16), so the commit requirement belongs to the whole-tree forms and not to the word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // treeOf(repo, 'other', true) === ['other.txt', 'tracked.txt']
+/// // treeOf(repo, 'other^{tree}', true) === []  while git checkout -f 'other^{tree}' exits nonzero
+/// ```
+#[test]
+fn a_word_that_names_no_commit_writes_no_path_through_a_whole_tree_form() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_a_branch_whose_tree_has_a_file("written-no-commit");
+    // The control: the branch's own tree is what a forced move writes, so the reading can name paths here.
+    assert_eq!(tree_of(repository.as_path(), "other", true), Ok(vec![b"other.txt".to_vec(), b"tracked.txt".to_vec()]));
+    for word in ["other^{tree}", "other:"] {
+        // Git's own command refuses this word before it writes anything.
+        for arguments in [vec!["checkout", "-f", word], vec!["switch", "-f", "--detach", word], vec!["reset", "--hard", "--end-of-options", word]] {
+            let observed: std::process::Output = crate::command_test_support::git_status(repository.as_path(), arguments.as_slice());
+            assert!(!observed.status.success(), "the control needs Git to refuse {arguments:?}: {observed:?}");
+        }
+        assert_eq!(tree_of(repository.as_path(), word, true), Ok(Vec::<Vec<u8>>::new()), "{word}");
+        assert_eq!(tree_of(repository.as_path(), word, false), Ok(Vec::<Vec<u8>>::new()), "{word}");
+    }
+    // The same tree through a form that takes a tree: the paths are still read.
+    let mut facts: GitFacts = facts_in(repository.as_path());
+    let paths: Result<Vec<Vec<u8>>, String> = inside_paths(paths_the_tree_writes(
+        &mut facts,
+        &WrittenPaths::MatchingTree {
+            revision: Some(OsString::from("other^{tree}")),
+            pathspecs: vec![OsString::from("other.txt")],
+            prefers_a_local_branch: true,
+        },
+        repository.as_path(),
+    ));
+    assert_eq!(paths, Ok(vec![b"other.txt".to_vec()]));
+    remove(directory.as_path());
+}
+
+//endregion

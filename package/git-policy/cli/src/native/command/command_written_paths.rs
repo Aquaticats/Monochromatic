@@ -135,6 +135,8 @@ pub enum WrittenEntries {
 pub enum WrittenPaths {
     /// Every path of the revision's tree,
     ///  `HEAD` when the form names none.
+    ///  The form moves `HEAD` or resets the worktree to that revision,
+    ///  which Git does only for a commit and refuses itself for any other object.
     Tree {
         /// The revision the form names,
         ///  or nothing for `HEAD`.

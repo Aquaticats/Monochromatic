@@ -278,3 +278,109 @@ fn no_documented_revision_spelling_is_refused_where_git_runs_it() {
     println!("rows: {rows}; rows where Git ran the form and the wrapper refused it: {}", failures.len());
     assert!(failures.is_empty(), "{} rows:\n{}", rows, failures.join("\n"));
 }
+
+/// What:
+///  One row of the eighth finding's axis: what the arm exited with, whether it was refused, whether the
+///  person's file is still theirs, and the whole of its standard error.
+/// Why:
+///  The row this test asks about is one the wrapper must *not* refuse, so the sentence the person reads has
+///  to be Git's own, and that is only visible in the standard error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneRow = (label, before, revision, wrappedArm) => ({ code, refused, kept, stderr });
+/// ```
+fn one_row(label: &str, before: &[&'static str], revision: &str, wrapped_arm: bool) -> (Option<i32>, bool, bool, String) {
+    let fixture: Fixture = fixture(label);
+    let linked: PathBuf = prepared(&fixture);
+    let watched: &str = planted(revision);
+    plant(linked.as_path(), watched);
+    let mut command: std::process::Command = if wrapped_arm { wrapped(&fixture) } else { direct(&fixture) };
+    command.current_dir(linked.as_path()).args(before).arg(revision);
+    let observed: Observed = observe(&mut command, b"");
+    let answer: (Option<i32>, bool, bool, String) = (
+        observed.code,
+        refused(&observed),
+        kept(linked.as_path(), watched),
+        stderr_of(&observed).to_owned(),
+    );
+    remove(&fixture);
+    return answer;
+}
+
+/// What:
+///  A word Git's own command refuses as no commit, in front of a form that writes a whole tree:
+///  the wrapper runs the command, Git's refusal answers, and the person's file is kept.
+/// Why:
+///  The twelfth review's eighth finding: `checkout -f other^{tree}`, `switch -f --detach other^{tree}`,
+///  `checkout -f other:` and the same words through `reset --hard` were refused for the file the tree
+///  holds, while real Git refuses the word before it writes anything. The guard's sentence then described
+///  a loss that could not happen, and the person had to spend the opt-out to see Git's own answer.
+///  The branch itself is the positive control: with the same plant, the wrapper must refuse that row and
+///  keep the file, so a row that runs proves the wrapping, not a fixture that lets everything through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const revision of ['other^{tree}', 'other:']) for (const form of commitForms)
+///   expect(nativeExit(revision)).not.toBe(0);
+///   expect(wrappedRefused(revision)).toBe(false);
+///   expect(wrappedKept(revision)).toBe(true);
+/// for (const form of commitForms) expect(wrappedRefused('other')).toBe(true);
+/// ```
+#[test]
+fn a_word_git_refuses_as_no_commit_is_left_to_git() {
+    let commits: Vec<(&'static str, Vec<&'static str>)> = vec![
+        ("checkout -f", vec!["checkout", "-f"]),
+        ("switch -f --detach", vec!["switch", "-f", "--detach"]),
+        ("reset --hard", vec!["reset", "--hard"]),
+    ];
+    let mut rows: usize = 0;
+    let mut not_refused: usize = 0;
+    let mut failures: Vec<String> = Vec::<String>::new();
+    for revision in ["other^{tree}", "other:"] {
+        for (form, before) in &commits {
+            let name: String = format!("{form} / `{revision}`");
+            let native_arm: (Option<i32>, bool, bool, String) = one_row("no-commit-native", before.as_slice(), revision, false);
+            let wrapped_arm: (Option<i32>, bool, bool, String) = one_row("no-commit-wrapped", before.as_slice(), revision, true);
+            rows += 1;
+            if native_arm.0 == Some(0) {
+                failures.push(format!("{name}: Git ran the form itself, so this row proves nothing"));
+            }
+            if wrapped_arm.1 {
+                failures.push(format!("{name}: the wrapper refused a word Git refuses itself: {}", wrapped_arm.3));
+            }
+            if !wrapped_arm.2 {
+                failures.push(format!("{name}: the person's file is gone"));
+            }
+            if !wrapped_arm.1 {
+                not_refused += 1;
+            }
+            if !wrapped_arm.3.contains("non-commit") && !wrapped_arm.3.contains("not a commit") {
+                failures.push(format!("{name}: Git's own answer did not reach the person: {}", wrapped_arm.3));
+            }
+        }
+    }
+    // The positive control: the branch's own tree holds the planted file, so the wrapper refuses and keeps it.
+    //  The full ref is the word here, because `other` is also an annotated tag on `main` in this fixture and a
+    //  `reset` takes the tag first, writing a tree that holds nothing of the person's.
+    for (form, before) in &commits {
+        let name: String = format!("control: {form} / `refs/heads/other`");
+        let native_arm: (Option<i32>, bool, bool, String) = one_row("no-commit-control-native", before.as_slice(), "refs/heads/other", false);
+        let wrapped_arm: (Option<i32>, bool, bool, String) = one_row("no-commit-control", before.as_slice(), "refs/heads/other", true);
+        rows += 1;
+        if native_arm.2 {
+            failures.push(format!("{name}: Git kept the planted file, so the fixture cannot show a refusal: {native_arm:?}"));
+        }
+        if !wrapped_arm.1 {
+            failures.push(format!("{name}: the wrapper did not refuse the branch's own tree: {wrapped_arm:?}"));
+        }
+        if !wrapped_arm.2 {
+            failures.push(format!("{name}: the control's planted file is gone"));
+        }
+    }
+    println!(
+        "rows: {rows}; rows the wrapper did not refuse: {not_refused}; rows that failed: {}",
+        failures.len()
+    );
+    assert!(failures.is_empty(), "{} rows:\n{}", rows, failures.join("\n"));
+}

@@ -80,6 +80,10 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             let how: Resolution = Resolution {
                 guesses_a_remote_branch: *guesses_a_remote_branch,
                 prefers_a_local_branch: *prefers_a_local_branch,
+                // A form that writes a whole tree moves `HEAD` or resets the worktree to a commit, and Git
+                //  refuses a word that names anything else (`checkout -f other^{tree}`:
+                //  `fatal: Cannot switch branch to a non-commit`), so such a word writes nothing.
+                the_word_must_name_a_commit: true,
             };
             Ok(inside_places(tree_paths(facts, revision.as_deref(), &[], how, run_in)?))
         }
@@ -89,6 +93,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             let how: Resolution = Resolution {
                 guesses_a_remote_branch: false,
                 prefers_a_local_branch: *prefers_a_local_branch,
+                the_word_must_name_a_commit: false,
             };
             Ok(inside_places(tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), how, run_in)?))
         }
@@ -107,6 +112,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             let how: Resolution = Resolution {
                 guesses_a_remote_branch: *guesses_a_remote_branch,
                 prefers_a_local_branch: *prefers_a_local_branch,
+                the_word_must_name_a_commit: false,
             };
             let pathspecs: Vec<OsString> = pathspecs_in_the_file(facts, file, *nul_separated, run_in)?;
             if !pathspecs.is_empty() {
@@ -115,7 +121,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
                         facts,
                         revision.as_deref(),
                         pathspecs.as_slice(),
-                        Resolution { guesses_a_remote_branch: false, prefers_a_local_branch: how.prefers_a_local_branch },
+                        Resolution { guesses_a_remote_branch: false, prefers_a_local_branch: how.prefers_a_local_branch, the_word_must_name_a_commit: false },
                         run_in,
                     )?)),
                     PathspecTarget::Index => Ok(inside_places(index_paths(facts, pathspecs.as_slice(), run_in)?)),
@@ -1013,6 +1019,9 @@ pub(super) fn path_from_bytes(bytes: &[u8]) -> OsString {
 ///  so the name is resolved the way the command resolves it,
 ///  and a tree Git knows but cannot list is a refusal
 ///  (`name_git_may_still_reach` says how the two are told apart).
+///  A form whose own command writes a whole tree from a commit, like `checkout -f` or `reset --hard`,
+///  asks what kind of object the word names first: Git refuses a word that names no commit itself, so
+///  that word writes no path and Git's own sentence answers the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1049,6 +1058,30 @@ fn tree_paths(
     let Some(object): Option<OsString> = resolve_the_object(facts, named.as_os_str(), how, run_in)? else {
         return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, how, run_in);
     };
+    // What:
+    //  A word a form that moves `HEAD` or resets the worktree writes nothing for, when the object it names
+    //  is no commit.
+    // Why:
+    //  Git's own command refuses such a word before it writes anything
+    //  (`git checkout -f other^{tree}` and `git switch -f --detach other^{tree}`:
+    //  `fatal: Cannot switch branch to a non-commit`; `git reset --hard other:`:
+    //  `error: object … is a tree, not a commit`), so the guard resolving the tree and refusing for the
+    //  file it holds was a refusal of a command Git never runs, with a sentence about a loss that could
+    //  not happen (the twelfth review's eighth finding).
+    //  Git peels an annotated tag to its commit, which these forms accept, and a commit is what they write;
+    //  any other kind is Git's own rejection to print.
+    if how.the_word_must_name_a_commit {
+        match object_kind(facts, object.as_os_str(), run_in)? {
+            Some(ObjectKind::Commit) | Some(ObjectKind::Tag) => {}
+            Some(_) => return Ok(Vec::<Vec<u8>>::new()),
+            None => {
+                return Err(tree_reading_failure(
+                    named.as_os_str(),
+                    "Git named that object and did not say what it is",
+                ))
+            }
+        }
+    }
     if let Some(paths) = listed_paths_of(facts, object.as_os_str(), pathspecs, run_in)? {
         return Ok(paths);
     }
@@ -1067,13 +1100,14 @@ fn tree_paths(
 ///  How one form resolves the revision it names.
 ///  A `struct` is a record with named fields.
 /// Why:
-///  Two facts decide it, and both are the form's own words:
+///  Three facts decide it, and all three are the form's own words:
 ///  whether a short name may become a local branch from a remote-tracking branch of that name,
-///  and whether a local branch wins over a tag of the same name, as it does for `checkout`.
+///  whether a local branch wins over a tag of the same name, as it does for `checkout`,
+///  and whether the form's own command refuses a word that names no commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Resolution = { guesses_a_remote_branch: boolean; prefers_a_local_branch: boolean };
+/// type Resolution = { guesses_a_remote_branch: boolean; prefers_a_local_branch: boolean; the_word_must_name_a_commit: boolean };
 /// ```
 #[derive(Clone, Copy, Debug)]
 struct Resolution {
@@ -1081,6 +1115,9 @@ struct Resolution {
     guesses_a_remote_branch: bool,
     /// Whether `refs/heads/<name>` wins over any other ref of that name.
     prefers_a_local_branch: bool,
+    /// Whether the form writes a whole tree by moving `HEAD` or resetting the worktree,
+    ///  which Git does only for a commit and refuses for every other object itself.
+    the_word_must_name_a_commit: bool,
 }
 
 /// What:
@@ -1743,8 +1780,13 @@ fn read_tree_paths(
     let root: PathBuf = worktree_root_of(facts)?;
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for revision in revisions {
-        // `read-tree` resolves its trees the general way: a tag of a name wins, as `ls-tree` reads it.
-        let how: Resolution = Resolution { guesses_a_remote_branch: false, prefers_a_local_branch: false };
+        // `read-tree` resolves its trees the general way: a tag of a name wins, as `ls-tree` reads it,
+        //  and its command writes a tree rather than a commit, so a tree object is what it takes.
+        let how: Resolution = Resolution {
+            guesses_a_remote_branch: false,
+            prefers_a_local_branch: false,
+            the_word_must_name_a_commit: false,
+        };
         paths.extend(tree_paths(facts, Some(revision.as_os_str()), &[], how, run_in)?);
     }
     // What:
