@@ -25,6 +25,10 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   NO_RECORD,
   NO_REVIEWED_FOLDER,
+  REVIEW_BRANCH_PREFIX,
+  branchOfAReview,
+  runNameOfAReview,
+  unitNameOfGiven,
   changeNameOfBranch,
   recordFileOfAReview,
   recordIn,
@@ -379,6 +383,28 @@ for (const name of NAMES) {
 await describe({
   name: '',
   children: [
+    describe({
+      name: 'the names a run, a branch and a unit carry',
+      children: NAMES.map(function oneName(name,) {
+        return it({
+          name,
+          fn: async () => {
+            /**
+             The run name the review gets.
+             */
+            const run = runNameOfAReview({ review: name, },);
+            expect(run,).not.toContain('/',);
+            /**
+             The branch a review works on, whose only slash is the one the package puts between `test` and the review.
+             */
+            const branch = branchOfAReview({ review: name, },);
+            expect(branch.startsWith(REVIEW_BRANCH_PREFIX,),).toBe(true,);
+            expect(branch.slice(REVIEW_BRANCH_PREFIX.length,),).not.toContain('/',);
+            expect(unitNameOfGiven({ name: run, },),).not.toContain('/',);
+          },
+        },);
+      },),
+    },),
     describe({
       name: 'a record cut off at every byte a kill can leave',
       children: NAMES.map(function oneName(name,) {

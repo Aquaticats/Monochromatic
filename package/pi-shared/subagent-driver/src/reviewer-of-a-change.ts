@@ -110,11 +110,31 @@ export function changeNameOfBranch({ branch, }: { readonly branch: string },): s
 }
 
 /**
+ Reads a review name as one a run, a branch and a unit can carry: a change name may hold a slash, which a branch of Git may hold
+ but a systemd unit name may not, and a worktree branch uses the same name.
+
+ @param review - the change the review reads
+
+ @returns the name with each slash replaced by a hyphen
+
+ @example
+ ```ts
+ const name = aNameWithoutPathSeparators({ review: 'subsystem/fix-bug', },);
+ ```
+ */
+function aNameWithoutPathSeparators({ review, }: { readonly review: string },): string {
+  return review.replaceAll(
+    '/',
+    '-',
+  );
+}
+
+/**
  Reads the run name of a review.
 
  @param review - the change the review reads
 
- @returns the run's name
+ @returns the run's name, which holds no path separator
 
  @example
  ```ts
@@ -122,7 +142,7 @@ export function changeNameOfBranch({ branch, }: { readonly branch: string },): s
  ```
  */
 export function runNameOfAReview({ review, }: { readonly review: string },): string {
-  return `${REVIEW_RUN_PREFIX}${review}`;
+  return `${REVIEW_RUN_PREFIX}${aNameWithoutPathSeparators({ review, },)}`;
 }
 
 /**
@@ -130,7 +150,7 @@ export function runNameOfAReview({ review, }: { readonly review: string },): str
 
  @param review - the change the review reads
 
- @returns the branch's name
+ @returns the branch's name, which holds no path separator
 
  @example
  ```ts
@@ -138,7 +158,7 @@ export function runNameOfAReview({ review, }: { readonly review: string },): str
  ```
  */
 export function branchOfAReview({ review, }: { readonly review: string },): string {
-  return `${REVIEW_BRANCH_PREFIX}${review}`;
+  return `${REVIEW_BRANCH_PREFIX}${aNameWithoutPathSeparators({ review, },)}`;
 }
 
 /**
