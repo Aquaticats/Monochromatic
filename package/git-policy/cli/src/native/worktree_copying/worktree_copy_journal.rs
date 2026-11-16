@@ -24,7 +24,7 @@ use crate::private_storage::{sync_directory, write_exclusive_scratch, write_excl
 use crate::random_id::random_uuid;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal_encoding_and_validation::{JOURNAL_PARENT_NAME, JOURNAL_SUFFIX, JOURNAL_VERSION_NAME, Journal, JournalRefusal, PendingJournal, Phase, TEMPORARY_SUFFIX, encode_journal, parse_journal_reading};
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
+use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, proven_dead, token_owner_standing};
 use crate::worktree_copy_selection::by_js_order;
 use crate::worktree_copy_stage::StagedSnapshot;
 use std::path::{Path, PathBuf};
@@ -462,7 +462,7 @@ pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Opti
 /// journalOwnerIsDead(pending);
 /// ```
 pub fn journal_owner_is_dead(pending: &PendingJournal) -> Result<bool, WorktreeCopyError> {
-    return token_owner_is_dead(pending.owner_token().as_deref(), pending.path.as_path());
+    return proven_dead(token_owner_standing(pending.owner_token().as_deref(), pending.path.as_path()));
 }
 
 /// What:

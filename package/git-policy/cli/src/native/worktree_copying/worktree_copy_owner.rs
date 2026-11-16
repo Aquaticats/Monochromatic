@@ -397,6 +397,27 @@ fn cannot_be_told_for(item: &Path, part: UnreadablePart, owner_pid: i64) -> Owne
 }
 
 /// What:
+///  Whether the holder a standing describes is proven dead,
+///  with a holder that can be shown neither alive nor gone counting as one that may run.
+/// Why:
+///   A reader that only has to decide "may I act on this item" must not fail a command for a record whose holder cannot be
+///  told: the decision of 2026-11-16 keeps the item, and the words go out where the command owns a channel for them. Only
+///  the refusal of another PID namespace past the patience is still an error here
+///  (owner, 2026-11-04, "Refuse and name it (Recommended)").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const provenDead = (standing) => standing.kind === 'ended'; // a refusal throws; 'may-run' and 'cannot-be-told' are false
+/// ```
+pub(crate) fn proven_dead(standing: Result<OwnerStanding, WorktreeCopyError>) -> Result<bool, WorktreeCopyError> {
+    return Ok(match standing? {
+        OwnerStanding::Ended => true,
+        // A holder that cannot be told may be a command that runs, so nothing it holds is taken here.
+        OwnerStanding::MayRun | OwnerStanding::CannotBeTold(_) => false,
+    });
+}
+
+/// What:
 ///  The process number the first field of a record's own text names,
 ///  or zero when it names none.
 /// Why:

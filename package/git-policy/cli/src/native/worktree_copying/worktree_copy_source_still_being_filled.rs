@@ -35,7 +35,7 @@ use crate::json_record::quote;
 use crate::worktree_add_binding::{Recorded, decode_record};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_journal::{journal_owner_is_dead, journal_root, read_pending_journals};
-use crate::worktree_copy_owner::token_owner_is_dead;
+use crate::worktree_copy_owner::{proven_dead, token_owner_standing};
 use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, claim_names};
 use crate::worktree_copy_stage_claim_reaping::read_claim;
 use std::path::{Path, PathBuf};
@@ -150,7 +150,7 @@ pub fn source_is_still_being_filled_around(
             continue;
         };
         // A claim of a live owner is its add still running; a dead owner's add never finished, so both hold the copy back.
-        let unfinished: UnfinishedCopy = match token_owner_is_dead(owner.as_deref(), claim.as_path())? {
+        let unfinished: UnfinishedCopy = match proven_dead(token_owner_standing(owner.as_deref(), claim.as_path()))? {
             true => UnfinishedCopy::Interrupted,
             false => UnfinishedCopy::Running,
         };
@@ -190,7 +190,7 @@ pub fn source_is_still_being_filled_around(
     // so the record is the only sign that this source holds less than its own source ignores. A copy staged from it would
     // carry that state on as a success. Its owner still running means the install is in progress, as a journal would say.
     if let Some(unfinished) = crate::worktree_copy_unfilled_record::standing_record_of(common_dir, source_root)? {
-        let copy: UnfinishedCopy = match token_owner_is_dead(unfinished.owner.as_deref(), unfinished.path.as_path())? {
+        let copy: UnfinishedCopy = match proven_dead(token_owner_standing(unfinished.owner.as_deref(), unfinished.path.as_path()))? {
             true => UnfinishedCopy::LeftUnfilled,
             false => UnfinishedCopy::Running,
         };

@@ -229,6 +229,26 @@ fn require_what_became_of_the_record(before: &[String], common: &Path, name: &st
     );
 }
 
+/// What:
+///  Whether the owner field of an unfilled record's bytes names a token this release can read.
+/// Why:
+///  A cut inside the owner line leaves a record that still decodes but names no process anyone can look up, and that record is
+///  a holder that cannot be told rather than a dead one: inside the patience it is quiet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ownerIsReadable = (bytes) => { const copy = decodeUnfilled(text(bytes)); return copy.owner === undefined || CopyOwner.fromToken(copy.owner) !== undefined; };
+/// ```
+fn owner_is_readable(bytes: &[u8]) -> bool {
+    let Ok(copy) = git_policy_cli::worktree_copy_unfilled_record::decode_unfilled(String::from_utf8_lossy(bytes).as_ref()) else {
+        return true;
+    };
+    return match copy.owner {
+        Some(token) => CopyOwner::from_token(token.as_str()).is_some(),
+        None => true,
+    };
+}
+
 /// An unreadable journal of a writer that is gone is moved aside in every state a crash can leave it,
 /// the folder keeps it,
 /// a journal this release still reads is recovered as before,
@@ -329,8 +349,14 @@ fn an_unreadable_unfilled_record_never_stops_a_command() {
         if refused {
             assert!(!path.exists(), "{}: the record no longer stands where every command reads", damage.what);
             require_the_settlement_line(stderr.as_str(), &damage);
-        } else {
+        } else if owner_is_readable(damage.bytes.as_slice()) {
             assert!(stderr.contains("holds less than"), "{}: a record this release reads keeps naming its worktree: {stderr}", damage.what);
+        } else {
+            // A cut inside the owner line leaves a record this release still decodes whose owner is no token it can read:
+            // inside the patience such a holder may be a copy that runs, so nothing is said and the record stays, and past
+            // the patience the words naming it are due (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+            assert!(stderr.is_empty(), "{}: a young record whose holder cannot be told says nothing: {stderr}", damage.what);
+            assert!(path.exists(), "{}: and it stays", damage.what);
         }
     }
     remove(&fixture);

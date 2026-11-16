@@ -18,7 +18,7 @@
 
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_journal::journal_root;
-use crate::worktree_copy_owner::{CopyOwner, token_owner_is_dead};
+use crate::worktree_copy_owner::{CopyOwner, proven_dead, token_owner_standing};
 use crate::worktree_copy_stage_claim::claim_names;
 use crate::worktree_copy_stage_claim_reaping::read_claim;
 use std::path::{Path, PathBuf};
@@ -61,7 +61,7 @@ fn filled_stages(common_dir: &Path) -> Result<Vec<FilledStage>, WorktreeCopyErro
     for name in claim_names(root.as_path())? {
         let claim: PathBuf = root.join(name.as_str());
         let Some((container, owner)) = read_claim(claim.as_path())? else { continue };
-        if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
+        if proven_dead(token_owner_standing(owner.as_deref(), claim.as_path()))? {
             continue;
         }
         let filling: Option<i64> = match owner.as_deref().and_then(CopyOwner::from_token) {

@@ -22,7 +22,7 @@ use crate::path_bytes_in_records::{hex_of_bytes, hex_of_path, path_of_hex};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, write_atomic_unsynced};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
-use crate::worktree_copy_owner::token_owner_is_dead;
+use crate::worktree_copy_owner::{OwnerStanding, token_owner_standing};
 use crate::worktree_copy_selection::js_order;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -650,9 +650,16 @@ pub fn report_unfilled_records(common_dir: &Path) -> Result<Vec<String>, Worktre
     for name in unfilled_names(root.as_path())? {
         let path: PathBuf = root.join(name.as_str());
         let Some(copy) = read_unfilled(path.as_path())? else { continue };
-        // A copy that still runs wrote the record before its first entry: it is filling this worktree now.
-        if !token_owner_is_dead(copy.owner.as_deref(), path.as_path())? {
-            continue;
+        // What: a copy that still runs wrote the record before its first entry, so it is filling this worktree now and
+        //       says nothing; a record whose holder can be shown neither way is named for what the worktree lacks, and past
+        //       the patience the words naming the record go out with it.
+        // Why:  The message describes the person's own worktree and takes nothing, so a record no reader can judge does not
+        //       hold it back; and a record that is neither a live copy's nor a dead one's must not fail the command either
+        //       (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+        match token_owner_standing(copy.owner.as_deref(), path.as_path())? {
+            OwnerStanding::MayRun => continue,
+            OwnerStanding::Ended => {}
+            OwnerStanding::CannotBeTold(refusal) => notices.push(refusal.0),
         }
         // `match` on where the worktree stands: one that is gone or was replaced settles the record, one that still
         // stands is named where it is now, which a `git worktree move` changed from the path the record wrote, and one

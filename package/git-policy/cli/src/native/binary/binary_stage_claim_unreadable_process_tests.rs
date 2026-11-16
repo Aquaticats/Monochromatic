@@ -23,7 +23,7 @@ use super::support::{Fixture, Observed, fixture, git, remove, repository};
 /// `OsStr` for the fixture's names.
 use std::ffi::OsStr;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// What:
 ///  Whether a program is on the search path,

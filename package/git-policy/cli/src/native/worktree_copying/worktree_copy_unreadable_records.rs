@@ -31,7 +31,7 @@ use crate::worktree_copy_interrupted_add_settlement::settle_interrupted_add;
 use crate::worktree_copy_journal::{JournalFile, Role, assert_private_path, journal_owner_is_dead, journal_root, read_listed_journals};
 use crate::worktree_copy_journal_encoding_and_validation::{owner_token_of, parse_journal_reading};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
-use crate::worktree_copy_owner::token_owner_is_dead;
+use crate::worktree_copy_owner::{OwnerStanding, token_owner_standing};
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_copy_stage_binding::{BindingFile, STAGE_BINDING_NAME, stage_binding_reading};
 use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, claim_names, rewrite_claim};
@@ -148,8 +148,16 @@ fn settle_unreadable_journals(common_dir: &Path, notices: &mut Vec<String>) -> R
             }
             JournalFile::Unreadable { path, reason } => {
                 // A journal with no owner in its name has none to wait for, which is what an interrupted add leaves.
-                if !token_owner_is_dead(owner_token_of(path.as_path()).as_deref(), path.as_path())? {
-                    continue;
+                // A name whose owner field is no token this reader can read proves nothing, so the journal stays and the
+                // person reads which one it is and the command that removes it (owner, 2026-11-16, "A: stays, command says
+                // how (Recommended)").
+                match token_owner_standing(owner_token_of(path.as_path()).as_deref(), path.as_path())? {
+                    OwnerStanding::Ended => {}
+                    OwnerStanding::MayRun => continue,
+                    OwnerStanding::CannotBeTold(refusal) => {
+                        notices.push(refusal.0);
+                        continue;
+                    }
                 }
                 let Some(name) = path.file_name() else { continue };
                 let Some(moved) = move_aside(common_dir, path.as_path(), name)? else { continue };

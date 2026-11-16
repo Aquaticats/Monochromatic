@@ -48,7 +48,7 @@ use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, StageClaim, claim_nam
 use crate::worktree_copy_stage_claim_reaping::{SCRATCH_SUFFIX, StageVerdicts, read_claim};
 use crate::worktree_copy_synchronize::synchronize_created_worktree_noting;
 use crate::worktree_copy_owed_copy_source::{source_could_be_a_worktree, source_is_no_worktree_reason};
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
+use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, proven_dead, token_owner_standing};
 use crate::worktree_copy_unfilled_record::remember_unfilled_with;
 use crate::json_record::quote;
 use crate::shell_quote::shell_quote;
@@ -297,7 +297,7 @@ fn take_the_copy(root: &Path, claim: &Path) -> Result<Option<Taking>, WorktreeCo
             Ok(text) => Some(text.trim().to_string()),
             Err(_unreadable) => None,
         };
-        if !token_owner_is_dead(token.as_deref(), mark.as_path())? {
+        if !proven_dead(token_owner_standing(token.as_deref(), mark.as_path()))? {
             held = true;
             break;
         }
@@ -744,7 +744,7 @@ fn remove_dead_taking_marks(root: &Path) -> Result<(), WorktreeCopyError> {
             Some(stem) => stem.rsplit_once('.').map(|(_item, owner)| { return owner.to_string(); }),
             None => None,
         };
-        if token_owner_is_dead(token.as_deref(), path.as_path())? {
+        if proven_dead(token_owner_standing(token.as_deref(), path.as_path()))? {
             let _removed: std::io::Result<()> = std::fs::remove_file(path.as_path());
         }
     }
