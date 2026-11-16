@@ -63,11 +63,13 @@ It is not a claim that the inspected checkout exactly matches a particular devic
 
 The frozen application source is `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.
 The corrected workflow is `8256d8bb9dd20b8c9b373c2c08b0a73560d93564`.
-The [retained Android receipts][receipts] bind the source,
+The retained Android receipts (`../planning/depot-complete-coverage-android-receipts.json.gz`) bind the source,
 workflow,
 actual APK bytes,
 `readelf` output,
 and native-member hashes.
+`depot-complete-coverage-android-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The classifier was tested against:
 
@@ -168,4 +170,3 @@ Workflow 8256d8bb9d and run 1jxc80q7q7 implement and verify that local correctio
 ~~~
 
 [page-sizes]: https://developer.android.com/guide/practices/page-sizes
-[receipts]: ../planning/depot-complete-coverage-android-receipts.json.gz

@@ -6,7 +6,19 @@
   "sourceArchive": {
     "path": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
     "bytes": 3573335,
-    "sha256": "cd9fff9610f40cbfd39ce9292ef104f8b7b7ef16e61d5c834fbcc71b7f78c40f"
+    "sha256": "cd9fff9610f40cbfd39ce9292ef104f8b7b7ef16e61d5c834fbcc71b7f78c40f",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+        "note": null
+      }
+    ]
   },
   "service": {
     "source": "5cfc1d90f92154cf62fa95789fad9bd7deeda208",

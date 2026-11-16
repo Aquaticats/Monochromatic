@@ -7,14 +7,38 @@
       "sha256": "2cd10ee74009786247e3f39cbc4e56219239a8eabc4c88836c5114e6897360c4",
       "headings": 57,
       "links": 225,
-      "htmlBytes": 116022
+      "htmlBytes": 116022,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 98061,
+          "sha256": "3fd63dae88939c7532ad5ba7c1521d5ea7aa403a87e105447a1b118a7a1805c0",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/handover/firefox-esr-disk-responsiveness-audit.md",
       "sha256": "5ef4efa04f5617e1f8e226027c963ba31f35b579446148807850f712e8e1ddc3",
       "headings": 5,
       "links": 4,
-      "htmlBytes": 7175
+      "htmlBytes": 7175,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 6876,
+          "sha256": "ea11e1da9169a37add90edda6fac3d2c5fbf91958870e1662ca7cb81c77e1560",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/troubleshooting/agent-browser-eagain.md",

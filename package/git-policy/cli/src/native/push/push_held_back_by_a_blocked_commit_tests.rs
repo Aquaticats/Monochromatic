@@ -525,6 +525,11 @@ fn an_older_passed_record_does_not_publish_a_newer_undecided_commit() {
 /// The push therefore sends the commit the branch named before that reading,
 ///  never the branch's reference,
 /// and the newer commit goes out with its own push once its gate answers.
+/// The answer is the landed verdict of `service_work.rs`,
+/// which names the commit the push sent
+/// (`Verdict::Delivered`,
+/// `landing/service_work_handlers_replanning_and_acceptance.rs`),
+/// so the control reads that commit there and not the older `Done`.
 ///  The stand-in below lands the commit and puts its live record back at the push's first question about the upstream,
 /// which is after
 ///  the service read the worktree.
@@ -567,7 +572,10 @@ fn a_commit_that_lands_after_the_verdicts_were_read_is_not_published() {
     assert!(marker.exists(), "the stand-in moved the branch and put the live record back after the reading");
     assert!(held.exists(), "the racing commit's own gate still runs");
     println!("post-reading commit: verdict={verdict:?}; remote={}", remote_branch(&world));
-    assert!(matches!(verdict, crate::service_work::Verdict::Done), "the push ran and delivered the commit it was for: {verdict:?}");
+    assert!(
+        matches!(&verdict, crate::service_work::Verdict::Delivered { commit, .. } if commit == &first),
+        "the push ran and delivered the commit it was for: {verdict:?}"
+    );
     assert_eq!(remote_branch(&world), first, "the push sent the commit the branch named before the reading");
     assert!(remote_has(&world, first.as_str()), "the commit the push was for reached the remote");
     assert!(!remote_has(&world, racing.as_str()), "BUG: the push published the commit whose own gate had not answered");

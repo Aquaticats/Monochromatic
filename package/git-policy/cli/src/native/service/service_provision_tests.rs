@@ -7,6 +7,7 @@
 //! The manager is a recorder.
 
 use super::*;
+use crate::service_instance::socket_path;
 use crate::service_provision_unit_file_ownership_and_writes::remove_settled;
 use crate::service_messages::render;
 use crate::test_support::{fixture, remove};
@@ -182,7 +183,7 @@ static RUNTIME_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomic
 ///  A runtime directory short enough that a socket name fits inside one socket address.
 /// Why:
 ///   The socket stands at `<runtime directory>/<folder>/<instance>.sock`,
-///   which takes 40 bytes of the runtime directory's room at most,
+///   which takes 68 bytes of a socket address at most,
 ///   and the fixture root under this checkout's build directory is far longer than that.
 /// It stands in the agent scratch directory,
 /// as a fixture of the built executable's controls does,
@@ -733,7 +734,7 @@ fn a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a
                 format!("state {}", instance_service()),
                 format!("state {}", instance_socket()),
                 format!("state {}", instance_service()),
-                format!("stop {}", instance_socket()),
+                format!("stop-alone {}", instance_socket()),
                 format!("state {}", instance_service()),
                 format!("state {}", instance_socket()),
                 format!("reset-failed {}", instance_service()),

@@ -51,17 +51,22 @@ struct Candidate {
     process: KeeperProcess,
 }
 
-/// Reads one newline-delimited child handshake message.
-fn read_message(output: &mut BufReader<ChildStdout>) -> io::Result<String> {
-    let mut line = String::new();
-    let count = output.read_line(&mut line)?;
-    if count == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "keeper closed handshake channel",
-        ));
-    }
-    return Ok(line.trim_end().to_owned());
+/// How long the holder may take to report readiness or to commit.
+/// The wait is bounded because `watch-start` and the pin path hold the lifecycle lock while they wait:
+/// a holder that never says one of them would keep every other lifecycle command out for good.
+const HANDSHAKE_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Reads one newline-delimited child handshake message,
+/// but not for longer than the handshake limit.
+fn read_message_within(output: &mut BufReader<ChildStdout>, what: &str) -> io::Result<String> {
+    return crate::line_ready::read_message_within(output, HANDSHAKE_LIMIT, what);
+}
+
+/// Waits for the candidate to end,
+/// and ends it when it does not,
+/// because the holder waits on a commit that a dead parent never sends.
+fn wait_within(child: &mut Child) -> io::Result<std::process::ExitStatus> {
+    return crate::line_ready::wait_within(child, HANDSHAKE_LIMIT);
 }
 
 /// Starts a new session in the forked child so the holder is isolated from the invoking terminal.
@@ -96,12 +101,12 @@ fn spawn_candidate(mark: u32, cgroup_dir: &Path) -> io::Result<Candidate> {
         return Err(io::Error::other("keeper stdout pipe absent"));
     };
     let mut output = BufReader::new(stdout);
-    let ready_result = read_message(&mut output);
+    let ready_result = read_message_within(&mut output, "readiness");
     let ready = match ready_result {
         Ok(message) => message,
         Err(error) => {
             drop(input);
-            let status = child.wait()?;
+            let status = wait_within(&mut child)?;
             let mut stderr = String::new();
             if let Some(mut stream) = child.stderr.take() {
                 stream.read_to_string(&mut stderr)?;
@@ -114,7 +119,7 @@ fn spawn_candidate(mark: u32, cgroup_dir: &Path) -> io::Result<Candidate> {
     };
     if ready != READY {
         drop(input);
-        let status = child.wait()?;
+        let status = wait_within(&mut child)?;
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!("unexpected keeper readiness message ({status}): {ready}"),
@@ -191,12 +196,12 @@ pub fn replace_keeper(mark: u32, cgroup_dir: &Path) -> io::Result<()> {
     let transition = replacing_state(active, candidate.process);
     if let Err(error) = write_state(&canonical, &transition) {
         drop(candidate.input);
-        let _wait_result = candidate.child.wait();
+        let _wait_result = wait_within(&mut candidate.child);
         return Err(error);
     }
     writeln!(candidate.input, "{COMMIT}")?;
     candidate.input.flush()?;
-    let acknowledgement = read_message(&mut candidate.output)?;
+    let acknowledgement = read_message_within(&mut candidate.output, "its commit")?;
     if acknowledgement != COMMITTED {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,

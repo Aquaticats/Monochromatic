@@ -78,22 +78,27 @@ fn a_changed_file_answers_no_and_a_staged_deletion_answers_yes() {
 
 /// What:
 ///  A worktree that holds an untracked file answers no,
-///  and one that holds nothing Git names answers yes.
+///  and one Git reports nothing about answers no too,
+///  saying that it names nothing rather than that it names only deletions.
 /// Why:
 ///   An untracked file is the one thing a removal spares,
 /// so a tree holding one is not a tree to finish with `--force`;
-/// and a tree Git reports nothing about is the state the pass ends in.
+/// and a tree Git reports nothing about was never half emptied by anything,
+/// so reading its empty report as
+///  "only deletions" told a person their fresh worktree was half gone.
 #[test]
-fn an_untracked_file_answers_no_and_a_clean_tree_answers_yes() {
+fn an_untracked_file_answers_no_and_a_clean_tree_names_nothing() {
     let (root, _repo, worktree) = a_repository_with_a_worktree("only-deletions-untracked");
-    assert!(only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "a clean tree names nothing");
+    let admin: PathBuf = admin_of(worktree.as_path());
+    assert!(!only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "a clean tree is not a report of deletions");
+    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), Reported::Nothing, "it names nothing at all");
     std::fs::write(worktree.join("notes.txt"), b"mine\n").expect("an untracked file");
-    assert!(!only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "an untracked file is not a deletion");
-    // An ignored file is not named by Git at all, so it does not stop the answer.
+    assert!(!only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "an untracked file is not a deletion");
+    // An ignored file is not named by Git at all, so only its own entry's absence is reported.
     std::fs::create_dir_all(worktree.join("ignored")).expect("an ignored directory");
     std::fs::write(worktree.join("ignored/state.txt"), b"build state\n").expect("an ignored file");
     std::fs::remove_file(worktree.join("notes.txt")).expect("remove the untracked file");
-    assert!(only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "an ignored file is no change Git reports");
+    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), Reported::Nothing, "an ignored file is no change Git reports");
     remove(root.as_path());
 }
 
@@ -115,9 +120,38 @@ fn an_untracked_entry_inside_a_volume_is_left_out_of_the_question() {
     std::fs::remove_file(worktree.join("tracked.txt")).expect("the entry the pass removed");
     std::fs::remove_file(worktree.join(".gitignore")).expect("the ignore rule the pass removed");
     let admin: PathBuf = admin_of(worktree.as_path());
-    assert!(only_deletions_outside(&git_context(), worktree.as_path(), admin.as_path(), &[volume.as_path()]), "the volume's own entries are not the worktree's");
-    assert!(!only_deletions_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), "and they are what a strict reading refuses");
+    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[volume.as_path()]), Reported::OnlyDeletions, "the volume's own entries are not the worktree's");
+    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), Reported::Something, "and they are what a strict reading refuses");
     std::fs::write(worktree.join("notes.txt"), b"mine\n").expect("an untracked file of the person's");
-    assert!(!only_deletions_outside(&git_context(), worktree.as_path(), admin.as_path(), &[volume.as_path()]), "an entry outside the volume still keeps the tree");
+    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[volume.as_path()]), Reported::Something, "an entry outside the volume still keeps the tree");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree Git reports nothing about is told apart from one whose entries are all missing,
+///  and from one holding a change.
+/// Why:
+///   An empty `git status` read as "only deletions" made a fresh, clean worktree look like one a pass of
+///   this program had half emptied,
+/// and the words built on that answer told a person their entries were
+///  missing when none was;
+/// the state is the one every person meets a moment after a worktree is added.
+#[test]
+fn an_empty_report_is_told_apart_from_a_report_of_deletions() {
+    let (root, _repo, worktree) = a_repository_with_a_worktree("only-deletions-empty");
+    let admin: PathBuf = admin_of(worktree.as_path());
+    assert_eq!(
+        reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]),
+        Reported::Nothing,
+        "a tree Git names nothing in is no half-emptied tree"
+    );
+    assert!(!only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "and nothing may read it as a report of deletions");
+    std::fs::remove_file(worktree.join("tracked.txt")).expect("remove the tracked file");
+    assert_eq!(
+        reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]),
+        Reported::OnlyDeletions,
+        "an entry missing from the tree is the shape a killed pass leaves"
+    );
+    assert!(only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "and that one is a report of deletions");
     remove(root.as_path());
 }

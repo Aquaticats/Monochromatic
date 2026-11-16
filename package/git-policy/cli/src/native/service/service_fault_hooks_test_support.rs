@@ -116,6 +116,25 @@ pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
 }
 
 /// What:
+///  Hold `point` on whichever thread reaches it,
+/// giving the end that says the point was reached and the end that lets it go.
+/// Why:
+///   `hold_on_any_thread` with its two ends made is the one shape every control that holds a point needs,
+/// and a control on a thread of its own can wait for the reach where it stands (`finished_within_at`),
+/// which an async control does with a timeout instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [reached, letGo] = holdThePoint('the-read-at-a-start');
+/// ```
+pub(crate) fn hold_the_point(point: &str) -> (tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+    let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
+    let (let_go, held) = std::sync::mpsc::channel::<()>();
+    hold_on_any_thread(HoldOnAnyThread { point: String::from(point), reached, let_go: held });
+    return (reached_wait, let_go);
+}
+
+/// What:
 ///  A point a control holds without holding the thread that reaches it,
 /// with the end that says the point was reached and the end that lets it go.
 /// Why:
@@ -168,13 +187,22 @@ pub(crate) fn hold_awaiting_on_any_thread(held: HoldAwaitingOnAnyThread) {
 /// Why:
 ///   A hold is taken when it is reached,
 /// so a later reach of the same point passes and a control cannot block a second request.
+/// A reach of another point leaves the hold where it is:
+/// other points are reached by other threads all through a run,
+/// and one that took this hold and found another point would discard the control's hold before the point it names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const held = take(); if (held?.point !== point) return; held.reached.send(); await held.letGo;
+/// const held = holdFor(point); if (!held) return; held.reached.send(); await held.letGo;
 /// ```
 pub(crate) async fn await_on_any_thread(point: &str) {
-    let taken: Option<HoldAwaitingOnAnyThread> = HELD_AWAITING.lock().expect("the hold registry").take().filter(|held| { return held.point == point; });
+    let taken: Option<HoldAwaitingOnAnyThread> = {
+        let mut registry = HELD_AWAITING.lock().expect("the hold registry");
+        match registry.as_ref() {
+            Some(held) if held.point == point => registry.take(),
+            _ => None,
+        }
+    };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
     let _let_go = held.let_go.await;
@@ -186,13 +214,21 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 /// Why:
 ///   A hold is taken when it is reached,
 /// so a later reach of the same point passes and a control cannot block a second request.
+/// A reach of another point leaves the hold where it is,
+/// for the reason `await_on_any_thread` gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const held = take(); if (held?.point !== point) return; held.reached.send(); held.letGo.recv();
+/// const held = holdFor(point); if (!held) return; held.reached.send(); held.letGo.recv();
 /// ```
 pub(crate) fn run_on_any_thread(point: &str) {
-    let taken: Option<HoldOnAnyThread> = HELD_ON_ANY_THREAD.lock().expect("the hold registry").take().filter(|held| { return held.point == point; });
+    let taken: Option<HoldOnAnyThread> = {
+        let mut registry = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
+        match registry.as_ref() {
+            Some(held) if held.point == point => registry.take(),
+            _ => None,
+        }
+    };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
     let _let_go = held.let_go.recv();

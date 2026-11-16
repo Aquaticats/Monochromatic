@@ -140,8 +140,9 @@ export function testContainerfile({
       }),
       cargoArguments: compileArguments,
     }),
-    // Subject layer: the wrapper's sources and the README its tests include. The test run, each planted control and
-    // each mutant then rebuild only what changed, instead of the linked scanner and its dependencies every time.
+    // Subject layer: the wrapper's sources, the README its tests include and the SPEC.md a control reads. The test run,
+    // each planted control and each mutant then rebuild only what changed, instead of the linked scanner and its
+    // dependencies every time.
     `COPY --chown=1000:1000 package/${subjectCrate} ${imagePackageRoot}/${subjectCrate}`,
     touchedCargoRun({
       touchedPaths: [

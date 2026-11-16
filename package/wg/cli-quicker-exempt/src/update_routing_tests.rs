@@ -35,9 +35,6 @@ use std::time::{Duration, Instant};
 
 /// The fixture user's id.
 const UID: u32 = 1000;
-/// The fixture user's primary group,
-/// different from the group of the fake processes.
-const USER_GID: u32 = 1500;
 /// The group of the fake processes.
 const PROCESS_GID: u32 = 1001;
 /// A cgroup inside the user manager's subtree that the watcher attaches no mark to itself,
@@ -53,10 +50,12 @@ struct Recorded {
     scope_name: String,
     /// Pids requested.
     pids: Vec<i32>,
-    /// Group id passed for the privilege drop.
-    gid: u32,
     /// Limits the scope should carry.
     limits: InheritedLimits,
+    /// The origin cgroup the processes left.
+    origin: String,
+    /// Why the process matched.
+    reason: MatchReason,
 }
 
 /// Records adoptions and answers from a script,
@@ -75,13 +74,24 @@ struct ScriptedAdopter {
 /// The scripted fake.
 impl Adopter for ScriptedAdopter {
     /// The slice always exists.
-    fn ensure_slice(&self, _uid: u32, _gid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
+    fn ensure_slice(&self, _uid: u32, _slice: &str, _slice_directory: &Path) -> std::io::Result<()> {
         return Ok(());
+    }
+
+    /// These fixtures keep no scope under an earlier spelling of its name.
+    fn existing_scope_name(&self, _uid: u32, _slice: &str, _origin: &str) -> Option<String> {
+        return None;
     }
 
     /// Records the request and answers from the script.
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
-        self.requests.borrow_mut().push(Recorded { scope_name: request.scope_name.to_string(), pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
+        self.requests.borrow_mut().push(Recorded {
+            scope_name: request.scope_name.to_string(),
+            pids: request.pids.to_vec(),
+            limits: request.limits.clone(),
+            origin: request.origin.to_string(),
+            reason: request.reason,
+        });
         return self.script.borrow_mut().pop_front().unwrap_or(Ok(Joined::Created));
     }
 
@@ -124,7 +134,6 @@ fn fixture(name: &str, script: Vec<Result<Joined, AdoptError>>) -> Fixture {
     let adopter = ScriptedAdopter { requests: Rc::clone(&requests), script: RefCell::new(script.into()), applied: Rc::clone(&applied), apply_script: Rc::clone(&apply_script) };
     let routing = UpdateRouting::new(RoutingSetup {
         uid: UID,
-        gid: USER_GID,
         install_roots: install_roots(Path::new("/home/tester"), Some(Path::new("/var/home/tester"))).roots,
         proc_root: proc_root.clone(),
         cgroup_root: cgroup_root.clone(),
@@ -237,17 +246,6 @@ fn a_matching_process_is_adopted_once_and_others_are_left_alone() {
     assert_eq!(fixture.requests.borrow()[0].pids, vec![10]);
 }
 
-/// The group id passed for the privilege drop is the watched user's,
-/// never the matched process's.
-#[test]
-fn the_privilege_drop_uses_the_watched_users_group() {
-    let mut fixture = fixture("gid", vec![]);
-    make_process(&fixture.proc_root, &mise(10));
-    assert!(matches!(fixture.routing.consider(10), Outcome::Adopted { .. }));
-    assert_eq!(fixture.requests.borrow()[0].gid, USER_GID);
-    assert_ne!(fixture.requests.borrow()[0].gid, PROCESS_GID);
-}
-
 /// Executables under the toolchain roots are adopted by path alone.
 #[test]
 fn an_executable_under_the_install_roots_is_adopted() {
@@ -257,6 +255,33 @@ fn an_executable_under_the_install_roots_is_adopted() {
     make_process(&fixture.proc_root, &Fake { pid: 21, exe: "/usr/bin/node", args: &["node", "x.js"], ..mise(21) });
     assert!(matches!(fixture.routing.consider(20), Outcome::Adopted { reason: MatchReason::ToolchainPath, .. }));
     assert_eq!(fixture.routing.consider(21), Outcome::Ignored);
+}
+
+/// A unit the user named after the slice is not the slice:
+/// its processes are moved like any other,
+/// because the policy reads the slice as a place in the cgroup tree and not as text in a name.
+#[test]
+fn a_unit_named_after_the_slice_is_still_moved() {
+    let mut fixture = fixture("named-like-the-slice", vec![]);
+    let lookalike = format!("/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}-task.scope");
+    let deeper = format!("/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}/x.scope");
+    make_process(&fixture.proc_root, &Fake { cgroup: &lookalike, ..mise(40) });
+    make_process(&fixture.proc_root, &Fake { cgroup: &deeper, ..mise(41) });
+    assert!(matches!(fixture.routing.consider(40), Outcome::Adopted { pid: 40, .. }));
+    assert_eq!(fixture.routing.consider(41), Outcome::AlreadyInSlice);
+    assert_eq!(fixture.requests.borrow().len(), 1);
+}
+
+/// The origin cgroup and the method that matched reach the adoption,
+/// which is what the scope's description says for a person reading `systemctl status`.
+#[test]
+fn the_origin_and_the_method_reach_the_adoption() {
+    let mut fixture = fixture("origin-recorded", vec![]);
+    make_process(&fixture.proc_root, &mise(45));
+    assert!(matches!(fixture.routing.consider(45), Outcome::Adopted { .. }));
+    let recorded = fixture.requests.borrow();
+    assert_eq!(recorded[0].origin, SCOPE);
+    assert_eq!(recorded[0].reason, MatchReason::MiseTask);
 }
 
 /// A forged first word does not get a process moved.
@@ -295,7 +320,6 @@ fn a_process_in_another_pid_namespace_is_reported_and_not_moved() {
     std::os::unix::fs::symlink("pid:[4026531836]", fixture.proc_root.join("self/ns/pid")).expect("link the own namespace");
     let mut routing = UpdateRouting::new(RoutingSetup {
         uid: UID,
-        gid: USER_GID,
         install_roots: vec![],
         proc_root: fixture.proc_root.clone(),
         cgroup_root: fixture.cgroup_root.clone(),

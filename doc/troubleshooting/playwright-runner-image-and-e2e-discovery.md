@@ -86,7 +86,9 @@ stdout,
 project configuration,
 and exact source file identity.
 The complete source-bound commands and logs are in
-[`depot-complete-coverage-artifact-browser-receipts.json.gz`](../planning/depot-complete-coverage-artifact-browser-receipts.json.gz).
+`depot-complete-coverage-artifact-browser-receipts.json.gz`.
+`depot-complete-coverage-artifact-browser-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Verified workaround
 
@@ -145,7 +147,9 @@ now retains that exact source-owner control:
 All four active DOM specifications execute.
 The unfiltered root failure remains a separate observed discovery result.
 The source-bound logs and parsed cases are retained in
-[`depot-complete-coverage-finite-owner-receipts.json.gz`](../planning/depot-complete-coverage-finite-owner-receipts.json.gz).
+`depot-complete-coverage-finite-owner-receipts.json.gz`.
+`depot-complete-coverage-finite-owner-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ### Current discovery scope
 

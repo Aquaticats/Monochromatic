@@ -411,14 +411,13 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None }) {
+    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None });
+    match outcome {
         RemoveOutcome::LeftToGit => return None,
-        RemoveOutcome::Removed => {
-            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
-            let notice: &str = match plan.force {
-                true => crate::worktree_remove::DESTROY_FORCED_NOTICE,
-                false => crate::worktree_remove::DESTROY_NOTICE,
-            };
+        RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace => {
+            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes, and which a destroy made here words differently because nothing waits for the commit service then.
+            let handed_over: bool = outcome == RemoveOutcome::Removed;
+            let notice: &str = crate::worktree_remove::destroy_notice(plan.force, handed_over);
             let _closed = writeln!(std::io::stderr(), "{notice}");
             return Some(ForwardedRun::Ran(0));
         }
@@ -426,6 +425,14 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
             // The worktree is gone from Git's records and what was not this removal's stands where it was, so the command did
             // what it was asked and says the rest in the same breath: the path is still taken, and this is what frees it.
             let report: String = crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(plan.target.as_path(), left.as_slice());
+            let _closed = writeln!(std::io::stderr(), "{report}");
+            return Some(ForwardedRun::Ran(0));
+        }
+        RemoveOutcome::RemovedAroundNothingLeft => {
+            // The destroy's line says a delete the commit service still has to make, and this path has none: the files went
+            // one by one here, the volume that kept the root standing went away during that pass, and the empty root went
+            // with one `rmdir`.
+            let report: String = crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(plan.target.as_path());
             let _closed = writeln!(std::io::stderr(), "{report}");
             return Some(ForwardedRun::Ran(0));
         }

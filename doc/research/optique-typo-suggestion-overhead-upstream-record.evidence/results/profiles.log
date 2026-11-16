@@ -1,0 +1,4 @@
+[profile] arm=1.1.1 repeat=3 count=1000 ok=true
+[profile] arm=1.3.6 repeat=40 count=1000 ok=true
+[profile] arm=1.4.0-dev.2971 repeat=40 count=1000 ok=true
+[profile] arm=owned-4879a44e repeat=40 count=1000 ok=true

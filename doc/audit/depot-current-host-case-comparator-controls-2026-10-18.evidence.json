@@ -232,5 +232,17 @@
     "secondsCap": 120,
     "network": "none",
     "containerAbsent": true
-  }
+  },
+  "inTreeNow": [
+    {
+      "measuredOn": "2026-11-13",
+      "bytes": null,
+      "sha256": null,
+      "removedFromTree": true,
+      "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-comparison-2026-10-18.evidence.json.gz",
+      "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+      "keptAs": null,
+      "note": null
+    }
+  ]
 }
