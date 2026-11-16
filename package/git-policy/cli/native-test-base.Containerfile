@@ -3,7 +3,8 @@
 #        tool the tests start (Git, Node, pnpm, strace, cargo-nextest).
 # Why:   the gate image itself builds without network, so every download happens here, once per CachyOS image: the
 #        build script (bin/native-test-base.ts) pulls the `latest` tag, and this image is rebuilt only when that pull
-#        brings a different image or this file changes (doc/decision/container-base-distro.md).
+#        brings a different image, when this file changes, or when toolchain.lock.json moves the Rust toolchain's date
+#        (doc/decision/container-base-distro.md; the arguments the tag covers).
 # Pins:  none from the distribution. Owner decisions of 2026-11-04: "We don't need to pin git because my current system
 #        is already using git latest.", "We don't need to pin Node too.", and, asked where the tools toolchain.lock.json
 #        locks should come from in test images, "Pacman for everything it has" (an exception to AGENTS.md rule CM7 for
