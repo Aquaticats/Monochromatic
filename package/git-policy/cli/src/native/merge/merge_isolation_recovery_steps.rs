@@ -110,6 +110,11 @@ pub enum MergeRecoveryAction {
     /// The owner still runs;
     /// nothing was touched.
     OwnerActive,
+    /// The owner can be shown neither alive nor gone, past the patience:
+    /// nothing was touched,
+    /// and the words that name the record were written to the command's standard error
+    ///  (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+    OwnerCannotBeTold,
     /// The merge never touched the worktree or the index;
     /// the record was removed.
     Discarded,

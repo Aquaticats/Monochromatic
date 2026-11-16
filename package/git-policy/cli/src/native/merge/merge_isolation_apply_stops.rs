@@ -57,7 +57,13 @@ pub(crate) fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path,
         // Nothing of the merge was applied, so the record and the capture are gone and the round is made again.
         Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Bail::Again(detail),
         // The lock stays held or the record waits, so the next command finishes this very merge and nothing of the person's went.
-        Ok(MergeRecoveryAction::IndexHeld(_) | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
+        // A record whose holder cannot be told is left whole and the act goes on, as it goes on beside a live merge's record.
+        Ok(
+            MergeRecoveryAction::IndexHeld(_)
+            | MergeRecoveryAction::DeferredRefused
+            | MergeRecoveryAction::OwnerActive
+            | MergeRecoveryAction::OwnerCannotBeTold,
+        ) => refused(
             2,
             format!(
                 "monochromatic-git-policy-cli: git merge {reference}: {detail}; the merge was recorded and nothing of yours was \

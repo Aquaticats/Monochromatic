@@ -147,7 +147,10 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     //  command beside it that put the copy back would make Git refuse the checkout the merge is in the middle of making.
     let mut running: Vec<String> = Vec::new();
     for (record, _, liveness) in &planned {
-        if *liveness != OwnerLiveness::Alive {
+        // What: a record whose holder cannot be told is treated as a live merge's here.
+        // Why:  Its kept copies are that merge's own while it may run, and a command beside it that put one back under the
+        //       path the merge cleared would make its own checkout fail, which is the reason a live owner's copies are left.
+        if !matches!(*liveness, OwnerLiveness::Alive | OwnerLiveness::CannotBeTold(_)) {
             continue;
         }
         running.push(merge_key_of_a_record(record.as_path()));
@@ -157,6 +160,22 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     crate::service_fault::reach("recovery-owners-planned");
     sweep_kept_copies_awaiting(place, running.as_slice(), out).await;
     for (record, intent, liveness) in planned {
+        // What: a record whose holder can be shown neither alive nor gone is left whole, and the person is told.
+        // Why:  The record may belong to a merge that runs, and the wrapper goes on beside a live merge's record. Stopping
+        //       would fail every command of the worktree, a commit among them, for a record that may be another command's
+        //       work in progress; taking it for gone would settle a merge that runs (owner, 2026-11-16, "A: stays,
+        //       command says how (Recommended)").
+        if let OwnerLiveness::CannotBeTold(words) = &liveness {
+            let _said = out.write_all(format!("{words}\n").as_bytes());
+            outcomes.push(MergeRecoveryOutcome {
+                record: record.clone(),
+                action: MergeRecoveryAction::OwnerCannotBeTold,
+                target_ref: intent.target_ref.clone(),
+                new_oid: intent.new_oid.clone(),
+                side_ref: intent.side_ref.clone(),
+            });
+            continue;
+        }
         let action: MergeRecoveryAction = if liveness == OwnerLiveness::Alive {
             debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
             MergeRecoveryAction::OwnerActive

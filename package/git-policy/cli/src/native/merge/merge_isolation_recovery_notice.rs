@@ -90,6 +90,9 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
             outcome.new_oid
         )),
         MergeRecoveryAction::OwnerActive
+        // The words naming a record whose holder cannot be told are written where recovery reads it, so no second line is due
+        //  here and the command is not stopped for it.
+        | MergeRecoveryAction::OwnerCannotBeTold
         | MergeRecoveryAction::Discarded
         | MergeRecoveryAction::AlreadyLanded
         | MergeRecoveryAction::IndexHeld(_)

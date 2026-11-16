@@ -581,7 +581,9 @@ fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
         let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
         let Some(intent) = parse_merge_intent(bytes.as_slice()) else { continue };
         let liveness = crate::merge_isolation_recovery_records::owner_liveness(&intent, record.as_path());
-        if matches!(liveness, Ok(OwnerLiveness::Alive)) {
+        // A record whose holder cannot be told may be a merge's that runs, so its kept copies are that merge's own: putting one
+        //  back under the path it cleared would make its own checkout fail.
+        if matches!(liveness, Ok(OwnerLiveness::Alive | OwnerLiveness::CannotBeTold(_))) {
             keys.push(merge_key_of_a_record(record.as_path()));
         }
     }

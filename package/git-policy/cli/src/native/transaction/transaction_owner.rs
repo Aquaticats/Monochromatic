@@ -72,9 +72,9 @@ pub struct TransactionOwner {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TransactionOwnerLiveness = 'alive' | 'dead';
+/// type TransactionOwnerLiveness = 'alive' | 'dead' | { cannotBeTold: string };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OwnerLiveness {
     /// The PID names the original process,
     /// or nothing proves it names another one:
@@ -84,6 +84,17 @@ pub enum OwnerLiveness {
     Alive,
     /// The process exited or its PID was reused.
     Dead,
+    /// Neither, past the patience, and the text is the words a person reads:
+    ///  the record, its owner, its age and the exact command that removes it.
+    /// Why:
+    ///  A record whose holder cannot be told may belong to a merge that runs, and the wrapper goes on beside a
+    ///  live merge's record (it decides the kept copies and leaves the record whole). So this answer is read as
+    ///  "leave the record alone and tell the person", never as a stop:
+    ///  owner,
+    ///  2026-11-16,
+    ///  "A: stays, command says how (Recommended)",
+    ///  and the wrapper's rule that a commit does not fail because of its own bookkeeping.
+    CannotBeTold(String),
 }
 
 /// What:
@@ -282,10 +293,10 @@ pub fn classify_transaction_owner(
 ///  and the reservation queue.
 /// A record whose birth identity names no value is the same state:
 /// inside the patience it stands for an owner that may run,
-/// and past it the command stops with the record named,
-/// which is the owner's rule of 2026-11-04,
-/// "Refuse and name it (Recommended)",
-/// applied to a birth.
+/// and past it the answer is `OwnerLiveness::CannotBeTold` with the words,
+/// which the caller that reads merge records prints before it goes on
+/// (`merge_isolation_recovery_records.rs`),
+/// as the wrapper already goes on beside a live merge's record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -314,7 +325,7 @@ pub fn classify_transaction_owner_record(
             return match unreadable_owner_standing(owner_path, UnreadablePart::Process(unreadable.to_string()), owner.owner_pid) {
                 UnreadableOwnerStanding::MayRun => Ok(OwnerLiveness::Alive),
                 UnreadableOwnerStanding::Ended => Ok(OwnerLiveness::Dead),
-                UnreadableOwnerStanding::Refused(words) => Err(OwnerLivenessError::RecordRefused(words)),
+                UnreadableOwnerStanding::Refused(words) => Ok(OwnerLiveness::CannotBeTold(words)),
             };
         }
         Err(other) => return Err(other),
@@ -327,7 +338,7 @@ pub fn classify_transaction_owner_record(
         return match unreadable_owner_standing(owner_path, UnreadablePart::Birth(owner.owner_identity.clone()), owner.owner_pid) {
             UnreadableOwnerStanding::MayRun => Ok(OwnerLiveness::Alive),
             UnreadableOwnerStanding::Ended => Ok(OwnerLiveness::Dead),
-            UnreadableOwnerStanding::Refused(words) => Err(OwnerLivenessError::RecordRefused(words)),
+            UnreadableOwnerStanding::Refused(words) => Ok(OwnerLiveness::CannotBeTold(words)),
         };
     }
     return Ok(liveness);

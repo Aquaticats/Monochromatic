@@ -4743,3 +4743,52 @@ fn a_merge_whose_live_owner_is_named_in_another_spelling_is_left_alone() {
     remove(world.parent.as_path());
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// What:
+///  A merge record whose owner can be shown neither alive nor gone, past the patience,
+///  is left whole and the words that name it are written where the command's standard error goes;
+///  recovery does not fail, so no command of the worktree stops for it.
+/// Why:
+///  The record may belong to a merge that runs, and the wrapper goes on beside a live merge's record: its kept copies are
+///  decided, the record stays, and the command has real Git's own status.
+///  A command that stopped for such a record would fail `git status`, `git add` and a commit for what may be another
+///  command's work in progress (owner, 2026-11-16, "A: stays, command says how (Recommended)"; and the wrapper's rule that
+///  a commit does not fail because of its own bookkeeping).
+///  The other answer of the same reader is the record whose owner ended, which is still settled and removed, and the one
+///  inside the patience, which says nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = []; const outcomes = await recoverInterruptedMerges(world, words);
+/// expect(outcomes[0].action).toBe('owner-cannot-be-told'); expect(words.join('')).toContain('rm --'); expect(record).exists();
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_merge_record_whose_owner_cannot_be_told_is_kept_and_named_without_failing() {
+    let world: World = world("merge-recovery-untellable-owner");
+    let own: TransactionOwner = current_transaction_owner("33333333-0000-4000-8000-000000000055", "2026-10-29T00:00:00.000Z").expect("this process has an identity");
+    // A birth that names no value, at a process number this process holds: inside the patience it may run.
+    let untellable: TransactionOwner = TransactionOwner { owner_identity: String::from("ended"), ..own.clone() };
+    let young: PathBuf = record_of(&world, untellable.clone(), Some("refs/heads/main"));
+    assert!(!merge_intents_to_recover(world.git_dir.as_path()).expect("the scan"), "a young record whose holder cannot be told needs no recovery");
+    let mut quiet: Vec<u8> = Vec::new();
+    let quiet_outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut quiet).expect("recovery");
+    assert_eq!(quiet_outcomes[0].action, MergeRecoveryAction::OwnerActive, "inside the patience the record is a live owner's: {quiet_outcomes:?}");
+    assert!(quiet.is_empty(), "and nothing is said: {}", String::from_utf8_lossy(quiet.as_slice()));
+    std::fs::remove_file(young.as_path()).expect("the young record this arm wrote");
+    // Past the patience the words are written and nothing is settled.
+    let aged: PathBuf = record_of(&world, untellable.clone(), Some("refs/heads/main"));
+    std::fs::File::open(aged.as_path()).expect("open the record").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(60)).expect("age the record");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery does not fail for a record whose holder cannot be told");
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::OwnerCannotBeTold, "{outcomes:?}");
+    let words: String = String::from_utf8_lossy(said.as_slice()).into_owned();
+    assert!(
+        words.contains(aged.to_string_lossy().as_ref()) && words.contains(untellable.owner_pid.to_string().as_str()) && words.contains("rm -- "),
+        "the words name the record, the owner and the command that removes it: {words}"
+    );
+    assert!(aged.exists(), "the record stays");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was not moved");
+    remove(world.parent.as_path());
+}
