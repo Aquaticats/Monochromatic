@@ -24,7 +24,7 @@
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{
     Fixture, FixtureService, Observed, SERVICE_WORK_PATIENCE, fixture, git, native_git, observe, repository,
-    start_fixture_service, stderr_of,
+    start_fixture_service, stderr_of, stderr_without_wait_notices,
 };
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -165,13 +165,15 @@ fn landed(observed: &Observed, git_dir: &Path) {
     settle(git_dir);
 }
 
-/// What a skipped push says on the terminal,
-/// and what it must not say.
+/// What:
+///  Assert the command said nothing at all about the branch it skipped.
+/// Why:
+///  `SPEC.md` line 9205 says the branch is skipped silently,
+/// so the terminal carries no `auto-push` note and no other word of it;
+/// the wait notices a slow step prints are another matter and are set aside.
 fn assert_nothing_was_said(observed: &Observed) {
-    let text: String = stderr_of(observed);
-    assert!(!text.contains("auto-push"), "a skipped push said something: {text}");
-    assert!(!text.contains("not pushed"), "a skipped push said something: {text}");
-    assert!(!text.contains("upstream"), "a skipped push said something: {text}");
+    let text: String = stderr_without_wait_notices(observed);
+    assert!(text.is_empty(), "a skipped push said something: {text}");
 }
 
 /// A branch nothing has set up is published to `origin` under its own name and tracks it.
