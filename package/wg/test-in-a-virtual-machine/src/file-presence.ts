@@ -31,7 +31,7 @@ export async function fileExists(path: string,): Promise<boolean> {
     return true;
   }
   catch (error) {
-    if ((error instanceof Error) && ('code' in error) && ((error.code === 'ENOENT') || (error.code === 'ENOTDIR'))) {
+    if ((Error.isError(error,)) && ('code' in error) && ((error.code === 'ENOENT') || (error.code === 'ENOTDIR'))) {
       return false;
     }
     throw error;

@@ -84,7 +84,7 @@ export async function payloadPaths(): Promise<readonly string[]> {
     throw new Error(`no workspace package was found below ${REPOSITORY_ROOT}; the payload would hold nothing to install.`,);
   }
   paths.push(...EXTRA_DIRECTORIES,);
-  return paths.sort();
+  return paths.toSorted();
 }
 
 /**

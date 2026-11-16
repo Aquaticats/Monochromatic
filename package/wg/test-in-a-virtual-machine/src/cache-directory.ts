@@ -16,7 +16,7 @@ import { join, } from 'node:path';
  This package's cache directory, created on first use.
  */
 export const CACHE_DIRECTORY: string = join(
-  process.env['XDG_CACHE_HOME'] ?? join(
+  process.env.XDG_CACHE_HOME ?? join(
     homedir(),
     '.cache',
   ),

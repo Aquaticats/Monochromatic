@@ -97,20 +97,20 @@ export async function lockedArchive({ tool, }: { readonly tool: string; },): Pro
     LOCK_PATH,
     'utf8',
   ),);
-  if (!isRecord(lock,) || (!isRecord(lock['tools']))) {
+  if (!isRecord(lock,) || (!isRecord(lock.tools))) {
     throw new Error('toolchain.lock.json has no tools table.',);
   }
   /**
    Entry the lock keeps for the tool.
    */
-  const entry: unknown = lock['tools'][tool];
+  const entry: unknown = lock.tools[tool];
   if (!isRecord(entry,)) {
     throw new Error(`toolchain.lock.json has no entry for ${tool}.`,);
   }
   /**
    Archive records the lock keeps, one per platform.
    */
-  const artifacts: unknown = entry['artifacts'];
+  const artifacts: unknown = entry.artifacts;
   if (!isRecord(artifacts,)) {
     throw new Error(`toolchain.lock.json names no archives for ${tool}.`,);
   }
@@ -118,17 +118,17 @@ export async function lockedArchive({ tool, }: { readonly tool: string; },): Pro
    The one archive this platform runs.
    */
   const archive: unknown = artifacts[LOCK_PLATFORM_KEY];
-  if (!isRecord(archive,) || ((typeof archive['url']) !== 'string') || ((typeof archive['sha256']) !== 'string')) {
+  if (!isRecord(archive,) || ((typeof archive.url) !== 'string') || ((typeof archive.sha256) !== 'string')) {
     throw new Error(`toolchain.lock.json has an incomplete ${LOCK_PLATFORM_KEY} archive for ${tool}.`,);
   }
   /**
    Version the entry records.
    */
-  const version: unknown = entry['version'];
+  const version: unknown = entry.version;
   return {
-    sha256: archive['sha256'],
+    sha256: archive.sha256,
     tool,
-    url: archive['url'],
+    url: archive.url,
     version: typeof version === 'string' ? version : 'unknown',
   };
 }
