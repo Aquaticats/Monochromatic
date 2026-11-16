@@ -175,14 +175,35 @@ struct Case {
 ///  Whether the limit a case was given is one under which a commit works.
 /// Why:
 ///  The search for the smallest such limit and the case above the boundary both ask this one question,
-/// so the rule it holds is written once;
-/// and the answer is the repository's own state:
-/// the branch holds one commit more than it did before the limited attempt,
-/// which neither a line a service wrote nor the wrapper's exit can stand for.
-///  The second fact of a working commit, that its command returned success,
-/// comes with the control below (`a_case_that_lands_its_commit_while_its_command_failed_...`).
+/// so the rule it holds is written once.
+///  A commit works under a limit when both facts hold:
+/// the repository's branch holds one commit more than it did before the limited attempt,
+/// which neither a line a service wrote nor the wrapper's exit can stand for,
+/// and the command returned success.
+/// A branch that moved while its command ended with a failure is the one ending the wrapper's own rule forbids,
+/// since the person holds the commit and the command said it did not happen,
+/// so it is never a limit under which a commit works.
 fn a_commit_works(case: &Case) -> bool {
-    return case.landed;
+    return case.landed && case.returned_success;
+}
+
+/// What:
+///  Whether a case is free of the one ending the wrapper's rule forbids:
+/// a commit that landed while the command that made it returned failure.
+/// Why:
+///  Every case of these controls carries this, and not only the two that ask whether a commit works:
+/// a sweep counts landings, and a landed commit whose command failed would otherwise be counted as one more limit the
+///  limits tested let through, while the person had been told the commit did not happen.
+/// A case where nothing landed and the command failed is the ordinary refusal these limits are for, and it holds this
+///  rule.
+fn a_landed_commit_returns_success(case: &Case) -> Result<(), String> {
+    if !case.landed || case.returned_success {
+        return Ok(());
+    }
+    return Err(format!(
+        "a commit landed and its command did not return success: the commits on the repository's branch were {} before the limited attempt and {} after it, and the wrapper ended {}; its standard error said: {}",
+        case.commits_before, case.commits_after, case.status, case.stderr
+    ));
 }
 
 /// One commit with `service` limits on the commit service and `wrapper` limits on the wrapper,
@@ -224,23 +245,27 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     let whole_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
     // A failure carries the log this case has just read whole: nothing writes to the file now that every service has
     //  ended.
-    let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let recovery_log: String = the_log_of_the_recovery(&limited_log, &whole_log);
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    remove_settled(&fixture);
-    return Case {
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &whole_log);
+    let mut case: Case = Case {
         landed: commits_before != commits_after,
         returned_success: output.status.code() == Some(0),
         commits_before,
         commits_after,
         status,
         stderr,
-        verdict,
+        verdict: Ok(()),
         limited_log,
         recovery_log,
         service_end,
     };
+    // A commit that landed while its command returned failure fails this case whatever else it showed, and the failure
+    //  carries the service log this case has just read whole, since nothing writes to that file now.
+    let judged: Result<(), String> = a_landed_commit_returns_success(&case).map_err(|reason| { return format!("{label}: {reason}"); }).and(judged);
+    case.verdict = super::fault_run::keeping_the_service_log(&fixture, judged);
+    remove_settled(&fixture);
+    return case;
 }
 
 /// What:
@@ -1272,25 +1297,29 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
 }
 
 /// What:
-///  Fails, with the two facts apart, when the case above the boundary is not one where a commit works under the limit it
-///  was given.
+///  Fails, with the two facts apart, unless the case above the boundary is one where a commit works under the limit it was
+///  given.
 /// Why:
 ///  The case above the boundary carries the landing this control exists for,
 /// so a case there that no commit landed in fails here and is not counted as one more refusal of the sweep:
 /// the totals below would hide it while any case of the sweep landed.
+///  A landing whose command returned failure is not a case a commit works in either:
+/// the person has the commit and the command said it did not happen,
+/// so the rule the search holds is held here too and the message says which of the two facts failed.
 ///  The message says what happened in the two facts apart:
 /// the branch, which is the commit,
 /// and the wrapper, which is its own ending and words;
 /// each service log is under its own label, so the recovery's landing cannot be read as the limited attempt's.
 fn assert_the_commit_above_the_boundary_works(above: &Case, room: u64, lands_at: u64) {
     assert!(
-        above.landed,
-        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and the commits on the repository's branch were {} before the limited attempt and {} after it, before the recovery ran; the wrapper ended {} and its standard error said: {}
+        a_commit_works(above),
+        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit works ({lands_at} MiB), and the command that made it must return success: the commits on the repository's branch were {} before the limited attempt and {} after it, before the recovery ran; the wrapper ended {}, which returned success: {}; its standard error said: {}
 what the limited attempt's service wrote: {}
 what the service wrote while the recovery ran, whose commit is not the one this case is about: {}",
         above.commits_before,
         above.commits_after,
         above.status,
+        above.returned_success,
         above.stderr,
         above.limited_log,
         above.recovery_log
@@ -1389,23 +1418,27 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let whole_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
     // A failure carries the log this case has just read whole: nothing writes to the file now that every service has
     //  ended.
-    let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let recovery_log: String = the_log_of_the_recovery(&limited_log, &whole_log);
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    remove_settled(&fixture);
-    return Case {
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &whole_log);
+    let mut case: Case = Case {
         landed: commits_before != commits_after,
         returned_success: output.status.code() == Some(0),
         commits_before,
         commits_after,
         status,
         stderr,
-        verdict,
+        verdict: Ok(()),
         limited_log,
         recovery_log,
         service_end: None,
     };
+    // A commit that landed while its command returned failure fails this case whatever else it showed, and the failure
+    //  carries the service log this case has just read whole, since nothing writes to that file now.
+    let judged: Result<(), String> = a_landed_commit_returns_success(&case).map_err(|reason| { return format!("{label}: {reason}"); }).and(judged);
+    case.verdict = super::fault_run::keeping_the_service_log(&fixture, judged);
+    remove_settled(&fixture);
+    return case;
 }
 
 /// A running service whose address-space limit is lowered in place to each of `MEMORY_STEPS` parts of its mapped size plus the
