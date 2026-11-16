@@ -664,7 +664,10 @@ fn worktree_policies_read_the_location() {
     assert_eq!(
         created_asked,
         vec![
+            // A `switch` moves `HEAD`, so the guard asks whether this Git directory has an index before it reads the
+            //  status: a directory that has never had one is Git's own initial checkout and holds no staged work.
             String::from("location"),
+            String::from("index-file-is-absent"),
             String::from("dirty:Tracked"),
             String::from("remote-guess:topic")
         ]
