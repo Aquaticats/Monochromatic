@@ -589,15 +589,15 @@ fn put_the_file_under_the_prefix(linked: &Path, arguments: &[&str]) {
 /// and the opt-out leaves what real Git leaves.
 #[test]
 fn a_skip_worktree_edit_is_refused_where_git_writes_over_it() {
-    // `--ignore-skip-worktree-bits` is the person telling Git to ignore the mark: real Git writes the file
-    //  by that instruction, and the guard leaves the command to Git.
+    // `--ignore-skip-worktree-bits` tells Git to write the entries the marks hide, so that form is refused
+    //  as well: the edit in the file is gone either way (the ninth review's first finding).
     for (index, arguments, disposition) in [
         (1, vec!["checkout", "other", "--", "a.txt"], "refused"),
         (2, vec!["restore", "--source", "other", "--", "a.txt"], "refused"),
         (3, vec!["reset", "--hard"], "kept"),
         (4, vec!["checkout", "--force"], "kept"),
         (5, vec!["read-tree", "--reset", "-u", "HEAD"], "kept"),
-        (6, vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], "chosen"),
+        (6, vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], "refused"),
     ] {
         let label: String = format!("discard-skip-worktree-{index}");
         let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = marked(label.as_str(), Some("skip-worktree"));
@@ -656,7 +656,8 @@ fn the_skip_worktree_mark_is_read_only_for_the_forms_that_write_over_it() {
         (vec!["restore", "--source", "other", "--", "a.txt"], true),
         (vec!["checkout", "--force", "other"], false),
         (vec!["reset", "--hard"], false),
-        (vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], false),
+        // The option makes Git write the marked entry, so the mark is read for it.
+        (vec!["checkout", "--ignore-skip-worktree-bits", "--", "a.txt"], true),
         (vec!["restore", "a.txt"], false),
     ] {
         let command: git_policy_cli::rule_linked_worktree::GuardedCommand = if arguments[0] == "restore" {
