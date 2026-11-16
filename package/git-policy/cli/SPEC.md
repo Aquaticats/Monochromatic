@@ -4169,19 +4169,23 @@ because the filesystem writes both facts into every subvolume itself
 (`BTRFS_IOC_GET_SUBVOL_INFO`):
 the subvolume a snapshot was taken from (`parent_uuid`),
 and the instant it was created (`otime`,
-which `create_pending_snapshot` writes from `current_time()`, `fs/btrfs/transaction.c` and `fs/inode.c`).
+which `create_pending_snapshot` writes from `current_time()`,
+`fs/btrfs/transaction.c` and `fs/inode.c`).
 A later command removes that folder only when it is a btrfs subvolume root,
 taken from the recorded source,
 and created no earlier than the recorded instant,
 so a plain directory another party put at that name,
 and a snapshot another party took before the record,
 is kept and named.
-No transaction number is recorded, and none is compared:
+No transaction number is recorded,
+and none is compared:
 a subvolume's `generation` only advances with the transactions that write its own tree
-(`btrfs_update_root`, `fs/btrfs/root-tree.c`),
+(`btrfs_update_root`,
+`fs/btrfs/root-tree.c`),
 so it can be older than the filesystem's last commit,
 and a snapshot a person made after that commit carries a later creation transaction and was proved to be the
-wrapper's own: the deletion this record exists to prevent.
+wrapper's own:
+the deletion this record exists to prevent.
 Telling those two apart by transaction would need a committed transaction read before the creation,
 and obtaining one is a flush of the whole filesystem on the add's waiting path,
 which "Local durability follows what the remote already holds" forbids.
@@ -4686,14 +4690,21 @@ The command that meets one settles it in the pass that runs before every forward
   a second command's sweep reads an absent claim as "no add stands behind these records",
   removes the record of the object the stage's creation made,
   and then takes the stage for a copy's own folder and removes it with whatever a person put in it
-  (a review's finding, reproduced in a second process before this rule was written).
+  (a review's finding,
+  reproduced in a second process before this rule was written).
   The bytes are copied and never linked:
   `assert_private_path` requires a journal file to have one name,
   every forwarded command reads every claim before Git runs,
   and a claim kept under a second name stopped every command of the repository for ever
-  (a review's second finding, reproduced through the built wrapper).
-  A claim that already has a second name is answered as one this release cannot read,
-  so the pass finishes that half-done keep rather than refusing it.
+  (a review's second finding,
+  reproduced through the built wrapper).
+  A claim is judged by what it is and not by how many names it has:
+  `Role::ClaimFile` asks for one plain file of this account with no group or other bits,
+  and any number of names,
+  because a backup or copy tool that hard-links the files of `.git` gives a running add's claim a second name
+  and that add's stage is its own
+  (a review's finding,
+  reproduced through the built wrapper).
   A record that is no plain file,
   and a copy that cannot be written,
   fall back to the rename that keeps what it can.
@@ -4718,15 +4729,20 @@ The command that meets one settles it in the pass that runs before every forward
   holds.
   The marker is written by an add and by nothing else,
   and a release of an earlier release removed both records before the marker,
-  so a kill inside that release left a claim with no record at all: that stage is an add's too (issue 6296).
+  so a kill inside that release left a claim with no record at all:
+  that stage is an add's too (issue 6296).
 - A release of a claim removes nothing of it while its stage folder stands and no pending journal names that folder:
-  the claim, both records and the marker stay,
+  the claim,
+  both records and the marker stay,
   so a kill at any instruction of the release leaves the proofs of that folder and the next command keeps it and names
   it instead of removing it with what a person put in it (issue 6296).
   A pending journal is the exception,
   because from the moment a copy exists its journal names the folder and settles it,
   which is what a copy's own rung relies on while it stages.
-  Once the folder is gone, or a journal names it, the claim, the records and the marker go in that order.
+  Once the folder is gone,
+  or a journal names it,
+  the claim,
+  the records and the marker go in that order.
 - A dead claim whose folder no record proves is removed as a copy's own only when nothing in that folder can be a
   person's at any depth:
   its top level holds only the records this wrapper writes (the payload,
@@ -4753,15 +4769,51 @@ The command that meets one settles it in the pass that runs before every forward
   another account's directory,
   a link in the stage's place,
   and a file at the name are named and never touched.
+  A look that failed is not an answer:
+  a folder or a payload directory this command may not list is kept and the line says what could not be read,
+  where a failure there stopped every command of the repository with exit 2
+  (a review's finding,
+  reproduced through the built wrapper).
+  Every record of a copy is read through the bounded plain-file reader every record of this package is read through:
+  the record of what the payload will hold (`intended`),
+  the record of why a stage was kept (`<identifier>.kept`),
+  and the record of the object a creation made (`<identifier>.made`).
+  A named pipe,
+  a device or a link at any of those names is refused instead of waited on,
+  and a record's size is bounded,
+  where a pipe at the first two held every command for ever
+  (a review's finding,
+  reproduced through the built wrapper).
 - The comparison against that record costs one lookup per payload entry,
   so a folder it keeps is examined once:
-  the reason and the payload's own change and modification times are written beside the claim
+  the reason and the times of every directory the walk read
+  (change and modification times,
+  to the kernel's nanosecond)
+  are written beside the claim
   (`<identifier>.kept`),
   the next command prints that reason without reading the payload,
-  and a payload whose times differ is examined again,
-  which is how a person who removes their file lets the next command settle the folder.
+  and a directory whose times differ is examined again,
+  which is how a person who removes their file lets the next command settle the folder,
+  at any depth,
+  and how a person who fixes a mode that stopped the walk does the same:
+  the directory that could not be listed is stamped with the others.
   The record can only ever save a keep and never a removal:
   every removal is decided by a fresh walk.
+  It goes when its claim goes,
+  by either release,
+  by the reaping that settles a claim,
+  and by the sweep that takes what no claim names,
+  so an upgrade removes the ones a release without that removal left behind.
+- A clock that went back between the record and the creation leaves the wrapper's own snapshot looking older than
+  the record that describes it,
+  and nothing on disk then tells it from a snapshot of a person's:
+  the folder is kept,
+  never deleted,
+  and the reason it is kept is named once and then left quiet,
+  because no command may delete it and naming it on every command nags for ever
+  (a review's finding).
+  The words of that reason are one constant (`CLOCK_INVERSION_PHRASE`) and the reader matches them,
+  so the two cannot drift.
 - A destination record whose claim was moved is still read:
   the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
   naming the worktree it describes with the two commands that settle it,
@@ -8326,7 +8378,8 @@ on the commit path:
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
   because the unit names its address from the manager's own runtime directory.
   A runtime directory too long for a socket path is not such a cause:
-  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  the service is listened at an abstract name there,
+  and the commit is made (`SPEC.md`,
   "Where the service listens").
   A socket unit the manager already holds at another address is asked about before this command starts anything,
   so a runtime directory of its own leaves no unit listening for a worktree it never looks at.
