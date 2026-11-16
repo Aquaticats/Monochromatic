@@ -10,6 +10,9 @@ const config: NodeFlavorConfig = nodeConfig({
   input: {
     'index': './src/index.ts',
     'drive-pi-subagent': './src/drive-pi-subagent.ts',
+    // The `podman` a run's unit finds first on its `PATH`, which hands one `podman` command to a service of the account's manager:
+    // a confined unit runs in a user namespace of its own, in which rootless containers cannot start.
+    'hand-a-podman-command-to-the-manager': './src/hand-a-podman-command-to-the-manager.ts',
     // The extension Pi loads for every run, which masks the secret values of this machine in each tool result. Not a bin: Pi
     // loads the file itself, and the driver hands its path to Pi with `--extension`.
     'secret-value-masking-extension': './src/secret-value-masking-extension.ts',

@@ -22,6 +22,9 @@ import {
 } from 'node:process';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { workUntilTheUnitIsAsked, } from './work-until-the-unit-is-asked.ts';
+import { pathOfARunThatCanStartContainers, } from './podman-for-a-run.ts';
+import { sayWhatTheEndLeaves, } from './containers-of-a-run-that-ended.ts';
+import { finishThisStart, } from './finish-the-run-of-a-start.ts';
 import {
   StartRefusedError,
   startRefusalsIn,
@@ -263,6 +266,15 @@ await mkdir(
 );
 
 /**
+ The `PATH` every unit of this run gets, with the run's own `podman` first.
+ */
+const pathOfTheRun = await pathOfARunThatCanStartContainers({
+  runFolder,
+  packageFolder: import.meta.dirname,
+  path: sessionPath,
+},);
+
+/**
  What the run's unit may and may not write, read once the worktree Git made is there, and the branch's own dependency install. A
  refusal here leaves the worktree and this run folder, so it is recorded in the run's own folder before it is thrown.
  */
@@ -277,7 +289,7 @@ const fileSystem = await workUntilTheUnitIsAsked({
   cpuPercent: options.cpuPercent,
   memory: options.memory,
   taskCount: options.taskCount,
-  sessionPath,
+  sessionPath: pathOfTheRun,
   home: env.HOME ?? '',
   run: runCommandWithChildProcess,
   report: console.log,
@@ -297,7 +309,7 @@ const unit = await runUnitOf({
   memory: options.memory,
   taskCount: options.taskCount,
   wallSeconds: options.wallSeconds,
-  pathOfMiseEnvironment: sessionPath,
+  pathOfMiseEnvironment: pathOfTheRun,
   home: env.HOME ?? '',
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
@@ -330,8 +342,7 @@ const unit = await runUnitOf({
 },);
 
 /**
- The process that follows the unit, which this launcher ends once the unit has ended rather than waiting on the manager's own
- signals.
+ The process that follows the unit, which this launcher ends once the unit has ended rather than waiting on the manager's signals.
  */
 const waiter = spawn(
   unit.command,
@@ -350,8 +361,8 @@ const waited = await waitForUnitToEnd({
   deadline: Date.now() + ((options.wallSeconds + UNIT_WAIT_GRACE_SECONDS) * MILLISECONDS_PER_SECOND),
   wait: waitBetweenLooks,
   now: Date.now,
+  // Only the waiter is ended: the unit is the manager's, and it ends on its own terms or at its own RuntimeMaxSec.
   endWaiter: function endWaiter() {
-    // Only the waiter is ended: the unit is the manager's, and it ends on its own terms or at its own RuntimeMaxSec.
     waiter.kill('SIGTERM',);
   },
   waiterIsGone: function waiterIsGone() {
@@ -385,23 +396,20 @@ if (!readOnlyInMain) {
   }
 }
 
-console.log(launcherEndedLineOf({
+// What a run left of its containers is removed, and the line that says what the unit is doing is printed.
+await sayWhatTheEndLeaves({
   runName: options.name,
   unitName: unitNameOfGiven({ name: options.name, },),
-  unitState: await unitStateNow({
-    run: runCommandWithChildProcess,
-    unitName: unitNameOfGiven({ name: options.name, },),
-  },),
-  ended: waited.ended,
-  status,
   runFolder,
   worktree,
-},),);
+  ended: waited.ended,
+  status,
+  run: runCommandWithChildProcess,
+  report: console.log,
+},);
 
-/**
- What finishing the run answered, which is the status this command exits with.
- */
-const finished = await finishTheRun({
+// What finishing the run answered is the status this command exits with.
+process.exitCode = await finishThisStart({
   runName: options.name,
   runFolder,
   runsFolder: options.runsFolder,
@@ -409,16 +417,14 @@ const finished = await finishTheRun({
   readOnlyInMain,
   worktree,
   checkoutFolder: options.checkoutFolder,
-  processFolder: env.PI_RUNS_PROCESS_FOLDER ?? '/proc',
-  commandLine: argv.slice(2,),
-  launcherEntry: argv[1] ?? '',
-  wakesSoFar: Number(env.PI_RUN_WAKES ?? '0',),
-  environment: env,
   unitStatus: status,
   git,
   run: runCommandWithChildProcess,
-  report: console.log,
+  environment: env,
+  commandLine: argv.slice(2,),
+  launcherEntry: argv[1] ?? '',
+  wakesSoFar: Number(env.PI_RUN_WAKES ?? '0',),
+  processFolder: env.PI_RUNS_PROCESS_FOLDER ?? '/proc',
   wait: waitBetweenLooks,
   now: Date.now,
 },);
-process.exitCode = finished.status;

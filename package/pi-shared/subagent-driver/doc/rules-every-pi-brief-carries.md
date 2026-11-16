@@ -325,11 +325,17 @@ a `git push -u` and a `git branch -f` are yours to use;
   it can write the main checkout.
   A `--scope` stays confined,
 which is what a long command of a brief should use.
-- `podman` does not work inside the unit:
-  rootless containers need a user-namespace range the unit's own namespace does not have,
-  so `podman run` and `podman unshare` end with `write to uid_map failed: Operation not permitted`.
-  A command that needs a container runs outside the unit,
-  which no brief should ask for.
+- `podman` works, through a program the run's unit has first on its `PATH`:
+  it hands the command to a service of the account's manager,
+  which is outside the unit's namespace and mounts,
+  and the container runs there with the arguments exactly as written.
+  What that costs: the container is **outside the confinement**,
+  so it can mount the main checkout writable and write it,
+  and it reads the manager's environment rather than the run's.
+  A container is also not in the run's unit:
+  it outlives the unit being stopped or killed,
+  and the launcher removes what a run left, by the label its containers carry,
+  once the run's unit has ended.
 - `link()` and `rename()` between two writable folders,
 or between one and anywhere else,
   end `EXDEV`;

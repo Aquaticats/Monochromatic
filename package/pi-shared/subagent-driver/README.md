@@ -493,7 +493,12 @@ and a run needs the manager for the scopes every brief asks of it.
 Measured:
 the file an inner service wrote into the checkout was there afterwards.
 
-`podman` does not work inside the unit.
+`podman` works through a program the run's unit has first on its `PATH`, which hands each command to a service of the account's
+manager, outside the unit's namespace and mounts, and that container is therefore outside the confinement: it can mount the
+checkout writable and write it, and it reads the manager's environment rather than the run's. A container is not in the run's
+unit either, so it outlives a stopped or a killed unit; the launcher removes what a run left, by the label its containers carry,
+once the unit has ended.
+The rest of the paragraph below is what stood before that program existed, kept for the measurements it names.
 Any path property makes the unit run in a user namespace of its own that maps one uid,
 because the manager can only mount inside a namespace it owns,
 and that namespace cannot hand `newuidmap` the subuid range rootless containers need:

@@ -35,6 +35,10 @@ export {
 
 export { workUntilTheUnitIsAsked, } from './work-until-the-unit-is-asked.ts';
 export {
+  pathOfARunThatCanStartContainers,
+  pathWithThePodmanOfARun,
+} from './podman-for-a-run.ts';
+export {
   REFUSED_START_RECORD_NAME,
   recordARefusedStart,
 } from './what-a-refused-start-kept.ts';
