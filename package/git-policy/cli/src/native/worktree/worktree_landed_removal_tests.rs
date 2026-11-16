@@ -1048,6 +1048,35 @@ fn a_landed_worktree_with_a_process_inside_stays_when_its_process_table_is_not_t
 ///  The sweep's module doc lists a bisect among the operations that keep a worktree,
 ///  and the marks it checked did not include the one a bisect leaves
 ///  (a cross-vendor audit of the landed sweep).
+/// What:
+///  A landed worktree whose registration directory cannot be listed stays,
+///  and the reason says that its unfinished-operation marks could not be looked for.
+/// Why:
+///  The bisect check listed that directory and read a refusal as "no bisect is unfinished",
+///  so the proof passed and the removal was recorded for a worktree holding a `BISECT_START`
+///  (an independent review of 2026-11-16, reproduced to the hand-over).
+///  A directory that may be searched but not listed holds the named records Git reads
+///  and hides the listing the check needs, which is the state this control writes.
+#[test]
+fn a_landed_worktree_whose_marks_could_not_be_listed_stays() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let landed: Landed = a_repository_with_a_worktree("landed-marks-unlistable");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    std::fs::write(admin.join("BISECT_START").as_path(), b"bisect-in-progress\n").expect("the mark of an unfinished bisect");
+    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o311)).expect("a directory that may be searched but not listed");
+    let sweep: LandedSweep = land_feature(&landed);
+    std::fs::set_permissions(admin.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the directory is listable again");
+    assert_eq!(sweep.kept.len(), 1, "the worktree stays although its marks could not be listed: {sweep:?}");
+    assert!(
+        sweep.kept[0].why.contains("could not be listed"),
+        "the reason says the marks could not be looked for: {}",
+        sweep.kept[0].why
+    );
+    assert!(sweep.removed.is_empty() && sweep.handed_over.is_empty(), "nothing of it was removed: {sweep:?}");
+    assert!(landed.worktree.exists(), "the worktree stays");
+}
+
 #[test]
 fn a_landed_worktree_with_a_bisect_in_progress_stays() {
     let landed: Landed = a_repository_with_a_worktree("landed-bisect");
