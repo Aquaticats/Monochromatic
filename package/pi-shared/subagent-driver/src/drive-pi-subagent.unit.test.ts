@@ -1901,6 +1901,70 @@ await describe({
       },
     },),
     it({
+      name: 'refuses a run folder that holds what an attempt killed before its summary left, and leaves that attempt standard error as it was',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The folder this run was given, which holds what an attempt at it left before it was killed.
+         */
+        const runFolder = join(
+          folder.path,
+          'run',
+        );
+        /**
+         The prompt file the run names, which the refusal never reads.
+         */
+        const promptFile = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         What the earlier attempt printed as it crashed, which no later attempt may truncate away.
+         */
+        const earlierStandardError = 'ORIGINAL-CRASHED-RUN-STDERR\n';
+        await mkdir(runFolder, { recursive: true, },);
+        await writeFile(promptFile, 'hello',);
+        await writeFile(
+          join(
+            runFolder,
+            'stderr.log',
+          ),
+          earlierStandardError,
+        );
+        /**
+         The status the driver ended with, and what it printed.
+         */
+        const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [
+          DRIVER,
+          `--run-folder=${runFolder}`,
+          `--working-folder=${folder.path}`,
+          `--prompt-file=${promptFile}`,
+          '--provider=stand-in',
+          '--model=stand-in-model',
+          '--wall-seconds=60',
+          '--idle-seconds=1',
+          '--turn-cap=2',
+        ], {
+          env: {
+            PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+            HOME: process.env.HOME,
+          },
+          encoding: 'utf8',
+        },),);
+        expect(status,).toBe(FAILED_STATUS,);
+        expect(standardError,).toContain('stderr.log',);
+        // The run stopped before it started Pi, so the folder holds what the earlier attempt left and nothing of this run.
+        expect(await readdir(runFolder,),).toEqual(['stderr.log',],);
+        expect(await readFile(
+          join(
+            runFolder,
+            'stderr.log',
+          ),
+          'utf8',
+        ),).toBe(earlierStandardError,);
+      },
+    },),
+    it({
       name: 'keeps a value a tool printed out of every file the run writes, and says on the feed what was masked',
       fn: async () => {
         /**

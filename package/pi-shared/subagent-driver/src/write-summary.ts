@@ -66,6 +66,19 @@ const ALREADY_THERE_CODE = 'EEXIST';
 const UNFINISHED_NAME = '.summary.json.unfinished';
 
 /**
+ One step of writing a summary, named where a kill may land between two instructions: the temporary file holds the whole summary but
+ has no name a reader reads, or the summary has taken its own name while the temporary one is still a second name of it.
+ */
+export type SummaryWriteStep =
+  | 'the-temporary-file-is-whole'
+    | 'the-summary-has-taken-its-name';
+
+/**
+ What happens between two steps of one write, which a test takes over to stop the writer where a kill would leave it.
+ */
+export type BetweenSummaryWriteSteps = (step: SummaryWriteStep,) => Promise<void>;
+
+/**
  A run whose folder already holds the summary of another run.
  */
 export class SummaryAlreadyThereError extends Error {
@@ -128,6 +141,9 @@ export async function refuseWhenTheFolderHoldsASummary({ runFolder, }: { readonl
 
  @param mask - the masking every string of it goes through
 
+ @param betweenSteps - what happens between two steps of the write, which a test takes over to stop a writer where a kill would
+ leave it: a process may be killed between any two instructions, so the state such a kill leaves is an ordinary one
+
  @throws SummaryAlreadyThereError when the folder already holds a summary, which is left exactly as it was
 
  @example
@@ -139,10 +155,12 @@ export async function writeSummary({
   runFolder,
   summary,
   mask = MASKING_NOTHING,
+  betweenSteps,
 }: {
   readonly runFolder: string;
   readonly summary: RunSummary;
   readonly mask?: TextMasking;
+  readonly betweenSteps?: BetweenSummaryWriteSteps;
 },): Promise<void> {
   /**
    Where the summary is written first, under a name of this run's own.
@@ -177,6 +195,7 @@ export async function writeSummary({
       2,
     )}\n`,
   );
+  await betweenSteps?.('the-temporary-file-is-whole',);
   try {
     await link(
       unfinishedFile,
@@ -191,4 +210,5 @@ export async function writeSummary({
       ? new SummaryAlreadyThereError(summaryIsThereProblemOf({ runFolder, },),)
       : error;
   }
+  await betweenSteps?.('the-summary-has-taken-its-name',);
 }

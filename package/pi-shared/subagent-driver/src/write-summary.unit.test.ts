@@ -3,11 +3,15 @@
  folder that already holds a summary with an error, and leaves the bytes that were there exactly as they were.
 
  The folder is the seam: each case writes its own folder under this run's scratch folder, and the summary it puts there first is a
- whole run's summary, so the bytes a case compares are the record of a run and not a placeholder.
+ whole run's summary, so the bytes a case compares are the record of a run and not a placeholder. The writer of a summary is also
+ run as its own process and killed between two of its steps, because a process may be killed between any two instructions and the
+ state such a kill leaves is one a later writer has to survive.
 
  @module
  */
 
+import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
   mkdtemp,
   readFile,
@@ -25,8 +29,10 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   SummaryAlreadyThereError,
   type RunSummary,
+  type SummaryWriteStep,
   refuseWhenTheFolderHoldsASummary,
   summaryIsThereProblemOf,
+  summaryTheStoppingWriterPublishes,
   writeSummary,
 } from '../dist/final/node/index.mjs';
 
@@ -34,6 +40,22 @@ import {
  The name a finished run's summary carries in its folder, which is the last thing a run writes.
  */
 const SUMMARY_FILE_NAME = 'summary.json';
+
+/**
+ The program that writes one summary and stops where it is told to, run as a process this test kills.
+ */
+const STOPPING_WRITER = new URL('writer-of-a-summary-that-stops-between-its-steps-for-tests.ts', import.meta.url,).pathname;
+
+/**
+ How long a test waits for that writer to reach its step, and for the kill of it to be reaped.
+ */
+const PATIENCE_MILLISECONDS = 30_000;
+
+/**
+ How large a second writer's summary is, so that its writing still runs while the first writer publishes: both calls are made before
+ either is awaited, and a write this size cannot finish before the other's does.
+ */
+const SECOND_WRITER_BYTES = 32 * 1_024 * 1_024;
 
 /**
  A summary of a run that ended because its agent finished its turn, which is the record a case below must find untouched.
@@ -111,12 +133,131 @@ async function writeARunFolder({
       folder,
       SUMMARY_FILE_NAME,
     ),
-    `${JSON.stringify(
-      summary,
-      null,
-      2,
-    )}\n`,
+    summaryTextOf({ summary, },),
     { encoding: 'utf8', },
+  );
+}
+
+/**
+ Reads the bytes a summary is written as, which is the whole of what a reader parses.
+
+ @param request - the summary a writer would publish
+
+ @returns its text, byte for byte
+
+ @example
+ ```ts
+ const text = summaryTextOf({ summary: FIRST_SUMMARY });
+ ```
+ */
+function summaryTextOf({ summary, }: { readonly summary: RunSummary },): string {
+  return `${JSON.stringify(
+    summary,
+    null,
+    2,
+  )}\n`;
+}
+
+/**
+ A thing a test waits for and keeps when it chooses.
+
+ @returns the promise, and what keeps it
+
+ @example
+ ```ts
+ const gate = aThingToWaitFor();
+ gate.keep();
+ await gate.waitedFor;
+ ```
+ */
+function aThingToWaitFor(): {
+  readonly waitedFor: Promise<void>;
+  readonly keep: () => void;
+} {
+  /**
+   What keeps the promise, which the promise itself fills as soon as it is made.
+   */
+  const settle: { keep?: () => void } = {};
+  /**
+   The promise itself.
+   */
+  const waitedFor = new Promise<void>(function holding(resolve,) {
+    settle.keep = resolve;
+  },);
+  return {
+    waitedFor,
+    keep: function keepIt() {
+      settle.keep?.();
+    },
+  };
+}
+
+/**
+ Writes one summary as its own process, stops it at one of its steps, and kills it there: the folder is left in the state a kill
+ between two instructions leaves.
+
+ @param request - the folder, the step to stop at, and the marker the writer's last message carries
+
+ @example
+ ```ts
+ await killTheWriterAt({ folder, step: 'the-summary-has-taken-its-name', marker: 'KILLED-WRITER' });
+ ```
+ */
+async function killTheWriterAt({
+  folder,
+  step,
+  marker,
+}: {
+  readonly folder: string;
+  readonly step: SummaryWriteStep;
+  readonly marker: string;
+},): Promise<void> {
+  /**
+   The writer, which is a process this test started and was given the number of.
+   */
+  const writer = spawn(
+    process.execPath,
+    [
+      STOPPING_WRITER,
+      folder,
+      step,
+      marker,
+    ],
+    { stdio: [
+      'ignore',
+      'ignore',
+      'pipe',
+    ], },
+  );
+  /**
+   What the writer says on its standard error, which says whether it reached the step.
+   */
+  const reported = writer.stderr;
+  if (reported === null) {
+    throw new Error('the writer was started without a standard error this test can read',);
+  }
+  reported.setEncoding('utf8',);
+  /**
+   The line the writer prints when it reaches the step it was told to stop at.
+   */
+  const stoppingLine = `stopped-at ${step}`;
+  /**
+   What the writer has said, in the pieces it said them in.
+   */
+  const heard: string[] = [];
+  for await (const word of reported) {
+    heard.push(String(word,),);
+    if (heard.join('',).includes(stoppingLine,)) {
+      break;
+    }
+  }
+  if (!heard.join('',).includes(stoppingLine,)) {
+    throw new Error(`the writer ended before it reached ${step}: ${heard.join('',)}`,);
+  }
+  writer.kill('SIGKILL',);
+  await once(
+    writer,
+    'exit',
   );
 }
 
@@ -232,6 +373,220 @@ await describe({
             ),);
             expect(problem,).toContain('--run=<number>',);
             expect(problem,).toContain('runs folder of its own',);
+          },
+        },),
+        it({
+          name: 'publishes the bytes of the writer that took the name, when two writers ask for one folder at once',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The summary of the second writer, which is large enough that its own writing still runs while the first publishes:
+             both calls are made before either is awaited.
+             */
+            const secondSummary: RunSummary = {
+              ...FIRST_SUMMARY,
+              lastAssistantText: 'the second writer'.padEnd(SECOND_WRITER_BYTES, '2',),
+            };
+            /**
+             What each writer answered, in the order the two were made.
+             */
+            const answers = await Promise.allSettled([
+              writeSummary({
+                runFolder: folder.path,
+                summary: FIRST_SUMMARY,
+              },),
+              writeSummary({
+                runFolder: folder.path,
+                summary: secondSummary,
+              },),
+            ],);
+            /**
+             Which writer took the summary's name, which is one writer only.
+             */
+            const took = answers.flatMap(function tookIt(answer, index,) {
+              return (answer.status === 'fulfilled') ? [index,] : [];
+            },);
+            expect(took,).toHaveLength(1,);
+            /**
+             The summary the writer that took the name asked to publish.
+             */
+            const askedToPublish = (answers[0].status === 'fulfilled') ? FIRST_SUMMARY : secondSummary;
+            /**
+             What that writer published.
+             */
+            const published = await readFile(
+              join(
+                folder.path,
+                SUMMARY_FILE_NAME,
+              ),
+              'utf8',
+            );
+            expect(published,).toBe(summaryTextOf({ summary: askedToPublish, },),);
+          },
+        },),
+        it({
+          name: 'publishes the later writer bytes whole, and leaves the temporary file a writer killed before it took the name exactly as it was',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The marker the killed writer's last message carries, so a reader of the bytes says whose they are.
+             */
+            const killedMarker = 'KILLED-BEFORE-TAKING-THE-NAME';
+            await killTheWriterAt({
+              folder: folder.path,
+              step: 'the-temporary-file-is-whole',
+              marker: killedMarker,
+            },);
+            /**
+             What the killed writer left: one file of its own, whole, under a name that is not the summary's.
+             */
+            const left = await readdir(folder.path,);
+            expect(left,).toHaveLength(1,);
+            const leftBehind = left[0] ?? '';
+            expect(leftBehind,).not.toBe(SUMMARY_FILE_NAME,);
+            /**
+             What the killed writer left in that file.
+             */
+            const killedText = await readFile(
+              join(
+                folder.path,
+                leftBehind,
+              ),
+              'utf8',
+            );
+            expect(killedText,).toBe(summaryTextOf({ summary: summaryTheStoppingWriterPublishes({ marker: killedMarker, },), },),);
+            await writeSummary({
+              runFolder: folder.path,
+              summary: SECOND_SUMMARY,
+            },);
+            expect(await readFile(
+              join(
+                folder.path,
+                SUMMARY_FILE_NAME,
+              ),
+              'utf8',
+            ),).toBe(summaryTextOf({ summary: SECOND_SUMMARY, },),);
+            // Nothing opened the killed writer's file for truncation, so its bytes are still the ones it left.
+            expect(await readFile(
+              join(
+                folder.path,
+                leftBehind,
+              ),
+              'utf8',
+            ),).toBe(killedText,);
+          },
+        },),
+        it({
+          name: 'answers the later writer with an error, and leaves the summary a writer killed after it took the name byte for byte as it was',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The marker the killed writer's last message carries, so a reader of the bytes says whose they are.
+             */
+            const killedMarker = 'KILLED-AFTER-TAKING-THE-NAME';
+            await killTheWriterAt({
+              folder: folder.path,
+              step: 'the-summary-has-taken-its-name',
+              marker: killedMarker,
+            },);
+            /**
+             What the killed writer published, which is its own summary whole.
+             */
+            const killedText = summaryTextOf({ summary: summaryTheStoppingWriterPublishes({ marker: killedMarker, },), },);
+            expect(await readFile(
+              join(
+                folder.path,
+                SUMMARY_FILE_NAME,
+              ),
+              'utf8',
+            ),).toBe(killedText,);
+            /**
+             What the later writer answered.
+             */
+            let caught: unknown;
+            try {
+              await writeSummary({
+                runFolder: folder.path,
+                summary: SECOND_SUMMARY,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            expect(await readFile(
+              join(
+                folder.path,
+                SUMMARY_FILE_NAME,
+              ),
+              'utf8',
+            ),).toBe(killedText,);
+          },
+        },),
+        it({
+          name: 'leaves the published summary byte for byte as it was, when a later writer in a process with the writer process number asks for the folder',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The step the first writer is held at, a step a kill may land on: its summary has taken its name while the temporary
+             one is still a second name of it.
+             */
+            const reachedTheStep = aThingToWaitFor();
+            /**
+             What lets that writer go on, once the later writer has asked.
+             */
+            const letItGoOn = aThingToWaitFor();
+            /**
+             The first writer, which is held where a kill would have left it.
+             */
+            const held = writeSummary({
+              runFolder: folder.path,
+              summary: FIRST_SUMMARY,
+              betweenSteps: async function holdTheWriter(step,) {
+                if (step !== 'the-summary-has-taken-its-name') {
+                  return;
+                }
+                reachedTheStep.keep();
+                await letItGoOn.waitedFor;
+              },
+            },);
+            await reachedTheStep.waitedFor;
+            /**
+             What the held writer published before the later one asked.
+             */
+            const publishedByTheHeldWriter = summaryTextOf({ summary: FIRST_SUMMARY, },);
+            expect(await readFile(
+              join(
+                folder.path,
+                SUMMARY_FILE_NAME,
+              ),
+              'utf8',
+            ),).toBe(publishedByTheHeldWriter,);
+            /**
+             What the later writer answered.
+             */
+            let caught: unknown;
+            try {
+              await writeSummary({
+                runFolder: folder.path,
+                summary: SECOND_SUMMARY,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            // The later writer was in a process whose number follows from the same place the held writer's temporary name did, so a
+            // name derived from the process lets one writer write through the other's published summary.
+            expect(await readFile(
+              join(
+                folder.path,
+                SUMMARY_FILE_NAME,
+              ),
+              'utf8',
+            ),).toBe(publishedByTheHeldWriter,);
+            letItGoOn.keep();
+            await held;
           },
         },),
       ],

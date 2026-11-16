@@ -433,6 +433,39 @@ await describe({
             expect(problem,).toContain('--run=<number>',);
           },
         },),
+        it({
+          name: 'names what an attempt that was killed before its summary left in the folder, so no run writes over another attempt records',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run folder a run was given, holding what an attempt at it left when it was killed before it wrote a summary.
+             */
+            const runFolder = join(folder.path, 'copy-route-5',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(
+              join(
+                runFolder,
+                'stderr.log',
+              ),
+              'the earlier attempt said this of its crash\n',
+            );
+            await writeFile(
+              join(
+                runFolder,
+                'feed.jsonl',
+              ),
+              '{"kind":"turns","turns":1}\n',
+            );
+            /**
+             What the check answered.
+             */
+            const { problem, } = await summaryProblemIn({ runFolder, },);
+            expect(problem,).toBeDefined();
+            expect(problem,).toContain(runFolder,);
+            expect(problem,).toContain('stderr.log',);
+            expect(problem,).toContain('feed.jsonl',);
+          },
+        },),
       ],
     },),
     describe({
