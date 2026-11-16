@@ -1696,3 +1696,17 @@ mise run //package/wg/cli-quicker:lint:types
 
 State-mutating integration tests use disposable network namespaces.
 Do not use the real `mx-que-mx1` interface for verification.
+
+Both integration tasks run in a throwaway virtual machine, never on the host
+that starts them: `mise run` creates a machine, copies the checkout into it,
+runs the test there and destroys it. The tests themselves refuse to run
+anywhere else and name the task that provides a machine, because they create
+veth links with addresses in the caller's namespace, start a route watcher as
+root and write firewall and OpenSnitch state.
+See
+[`package/wg/test-in-a-virtual-machine`](../test-in-a-virtual-machine/README.md)
+for what the machine holds and what a run costs.
+
+The traffic-block integration test
+(`test:integration:block`) stays on the host: it needs no `sudo` and keeps
+every `nft`, `ip` and `sysctl` call inside its own user and network namespaces.

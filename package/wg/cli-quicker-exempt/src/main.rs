@@ -161,6 +161,9 @@ mod report_cause_tests;
 /// Unit tests for the log and escaping.
 #[cfg(test)]
 mod log_line_tests;
+/// Whether a test was started inside a machine the runner prepared.
+#[cfg(test)]
+mod test_in_virtual_machine;
 /// Unit tests for the death watch.
 #[cfg(test)]
 mod watcher_sentinel_tests;

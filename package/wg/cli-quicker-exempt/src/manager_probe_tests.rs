@@ -24,6 +24,7 @@ fn probe(client: &ManagerClient, endpoint: &ManagerEndpoint, what: &str, call: &
 #[test]
 #[ignore = "creates throwaway transient units on the real user manager"]
 fn the_manager_answers_each_part_of_a_call() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("manager_probe_tests::the_manager_answers_each_part_of_a_call", "//package/wg/cli-quicker-exempt:test:functional");
     // SAFETY: geteuid has no preconditions.
     let uid = unsafe { libc::geteuid() };
     let endpoint = ManagerEndpoint::resolve(uid).expect("the user's manager answers");
@@ -116,6 +117,7 @@ fn the_manager_answers_each_part_of_a_call() {
 #[test]
 #[ignore = "talks to the real user manager"]
 fn the_manager_sends_signals_before_its_reply() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("manager_probe_tests::the_manager_sends_signals_before_its_reply", "//package/wg/cli-quicker-exempt:test:functional");
     use std::io::{Read, Write};
     use std::os::unix::net::UnixStream;
     // SAFETY: geteuid has no preconditions.
@@ -179,6 +181,7 @@ fn the_manager_sends_signals_before_its_reply() {
 #[test]
 #[ignore = "talks to the real user manager"]
 fn a_call_after_a_big_reply_still_gets_its_own_reply() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("manager_probe_tests::a_call_after_a_big_reply_still_gets_its_own_reply", "//package/wg/cli-quicker-exempt:test:functional");
     // SAFETY: geteuid has no preconditions.
     let uid = unsafe { libc::geteuid() };
     let endpoint = ManagerEndpoint::resolve(uid).expect("the user's manager answers");

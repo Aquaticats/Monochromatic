@@ -313,6 +313,7 @@ fn the_log_line_states_the_counts_and_is_silent_when_there_was_nothing() {
 #[test]
 #[ignore = "needs the user systemd manager"]
 fn the_real_manager_sweeps_throwaway_scopes_and_spares_the_one_holding_a_process() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("leftover_sweep_tests::the_real_manager_sweeps_throwaway_scopes_and_spares_the_one_holding_a_process", "//package/wg/cli-quicker-exempt:test:functional");
     let slice = "app-wgtestslice.slice";
     let (uid, gid) = own_ids();
     let place = place("real", 0, 0);

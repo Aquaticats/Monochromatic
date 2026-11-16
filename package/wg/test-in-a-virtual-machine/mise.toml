@@ -1,0 +1,42 @@
+[tasks.run]
+description = "Run one of the wg privileged tests inside a throwaway virtual machine"
+usage = 'arg "<test>" help="bypass, route, functional or functional-protocols"'
+run = "node src/cli.ts --test $usage_test"
+
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+depends = ["build"]
+
+[tasks.buildAndTest]
+description = "Type-check and run the unit tests of the runner"
+run = ["mise run build", "mise run test:unit"]

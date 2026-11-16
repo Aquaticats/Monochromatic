@@ -1,0 +1,30 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/wg-test-in-a-virtual-machine",
+  "description": "Runs the wg packages' privileged tests inside a throwaway virtual machine, so no host's network, firewall, cgroup tree or service manager is touched.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "bin": {
+    "wg-test-in-a-virtual-machine": "src/cli.ts"
+  },
+  "files": [
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {},
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/wg/test-in-a-virtual-machine"
+  },
+  "sideEffects": true
+}

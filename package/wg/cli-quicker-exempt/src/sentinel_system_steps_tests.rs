@@ -33,6 +33,7 @@ fn only_inactive_and_failed_mean_the_unit_is_gone() {
 #[test]
 #[ignore = "requires systemctl and a running system manager"]
 fn a_unit_that_is_not_loaded_counts_as_gone() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("sentinel_system_steps_tests::a_unit_that_is_not_loaded_counts_as_gone", "//package/wg/cli-quicker-exempt:test:functional");
     assert_eq!(SystemSteps.stop_service("wgtest-no-such-unit.service"), Ok(()));
 }
 
@@ -43,6 +44,7 @@ fn a_unit_that_is_not_loaded_counts_as_gone() {
 #[test]
 #[ignore = "requires a running root service named in WGTEST_RUNNING_UNIT and an unprivileged caller"]
 fn a_unit_that_stays_active_is_an_error_that_says_so() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("sentinel_system_steps_tests::a_unit_that_stays_active_is_an_error_that_says_so", "//package/wg/cli-quicker-exempt:test:functional");
     let unit = std::env::var("WGTEST_RUNNING_UNIT").expect("name a running root service in WGTEST_RUNNING_UNIT");
     let error = SystemSteps.stop_service(&unit).expect_err("an unprivileged caller cannot stop a root service");
     assert!(error.starts_with("the unit is active"), "{error}");

@@ -136,6 +136,7 @@ fn a_dropped_event_brings_the_scan_forward_only_to_the_spacing() {
 #[test]
 #[ignore = "needs the kernel process-event connector"]
 fn the_watcher_ends_its_process_event_subscription_when_it_stops() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("application_watch_tests::the_watcher_ends_its_process_event_subscription_when_it_stops", "//package/wg/cli-quicker-exempt:test:functional");
     let base = crate::test_scratch::scratch_root().join(format!("wg-quicker-watch-stop-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&base);
     let app_slice = base.join("app.slice");

@@ -17,6 +17,12 @@ import {
 } from './tunnel-bypass-command-fixture-sudo.ts';
 import type { BypassFixture, } from './tunnel-bypass-command-fixture-types.ts';
 import { createBypassFixture, } from './tunnel-bypass.integration-fixture.ts';
+import { requireTestInVirtualMachine, } from './test-in-virtual-machine-guard.ts';
+
+requireTestInVirtualMachine({
+  miseTask: '//package/wg/cli-quicker:test:integration:bypass',
+  name: 'bypass',
+},);
 
 /**
  Exempt socket mark used by all routing checks.

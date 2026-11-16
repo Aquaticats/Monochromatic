@@ -667,9 +667,13 @@ fn is_whole_device(name: &String) -> bool {
 /// gives it new limits,
 /// and checks what the cgroup files hold and that the scope ends with its last process.
 /// It needs a user manager and its bus.
+/// The adoption gate is a file only the root watcher may open, so this test keeps its own
+/// in the fixture directory: an unprivileged caller cannot open one under `/run`,
+/// and the caller has to stay unprivileged for the manager to be its own.
 #[test]
 #[ignore = "needs the user systemd manager"]
 fn the_real_manager_creates_attaches_and_follows_limits() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("scope_adoption_tests::the_real_manager_creates_attaches_and_follows_limits", "//package/wg/cli-quicker-exempt:test:functional");
     let mut first = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the first child");
     let mut second = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the second child");
     let first_pid = i32::try_from(first.id()).expect("pid fits");
@@ -678,7 +682,9 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     let scope = format!("wg-quicker-update-wgtest-{first_pid}.scope");
     let (uid, _gid) = own_ids();
     let origin = format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/wgtest-origin-{first_pid}.scope");
-    let adopter = PrivateSocketAdopter::new();
+    let gate_root = crate::test_scratch::scratch_root().join(format!("wg-quicker-adoption-gate-{first_pid}"));
+    std::fs::create_dir_all(&gate_root).expect("make the adoption gate directory");
+    let adopter = PrivateSocketAdopter { gate_root, ..PrivateSocketAdopter::new() };
     let mut limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), io_weight: Some(10), ..InheritedLimits::default() };
     let device = a_whole_block_device();
     if let Some(name) = &device {

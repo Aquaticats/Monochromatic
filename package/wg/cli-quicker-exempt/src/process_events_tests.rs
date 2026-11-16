@@ -170,6 +170,7 @@ fn event_kinds_during_a_child(socket: &OwnedFd) -> (usize, usize, usize) {
 #[test]
 #[ignore = "needs the kernel process-event connector"]
 fn a_filtered_subscription_receives_exec_events_only() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("process_events_tests::a_filtered_subscription_receives_exec_events_only", "//package/wg/cli-quicker-exempt:test:functional");
     let everything = subscribe_to_everything().expect("subscribe to everything");
     let (exec_all, fork_all, exit_all) = event_kinds_during_a_child(&everything);
     assert!(exec_all > 0 && fork_all > 0 && exit_all > 0, "the control saw exec {exec_all}, fork {fork_all}, exit {exit_all}");
@@ -190,6 +191,7 @@ fn a_filtered_subscription_receives_exec_events_only() {
 #[test]
 #[ignore = "needs the kernel process-event connector"]
 fn ending_the_subscription_ends_the_delivery() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("process_events_tests::ending_the_subscription_ends_the_delivery", "//package/wg/cli-quicker-exempt:test:functional");
     let socket = crate::process_events::subscribe().expect("subscribe to exec events");
     let (before, _fork, _exit) = event_kinds_during_a_child(&socket);
     assert!(before > 0, "the subscription delivered no exec event before it was ended");
@@ -339,6 +341,7 @@ fn a_local_process_cannot_forge_an_exec_event_over_a_real_socket() {
 #[test]
 #[ignore = "needs the kernel process-event connector"]
 fn a_live_subscription_reports_the_exec_of_a_child() {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("process_events_tests::a_live_subscription_reports_the_exec_of_a_child", "//package/wg/cli-quicker-exempt:test:functional");
     let socket = subscribe().expect("subscribe to process events");
     let mut child = std::process::Command::new("/usr/bin/true").spawn().expect("start the child");
     let pid = i32::try_from(child.id()).expect("pid fits");

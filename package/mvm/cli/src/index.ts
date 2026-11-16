@@ -14,6 +14,15 @@
 
 export * from './agent-command.ts';
 /**
+ Where mvm writes its images and disks, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  DATA_DIR,
+  DATA_DIR_ENVIRONMENT,
+} from './config.ts';
+/**
  Hetzner API paging and action waits, exposed for built-artifact verification.
 
  @internal

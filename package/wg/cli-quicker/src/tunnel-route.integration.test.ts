@@ -12,6 +12,7 @@ import {
   runSudoAllowingFailure,
 } from './tunnel-bypass-command-fixture-sudo.ts';
 import type { FixtureCommandResult, } from './tunnel-bypass-command-fixture-types.ts';
+import { requireTestInVirtualMachine, } from './test-in-virtual-machine-guard.ts';
 
 /**
  Built CLI bundle exercised at user boundary.
@@ -20,6 +21,11 @@ const CLI_BUNDLE_PATH = new URL(
   '../dist/final/node/index.mjs',
   import.meta.url,
 ).pathname;
+
+requireTestInVirtualMachine({
+  miseTask: '//package/wg/cli-quicker:test:integration:route',
+  name: 'route',
+},);
 
 /**
  UDP port isolated inside server namespace.

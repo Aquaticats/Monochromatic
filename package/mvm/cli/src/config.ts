@@ -7,14 +7,25 @@ import { join, } from 'node:path';
 export const VM_PREFIX = 'mvm-';
 
 /**
- Root data directory for VM images and disks.
+ Names the data directory to use in place of the one below the user's data directory.
+
+ A host whose `~/.local/share/mvm` cannot hold the images,
+ for example because that directory is a link to a disk that is not mounted,
+ needs this: mvm has no other way to be given somewhere else to write.
  */
-export const DATA_DIR: string = join(
-  homedir(),
-  '.local',
-  'share',
-  'mvm',
-);
+export const DATA_DIR_ENVIRONMENT = 'MVM_DATA_DIR';
+
+/**
+ Root data directory for VM images and disks,
+ as the environment names it or below the user's data directory.
+ */
+export const DATA_DIR: string = process.env[DATA_DIR_ENVIRONMENT]
+  ?? join(
+    homedir(),
+    '.local',
+    'share',
+    'mvm',
+  );
 
 /**
  Directory for cached base cloud images.

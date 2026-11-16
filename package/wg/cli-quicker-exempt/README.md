@@ -1154,6 +1154,27 @@ Run unprivileged unit,
 mise run //package/wg/cli-quicker-exempt:buildAndTest
 ```
 
+Privileged ignored tests run in a throwaway virtual machine, never on the host
+that starts them:
+`mise run //package/wg/cli-quicker-exempt:test:functional` (every ignored test)
+and `...:test:functional:protocols` (the four protocol hooks on one throwaway
+cgroup) each create a machine, copy the checkout into it, run the tests there
+and destroy it.
+The tests refuse to run anywhere else and name the task that provides a
+machine.
+The `functional` task runs the ignored tests in two phases:
+the six that need an unprivileged caller with a user manager of its own
+(`manager_probe_tests`, the real-manager sweep, the real-manager adoption, and
+the sentinel test that needs a running root unit it may not stop) run as the
+ordinary account,
+and the rest run as root through `sudo` with those six skipped.
+The unprivileged phase runs first, because the crate's scratch directory below
+its build output and the adoption gate file take their owner from whoever makes
+them,
+and a root phase first would leave both where the account cannot write.
+See
+[`package/wg/test-in-a-virtual-machine`](../test-in-a-virtual-machine/README.md).
+
 Privileged ignored tests use disposable cgroups.
 They cover all four protocols,
  process-exit persistence,

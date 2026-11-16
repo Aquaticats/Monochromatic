@@ -356,6 +356,7 @@ fn socket_child() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 mount"]
 fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::application_watcher_covers_named_targets_and_future_ghostty", "//package/wg/cli-quicker-exempt:test:functional");
     let app_slice = Path::new("/sys/fs/cgroup").join(format!(
         "wg-quicker-exempt-watch-{}",
         std::process::id()
@@ -426,6 +427,7 @@ fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<(
 #[test]
 #[ignore = "requires root and writable cgroup v2 mount"]
 fn application_watcher_service_starts_and_stops() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::application_watcher_service_starts_and_stops", "//package/wg/cli-quicker-exempt:test:functional");
     let uid = 3_000_000_000_u32 + (std::process::id() % 100_000_000);
     let app_slice = user_app_slice(uid);
     let service = app_slice.join("app-com.mitchellh.ghostty@fixture.service");
@@ -450,6 +452,7 @@ fn application_watcher_service_starts_and_stops() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn pretransition_parent_death_rolls_back_candidate() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::pretransition_parent_death_rolls_back_candidate", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("pretransition")?;
     let mut candidate = spawn_holder_candidate(&fixture.cgroup, FIRST_MARK)?;
     drop(candidate.input);
@@ -464,6 +467,7 @@ fn pretransition_parent_death_rolls_back_candidate() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn recovery_rejects_uncommitted_candidate() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::recovery_rejects_uncommitted_candidate", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("recover-uncommitted")?;
     let cgroup = fixture
         .cgroup
@@ -495,6 +499,7 @@ fn recovery_rejects_uncommitted_candidate() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn recovery_adopts_committed_candidate() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::recovery_adopts_committed_candidate", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("recover-committed")?;
     let cgroup = fixture
         .cgroup
@@ -521,6 +526,7 @@ fn recovery_adopts_committed_candidate() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn removed_cgroup_detaches_by_lexical_identity() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::removed_cgroup_detaches_by_lexical_identity", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("removed")?;
     let cgroup = fixture
         .cgroup
@@ -537,6 +543,7 @@ fn removed_cgroup_detaches_by_lexical_identity() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn wrong_owner_state_fails_closed() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::wrong_owner_state_fails_closed", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("wrong-owner")?;
     let cgroup = fixture
         .cgroup
@@ -569,6 +576,7 @@ fn wrong_owner_state_fails_closed() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 mount"]
 fn partial_link_attach_rolls_back() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::partial_link_attach_rolls_back", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("partial-links")?;
     let cgroup = std::fs::File::open(&fixture.cgroup)?;
     let result = attach_marker_unpinned_failing_after(cgroup.as_raw_fd(), FIRST_MARK, 2);
@@ -581,6 +589,7 @@ fn partial_link_attach_rolls_back() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 mount"]
 fn all_protocol_hooks_mark_and_drop_cleanly() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::all_protocol_hooks_mark_and_drop_cleanly", "//package/wg/cli-quicker-exempt:test:functional:protocols");
     let fixture = create_fixture("protocols")?;
     let cgroup = std::fs::File::open(&fixture.cgroup)?;
     let links = attach_marker_unpinned(cgroup.as_raw_fd(), FIRST_MARK)?;
@@ -596,6 +605,7 @@ fn all_protocol_hooks_mark_and_drop_cleanly() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn persisted_protocol_lifecycle() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::persisted_protocol_lifecycle", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("lifecycle")?;
     let cgroup = fixture
         .cgroup
@@ -615,6 +625,7 @@ fn persisted_protocol_lifecycle() -> io::Result<()> {
 #[test]
 #[ignore = "requires root and writable cgroup v2 plus bpffs mounts"]
 fn failed_attach_preserves_prior_attachment() -> io::Result<()> {
+    crate::test_in_virtual_machine::require_test_in_virtual_machine("pin_tests::failed_attach_preserves_prior_attachment", "//package/wg/cli-quicker-exempt:test:functional");
     let fixture = create_fixture("rollback")?;
     let cgroup = fixture
         .cgroup

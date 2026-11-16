@@ -19,74 +19,12 @@ description = "Run instruction and lifecycle unit tests through nextest"
 run = "cargo nextest run"
 
 [tasks."test:functional:protocols"]
-description = "Run privileged disposable-cgroup protocol coverage without bpffs persistence"
-shell = "node --input-type=module-typescript -e"
-run = '''
-import { execFileSync } from 'node:child_process'
-execFileSync('cargo', ['build'], { stdio: 'inherit' })
-/** Cargo JSON messages from test build. */
-const output = execFileSync('cargo', ['test', '--no-run', '--message-format=json'], {
-  encoding: 'utf8',
-  stdio: ['inherit', 'pipe', 'inherit'],
-})
-/** Unit-test artifact containing privileged ignored tests. */
-const artifact = output
-  .trim()
-  .split('\n')
-  .map((line) => { return JSON.parse(line) })
-  .find((message) => {
-    return message.reason === 'compiler-artifact'
-      && message.target?.name === 'wg-quicker-exempt'
-      && message.profile?.test === true
-      && typeof message.executable === 'string'
-  })
-if (artifact === undefined) {
-  throw new Error('Cargo did not report wg-quicker-exempt unit-test executable')
-}
-execFileSync('sudo', [
-  '--',
-  artifact.executable,
-  '--exact',
-  'pin_tests::all_protocol_hooks_mark_and_drop_cleanly',
-  '--ignored',
-  '--test-threads=1',
-  '--nocapture',
-], { stdio: 'inherit' })
-'''
+description = "Run privileged disposable-cgroup protocol coverage in a throwaway virtual machine"
+run = "mise run //package/wg/test-in-a-virtual-machine:run -- functional-protocols"
 
 [tasks."test:functional"]
-description = "Run all privileged disposable-cgroup persistence and protocol coverage"
-shell = "node --input-type=module-typescript -e"
-run = '''
-import { execFileSync } from 'node:child_process'
-execFileSync('cargo', ['build'], { stdio: 'inherit' })
-/** Cargo JSON messages from test build. */
-const output = execFileSync('cargo', ['test', '--no-run', '--message-format=json'], {
-  encoding: 'utf8',
-  stdio: ['inherit', 'pipe', 'inherit'],
-})
-/** Unit-test artifact containing privileged ignored tests. */
-const artifact = output
-  .trim()
-  .split('\n')
-  .map((line) => { return JSON.parse(line) })
-  .find((message) => {
-    return message.reason === 'compiler-artifact'
-      && message.target?.name === 'wg-quicker-exempt'
-      && message.profile?.test === true
-      && typeof message.executable === 'string'
-  })
-if (artifact === undefined) {
-  throw new Error('Cargo did not report wg-quicker-exempt unit-test executable')
-}
-execFileSync('sudo', [
-  '--',
-  artifact.executable,
-  '--ignored',
-  '--test-threads=1',
-  '--nocapture',
-], { stdio: 'inherit' })
-'''
+description = "Run every ignored test in a throwaway virtual machine, each as the caller it was written for"
+run = "mise run //package/wg/test-in-a-virtual-machine:run -- functional"
 
 [tasks.buildAndTest]
 description = "Build wg-quicker-exempt and run its lints"

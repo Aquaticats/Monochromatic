@@ -362,9 +362,27 @@ download-and-template-bake pipeline.
  The cloud-init seed defaults to `root`
 with a `/bin/sh` shell for custom images.
 
+## The data directory
+
+Images, templates and every VM's disk live below `~/.local/share/mvm`, or below
+the directory `MVM_DATA_DIR` names.
+The variable exists for a host whose `~/.local/share/mvm` cannot hold them, for
+example one whose `images` directory is a link to a disk that is not mounted:
+without it mvm has nowhere else to write and fails on the first run.
+
+```sh
+# package/mvm/cli/README.md
+export MVM_DATA_DIR=/var/tmp/mvm-data
+```
+
+A guest reaches the host's loopback interface only through the network, so a
+data directory the host's virtualisation can read is all it takes;
+`MVM_DATA_DIR` does not change what `virsh` and `qemu-img` are, which
+`MVM_VIRSH_COMMAND` and `MVM_QEMU_IMG_COMMAND` do.
+
 ## Architecture
 
-- **Base images** are cached in `~/.local/share/mvm/images/`
+- **Base images** are cached in `~/.local/share/mvm/images/` (or `$MVM_DATA_DIR/images`)
 - **Per-image templates** are stored alongside base images (e.g. `template-ubuntu.qcow2`)
 - **Per-VM storage** lives in `~/.local/share/mvm/vms/<name>/`
   containing `disk.qcow2`,
