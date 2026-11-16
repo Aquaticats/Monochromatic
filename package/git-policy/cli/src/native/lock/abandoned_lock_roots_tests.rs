@@ -515,3 +515,53 @@ fn a_root_reached_through_a_link(case: &RootCase, prefix: usize) {
     assert!(beyond.join("notes.txt").exists(), "and so are the person's notes beyond `{}`", linked.display());
     remove(root.as_path());
 }
+
+/// What:
+///  A folder an option names as the Git directory that is no repository gets no pass and no record:
+///  the lock standing in it is untouched and no record folder is made.
+/// Why:
+///  `--git-dir` was believed before Git said the folder was a repository,
+///  so a wrapped `git status` wrote a record into an ordinary folder and the next run deleted a person's
+///  `refs/user-data.lock` with its PID companion,
+///  while Git refused the folder both times
+///  (a review of `551084db3c`,
+/// finding 3).
+///  The positive control is the `refs` row of
+///  `a_root_is_cleared_when_it_is_really_there_and_never_reached_through_a_link`:
+///  the same lock in a folder that is a repository is cleared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(join(ordinary, 'refs'), { recursive: true }); writeFileSync(join(ordinary, 'refs/user-data.lock'), bytes); writeFileSync(join(ordinary, 'refs/user-data~pid.lock'), `pid ${gone}`);
+/// meetTheLocks({ gitDir: ordinary, commonDir: ordinary, … }); expect(existsSync(join(ordinary, 'refs/user-data.lock'))).toBe(true); expect(existsSync(folderOf(ordinary))).toBe(false)
+/// ```
+#[test]
+fn a_folder_named_as_the_git_directory_that_is_no_repository_gets_no_pass_and_no_record() {
+    let root: PathBuf = fixture("lock-roots-a-folder-that-is-no-repository");
+    let ordinary: PathBuf = root.join("not-a-repository");
+    std::fs::create_dir_all(ordinary.join("refs").as_path()).expect("an ordinary folder with a references folder");
+    // What: The record a killed command of an older release left in that folder, and the lock its number explains.
+    // Why:  Without a record naming the number, the pass keeps the lock whatever it thinks of the folder, and this
+    //       control would pass for the wrong reason.
+    let (gone, identity): (i64, String) = a_dead_process();
+    let folder: PathBuf = folder_of(ordinary.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the record folder");
+    let record: PathBuf = folder.join("record-of-the-gone-holder");
+    std::fs::write(record.as_path(), record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity)]).as_bytes()).expect("the record");
+    let lock: PathBuf = ordinary.join("refs/user-data.lock");
+    std::fs::write(lock.as_path(), b"a person's data in a folder that is no repository\n").expect("the person's file");
+    make_pid_file_after_the_lock(lock.as_path(), gone);
+    let repository: CommandRepository = CommandRepository {
+        start: root.clone(),
+        git_dir: Some(ordinary.clone()),
+        common_dir: Some(ordinary.clone()),
+        index_file: Some(ordinary.join("index")),
+        shallow_file: Some(ordinary.join("shallow")),
+        object_dir: Some(ordinary.join("objects")),
+    };
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(lock.exists(), "a folder Git refuses is no place this pass opens or unlinks");
+    assert!(ordinary.join("refs/user-data~pid.lock").exists(), "and the PID companion beside it is untouched");
+    assert!(record.exists(), "and the record of the process that is gone is left where it was, because no pass was made");
+    remove(root.as_path());
+}
