@@ -778,8 +778,8 @@ fn complete_lines(text: &[u8]) -> Vec<&[u8]> {
 /// ```
 fn reflog_line_names(line: &[u8]) -> Option<(String, String)> {
     let body: &[u8] = line.strip_suffix(b"\n")?;
-    let (old, rest) = take_a_reflog_name(body)?;
-    let (new, rest) = take_a_reflog_name(rest)?;
+    let (old, after_old) = take_a_reflog_name(body)?;
+    let (new, rest) = take_a_reflog_name(after_old)?;
     // The ident ends at its first `>`, which the space before the time follows.
     let at: usize = rest.iter().position(|byte| return *byte == b'>')?;
     let after_ident: &[u8] = rest.get(at + 1..)?.strip_prefix(b" ")?;
