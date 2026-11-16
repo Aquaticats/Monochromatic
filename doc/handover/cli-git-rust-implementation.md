@@ -1677,6 +1677,10 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   the commit that does not wait behind the service's writes, fourth run, at `6d67fbc5fb` (16 code files; per its report the runtime guard now follows calls and found this branch's own path first,
   then 35 files of `service/` and `landing/` whose tasks still reach a blocking function, listed so that the list can only shrink; a regression of its own found and fixed, 6,135 ms back to 103 ms; cost ratio 0.96);
   the one settle wait of the binary controls, from the two branches that each repaired it, at `7b8eb40e99` (one code file that is not a test).
+- **The specification's statement of how the automatic removal reads processes** ended at 21:34 at `323260fa9c` (one insertion in `SPEC.md`, comments in two source files, no message changed). Review queued at 21:39:47.
+  Its report notices, by reading and without a run, three things in `worktree/worktree_process_inside.rs` on `main`:
+  a process table that cannot be listed answers "nothing works there", so the removal goes on with no proof; paths are compared as text, so a worktree reached through a link or a bind mount reads as elsewhere; a file mapped and then closed is not seen.
+  The first is outside the gap the owner accepted. A fresh run is queued at 21:39:47 (fourteenth in the queue) to produce each, fix the first, and argue from the records whether the other two are defects or limits.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
