@@ -167,7 +167,7 @@ fn the_private_file_a_killed_claimer_left_is_collected_by_a_later_claim() {
     let note = path(root.as_path(), "3f9a");
     // A number no process has: the claimer is proved gone, and no child is started.
     let ended_pid: u32 = 999_999;
-    let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.pid.{ended_pid}.linux:000000.1.writing"));
+    let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.pid.{ended_pid}.linux:000000.{}.1.writing", crate::writings_of_dead_writers::pid_namespace_digits_for_controls()));
     std::fs::write(&dead, b"1234 linux:000000\n").expect("the file a killed claimer left");
     claim(note.as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("a later claim");
     assert!(!dead.exists(), "the claim's sweep collected the dead claimer's file");

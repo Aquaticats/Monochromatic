@@ -69,6 +69,12 @@ fn pid_namespace_digits() -> String {
     };
 }
 
+/// The PID namespace digits, for the controls of the writers that name a file for another module.
+#[cfg(test)]
+pub(crate) fn pid_namespace_digits_for_controls() -> String {
+    return pid_namespace_digits();
+}
+
 /// A number no other write of this process has taken, so two writes never share a temporary file.
 fn next_temporary_number() -> u64 {
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

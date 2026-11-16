@@ -108,7 +108,7 @@ fn a_temporary_file_its_writer_left_is_collected_by_the_next_write() {
     let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a writer that ends");
     let ended_pid: i32 = i32::try_from(ended.id()).expect("a process number");
     let _waited = ended.wait().expect("the writer ends");
-    let stale: PathBuf = folder.join(format!("real-git.{ended_pid}.1.writing"));
+    let stale: PathBuf = folder.join(format!("real-git.{ended_pid}.linux:000000.{}.1.writing", crate::writings_of_dead_writers::pid_namespace_digits_for_controls()));
     std::fs::write(stale.as_path(), b"/usr/bin/git\n").expect("the file a killed writer left");
     super::remember(runtime.as_path(), Path::new("/usr/bin/git")).expect("the next start records its Git");
     assert!(!stale.exists(), "the next write collects the file of a writer that is gone");

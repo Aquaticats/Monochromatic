@@ -512,7 +512,7 @@ mod notes_written_atomically_tests {
         let note: std::path::PathBuf = note_path(root.as_path(), "3f9a");
         // A number no process has: the writer is proved gone, and no child is started.
         let ended_pid: u32 = 999_999;
-        let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.git-dir.{ended_pid}.linux:000000.1.writing"));
+        let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.git-dir.{ended_pid}.linux:000000.{}.1.writing", crate::writings_of_dead_writers::pid_namespace_digits_for_controls()));
         std::fs::create_dir_all(root.join(NOTES_FOLDER)).expect("the notes folder");
         std::fs::write(&dead, b"half").expect("the file a killed writer left");
         record_worktree(root.as_path(), "3f9a", root.join("repo/.git").as_path()).expect("the next note write");

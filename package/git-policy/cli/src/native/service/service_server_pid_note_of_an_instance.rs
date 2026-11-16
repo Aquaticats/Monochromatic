@@ -112,11 +112,11 @@ pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
                         // A link puts the live owner's note back, and fails where another claimer published while it was aside:
                         //  that claimer's note is never replaced by this one.
                         let _restored = std::fs::hard_link(aside.as_path(), note);
-                        let _removed = std::fs::remove_file(aside.as_path());
+                        let _aside_gone = std::fs::remove_file(aside.as_path());
                         return Err(another_live_service_holds(held.pid));
                     }
                     // A killed service's leftovers: the next round publishes this claimer's note.
-                    let _removed = std::fs::remove_file(aside.as_path());
+                    let _stale_aside_gone = std::fs::remove_file(aside.as_path());
                 }
             }
             Err(refused) => return Err(refused),
