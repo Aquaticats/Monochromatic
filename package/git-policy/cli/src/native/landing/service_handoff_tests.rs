@@ -312,10 +312,39 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     let claimed: Option<crate::work_item::Claimed> =
         crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::Push]).expect("a claim");
     assert!(claimed.is_some(), "the service took the oldest record");
+    // What: A claimed record is named while its worktree has no service, which is this fixture: nobody is working on it.
+    // Why:  The review of `e347be3115` (part two-a, finding 3): a landed commit whose service died before its push sat in
+    //       `claimed/`, and every wrapped command said nothing for 135 s while the remote lacked the commit. The old assertion
+    //       here read "a claimed record is no longer waiting: {taken:?}" and "the claimed record is not named: {}", which held
+    //       while the claim was the only fact the reading had.
     let taken: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
-    assert_eq!(taken.len(), 1, "a claimed record is no longer waiting: {taken:?}");
-    assert!(!taken[0].contains(OID), "the claimed record is not named: {}", taken[0]);
+    // The control queued a second push above, so the first line is the one named and the rest are counted.
+    assert_eq!(taken.len(), 2, "the claimed record whose worktree has no service is named: {taken:?}");
+    assert!(taken[0].contains(OID), "the line names the commit: {}", taken[0]);
+    assert!(taken[0].contains("is owed its push"), "and says the service that took it ended: {}", taken[0]);
+    assert!(taken[0].contains("`git push` makes it now"), "and names the way that always works: {}", taken[0]);
+    // A service of this worktree that is there takes the name out of the line again: the holder is alive.
+    let runtime: std::path::PathBuf = crate::test_support::fixture_root().join("handoff-live-service");
+    let directory: std::path::PathBuf = runtime.join(crate::service_instance::SOCKET_DIRECTORY);
+    std::fs::create_dir_all(directory.as_path()).expect("the folder of the address");
+    let instance: String = crate::service_instance::instance_of(handoff.git_dir.as_path());
+    let note: std::path::PathBuf = crate::service_server_pid_note_of_an_instance::path(directory.as_path(), instance.as_str());
+    crate::service_server_pid_note_of_an_instance::write(note.as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("the note");
+    // The reading asks the environment for the runtime directory, so this half runs with one that holds the note.
+    let was: Option<std::ffi::OsString> = std::env::var_os("XDG_RUNTIME_DIR");
+    // SAFETY: no other control of this module sets this variable, and it is restored before this one ends.
+    unsafe { std::env::set_var("XDG_RUNTIME_DIR", runtime.as_os_str()) };
+    let held: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
+    match was {
+        Some(value) => unsafe { std::env::set_var("XDG_RUNTIME_DIR", value) },
+        None => unsafe { std::env::remove_var("XDG_RUNTIME_DIR") },
+    }
+    assert!(
+        held.iter().all(|line| { return !line.contains("is owed its push") && !line.contains(OID); }),
+        "a claimed record of a worktree whose service is there is left to it: {held:?}"
+    );
     remove(root.as_path());
+    let _ = std::fs::remove_dir_all(runtime.as_path());
 }
 
 /// What:

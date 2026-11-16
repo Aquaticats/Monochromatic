@@ -42,6 +42,27 @@
 /// ```ts
 /// queuedPushLine(branchRef, commit, waited)
 /// ```
+/// What:
+///  The line for a push record a commit service took and did not make before it ended.
+/// Why:
+///  A record in `claimed/` whose lease is over names a service that is gone: the push was not made, no service is looking, and
+/// the two ways to make it are a service this command starts and a `git push` of the person's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queuedAfterAHolderDied('refs/heads/main', 'abc', 130s)
+/// ```
+pub fn queued_push_line_after_a_holder_died(reference: &str, commit: &str, waited: std::time::Duration) -> String {
+    let from: String = match reference.is_empty() {
+        true => String::new(),
+        false => format!(" from {reference}"),
+    };
+    return format!(
+        "the commit {commit} is owed its push{from}: the commit service that took the push for it ended before making it, and the record has waited {}; this command starts a service that makes it, and `git push` makes it now if the service cannot be started",
+        waited_words(waited)
+    );
+}
+
 pub fn queued_push_line(reference: &str, commit: &str, waited: std::time::Duration) -> String {
     let bound: String = crate::kept_reference_words::span_words(crate::service_claim_watch::LOOK_AGAIN_AFTER);
     let from: String = match reference.is_empty() {

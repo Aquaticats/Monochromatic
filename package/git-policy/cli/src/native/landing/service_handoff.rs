@@ -649,17 +649,49 @@ pub const PUSH_QUEUED_AFTER: std::time::Duration = std::time::Duration::from_sec
 /// ```
 pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &dyn RemoteRecord, wake: &dyn WakeTheService) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
-    let mut waiting: Vec<(std::time::SystemTime, String, String)> = Vec::new();
-    for (name, queued) in crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING) {
+    let mut waiting: Vec<(std::time::SystemTime, String, String, bool)> = Vec::new();
+    // What: A push a service took and then died holding is named too, and its record is looked at by the wake below.
+    // Why:  The review of `e347be3115` (part two-a, finding 3; part one, finding 6) measured a landed commit whose service died
+    //       before its push: the record sat in `claimed/`, and `git status` and `git log` said nothing for 135 s, named nothing
+    //       and started no service, while the remote lacked the commit. A person is owed the sentence, and the push is owed a
+    //       service: the held record is named here once its holder can no longer be renewing it, which is the same lease the
+    //       service itself would wait out before taking it back.
+    // What: A claim whose worktree has no service any more is a record nobody is working on, and it is named at once.
+    // Why:  The lease is what keeps a slow holder's record alone; a holder whose service is gone is not slow, and waiting the
+    //       lease out is the 135 s of silence the review measured (`service_is_gone_after_a_stop.rs` proves it, by the note's
+    //       number and birth and by the address).
+    let no_service_any_more: bool = crate::service_host_of_a_worktree::runtime_directory(
+        crate::service_route::non_empty_path_variable("XDG_RUNTIME_DIR").as_deref(),
+        crate::service_route::non_empty_path_variable("HOME").as_deref(),
+    )
+    .map(|runtime: PathBuf| {
+        let instance: String = crate::service_instance::instance_of(git_dir);
+        return crate::service_is_gone_after_a_stop::service_is_gone(runtime.join(crate::service_instance::SOCKET_DIRECTORY).as_path(), instance.as_str());
+    })
+    .unwrap_or(true);
+    let claimed: Vec<(String, std::time::SystemTime)> = crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::CLAIMED)
+        .into_iter()
+        .filter(|(name, queued)| {
+            return name.starts_with(format!("{}-", WorkKind::Push.name()).as_str())
+                && (no_service_any_more || now.duration_since(*queued).unwrap_or(std::time::Duration::ZERO) >= crate::service_work::CLAIM_LEASE);
+        })
+        .collect();
+    for (name, queued) in claimed.into_iter().chain(crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING)) {
         if !name.starts_with(format!("{}-", WorkKind::Push.name()).as_str()) {
             continue;
         }
-        if now.duration_since(queued).unwrap_or(std::time::Duration::ZERO) < PUSH_QUEUED_AFTER {
+        // A record in `claimed/` is named once its holder's lease is over; one in `pending/` once it has waited its moment.
+        let queued_in_claim: bool = state_directory(work_dir.as_path(), crate::work_item::CLAIMED).join(name.as_str()).exists();
+        if !queued_in_claim && now.duration_since(queued).unwrap_or(std::time::Duration::ZERO) < PUSH_QUEUED_AFTER {
             continue;
         }
         // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and
         //  a record with no branch has no upstream to ask about.
-        let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(name.as_str());
+        let state: &str = match queued_in_claim {
+            true => crate::work_item::CLAIMED,
+            false => crate::work_item::PENDING,
+        };
+        let path: PathBuf = state_directory(work_dir.as_path(), state).join(name.as_str());
         let (commit, reference): (String, String) = match std::fs::read_to_string(path).ok().and_then(work_item_of) {
             Some(item) => (item.oid, item.branch_ref),
             None => match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
@@ -671,11 +703,17 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &
             settle_where_a_push_that_was_made_is_kept(work_dir.as_path(), crate::work_item::PENDING, name.as_str());
             continue;
         }
-        waiting.push((queued, commit, reference));
+        waiting.push((queued, commit, reference, queued_in_claim));
     }
-    let Some((queued, oldest_commit, oldest_reference)) = waiting.first() else { return Vec::new() };
+    let Some((queued, oldest_commit, oldest_reference, was_claimed)) = waiting.first() else { return Vec::new() };
     let waited: std::time::Duration = now.duration_since(*queued).unwrap_or(std::time::Duration::ZERO);
-    let mut lines: Vec<String> = vec![queued_push_line(oldest_reference.as_str(), oldest_commit.as_str(), waited)];
+    let mut lines: Vec<String> = vec![match was_claimed {
+        // What: A push the service took and did not make is said as that, and never as one that waits for a service that looks.
+        // Why:  The service that took it is gone, and a sentence about a running service that looks at its records by itself would
+        //       be false about the record it names (the review of `e347be3115`, part two-a, finding 3).
+        true => crate::service_handoff_queued_push_words::queued_push_line_after_a_holder_died(oldest_reference.as_str(), oldest_commit.as_str(), waited),
+        false => queued_push_line(oldest_reference.as_str(), oldest_commit.as_str(), waited),
+    }];
     let more: usize = waiting.len() - 1;
     if more > 0 {
         let (subject, possessive): (&str, &str) = if more == 1 { ("commit is", "its") } else { ("commits are", "their") };
