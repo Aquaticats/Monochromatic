@@ -65,6 +65,37 @@ pub(crate) fn is_a_parked_name(name: &OsStr) -> bool {
 }
 
 /// What:
+///  The kind of finding a pass learns about an entry it did not carry,
+///  which forbids the deletion of the old tree until a person answers for it.
+/// Why:
+///   The record beside the checkout is written as each one is learned,
+///  so a kill at any instruction after that loses the run's memory and not the fact:
+///  the kinds are kept apart because the refusal names each of them in its own words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Uncarried = 'left-out' | 'conflict' | 'kept-at-the-destination' | 'changed-while-passing' | 'unreadable';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Uncarried {
+    /// A source entry the destination lacks that is older than the pass's cut-off.
+    LeftOut,
+    /// A destination entry of another kind,
+    /// or one that is not older than the source,
+    /// which an update-only pass keeps.
+    Conflict,
+    /// An entry the pass did not place because the destination holds something it did not examine,
+    /// or because a replacement it parked was not judged.
+    KeptAtTheDestination,
+    /// A source entry that was another kind of entry when the copy reached it,
+    /// or a name that would not stand still.
+    ChangedWhilePassing,
+    /// A file this user may not read,
+    /// which stays in the source.
+    Unreadable,
+}
+
+/// What:
 ///  What one pass may do.
 ///  `&'a [PathBuf]` borrows the list of excluded paths for the pass.
 /// Why:
@@ -225,6 +256,10 @@ impl Directory {
 
 /// The state of one pass.
 pub(crate) struct Pass<'a> {
+    /// Told every entry the pass does not carry, as it learns it,
+    /// so the record is durable before the pass goes on to the next entry;
+    /// nothing when the caller keeps no record.
+    pub(crate) note_uncarried: Option<&'a mut dyn FnMut(&Path, Uncarried)>,
     pub(crate) platform: &'a dyn Platform,
     pub(crate) source: &'a Path,
     pub(crate) destination: &'a Path,
@@ -374,6 +409,37 @@ fn note_the_freed_name(path: &Path) {
 //endregion
 
 impl Pass<'_> {
+    /// Note one entry the pass does not carry,
+    /// and count it where the report and the deletion read it.
+    pub(crate) fn uncarried(&mut self, relative: &Path, kind: Uncarried) {
+        // One entry is counted once per kind: a copy that is retried learns the same change again, and the counts the
+        //  report reads would otherwise say two.
+        let counted: bool = match kind {
+            Uncarried::LeftOut => self.stats.left_out.iter().any(|path| return path == relative),
+            Uncarried::Conflict => self.stats.conflicts.iter().any(|path| return path == relative),
+            Uncarried::KeptAtTheDestination => self.stats.kept_at_the_destination.iter().any(|path| return path == relative),
+            Uncarried::ChangedWhilePassing => self.stats.changed_while_passing.iter().any(|path| return path == relative),
+            Uncarried::Unreadable => self.stats.unreadable.iter().any(|path| return path == relative),
+        };
+        if counted {
+            return;
+        }
+        // A file this user may not read has its own record and its own flag, written after every pass and read with it,
+        //  so it is counted here and not written into the record of the other kinds.
+        if kind != Uncarried::Unreadable
+            && let Some(note) = self.note_uncarried.as_mut()
+        {
+            note(relative, kind);
+        }
+        match kind {
+            Uncarried::LeftOut => self.stats.left_out.push(relative.to_path_buf()),
+            Uncarried::Conflict => self.stats.conflicts.push(relative.to_path_buf()),
+            Uncarried::KeptAtTheDestination => self.stats.kept_at_the_destination.push(relative.to_path_buf()),
+            Uncarried::ChangedWhilePassing => self.stats.changed_while_passing.push(relative.to_path_buf()),
+            Uncarried::Unreadable => self.stats.unreadable.push(relative.to_path_buf()),
+        };
+    }
+
     /// The destination path of a relative path,
     /// for messages.
     pub(crate) fn shown(&self, relative: &Path) -> PathBuf {
@@ -389,7 +455,7 @@ impl Pass<'_> {
             return true;
         }
         if found.is_dir() || !is_newer(original, found) {
-            self.stats.conflicts.push(relative.to_path_buf());
+            self.uncarried(relative, Uncarried::Conflict);
             return false;
         }
         return true;
@@ -463,7 +529,7 @@ impl Pass<'_> {
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // A parked entry already stands there: nothing of it is this pass's to judge, so nothing is freed and
                 //  the source's copy is not placed. Both are named.
-                self.stats.kept_at_the_destination.push(parked_relative);
+                self.uncarried(parked_relative.as_path(), Uncarried::KeptAtTheDestination);
                 remove_if_present(directory.partial().as_path(), shown.as_path())?;
                 return Ok(Published::KeptTheDestinationEntry);
             }
@@ -481,7 +547,7 @@ impl Pass<'_> {
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // Somebody put a file at the freed name while it stood free. It stays, and the entry the pass parked is
                 //  named for the person rather than removed or renamed over that file.
-                self.stats.kept_at_the_destination.push(parked_relative);
+                self.uncarried(parked_relative.as_path(), Uncarried::KeptAtTheDestination);
                 remove_if_present(directory.partial().as_path(), shown.as_path())?;
                 return Ok(Published::KeptTheDestinationEntry);
             }
@@ -536,7 +602,7 @@ impl Pass<'_> {
             }
             let path: PathBuf = relative.join(item.file_name());
             if !self.stats.kept_at_the_destination.contains(&path) {
-                self.stats.kept_at_the_destination.push(path);
+                self.uncarried(path.as_path(), Uncarried::KeptAtTheDestination);
             }
         }
     }

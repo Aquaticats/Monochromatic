@@ -192,7 +192,7 @@ impl Pass<'_> {
         return match Anchor::open_below(self.destination, relative) {
             Ok(anchor) => Ok(Some(anchor)),
             Err(error) if is_replaced(&error) && self.options.update_only && !relative.as_os_str().is_empty() => {
-                self.stats.conflicts.push(relative.to_path_buf());
+                self.uncarried(relative, Uncarried::Conflict);
                 Ok(None)
             }
             Err(error) => Err(MigrateError::io("open the directory", self.shown(relative).as_path(), &error)),
@@ -371,7 +371,7 @@ impl Pass<'_> {
                 // A person's entry, or one this program cannot prove it wrote: left out, as it always was, so the
                 //  deletion of the old tree does not go without a word about it.
                 None => {
-                    self.stats.left_out.push(relative.clone());
+                    self.uncarried(relative.as_path(), Uncarried::LeftOut);
                     return Ok(());
                 }
             }
@@ -437,9 +437,9 @@ impl Pass<'_> {
                     self.stats.notices_carried.push(relative);
                 }
             }
-            Copied::KeptTheDestinationEntry => self.stats.kept_at_the_destination.push(relative),
-            Copied::ChangedKind => self.stats.changed_while_passing.push(relative),
-            Copied::LeftAsItIs | Copied::Vanished | Copied::Unreadable => {}
+            // An entry the pass kept at the destination or found changed is recorded where it was learned, in the copy
+            //  method that learned it, so nothing is counted twice and the record is durable before the pass goes on.
+            Copied::KeptTheDestinationEntry | Copied::ChangedKind | Copied::LeftAsItIs | Copied::Vanished | Copied::Unreadable => {}
         }
     }
 
@@ -455,14 +455,15 @@ impl Pass<'_> {
 /// ```ts
 /// const stats = await syncTree({ platform, source, destination, options, interrupt });
 /// ```
-pub fn sync_tree(
-    platform: &dyn Platform,
-    source: &Path,
-    destination: &Path,
-    options: SyncOptions<'_>,
-    interrupt: &Interrupt,
+pub fn sync_tree<'a>(
+    platform: &'a dyn Platform,
+    source: &'a Path,
+    destination: &'a Path,
+    options: SyncOptions<'a>,
+    interrupt: &'a Interrupt,
+    note_uncarried: Option<&'a mut dyn FnMut(&Path, Uncarried)>,
 ) -> Result<SyncStats, MigrateError> {
-    let mut pass: Pass<'_> = Pass { platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
+    let mut pass: Pass<'a> = Pass { note_uncarried, platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
     let root_metadata: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
     let mut stack: Vec<Work> = vec![Work::Finish { relative: PathBuf::new(), metadata: root_metadata, created: false }, Work::Visit(PathBuf::new())];
     while let Some(work) = stack.pop() {

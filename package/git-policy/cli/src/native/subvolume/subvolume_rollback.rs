@@ -504,16 +504,18 @@ pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, disca
     {
         return Ok(Some(vec![refusal]));
     }
-    // The one question the deletion asks: every entry this run did not carry and every path the record beside the
-    //  checkout holds, read now, so a run that has passed nothing refuses as the run that learned it would.
+    // The files this user may not read are asked first: they have their own flag, and their record is the unreadable
+    //  list rather than the list of entries no pass carried.
+    if refusals.is_empty() && let Some(refusal) = unreadable_only_in_the_old_tree(run, discard_unreadable) {
+        refusals.push(refusal);
+    }
+    // The one question the deletion asks of the rest: every entry this run did not carry and every path the record
+    //  beside the checkout holds, read now, so a run that has passed nothing refuses as the run that learned it would.
     if refusals.is_empty() && !discard_left_out {
         let uncarried: std::collections::BTreeSet<PathBuf> = run.uncarried()?;
         if !uncarried.is_empty() {
             refusals.push(Refusal { cause: uncarried_cause(run, &uncarried), remedy: uncarried_remedy() });
         }
-    }
-    if refusals.is_empty() && let Some(refusal) = unreadable_only_in_the_old_tree(run, discard_unreadable) {
-        refusals.push(refusal);
     }
     if !refusals.is_empty() {
         return Ok(Some(refusals));

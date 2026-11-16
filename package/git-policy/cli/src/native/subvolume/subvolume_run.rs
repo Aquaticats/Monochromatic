@@ -27,6 +27,7 @@ use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::Layout;
 use crate::subvolume_pass_report::what_a_pass_could_not_carry;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
+use crate::subvolume_sync_pass_state_and_checks::Uncarried;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -77,6 +78,50 @@ fn read_path_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
         listed.insert(PathBuf::from(String::from_utf8_lossy(line.as_slice()).as_ref()));
     }
     return Ok(listed);
+}
+
+/// What:
+///  The record of entries no pass carried,
+///  written beside the checkout as each one is learned.
+/// Why:
+///   A pass that learns an entry and is killed before it ends must still forbid the deletion:
+///  the record is written with the atomic replacing write on every entry rather than once at the end of the pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheRecord { note(path) { this.paths.add(path); writeBesideThenRename(this.name, this.paths); } }
+/// ```
+struct TheRecord<'a> {
+    /// The file beside the checkout.
+    path: &'a Path,
+    /// Every path the record holds,
+    /// this run's earlier record included.
+    paths: BTreeSet<PathBuf>,
+    /// The files this user may not read,
+    /// which have their own record and their own flag:
+    /// one entry never asks for two flags.
+    unreadable: &'a BTreeSet<PathBuf>,
+    /// The failure of a write,
+    /// kept so the pass stops with it once it returns.
+    failed: Option<MigrateError>,
+}
+
+impl TheRecord<'_> {
+    /// Add one path and write the record,
+    /// remembering a failure so the pass that called this stops with it.
+    fn note(&mut self, relative: &Path) {
+        if self.unreadable.contains(relative) || !self.paths.insert(relative.to_path_buf()) {
+            return;
+        }
+        let mut text: String = String::new();
+        for path in &self.paths {
+            text.push_str(path.to_string_lossy().as_ref());
+            text.push('\n');
+        }
+        if let Err(failure) = MigrateError::from_io_result(write_beside_then_rename(self.path, text.as_bytes()), "write the list of entries no pass carried", self.path) {
+            self.failed = Some(failure);
+        }
+    }
 }
 
 /// What:
@@ -283,7 +328,24 @@ impl Run<'_> {
         excluded.sort();
         excluded.dedup();
         let started: Instant = Instant::now();
-        let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { excluded: excluded.as_slice(), ..requested }, self.interrupt)?;
+        // The record beside the checkout is written as each entry the pass does not carry is learned, so a kill at any
+        //  instruction after that leaves the fact behind, not only the run's memory of it.
+        let stats: SyncStats = {
+            let mut record: TheRecord<'_> =
+                TheRecord { path: self.layout.left_out_path.as_path(), paths: self.recorded.clone(), unreadable: &self.unreadable, failed: None };
+            let stats: SyncStats = sync_tree(
+                self.platform,
+                source,
+                destination,
+                SyncOptions { excluded: excluded.as_slice(), ..requested },
+                self.interrupt,
+                Some(&mut |path: &Path, _kind: Uncarried| return record.note(path)),
+            )?;
+            if let Some(failure) = record.failed.take() {
+                return Err(failure);
+            }
+            stats
+        };
         self.line(
             format!(
                 "{label}: {} entries, {} files copied ({} cloned), {} hard-linked, {} symlinks, {} unchanged, {} deleted, {} vanished, {:.2} s",

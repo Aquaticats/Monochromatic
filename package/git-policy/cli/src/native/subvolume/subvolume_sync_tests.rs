@@ -65,7 +65,7 @@ fn trees(name: &str) -> (PathBuf, PathBuf, PathBuf) {
 
 /// Run a pass on the stand-in platform.
 fn run(source: &Path, destination: &Path, options: SyncOptions<'_>) -> SyncStats {
-    return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never()).expect("pass");
+    return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never(), None).expect("pass");
 }
 
 /// A first pass copies every kind with its bytes,
@@ -345,7 +345,7 @@ fn an_unreadable_directory_stops_the_pass_naming_it() {
     let (parent, source, destination) = trees("sync-unreadable-dir");
     std::fs::create_dir(source.join("dir/closed")).expect("directory");
     std::fs::set_permissions(source.join("dir/closed"), PermissionsExt::from_mode(0o000)).expect("closed");
-    let error: MigrateError = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect_err("stopped");
+    let error: MigrateError = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), COPY, &Interrupt::never(), None).expect_err("stopped");
     // The directory stays closed, and the fixture goes closed too:
     // the teardown gives this user the permission back before it removes the tree (`test_support::settle_fixture`).
     assert!(matches!(&error, MigrateError::UnreadableDirectory { path, .. } if path.ends_with("dir/closed")), "{error}");
@@ -365,7 +365,7 @@ fn a_socket_is_listed_and_a_missing_source_is_an_error() {
     let stats: SyncStats = run(source.as_path(), destination.as_path(), COPY);
     assert_eq!(stats.special_skipped, vec![PathBuf::from("dir/sock")]);
     assert!(!destination.join("dir/sock").exists());
-    let error: MigrateError = sync_tree(&PlainPlatform::new(), parent.join("absent").as_path(), destination.as_path(), COPY, &Interrupt::never()).expect_err("missing");
+    let error: MigrateError = sync_tree(&PlainPlatform::new(), parent.join("absent").as_path(), destination.as_path(), COPY, &Interrupt::never(), None).expect_err("missing");
     assert!(error.to_string().contains("cannot examine") && error.to_string().contains("absent"), "{error}");
     remove(parent.as_path());
 }
@@ -375,7 +375,7 @@ fn a_socket_is_listed_and_a_missing_source_is_an_error() {
 #[test]
 fn a_stopped_pass_is_completed_by_the_next_one() {
     let (parent, source, destination) = trees("sync-interrupted");
-    let error: MigrateError = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), COPY, &Interrupt::at("copy-entry", 1)).expect_err("stopped");
+    let error: MigrateError = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), COPY, &Interrupt::at("copy-entry", 1), None).expect_err("stopped");
     assert_eq!(error, MigrateError::Interrupted(String::from("copy-entry")));
     run(source.as_path(), destination.as_path(), COPY);
     assert_eq!(std::fs::read(destination.join("dir/deeper/leaf")).expect("leaf"), vec![7u8; 70_000]);
@@ -429,7 +429,7 @@ fn a_killed_update_only_copy_is_not_mistaken_for_a_newer_file() {
     run(source.as_path(), destination.as_path(), COPY);
     std::fs::write(source.join("file.txt"), b"a longer replacement\n").expect("source edit");
     set_mtime(source.join("file.txt").as_path(), 1_000_000_500);
-    let stopped = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), UPDATE, &Interrupt::at("copy-partial", 0));
+    let stopped = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), UPDATE, &Interrupt::at("copy-partial", 0), None);
     assert_eq!(stopped.expect_err("killed"), MigrateError::Interrupted(String::from("copy-partial")));
     run(source.as_path(), destination.as_path(), UPDATE);
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("copy"), b"a longer replacement\n");
@@ -515,7 +515,7 @@ fn racing(path: PathBuf, picks: fn(u32) -> bool) -> Hooked {
 fn a_source_that_changes_during_the_copy_is_copied_again() {
     let (parent, source, destination) = trees("sync-racing");
     let platform: Hooked = racing(source.join("file.txt"), |call: u32| { return call == 0; });
-    sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect("pass");
+    sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never(), None).expect("pass");
     let (left, right) = (std::fs::metadata(source.join("file.txt")).expect("source"), std::fs::metadata(destination.join("file.txt")).expect("copy"));
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("copy"), std::fs::read(source.join("file.txt")).expect("source"));
     assert_eq!((left.len(), left.mtime(), left.mtime_nsec()), (right.len(), right.mtime(), right.mtime_nsec()));
@@ -528,7 +528,7 @@ fn a_source_that_changes_during_the_copy_is_copied_again() {
 fn a_source_that_never_settles_is_an_error() {
     let (parent, source, destination) = trees("sync-racing-always");
     let platform: Hooked = racing(source.join("file.txt"), |_call: u32| { return true; });
-    let error: MigrateError = sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect_err("never settles");
+    let error: MigrateError = sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never(), None).expect_err("never settles");
     assert!(error.to_string().contains("file.txt") && error.to_string().contains("while it was being copied"), "{error}");
     remove(parent.as_path());
 }
@@ -539,7 +539,7 @@ fn hard_links_that_cannot_be_made_become_separate_copies() {
     let (parent, source, destination) = trees("sync-link-exdev");
     std::fs::hard_link(source.join("file.txt"), source.join("dir/second-name")).expect("hard link");
     let platform: Hooked = Hooked { inner: PlainPlatform::new(), on_clone: Box::new(|_call: u32| {}), calls: std::cell::Cell::new(0), links_fail: true };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect("pass");
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never(), None).expect("pass");
     assert_eq!(stats.hard_linked, 0);
     let (first, second) = (std::fs::metadata(destination.join("file.txt")).expect("first"), std::fs::metadata(destination.join("dir/second-name")).expect("second"));
     assert_ne!(first.ino(), second.ino());
@@ -580,7 +580,7 @@ fn a_destination_directory_replaced_by_a_link_during_the_pass_redirects_nothing(
         }
     };
     let platform: Hooked = Hooked { inner: PlainPlatform::new(), on_clone: Box::new(swap), calls: std::cell::Cell::new(0), links_fail: false };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), UPDATE, &Interrupt::never()).expect("pass");
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), UPDATE, &Interrupt::never(), None).expect("pass");
     for file in ["p/f", "q/g"] {
         let metadata: std::fs::Metadata = std::fs::metadata(outside.join(file)).expect("outside file");
         assert_eq!(std::fs::read(outside.join(file)).expect("content"), b"outside, must stay", "{file}");
@@ -731,7 +731,17 @@ fn the_group_of_a_copy_follows_the_original_not_the_directory_it_was_made_in() {
 
 /// A pass over `source` and `destination` that the controls below drive one step at a time.
 fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
-    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
+    return Pass {
+        note_uncarried: None,
+        platform,
+        source,
+        destination,
+        options: COPY,
+        interrupt,
+        stats: SyncStats::default(),
+        links: HashMap::new(),
+        stage_holders: HashSet::new(),
+    };
 }
 
 /// The destination directory of a relative path,

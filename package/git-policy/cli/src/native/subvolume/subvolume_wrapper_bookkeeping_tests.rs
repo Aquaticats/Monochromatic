@@ -109,7 +109,7 @@ fn records_below_the_git_directory() -> PathBuf {
 /// as the deletion of the old tree runs it.
 fn carry(source: &Path, destination: &Path) -> SyncStats {
     let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(A_CUTOFF_AFTER_EVERY_ENTRY) };
-    return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never()).expect("a pass");
+    return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never(), None).expect("a pass");
 }
 
 /// The exit status of one command and everything it said,
@@ -439,7 +439,17 @@ const COPY: SyncOptions<'static> = SyncOptions { delete: false, update_only: fal
 
 /// A pass over `source` and `destination` that a control drives one step at a time.
 fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
-    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
+    return Pass {
+        note_uncarried: None,
+        platform,
+        source,
+        destination,
+        options: COPY,
+        interrupt,
+        stats: SyncStats::default(),
+        links: HashMap::new(),
+        stage_holders: HashSet::new(),
+    };
 }
 
 /// The destination directory of a relative path,
@@ -595,7 +605,7 @@ fn an_ordinary_file_the_destination_gained_during_the_copy_is_kept() {
         std::fs::write(written_into.as_path(), concurrent_text).expect("the concurrent file");
     }));
     let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
     platform.on_clone = Box::new(|_calls| {});
     assert_eq!(stats.kept_at_the_destination, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
     assert_eq!(std::fs::read(destination.join("person-notes.txt")).expect("the destination file"), concurrent_text, "the concurrent file is not replaced");
@@ -657,7 +667,7 @@ fn review_repro_destination_written_in_place_during_copy_is_kept() {
         std::fs::write(written_into.as_path(), concurrent_text).expect("in-place destination write");
     }));
     let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
     println!("destination after publication: {:?}; kept report: {:?}", std::fs::read(destination_note.as_path()), stats.kept_at_the_destination);
     assert_eq!(std::fs::read(destination_note.as_path()).expect("destination after publication"), concurrent_text);
     remove(parent.as_path());
@@ -733,6 +743,53 @@ fn review_repro_rerun_reads_the_durable_left_out_list() {
 }
 //endregion
 
+/// What:
+///  A kill at the instruction after the record of an uncarried entry was written:
+///  the next command learns nothing new there and still refuses,
+///  because the deletion asks the record.
+/// Why:
+///  The deletion of the old tree is the one act that cannot be taken back,
+///  so every instruction between the pass learning an entry and that act has to leave the fact behind.
+///  The record is written where the entry is learned, before the pass reaches a checkpoint,
+///  so this is the first instruction a kill can take.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await passLate({interruptAt: 'copy-kept'}); // killed; then removeOld() must refuse
+/// ```
+#[test]
+fn a_kill_after_the_record_of_an_uncarried_entry_still_refuses() {
+    let (parent, root) = checkout_with_worktree("kill-after-the-record");
+    let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
+    let (migration_code, migration_said) = run_hooked(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let note: PathBuf = layout.old_path.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"only in the old tree, and newer\n").expect("a note in the old tree");
+    // A newer destination file takes the name while the copy runs, so the pass keeps the destination's and records it.
+    let destination: PathBuf = root.join("person-notes.txt");
+    let concurrent_text: &[u8] = b"a newer file that takes the name during the copy\n";
+    let written_into: PathBuf = destination.clone();
+    platform.on_clone = Box::new(move |_calls| {
+        std::fs::write(written_into.as_path(), concurrent_text).expect("the concurrent destination file");
+    });
+    let interrupt: Interrupt = Interrupt::at("copy-kept", 0);
+    let mut lines: Vec<String> = Vec::new();
+    let mut say = |text: &str| lines.push(text.to_string());
+    let mut first_run: crate::subvolume_run::Run<'_> = crate::subvolume_run::Run::open(&platform, &layout, &interrupt, &mut say).expect("open the first run");
+    let killed: Result<SyncStats, crate::subvolume_error::MigrateError> = first_run.pass_late("late writes", layout.old_path.as_path(), layout.root.as_path(), i64::MIN);
+    assert!(killed.is_err(), "the pass stopped at the instruction after the record was written: {lines:#?}");
+    drop(first_run);
+    drop(say);
+    let record: String = std::fs::read_to_string(layout.left_out_path.as_path()).expect("the record beside the checkout");
+    assert!(record.contains("person-notes.txt"), "the record is durable at that instruction: {record:?}");
+    platform.on_clone = Box::new(|_calls| {});
+    let (code, said) = run_hooked(&platform, &remove_old_arguments(), root.as_path());
+    assert_eq!(code, REFUSED, "{said}");
+    assert!(layout.old_path.join("person-notes.txt").is_file() && destination.is_file(), "the old tree and the checkout keep their files");
+    remove(parent.as_path());
+}
+
 //region What the four findings are held by, beside the review's own tests
 
 /// The review, finding 4:
@@ -760,7 +817,7 @@ fn review_repro_a_file_put_at_the_freed_name_is_kept() {
         })));
     }
     let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
     watch_the_freed_name(None);
     assert_eq!(std::fs::read(destination_note.as_path()).expect("the destination after the pass"), concurrent_text, "the file put at the freed name is not replaced: {stats:#?}");
     assert!(!stats.kept_at_the_destination.is_empty(), "the pass says it did not place the source's copy: {stats:#?}");
@@ -817,7 +874,7 @@ fn a_source_path_replaced_during_the_copy_is_counted_as_another_kind() {
         std::fs::rename(replacement.as_path(), replaced.as_path()).expect("replace the source path");
     }));
     let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
     platform.on_clone = Box::new(|_calls| {});
     assert_eq!(stats.changed_while_passing, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
     assert!(!destination.join("person-notes.txt").exists(), "the copy of the inode that no longer stands there is not placed: {stats:#?}");

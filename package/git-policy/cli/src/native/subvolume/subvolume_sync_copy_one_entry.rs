@@ -38,7 +38,11 @@ impl Pass<'_> {
                 return Ok(Copied::Vanished);
             }
             // The name holds another kind of entry now: nothing is written here and the walk reports it.
-            Err(error) if error.raw_os_error() == Some(libc::EINVAL) => return Ok(Copied::ChangedKind),
+            Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                return Ok(Copied::ChangedKind);
+            }
             Err(error) => return Err(MigrateError::io("read the link", source.as_path(), &error)),
         };
         if let Some(found) = &existing {
@@ -67,6 +71,7 @@ impl Pass<'_> {
             }
             remove_if_present(partial.as_path(), shown.as_path())?;
             if names >= COPY_ATTEMPTS {
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
                 return Ok(Copied::ChangedKind);
             }
             self.stats.recopied += 1;
@@ -76,11 +81,17 @@ impl Pass<'_> {
                     self.stats.vanished += 1;
                     return Ok(Copied::Vanished);
                 }
-                Err(error) if error.raw_os_error() == Some(libc::EINVAL) => return Ok(Copied::ChangedKind),
+                Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                return Ok(Copied::ChangedKind);
+            }
                 Err(error) => return Err(MigrateError::io("read the link", source.as_path(), &error)),
             }
         }
         if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
+            self.uncarried(relative, Uncarried::KeptAtTheDestination);
+            self.interrupt.check("copy-kept")?;
             return Ok(Copied::KeptTheDestinationEntry);
         }
         self.stats.symlinks += 1;
@@ -94,7 +105,11 @@ impl Pass<'_> {
         // A named pipe is made from the listing's kind, so the name has to hold that kind still: another kind is no
         //  entry this pass can make here, and the walk reports it rather than writing its own entry.
         match std::fs::symlink_metadata(&source) {
-            Ok(now) if !now.file_type().is_fifo() => return Ok(Copied::ChangedKind),
+            Ok(now) if !now.file_type().is_fifo() => {
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                return Ok(Copied::ChangedKind);
+            }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 self.stats.vanished += 1;
@@ -131,12 +146,17 @@ impl Pass<'_> {
             }
             remove_if_present(partial.as_path(), shown.as_path())?;
             if names >= COPY_ATTEMPTS {
+                self.uncarried(relative, Uncarried::ChangedWhilePassing);
                 return Ok(Copied::ChangedKind);
             }
             self.stats.recopied += 1;
             match std::fs::symlink_metadata(&source) {
                 Ok(now) if now.file_type().is_fifo() => examined = now,
-                Ok(_other) => return Ok(Copied::ChangedKind),
+                Ok(_other) => {
+                    self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                    self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                    return Ok(Copied::ChangedKind);
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                     self.stats.vanished += 1;
                     return Ok(Copied::Vanished);
@@ -145,6 +165,8 @@ impl Pass<'_> {
             }
         }
         if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
+            self.uncarried(relative, Uncarried::KeptAtTheDestination);
+            self.interrupt.check("copy-kept")?;
             return Ok(Copied::KeptTheDestinationEntry);
         }
         self.stats.fifos += 1;
@@ -241,7 +263,7 @@ impl Pass<'_> {
             let mut input: File = match File::open(&source) {
                 Ok(opened) => opened,
                 Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
-                    self.stats.unreadable.push(relative.to_path_buf());
+                    self.uncarried(relative, Uncarried::Unreadable);
                     return Ok(Copied::Unreadable);
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -257,6 +279,7 @@ impl Pass<'_> {
                 // The name holds another kind of entry now: nothing is written here, and the walk reports it, so the old
                 //  tree is not deleted with an entry this pass never carried.
                 if !before.is_file() {
+                    self.uncarried(relative, Uncarried::ChangedWhilePassing);
                     return Ok(Copied::ChangedKind);
                 }
                 remove_if_present(directory.partial().as_path(), shown.as_path())?;
@@ -290,13 +313,17 @@ impl Pass<'_> {
                     //  of times. A name that will not stand still is an entry that changed while passing.
                     remove_if_present(directory.partial().as_path(), shown.as_path())?;
                     if names >= COPY_ATTEMPTS {
+                        self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                        self.uncarried(relative, Uncarried::ChangedWhilePassing);
                         return Ok(Copied::ChangedKind);
                     }
                     self.stats.recopied += 1;
                     break;
                 }
                 if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
-                    return Ok(Copied::KeptTheDestinationEntry);
+                self.uncarried(relative, Uncarried::KeptAtTheDestination);
+                self.interrupt.check("copy-kept")?;
+                return Ok(Copied::KeptTheDestinationEntry);
                 }
                 if cloned.is_ok() {
                     self.stats.cloned += 1;
