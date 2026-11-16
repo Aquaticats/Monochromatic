@@ -1690,6 +1690,12 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   Concurrent queue writes discard an entry; a concurrent settler deletes the only recovery record of a start in progress; an entry name escapes the runs folder and overwrites a file;
   the timeout's forced kill is lost when the caller exits; a launcher is left out of the going set while its wake path still resumes that run; a finished batch entry keeps its place and stalls the queue.
   The first belongs to the queue-as-a-folder branch by the owner's answer, so the author keeps its control and builds no second answer; the other five are its own. Fourth run queued at 21:53:05, seventeenth in the queue.
+- **Landing never waits** (`c9bde6d446`, whole range, 49 of 49 files): four things.
+  Reproduced: a reused process number makes a second relink replace and then lose a launcher record that was kept after a kill (`repair/package_repair_toolchain.rs` lines 424 to 439, 529 to 540);
+  an end of the connection before the service reads a wake is answered as a hand-over that succeeded, so a landed commit can stay unpushed (`service/service_client.rs` lines 570 to 599).
+  By reading: the removal of a journal's stage falls back to a plain `remove_dir_all` with no bound. Trigger by reading, state reproduced: a failed staging marker makes every prewarm attempt refuse the moved-aside state.
+  Author's eighth run queued at 22:11:00, fourth in the queue, and asked whether `main` has each. Passes 29 and 34 keep waiting.
+- **The service logs of a control under a limit**, fresh run ended at 22:09 at `b0f446fe7b` (four files, test support). Review queued at 22:11:00.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
