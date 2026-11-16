@@ -101,9 +101,13 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
     for problem in &sweep.rescue_problems {
         lines.push(format!("{PREFIX}{problem}"));
     }
+    // The removal passed over every process of this account that hid its working folder or its files and started before
+    // the worktree was made, taking it to hold nothing there, and such a process can have opened a file or moved into the
+    // folder since. The owner's decision of 2026-11-15 accepts that gap only while it is said plainly, and this line is
+    // where the person whose worktree went meets it.
     for removed in &sweep.removed {
         lines.push(format!(
-            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the ignored files there went with it because the worktree this merge ran in holds every one of them, which is what frees the space its snapshot held. A directory Git ignores went with it unread, so anything you kept inside one went with the worktree too; reading every file below such a directory would cost the whole tree on every merge.",
+            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the ignored files there went with it because the worktree this merge ran in holds every one of them, which is what frees the space its snapshot held. A directory Git ignores went with it unread, so anything you kept inside one went with the worktree too; reading every file below such a directory would cost the whole tree on every merge. One check behind this removal passes over a process of this account that hides its working folder or the files it holds open and whose start the ages read as before this worktree was made, taking it to hold nothing there; that process may have opened a file or moved into the folder since, so anything it had there went with the worktree.",
             removed.worktree.display(),
             removed.branch,
             sweep.landed_branch

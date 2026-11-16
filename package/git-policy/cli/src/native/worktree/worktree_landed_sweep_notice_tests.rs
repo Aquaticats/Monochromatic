@@ -60,6 +60,31 @@ fn a_removed_worktree_says_an_ignored_directory_went_unread() {
 }
 
 /// What:
+///  The line about a removal says the process check cannot see a process this account hid from it.
+/// Why:
+///   The owner's decision of 2026-11-15 accepts that gap on condition that it is said plainly,
+///  and the line a person reads when their worktree goes is where they meet it:
+///  a process of this account that hides its working folder or the files it holds open,
+///  and whose start the ages read as before the worktree was made,
+///  is passed over as holding nothing there,
+///  though it may have opened a file or moved into the folder since.
+///  The line is the only place a person learns that the check has a hole,
+///  so a line that says only that the branch stays and the files went is silent about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(landedSweepLines(aSweepThatRemoved())[0]).toContain('hides its working folder or the files it holds open');
+/// ```
+#[test]
+fn a_removed_worktree_says_the_process_check_cannot_see_a_hidden_older_process() {
+    let lines: Vec<String> = landed_sweep_lines(&a_sweep_that_removed());
+    let line: &str = lines[0].as_str();
+    assert!(line.contains("hides its working folder or the files it holds open"), "{line}");
+    assert!(line.contains("whose start the ages read as before this worktree was made"), "{line}");
+    assert!(line.contains("may have opened a file or moved into the folder since"), "{line}");
+}
+
+/// What:
 ///  A worktree whose removal the merge handed to the commit service is named with where its outcome is read.
 /// Why:
 ///  The removal is Git's own reading of every tracked file there and finishes after the merge,
