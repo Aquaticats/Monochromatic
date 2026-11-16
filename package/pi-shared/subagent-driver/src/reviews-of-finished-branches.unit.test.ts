@@ -201,12 +201,14 @@ function seamsAnswering({
     waits: number[];
     briefs: { review: string; commit: string; range: string }[];
     shown: string[];
+    integrations: string[];
   } = {
     starts: [],
     saves: [],
     waits: [],
     briefs: [],
     shown: [],
+    integrations: [],
   };
   return {
     asked,
@@ -223,8 +225,13 @@ function seamsAnswering({
       integrationTip: async function integrationTip() {
         return anIntegrationTip();
       },
-      integrationMerges: async function integrationMerges() {
-        return merges;
+      integrationMerges: async function integrationMerges(
+        request: { readonly integration: string } = { integration: '', },
+      ) {
+        asked.integrations.push(request.integration,);
+        // A merge log asked of the integration's name, which moves, can miss the merge that took a branch; one asked of the
+        // commit the tip was pinned to cannot.
+        return (request.integration === anIntegrationTip()) ? merges : [];
       },
       brief: async function brief({ review, commit, range, },) {
         asked.briefs.push({
@@ -234,7 +241,7 @@ function seamsAnswering({
         },);
         return briefs.get(review,)
           ?? {
-            written: false,
+            kind: 'nothing-to-review',
             line: `${runNameOfAReview({ review, },)}: no answer for this brief`,
           };
       },
@@ -422,10 +429,10 @@ await describe({
             const { seams, asked } = seamsAnswering({
               briefs: new Map([
                 [aChange(), {
-                  written: false,
+                  kind: 'nothing-to-review',
                   line: 'nothing to review under package/a/src in a range of commits',
                 },],
-                [anotherChange(), { written: true, line: 'another brief', },],
+                [anotherChange(), { kind: 'written', line: 'another brief', },],
               ],),
               starts: new Map(),
               saves: new Map(),
@@ -452,7 +459,7 @@ await describe({
              The seams, whose saved review states a range it was not given.
              */
             const { seams } = seamsAnswering({
-              briefs: new Map([[aChange(), { written: true, line: 'brief written', },],]),
+              briefs: new Map([[aChange(), { kind: 'written', line: 'brief written', },],]),
               starts: new Map(),
               saves: new Map([[aChange(), {
                 line: `${runNameOfAReview({ review: aChange(), },)}: saved its last message as review.md, `
@@ -471,6 +478,67 @@ await describe({
             expect(started.lines.at(-1,),)
               .toBe(`reviews ended with statuses 0, and ${aChange()} does not cover its change`,);
             expect(statusOfStartedReviews({ started, },),).toBe(1,);
+          },
+        },),
+        it({
+          name: 'counts a brief that was not written as a review that did not happen, and answers the status a caller acts on with 1',
+          fn: async () => {
+            /**
+             The line the writer answers when a review folder is in the way.
+             */
+            const notWritten = `${runNameOfAReview({ review: aChange(), },)}: a review folder is in the way`;
+            /**
+             The seams, whose brief for the change could not be written.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map([[aChange(), { kind: 'not-written', line: notWritten, },],]),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [],
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
+            // Nothing was started and no review was judged, and the command must still say that a review did not happen.
+            expect(started.statuses,).toEqual([],);
+            expect(started.lines,).toContain(notWritten,);
+            expect(started.reviewsWithoutCoverage,).toBe(1,);
+            expect(started.lines.at(-1,),)
+              .toBe(`no review was started, and ${aChange()} does not cover its change`,);
+            expect(started.lines.join('\n',),).not.toContain('nothing to review',);
+            expect(asked.starts,).toEqual([],);
+            expect(statusOfStartedReviews({ started, },),).toBe(1,);
+          },
+        },),
+        it({
+          name: 'asks the integration\'s merges of the commit its tip was pinned to, so a merge that moved the integration cannot be lost',
+          fn: async () => {
+            /**
+             The merge that took the branch's tip.
+             */
+            const merge = 'def456';
+            /**
+             The merge's first parent, which is the commit the range starts at.
+             */
+            const parents = '789abc';
+            /**
+             The seams, whose merge log answers only the pinned integration commit.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map([[aChange(), { kind: 'written', line: 'brief written', },],]),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [`${merge} ${parents} ${aTip({ change: aChange(), },)}`,],
+            },);
+            await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
+            // The merge log is asked of the pinned commit, so a merge that moved the integration's name is still found.
+            expect(asked.integrations,).toEqual([anIntegrationTip(),],);
+            expect(asked.briefs.map(function rangeOf(brief,) {
+              return brief.range;
+            },),).toEqual([`${parents}...${aTip({ change: aChange(), },)}`,],);
           },
         },),
         it({
@@ -513,7 +581,7 @@ await describe({
              The seams, whose branch the integration has not merged.
              */
             const { seams, asked } = seamsAnswering({
-              briefs: new Map([[aChange(), { written: true, line: 'brief written', },],]),
+              briefs: new Map([[aChange(), { kind: 'written', line: 'brief written', },],]),
               starts: new Map(),
               saves: new Map(),
               written: [],
@@ -548,7 +616,7 @@ await describe({
              */
             const { seams, asked } = seamsAnswering({
               briefs: new Map([[aChange(), {
-                written: true,
+                kind: 'written',
                 line: `${runNameOfAReview({ review: aChange(), },)}: ${String(1,)} files to read`,
               },],]),
               starts: new Map(),
@@ -575,8 +643,8 @@ await describe({
              */
             const { seams, asked } = seamsAnswering({
               briefs: new Map([
-                [aChange(), { written: true, line: 'a brief', },],
-                [anotherChange(), { written: true, line: 'another brief', },],
+                [aChange(), { kind: 'written', line: 'a brief', },],
+                [anotherChange(), { kind: 'written', line: 'another brief', },],
               ],),
               starts: new Map(),
               saves: new Map(),
@@ -602,8 +670,8 @@ await describe({
              */
             const { seams, asked } = seamsAnswering({
               briefs: new Map([
-                [aChange(), { written: true, line: 'a brief', },],
-                [anotherChange(), { written: true, line: 'another brief', },],
+                [aChange(), { kind: 'written', line: 'a brief', },],
+                [anotherChange(), { kind: 'written', line: 'another brief', },],
               ],),
               starts: new Map([
                 [aChange(), { output: 'why', status: failedStatus, },],

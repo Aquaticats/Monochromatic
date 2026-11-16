@@ -485,7 +485,7 @@ await describe({
               reviewsFolder,
               git: gitAnswering({ files: theFilesTouched(), },),
             },),);
-            expect(briefed.written,).toBe(true,);
+            expect(briefed.kind,).toBe('written',);
             expect(await readFile(join(reviewsFolder, aReview(), 'change.diff',), 'utf8',),)
               .toBe(theFilesTouched().map(function patchOf(path,) {
                 return `diff --git a/${path} b/${path}\n`;
@@ -528,7 +528,8 @@ await describe({
               reviewsFolder,
               git: gitAnswering({ files: theFilesTouched(), },),
             },),);
-            expect(briefed.written,).toBe(false,);
+            // A brief that was not written is its own answer, not a change with nothing to review.
+            expect(briefed.kind,).toBe('not-written',);
             // The caller reads which folder is in the way and what it holds, and nothing of it is replaced or removed.
             expect(briefed.line,).toContain(reviewFolder,);
             expect(briefed.line,).toContain('brief.md',);
@@ -541,6 +542,28 @@ await describe({
             await expect(
               readFile(join(reviewFolder, 'what-the-review-read.json',),),
             ).rejects.toThrow(MISSING_PATH_CODE,);
+          },
+        },),
+        it({
+          name: 'answers not-written with its reason when a file of the brief cannot be written, which is a review that did not happen rather than no change to review',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder that holds one folder per review, read-only so that the generation's folder cannot be made in it.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            await mkdir(reviewsFolder, { recursive: true, },);
+            await using readOnly = await readOnlyForTheTest({ file: reviewsFolder, },);
+            /**
+             What writing the brief answered.
+             */
+            const briefed = await writeReviewBrief(aBriefRequest({
+              reviewsFolder,
+              git: gitAnswering({ files: theFilesTouched(), },),
+            },),);
+            expect(briefed.kind,).toBe('not-written',);
+            expect(briefed.line,).toContain('could not be written',);
+            expect(briefed.line,).toContain('EACCES',);
           },
         },),
         it({
@@ -583,8 +606,8 @@ await describe({
              What the second run answered, with `main` moving again after every one of its questions.
              */
             const secondRun = await aRun({ reviewsFolder: join(folder.path, 'reviews-again',), },);
-            expect(firstRun.written,).toBe(true,);
-            expect(secondRun.written,).toBe(true,);
+            expect(firstRun.kind,).toBe('written',);
+            expect(secondRun.kind,).toBe('written',);
             /**
              The generation the first run wrote.
              */
@@ -684,7 +707,7 @@ await describe({
               reviewsFolder: join(folder.path, 'reviews',),
               git: gitAnswering({ files: ['package/a/src/NOTES.md',], },),
             },),);
-            expect(briefed.written,).toBe(false,);
+            expect(briefed.kind,).toBe('nothing-to-review',);
             expect(briefed.line,).toContain('nothing to review',);
           },
         },),

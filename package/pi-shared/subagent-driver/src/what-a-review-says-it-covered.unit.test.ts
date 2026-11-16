@@ -200,6 +200,87 @@ function answerOf({
   };
 }
 
+
+/**
+ What the statement's lines are each put into, and what a review whose file holds them is answered as.
+
+ The grammar this holds is CommonMark's: a wanted line counts where it stands as the message's own text, which is a paragraph or a
+ list item, and not inside a fenced code block, inside a block quote, or indented four spaces, which is an indented code block. A
+ line after a sentence saying the review stopped counts, because the reader holds a grammar and does not argue with prose: the
+ fourth finding's message is refused because its lines are fenced, not because of the sentence before them.
+
+ `worksMessage`, `fencedMessage`, `quotedMessage`, `indentedMessage` and `stoppedMessage` below are the five shapes: the wanted
+ lines plain; fenced as an example of the brief's header; quoted; indented; and plain after a sentence that says the review
+ stopped.
+ */
+const MESSAGE_SHAPES: readonly {
+  readonly name: string;
+  readonly shown: () => string;
+  readonly covers: boolean;
+  readonly sentence: string;
+}[] = [
+  {
+    name: 'counts the wanted lines where they stand as the message\'s own text',
+    shown: function worksMessage() {
+      return aReviewStating({
+        ranges: theRangesGiven(),
+        filesRead: theFilesGiven().length,
+        filesListed: theFilesGiven().length,
+      },);
+    },
+    covers: true,
+    sentence: 'which states the ranges it was given',
+  },
+  {
+    name: 'reads no wanted line out of a fenced code block, where a message quotes the brief\'s header as an example',
+    shown: function fencedMessage() {
+      return 'I stopped before reviewing and have no verdict. The header the brief requested was:\n\n'
+        + '```text\n'
+        + `${REVIEW_COMPLETE_LINE}\n`
+        + `Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\`\n`
+        + `Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`
+        + '```\n';
+    },
+    covers: false,
+    sentence: 'which does not cover its change',
+  },
+  {
+    name: 'reads no wanted line out of a block quote',
+    shown: function quotedMessage() {
+      return 'Not final and not approved.\n\n'
+        + `> ${REVIEW_COMPLETE_LINE}\n`
+        + `> Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\`\n`
+        + `> Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`;
+    },
+    covers: false,
+    sentence: 'which does not cover its change',
+  },
+  {
+    name: 'reads no wanted line out of an indented code block',
+    shown: function indentedMessage() {
+      return 'Not final and not approved.\n\n'
+        + `    ${REVIEW_COMPLETE_LINE}\n`
+        + `    Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\`\n`
+        + `    Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`;
+    },
+    covers: false,
+    sentence: 'which does not cover its change',
+  },
+  {
+    name: 'counts the wanted lines after a sentence that says the review stopped, because the grammar, not the prose, decides',
+    shown: function stoppedMessage() {
+      return 'I stopped early and may not have read everything.\n\n'
+        + aReviewStating({
+          ranges: theRangesGiven(),
+          filesRead: theFilesGiven().length,
+          filesListed: theFilesGiven().length,
+        },);
+    },
+    covers: true,
+    sentence: 'which states the ranges it was given',
+  },
+];
+
 await describe({
   name: '',
   children: [
@@ -589,6 +670,25 @@ await describe({
           },
         },),
       ],
+    },),
+    describe({
+      name: 'the messages a review\'s own file may be',
+      children: MESSAGE_SHAPES.map(function oneShapeOfMessage(shape,) {
+        return it({
+          name: shape.name,
+          fn: async () => {
+            /**
+             What that message is answered as.
+             */
+            const answered = answerOf({
+              shown: shape.shown(),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },);
+            expect(answered.covers,).toBe(shape.covers,);
+            expect(answered.sentence,).toContain(shape.sentence,);
+          },
+        },);
+      },),
     },),
   ],
 },);

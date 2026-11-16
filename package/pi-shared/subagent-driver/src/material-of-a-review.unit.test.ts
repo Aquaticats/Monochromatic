@@ -5,11 +5,19 @@
  @module
  */
 
+import { spawnSync, } from 'node:child_process';
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   type CommandOutput,
   ReviewGitError,
@@ -17,6 +25,32 @@ import {
   materialOfAReview,
   rangeOfABranch,
 } from '../dist/final/node/index.mjs';
+
+/**
+ A folder a test throws away.
+
+ @returns the folder, and how to remove it
+
+ @example
+ ```ts
+ await using folder = await makeFolder();
+ ```
+ */
+async function makeFolder(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  /**
+   The folder.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'pi-review-material-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
 
 /**
  The branch under review, which the expectations are built from.
@@ -369,6 +403,85 @@ await describe({
               '--',
               aSourceFolder(),
             ],);
+          },
+        },),
+        it({
+          name: 'keeps a path holding a line break, a quote, a backslash and a non-UTF-8 byte, because every listing of paths is read NUL-separated',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Where the disposable repository is.
+             */
+            const repository = join(folder.path, 'repository',);
+            await mkdir(repository, { recursive: true, },);
+            /**
+             Runs one git command in the repository and answers what it printed.
+             */
+            function git({ words, input, }: { readonly words: readonly string[]; readonly input?: string },): string {
+              /**
+               What git answered.
+               */
+              const answered = spawnSync('git', words, {
+                cwd: repository,
+                encoding: 'utf8',
+                ...((input === undefined) ? {} : { input, }),
+              },);
+              if ((answered.status !== 0) || (answered.error !== undefined)) {
+                throw new Error(`git ${words.join(' ',)} answered ${String(answered.status,)}: ${answered.stderr}`,);
+              }
+              return answered.stdout;
+            }
+            git({ words: ['init', '--initial-branch=main', '--quiet',], },);
+            /**
+             The path a change adds, which holds the four bytes a line-based listing mangles: a line break, a quote, a backslash
+             and a byte that is no UTF-8, which Git writes as the octal `\377` and this reads back as the replacement character.
+             */
+            const changedPath = 'package/a/src/line\nbreak"quote\\backslash\uFFFD.ts';
+            /**
+             The base file, and the change that adds that path.
+             */
+            const base = 'export const base = true;\n';
+            /**
+             The changed file's text.
+             */
+            const changed = 'export const changed = true;\n';
+            git({
+              words: ['fast-import', '--quiet',],
+              input: [
+                `blob\nmark :1\ndata ${String(Buffer.byteLength(base,),)}\n${base}`,
+                'commit refs/heads/main\nmark :2\ncommitter Disposable Review <disposable@example.invalid> 1700000000 +0000\n'
+                  + 'data 5\nbase\nM 100644 :1 package/a/src/base.ts\n',
+                `blob\nmark :3\ndata ${String(Buffer.byteLength(changed,),)}\n${changed}`,
+                'commit refs/heads/fix\nmark :4\ncommitter Disposable Review <disposable@example.invalid> 1700000000 +0000\n'
+                  + 'data 7\nchange\nfrom :2\nM 100644 :3 "package/a/src/line\\nbreak\\"quote\\\\backslash\\377.ts"\n',
+                'done\n',
+              ].join('',),
+            },);
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: async function answers({ words, folder: where, },) {
+                /**
+                 What git answered in that checkout.
+                 */
+                const answered = spawnSync('git', words, {
+                  cwd: where,
+                  encoding: 'utf8',
+                },);
+                return {
+                  status: answered.status ?? 1,
+                  stdout: answered.stdout ?? '',
+                  stderr: answered.stderr ?? '',
+                };
+              },
+              checkoutFolder: repository,
+              ranges: ['main...fix',],
+              source: aSourceFolder(),
+              commit: 'fix',
+            },);
+            expect(material.diff,).not.toBe('',);
+            expect(material.files,).toEqual([changedPath,],);
           },
         },),
         it({
