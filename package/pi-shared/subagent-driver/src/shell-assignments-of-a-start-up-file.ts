@@ -16,6 +16,11 @@ import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadab
 //region Constants
 
 /**
+ What a line ending in a backslash is, said plainly, because that is the line this reader refuses.
+ */
+const CONTINUATION_SAID = 'the line ends with a backslash, which continues it on the next line';
+
+/**
  An assignment of a shell start-up file: the variable's name, then its value as written.
 
  A regular expression is what reads one line of a shell file into a name and the rest of the line: the alternative is a shell
@@ -50,6 +55,17 @@ const COMPUTED_MARKERS: ReadonlySet<string> = new Set([
   '$',
   '`',
 ],);
+
+/**
+ Says whether a character ends a line, either of the two ways a file writes one.
+
+ @param character - the character
+
+ @returns whether it ends a line
+ */
+function isALineBreak({ character, }: { readonly character: string },): boolean {
+  return (character === '\n') || (character === '\r');
+}
 
 /**
  What a shell takes a backslash to escape inside double quotes.
@@ -122,11 +138,16 @@ function trimmedAtTheStart({ text, }: { readonly text: string },): string {
  */
 export function writtenValue({ written, }: { readonly written: string },): WrittenValue {
   /**
-   The trimmed text, whose leading spaces an assignment does not put in its value.
+   The text after the `=`, read as it stands: a space right after it ends the value, which is then empty, and makes the rest a command.
    */
-  const text = trimmedAtTheStart({ text: written, },);
+  const text = written;
   if (text === '') {
     return { value: '', };
+  }
+  if (UNQUOTED_OPERATORS.has(text[0] ?? '',)) {
+    return onlySpacesOrAComment({ text, },)
+      ? { value: '', }
+      : { notUnderstood: 'the line holds a command after an empty value', };
   }
   /**
    The first character, which says which of the shapes this is.
@@ -151,9 +172,25 @@ export function writtenValue({ written, }: { readonly written: string },): Writt
         characters.push(character,);
         continue;
       }
-      if ((character === '\\') && (ESCAPED_IN_DOUBLE_QUOTES.has(text[index + 1] ?? '',))) {
-        characters.push(text[index + 1] ?? '',);
-        index += 1;
+      if (character === '\\') {
+        /**
+         The character the backslash escapes, which is none at the end of the line.
+         */
+        const escaped = text[index + 1];
+        if (escaped === undefined) {
+          return { notUnderstood: `${CONTINUATION_SAID}, which this reader cannot see the end of`, };
+        }
+        if (isALineBreak({ character: escaped, },)) {
+          // A backslash and a line break join the word to the next line, inside double quotes as well as outside them.
+          index += ((text[index + 2] === '\n') ? 2 : 1);
+          continue;
+        }
+        if (ESCAPED_IN_DOUBLE_QUOTES.has(escaped,)) {
+          characters.push(escaped,);
+          index += 1;
+          continue;
+        }
+        characters.push(character,);
         continue;
       }
       if (character === first) {
@@ -189,8 +226,22 @@ export function writtenValue({ written, }: { readonly written: string },): Writt
     if (character === '"') {
       return { notUnderstood: 'the line quotes part of its value and leaves the rest unquoted', };
     }
-    if ((character === '\\') && ((text[index + 1] ?? '') !== '')) {
-      characters.push(text[index + 1] ?? '',);
+    if (character === '\\') {
+      /**
+       The character the backslash escapes, which is none at the end of the line.
+       */
+      const escaped = text[index + 1];
+      if (escaped === undefined) {
+        // A backslash at the end of a line joins it to the next one, and a reader that kept the backslash would arm a text the shell
+        // never held. Here the line has no next one, which is a line this reader does not understand.
+        return { notUnderstood: `${CONTINUATION_SAID}, which this reader cannot see the end of`, };
+      }
+      if (isALineBreak({ character: escaped, },)) {
+        // A backslash and a line break are one joined word: the shell drops both characters and reads on.
+        index += ((text[index + 2] === '\n') ? 2 : 1);
+        continue;
+      }
+      characters.push(escaped,);
       index += 1;
       continue;
     }
@@ -200,6 +251,87 @@ export function writtenValue({ written, }: { readonly written: string },): Writt
     characters.push(character,);
   }
   return { value: characters.join('',), };
+}
+
+/**
+ Reads a file as the shell does: a backslash at the end of a line joins it to the next, and the joined text is one line.
+
+ The join happens before anything else, because the joined word is what the shell exports: reading the lines apart would arm the text
+ of the first line with a backslash the shell never held. A backslash inside single quotes is a character of the value, not a join.
+ Each joined line keeps the number of the physical line it began on, which is the line a reader of the file can look at.
+
+ @param text - the file's text
+
+ @returns one entry per line the shell reads, with the number of the physical line it began on
+ */
+function logicalLinesOf({ text, }: { readonly text: string },): readonly {
+  readonly text: string
+  readonly lineNumber: number
+}[] {
+  /**
+   The lines the shell reads.
+   */
+  const lines: {
+    text: string
+    lineNumber: number
+  }[] = [];
+  /**
+   The line being read.
+   */
+  let current = '';
+  /**
+   The physical line the current line began on.
+   */
+  let beganOn = 1;
+  /**
+   The physical line being read.
+   */
+  let lineNumber = 1;
+  /**
+   Whether the characters so far are inside single quotes, where a backslash joins nothing.
+   */
+  let inSingleQuotes = false;
+  for (let index = 0; index < text.length; index += 1) {
+    /**
+     The character being read.
+     */
+    const character = text[index] ?? '';
+    /**
+     The character after it, which a line break is written with.
+     */
+    const next = text[index + 1] ?? '';
+    if (character === '\'') {
+      inSingleQuotes = !inSingleQuotes;
+    }
+    if ((character === '\\') && (!inSingleQuotes)
+      && (isALineBreak({ character: next, },))) {
+      // The join drops the backslash and the line break both, and the two physical lines count as two lines all the same.
+      lineNumber += 1;
+      index += ((next === '\r') && (text[index + 2] === '\n')) ? 2 : 1;
+      continue;
+    }
+    if (character === '\n') {
+      lines.push({
+        text: current.endsWith('\r',) ? current.slice(
+          0,
+          -1
+        ) : current,
+        lineNumber: beganOn,
+      },);
+      current = '';
+      lineNumber += 1;
+      beganOn = lineNumber;
+      continue;
+    }
+    current += character;
+  }
+  if (current !== '') {
+    lines.push({
+      text: current,
+      lineNumber: beganOn,
+    },);
+  }
+  return lines;
 }
 
 /**
@@ -242,12 +374,10 @@ export function exportedCredentialValues({
     name: string;
     value: string
   }[] = [];
-  /**
-   The line this is, counting from one.
-   */
-  let lineNumber = 0;
-  for (const line of text.split('\n',)) {
-    lineNumber += 1;
+  for (const {
+    text: line,
+    lineNumber,
+  } of logicalLinesOf({ text, },)) {
     /**
      The assignment this line is, if it is one.
      */

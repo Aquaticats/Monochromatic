@@ -13,6 +13,10 @@
  */
 
 import { writeFile, } from 'node:fs/promises';
+import {
+  isAFileThisRunMayRewrite,
+  type SessionFileThisRunMayRewrite,
+} from './a-session-file-this-run-may-rewrite.ts';
 import { textOfAnOrdinaryFile, } from './ordinary-file-opened-without-waiting.ts';
 import {
   type FileWriterAnswer,
@@ -51,9 +55,24 @@ export type MaskedSessionAtRest =
 //region Masking it
 
 /**
+ A file a caller named that this run never made, which no rewrite is allowed to touch.
+ */
+export class SessionFileNotThisRunsError extends Error {
+  /**
+   The file, for a reader who has to see which one it was.
+
+   @param path - the file the caller named
+   */
+  constructor({ path, }: { readonly path: string },) {
+    super(`the session file ${path} is not one this run made, so this run does not rewrite it`,);
+    this.name = 'SessionFileNotThisRunsError';
+  }
+}
+
+/**
  Masks every value of this machine's secret environment in a session file.
 
- @param sessionFile - the session file Pi wrote
+ @param sessionFile - the session file Pi wrote, which must be one this run made or its own Pi created
 
  @param mask - the masking
 
@@ -71,15 +90,22 @@ export async function maskTheSessionAtRest({
   mask,
   writer,
 }: {
-  readonly sessionFile: string;
+  // The file is one this run may rewrite, and that is a type rather than a comment: the session a run was given to resume is another
+  // run's file, and `sessionFileToMaskAtRest` refuses it before any caller gets here.
+  readonly sessionFile: SessionFileThisRunMayRewrite;
   readonly mask: TextMasking;
   readonly writer: FileWriterAnswer;
 },): Promise<MaskedSessionAtRest> {
+  // A file this module did not hand out is refused here: the session a run was given to resume is another run's, and only the
+  // decision in `sessionFileToMaskAtRest` can say that this run made the file it is about to rewrite.
+  if (!isAFileThisRunMayRewrite({ file: sessionFile, },)) {
+    throw new SessionFileNotThisRunsError({ path: sessionFile.path, },);
+  }
   /**
    What replacing the file found.
    */
   const replaced = await replaceAFileWithItsMaskedText({
-    path: sessionFile,
+    path: sessionFile.path,
     maskText: mask.maskText,
     writer,
   },);

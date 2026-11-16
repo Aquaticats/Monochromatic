@@ -101,6 +101,11 @@ export async function readSecretValuesOfThisMachine({
    */
   const storeValues: readonly SecretValue[] = ('absent' in store) ? [] : store.values;
   /**
+   The names the store declares, which is the set of names the environment is asked for, whatever the store's own reader happened to
+   answer: a name the environment supplies is never answered by the store, and taking the names from what came back would drop it.
+   */
+  const storeNames: readonly string[] = ('absent' in store) ? [] : store.names;
+  /**
    Pi's own files.
    */
   const pi = await valuesInPiCredentialFiles({ home, },);
@@ -131,9 +136,7 @@ export async function readSecretValuesOfThisMachine({
    */
   const fromEnvironment = valuesInTheEnvironment({
     environment,
-    alsoTheseNames: new Set(storeValues.map(function nameOf(value,) {
-      return value.name;
-    },),),
+    alsoTheseNames: new Set(storeNames,),
   },);
   /**
    The identity's keys: none when no identity is declared, and none when one that is declared cannot be read, which stops the run.

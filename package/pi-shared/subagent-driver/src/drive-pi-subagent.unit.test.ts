@@ -1888,6 +1888,9 @@ await describe({
           environment: {
             ENV_LOCAL_JSON_PATH: store.storePath,
             SOPS_AGE_KEY_FILE: store.identityPath,
+            // The driver's own environment already holds the name the store declares, which is the shape the fourth review found:
+            // a reader answering only fill-ins says nothing about this name at all.
+            [declaredName]: declaredValue,
           },
         },);
         expect(run.summary.endReason,).toBe('idle',);

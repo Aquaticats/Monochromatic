@@ -19,7 +19,10 @@ import {
   resolveStorePath,
 } from '@monochromatic-dev/env-local-json-core/ts/discovery.ts';
 import { readEnvLocalJson, } from '@monochromatic-dev/env-local-json-core/ts';
-import type { SecretValue, } from './secret-value-masking.ts';
+import {
+  isMaskableValue,
+  type SecretValue,
+} from './secret-value-masking.ts';
 import {
   type EnvironmentOfThisMachine,
   isMissingPathFailure,
@@ -315,6 +318,9 @@ function parseStore({ ciphertext, }: { readonly ciphertext: string },):
 export type ValuesInTheCheckoutStore =
   | {
     readonly values: readonly SecretValue[];
+    // The names the store declares, whatever the environment happens to supply, which is the set every place a value for the name
+    // can come from is asked with.
+    readonly names: readonly string[];
     readonly storePath: string
   }
     | { readonly absent: true };
@@ -382,8 +388,51 @@ export async function valuesInTheCheckoutStore({
   }
   return {
     storePath: found.storePath,
+    names: found.names,
     values: read.values,
   };
+}
+
+/**
+ The environment a store is read with: the caller's own, less the names the store declares and the environment already supplies.
+
+ The reader this code asks keeps the environment's precedence: a name the environment holds is never returned from the store, so the
+ store's own value for that name is reachable only by asking with the name absent. Every other variable is passed as it stands, so the
+ identity and the sops executable are still found. The pruning is kept to the names the store itself declares, which is what makes that
+ ask answer for all of them at once.
+
+ @param environment - the driver's own environment
+
+ @param names - the names the store declares
+
+ @returns the environment to read the store with
+ */
+function environmentForTheStore({
+  environment,
+  names,
+}: {
+  readonly environment: EnvironmentOfThisMachine;
+  readonly names: readonly string[];
+},): EnvironmentOfThisMachine {
+  /**
+   The declared names the environment supplies, which the reader would answer the store's value for only if they were absent.
+   */
+  const shadowed = names.filter(function isHeld(name,) {
+    return isMaskableValue(environment[name] ?? '',);
+  },);
+  if (shadowed.length === 0) {
+    return environment;
+  }
+  /**
+   The environment with those names taken out.
+   */
+  const pruned: Record<string, string> = {};
+  for (const [name, value,] of Object.entries(environment,)) {
+    if (((typeof value) === 'string') && (!shadowed.includes(name,))) {
+      pruned[name] = value;
+    }
+  }
+  return pruned;
 }
 
 /**
@@ -428,17 +477,27 @@ async function valuesOfTheStore({
       keys: names,
       path: storePath,
       cwd: checkoutFolder,
-      env: environment,
+      env: environmentForTheStore({
+        environment,
+        names,
+      },),
       home,
     },);
     /**
      The values as a list, named as the store names them.
      */
     const values: SecretValue[] = [];
-    for (const name of Object.keys(read.values,)) {
+    for (const name of names) {
+      /**
+       The store's own value for that name, which the reader answers only when the environment does not shadow it.
+       */
+      const value = read.values[name];
+      if ((value === undefined) || (!isMaskableValue(value,))) {
+        continue;
+      }
       values.push({
         name,
-        value: read.values[name] ?? '',
+        value,
       },);
     }
     return { values, };
