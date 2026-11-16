@@ -290,6 +290,13 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 /// and it writes each chunk into the log before it writes that chunk into the person's stream,
 /// so the file holds what a service wrote only once that thread has ended,
 /// and a reading made before that is a strict prefix of the service's words.
+///  A service writes bytes on its stream and not text,
+/// so the file is read as bytes and decoded lossily, the way the reader beside this one is:
+/// one byte that no text has is still what the service said,
+/// and it must not take the lines that do mean something away with it.
+/// A file that cannot be read at all is said to be unread,
+/// because an empty reading would claim the service wrote nothing, which is a fact about the service and not about the
+///  reading.
 ///  The end of the copy is the event, and it cannot be a sleep of a guessed length:
 /// the pipe closes when the last service holding it ends,
 /// and the copy ends after that.
@@ -302,7 +309,11 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 /// which `the_log_of_the_recovery` tells apart by this text rather than by a byte count that changes between the reads.
 fn the_service_log_of(fixture: &Fixture, bound: std::time::Duration) -> String {
     let every_copy_ended: bool = super::support::settle_the_service_log(fixture, bound);
-    let held: String = std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
+    let path: PathBuf = fixture.root.join(super::support::SERVICE_LOG_FILE);
+    let held: String = match std::fs::read(path.as_path()) {
+        Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
+        Err(error) => format!("(the fixture's service log at {} could not be read: {error})\n", path.display()),
+    };
     if every_copy_ended {
         return held;
     }
@@ -322,6 +333,10 @@ fn the_service_log_of(fixture: &Fixture, bound: std::time::Duration) -> String {
 /// names had ended,
 /// which is what `the_service_log_of` waits for:
 /// a reading that gave up says so, and then no part of this log can be given to one service rather than the other.
+///  Both readings decode the bytes the same way, so a byte that is not text stands the same in each and does not disturb
+/// this;
+/// a reading that ended inside a character would, and then the message below says the parts cannot be told apart, which
+/// is the truth about them.
 fn the_log_of_the_recovery(limited: &str, whole: &str) -> String {
     let Some(added) = whole.strip_prefix(limited) else {
         return format!("(the recovery's part of the log cannot be told apart from the limited attempt's; the whole log was {whole})");
