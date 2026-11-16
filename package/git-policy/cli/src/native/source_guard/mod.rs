@@ -52,6 +52,13 @@ mod no_self_invocation_tests;
 #[path = "blocking_code_off_the_runtime_tests.rs"]
 mod blocking_code_off_the_runtime_tests;
 
+/// The read of a repository's location:
+/// every storage call of it sits inside the one job its ceiling bounds,
+/// and its entry points read nothing themselves.
+#[cfg(test)]
+#[path = "storage_reads_within_a_ceiling_tests.rs"]
+mod storage_reads_within_a_ceiling_tests;
+
 /// The structural check that the review's network client is reachable only from the service run;
 /// never in the release build.
 #[cfg(test)]

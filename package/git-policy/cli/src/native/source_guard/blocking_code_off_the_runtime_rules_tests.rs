@@ -43,7 +43,7 @@ pub(super) struct Rule {
 }
 
 /// Whether `line` holds any of `needles`.
-fn holds_any(line: &str, needles: &[&str]) -> bool {
+pub(crate) fn holds_any(line: &str, needles: &[&str]) -> bool {
     return needles.iter().any(|needle| {
         return line.contains(needle);
     });
@@ -53,7 +53,7 @@ fn holds_any(line: &str, needles: &[&str]) -> bool {
 /// a lock,
 /// a remote mount or a FUSE mount,
 /// and so never belong on a worker.
-const STORAGE_CALLS: &[&str] = &[
+pub(crate) const STORAGE_CALLS: &[&str] = &[
     "std::fs::read(",
     "std::fs::read_to_string(",
     "std::fs::read_link(",

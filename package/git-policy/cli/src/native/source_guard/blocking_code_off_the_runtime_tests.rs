@@ -53,6 +53,10 @@ use std::path::Path;
 #[path = "blocking_code_off_the_runtime_rules_tests.rs"]
 mod rules;
 use rules::{ALLOWED, Allowed, Place, RULES, Rule};
+/// The storage calls and the text test of the rules above,
+/// for the scan that keeps the repository location read inside its ceiling
+/// (`storage_reads_within_a_ceiling_tests.rs`).
+pub(crate) use rules::{STORAGE_CALLS, holds_any};
 
 use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
 
@@ -68,7 +72,7 @@ type Finding = (String, &'static str, usize);
 
 /// The lines of one function,
 /// with the next line joined so a call split over two lines still reads.
-type BodyLines = Vec<(usize, String, String)>;
+pub(crate) type BodyLines = Vec<(usize, String, String)>;
 
 /// What:
 ///  `struct Function { ... }` is one function of a source file:
@@ -87,16 +91,16 @@ type BodyLines = Vec<(usize, String, String)>;
 /// type Function = { name: string; isAsync: boolean; holdsACommand: boolean; taskLines: BodyLines }
 /// ```
 #[derive(Debug)]
-struct Function {
+pub(crate) struct Function {
     /// The name the signature gives.
-    name: String,
+    pub(crate) name: String,
     /// Whether the signature says `async`.
     is_async: bool,
     /// Whether the body builds or names `std::process::Command`,
     /// which is where a start belongs to a command.
     holds_a_command: bool,
     /// The body's lines that are not inside a closure handed to the blocking pool.
-    task_lines: BodyLines,
+    pub(crate) task_lines: BodyLines,
 }
 
 /// The release source files under `root`,
@@ -471,7 +475,7 @@ fn opens_a_pool_body(line: &str) -> bool {
 /// ```ts
 /// function functionsIn(text: string): Function[]  // throws Error
 /// ```
-fn functions_in(text: &str) -> Result<Vec<Function>, String> {
+pub(crate) fn functions_in(text: &str) -> Result<Vec<Function>, String> {
     let read: ReadCode = read_the_code_of(text)?;
     let code: BodyLines = code_lines(&read);
     let counts: Vec<(usize, usize)> = read.braces;
