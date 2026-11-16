@@ -43,7 +43,7 @@ use crate::service_messages::ClientFailure;
 /// const handed = (woken) => ({ kind: 'work-not-handed-over', reason: woken.whyNothingTookIt() });
 /// ```
 pub(crate) fn not_handed_over_woken(woken: Woken) -> ClientFailure {
-    return ClientFailure::WorkNotHandedOver(woken.why_nothing_took_it());
+    return ClientFailure::WorkQueuedUnconfirmed(woken.why_nothing_took_it());
 }
 
 /// What:
@@ -71,5 +71,9 @@ pub(crate) fn not_handed_over(failure: ClientFailure) -> ClientFailure {
         ClientFailure::ProgramMissing(_) | ClientFailure::CouldNotStart(_) | ClientFailure::UnitInTheWay(_) | ClientFailure::Unavailable => "the commit service could not be reached",
         _ => "the commit service could not be told about it",
     };
-    return ClientFailure::WorkNotHandedOver(String::from(reason));
+    // What: A wake that could not be made leaves the records queued just as a wake nothing read does, so the same words say
+    //       both: what is known, and the two ways the commit reaches the remote.
+    // Why:  The reasons this is asked of are all of them wakes the service was not reached or not heard by, and the record was
+    //       written before the wake (`service_handoff.rs`).
+    return ClientFailure::WorkQueuedUnconfirmed(String::from(reason));
 }

@@ -40,7 +40,7 @@ use crate::service_protocol::FailureCode;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // 'taken' | { refused: FailureCode } | 'nothing-taken' | 'part-taken' | 'buffered'
+/// // 'taken' | { refused: FailureCode } | 'nothing-taken' | 'part-taken' | 'buffered' | 'broken'
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Woken {
@@ -64,6 +64,15 @@ pub enum Woken {
     ///  and the connection still holds bytes of the line:
     /// the service has not read it.
     Buffered,
+    /// The connection ended in a read that failed,
+    /// which is what a service that closed its end with the line still unread leaves:
+    /// it did not read the line
+    /// (`Heard::Broken`;
+    /// measured on this host,
+    /// 2026-11-16:
+    /// a line nothing read gives `ECONNRESET`,
+    /// and one read first gives the end of the file).
+    Broken,
 }
 
 impl Woken {
@@ -103,6 +112,9 @@ impl Woken {
             Self::NothingTaken => String::from("the commit service took no byte of the wake, so it has stopped reading what is sent to it"),
             Self::PartTaken => String::from("the commit service took part of the wake and not the whole of it within the time a write is given"),
             Self::Buffered => String::from("the wake stands in the connection unread, so the commit service has not read the line that names the record"),
+            Self::Broken => String::from(
+                "the connection ended in an error, which a service that closes it with the wake still unread leaves, so the commit service did not read the line that names the record",
+            ),
         };
     }
 }

@@ -283,7 +283,8 @@ fn a_claim_that_cannot_be_settled_stays_claimed_for_its_lease() {
     std::fs::create_dir_all(claimed.as_path()).expect("the claimed directory");
     let written: RelinkEntry = entry(destination.as_path());
     let handed: Handed = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach()).expect("the record was written");
-    let Handed::Ours { claim, reason } = handed else { panic!("no service was reachable, so the record is this command's: {handed:?}") };
+    let Handed::Ours(ours) = handed else { panic!("no service was reachable, so the record is this command's: {handed:?}") };
+    let (claim, reason): (super::super::package_repair_relink_claim::HeldRelinkClaim, String) = (ours.claim, ours.reason);
     assert!(!reason.is_empty(), "the add is told why no service took the record");
     // A directory that refuses the settle, as one whose permissions somebody changed does.
     std::fs::set_permissions(claimed.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
@@ -394,7 +395,8 @@ fn a_hand_over_with_no_service_takes_its_record_so_no_service_claims_the_same_wo
     let written: RelinkEntry = entry(destination.as_path());
     let told: Result<Handed, NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach());
     let handed: Handed = told.expect("the record was written");
-    let Handed::Ours { claim, reason } = handed else { panic!("a session with no service leaves the record to this command: {handed:?}") };
+    let Handed::Ours(ours) = handed else { panic!("a session with no service leaves the record to this command: {handed:?}") };
+    let (claim, reason): (super::super::package_repair_relink_claim::HeldRelinkClaim, String) = (ours.claim, ours.reason);
     assert!(!reason.is_empty(), "the add is told why no service took the record");
     let work: PathBuf = work_directory(common.as_path());
     assert_eq!(pending_names(state_directory(work.as_path(), PENDING).as_path()), Vec::<String>::new(), "nothing waits in pending for a service to claim");

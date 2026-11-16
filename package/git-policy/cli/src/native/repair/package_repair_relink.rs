@@ -493,7 +493,7 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     // No service read the line, and the service may yet look at the record: this command takes it before running the
     //  tools, so the two cannot both relink one worktree. A record another party already claimed is that party's work.
     return match HeldRelinkClaim::take(work_dir.as_path(), id.as_str()) {
-        Some(claim) => Ok(Handed::Ours { claim, reason }),
+        Some(claim) => Ok(Handed::Ours(Box::new(Ours { claim, reason }))),
         None => Ok(Handed::ClaimedByTheService),
     };
 }
@@ -574,12 +574,26 @@ pub enum Handed {
     /// A service claimed the record before this command could, so the relinking is running or will run there.
     ClaimedByTheService,
     /// This command holds the record, so it runs the tools and settles the record when they are done.
-    Ours {
-        /// The claim this command holds.
-        claim: HeldRelinkClaim,
-        /// Why no service took the wake.
-        reason: String,
-    },
+    /// The claim is boxed, so the two answers that carry nothing stay one word wide.
+    Ours(Box<Ours>),
+}
+
+/// What:
+///  The record this command holds, and why no service took the wake.
+/// Why:
+///   A claim is a record, a name and a work directory, which is far larger than the two answers that carry nothing;
+///  one word for every answer keeps the common path's check cheap.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Ours = { claim: HeldRelinkClaim; reason: string };
+/// ```
+#[derive(Debug)]
+pub struct Ours {
+    /// The claim this command holds.
+    pub claim: HeldRelinkClaim,
+    /// Why no service took the wake.
+    pub reason: String,
 }
 
 /// The pending record of one id.

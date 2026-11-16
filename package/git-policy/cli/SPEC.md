@@ -8415,11 +8415,21 @@ now inside these bounds:
   it answered that it will not act on it,
   it took no byte of it for the silence window of a write,
   it took part of it and the rest did not go in within the write's ceiling,
-  or the whole line went into the connection and is still there unread.
+  the whole line went into the connection and is still there unread,
+  or the connection ended in a read that failed.
   The last two are told apart from a service that read the line by asking the connection:
   the kernel charges this end for the bytes the other end has not consumed,
   so a connection holding none of the line is a service that took it,
   and one still holding bytes of it is a service that has not read it.
+  A read that failed is the one answer the end of the file does not give:
+  a service that closes its end with the line still unread makes the kernel answer `ECONNRESET`,
+  and one that read everything first ends the read with no bytes and no error
+  (measured on this host,
+  2026-11-16:
+  `error 104 Connection reset by peer` against the end of the file),
+  so a failed read is never taken for a service that holds the record
+  (the review of 2026-11-13,
+  finding 2).
   A wake line is a few hundred bytes,
   which fits one connection's buffers,
   so the write goes in whole even where the service reads nothing,
@@ -8429,6 +8439,13 @@ now inside these bounds:
   and a command that owes a person the work itself does it
   (a new worktree's relink,
   `src/native/repair/package_repair_relink.rs`).
+  One case no client can tell: a service that reads the whole line and is then ended before it acts
+  answers what a service that read and finished answers, because the client sees nothing after the read.
+  The record then waits in `pending`,
+  and what runs it is the next wake for that repository,
+  the service's own look every `LOOK_AGAIN_AFTER` when the service it knows is again running,
+  or a service that starts and reads its notes.
+  Nothing of the work is lost by it, and nothing tells the person the work was not done.
   The two ends agree on one meaning of "taken",
   and neither carries the proof alone:
   the client's chunked write can leave every byte of the object and only the newline unsent,

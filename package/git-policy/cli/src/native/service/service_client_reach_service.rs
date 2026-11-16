@@ -166,7 +166,7 @@ pub(crate) fn reach(
                     // A service that greeted before and now greets nothing is the one that stopped.
                     Heard::Silent if service_seen => return Err(ClientFailure::ServiceSilent),
                     // Connected, but nothing greeted: the service is still starting or is going away.
-                    Heard::Message(_) | Heard::Closed | Heard::Silent => {
+                    Heard::Message(_) | Heard::Closed | Heard::Broken | Heard::Silent => {
                         trace.refused += 1;
                         refused_here = true;
                     }

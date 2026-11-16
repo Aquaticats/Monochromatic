@@ -441,7 +441,7 @@ fn asking(address: &Bind) -> Answered {
     return match crate::service_client_listen_and_ask_to_retire::listen(&mut reader) {
         crate::service_client_listen_and_ask_to_retire::Heard::Message(_) => Answered::Greeted,
         crate::service_client_listen_and_ask_to_retire::Heard::Silent => Answered::SaidNothing,
-        crate::service_client_listen_and_ask_to_retire::Heard::Closed => Answered::Nothing,
+        crate::service_client_listen_and_ask_to_retire::Heard::Closed | crate::service_client_listen_and_ask_to_retire::Heard::Broken => Answered::Nothing,
     };
 }
 

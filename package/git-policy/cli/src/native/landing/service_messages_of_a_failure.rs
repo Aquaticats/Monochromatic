@@ -78,6 +78,7 @@ pub fn failure_code(failure: &ClientFailure) -> &'static str {
         ClientFailure::ServiceElsewhere { .. } => "service-elsewhere",
         ClientFailure::UnitInTheWay(_) => "unit-in-the-way",
         ClientFailure::WorkNotHandedOver(_) => "work-not-handed-over",
+        ClientFailure::WorkQueuedUnconfirmed(_) => "work-queued-unconfirmed",
         ClientFailure::ContentPruned => "content-pruned",
     };
 }

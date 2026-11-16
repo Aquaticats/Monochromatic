@@ -121,7 +121,8 @@ fn the_claim_is_kept_fresh_past_one_lease() {
     std::fs::create_dir_all(&destination).expect("the worktree");
     let item: WorkItem = a_relink_record(root.as_path(), destination.as_path());
     let claim: HeldRelinkClaim = HeldRelinkClaim::take(work_dir_of(root.as_path()).as_path(), item.id().as_str()).expect("the record is taken");
-    let (held, renewer) = crate::service_claim_renewal::held_claims(work_dir_of(root.as_path()).as_path());
+    let (held, kept_fresh_by): (crate::service_claim_renewal::HeldClaims, crate::service_claim_renewal::Renewer) =
+        crate::service_claim_renewal::held_claims(work_dir_of(root.as_path()).as_path());
     held.hold(&claim.claimed);
     let before: String = {
         let found: PathBuf = crate::work_item::find_claim(work_dir_of(root.as_path()).as_path(), item.id().as_str()).expect("the claim is on disk");
@@ -129,7 +130,7 @@ fn the_claim_is_kept_fresh_past_one_lease() {
     };
     // A reading one lease and a half later, then a renewal at it.
     let later: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE + renewal_interval(CLAIM_LEASE));
-    let mut renewer: Renewer = renewer;
+    let mut renewer: Renewer = kept_fresh_by;
     renewer.renew(&later);
     let after: String = {
         let found: PathBuf = crate::work_item::find_claim(work_dir_of(root.as_path()).as_path(), item.id().as_str()).expect("the claim is still on disk");

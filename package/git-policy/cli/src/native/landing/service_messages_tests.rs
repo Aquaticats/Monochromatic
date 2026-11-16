@@ -65,6 +65,7 @@ fn samples() -> Vec<ClientFailure> {
         },
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
+        ClientFailure::WorkQueuedUnconfirmed(String::from("the wake stands in the connection unread")),
         ClientFailure::ContentPruned,
         ClientFailure::ManagerDidNotAnswer { waited: Duration::from_secs(20) },
         ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(4242), blocker: Some(String::from("a landing behind another program's index lock")) },
@@ -156,6 +157,7 @@ each_failure_variant! {
     "ServiceElsewhere" => ClientFailure::ServiceElsewhere,
     "UnitInTheWay" => ClientFailure::UnitInTheWay,
     "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver,
+    "WorkQueuedUnconfirmed" => ClientFailure::WorkQueuedUnconfirmed,
     "ContentPruned" => ClientFailure::ContentPruned,
 }
 
@@ -412,6 +414,7 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
                 | ClientFailure::WithdrawalUnconfirmed { .. }
                 | ClientFailure::InterruptedNotKnown { .. }
                 | ClientFailure::WorkNotHandedOver(_)
+                | ClientFailure::WorkQueuedUnconfirmed(_)
         );
         assert_eq!(!claims, may_have_landed, "{failure:?}");
     }

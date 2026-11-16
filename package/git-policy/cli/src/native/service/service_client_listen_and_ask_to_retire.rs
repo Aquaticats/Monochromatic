@@ -44,8 +44,20 @@ pub(crate) enum Heard {
     /// A message.
     Message(ServiceMessage),
     /// The service closed the connection,
-    /// or sent something that is not a message.
+    /// or sent something that is not a message:
+    /// the end of the file reads as no bytes.
     Closed,
+    /// The read that ended the connection
+    /// failed,
+    /// which the end of the file does not do:
+    /// a peer that closed its end with what this end sent still unread makes the kernel answer `ECONNRESET`,
+    /// and one that read everything first ends the read with no bytes and no error
+    /// (measured on this host,
+    /// 2026-11-16:
+    /// the line unread gives `error 104 Connection reset by peer`,
+    /// the line read first gives the end of the file).
+    ///  A caller that needs to know whether its line was read tells the two apart with this.
+    Broken,
     /// Nothing came within the silence bound.
     Silent,
 }
@@ -170,7 +182,7 @@ pub(crate) fn connection_is_this_account(_stream: &UnixStream) -> bool {
 pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
     return match listen(reader) {
         Heard::Message(message) => Some(message),
-        Heard::Closed | Heard::Silent => None,
+        Heard::Closed | Heard::Broken | Heard::Silent => None,
     };
 }
 
@@ -272,7 +284,9 @@ fn listen_within(reader: &mut BufReader<UnixStream>, within: Duration) -> Heard 
             Ok(bytes) if bytes.is_empty() => return Heard::Closed,
             Ok(bytes) => bytes.len(),
             Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return Heard::Silent,
-            Err(_) => return Heard::Closed,
+            // A read that failed is not a read that found the end of the file: a peer that closed its end with the line still
+            //  unread answers a reset, and nothing here witnessed it read the line.
+            Err(_broken) => return Heard::Broken,
         };
         let taken: usize = match reader.buffer().iter().position(|byte| return *byte == b'\n') {
             Some(end) => end + 1,
@@ -307,7 +321,9 @@ fn listen_one_line(reader: &mut BufReader<UnixStream>) -> Heard {
     return match reader.read_line(&mut line) {
         Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message),
         Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Silent,
-        _ => Heard::Closed,
+        // The same difference a bounded read makes: a failed read is no end of the file.
+        Err(_broken) => Heard::Broken,
+        Ok(_no_bytes) => Heard::Closed,
     };
 }
 

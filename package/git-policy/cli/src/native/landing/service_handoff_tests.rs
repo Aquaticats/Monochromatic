@@ -38,8 +38,12 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let mut sink: Vec<u8> = Vec::new();
     let failure = hand_over(&handoff, OID, &mut sink).expect_err("no service can be started");
-    // The commit landed, so the failure says the work was not handed over, never that the commit was not made.
-    assert_eq!(failure, ClientFailure::WorkNotHandedOver(String::from("this account cannot start the commit service on demand")));
+    // The commit landed, so the failure says what became of its queued work, never that the commit was not made.
+    assert_eq!(
+        failure,
+        ClientFailure::WorkQueuedUnconfirmed(String::from("this account cannot start the commit service on demand")),
+        "the records are queued and nothing confirmed the service took them"
+    );
     let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     let mut found: Vec<String> = std::fs::read_dir(pending).expect("pending").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
     found.sort();
@@ -102,7 +106,7 @@ fn a_wake_no_service_read_is_work_that_was_not_handed_over_and_stays_queued() {
     let mut sink: Vec<u8> = Vec::new();
     let failure = hand_over(&handoff, OID, &mut sink).expect_err("no service read the wake, so the work was not handed over");
     drop(serving);
-    let ClientFailure::WorkNotHandedOver(reason) = &failure else { panic!("the words of a handed-over failure are the ones that are true after a commit landed: {failure:?}") };
+    let ClientFailure::WorkQueuedUnconfirmed(reason) = &failure else { panic!("the words of a queued work are the ones that are true after a commit landed: {failure:?}") };
     assert!(reason.contains("has not read the line"), "the reason names what became of the wake: {reason}");
     let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     assert_eq!(std::fs::read_dir(pending).expect("pending").count(), HANDED_OVER.len(), "every record stays queued for the next wake");

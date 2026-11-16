@@ -437,6 +437,12 @@ fn a_service_that_reads_nothing(name: &str, after: AfterGreeting) -> std::thread
                 // Not one byte of the line is read, and the connection is left open: what a service that stopped reading
                 //  leaves a wake to find.
                 AfterGreeting::Nothing => std::thread::sleep(STAND_IN_PATIENCE),
+                // Nothing is read and the connection is closed with the line still unread, which is a service that stopped
+                //  reading and was then ended: the kernel answers the client's read with a reset.
+                AfterGreeting::NothingThenClosing => {
+                    std::thread::sleep(A_BREAK_AFTER);
+                    drop(stream);
+                }
                 // The whole line is read and the connection kept open and busy, which is a service that has the line and
                 //  breaks the protocol by never closing.
                 AfterGreeting::ReadingTheLineAndTalking => {
@@ -494,6 +500,8 @@ enum AfterGreeting {
     /// Drains everything the connection holds every pause,
     /// and never finishes the line.
     Draining,
+    /// Reads nothing and ends the connection after `A_BREAK_AFTER`, with the line still unread.
+    NothingThenClosing,
     /// Reads the client's one line and answers it with a refusal.
     RefusingTheLine(crate::service_protocol::FailureCode),
 }
@@ -527,6 +535,25 @@ fn a_wake_the_service_read_nothing_of_is_no_answer_that_it_holds_the_record() {
     assert_eq!(woken, Ok(Woken::Buffered), "the whole line went in and the connection still holds it, so the service never read it");
     assert!(took >= Duration::from_millis(200), "the answer came once the close bound passed, not before ({took:?})");
     assert!(took < Duration::from_secs(2), "and within the bound a wake has ({took:?})");
+}
+
+/// What:
+///  A service that ends its connection with the wake still unread is no answer that it holds the record.
+/// Why:
+///   The kernel answers the client's read with a reset, where a service that read everything first ends it with no bytes
+///  (measured on this host, 2026-11-16:
+///  `error 104 Connection reset by peer` against the end of the file),
+///  and the old code read every error as a close and every close as the service having the record
+///  (the review of 2026-11-13,
+///  finding 2:
+///  the add then promised a relink nothing ran, and the record waited).
+#[test]
+fn a_wake_whose_connection_ended_with_it_unread_is_not_taken() {
+    let name: String = an_address("wake-broken");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::NothingThenClosing);
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), std::path::Path::new("/nowhere/.git"), None, &mut std::io::sink());
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::Broken), "the connection ended with the line unread, so the service never read it");
 }
 
 /// What:
@@ -640,6 +667,10 @@ const A_WAKE_LINE_LARGER_THAN_THE_BUFFERS: usize = 400_000;
 ///  so the line is carried to the service one bufferful at a time,
 ///  and the ceiling is the only bound that can end such a write.
 const A_WAKE_LINE_MANY_BUFFERS_LONG: usize = 1_600_000;
+
+/// How long a stand-in that ends its connection waits first,
+/// so the client's line is in the connection and unread when it ends.
+const A_BREAK_AFTER: Duration = Duration::from_millis(100);
 
 /// How much of the connection a draining stand-in reads at a time,
 /// and how long it pauses between drains:

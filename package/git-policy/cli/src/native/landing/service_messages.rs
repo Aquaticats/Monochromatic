@@ -289,6 +289,9 @@ pub enum ClientFailure {
     UnitInTheWay(String),
     /// The commit is saved but the backup push and upkeep could not be handed over.
     WorkNotHandedOver(String),
+    /// The commit is saved, its backup push and upkeep records are queued, and nothing has confirmed that the commit service
+    /// took the line that names them.
+    WorkQueuedUnconfirmed(String),
     /// The content prepared for the commit was removed from the repository before the commit landed,
     /// twice.
     ContentPruned,
@@ -462,6 +465,15 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::WorkNotHandedOver(reason) => format!(
             "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: {reason}. \
              Run `git push` when ready."
+        ),
+        // What: A wake nothing confirmed is said with what is known and with both ways the commit reaches the remote.
+        // Why:  The words said the work "could not be handed over" and told the person to push, which was false in both
+        //       directions: the records are queued and a service that reads the line later pushes the same commit, and a push
+        //       that meets the commit already on the remote sends nothing (the review of 2026-11-13, finding 3).
+        ClientFailure::WorkQueuedUnconfirmed(reason) => format!(
+            "Your commit is saved. Its backup push and upkeep are queued for the commit service, and nothing has confirmed \
+             that the service took them: {reason}. Run `git push` to send this commit now; the queued record then finds the \
+             remote already holding it, and one of the two sends nothing."
         ),
         ClientFailure::ContentPruned => format!(
             "The files of this commit were removed from the repository while the commit was being made, so it was not made. \

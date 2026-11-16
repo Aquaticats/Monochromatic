@@ -425,7 +425,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     last_break_was_silence = true;
                     break None;
                 }
-                Heard::Closed => {
+                // A connection the service broke is one that went away, which is what a reset already meant here before the
+                //  two were told apart for a wake's answer.
+                Heard::Closed | Heard::Broken => {
                     last_break_was_silence = false;
                     break None;
                 }
@@ -518,7 +520,7 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
                 deadline = deadline.min(answer_deadline + config.extra_wait);
             }
             Heard::Message(_) => {}
-            Heard::Silent | Heard::Closed => return Err(why.not_known(blocker)),
+            Heard::Silent | Heard::Closed | Heard::Broken => return Err(why.not_known(blocker)),
         }
     }
     return Err(why.not_known(blocker));
@@ -597,7 +599,13 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
         // A read that times out and a connection the service closed are two different answers, so this is the read that
         //  tells them apart (`listen`).
         match listen(&mut reader) {
+            // The end of the file after the line: the service read it and closed its end.
             Heard::Closed => return Ok(Woken::Taken),
+            // What: A read that failed is no read that found the end of the file, so the wake is not taken.
+            // Why:  A service that closes its end with the line still unread makes the kernel answer `ECONNRESET`, and one that
+            //       read the line first ends the read with no bytes at all (`Heard::Broken`). A service that read the line and
+            //       then died cannot be told from either, and the record on disk is what recovers that (`SPEC.md`, "A wake").
+            Heard::Broken => return Ok(Woken::Broken),
             Heard::Silent => {}
             Heard::Message(ServiceMessage::Failed { code, .. }) => return Ok(Woken::Refused { code }),
             Heard::Message(_) => {}

@@ -249,7 +249,25 @@ enum Told {
     /// so it relinks the worktree here and settles the record when the tools are done;
     /// the text says why no service took the wake,
     /// and a hand-over that wrote no record at all holds nothing to settle.
-    Ours { reason: String, claim: Option<HeldRelinkClaim> },
+    /// The claim is boxed, so the two answers that carry a time stay one word wide.
+    Ours(Box<Ours>),
+}
+
+/// What:
+///  The relink this command runs, and why no service took it.
+/// Why:
+///   A claim is much larger than the two answers that carry only a time,
+///  and one word for every answer keeps the common path's check cheap.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Ours = { reason: string; claim?: HeldRelinkClaim };
+/// ```
+struct Ours {
+    /// Why no service took the wake.
+    reason: String,
+    /// The record this command holds, when its hand-over wrote one.
+    claim: Option<HeldRelinkClaim>,
 }
 
 /// What:
@@ -284,9 +302,9 @@ async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) 
     return match told {
         Ok(Ok(Handed::Taken)) => Told::Taken(millis),
         Ok(Ok(Handed::ClaimedByTheService)) => Told::ClaimedByTheService(millis),
-        Ok(Ok(Handed::Ours { claim, reason })) => Told::Ours { reason, claim: Some(claim) },
-        Ok(Err(not_taken)) => Told::Ours { reason: not_taken.reason, claim: None },
-        Err(refusal) => Told::Ours { reason: format!("{refusal}"), claim: None },
+        Ok(Ok(Handed::Ours(ours))) => Told::Ours(Box::new(Ours { reason: ours.reason, claim: Some(ours.claim) })),
+        Ok(Err(not_taken)) => Told::Ours(Box::new(Ours { reason: not_taken.reason, claim: None })),
+        Err(refusal) => Told::Ours(Box::new(Ours { reason: format!("{refusal}"), claim: None })),
     };
 }
 
@@ -387,16 +405,17 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
                 }
             }
         }
-        Told::Ours { reason, claim } => {
+        Told::Ours(ours) => {
+            let reason: &str = ours.reason.as_str();
             debug(TAG, format!("{}: no service took the relink ({reason}), so it runs here", request.destination.display()).as_str());
             // What: The claim is kept fresh for as long as the tools run, then given back.
             // Why:  A tool may run longer than a claim's lease, and a claim that expired mid-run would be requeued and run
             //       by the service beside this run; a claim left behind afterwards would be requeued and run again
             //       (`package_repair_relink_claim.rs`).
-            let running: Option<crate::package_repair_relink_claim::RelinkClaimRunning> = claim.map(HeldRelinkClaim::kept_fresh);
+            let kept: Option<crate::package_repair_relink_claim::RelinkClaimRunning> = ours.claim.map(HeldRelinkClaim::kept_fresh);
             let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
-            if let Some(running) = running {
-                running.give_back().await;
+            if let Some(held) = kept {
+                held.give_back().await;
             }
             findings.pnpm.extend(here.pnpm);
             findings.toolchain.extend(here.toolchain);

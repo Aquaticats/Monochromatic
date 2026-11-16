@@ -48,7 +48,7 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
     std::fs::write(repo.join(".gitignore"), b"node_modules/\n").expect("gitignore");
     std::fs::write(repo.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
     git(fixture, repo.as_path(), &["add", "--", ".gitignore", "pnpm-lock.yaml"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=lockfile"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=lockfile"]);
     std::fs::create_dir_all(repo.join("node_modules/dep")).expect("node_modules");
     std::fs::write(repo.join("node_modules/dep/index.js"), b"module.exports = 1;\n").expect("dependency");
     return repo;
