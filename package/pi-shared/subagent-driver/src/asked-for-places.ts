@@ -151,7 +151,7 @@ async function entriesOfAList({
 }
 
 /**
- Says whether a run of that name finished after a moment, which is what a batch list own time says of its own entries.
+ Says whether a run of that name finished at or after a moment, which is what a batch list own time says of its own entries: a list is written before its unit is asked for, so a run of that batch comes at or after it, while a run of an earlier batch came before.
 
  @param runsFolder - folder the driver writes its runs into
 
@@ -159,7 +159,7 @@ async function entriesOfAList({
 
  @param moment - the moment the batch list was written, in milliseconds since the epoch
 
- @returns whether a summary of that name was written strictly after it
+ @returns whether a summary of that name was written at or after it, which a summary of an earlier batch is not
 
  @example
  ```ts
@@ -189,7 +189,7 @@ async function finishedSince({
     runsFolder,
     finished,
     SUMMARY_FILE_NAME,
-  ),)).mtimeMs > moment;
+  ),)).mtimeMs >= moment;
 }
 
 /**
