@@ -527,12 +527,14 @@ and each has a control that failed before the answer was written:
 - a process entry whose account the `stat` cannot establish was taken for another account's and skipped,
   and it is now judged like this account's and says so
   (`a_process_entry_whose_account_cannot_be_read_may_be_working_there`);
-- two readings of a start and of a birth closer than the granularity they were read with were ordered against each other,
+- two readings of a start and of a birth closer than the granularity they were read with
+  were ordered against each other,
   so a process that started just after the folder was taken as older than it
   (three of a hundred at no delay and thirteen of a hundred at four milliseconds, measured on this host);
   a pair the readings cannot order keeps the worktree
   (`a_process_within_the_readings_of_the_folder_is_never_taken_as_older`);
-- a worktree reached through a bind mount was read as elsewhere, though the mount table says which paths reach one folder,
+- a worktree reached through a bind mount was read as elsewhere,
+  though the mount table says which paths reach one folder,
   and the folder is now compared by every path this machine's mount table gives it
   (`a_process_that_works_in_the_worktree_through_a_bind_mount_is_found`);
 - a file mapped into memory and then closed has no descriptor, and the map table is now read as well
