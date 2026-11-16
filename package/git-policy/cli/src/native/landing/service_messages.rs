@@ -429,21 +429,20 @@ pub fn render(failure: &ClientFailure) -> String {
             waiting_for(blocker.as_deref())
         ),
         ClientFailure::ServiceGoneNotLanded { blocker } => format!(
-            "The commit service stopped answering while this commit waited, so this command asked it to drop the commit, and \
-             the service confirmed that it will not land. The branch is not at the commit this command prepared, so the commit \
-             was not made.{} Your staged changes and your worktree are exactly as they were, so run the commit again. \
-             {NOTHING_CHANGED}",
-            it_had_said(blocker.as_deref())
+            "The commit service stopped answering while this commit waited. This command then asked it to drop the request, \
+             and the service answered that it will not land, so the commit was not made.{} Your staged changes and your \
+             worktree are exactly as they were, and nothing of that request can land later by itself. {NOTHING_CHANGED}\n{}",
+            it_had_said(blocker.as_deref()),
+            crate::service_messages_of_a_service_that_stopped::steps_for_a_commit_the_service_dropped()
         ),
         ClientFailure::ServiceGoneUnconfirmed { blocker } => format!(
             "The commit service stopped answering while this commit waited, and it did not answer this command's ask to \
-             drop the commit either, so it is not known whether the commit was made and the request may still land when the \
-             service answers again.{} Run `{}` to see whether the branch holds it, and `{}` to see what is still staged. \
-             If the branch does not hold it, the request will not land later by itself: look at why the service is stuck \
-             with `{LOG_COMMAND}`, restart it with `{RESTART_COMMAND}`, and run the commit again.",
+             drop the request either, so it is not known whether the commit was made and the request may still land when the \
+             service answers again.{} `{}` shows whether the branch holds it, and `{}` shows what is still staged.\n{}",
             it_had_said(blocker.as_deref()),
             CHECK_COMMANDS[0],
-            CHECK_COMMANDS[1]
+            CHECK_COMMANDS[1],
+            crate::service_messages_of_a_service_that_stopped::steps_for_a_result_that_is_not_known()
         ),
         ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \

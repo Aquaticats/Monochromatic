@@ -155,7 +155,7 @@ fn steps_for_a_commit_that_was_not_made() -> String {
 /// ```ts
 /// stepsForAResultThatIsNotKnown() // the three steps, and why a commit is never made twice
 /// ```
-fn steps_for_a_result_that_is_not_known() -> String {
+pub(crate) fn steps_for_a_result_that_is_not_known() -> String {
     return format!(
         "What to do: the commit service is the background program that lands the commits of this worktree. \
          1. `{STATUS_COMMAND}` says whether that service answers, and names the unit that serves it. \
@@ -166,6 +166,29 @@ fn steps_for_a_result_that_is_not_known() -> String {
          3. Run the commit again once `{CHECK}` has shown that it was not made. A commit is never made twice, so running it \
          again makes the one commit.",
         CHECK = CHECK_COMMANDS[0]
+    );
+}
+
+/// What:
+///  What to do about a service that stopped and then answered that this command's request will not land.
+/// Why:
+///  The three steps are the ones every stopped service is ended by, and the last one needs no read of the branch:
+/// the service said the request is dropped, so running the commit again makes the one commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stepsForACommitTheServiceDropped() // the three steps, and why running it again makes one commit
+/// ```
+pub(crate) fn steps_for_a_commit_the_service_dropped() -> String {
+    return format!(
+        "What to do: the commit service is the background program that lands the commits of this worktree. \
+         1. `{STATUS_COMMAND}` says whether that service answers, and names the unit that serves it. \
+         2. A service that is running and answers nothing has stopped inside itself: it was frozen, a debugger holds it, or it \
+         waits for a disk that never answers. Starting it again does not help, because the service manager believes it runs; \
+         restart that one unit with `{RESTART_ONE_UNIT_COMMAND}` and the unit name the status printed. What it was doing is in \
+         its log: `journalctl --user --unit` and the same unit name, from the start of this commit. \
+         3. Run the same commit again, which is safe: the service answered that this command's request will not land, so \
+         running it again makes the one commit."
     );
 }
 
