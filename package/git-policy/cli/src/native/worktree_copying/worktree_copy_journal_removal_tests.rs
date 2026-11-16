@@ -81,3 +81,31 @@ fn a_removal_whose_walk_found_no_place_removes_nothing_and_says_so() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A split removal that ran and failed leaves the tree and says so, within a bound of its own.
+/// Why:
+///   The fallback under it is one plain recursive removal, and that call waits on storage with no bound at all: a stage on
+///   storage that stopped answering keeps the calling thread for ever, and the journal's settlement waits behind it. A
+///   removal is retried by the next command that reads the journal, so a step that failed is left and said, never entered
+///   again as a call nothing can return from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// failTheSplitRemoval(); expect(removeTreeIfPresent(stage)).toThrow(); expect(exists(stage)).toBe(true)
+/// ```
+#[test]
+fn a_split_removal_that_failed_leaves_the_tree_and_says_so() {
+    let root: PathBuf = fixture("journal-removal-failed-split");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(stage.join("below").as_path()).expect("stage");
+    std::fs::write(stage.join("below/an-entry"), b"a stage entry").expect("stage entry");
+    super::THE_SPLIT_REMOVALS_ANSWER.with(|cell: &std::cell::RefCell<Option<std::io::Error>>| {
+        *cell.borrow_mut() = Some(std::io::Error::other("a step of the split removal this control failed"));
+    });
+    let answer: Result<(), crate::worktree_copy_error::WorktreeCopyError> = remove_tree_if_present(stage.as_path());
+    let failure: crate::worktree_copy_error::WorktreeCopyError = answer.expect_err("a split removal that failed is said, not stood in for by a call that cannot return");
+    assert!(failure.0.contains("left"), "the words do not say the tree was left: {}", failure.0);
+    assert!(stage.join("below/an-entry").is_file(), "the tree the split removal failed on was removed by a fallback that waits on storage with no bound");
+    remove(&root);
+}

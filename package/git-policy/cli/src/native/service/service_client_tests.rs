@@ -408,3 +408,40 @@ const A_CHANGE_SET_OF_MANY_PATHS: usize = 2_000;
 /// The length of a changed path in that request,
 /// near the 99th percentile of this repository's own (118 characters).
 const A_PATH_THIS_LONG: usize = 150;
+
+/// What:
+///  A wake whose service closed the connection without having read the line is not reported as a hand-over made.
+/// Why:
+///   The close is the confirmation the client waits for, and a service that died closes its end the same way:
+///   a client that answers success on that close tells the person the work was handed over while the record it names stays
+///   owed and unrun until some later command wakes a service. The client reads a confirmation the service writes only after
+///   it has taken the line, and a connection that ends before it reaches the client is a hand-over it could not tell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// greetOnly(); await peekForTheWorkLine(); close(); expect(await wake(...)).toNotBe(ok)
+/// ```
+#[test]
+fn a_wake_the_service_closed_without_reading_is_not_a_hand_over_made() {
+    let name: String = an_address("wake-closed-before-reading");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let serving = std::thread::spawn(move || {
+        let (stream, _address) = service.accept().expect("the client connects");
+        (&stream)
+            .write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice())
+            .expect("greet");
+        // The line is seen arriving and never read: the bytes stay in this end's own buffer, which is the state a service
+        //  that dies between the greeting and its read leaves behind.
+        let mut seen: [u8; 1] = [0];
+        // SAFETY: `recv` reads at most one byte into a buffer of that size and only peeks: the byte stays in this end's
+        //  buffer, which is the state a service that died before its read leaves behind.
+        let peeked: isize = unsafe { libc::recv(std::os::fd::AsRawFd::as_raw_fd(&stream), seen.as_mut_ptr().cast(), 1, libc::MSG_PEEK) };
+        assert!(peeked > 0, "the client never wrote its line, so this control tested nothing: {peeked}");
+        drop(stream);
+        drop(service);
+    });
+    let git_dir: std::path::PathBuf = std::path::PathBuf::from("/nowhere/.git");
+    let answer: Result<(), ClientFailure> = wake(&reach_settings(name.as_str()), git_dir.as_path(), None, &mut std::io::sink());
+    let _joined = serving.join();
+    assert!(answer.is_err(), "a wake whose line the service never read was reported as a hand-over made: {answer:?}");
+}

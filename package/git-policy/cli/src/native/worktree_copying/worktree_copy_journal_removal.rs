@@ -228,6 +228,12 @@ enum TheRemovalThatCouldNotRun {
     Failed(std::io::Error),
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The answer a control gives the split removal in place of the work, taken out when it is read.
+    pub(crate) static THE_SPLIT_REMOVALS_ANSWER: std::cell::RefCell<Option<std::io::Error>> = const { std::cell::RefCell::new(None) };
+}
+
 async fn remove_subtrees_awaiting(
     (cursor, subtrees): (Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>),
     workers: usize,
@@ -296,6 +302,14 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 /// removeTreeSplitSayingWhy(path); // { removed } | { noPlace } | { failed }
 /// ```
 fn remove_tree_split_saying_why(path: &Path) -> Result<(), TheRemovalThatCouldNotRun> {
+    // What: A control's own answer for the split removal, taken out when it is read so it happens once.
+    // Why:  A removal whose step fails is the state the fallback stands in for, and no host this test may use can be made to
+    //       fail such a step on demand.
+    #[cfg(test)]
+    if let Some(forced) = THE_SPLIT_REMOVALS_ANSWER.with(|cell: &std::cell::RefCell<Option<std::io::Error>>| return cell.borrow_mut().take()) {
+        let _ = path;
+        return Err(TheRemovalThatCouldNotRun::Failed(forced));
+    }
     return match crate::lazy_runtime::run_on_runtime(remove_tree_split_awaiting(path)) {
         Ok(outcome) => outcome,
         // Nothing was removed, and the reason the runtime could not run the workers is why.

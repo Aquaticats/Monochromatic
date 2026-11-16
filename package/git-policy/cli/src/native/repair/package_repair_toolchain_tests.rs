@@ -616,3 +616,92 @@ fn a_record_a_killed_pass_left_where_its_name_is_taken_is_kept_and_named_for_the
     assert!(words.contains(destination.join(LAUNCHERS).join("zzz.launch").to_str().expect("utf8")), "the line does not name where it belongs: {words}");
     remove(&root);
 }
+
+/// The bytes of `birth`, as a name written by a pass that records the birth beside the number spells them.
+fn spelled_birth(birth: &str) -> String {
+    return birth.bytes().map(|byte| return format!("{byte:02x}")).collect();
+}
+
+/// The birth of no process on this host, so a name carrying it is a name whose writer is gone.
+fn a_birth_no_process_has() -> String {
+    let _ = ();
+    return String::from("linux:1");
+}
+
+/// What:
+///  A record a killed pass left aside is put back although another process now holds the number in its name.
+/// Why:
+///   A number is reused, and the aside's name is the only thing that names the pass that wrote it:
+///   the wrapper records the writer's birth beside its number, so a pass reading the name can tell the writer itself from a
+///   process that happens to have taken the number since. A check on the number alone keeps a killed pass's record aside for
+///   as long as any process holds that number, and nothing else puts it back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeAside(`zzz.launch.removing-${pid}-born-${hex(birthOfAnotherProcess)}-0`, recordNamingOwnLock());
+/// repairToolchain(destination); assert(exists('zzz.launch'));
+/// ```
+#[test]
+fn a_killed_pass_whose_number_another_process_holds_is_still_put_back() {
+    let (root, destination, _bin, environment) = scene("toolchain-birth-beside-number");
+    lock(&destination, &["own"]);
+    record(&destination, "own", destination.join(LOCK_FILE).as_path());
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    std::fs::create_dir_all(launchers.as_path()).expect("launchers");
+    let own_lock: PathBuf = destination.join(LOCK_FILE);
+    let preserved: String = format!(
+        "{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/zzz\",\"scope\":\"repo\"}}\n",
+        own_lock.display()
+    );
+    let aside: PathBuf = launchers.join(format!(
+        "zzz.launch.removing-{}-born-{}-0",
+        std::process::id(),
+        spelled_birth(a_birth_no_process_has().as_str())
+    ));
+    std::fs::write(aside.as_path(), preserved.as_bytes()).expect("the record a killed pass left aside");
+    let _pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    let put_back: String = std::fs::read_to_string(launchers.join("zzz.launch")).unwrap_or_default();
+    assert_eq!(put_back, preserved, "the record a killed pass left aside was not put back although its writer is gone from that number");
+    assert!(!aside.exists(), "the aside stayed after the pass put its record back");
+    remove(&root);
+}
+
+/// What:
+///  A name another pass reserved, and a name a killed pass left, are never replaced by this pass's take.
+/// Why:
+///   A counter that starts at zero in every process makes the same name in a pass that runs later, and a rename onto a name
+///   replaces what was there: a record kept so that a kill discards nothing is then overwritten and removed by the cleanup of
+///   the record this pass took. The name a pass takes is one it made for itself, and no take replaces a name that was there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeAside(`zzz.launch.removing-${pid}-0`, kept); writeAside(`own.launch.removing-${pid}-born-${hex(ownBirth)}-0`, keptToo);
+/// repairToolchain(destination); assert(read(keptAside) === kept && read(secondAside) === keptToo);
+/// ```
+#[test]
+fn a_take_never_replaces_a_name_another_pass_reserved() {
+    let (root, destination, _bin, environment) = scene("toolchain-aside-never-replaced");
+    lock(&destination, &["own"]);
+    record(&destination, "own", destination.join(LOCK_FILE).as_path());
+    record(&destination, "zzz", root.join("source/toolchain.lock.json").as_path());
+    launcher(&destination, "zzz");
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    let own_lock: PathBuf = destination.join(LOCK_FILE);
+    let kept: String = format!(
+        "{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/kept-by-a-killed-pass\",\"scope\":\"repo\"}}\n",
+        own_lock.display()
+    );
+    let legacy: PathBuf = launchers.join(format!("zzz.launch.removing-{}-0", std::process::id()));
+    std::fs::write(legacy.as_path(), kept.as_bytes()).expect("the name a killed pass of an earlier release left");
+    let own_birth: String = crate::process_identity::current_birth_identity().expect("this process's birth");
+    let reserved: String = format!(
+        "{{\"toolId\":\"cargo:own\",\"lockFile\":\"{}\",\"real\":\"/tools/reserved\",\"scope\":\"repo\"}}\n",
+        own_lock.display()
+    );
+    let reserved_path: PathBuf = launchers.join(format!("own.launch.removing-{}-born-{}-0", std::process::id(), spelled_birth(own_birth.as_str())));
+    std::fs::write(reserved_path.as_path(), reserved.as_bytes()).expect("the name this pass's own counter would compute");
+    let _pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    assert_eq!(std::fs::read_to_string(legacy.as_path()).unwrap_or_default(), kept, "a pass replaced the record a killed pass of an earlier release left aside");
+    assert_eq!(std::fs::read_to_string(reserved_path.as_path()).unwrap_or_default(), reserved, "a pass replaced a name another pass reserved");
+    remove(&root);
+}

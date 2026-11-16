@@ -360,6 +360,12 @@ fn marker_of_the_staging(staged: &Path) -> PathBuf {
     return PathBuf::from(named);
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Whether the next marker write is refused, as storage refusing it does.
+    pub(crate) static A_MARKER_WRITE_THE_STORAGE_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// What:
 ///  The words a filling writes beside a name it staged.
 const STAGED_MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli staged the directory beside this file and may remove it.\n";
@@ -369,6 +375,14 @@ const STAGED_MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli staged the dire
 ///  and never over one that is there.
 fn note_that_a_filling_made(staged: &Path) {
     let marker: PathBuf = marker_of_the_staging(staged);
+    // What: A control's own refusal of the marker write, taken out when it is read so it happens once.
+    // Why:  The state this leaves behind is what a storage that denies the write leaves behind, and no host this test may
+    //       use can be made to deny it on demand.
+    #[cfg(test)]
+    if A_MARKER_WRITE_THE_STORAGE_REFUSED.with(|asked: &std::cell::Cell<bool>| return asked.replace(false)) {
+        debug(TAG, format!("{} was refused by a control, as storage denying the write refuses it", marker.display()).as_str());
+        return;
+    }
     if let Err(reason) = crate::private_storage::write_private_file_unsynced(marker.as_path(), STAGED_MARKER_TEXT) {
         debug(TAG, format!("{} could not be written, so {} is left for a later filling ({reason})", marker.display(), staged.display()).as_str());
     }

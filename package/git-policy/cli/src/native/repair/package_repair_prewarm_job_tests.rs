@@ -1118,3 +1118,54 @@ fn a_record_that_spells_a_maker_name_is_refused_and_nothing_is_removed() {
     assert_eq!(std::fs::read(theirs.as_path()).expect("the person's file is still there"), b"a person's data", "a record removed a folder the wrapper never made");
     remove(root.as_path());
 }
+
+/// What:
+///  A marker that cannot be written leaves the copied build state where it is.
+/// Why:
+///   The marker is the record the filling and a later look rest on. Writing it after the state is moved leaves a state
+///   moved and unrecorded, which every filling then refuses: the destination stays absent and the state stranded for ever.
+///   The mark goes first, so a mark the storage refuses means nothing was moved at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseTheMarkerWrite(); expect(stageTheWorktreesOwnState(to, null)).toThrow(); expect(exists(to)).toBe(true)
+/// ```
+#[test]
+fn a_marker_that_cannot_be_written_leaves_the_copied_state_where_it_is() {
+    let root: PathBuf = fixture("prewarm-marker-refused");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.join("copied").as_path()).expect("the build directory a build made");
+    std::fs::write(destination.join("copied/an-artifact"), b"the worktree's own copied state").expect("a copied artifact");
+    super::A_MARKER_WRITE_THE_STORAGE_REFUSED.with(|asked: &std::cell::Cell<bool>| asked.set(true));
+    let staged: Result<super::Staged, String> = super::stage_the_worktrees_own_state(destination.as_path(), None);
+    assert!(staged.is_err(), "a state this wrapper could not mark was moved aside anyway: {staged:?}");
+    assert!(destination.join("copied/an-artifact").is_file(), "the copied build state was moved without a mark to prove it, which every filling then refuses");
+    remove(root.as_path());
+}
+
+/// What:
+///  A staged state that carries no mark finishes its record and is left exactly as it is found.
+/// Why:
+///   A release before the mark moved the copied state aside without one, so its record names a directory the wrapper cannot
+///   prove is its own. Refusing that record for ever leaves the destination absent and the state stranded, and retrying the
+///   record repeats the refusal; the state is left, its record is finished, and the worktree's next build compiles afresh.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unmarked = stagedNameOf(to); mkdir(unmarked); expect(fillOne(entry)).toBe('kept'); expect(exists(unmarked)).toBe(true)
+/// ```
+#[test]
+fn a_staged_state_without_a_mark_finishes_its_record_and_is_left() {
+    let root: PathBuf = fixture("prewarm-unmarked-state-finishes");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let usual: PathBuf = staging_of(entry.to.as_path());
+    let unmarked: PathBuf = PathBuf::from(format!("{}.2605959~linux:22320074~pid:[4026531836].1", usual.display()));
+    std::fs::create_dir_all(unmarked.join("copied").as_path()).expect("the state an earlier release moved aside");
+    let artifact: PathBuf = unmarked.join("copied/an-artifact");
+    std::fs::write(artifact.as_path(), b"a copied artifact an earlier release moved aside").expect("a copied artifact");
+    let recorded: PrewarmEntry = PrewarmEntry { staged_in: Some(unmarked.clone()), from: None, ..entry.clone() };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &recorded);
+    assert!(matches!(filled, Ok(Filled::Kept)), "a staged state with no mark was refused again instead of its record being finished: {filled:?}");
+    assert_eq!(std::fs::read(artifact.as_path()).expect("the state is still there"), b"a copied artifact an earlier release moved aside", "the state the wrapper cannot prove is its own was removed");
+    remove(root.as_path());
+}
