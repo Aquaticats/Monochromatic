@@ -39766,6 +39766,15 @@ And at about 11:42 on 2026-11-16, asked once the second masking merge was in `ma
   when the owner says the rotation is done, a fresh-start canary and a resume canary run through `main`, and the filling unit is started again at level 13. A going run that loses a provider or Git call to the old values is resumed afterwards.
   Until the owner says the values are rotated, the sessions the scan names stay untouched and unresumed.
 
+The rotation is withdrawn by the owner (2026-11-16, between 11:47 and 11:53):
+
+- The owner wrote, while looking at the list of places: "I would not consider anything sent to Neuralwatt as compromised. So I believe a rotate is not needed."
+- This session put the scan's record of 2026-11-14 beside that before acting on it: 13 Claude Code transcripts hold a real value and went to that harness's provider; of 23 Pi session files with a real value six were read for their provider (Neuralwatt and opencode-go) and 17 older ones never were;
+  two of the exposed names control more than a provider's bill (a GitHub token, which also stands in clear in `~/.bashrc`, and a Hetzner token).
+- Asked with those facts and four courses, the owner answered: **"Nothing is rotated"**. The exposure is accepted as it stands. No value is rotated, the answer of 11:42 ("Rotate now, runs going") is superseded, and the sessions the scan names may be resumed again.
+  What does not change: no session, no brief and no script prints a credential's value, and the scan-named session files are not opened or printed by this session, because the values in them are still valid.
+- The unit that fills run places, stopped at 11:43:25 for the rotation, runs again at level 13 since 11:50:02. No run was started in those seven minutes; none was stopped.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
