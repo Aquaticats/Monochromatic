@@ -264,7 +264,7 @@ fn a_manager_start_that_meets_a_claim_after_its_look_keeps_the_service() {
     let alive: bool = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the process's record").is_some();
     let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
     let preparing: bool = match &attempt {
-        StartAttempt::ServiceIsPreparing { service } => service.pid == pid,
+        StartAttempt::ServiceIsPreparing { service: coming } => coming.pid == pid,
         _other => false,
     };
     assert!(preparing, "a service that claimed after the look is waited for, not ended: {attempt:?}");
@@ -303,7 +303,7 @@ fn a_base_start_that_meets_a_claim_after_its_look_is_not_a_failure() {
     let pid: i32 = wait_for_the_silent_service(runs.as_path());
     let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
     match attempt {
-        StartAttempt::ServiceIsPreparing { service } => assert_eq!(service.pid, pid, "the service that claimed is the one preparing"),
+        StartAttempt::ServiceIsPreparing { service: coming } => assert_eq!(coming.pid, pid, "the service that claimed is the one preparing"),
         other => panic!("a service that claimed after the look is preparing, not a failure: {other:?}"),
     }
 }

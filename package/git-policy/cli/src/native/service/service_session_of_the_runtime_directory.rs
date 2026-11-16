@@ -166,7 +166,7 @@ fn same_place_within(left: &Path, right: &Path, ceiling: std::time::Duration) ->
         return (std::fs::canonicalize(here), std::fs::canonicalize(there));
     });
     return match resolved {
-        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran((Ok(here), Ok(there))) => Some(here == there),
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran((Ok(at_the_first), Ok(at_the_second))) => Some(at_the_first == at_the_second),
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(_) => Some(false),
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart
         | crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => None,
@@ -194,24 +194,24 @@ static BEFORE_THE_RESOLUTION: std::sync::Mutex<Option<std::time::Duration>> = st
 /// aControlTakesTheResolutionSlowly(2000)
 /// ```
 #[cfg(test)]
-pub(crate) fn a_control_takes_the_resolution_slowly(slowly: std::time::Duration) {
+pub(crate) fn a_control_takes_the_resolution_slowly(how_long: std::time::Duration) {
     let mut slot = match BEFORE_THE_RESOLUTION.lock() {
         Ok(slot) => slot,
         Err(poisoned) => poisoned.into_inner(),
     };
-    *slot = Some(slowly);
+    *slot = Some(how_long);
 }
 
 /// Runs a control's slow resolution once, if one was set.
 fn run_the_controls_step_before_the_resolution() {
     #[cfg(test)]
     {
-        let slowly: Option<std::time::Duration> = match BEFORE_THE_RESOLUTION.lock() {
+        let how_long: Option<std::time::Duration> = match BEFORE_THE_RESOLUTION.lock() {
             Ok(mut slot) => slot.take(),
             Err(poisoned) => poisoned.into_inner().take(),
         };
-        if let Some(slowly) = slowly {
-            std::thread::sleep(slowly);
+        if let Some(pause) = how_long {
+            std::thread::sleep(pause);
         }
     }
 }

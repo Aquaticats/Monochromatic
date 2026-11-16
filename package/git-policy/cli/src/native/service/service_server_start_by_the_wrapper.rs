@@ -229,7 +229,9 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
         //       wrong: the leader this command was given is a process of this command's own, and while it is that process the scope
         //       holds a service that may be preparing, whatever its note says. Ending a group that is empty is pointless too, so no
         //       group is signalled here at all (the sixth review of issue 6293, findings 1 and 2).
-        if let Some(preparing) = live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| leader.and_then(the_process_still_running)) {
+        let started_a_service: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> =
+            live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| { return leader.and_then(the_process_still_running); });
+        if let Some(preparing) = started_a_service {
             return StartAttempt::ServiceIsPreparing { service: preparing };
         }
         if answered(&server.address) {
@@ -252,8 +254,10 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     // Why:  The note can be claimed in the instant between the read and this answer, and the child this command started is one fact
     //       that claim cannot take away: while it is that process a service is coming, and saying it failed would fail a commit for
     //       a service that is merely slow (the sixth review of issue 6293, finding 2).
-    return match live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| started.and_then(the_process_still_running)) {
-        Some(preparing) => StartAttempt::ServiceIsPreparing { service: preparing },
+    let a_service_is_coming: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> =
+        live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| { return started.and_then(the_process_still_running); });
+    return match a_service_is_coming {
+        Some(coming) => StartAttempt::ServiceIsPreparing { service: coming },
         None => StartAttempt::DidNotGreet(log),
     };
 }
@@ -435,9 +439,9 @@ fn the_process_still_running(pid: i32) -> Option<crate::service_server_pid_note_
 /// liveServiceThatIsPreparing(pidNote) // the note's server when it is still that process
 /// ```
 fn live_service_that_is_preparing(note: &Path) -> Option<crate::service_server_pid_note_of_an_instance::ServerProcess> {
-    let named: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note);
+    let read: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note);
     run_the_controls_step_after_the_note_was_read();
-    let named: crate::service_server_pid_note_of_an_instance::ServerProcess = named?;
+    let named: crate::service_server_pid_note_of_an_instance::ServerProcess = read?;
     if !crate::service_server_pid_note_of_an_instance::is_still_the_process(&named) {
         return None;
     }

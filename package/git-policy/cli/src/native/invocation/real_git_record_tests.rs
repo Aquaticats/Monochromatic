@@ -105,9 +105,8 @@ fn a_temporary_file_its_writer_left_is_collected_by_the_next_write() {
     let folder: PathBuf = runtime.join("monochromatic-git-policy-cli");
     std::fs::create_dir_all(folder.as_path()).expect("the runtime directory");
     // A writer that ended: its number names no process with that birth in this run.
-    let ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a writer that ends");
+    let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a writer that ends");
     let ended_pid: i32 = i32::try_from(ended.id()).expect("a process number");
-    let mut ended: std::process::Child = ended;
     let _waited = ended.wait().expect("the writer ends");
     let stale: PathBuf = folder.join(format!("real-git.{ended_pid}.1.writing"));
     std::fs::write(stale.as_path(), b"/usr/bin/git\n").expect("the file a killed writer left");

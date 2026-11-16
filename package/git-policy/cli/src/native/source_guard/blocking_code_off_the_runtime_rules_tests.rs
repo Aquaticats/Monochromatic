@@ -445,6 +445,13 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the client's pause between connects, on the synchronous commit command",
     },
     Allowed {
+        file: "service/service_session_of_the_runtime_directory.rs",
+        rule: "blocking-sleep",
+        why: "the pause a control gives the resolution so that one outlasting its ceiling is produced without a stalled mount; \
+              it runs on the bounded job's own thread, which the ceiling leaves behind exactly as a stuck call is, and a release \
+              run never arms it. The entry goes with the seam the sixth review's control needs",
+    },
+    Allowed {
         file: "service/service_fault.rs",
         rule: "blocking-sleep",
         why: "the pause of a control's hold between the address being bound and the first greeting, which a control arms by naming a \
