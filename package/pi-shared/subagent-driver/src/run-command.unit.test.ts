@@ -12,8 +12,6 @@ import {
 } from 'node:events';
 import {
   mkdtemp,
-  readdir,
-  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -62,6 +60,13 @@ async function makeFolder(): Promise<{
 const SHORT_BOUND_MILLISECONDS = 100;
 
 /**
+ Milliseconds the bound of the two grace tests allows, which is long enough for the program it starts to install its own handler: a
+ Node start under a loaded machine takes longer than a tenth of a second, and a signal that arrives before the handler ends the
+ program instead of testing the grace.
+ */
+const A_BOUND_THAT_LETS_THE_PROGRAM_START_MILLISECONDS = 1_500;
+
+/**
  Milliseconds a program that ignores the polite signal is given after it, which is the grace `run-command.ts` states.
  */
 const POLITE_SIGNAL_GRACE_MILLISECONDS = 5_000;
@@ -72,9 +77,32 @@ const POLITE_SIGNAL_GRACE_MILLISECONDS = 5_000;
 const AFTER_THE_GRACE_MILLISECONDS = 1_500;
 
 /**
- A word only the child of the bound test carries, which is how a test finds that child again without a number from anywhere.
+ Milliseconds after the polite signal at which the program of the grace tests would write that it survived: past the grace, so its
+ absence is the kill and its presence is a program the grace never ended.
  */
-const A_CHILD_OF_THIS_TEST = 'a-child-of-the-bound-test-that-ignores-its-polite-signal';
+const AFTER_THE_POLITE_SIGNAL_MILLISECONDS = 400;
+
+/**
+ Milliseconds after its own start at which the program of the grace tests would write that it survived, which is the bound plus the
+ grace plus that moment: the bound is set when the program is started.
+ */
+const SURVIVED_AFTER_START_MILLISECONDS = A_BOUND_THAT_LETS_THE_PROGRAM_START_MILLISECONDS
+  + POLITE_SIGNAL_GRACE_MILLISECONDS
+  + AFTER_THE_POLITE_SIGNAL_MILLISECONDS;
+
+/**
+ The program the bound tests start: it says it started, ignores the polite signal, and would say a stated moment after its start that it
+ survived. It ends by itself a moment later, so a test leaves no process behind even when the kill never happens.
+ */
+const A_CHILD_THAT_IGNORES_ITS_SIGNAL = [
+  "import { writeFileSync, } from 'node:fs';",
+  'const [started, survived, waitMilliseconds, ] = process.argv.slice(1,);',
+  String.raw`writeFileSync(started, 'started\n',);`,
+  "process.on('SIGTERM', () => {});",
+  String.raw`setTimeout(() => { writeFileSync(survived, 'survived\n',); }, Number(waitMilliseconds,),);`,
+  'setTimeout(() => { process.exit(0,); }, Number(waitMilliseconds,) + 600,);',
+  '',
+].join('\n',);
 
 /**
  Waits a stated time, so a test can watch what a bound left behind.
@@ -90,85 +118,6 @@ async function passTime(milliseconds: number,): Promise<void> {
   await new Promise(function waitItOut(resolve,) {
     setTimeout(resolve, milliseconds,);
   },);
-}
-
-/**
- Reads the process table entries, and nothing when the folder cannot be read here.
-
- @returns one entry per process
-
- @example
- ```ts
- const entries = await processEntries();
- ```
- */
-async function processEntries(): Promise<readonly string[]> {
-  try {
-    return await readdir('/proc',);
-  }
-  catch (error) {
-    // A folder that cannot be read here holds no process of this test.
-    return [];
-  }
-}
-
-/**
- Says whether a word of the process folder is a process number, which is every character a digit.
-
- @param word - one entry of the process folder
-
- @returns whether it is a number
-
- @example
- ```ts
- const number = isDigits({ word: '12' });
- ```
- */
-function isDigits({ word, }: { readonly word: string },): boolean {
-  if (word === '') {
-    return false;
-  }
-  for (const character of word) {
-    if ((character < '0') || (character > '9')) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- Says whether any process still carries a word in its command line.
-
- @param word - the word a child of this test was started with
-
- @returns whether such a process is still there
-
- @example
- ```ts
- const there = await aChildStillRuns({ word: A_CHILD_OF_THIS_TEST });
- ```
- */
-async function aChildStillRuns({ word, }: { readonly word: string },): Promise<boolean> {
-  /**
-   The process entries, and nothing at all when the folder cannot be read here.
-   */
-  const entries = await processEntries();
-  for (const entry of entries) {
-    if (!isDigits({ word: entry, },)) {
-      continue;
-    }
-    try {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, and the first match ends the search
-      const words = (await readFile(`/proc/${entry}/cmdline`, 'utf8',)).split('\0',);
-      if (words.includes(word,)) {
-        return true;
-      }
-    }
-    catch (error) {
-      // A process of another account, or one that ended between the listing and the read, carries no word of this test.
-    }
-  }
-  return false;
 }
 
 /**
@@ -251,37 +200,25 @@ await describe({
   name: runCommandShowingItsOutput.name,
   children: [
     it({
-      name: 'answers at its own bound when the program it started ignores the polite signal, which no wait on that program bounds',
-      timeout: 20_000,
+      name: 'answers at its own bound, and kills the program a stated grace after the polite signal so nothing it started outlives the caller',
+      timeout: 40_000,
       fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the program says it started, and where it would say it survived the grace.
+         */
+        const startedFile = join(
+          folder.path,
+          'started.txt',
+        );
+        const survivedFile = join(
+          folder.path,
+          'survived.txt',
+        );
         /**
          When the call was made.
          */
-        const started = Date.now();
-        /**
-         What the call answered for a program that ignores the polite signal and would live for half a minute.
-         */
-        const ending = await runCommandShowingItsOutput({
-          command: process.execPath,
-          words: [
-            '--input-type=module',
-            '--eval',
-            "process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 30_000);",
-          ],
-          timeoutMilliseconds: SHORT_BOUND_MILLISECONDS,
-        },);
-        /**
-         How long the call took to answer.
-         */
-        const tookMilliseconds = Date.now() - started;
-        expect(ending,).toEqual({ endedByItsOwnBound: true, },);
-        expect(tookMilliseconds,).toBeLessThan(1_000,);
-      },
-    },),
-    it({
-      name: 'kills the program a stated grace after the polite signal, so nothing it started outlives the caller',
-      timeout: 45_000,
-      fn: async () => {
+        const before = Date.now();
         /**
          What the call answered for a program that ignores the polite signal.
          */
@@ -290,16 +227,23 @@ await describe({
           words: [
             '--input-type=module',
             '--eval',
-            "process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 60_000);",
-            A_CHILD_OF_THIS_TEST,
+            A_CHILD_THAT_IGNORES_ITS_SIGNAL,
+            startedFile,
+            survivedFile,
+            String(SURVIVED_AFTER_START_MILLISECONDS,),
           ],
-          timeoutMilliseconds: SHORT_BOUND_MILLISECONDS,
+          timeoutMilliseconds: A_BOUND_THAT_LETS_THE_PROGRAM_START_MILLISECONDS,
         },);
+        /**
+         How long the call took to answer.
+         */
+        const tookMilliseconds = Date.now() - before;
         expect(ending,).toEqual({ endedByItsOwnBound: true, },);
-        // A grace after the polite signal the program is killed; until then it is still there.
-        expect(await aChildStillRuns({ word: A_CHILD_OF_THIS_TEST, },),).toBe(true,);
-        await passTime(POLITE_SIGNAL_GRACE_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);
-        expect(await aChildStillRuns({ word: A_CHILD_OF_THIS_TEST, },),).toBe(false,);
+        expect(tookMilliseconds,).toBeLessThan(4_000,);
+        // The program started, and a grace after the polite signal it was killed before it could write that it survived.
+        expect(await isThere(startedFile,),).toBe(true,);
+        await passTime(SURVIVED_AFTER_START_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);
+        expect(await isThere(survivedFile,),).toBe(false,);
       },
     },),
     it({
@@ -308,11 +252,15 @@ await describe({
       fn: async () => {
         await using folder = await makeFolder();
         /**
-         Where the child would write if it outlived the grace: the marker names the moment it was written.
+         Where the program says it started, and where it would say it survived the grace.
          */
-        const marker = join(
+        const startedFile = join(
           folder.path,
-          'the-child-survived.txt',
+          'started.txt',
+        );
+        const survivedFile = join(
+          folder.path,
+          'survived.txt',
         );
         /**
          The program that sets the bound and exits at once, which is what the launcher does.
@@ -321,61 +269,51 @@ await describe({
           folder.path,
           'a-caller-that-exits.ts',
         );
-        /**
-         The program that ignores the polite signal and writes its marker a second past the grace.
-         */
-        const child = join(
-          folder.path,
-          'a-child-that-ignores-its-signal.ts',
-        );
         await writeFile(
           caller,
           [
             `import { runCommandShowingItsOutput, } from ${JSON.stringify(new URL('../dist/final/node/index.mjs', import.meta.url,).href,)};`,
-            'const [child, marker, ] = process.argv.slice(2,);',
+            'const [started, survived, waitMilliseconds, ] = process.argv.slice(2,);',
             'const ending = await runCommandShowingItsOutput({',
             '  command: process.execPath,',
-            '  words: [child, marker, ],',
-            `  timeoutMilliseconds: ${String(SHORT_BOUND_MILLISECONDS,)},`,
+            '  words: [',
+            "    '--input-type=module',",
+            "    '--eval',",
+            `    ${JSON.stringify(A_CHILD_THAT_IGNORES_ITS_SIGNAL,)},`,
+            '    started,',
+            '    survived,',
+            '    waitMilliseconds,',
+            '  ],',
+            `  timeoutMilliseconds: ${String(A_BOUND_THAT_LETS_THE_PROGRAM_START_MILLISECONDS,)},`,
             '},);',
             String.raw`process.stdout.write(JSON.stringify({ ending, }) + "\n",);`,
-            '',
-          ].join('\n',),
-        );
-        await writeFile(
-          child,
-          [
-            "import { writeFileSync, } from 'node:fs';",
-            'const [marker, ] = process.argv.slice(2,);',
-            "process.on('SIGTERM', () => {});",
-            `setTimeout(() => { writeFileSync(marker, 'the child survived past the grace\\n',); }, ${String(POLITE_SIGNAL_GRACE_MILLISECONDS + 600,)});`,
-            `setTimeout(() => { process.exit(0,); }, ${String(POLITE_SIGNAL_GRACE_MILLISECONDS + 1_200,)});`,
             '',
           ].join('\n',),
         );
         /**
          The caller's process, which this test started and whose number it was given back.
          */
-        const started = spawn(
+        const spawned = spawn(
           process.execPath,
-          [caller, child, marker,],
+          [caller, startedFile, survivedFile, String(SURVIVED_AFTER_START_MILLISECONDS,),],
           { stdio: 'ignore', },
         );
         /**
          How the caller ended, as the runtime hands it back.
          */
         const closing: readonly unknown[] = await once(
-          started,
+          spawned,
           'close',
         );
         /**
          The status the caller exited with, which is its first closing word.
          */
         const [status,] = closing;
-        // The caller answered at its bound and exited; the child is not its to leave behind.
+        // The caller answered at its bound and exited; the program is not its to leave behind.
         expect(status,).toBe(0,);
-        await passTime(POLITE_SIGNAL_GRACE_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);
-        expect(await isThere(marker,),).toBe(false,);
+        expect(await isThere(startedFile,),).toBe(true,);
+        await passTime(SURVIVED_AFTER_START_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);
+        expect(await isThere(survivedFile,),).toBe(false,);
       },
     },),
   ],
