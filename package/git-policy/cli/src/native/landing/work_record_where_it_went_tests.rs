@@ -4,6 +4,8 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use std::cell::RefCell;
+use std::time::SystemTime;
 use crate::work_item::{Claimed, WorkItem, WorkKind, claim_next_of, enqueue, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -185,4 +187,81 @@ fn a_move_that_finds_an_unreadable_done_says_the_look_failed() {
     assert!(said.contains(DONE) && said.contains("could not be looked at"), "the words name the state and that it could not be looked at: {said}");
     assert!(said.contains("Permission denied"), "the words keep the error the look gave: {said}");
     assert!(!said.contains("no file of"), "the record was there, but the words said it is in no place: {said}");
+}
+
+/// What:
+///  The walk a control hands in:
+///  the states it was asked for, in the order it was asked,
+///  and what it answers for each one.
+/// Why:
+///   The words read the states of a record in an order,
+/// and both the order and a walk that stops part-way are states of the reading
+///  a real directory cannot be made to reach on a local file system.
+struct WalksAsTheControlSays<'a> {
+    /// The state whose walk the control answers with `answer`, or nothing to walk the real directory.
+    state: &'a str,
+    /// What that walk reached.
+    answer: &'a WhatTheWalkReached,
+    /// The states asked for so far, in order.
+    asked: RefCell<Vec<String>>,
+}
+
+impl WalksAsTheControlSays<'_> {
+    /// The walk itself, for `words_from_the_walk`.
+    fn walk(&self) -> impl Fn(&Path, &str) -> WhatTheWalkReached + '_ {
+        return |work_dir: &Path, state: &str| {
+            self.asked.borrow_mut().push(state.to_owned());
+            if state == self.state {
+                return WhatTheWalkReached { names: self.answer.names.clone(), stopped_by: self.answer.stopped_by.as_ref().map(|error| std::io::Error::new(error.kind(), error.to_string())) };
+            }
+            return the_names_in(work_dir, state);
+        };
+    }
+}
+
+/// A walk over `claimed` that stopped part-way is said as a walk that stopped, with how many of its names it reached,
+/// and never as a record that is in none of the places:
+/// the claim may be among the names the walk never read.
+#[test]
+fn a_move_that_finds_a_walk_that_stopped_part_way_says_what_could_not_be_found_out() {
+    let (root, work_dir, claimed) = a_claim("words-walk-stopped");
+    let id: String = claimed.id;
+    let token: String = generation_of(claimed.name.as_str());
+    let stopped: WhatTheWalkReached = WhatTheWalkReached {
+        names: vec![(String::from("push-0000000000000000000000000000000000000000-f921bd05e68b0374~0123456789abcdef0123456789abcdef~x"), SystemTime::UNIX_EPOCH)],
+        stopped_by: Some(std::io::Error::from_raw_os_error(5)),
+    };
+    let walks: WalksAsTheControlSays<'_> = WalksAsTheControlSays { state: CLAIMED, answer: &stopped, asked: RefCell::new(Vec::new()) };
+    let walk = walks.walk();
+    let said: String = words_from_the_walk(work_dir.as_path(), id.as_str(), token.as_str(), &walk);
+    remove(root.as_path());
+    assert!(said.contains("stopped after"), "the words say the walk stopped and how far it got: {said}");
+    assert!(said.contains("1 name"), "the words say how many of the names it reached: {said}");
+    assert!(said.contains("could not be found out"), "the words say what could not be found out: {said}");
+    assert!(!said.contains("no file of"), "the claim may be in the names the walk never read, but the words said it is nowhere: {said}");
+    assert!(!said.contains("something other than a move of this queue"), "the words name a removal nobody proved: {said}");
+}
+
+/// A take that publishes its claim in `claimed` between two of the looks is found by the look made after them:
+/// the words name the claim that holds the record and never say the record is in none of the places.
+#[test]
+fn a_move_that_finds_the_record_claimed_again_between_its_looks_says_where_it_is() {
+    let (root, work_dir, claimed) = a_claim("words-claimed-between-looks");
+    let id: String = claimed.id;
+    let token: String = generation_of(claimed.name.as_str());
+    let staged: String = format!("{id}~0123456789abcdef0123456789abcdef~{}", crate::claim_time::ClaimTime::read().encode());
+    let claimed_directory: PathBuf = state_directory(work_dir.as_path(), CLAIMED);
+    std::fs::rename(claimed_directory.join(claimed.name.as_str()), state_directory(work_dir.as_path(), RECOVERING).join(staged.as_str())).expect("the take stages the claim");
+    // The move finishes while the words are between the look at `recovering` and the look at `pending`, which is the window a real take opens.
+    let publishing = |work_dir: &Path, state: &str| {
+        if state == RECOVERING {
+            std::fs::rename(state_directory(work_dir, RECOVERING).join(staged.as_str()), claimed_directory.join(staged.as_str())).expect("the take publishes the claim");
+        }
+        return the_names_in(work_dir, state);
+    };
+    let said: String = words_from_the_walk(work_dir.as_path(), id.as_str(), token.as_str(), &publishing);
+    remove(root.as_path());
+    assert!(said.contains(&format!("{CLAIMED}/{staged}")), "the words name the claim that holds the record now: {said}");
+    assert!(said.contains("claimed it again"), "the words say another instance claimed the record again: {said}");
+    assert!(!said.contains("no file of"), "a take finished between the looks, but the words said the record is nowhere: {said}");
 }

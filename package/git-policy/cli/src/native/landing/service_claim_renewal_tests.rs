@@ -756,3 +756,78 @@ fn a_move_that_finds_an_unreadable_claimed_directory_says_the_look_failed() {
         "the claim was still there, but the words said a record was removed: {said}"
     );
 }
+
+/// What:
+///  The sentence a settlement writes when another instance's take has staged a claim of the record in `recovering`,
+///  and the one it writes when the take publishes that claim in `claimed`.
+/// Why:
+///  A take stages a fresh claim in `recovering` for the time of one stamp and one rename,
+/// and that claim ends in `claimed`, where the instance that made it runs the work:
+/// a settlement that names only the two endings a recovery has names neither the real one nor what a person should expect.
+fn a_staged_take_before_and_after_it_publishes(name: &str) -> (String, String) {
+    let (root, work_dir, claimed) = claimed_item(name, &clock());
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let staged: String = format!("{}~0123456789abcdef0123456789abcdef~{}", claimed.id, ClaimTime::read().encode());
+    let claimed_directory: PathBuf = state_directory(work_dir.as_path(), CLAIMED);
+    std::fs::rename(claimed_directory.join(claimed.name.as_str()), state_directory(work_dir.as_path(), RECOVERING).join(staged.as_str()))
+        .expect("the take stages its claim");
+    let before: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("the claim is not in claimed");
+    std::fs::rename(state_directory(work_dir.as_path(), RECOVERING).join(staged.as_str()), claimed_directory.join(staged.as_str()))
+        .expect("the take publishes its claim");
+    // The same instance looks again, with a held claim of its own, after the take has published.
+    let (after_settling, _renewer): (HeldClaims, Renewer) = held_claims(work_dir.as_path());
+    after_settling.hold(&claimed);
+    let after: String = after_settling.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("the claim is not this instance's");
+    remove(root.as_path());
+    return (before, after);
+}
+
+/// A claim another instance's take has staged in `recovering` is told as a claim that is published in `claimed`,
+/// where that instance runs the work,
+/// and not as a recovery with two endings only.
+#[test]
+fn a_move_that_finds_a_staged_take_says_the_claim_is_published_there() {
+    let (before, _after) = a_staged_take_before_and_after_it_publishes("move-staged-take");
+    assert!(before.contains(CLAIMED), "the words name `claimed` as where the record goes: {before}");
+    assert!(before.contains("runs the work there"), "the words say the work runs in that instance's claim: {before}");
+    assert!(!before.contains("two endings"), "the words say a move has two endings only, but a take's ends in claimed: {before}");
+    assert!(!before.contains("probably"), "the words guess: {before}");
+}
+
+/// A claim another instance's take has published in `claimed` is said to be that instance's claim:
+/// its ending has happened, and the words say so rather than naming a move still under way.
+#[test]
+fn a_move_that_finds_the_takes_published_claim_says_it_is_claimed_again() {
+    let (_before, after) = a_staged_take_before_and_after_it_publishes("move-take-published");
+    assert!(after.contains("claimed it again"), "the words say the record is claimed again: {after}");
+    assert!(!after.contains("taking the claim"), "the take has finished, but the words say it is under way: {after}");
+}
+
+/// A `claimed` directory that is not there, or that a plain file has taken the place of, is an absence the filesystem
+/// answered:
+/// the look says the record went with it,
+/// sends nobody to permissions,
+/// and the claim is released because nothing is left to keep.
+#[test]
+fn a_look_at_a_removed_or_replaced_claimed_directory_says_the_record_went_with_it() {
+    for replaced in [false, true] {
+        let (root, work_dir, claimed) = claimed_item(if replaced { "look-claimed-replaced" } else { "look-work-removed" }, &clock());
+        let (held, _renewer) = held_claims(work_dir.as_path());
+        held.hold(&claimed);
+        if replaced {
+            std::fs::remove_dir_all(state_directory(work_dir.as_path(), CLAIMED)).expect("the claimed directory is removed");
+            std::fs::write(state_directory(work_dir.as_path(), CLAIMED), b"a file where the directory was").expect("a file at its name");
+        } else {
+            std::fs::remove_dir_all(work_dir.as_path()).expect("the work directory is removed under the service");
+        }
+        let refused: String = held.is_held_on_disk_or_the_error(work_dir.as_path(), claimed.id.as_str()).expect_err("there is no claim to find");
+        remove(root.as_path());
+        assert!(refused.contains("went with it"), "the words say the record went with the directory (replaced={replaced}): {refused}");
+        assert!(!refused.contains("permissions"), "the words send a person to permissions for a directory that is not there (replaced={replaced}): {refused}");
+        assert!(
+            !held.is_held(claimed.id.as_str()),
+            "a claim with nothing left to keep was kept (replaced={replaced})"
+        );
+    }
+}

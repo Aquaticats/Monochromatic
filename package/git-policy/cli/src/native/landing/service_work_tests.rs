@@ -2393,3 +2393,40 @@ fn a_claim_whose_directory_could_not_be_listed_is_kept_and_said_not_taken_over()
         "the look failed, but the drain named a takeover: {entries:?}"
     );
 }
+
+/// A claim whose work directory went with a removed repository is released and said to have gone with it:
+/// a look that found the directory absent has nothing to keep,
+/// and the drain says the record went with the repository rather than naming another instance or a permission.
+#[test]
+fn a_claim_whose_work_directory_went_is_released_and_said_to_have_gone_with_it() {
+    let repo: Repo = repo("work-removed-under-the-service");
+    let queued: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&queued));
+    let work_directory: PathBuf = work_directory(repo.common.as_path());
+    let (held, _renewer) = held_claims(work_directory.as_path());
+    let claimed: Claimed = claim_next_of(work_directory.as_path(), &ClaimTime::read(), &[WorkKind::Push]).expect("claim").expect("one claim");
+    held.hold(&claimed);
+    std::fs::remove_dir_all(work_directory.as_path()).expect("the repository's work directory is removed");
+    let entries: Vec<crate::service_timing::capture::Captured>;
+    {
+        entries = crate::service_timing::capture::entries_of(|| {
+            let mine: Vec<Claimed> = still_held(&held, work_directory.as_path(), vec![claimed.clone()]);
+            assert!(mine.is_empty(), "no work runs on a record that went away");
+        });
+    }
+    let kept: bool = held.is_held(claimed.id.as_str());
+    remove(repo.root.as_path());
+    assert!(!kept, "a claim with nothing left to keep was kept");
+    assert!(
+        entries.iter().any(|entry| { return entry.message.contains("went with it"); }),
+        "the drain says the record went with the directory: {entries:?}"
+    );
+    assert!(
+        !entries.iter().any(|entry| { return entry.message.contains("permissions"); }),
+        "the drain sends a person to permissions for a directory that is not there: {entries:?}"
+    );
+    assert!(
+        !entries.iter().any(|entry| { return entry.message.contains("another instance took the work over"); }),
+        "the drain names a takeover for a record that went with its repository: {entries:?}"
+    );
+}
