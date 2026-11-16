@@ -61,6 +61,11 @@ pub mod package_repair_prewarm_job;
 #[cfg(target_os = "linux")]
 pub mod package_repair_relink;
 
+/// The claim a command holds on one worktree's relinking,
+/// so only one of the add and the service runs the tools.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_claim;
+
 /// The service's relinking of that state:
 /// each tool's own frozen install in the worktree,
 /// run after the add returned.

@@ -42,7 +42,8 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_cargo::{repair_cargo, repair_cargo_awaiting};
 use crate::package_repair_pnpm::{PnpmNeed, repair_pnpm, repair_pnpm_awaiting};
 use crate::package_repair_prewarm::common_directory_awaiting;
-use crate::package_repair_relink::{NotTaken, QueuedRelink, RelinkEntry, RelinkTool, SearchPathOfTheAdd, hand_over_in_a_job};
+use crate::package_repair_relink::{Handed, NotTaken, RelinkEntry, RelinkTool, SearchPathOfTheAdd, hand_over_in_a_job};
+use crate::package_repair_relink_claim::HeldRelinkClaim;
 /// What the repairs read,
 /// who asks,
 /// and the switches of the person;
@@ -201,27 +202,54 @@ fn handed_over(tool: RelinkTool, millis: u128, destination: &Path) -> Finding {
 }
 
 /// What:
-///  How far the hand-over of a worktree's relink got.
+///  What the add tells the person about one tool whose record the commit service claimed before this command could.
 /// Why:
-///   The three answers differ in what the add does next:
-/// a service that took the record means the tools run there,
-/// and any other answer means the add runs them here,
-/// because a worktree whose copied links were never relinked is wrong for the person's next command.
+///   The service holds the record and runs the tools now,
+/// so the worktree is relinked by it and this command does not run a second install beside it;
+/// the line says that, because "after this command returns" would be false for work that began before it returned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Told = { kind: 'taken'; millis: number } | { kind: 'stays'; reason: string; queued?: QueuedRelink };
+/// const takenByTheService = (tool, millis, destination) => Finding
+/// ```
+fn taken_by_the_service_before_this_command(tool: RelinkTool, millis: u128, destination: &Path) -> Finding {
+    let (as_report, detail): (Tool, &str) = match tool {
+        RelinkTool::Pnpm => (Tool::Pnpm, "pnpm relinks the copied node_modules here"),
+        RelinkTool::Toolchain => (Tool::Toolchain, "mpm-shadow rebuilds the toolchain links here"),
+    };
+    debug(TAG, format!("{}: {} is the service's work, and it had the record before this command returned", destination.display(), tool.name()).as_str());
+    return Finding { tool: as_report, outcome: Outcome::Repaired { detail: format!("{detail}, because the commit service holds the record of it and runs it now"), millis } };
+}
+
+/// What:
+///  How far the hand-over of a worktree's relink got.
+/// Why:
+///   The three answers differ in what the add does next:
+/// a service that read the wake holds the record and runs the tools there,
+/// a service that claimed the record before this command could runs them there too,
+/// and a record this command claimed is this command's to run,
+/// because a worktree whose copied links were never relinked is wrong for the person's next command.
+///   Whoever holds the record is the only one who runs the tools,
+/// so the two never rewrite one `node_modules` at once
+/// (`package_repair_relink_claim.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Told = { kind: 'taken'; millis: number } | { kind: 'claimed-by-the-service'; millis: number } | { kind: 'ours'; reason: string; claim?: HeldRelinkClaim };
 /// ```
 enum Told {
-    /// The record reached the service,
+    /// A service read the wake and holds the record,
     /// so the tools are its work;
     /// the time is what the record and the wake cost.
     Taken(u128),
-    /// No service took the record,
-    /// so the add relinks the worktree here;
-    /// the text says why the hand-over failed,
-    /// and the record still queued is taken back after this run has finished.
-    Stays { reason: String, queued: Option<QueuedRelink> },
+    /// A service claimed the record before this command could,
+    /// so the tools are its work and started before this command returned.
+    ClaimedByTheService(u128),
+    /// This command holds the record,
+    /// so it relinks the worktree here and settles the record when the tools are done;
+    /// the text says why no service took the wake,
+    /// and a hand-over that wrote no record at all holds nothing to settle.
+    Ours { reason: String, claim: Option<HeldRelinkClaim> },
 }
 
 /// What:
@@ -231,9 +259,10 @@ enum Told {
 /// Why:
 ///   The record and the wake are storage and socket waits,
 /// so they run as a job of the blocking pool and never on the task that also runs the Cargo repair;
-/// a hand-over no service took takes its record back,
-/// and the add relinks the worktree itself,
-/// so no record waits for a directory that may hold other work later.
+/// a hand-over no service took claims its record,
+/// and the add relinks the worktree itself and settles that claim,
+/// so no record waits for a directory that may hold other work later,
+/// and no service runs the same install beside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -242,20 +271,22 @@ enum Told {
 async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) -> Told {
     let began: Instant = begin_work();
     let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
-    let told: Result<Result<(), NotTaken>, BlockingJobError> = match common_dir {
+    let told: Result<Result<Handed, NotTaken>, BlockingJobError> = match common_dir {
         Ok(common) => {
             let state: crate::package_repair_relink::TheHandOver =
                 (request.git.clone(), common, request.destination.to_path_buf(), entry.clone());
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
-        Err(reason) => Ok(Err(NotTaken { reason, queued: None })),
+        Err(reason) => Ok(Err(NotTaken { reason })),
     };
     end_work("relinkHandOver", began);
     let millis: u128 = began.elapsed().as_millis();
     return match told {
-        Ok(Ok(())) => Told::Taken(millis),
-        Ok(Err(not_taken)) => Told::Stays { reason: not_taken.reason, queued: not_taken.queued },
-        Err(refusal) => Told::Stays { reason: format!("{refusal}"), queued: None },
+        Ok(Ok(Handed::Taken)) => Told::Taken(millis),
+        Ok(Ok(Handed::ClaimedByTheService)) => Told::ClaimedByTheService(millis),
+        Ok(Ok(Handed::Ours { claim, reason })) => Told::Ours { reason, claim: Some(claim) },
+        Ok(Err(not_taken)) => Told::Ours { reason: not_taken.reason, claim: None },
+        Err(refusal) => Told::Ours { reason: format!("{refusal}"), claim: None },
     };
 }
 
@@ -347,13 +378,25 @@ async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
                 }
             }
         }
-        Told::Stays { reason, queued } => {
+        Told::ClaimedByTheService(millis) => {
+            for tool in tools {
+                let finding: Finding = taken_by_the_service_before_this_command(tool, millis, request.destination);
+                match tool {
+                    RelinkTool::Pnpm => findings.pnpm.push(finding),
+                    RelinkTool::Toolchain => findings.toolchain.push(finding),
+                }
+            }
+        }
+        Told::Ours { reason, claim } => {
             debug(TAG, format!("{}: no service took the relink ({reason}), so it runs here", request.destination.display()).as_str());
+            // What: The claim is kept fresh for as long as the tools run, then given back.
+            // Why:  A tool may run longer than a claim's lease, and a claim that expired mid-run would be requeued and run
+            //       by the service beside this run; a claim left behind afterwards would be requeued and run again
+            //       (`package_repair_relink_claim.rs`).
+            let running: Option<crate::package_repair_relink_claim::RelinkClaimRunning> = claim.map(HeldRelinkClaim::kept_fresh);
             let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
-            // The record goes only now: a kill before this run finished leaves it queued, and a service then relinks the
-            //  worktree this record names rather than nothing at all.
-            if let Some(still_queued) = queued {
-                still_queued.take_back();
+            if let Some(running) = running {
+                running.give_back().await;
             }
             findings.pnpm.extend(here.pnpm);
             findings.toolchain.extend(here.toolchain);

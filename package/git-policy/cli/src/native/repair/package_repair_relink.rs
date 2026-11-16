@@ -27,6 +27,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
+use crate::package_repair_relink_claim::HeldRelinkClaim;
 use crate::service_client::wake;
 use crate::service_client_what_became_of_a_wake::Woken;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
@@ -404,40 +405,37 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 
 
 /// What:
-///  Write the relink's record and wake the service that runs it,
-/// or take the record back when no service holds it.
+///  Write the relink's record,
+/// wake the service that runs it,
+/// and take the record when no service read the wake.
 /// Why:
 ///   The record is written first,
 /// so a wake that cannot reach the service leaves the work named rather than lost,
 /// and the add never waits for the relinking.
-/// A record nobody took owes nothing,
-/// because the add relinks the worktree itself,
-/// and it must go:
-/// a record names a path and the tools for it,
-/// and a service that drained it later would run those tools in whatever directory holds that path by then,
-/// which need not be the worktree the add relinked.
-/// Taking the pending record back is one unlink,
-/// which the queue's claim answers by finding nothing to take,
-/// so the two never both do the work.
+///   Whoever is about to run the tools takes the record first:
+/// the rename out of `pending` is the one step only one consumer of the directory wins,
+///  so the service's claim and this command's cannot both succeed,
+///  and one worktree's installers never run twice at once
+///  (`package_repair_relink_claim.rs`;
+///  the review of 2026-11-13,
+///  finding 1).
+///  A record this command holds owes the queue a settlement when its run ends,
+///  and a record the service claimed is the service's work alone.
 ///
 /// Ok:
-///  A service read the wake and holds the record,
-/// so the relinking is its work.
+///  A service read the wake and holds the record (`Handed::Taken`),
+///  or it claimed the record before this command could (`Handed::ClaimedByTheService`),
+///  or this command took the claim and relinks the worktree itself (`Handed::Ours`).
 /// Err:
-///  No service holds the record and none read the line that would have given it one,
-/// so the add relinks the worktree itself;
-/// the answer says why,
-/// and the record it leaves is taken back after that run finishes.
-///  A wake whose line the service did not read is one of these:
-/// its work waits in the queue for the next command of this repository or for a service that looks again by itself,
-/// and a worktree whose links are still the source's is wrong for the person's next command here,
-/// so the add does the work rather than promise it.
+///  No record names this relinking at all,
+/// so nothing is queued and this command relinks the worktree itself;
+/// the answer says why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// handOverToTheService({ context, commonDir, destination, entry });
 /// ```
-pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), NotTaken> {
+pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<Handed, NotTaken> {
     return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
@@ -453,21 +451,20 @@ pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destina
 /// ```ts
 /// handOverWith({ context, commonDir, destination, entry, reach });
 /// ```
-pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry, reach: &Reach<'_>) -> Result<(), NotTaken> {
+pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry, reach: &Reach<'_>) -> Result<Handed, NotTaken> {
     let item: WorkItem = item_of(common_dir, destination, entry).map_err(not_written)?;
     let work_dir: PathBuf = work_directory(common_dir);
     let id: String = item.id();
     match enqueue(work_dir.as_path(), &item) {
         Ok(Enqueued::Added) => {}
         Ok(Enqueued::Known) => {
-            // The id says this add's own record is already queued: the moment is part of the name, so no earlier add's
-            //  record answers for this one. A record of this add that is not pending any more was claimed by a service,
-            //  which knows what became of it.
-            return if pending_record(&work_dir, id.as_str()).exists() {
-                Ok(())
-            } else {
-                Err(NotTaken { reason: format!("the record {id} of this relink was already taken by a service, which holds it"), queued: None })
-            };
+            // The id says this add's own record is already there: the moment is part of the name, so no earlier add's record
+            //  answers for this one. A record of this add that is not pending any more was claimed by a service, which
+            //  knows what became of it, and the wake below would tell it a second time about work it already holds.
+            if !pending_record(&work_dir, id.as_str()).exists() {
+                debug(TAG, format!("{}: the record {id} was claimed elsewhere, so the relinking is not this command's", destination.display()).as_str());
+                return Ok(Handed::ClaimedByTheService);
+            }
         }
         Err(reason) => {
             debug(TAG, format!("the work item could not be written: {reason}").as_str());
@@ -486,21 +483,24 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
                 None => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
             };
             match reached {
-                Ok(()) => return Ok(()),
+                // A service read the line, so the record is the service's to claim and the relinking is its work.
+                Ok(()) => return Ok(Handed::Taken),
                 Err(reason) => reason,
             }
         }
     };
     debug(TAG, format!("{}: no service took the relink ({reason})", destination.display()).as_str());
-    // The record stays queued until the add's own run has finished: a record taken back first would leave nothing for a
-    //  service to recover the repair from after a kill, and a record left queued only names a path the proof above
-    //  confines to the worktree the record was written for.
-    return Err(NotTaken { reason, queued: Some(QueuedRelink { work_dir, id }) });
+    // No service read the line, and the service may yet look at the record: this command takes it before running the
+    //  tools, so the two cannot both relink one worktree. A record another party already claimed is that party's work.
+    return match HeldRelinkClaim::take(work_dir.as_path(), id.as_str()) {
+        Some(claim) => Ok(Handed::Ours { claim, reason }),
+        None => Ok(Handed::ClaimedByTheService),
+    };
 }
 
 /// The answer of a hand-over whose record was never written.
 fn not_written(reason: String) -> NotTaken {
-    return NotTaken { reason, queued: None };
+    return NotTaken { reason };
 }
 
 /// What:
@@ -535,72 +535,51 @@ fn wake_the_service(address: Bind, host: Option<&crate::service_provision::Provi
 }
 
 /// What:
-///  What a hand-over that no service took leaves the add:
-///  the words the person reads,
-///  and the record still queued.
+///  What a hand-over that wrote no record leaves the add:
+///  the words the debug log carries.
 /// Why:
-///   The add relinks the worktree itself,
-/// but the record may only be taken back once that run has finished:
-/// a record removed first leaves nothing for a service to recover the repair from after a kill,
-/// and the worktree then keeps copied links that name the source.
+///   No record names this relinking at all,
+/// so nothing is queued for a service to recover after a kill either,
+/// and the add relinks the worktree itself with nothing to settle afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type NotTaken = { reason: string; queued?: QueuedRelink };
+/// type NotTaken = { reason: string };
 /// ```
 #[derive(Debug)]
 pub struct NotTaken {
-    /// Why no service took the record.
+    /// Why no record was written.
     pub reason: String,
-    /// The record still queued when one was written,
-    /// taken back by the add after its own run.
-    pub queued: Option<QueuedRelink>,
 }
 
 /// What:
-///  A record still queued for a service,
-///  which the add's own run makes superfluous when it ends.
+///  What a hand-over leaves this command to do,
+///  as one of the three states the record can be in after it.
 /// Why:
-///   Taking the record back is one unlink by its own id,
-/// and the claim a service makes moves the file out of `pending` in one rename,
-/// so this either wins and the claim finds nothing,
-/// or loses and the service owns the work.
+///   Two parties can relink one worktree,
+///  and the record's own claim is what says whose work it is
+///  (`package_repair_relink_claim.rs`):
+///  a service that read the wake takes it,
+///  a service that claimed it first holds it already,
+///  and a record this command took is this command's to run and to settle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type QueuedRelink = { workDir: string; id: string };
+/// type Handed = 'taken' | 'claimed-by-the-service' | { ours: HeldRelinkClaim; reason: string };
 /// ```
 #[derive(Debug)]
-pub struct QueuedRelink {
-    /// The work directory the record sits in.
-    work_dir: PathBuf,
-    /// The record's id.
-    id: String,
-}
-
-impl QueuedRelink {
-    /// What:
-    ///  Take the record back,
-    ///  now that the add's own run has finished.
-    /// Why:
-    ///   The record owes nothing from here on,
-    /// and a record that cannot be removed stays while the service may relink this worktree again,
-    /// which is said here rather than failing the add:
-    /// a worktree whose copied links were relinked twice is right either way.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const takeBack = ({ workDir, id }) => { try { unlink(pending(workDir, id)) } catch (error) { log(`the record ${id} stays: ${error.message}`) } };
-    /// ```
-    pub fn take_back(&self) {
-        match std::fs::remove_file(pending_record(self.work_dir.as_path(), self.id.as_str()).as_path()) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                debug(TAG, format!("the record {} was taken by a service, whose run this add's own run stood beside", self.id).as_str())
-            }
-            Err(error) => debug(TAG, format!("the record {} stays ({error}), so the commit service may relink this worktree again", self.id).as_str()),
-        }
-    }
+pub enum Handed {
+    /// A service read the wake, so the relinking is the service's work.
+    Taken,
+    /// A service claimed the record before this command could, so the relinking is running or will run there.
+    ClaimedByTheService,
+    /// This command holds the record, so it runs the tools and settles the record when they are done.
+    Ours {
+        /// The claim this command holds.
+        claim: HeldRelinkClaim,
+        /// Why no service took the wake.
+        reason: String,
+    },
 }
 
 /// The pending record of one id.
@@ -637,7 +616,7 @@ type ClientConfig = crate::service_client::ClientConfig;
 /// ```ts
 /// const handOverInAJob = ([context, commonDir, destination, entry]) => handOverToTheService(context, commonDir, destination, entry);
 /// ```
-pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), NotTaken> {
+pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<Handed, NotTaken> {
     let (context, common_dir, destination, entry): TheHandOver = state;
     return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), &entry);
 }

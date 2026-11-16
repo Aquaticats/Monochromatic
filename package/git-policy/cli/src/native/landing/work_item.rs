@@ -485,6 +485,33 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 }
 
 /// What:
+///  Claim the pending entry `id` of `kind`,
+///  or answer nothing when it is no entry to claim.
+/// Why:
+///   A command that runs one record's work itself,
+///  rather than leaving it to the service,
+///  must take that record first:
+///  the rename out of `pending` is the one step only one consumer of the directory can win,
+///  so the service's claim and this one cannot both succeed,
+///  and the work is run once.
+///  A record another party already claimed is no entry to claim,
+///  which is how the command learns that the work is that party's.
+///  The entry's age is read here and given back by a claim that cannot be taken,
+///  so a queue that refuses a claim keeps its true age.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const queued = stat(join(workDir, 'pending', id)).mtime; const taken = take(id, queued, [kind], now())
+/// ```
+pub fn claim_of(work_dir: &Path, id: &str, kind: WorkKind, now: &ClaimTime) -> Result<Option<Claimed>, String> {
+    let queued: SystemTime = match std::fs::metadata(state_directory(work_dir, PENDING).join(id)) {
+        Ok(held) => held.modified().unwrap_or_else(|_unstampable| { return SystemTime::now(); }),
+        Err(_gone) => return Ok(None),
+    };
+    return take_entry(work_dir, id, queued, &[kind], now, &stamp_modification_time);
+}
+
+/// What:
 ///  Claims every pending item of the given kinds,
 /// from one listing of `pending`,
 /// oldest first.

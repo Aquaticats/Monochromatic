@@ -693,6 +693,11 @@ mod push_queued_after_a_killed_wrapper;
 #[path = "binary_a_wake_nothing_read_tests.rs"]
 mod a_wake_nothing_read;
 
+/// One worktree's relinking runs once:
+/// a service that reads the wake late, and a service started while the add relinks the worktree itself.
+#[path = "binary_a_worktrees_relink_runs_once_tests.rs"]
+mod a_worktrees_relink_runs_once;
+
 /// A record that waits and nothing announced it:
 /// a running service finds every kind of record by itself,
 /// acts on it once,

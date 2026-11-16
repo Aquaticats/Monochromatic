@@ -3,14 +3,14 @@
 //! what it refuses,
 //! and what a hand-over leaves behind when no service can be reached.
 
-use super::{NotTaken, RELINK_REFERENCE, RelinkEntry, Reach, RelinkTool, SearchPathOfTheAdd, decode, encode, hand_over_with, item_of, object_name_of};
+use super::{Handed, NotTaken, RELINK_REFERENCE, RelinkEntry, Reach, RelinkTool, SearchPathOfTheAdd, decode, encode, hand_over_with, item_of, object_name_of};
 use crate::claim_time::ClaimTime;
 use crate::iso_time::now_iso;
 use crate::service_route::Route;
 use crate::service_server::Bind;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, git_context, remove};
-use crate::work_item::{Claimed, DONE, Enqueued, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, settle, state_directory};
+use crate::work_item::{CLAIMED, Claimed, DONE, Enqueued, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, settle, state_directory};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -228,16 +228,17 @@ fn a_hand_over_a_service_answers_keeps_its_record_queued() {
 }
 
 /// What:
-///  A hand-over whose record another party took still reports the failure,
-///  so the add relinks the worktree itself,
-///  and nothing is left queued.
+///  A hand-over whose record another party claimed leaves the add nothing to run,
+///  and the record stays with that party.
 /// Why:
-///   The record is taken back only after the add's own run,
-/// so a service that claims it meanwhile runs the same install beside that run,
-/// which is right either way:
-/// a record removed first would leave nothing for that service to recover a killed add's repair from.
+///   The claim is the queue's own rename,
+/// so a service that claimed the record runs the tools
+/// and the add must not start a second install beside it:
+/// two installers in one `node_modules` is what the claim exists to prevent
+/// (the review of 2026-11-13,
+/// finding 1).
 #[test]
-fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
+fn a_hand_over_whose_record_was_claimed_elsewhere_leaves_the_add_nothing_to_run() {
     let root: PathBuf = fixture("relink-taken-elsewhere");
     let common: PathBuf = root.join("common");
     let destination: PathBuf = root.join("topic");
@@ -246,45 +247,49 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
     let route: Route = Route { address: Bind::Abstract(format!("relink-never-bound-{}", std::process::id())), provision: Some(unreachable_host()) };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
-    // The claim a service makes: the record leaves `pending` before the add takes it back.
+    // The claim a service makes: the record leaves `pending` while this hand-over is still waking nobody.
     let claimed_from: PathBuf = pending.clone();
     let claiming_pending = move |_host: &crate::service_provision::ProvisionHost| {
-        for name in pending_names(claimed_from.as_path()) {
-            std::fs::remove_file(claimed_from.join(name)).expect("the record leaves pending");
-        }
+        let work: PathBuf = claimed_from.parent().expect("the work directory").to_path_buf();
+        let _service_claim: crate::work_item::Claimed = crate::work_item::claim_next_of(&work, &ClaimTime::read(), &[WorkKind::Relink])
+        .expect("the queue is readable")
+        .expect("the service claims the record");
         return Ok(());
     };
     let written: RelinkEntry = entry(destination.as_path());
-    let not_taken: NotTaken =
-        hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending)).expect_err("no service answered this add");
-    assert!(!not_taken.reason.is_empty(), "the add is told why no service took the record");
-    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "nothing is left queued");
-    not_taken.queued.expect("the record the add wrote").take_back();
+    let handed: Handed = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending)).expect("the record was written");
+    assert!(matches!(handed, Handed::ClaimedByTheService), "the add learns the work is the service's: {handed:?}");
+    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "nothing is left pending");
+    let claimed: PathBuf = state_directory(work_directory(common.as_path()).as_path(), CLAIMED);
+    assert_eq!(pending_names(claimed.as_path()).len(), 1, "the record the service claimed is still the service's");
     remove(root.as_path());
 }
 
 /// What:
-///  A record that cannot be taken back stays queued,
-///  so a service may relink the worktree again,
-///  and the add's own run is reported as the work that was done.
+///  A record this command claimed is settled by the command when its run ends,
+///  and a claim that cannot be settled stays claimed,
+///  where its lease requeues it and a service runs it again.
 /// Why:
-///   The add relinks the worktree itself whatever the record says,
-/// so a directory that refuses the unlink costs a second install and never the repair.
+///   A claim left behind is work repeated and never work lost,
+/// so a directory that refuses the settle costs a second install and never the repair.
 #[test]
-fn a_record_that_cannot_be_taken_back_stays_queued() {
+fn a_claim_that_cannot_be_settled_stays_claimed_for_its_lease() {
     let root: PathBuf = fixture("relink-record-stays");
     let common: PathBuf = root.join("common");
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
-    let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
+    let claimed: PathBuf = state_directory(work_directory(common.as_path()).as_path(), CLAIMED);
+    std::fs::create_dir_all(claimed.as_path()).expect("the claimed directory");
     let written: RelinkEntry = entry(destination.as_path());
-    let not_taken: NotTaken = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach()).expect_err("a session with no service is reported");
-    // A directory that refuses the unlink, as one whose permissions somebody changed does.
-    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
-    not_taken.queued.expect("the record the add wrote").take_back();
-    std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the fixture is removable again");
-    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record stays, so the service may relink this worktree again");
+    let handed: Handed = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach()).expect("the record was written");
+    let Handed::Ours { claim, reason } = handed else { panic!("no service was reachable, so the record is this command's: {handed:?}") };
+    assert!(!reason.is_empty(), "the add is told why no service took the record");
+    // A directory that refuses the settle, as one whose permissions somebody changed does.
+    std::fs::set_permissions(claimed.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
+    claim.kept_fresh().give_back_on_the_calling_thread();
+    std::fs::set_permissions(claimed.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the fixture is removable again");
+    assert_eq!(pending_names(claimed.as_path()).len(), 1, "the claim stays, so its lease requeues the record and a service relinks the worktree");
     remove(root.as_path());
 }
 
@@ -368,30 +373,34 @@ fn serve_this_release(name: &str) -> FixtureService {
 }
 
 /// What:
-///  A hand-over that finds no service leaves its record queued.
+///  A hand-over that finds no service takes its own record,
+///  so the service cannot claim the work the add is about to do.
 /// Why:
 ///   The add relinks the worktree itself when no service answered,
-/// but that run is not durable until it ends:
-/// a record taken back before the add's own run leaves nothing for a service to recover the repair from
-/// after a kill,
-/// and the new worktree keeps copied links that name the source.
-/// The record is taken back after the add's own run finished,
-/// which is the only moment it owes nothing.
+/// and a record left in `pending` is a record a live service claims within its own look,
+/// so two installers would run in one `node_modules`
+/// (the review of 2026-11-13,
+///  finding 1;
+///  `main` has that way in on its own and this branch had a second).
+/// The claim is the queue's own rename,
+/// and the add settles it when its run ends.
 #[test]
-fn a_hand_over_with_no_service_leaves_its_record_queued() {
-    let root: PathBuf = fixture("relink-no-service-record-stays");
+fn a_hand_over_with_no_service_takes_its_record_so_no_service_claims_the_same_work() {
+    let root: PathBuf = fixture("relink-no-service-record-taken");
     let common: PathBuf = root.join("common");
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = entry(destination.as_path());
-    let told: Result<(), NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach());
-    let not_taken: NotTaken = told.expect_err("a session with no service is reported");
-    let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    assert_eq!(pending_names(pending.as_path()).len(), 1, "the record the add relinks for is gone before the add's own run");
-    // The add's own run is what makes the record superfluous; only then is it taken back.
-    not_taken.queued.expect("the queued record the add takes back after its own run").take_back();
-    assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "the record stays after the add's own run finished");
+    let told: Result<Handed, NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach());
+    let handed: Handed = told.expect("the record was written");
+    let Handed::Ours { claim, reason } = handed else { panic!("a session with no service leaves the record to this command: {handed:?}") };
+    assert!(!reason.is_empty(), "the add is told why no service took the record");
+    let work: PathBuf = work_directory(common.as_path());
+    assert_eq!(pending_names(state_directory(work.as_path(), PENDING).as_path()), Vec::<String>::new(), "nothing waits in pending for a service to claim");
+    assert_eq!(pending_names(state_directory(work.as_path(), CLAIMED).as_path()).len(), 1, "this command holds the record");
+    claim.kept_fresh().give_back_on_the_calling_thread();
+    assert_eq!(pending_names(state_directory(work.as_path(), CLAIMED).as_path()), Vec::<String>::new(), "the claim is given back when the run ends");
     remove(root.as_path());
 }
 
