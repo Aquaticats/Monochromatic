@@ -57,7 +57,7 @@ pub const LEAVINGS_FOLDER: &str = "monochromatic-git-policy-cli/leavings";
 ///  so a command still knows where to look once the registration of the worktree that stood there is gone.
 /// Why:
 ///   The look for a leftover of a removal reads the places a removal renames into,
-///  and it finds them in the registrations of the linked worktrees that stand now
+///  and it finds them in its own records and in no other place
 /// (`worktree_removal_leavings_no_record_names.rs`).
 ///  A removal is exactly what takes a registration away:
 ///  where a directory held one worktree,
@@ -441,8 +441,9 @@ pub(crate) fn record_the_place(common_dir: &Path, place: &Path) -> Result<(), St
 ///  Every directory a removal of this program has recorded as one it renames inside,
 ///  with that directory's bytes as it wrote them.
 /// Why:
-///  These are the places the look reads beside the registrations that stand now,
-///  so a leftover of a directory whose last registration went is still looked at.
+///  These are the places the look reads, and the only ones it reads:
+///  a leftover of a directory whose last registration went is still looked at,
+///  and a directory no removal recorded is never listed.
 ///  A record that cannot be read names no directory and is left for the next command,
 ///  and one that is not absolute or not a directory any more is dropped by the caller's look at it.
 ///

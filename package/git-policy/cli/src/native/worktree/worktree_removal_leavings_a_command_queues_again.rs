@@ -97,7 +97,8 @@ pub struct Leavings {
 /// Why:
 ///   This is what every command of the repository runs,
 /// so a repository in which no removal left anything pays one open
-///  that finds no folder, and one listing of each directory a linked worktree of it stands in.
+///  that finds no folder, and one listing of each directory a removal recorded.
+///  No command lists a directory a person filled and no removal of this repository renamed in.
 ///   A record whose command may still be running is left alone:
 ///  the record is written before the rename,
 ///  so only that command knows whether the rename happened,
