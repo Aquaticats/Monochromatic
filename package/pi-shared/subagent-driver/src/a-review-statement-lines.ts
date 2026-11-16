@@ -13,6 +13,9 @@
  read from the code spans the brief writes every range in: two spans beside each other are two ranges, with nothing removed from
  inside either. Text no code span holds is read best effort, one word per range, because a reference cannot contain a space.
 
+ A wanted line counts only where it stands as the message's own text, which `statementLinesIn` reads through CommonMark's fenced code
+ blocks, block quotes and indented code blocks: a message that quotes the brief's header as an example has not written it.
+
  @module
  */
 
