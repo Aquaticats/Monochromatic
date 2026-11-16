@@ -1660,8 +1660,11 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   `:test:functional:protocols` (one root test on one throwaway cgroup; whether it disturbs the live watcher could not be told by reading).
   Against `main`, by reading: F2, F3, F5 and F6 are the same code there; F4 is worse there (no deadline at all); F7's code is absent there.
   The owner's answers are in "Owner decisions in force", round eighteen: the four in a VM, the branch merged with its findings fixed on `main`.
-  The confined test is running at the tip in a throwaway worktree (`.claude/worktrees/wg-lifecycle-tip-for-the-confined-traffic-block-test-2026-11-15`, removed after); its output goes to
-  `~/temp/agent/wg-lifecycle-tip-the-one-confined-test-run-2026-11-15/keep/`.
+  The confined test ran at the tip in a throwaway worktree (removed after) and ended with exit 0 and its line "wg-quicker traffic block integration passed";
+  its whole output is `~/temp/agent/wg-lifecycle-tip-the-one-confined-test-run-2026-11-15/keep/test-integration-block-at-cd83212379-output.txt`.
+  **The branch is merged into `main` as `5242fb4202` (2026-11-15T21:07:12-05:00)**: 95 files, all under `package/wg` but one troubleshooting doc, no conflict.
+  Nothing is deployed, and nothing is deployed until the six findings are answered and reviewed and the four privileged tests have run in a VM.
+  Two fresh runs queued at about 21:08 on top of `main`: the six findings (ninth in the queue), and the four privileged tests made to run in a virtual machine (seventeenth).
 - **Landing never waits**, seventh run ended at `c9bde6d446` (four findings answered per its report). Review queued third at 21:03:28 (50 code files). Passes 29 and 34 wait on it.
 - **Reviews that ended with reproduced findings and are not yet routed to their authors** (their author runs go by other names than their branches and are still to be found):
   the review brief writer for every kind of code file (`0b12de46fc`, four: a rename hides the old code, `tests.rs` taken for code, a deleted test gives an impossible task, paths with an apostrophe or a backslash);
