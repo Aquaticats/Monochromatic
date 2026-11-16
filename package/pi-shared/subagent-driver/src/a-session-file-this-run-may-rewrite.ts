@@ -9,6 +9,8 @@
  @packageDocumentation
  */
 
+import { stat, } from 'node:fs/promises';
+
 //region The file this run may rewrite
 
 /**
@@ -84,38 +86,130 @@ export type SessionFileToMaskAtRest =
 
  @param sessionTheCallerNamed - the session this run was given to resume
 
- @returns the file this run may rewrite, that there is none, or why the only file named is not this run's
+ @param runStartedAt - the moment this run started, before which no file of it can have been made
+
+ @returns the file this run may rewrite, that there is none, or why a file Pi named is not this run's
 
  @example
  ```ts
- const session = sessionFileToMaskAtRest({ copyThisRunMade: '/run/resumed-session.jsonl', },);
+ const session = await sessionFileToMaskAtRest({ copyThisRunMade: '/run/resumed-session.jsonl', runStartedAt, },);
  ```
  */
-export function sessionFileToMaskAtRest({
+export async function sessionFileToMaskAtRest({
   reported,
   copyThisRunMade,
   sessionTheCallerNamed,
+  runStartedAt,
 }: {
   readonly reported?: string;
   readonly copyThisRunMade?: string;
   readonly sessionTheCallerNamed?: string;
-},): SessionFileToMaskAtRest {
-  // A copy made here is what Pi was handed, so the session the caller named is another run's file from that moment on, and no answer
-  // from Pi, and no fallback of any kind, may name it as this run's to rewrite.
-  if ((copyThisRunMade !== undefined) && (reported === sessionTheCallerNamed)) {
-    return {
-      refused: `Pi named the session this run was given to resume, ${reported}, which belongs to another run and holds its entries: `
-        + 'it is left exactly as it is, so no value of it was masked at rest',
-    };
-  }
-  if (reported !== undefined) {
-    return { file: namedByThisRun({ path: reported, },), };
-  }
-  // No answer from Pi: the copy is this run's own file, made here from what the run was given, and the run was given it to write.
+  readonly runStartedAt: Date;
+},): Promise<SessionFileToMaskAtRest> {
   if (copyThisRunMade !== undefined) {
+    // A copy made here is what Pi was handed, so it is the one file of the resumed session this run may rewrite. Any other file Pi
+    // names is one this run did not make, and rewriting it would change another run's entries.
+    if ((reported !== undefined) && (reported !== copyThisRunMade)) {
+      return {
+        refused: `Pi named ${reported}, which this run did not make: the session this run was given was copied to `
+          + `${copyThisRunMade} and Pi was handed that copy, so ${reported} is left exactly as it is and no value of it was `
+          + 'masked at rest',
+      };
+    }
     return { file: namedByThisRun({ path: copyThisRunMade, },), };
   }
-  return { absent: true, };
+  // No copy was made, so the file Pi names is one its own Pi created for this run, or one the caller named for it. Either way it did
+  // not exist before this run started, and a file that did exist is another run's.
+  if (reported === undefined) {
+    return { absent: true, };
+  }
+  if (reported === sessionTheCallerNamed) {
+    return { file: namedByThisRun({ path: reported, },), };
+  }
+  /**
+   Whether the file was made after this run started, or why that cannot be answered.
+   */
+  const madeByThisRun = await madeAfterStart({
+    path: reported,
+    runStartedAt,
+  },);
+  return ('made' in madeByThisRun)
+    ? { file: namedByThisRun({ path: reported, },), }
+    : { refused: madeByThisRun.refused };
+}
+
+/**
+ Says whether a session file Pi named was made after this run started, which is what makes it this run's own.
+
+ A file that existed before this run began belongs to someone else: another run, an earlier run, or a file a peer named by mistake.
+ A file made after it began can only have been made by a process this run started, unless a program this package did not start wrote
+ a file at a path Pi named.
+
+ @param path - the session file Pi named
+
+ @param runStartedAt - the moment this run started
+
+ @returns that the file was made after the start, or why it cannot be shown to be this run's
+ */
+async function madeAfterStart({
+  path,
+  runStartedAt,
+}: {
+  readonly path: string;
+  readonly runStartedAt: Date;
+},): Promise<{ readonly made: true } | { readonly refused: string }> {
+  /**
+   The moment the file came into being, when the file system says so.
+   */
+  const birthtime = await birthTimeOf({ path, },);
+  if ('couldNot' in birthtime) {
+    return {
+      refused: `Pi named ${path}, which this code could not look at (${birthtime.couldNot}), so this run cannot show the file is `
+        + 'its own: it is left exactly as it is',
+    };
+  }
+  if (('unknown' in birthtime) || (birthtime.at
+    .getTime()
+    < runStartedAt.getTime())) {
+    return {
+      refused: `Pi named ${path}, which was made before this run started, so it belongs to another run: it is left exactly as it `
+        + 'is, and no value of it was masked at rest',
+    };
+  }
+  return { made: true, };
+}
+
+/**
+ Reads the moment a file came into being.
+
+ @param path - the file to ask about
+
+ @returns when it was made, that the file system keeps no such moment, or why it could not be read
+
+ @example
+ ```ts
+ const birthTime = await birthTimeOf({ path: '/runs/b/session.jsonl', },);
+ ```
+ */
+async function birthTimeOf({ path, }: { readonly path: string },): Promise<
+  | { readonly at: Date }
+    | { readonly unknown: true }
+    | { readonly couldNot: string }
+  > {
+  try {
+    /**
+     What the operating system says about the file.
+     */
+    const { birthtimeMs, } = await stat(path,);
+    // A file system that keeps no birth time answers zero, which is not a moment any file was made.
+    return (birthtimeMs === 0) ? { unknown: true, } : { at: new Date(birthtimeMs,), };
+  }
+  catch (error) {
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    return { couldNot: error.name, };
+  }
 }
 
 /**
