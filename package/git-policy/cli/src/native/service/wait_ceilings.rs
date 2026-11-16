@@ -1279,6 +1279,28 @@ pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
 ///  slowest of them.
 pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
 
+/// The longest the service's own shutdown waits for its last sweep
+/// before it ends the process by the signal that stopped it.
+///  Why:
+///  The sweep removes the markers the service made ahead,
+/// and its whole work is two mutexes and at most two metadata calls on files the service itself made a moment before.
+/// It is the only step between the line `stopped: ... so the service ends now` and the raise of the stop signal,
+/// so a sweep the kernel does not answer for held the end of the service,
+/// and the last-resort alarm ended it instead of the shutdown
+/// (a release gate met it on 2026-11-15,
+/// `a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+///  A marker the sweep does not remove is the next acquisition's to remove,
+/// which is what `SPEC.md` says of every marker a killed service leaves
+/// ("Removing the lock and what is made durable").
+///  The value is `WARNING_WRITE_CEILING`'s:
+/// the bound of one last courtesy before an exit,
+/// measured on this host on 2026-11-09 at 0.006 ms at the median and 3.6 ms at the slowest of 200 writes,
+/// and the whole window between the shutdown's line and its raise was measured at 66 microseconds
+/// when the sweep had nothing to remove (2026-11-16,
+/// `/home/user/temp/agent/service-stop-hung-branch-write-does-not-end-itself-2026-11-15-scratch/keep/trace-of-the-stop-control`),
+/// so 250 ms leaves the raise 4,750 ms of the grace `STOP_GRACE` keeps for it before the alarm.
+pub const SWEEP_CEILING: Duration = WARNING_WRITE_CEILING;
+
 /// The ceilings are derived and checked as controls in the test module.
 #[cfg(test)]
 #[path = "wait_ceilings_tests.rs"]

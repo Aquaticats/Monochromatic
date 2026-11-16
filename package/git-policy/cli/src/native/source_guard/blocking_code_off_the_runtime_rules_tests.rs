@@ -477,6 +477,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between looks at whether the manager dropped this worktree's units, on the synchronous face of provisioning",
     },
     Allowed {
+        file: "service/service_sweep_control_window.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks for a control's release file while the service's last sweep is parked, and only the control variable `PARK_VARIABLE` (`CLI_GIT_TEST_ONLY_SWEEP_PARK`) arms it: a sweep without it passes at once. The pause runs inside the job `work_within` wraps, not on a worker of the runtime, and it ends at the control's release file or at `CONTROL_PARK_CEILING` (60 s), so a control that ended leaves no thread parked. The entry goes when the park is replaced by a signal the control sends rather than a file the sweep polls",
+    },
+    Allowed {
         file: "service/service_warm_request_control_window.rs",
         rule: "blocking-sleep",
         why: "the pause between looks for a control's release file while the warm request's look at the processes is parked, and only the control variable `PARK_VARIABLE` (`CLI_GIT_TEST_ONLY_WARM_SCAN_PARK`) arms it: a request without it passes at once. The pause runs inside the job `work_within` wraps, not on a worker of the runtime, and it ends at the control's release file or at `CONTROL_PARK_CEILING` (60 s), so a control that ended leaves no thread parked. The entry goes when the park is replaced by a signal the control sends rather than a file the request polls",

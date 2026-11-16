@@ -3,6 +3,7 @@
 //! a task of the runtime that waits for the stop handler's wake,
 //! tells every waiter that the stop came,
 //! waits a bounded time for the Git processes and the landing in flight to end,
+//! asks for the markers made ahead to be removed and waits for that no longer than its own ceiling,
 //! and ends the process by the signal that stopped it.
 //! Why:
 //!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00,
@@ -74,7 +75,16 @@ async fn shut_down_after_a_stop() {
     // says it "is removed when the service ends, whichever way its loop ends". This shutdown ends the process by the signal, so
     // no destructor of the serve loop runs; the file the landing thread made is removed here, once no landing is in flight, and
     // before the exit.
-    crate::service_index_prestage::remove_the_file_made_ahead();
+    // The sweep is asked for on a thread of its own and waited for no longer than `SWEEP_CEILING`: it takes the step a prestage
+    //  job excludes itself from and calls the file system, and either can wait in the kernel for seconds on a loaded disk, which
+    //  held the end of the service past the settle bound and left the last-resort alarm to end it (2026-11-15, the release gate's
+    //  `a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+    //  A marker the sweep does not reach is the next acquisition's to remove, as a killed service's markers already are.
+    //  A control of that hold is `service_sweep_control_window.rs`.
+    let _swept: Option<()> = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::SWEEP_CEILING, || {
+        crate::service_sweep_control_window::the_sweep_waits_where_a_control_says();
+        crate::service_index_prestage::remove_the_file_made_ahead();
+    });
     // A wake without a recorded signal cannot happen (the handler records first); nothing is ended for it.
     let Some(signal) = stopping_signal() else {
         return;

@@ -20,7 +20,7 @@
 //! The service is started by the control at a socket under the control's own runtime directory,
 //! so nothing touches the user's service manager or journal.
 
-use super::client_service::{Held, edited_repository, served, service_with_git};
+use super::client_service::{Held, edited_repository, served, service_with_git, service_with_git_and_variables};
 use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, executable, fixture, while_test_lives};
 use git_policy_cli::bounded_push::STOP_GRACE;
@@ -151,8 +151,14 @@ struct Landing {
 
 /// Starts the service with the stand-in Git and a commit that stalls inside it.
 fn landing_stalled_in_git(fixture: &Fixture, repo: &Path, name: &str, reaction: Reaction, stall_at: StallAt) -> Landing {
+    return landing_stalled_in_git_with_variables(fixture, repo, name, reaction, stall_at, &[]);
+}
+
+/// Starts the service with the stand-in Git and a commit that stalls inside it,
+/// and with the variables a control needs of the service's own environment.
+fn landing_stalled_in_git_with_variables(fixture: &Fixture, repo: &Path, name: &str, reaction: Reaction, stall_at: StallAt, variables: &[(&str, &std::ffi::OsStr)]) -> Landing {
     let (program, entered, release): (PathBuf, PathBuf, PathBuf) = stalling_git(fixture, reaction, stall_at);
-    let service: Held = service_with_git(fixture, name, repo.join(".git").as_path(), program.as_path());
+    let service: Held = service_with_git_and_variables(fixture, name, repo.join(".git").as_path(), program.as_path(), variables);
     let mut commit: Command = served(fixture, repo, name, &["commit", "--quiet", "-m", "stopped commit", "--", "a.txt"]);
     let client: Child = commit.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the commit starts");
     let began: Instant = Instant::now();
@@ -315,6 +321,35 @@ fn a_git_that_ignores_the_stop_is_killed_after_the_grace_and_within_the_bound() 
     assert!(took >= STOP_GRACE, "the Git was given its grace before the kill: ended after {took:?}");
     assert!(!is_alive(landing.git_pid), "the Git that ignored the stop is gone");
     assert!(!repo.join(".git/index.lock").exists(), "no index lock is left");
+    end_client(&mut landing.client);
+    remove_settled(&fixture);
+}
+
+/// A stop of a service whose shutdown asks for its last sweep and gets no answer ends the service by the signal within
+/// the bound,
+/// not by the last-resort alarm.
+/// This is the control of the only step between the service's own line and its raise of the stop signal:
+/// the sweep takes the step a prestage job excludes itself from and then calls the file system,
+/// and a machine that answers neither for seconds ended the service through the alarm instead of its own shutdown
+/// (2026-11-15,
+/// the release gate,
+/// `a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+/// The sweep is held by the service's own control point and never released,
+/// so nothing but the shutdown's own ceiling can end the wait for it.
+#[test]
+fn a_sweep_that_does_not_answer_does_not_hold_the_end_of_a_stopped_service() {
+    let fixture: Fixture = fixture("stop-held-sweep");
+    let repo: PathBuf = edited_repository(&fixture);
+    let name: String = format!("stop-held-sweep-{}", std::process::id());
+    let park: PathBuf = fixture.root.join("sweep-park");
+    let mut landing: Landing = landing_stalled_in_git_with_variables(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheBranchWrite, &[(git_policy_cli::service_sweep_control_window::PARK_VARIABLE, park.as_os_str())]);
+    let limit: Duration = THE_WHOLE_OF_A_STOP;
+    let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, limit);
+    assert!(park.with_extension("asked").exists(), "the shutdown asked for the sweep, so the control held it");
+    assert!(!park.with_extension("release").exists(), "nothing released the sweep: only the shutdown's own ceiling ends the wait");
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "the service's own shutdown ended it, not the last-resort alarm: {status:?}");
+    assert!(took < LAST_RESORT, "the shutdown ended it before the last-resort alarm could: ended after {took:?}");
+    end_the_process(landing.git_pid);
     end_client(&mut landing.client);
     remove_settled(&fixture);
 }

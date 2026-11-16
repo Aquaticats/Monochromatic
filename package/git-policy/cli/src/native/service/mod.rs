@@ -108,6 +108,10 @@ pub mod service_signal;
 /// and ends the process by the signal.
 pub mod service_server_shutdown_after_a_stop;
 
+/// The instant at which a control may hold the shutdown's last sweep,
+/// so a sweep that does not answer can be shown not to hold the end.
+pub mod service_sweep_control_window;
+
 /// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
 /// read at a service's start on a thread of its own.
 pub mod service_journal_restored_at_start;

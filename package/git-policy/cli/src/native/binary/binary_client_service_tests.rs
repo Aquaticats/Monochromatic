@@ -191,12 +191,14 @@ impl Drop for Held {
 
 /// A service whose Git is the program at `git_program`,
 /// listening where the wrapper looks for it under the runtime directory
-///  of `name`.
-pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
+///  of `name`,
+/// with the variables a control needs of the service's own environment.
+pub(super) fn service_with_git_and_variables(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path, variables: &[(&str, &std::ffi::OsStr)]) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
-    let child: Child = super::support::service_command()
+    let mut command: Command = super::support::service_command();
+    command
         .args(["--journal"])
         .arg(fixture.root.join("journal"))
         .arg("--path")
@@ -212,9 +214,11 @@ pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, gi
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("the service starts");
+        .stderr(Stdio::inherit());
+    for (variable, value) in variables {
+        command.env(variable, value);
+    }
+    let child: Child = command.spawn().expect("the service starts");
     let held: Held = Held { child, runtime };
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
@@ -222,6 +226,13 @@ pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, gi
         std::thread::sleep(Duration::from_millis(10));
     }
     return held;
+}
+
+/// A service whose Git is the program at `git_program`,
+/// listening where the wrapper looks for it under the runtime directory
+///  of `name`.
+pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
+    return service_with_git_and_variables(fixture, name, git_dir, git_program, &[]);
 }
 
 /// How long a control waits for a state it started,

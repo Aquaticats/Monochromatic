@@ -14416,6 +14416,11 @@ whichever way its loop ends:
 a marker's file is created and recorded as one step that the service's last sweep excludes itself from,
 so a marker is either recorded before that sweep and removed by it,
 or never made.
+The shutdown waits for that sweep no longer than `SWEEP_CEILING`
+(`src/native/service/wait_ceilings.rs`):
+the sweep takes the step a prestage job excludes itself from and then calls the file system,
+and neither may hold the end of a stopped service past its bound,
+so a marker the sweep does not reach within that bound is one the next acquisition removes,
 and what a killed service leaves is removed by the next acquisition,
 by these rules:
 a whole marker decides alone,
