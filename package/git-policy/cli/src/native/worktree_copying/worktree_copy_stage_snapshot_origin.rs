@@ -27,7 +27,8 @@
 //! and the generation of a subvolume is written only by a commit that copied that subvolume's tree,
 //! so a value read while a transaction still runs can stand below the transaction a snapshot another writer made
 //!  a moment before carries
-//! (measured on 2026-11-16; the numbers are beside `journal_subvolume_after_ending_the_running_transaction`).
+//! (measured on 2026-11-16;
+//! the numbers are beside `journal_subvolume_after_ending_the_running_transaction`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -94,7 +95,8 @@ pub fn origin_of_the_source(source_root: &Path, common_dir: &Path) -> Option<Sna
 /// and a snapshot another writer makes in that transaction carries the running transaction,
 /// which stands one above every committed one,
 /// so a generation read then can stand below the transaction of a snapshot made before this command wrote
-///  anything, where a proof that the folder at the stage name was made after the record would accept it.
+///  anything,
+/// where a proof that the folder at the stage name was made after the record would accept it.
 /// Ending the transaction here makes the generation the commit's own transaction:
 /// every snapshot made before it carries that transaction or an older one,
 /// and every snapshot made after it carries a later one.
@@ -106,7 +108,8 @@ pub fn origin_of_the_source(source_root: &Path, common_dir: &Path) -> Option<Sna
 /// measured on 2026-11-16 with both arms interleaved fifteen times on this machine's shared filesystem.
 ///
 /// These readings are from that machine on 2026-11-16,
-/// over `/var/mnt/encrypted`, whose writers are not this command's:
+/// over `/var/mnt/encrypted`,
+/// whose writers are not this command's:
 /// a commit with nothing to copy answered transaction 353363 and left a subvolume's generation at 353362;
 /// a commit after a file was written into the subvolume answered 353364 and its generation became 353364;
 /// a commit after only the directory's timestamp was written answered 353365 and its generation became 353365;

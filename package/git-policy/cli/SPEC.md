@@ -4172,7 +4172,9 @@ and the transaction that created it.
 The transaction is ended there because a flush of a file and of its directory is not a commit,
 and the generation of a subvolume is written only by a commit that copied that subvolume's tree,
 so a value read while a transaction still runs can stand below the transaction of a snapshot another writer made a
-moment earlier: a snapshot creation ends a transaction of its own, and the snapshot it makes belongs to that one.
+moment earlier:
+a snapshot creation ends a transaction of its own,
+and the snapshot it makes belongs to that one.
 Ending the transaction makes the generation one this command's snapshot is provably later than,
 and it costs every add one commit of the whole filesystem.
 A later command removes that folder only when it is a btrfs subvolume root,
@@ -8238,7 +8240,8 @@ on the commit path:
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
   because the unit names its address from the manager's own runtime directory.
   A runtime directory too long for a socket path is not such a cause:
-  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  the service is listened at an abstract name there,
+  and the commit is made (`SPEC.md`,
   "Where the service listens").
   A socket unit the manager already holds at another address is asked about before this command starts anything,
   so a runtime directory of its own leaves no unit listening for a worktree it never looks at.

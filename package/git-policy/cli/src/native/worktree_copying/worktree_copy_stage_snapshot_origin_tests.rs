@@ -42,7 +42,8 @@ fn a_snapshot_made_after_the_record_is_proved() {
 /// so a snapshot made while the source holds the fixture's own uncommitted writes would carry the transaction
 ///  the record names and the control would pass without the property holding.
 /// A repository outside a control has been committed many times by other writers of the filesystem,
-/// and this is the state that leaves: the person's snapshot in a transaction of its own,
+/// and this is the state that leaves:
+/// the person's snapshot in a transaction of its own,
 /// with the source's tree committed before it.
 #[cfg(target_os = "linux")]
 #[test]
