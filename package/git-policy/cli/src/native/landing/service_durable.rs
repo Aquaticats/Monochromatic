@@ -29,6 +29,9 @@
 //!  which a machine crash loses as it loses any write the page cache held,
 //! and a forced write on the commit's thread would be the whole
 //!  device's wait on the person's path.
+//! A service's way out waits for that queue within `SYNC_SETTLE_CEILING` and no longer:
+//! a batch of a landing's records waits on the whole filesystem's dirty data,
+//!  and a service with nothing left to do that waits for it holds its caller for another session's writes.
 //! Git's own object,
 //! reference
 //!  and index writes follow `core.fsync` as they do for native Git:
@@ -54,6 +57,7 @@ use std::time::{Duration, Instant};
 use crate::blocking_job::run_blocking_job;
 use crate::service_durable_syncs::SyncFigure;
 use crate::lazy_runtime::spawn_on_runtime;
+use crate::wait_ceilings::SYNC_SETTLE_CEILING;
 use std::sync::mpsc::{Sender, channel};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
@@ -232,13 +236,33 @@ fn start_background() -> UnboundedSender<Job> {
     return sender;
 }
 
-/// Waits until every sync handed to the background task so far is done.
-///  A control uses it to see the queue empty;
-/// the service does not wait for it on a commit's path.
+/// What:
+///  Waits, within `SYNC_SETTLE_CEILING`, until every sync handed to the background task so far is done,
+///  and goes on without them when they outlast it.
+/// Why:
+///   A control uses it to see the queue empty;
+/// the service does not wait for it on a commit's path,
+///  and on its way out it is the last thing that could hold it:
+/// the syncs wait on the whole filesystem's dirty data,
+///  and a service that has nothing left to do must not wait for that,
+/// so a batch past the ceiling is left to the operating system's write-back,
+///  as one no task took is (`wait_ceilings.rs`,
+///  `SYNC_SETTLE_CEILING`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = await askTheBackgroundToDrain({ withinMs: 5000 }); if (!answered) warn('left to write-back')
+/// ```
 pub fn drain() {
     let (done, answered) = channel::<()>();
-    if sender().send(Job::Barrier(done)).is_ok() {
-        let _waited = answered.recv();
+    if sender().send(Job::Barrier(done)).is_err() {
+        return;
+    }
+    if answered.recv_timeout(SYNC_SETTLE_CEILING).is_err() {
+        crate::service_warn!(
+            "the syncs of the records of the landings already answered were still running after {} ms, so the service goes and leaves them to the operating system's write-back",
+            SYNC_SETTLE_CEILING.as_millis()
+        );
     }
 }
 

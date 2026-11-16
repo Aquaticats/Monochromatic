@@ -668,6 +668,38 @@ pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 /// because a state step that outlasts it is one the round after it serves better.
 pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the service's exit waits for the background task to make the syncs of the records it already answered
+/// (`landing/service_durable.rs`,
+/// `drain`).
+///  Why:
+///   That wait is the last thing on the way out of `retire`, `idle`, a closed queue and a worktree that went,
+/// and the service has nothing left to answer when it is made:
+/// a sync waits for the whole filesystem's dirty data,
+/// which on a volume other sessions write to is not this landing's work at all,
+///  so a service that waits for it holds its caller for another session's writes.
+/// The owner's rule is "nothing should ever wait forever or indefinitely".
+/// Giving up costs the sync and never the commit:
+/// the records are already answered,
+/// and a queue no task takes is left to the operating system's write-back with exactly that consequence
+/// (`landing/service_durable.rs`),
+/// so a batch that outlasts this bound leaves the page cache a power cut leaves.
+///  Measured on this host,
+/// 2026-11-16,
+/// on the volume the fixtures stand on,
+/// from the service's own `the background sync of N records of a landing took T ms` lines of four runs of
+/// `commit_timing::the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires`
+/// (twelve batches of six records and twenty of one):
+/// the batches of one record took 6 to 13 ms,
+/// and the batches of six took 60 to 322 ms eleven times and 2,214 ms once.
+/// Five seconds is 2.3 times that slowest batch,
+/// and above the worst single `fsync` a trivial command showed on this host
+/// (4.74 s,
+/// `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`),
+///  so every batch of either population is waited for.
+/// It is a twelfth of the sixty seconds a control waiting for a service's exit grants (`START_CEILING`),
+///  so a volume that stalls the syncs still lets the service go while its caller is waiting.
+pub const SYNC_SETTLE_CEILING: Duration = Duration::from_millis(5_000);
+
 /// The longest a landing's own state step waits:
 /// the read of a worktree's `HEAD` file and of the `commondir` that proves the directory is that
 ///  worktree's,
