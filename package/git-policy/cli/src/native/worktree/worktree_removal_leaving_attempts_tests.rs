@@ -13,6 +13,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::PathBuf;
 
 /// An owner that names a command which cannot be running:
@@ -322,13 +323,12 @@ fn a_slot_folder_that_cannot_be_written_is_no_count_and_names_the_folder() {
     let mine: String = the_owner_of_this_command();
     let folder: PathBuf = common.join(ATTEMPTS_FOLDER);
     std::fs::create_dir_all(folder.as_path()).expect("the attempts folder");
-    let mut permissions: std::fs::Permissions = std::fs::metadata(folder.as_path()).expect("the folder's own permissions").permissions();
-    permissions.set_readonly(true);
-    std::fs::set_permissions(folder.as_path(), permissions).expect("a folder that cannot be written");
+    // The control's own folder, which it makes unwritable and then writable again to remove what it made.
+    let refused: u32 = 0o500;
+    let allowed: u32 = 0o700;
+    std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(refused)).expect("a folder that cannot be written");
     let attempt: Attempt = take_an_attempt(common.as_path(), "the-leaving", mine.as_str());
-    let mut allowed: std::fs::Permissions = std::fs::metadata(folder.as_path()).expect("the folder's own permissions").permissions();
-    allowed.set_readonly(false);
-    std::fs::set_permissions(folder.as_path(), allowed).expect("the folder is writable again for the control's own cleanup");
+    std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(allowed)).expect("the folder is writable again for the control's own cleanup");
     let Attempt::Unreadable(reason) = &attempt else { panic!("an unwritable folder is no count, and the answer was {}", number_of(&attempt)) };
     assert!(reason.contains("leaving-attempts"), "the answer names the folder it could not write: {reason}");
     remove(root.as_path());
