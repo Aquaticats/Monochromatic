@@ -259,22 +259,23 @@ XVS:
  GPT models cannot be trusted on long-horizon work.
 
 KRV:
- Reviews of a change go to qwen4-max-preview alone:
- Pi with `--provider qwen-token-plan-individual --model qwen4-max-preview`,
- in a worktree of its own,
- on the qwen4 pool.
+ Reviews of a change go to Claude Sonnet alone,
+ by whatever route that harness offers,
+ in a worktree of its own;
+ none starts on Kimi K3.1 Pro,
+ which costs too much.
 
 LHZ:
  Long-horizon audits,
  in every harness:
  run Claude Sonnet,
- by whatever route that harness offers,
- and Kimi K3.1 Pro side by side.
+ by whatever route that harness offers;
+ the Kimi K3.1 Pro pool is closed.
 
 PFW:
  Alongside advisor,
  never instead:
- a qwen4 review reads the paths its prompt names,
+ a Sonnet review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
