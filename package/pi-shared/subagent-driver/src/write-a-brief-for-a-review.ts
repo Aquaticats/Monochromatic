@@ -62,6 +62,8 @@ const briefed = await writeReviewBrief({
 
 process.stdout
   .write(`${briefed.line}\n`,);
-process.exitCode = briefed.written
+// Only a written brief is a success: a change with nothing to review and a brief that could not be written each exit 1, and the
+// line says which.
+process.exitCode = (briefed.kind === 'written')
   ? 0
   : 1;

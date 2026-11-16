@@ -428,6 +428,213 @@ function rangesStatedIn(text: string,): readonly string[] {
 }
 
 /**
+ The characters a fenced code block is made of, either of which opens and closes one.
+ */
+const FENCE_CHARACTERS: ReadonlySet<string> = new Set<string>([
+  '`',
+  '~',
+]);
+
+/**
+ How many of a fence's characters a fenced block is made of at least.
+ */
+const FENCE_LENGTH = 3;
+
+/**
+ How many spaces a line may begin with before it is an indented code block.
+ */
+const INDENTED_CODE_SPACES = 4;
+
+/**
+ How many spaces a block quote's marker may follow, and a fenced block's fence or an indented block's first character.
+ */
+const SPACES_BEFORE_A_MARKER = 3;
+
+/**
+ One line of a message, read as what it is in CommonMark.
+ */
+type ReadLine =
+  | {
+    /**
+     The line begins a fenced code block, or closes one.
+     */
+    readonly kind: 'fence';
+
+    /**
+     The character its fence is made of.
+     */
+    readonly character: string;
+
+    /**
+     How many of that character its fence holds.
+     */
+    readonly length: number;
+
+    /**
+     Whether nothing but spaces follows the fence, which is what closing one takes.
+     */
+    readonly restIsBlank: boolean;
+  }
+    | {
+      /**
+       The line is no fence.
+       */
+      readonly kind: 'no-fence';
+    };
+
+/**
+ Writes what a line is as far as fenced code blocks go.
+
+ @param line - one line of a message
+
+ @returns the fence it opens or closes, or that it is no fence
+
+ @example
+ ```ts
+ const read = lineReadAsAFence('```text');
+ ```
+ */
+function lineReadAsAFence(line: string,): ReadLine {
+  /**
+   How many spaces the line begins with.
+   */
+  const spaces = leadingSpacesIn(line,);
+  if (spaces > SPACES_BEFORE_A_MARKER) {
+    return { kind: 'no-fence', };
+  }
+  /**
+   The character the line's marker is made of, when it is one a fence is made of.
+   */
+  const character = line.charAt(spaces,);
+  if (!FENCE_CHARACTERS.has(character,)) {
+    return { kind: 'no-fence', };
+  }
+  for (let at = spaces; line.charAt(at,) === character; at += 1) {
+    /**
+     How many of the character the run under this step holds.
+     */
+    const length = (at - spaces) + 1;
+    if (length >= FENCE_LENGTH) {
+      return {
+        kind: 'fence',
+        character,
+        length,
+        restIsBlank: line.slice(at + 1,)
+          .trim()
+          === '',
+      };
+    }
+  }
+  return { kind: 'no-fence', };
+}
+
+/**
+ Reads how many spaces a line begins with.
+
+ @param line - one line of a message
+
+ @returns the number of spaces before its first other character
+
+ @example
+ ```ts
+ const spaces = leadingSpacesIn('    indented');
+ ```
+ */
+function leadingSpacesIn(line: string,): number {
+  for (let at = 0; at < line.length; at += 1) {
+    if (line.charAt(at,) !== ' ') {
+      return at;
+    }
+  }
+  return line.length;
+}
+
+/**
+ Says whether a line stands as the message's own text: a paragraph line or a list item, which is a line that is no block quote, no
+ fence and no indented code block.
+
+ @param line - one line of a message
+
+ @returns whether the line is the message's own text
+
+ @example
+ ```ts
+ const counts = standsAsItsOwnText('Ranges reviewed: `main...fix/a`');
+ ```
+ */
+function standsAsItsOwnText(line: string,): boolean {
+  if (line.startsWith('\t',)) {
+    return false;
+  }
+  /**
+   How many spaces the line begins with.
+   */
+  const spaces = leadingSpacesIn(line,);
+  if (spaces >= INDENTED_CODE_SPACES) {
+    return false;
+  }
+  return line.charAt(spaces,) !== '>';
+}
+
+/**
+ Reads the lines of a message that stand as its own text.
+
+ A wanted line counts only where it stands as the message's own text: a paragraph line or a list item. It does not count inside a
+ fenced code block, whose lines are quoted from elsewhere and run from a fence of three or more backticks or tildes to the next
+ fence of the same character and at least that length; nor inside a block quote, whose lines begin with `>`; nor inside an indented
+ code block, whose lines begin with four spaces or a tab. A fence nothing closes runs to the end of the message, as CommonMark says.
+
+ @param shown - the message or file to read
+
+ @returns its own lines, in the order they stand
+
+ @example
+ ```ts
+ const lines = statementLinesIn({ shown: 'Review complete: every run it started has finished.\n', },);
+ ```
+ */
+export function statementLinesIn({ shown, }: { readonly shown: string },): readonly string[] {
+  /**
+   The fence that is open, and what closes it.
+   */
+  const fence = {
+    open: false,
+    character: '',
+    length: 0,
+  };
+  /**
+   The lines that stand as the message's own text.
+   */
+  const lines: string[] = [];
+  for (const line of shown.split('\n',)) {
+    /**
+     What this line is as far as fences go.
+     */
+    const read = lineReadAsAFence(line,);
+    if (fence.open) {
+      // A line inside a fence is quoted text, whether or not it closes the fence.
+      if ((read.kind === 'fence') && (read.character === fence.character)
+        && (read.length >= fence.length)
+        && read.restIsBlank) {
+        fence.open = false;
+      }
+      continue;
+    }
+    if (read.kind === 'fence') {
+      fence.open = true;
+      fence.character = read.character;
+      fence.length = read.length;
+      continue;
+    }
+    if (!standsAsItsOwnText(line,)) {
+      continue;
+    }
+    lines.push(line,);
+  }
+  return lines;
+}
+
+/**
  Reads the ranges a review's own file states, from the first line that states any.
 
  @param shown - the review's own file, as it was written
@@ -440,7 +647,7 @@ function rangesStatedIn(text: string,): readonly string[] {
  ```
  */
 function rangesStatedFirst(shown: string,): readonly string[] {
-  for (const line of shown.split('\n',)) {
+  for (const line of statementLinesIn({ shown, },)) {
     /**
      The ranges this line states.
      */
@@ -468,7 +675,7 @@ function rangesStatedFirst(shown: string,): readonly string[] {
  ```
  */
 function countStatedFirst(shown: string,): StatedFileCount {
-  for (const line of shown.split('\n',)) {
+  for (const line of statementLinesIn({ shown, },)) {
     /**
      The count this line states.
      */
@@ -559,9 +766,9 @@ export type ReviewCompletion =
  */
 export function completionIn({ shown, }: { readonly shown: string },): ReviewCompletion {
   /**
-   Every line of the file, read without the emphasis a reviewer may have put around a whole line.
+   Every line that stands as the message's own text, read without the emphasis a reviewer may have put around a whole line.
    */
-  const lines = new Set(shown.split('\n',)
+  const lines = new Set(statementLinesIn({ shown, },)
     .map(function withoutItsEmphasis(line,) {
       return withoutEmphasisAround(line.trim(),);
     },));

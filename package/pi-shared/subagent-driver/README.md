@@ -555,6 +555,8 @@ Every revision the ranges and `--commit` name is turned into a commit once, at t
 and each range's diff and the files it touches come from one answer of git
 (`git diff --raw -z --patch`), so a branch or an integration that moves between two questions cannot give a diff of one change and
 a file list of another.
+Every listing whose lines are paths is read NUL-separated (`-z`), both the raw diff and the commit's tree listing,
+so a path holding a line break, a quote, a backslash or a byte that is no UTF-8 arrives whole rather than quoted on one line.
 The ranges written into the brief and `what-the-review-read.json` name commits on both sides,
 so a reader can ask the same range later and get the same answer:
 `main...abc1234` becomes `<the merge base of main and abc1234>...abc1234`.
@@ -566,7 +568,14 @@ a process killed at any instruction leaves a dot-named folder that is never a re
 either finds the folder free and writes its whole generation, or leaves the folder it found alone and answers with what it holds.
 The names that writer makes are those three and `reproductions/`; a file another writer keeps in a review folder, such as an owner
 record, is never replaced or removed by it, and a review folder that is already there, whatever it holds, is never written into.
-It prints one line:
+
+A writing has one of three answers, and only the first is a success:
+the brief was written (`kind: written`);
+the change leaves nothing under the source folder to read, which an empty diff of a pinned range shows
+(`kind: nothing-to-review`);
+or the brief was not written, with its reason, which is a folder already there or a file that could not be written
+(`kind: not-written`).
+The command exits `0` only for the first and `1` for the other two, and prints one line either way:
 
 ```text
 # --review=rewrite-the-gate --commit=abc1234 --range=main...fix/rewrite-the-gate --source=package/git-policy/cli/src/native
@@ -610,6 +619,13 @@ and only the owner declares work complete,
 so a check that refused the mark would refuse every honest review.
 A review whose file still carries the line that opens one whose runs are going was killed mid-work,
 and its file does not cover its change.
+
+A wanted line counts only where it stands as the message's own text: a paragraph line or a list item.
+It does not count inside a fenced code block, which runs from a fence of three or more backticks or tildes to a fence of the same
+character and at least that length, nor inside a block quote, whose lines begin with `>`, nor inside an indented code block, whose
+lines begin with four spaces or a tab.
+`src/a-review-statement-lines.ts` states that grammar once and every line of the statement is read through it,
+so a message that quotes the brief's header as an example is not read as having written it.
 
 The ranges of that statement are read from the code spans the brief writes them in,
 so a branch whose name holds a comma, a semicolon, an underscore, a backtick or a non-breaking space
@@ -676,11 +692,14 @@ and `--runs-folder`.
 
 For each call it resolves the integration's tip once,
 and for each branch the branch's tip once,
-and from those two commits writes the brief of the range
+and asks the integration's own first-parent merges of that commit, never of the integration's name, which moves.
+From those commits it writes the brief of the range
 `<the integration's tip commit>...<the branch's tip commit>`,
 or `<the merge's first parent commit>...<the branch's tip commit>` for a branch a merge took,
-so the range, the diff, the tree listing, the record and the reviewer's base all speak of one commit
+so the merge log, the range, the diff, the tree listing, the record and the reviewer's base all speak of one commit
 and a merge into the integration during the call cannot move one branch's range under it.
+A brief that could not be written is a review that did not happen: it is counted in the status, named in the line the writer
+answered, and the command exits `1`, where a change with nothing to review is answered as such and the rest go on.
 It then starts its review through the retrying start,
 so the review waits for a slot of the review pool instead of refusing.
 The run's words are fixed here,

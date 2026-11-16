@@ -24,6 +24,7 @@ import {
   reportOnStandardError,
 } from './kept-start-failure.ts';
 import { saveTheLastMessage, } from './last-message-of-a-review.ts';
+import { commitOfARevision, } from './a-range-pinned-to-a-commit.ts';
 import { outputOfGit, } from './material-of-a-review.ts';
 import {
   START_REVIEWS_USAGE,
@@ -139,27 +140,23 @@ const started = await startReviews({
     },
     reviewIsWritten,
     branchTip: async function branchTip({ branch, },) {
-      return (await outputOfGit({
+      return await commitOfARevision({
         git,
         checkoutFolder,
-        words: [
-          'rev-parse',
-          branch,
-        ],
-      },)).trim();
+        revision: branch,
+      },);
     },
     integrationTip: async function integrationTip() {
-      return (await outputOfGit({
+      // The one question asked of the integration's name: everything after it is asked of the commit it names.
+      return await commitOfARevision({
         git,
         checkoutFolder,
-        words: [
-          'rev-parse',
-          '--verify',
-          `${options.integration}^{commit}`,
-        ],
-      },)).trim();
+        revision: options.integration,
+      },);
     },
-    integrationMerges: async function integrationMerges() {
+    integrationMerges: async function integrationMerges({ integration, },) {
+      // The merge log is asked of the commit the tip was pinned to, never of the integration's name, which moves: a merge the log
+      // missed would leave a range that no longer says what the branch changed.
       return (await outputOfGit({
         git,
         checkoutFolder,
@@ -168,7 +165,7 @@ const started = await startReviews({
           '--first-parent',
           '--merges',
           '--format=%H %P',
-          options.integration,
+          integration,
         ],
       },)).split('\n',)
         .filter(function isLine(line,) {

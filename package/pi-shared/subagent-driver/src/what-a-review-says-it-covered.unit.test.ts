@@ -237,7 +237,7 @@ const MESSAGE_SHAPES: readonly {
       return 'I stopped before reviewing and have no verdict. The header the brief requested was:\n\n'
         + '```text\n'
         + `${REVIEW_COMPLETE_LINE}\n`
-        + `Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\`\n`
+        + `Ranges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`
         + `Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`
         + '```\n';
     },
@@ -249,7 +249,7 @@ const MESSAGE_SHAPES: readonly {
     shown: function quotedMessage() {
       return 'Not final and not approved.\n\n'
         + `> ${REVIEW_COMPLETE_LINE}\n`
-        + `> Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\`\n`
+        + `> Ranges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`
         + `> Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`;
     },
     covers: false,
@@ -260,7 +260,7 @@ const MESSAGE_SHAPES: readonly {
     shown: function indentedMessage() {
       return 'Not final and not approved.\n\n'
         + `    ${REVIEW_COMPLETE_LINE}\n`
-        + `    Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\`\n`
+        + `    Ranges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`
         + `    Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}\n`;
     },
     covers: false,
@@ -269,12 +269,12 @@ const MESSAGE_SHAPES: readonly {
   {
     name: 'counts the wanted lines after a sentence that says the review stopped, because the grammar, not the prose, decides',
     shown: function stoppedMessage() {
-      return 'I stopped early and may not have read everything.\n\n'
-        + aReviewStating({
+      return `I stopped early and may not have read everything.\n\n${
+         aReviewStating({
           ranges: theRangesGiven(),
           filesRead: theFilesGiven().length,
           filesListed: theFilesGiven().length,
-        },);
+        },)}`;
     },
     covers: true,
     sentence: 'which states the ranges it was given',

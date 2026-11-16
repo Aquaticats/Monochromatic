@@ -12,6 +12,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  aCommitOneQuestionNamed,
   BATCH_RETRY_PERIOD_SECONDS,
   BATCH_STAGGER_MILLISECONDS,
   REVIEWING_MODEL,
@@ -110,8 +111,8 @@ function changeOfBranch({ branch, }: { readonly branch: string },): string {
  const tip = aTip({ change: aChange(), });
  ```
  */
-function aTip({ change, }: { readonly change: string },): string {
-  return `${change}-tip`;
+function aTip({ change, }: { readonly change: string },): ReturnType<typeof aCommitOneQuestionNamed> {
+  return aCommitOneQuestionNamed({ commit: `${change}-tip`, },);
 }
 
 /**
@@ -124,8 +125,8 @@ function aTip({ change, }: { readonly change: string },): string {
  const tip = anIntegrationTip();
  ```
  */
-function anIntegrationTip(): string {
-  return 'main-tip';
+function anIntegrationTip(): ReturnType<typeof aCommitOneQuestionNamed> {
+  return aCommitOneQuestionNamed({ commit: 'main-tip', },);
 }
 
 /**
@@ -165,6 +166,7 @@ type Asked = {
   readonly waits: number[];
   readonly briefs: { readonly review: string; readonly commit: string; readonly range: string }[];
   readonly shown: string[];
+  readonly integrations: string[];
 };
 
 /**
@@ -225,13 +227,15 @@ function seamsAnswering({
       integrationTip: async function integrationTip() {
         return anIntegrationTip();
       },
-      integrationMerges: async function integrationMerges(
-        request: { readonly integration: string } = { integration: '', },
-      ) {
-        asked.integrations.push(request.integration,);
+      integrationMerges: async function integrationMerges(request?: { readonly integration?: string },) {
+        /**
+         The pinned integration the log was asked of, which a starter that still asks the name does not pass.
+         */
+        const integration = request?.integration ?? '';
+        asked.integrations.push(integration,);
         // A merge log asked of the integration's name, which moves, can miss the merge that took a branch; one asked of the
         // commit the tip was pinned to cannot.
-        return (request.integration === anIntegrationTip()) ? merges : [];
+        return (integration === anIntegrationTip()) ? merges : [];
       },
       brief: async function brief({ review, commit, range, },) {
         asked.briefs.push({

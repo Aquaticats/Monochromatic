@@ -97,7 +97,7 @@ export async function writeReviewBrief({
     .length
     === 0) {
     return {
-      written: false,
+      kind: 'nothing-to-review',
       line: `nothing to review under ${source} in ${material.ranges
         .join(' and ',)}`,
     };
@@ -110,48 +110,64 @@ export async function writeReviewBrief({
     review,
   },);
   /**
-   What putting the three files in place answered.
+   The three files of this review, which are written whole or not at all.
    */
-  const put = await putAGenerationInPlace({
-    reviewsFolder,
-    review,
-    generation: {
-      brief: briefOfAReview({
+  const generation = {
+    brief: briefOfAReview({
+      review,
+      commit: material.commit,
+      ranges: material.ranges,
+      source,
+      files: material.files,
+      focus,
+      reviewsFolder,
+      runsFolder,
+      rulesFile,
+    },),
+    diff: material.diff,
+    record: `${JSON.stringify(
+      {
         review,
         commit: material.commit,
         ranges: material.ranges,
         source,
         files: material.files,
-        focus,
-        reviewsFolder,
-        runsFolder,
-        rulesFile,
-      },),
-      diff: material.diff,
-      record: `${JSON.stringify(
-        {
-          review,
-          commit: material.commit,
-          ranges: material.ranges,
-          source,
-          files: material.files,
-        } satisfies ReviewReading,
-        undefined,
-        2
-      )}\n`,
-    },
-  },);
-  if (put.kind === 'already-there') {
+      } satisfies ReviewReading,
+      undefined,
+      2
+    )}\n`,
+  };
+  try {
+    /**
+     What putting the three files in place answered.
+     */
+    const put = await putAGenerationInPlace({
+      reviewsFolder,
+      review,
+      generation,
+    },);
+    if (put.kind === 'already-there') {
+      return {
+        kind: 'not-written',
+        line: `${runNameOfAReview({ review, },)}: ${reviewFolder} already holds `
+          + `${put.held
+            .toSorted()
+            .join(', ',)}, so no brief was written`,
+      };
+    }
+  }
+  catch (error) {
+    // A brief whose files could not be written is a review that did not happen, and the line says which folder it was for and
+    // what went wrong, so the command that reads it can count it rather than exit 0.
     return {
-      written: false,
-      line: `${runNameOfAReview({ review, },)}: ${reviewFolder} already holds `
-        + `${put.held
-          .toSorted()
-          .join(', ',)}, so no brief was written`,
+      kind: 'not-written',
+      line: `${runNameOfAReview({ review, },)}: ${reviewFolder} could not be written: ${
+        String(error,)
+      }`,
     };
   }
   return {
-    written: true,
+    kind: 'written',
     line: `${runNameOfAReview({ review, },)}: ${String(material.files
       .length,)} files to read, brief at ${briefFileOfAReview({
       reviewsFolder,

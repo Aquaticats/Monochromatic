@@ -12,6 +12,10 @@
  */
 
 import {
+  type APinnedCommit,
+  aCommitOneQuestionNamed,
+} from './a-commit-one-question-named.ts';
+import {
   type GitQuestion,
   outputOfGit,
 } from './a-git-question.ts';
@@ -48,7 +52,7 @@ export type PinnedRanges = {
   /**
    The commit under review, which the ranges are read to.
    */
-  readonly commit: string;
+  readonly commit: APinnedCommit;
 
   /**
    The ranges, each with both sides written as commits, in the order they were given.
@@ -65,7 +69,7 @@ export type PinnedRanges = {
 
  @param revision - the revision, which may be a branch, a tag, a commit or an expression such as `<commit>^1`
 
- @returns the commit's full name
+ @returns the commit git named, which every later question about it is asked of
 
  @throws ReviewGitError when git did not answer with a commit
 
@@ -82,16 +86,18 @@ export async function commitOfARevision({
   readonly git: GitQuestion;
   readonly checkoutFolder: string;
   readonly revision: string;
-}): Promise<string> {
-  return (await outputOfGit({
-    git,
-    checkoutFolder,
-    words: [
-      'rev-parse',
-      '--verify',
-      `${revision}^{commit}`,
-    ],
-  },)).trim();
+}): Promise<APinnedCommit> {
+  return aCommitOneQuestionNamed({
+    commit: (await outputOfGit({
+      git,
+      checkoutFolder,
+      words: [
+        'rev-parse',
+        '--verify',
+        `${revision}^{commit}`,
+      ],
+    },)).trim(),
+  },);
 }
 
 /**
@@ -160,7 +166,7 @@ export async function pinnedRangesOf({
   /**
    The commit each revision names, so a revision written more than once is read once.
    */
-  const commits = new Map<string, string>();
+  const commits = new Map<string, APinnedCommit>();
   /**
    Reads a revision as a commit, and answers the commit it read before when it has read it.
 
@@ -173,7 +179,7 @@ export async function pinnedRangesOf({
    const commit = await commitOf('main');
    ```
    */
-  async function commitOf(revision: string,): Promise<string> {
+  async function commitOf(revision: string,): Promise<APinnedCommit> {
     /**
      The commit this revision was read as before, when it was.
      */
@@ -198,7 +204,7 @@ export async function pinnedRangesOf({
   /**
    The revision every range starts from, in the order the ranges were given.
    */
-  const lefts: string[] = [];
+  const lefts: APinnedCommit[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one range after another, because every left side is read before the commit under
      review is, so a name that moves is read once. See doc/lint/sequential-awaits.md. */
   for (const range of ranges) {

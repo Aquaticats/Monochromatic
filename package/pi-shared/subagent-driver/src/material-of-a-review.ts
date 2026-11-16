@@ -11,6 +11,7 @@
 
 import { basename, } from 'node:path';
 import { isRecord, } from './read-pi-fields.ts';
+import type { APinnedCommit, } from './a-commit-one-question-named.ts';
 import {
   type GitQuestion,
   outputOfGit,
@@ -158,7 +159,7 @@ export type ReviewMaterial = {
   /**
    The commit under review, as the full name of the commit every question here was asked about.
    */
-  readonly commit: string;
+  readonly commit: APinnedCommit;
 };
 
 
@@ -323,7 +324,7 @@ export function readingIn({
 
  @param integrationTip - the integration's tip commit, which the range names on its left when no merge took the branch
 
- @param merges - the integration's own first-parent merges, each as `<merge> <parent>...`
+ @param merges - the integration's own first-parent merges, each as `<merge> <parent>...`, read of that same commit
 
  @returns the range, as `git diff` and `git log` take one, with commits on both sides
 
@@ -337,8 +338,8 @@ export function rangeOfABranch({
   integrationTip,
   merges,
 }: {
-  readonly tip: string;
-  readonly integrationTip: string;
+  readonly tip: APinnedCommit;
+  readonly integrationTip: APinnedCommit;
   readonly merges: readonly string[];
 }): string {
   /**
@@ -546,6 +547,8 @@ export async function materialOfAReview({
   /**
    The paths the reviewed commit still holds, so a file a later commit deleted is not given to a reviewer to read.
    */
+  // Every listing whose lines are paths is read NUL-separated, so a path holding a line break, a quote or a byte that is no UTF-8
+  // arrives whole instead of quoted on a line of its own.
   const held = new Set((await outputOfGit({
     git,
     checkoutFolder,
@@ -553,13 +556,14 @@ export async function materialOfAReview({
       'ls-tree',
       '--name-only',
       '-r',
+      '-z',
       pinned.commit,
       '--',
       source,
     ],
-  },)).split('\n',)
-    .filter(function isPath(line,) {
-      return line !== '';
+  },)).split('\0',)
+    .filter(function isPath(path,) {
+      return path !== '';
     },),);
   return {
     diff: diffs.join('\n',),

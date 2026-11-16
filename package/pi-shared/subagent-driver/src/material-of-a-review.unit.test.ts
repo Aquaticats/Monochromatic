@@ -19,8 +19,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  type APinnedCommit,
   type CommandOutput,
   ReviewGitError,
+  aCommitOneQuestionNamed,
   codeFilesAmong,
   materialOfAReview,
   rangeOfABranch,
@@ -90,8 +92,8 @@ function anIntegrationBranch(): string {
  const tip = anIntegrationTip();
  ```
  */
-function anIntegrationTip(): string {
-  return 'main-tip';
+function anIntegrationTip(): APinnedCommit {
+  return aCommitOneQuestionNamed({ commit: 'main-tip', },);
 }
 
 /**
@@ -104,8 +106,8 @@ function anIntegrationTip(): string {
  const commit = aCommit();
  ```
  */
-function aCommit(): string {
-  return 'abc123';
+function aCommit(): APinnedCommit {
+  return aCommitOneQuestionNamed({ commit: 'abc123', },);
 }
 
 /**
@@ -195,7 +197,11 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
       return answered('base-commit',);
     }
     if (words[0] === 'ls-tree') {
-      return answered(`${paths.join('\n',)}\n`,);
+      // Every listing whose lines are paths is NUL-separated.
+      return answered(paths.map(function ended(path,) {
+        return `${path}\0`;
+      },)
+        .join('',),);
     }
     return answered(rawAndPatchOf({ paths, },),);
   };
@@ -344,7 +350,7 @@ await describe({
                 return answered('base-commit',);
               }
               if (words[0] === 'ls-tree') {
-                return answered(`${aSourceFolder()}/gate.rs\n`,);
+                return answered(`${aSourceFolder()}/gate.rs\0`,);
               }
               return answered(rawAndPatchOf({
                 paths: [
@@ -399,6 +405,7 @@ await describe({
               'ls-tree',
               '--name-only',
               '-r',
+              '-z',
               `${aCommit()}-commit`,
               '--',
               aSourceFolder(),
@@ -421,15 +428,15 @@ await describe({
               /**
                What git answered.
                */
-              const answered = spawnSync('git', words, {
+              const printed = spawnSync('git', words, {
                 cwd: repository,
                 encoding: 'utf8',
                 ...((input === undefined) ? {} : { input, }),
               },);
-              if ((answered.status !== 0) || (answered.error !== undefined)) {
-                throw new Error(`git ${words.join(' ',)} answered ${String(answered.status,)}: ${answered.stderr}`,);
+              if ((printed.status !== 0) || (printed.error !== undefined)) {
+                throw new Error(`git ${words.join(' ',)} answered ${String(printed.status,)}: ${printed.stderr}`,);
               }
-              return answered.stdout;
+              return printed.stdout;
             }
             git({ words: ['init', '--initial-branch=main', '--quiet',], },);
             /**
@@ -465,14 +472,14 @@ await describe({
                 /**
                  What git answered in that checkout.
                  */
-                const answered = spawnSync('git', words, {
+                const printed = spawnSync('git', words, {
                   cwd: where,
                   encoding: 'utf8',
                 },);
                 return {
-                  status: answered.status ?? 1,
-                  stdout: answered.stdout ?? '',
-                  stderr: answered.stderr ?? '',
+                  status: printed.status ?? 1,
+                  stdout: printed.stdout ?? '',
+                  stderr: printed.stderr ?? '',
                 };
               },
               checkoutFolder: repository,

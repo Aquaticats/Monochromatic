@@ -24,6 +24,7 @@ import {
   entryLineOf,
   type StartedEntry,
 } from './batch-list.ts';
+import type { APinnedCommit, } from './a-commit-one-question-named.ts';
 import { rangeOfABranch, } from './material-of-a-review.ts';
 import type { SavedReview, } from './last-message-of-a-review.ts';
 import {
@@ -104,19 +105,43 @@ export type StartedReviews = {
 };
 
 /**
- What writing one review's brief answered.
+ What writing one review's brief answered: the brief was written; the change leaves nothing to review, which an empty diff of a
+ pinned range shows; or the brief was not written, with its reason, which is a review that did not happen.
  */
-export type BriefOfOneReview = {
-  /**
-   Whether the brief was written, which is false when the change leaves nothing to review.
-   */
-  readonly written: boolean;
+export type BriefOfOneReview =
+  | {
+    /**
+     The brief and the diff beside it were written.
+     */
+    readonly kind: 'written';
 
-  /**
-   The line to print either way.
-   */
-  readonly line: string;
-};
+    /**
+     The line to print.
+     */
+    readonly line: string;
+  }
+    | {
+      /**
+       The change leaves nothing under the source folder for a review to read.
+       */
+      readonly kind: 'nothing-to-review';
+
+      /**
+       The line to print.
+       */
+      readonly line: string;
+    }
+    | {
+      /**
+       The brief could not be written: a review folder is in the way, or a file of the generation could not be written.
+       */
+      readonly kind: 'not-written';
+
+      /**
+       The line to print, which names the folder or the failure.
+       */
+      readonly line: string;
+    };
 
 /**
  What starting one review's run answered: the retrying start's status, or why it could not be started, and where the whole of what
@@ -141,17 +166,20 @@ export type ReviewStartingSeams = {
   /**
    The branch's tip commit, which the review's worktree starts at.
    */
-  readonly branchTip: (request: { readonly branch: string }) => Promise<string>;
+  readonly branchTip: (request: { readonly branch: string }) => Promise<APinnedCommit>;
 
   /**
    The integration's tip commit, which the reviews' ranges are read against.
    */
-  readonly integrationTip: () => Promise<string>;
+  readonly integrationTip: () => Promise<APinnedCommit>;
 
   /**
-   The integration branch's own first-parent merges, each as `<merge> <parent>...`.
+   The own first-parent merges of the integration commit its tip was pinned to, each as `<merge> <parent>...`.
+
+   It is asked of that commit and not of the integration's name: the name moves, and a merge the log missed would leave a range
+   that no longer says what the branch changed.
    */
-  readonly integrationMerges: () => Promise<readonly string[]>;
+  readonly integrationMerges: (request: { readonly integration: APinnedCommit }) => Promise<readonly string[]>;
 
   /**
    Shows one line as it happens, so a review that starts, fails or ends is read within minutes rather than after the last one: on
@@ -346,7 +374,7 @@ export async function startReviews({
     const range = rangeOfABranch({
       tip: commit,
       integrationTip,
-      merges: await seams.integrationMerges(),
+      merges: await seams.integrationMerges({ integration: integrationTip, },),
     },);
     /**
      What writing the brief answered.
@@ -357,7 +385,13 @@ export async function startReviews({
       range,
     },);
     note(briefed.line,);
-    if (!briefed.written) {
+    // A change with nothing to read under the source folder is answered as such and the rest go on. A brief that could not be
+    // written is a review that did not happen: it is counted, so that no command exits 0 over a change no review read.
+    if (briefed.kind === 'nothing-to-review') {
+      continue;
+    }
+    if (briefed.kind === 'not-written') {
+      reviewsThatDoNotCover.push(review,);
       continue;
     }
     note(`${runNameOfAReview({ review, },)}: started`,);

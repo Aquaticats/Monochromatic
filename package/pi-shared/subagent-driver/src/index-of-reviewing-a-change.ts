@@ -115,7 +115,12 @@ export {
   type ReviewStatement,
   completionIn,
   statementIn,
+  statementLinesIn,
 } from './a-review-statement-lines.ts';
+export {
+  type APinnedCommit,
+  aCommitOneQuestionNamed,
+} from './a-commit-one-question-named.ts';
 export {
   REVIEW_COMPLETE_LINE,
   REVIEW_IN_PROGRESS_LINE,

@@ -125,9 +125,13 @@ function gitAnswering({ files, }: { readonly files: readonly string[] },): GitQu
       };
     }
     if (words[0] === 'ls-tree') {
+      // Every listing whose lines are paths is NUL-separated.
       return {
         status: 0,
-        stdout: `${files.join('\n',)}\n`,
+        stdout: files.map(function ended(path,) {
+          return `${path}\0`;
+        },)
+          .join('',),
         stderr: '',
       };
     }
