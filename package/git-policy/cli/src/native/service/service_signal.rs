@@ -74,6 +74,11 @@ static NATIVE_ADDRESS: OnceLock<(libc::sockaddr_un, libc::socklen_t)> = OnceLock
 /// prefix.
 static ON_STREAM: AtomicBool = AtomicBool::new(false);
 
+/// Whether a line the journal takes is also written to standard error,
+/// decided before any signal:
+/// then the handler writes its line beside the datagram, as every other line of the service does.
+static ALSO_PLAIN: AtomicBool = AtomicBool::new(false);
+
 /// The words before the message in a native entry:
 /// the priority and the identifier.
 const NATIVE_HEAD: &str = "SYSLOG_IDENTIFIER=";
@@ -242,7 +247,13 @@ extern "C" fn on_signal(signal: libc::c_int) {
             }
             _ => false,
         };
-        if !sent {
+        // What: A line the journal took is also written to standard error when the service's other lines are, so a file a
+        //       person reads holds the exit as it holds every line before it.
+        // Why:  A service the wrapper starts has its output in its own file on a host whose journal socket is there: a handler
+        //       that sent only the datagram left that file without the exit line, which the timing suite's signal controls
+        //       read (measured 2026-11-15: the handler reported `sent natively` and the file stayed empty;
+        //       `Sink::also_plain` is the same rule for every other line).
+        if !sent || ALSO_PLAIN.load(Ordering::Relaxed) {
             // Without waiting for room (a full pipe or stream loses the line): `send_without_waiting` calls only `send`,
             //  `poll` and `write`.
             let _written = send_without_waiting(libc::STDERR_FILENO, &line[..length]);
@@ -274,6 +285,7 @@ extern "C" fn on_signal(signal: libc::c_int) {
 pub fn install() {
     STARTED_NANOS.store(monotonic_nanos(), Ordering::Relaxed);
     ON_STREAM.store(sink().on_stream(), Ordering::Relaxed);
+    ALSO_PLAIN.store(sink().also_plain(), Ordering::Relaxed);
     // The sink is decided here, before any signal, and the handler sends on its descriptor when the entries are native.
     if let Some((descriptor, address)) = sink().signal_target()
         && let Some(raw) = raw_address(address)

@@ -1394,6 +1394,38 @@ fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  A service whose standard error is a file, on a host whose journal socket is there, keeps its exit line in that file
+///  as it keeps every other line.
+/// Why:
+///  The review of `567ae37198`'s timing controls read a file that held `started` and `ready` and no exit, on a host whose
+///  `/run/systemd/journal/socket` is there: the sink wrote every ordinary line to the journal and to the file
+///  (`Sink::also_plain`, `7db1d00785`), and the signal handler sent only the datagram. In a container with no journal socket
+///  the same control passed, which is why the gate never saw it.
+#[test]
+fn a_service_whose_error_is_a_file_keeps_its_exit_beside_the_journal_entry() {
+    let fixture: Fixture = fixture("timing-native-both");
+    let name: String = format!("timing-native-both-{}", std::process::id());
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/both.sock"), log: fixture.root.join("both.log") };
+    // The journal stands in as a socket, and standard error is the file: `JOURNAL_STREAM` names no file, so the sink is not
+    //  on the journal's stream and writes the plain copy beside its datagram.
+    let (journal, environment) = native_journal(&places, "both");
+    let environment: Vec<(&'static str, String)> = environment.into_iter().filter(|(variable, _)| { return *variable != git_policy_cli::journald_native::STREAM_VARIABLE; }).collect();
+    let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
+    let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    let status = exit_of(&mut service, PATIENCE);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    let entries = journal.received(|found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }); });
+    assert!(entries.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }), "the journal took the exit: {entries:?}");
+    let file: String = std::fs::read_to_string(&places.log).expect("log");
+    let exits: Vec<&str> = file.lines().filter(|line| { return line.contains("exiting "); }).collect();
+    assert_eq!(exits.len(), 1, "the file keeps the exit once, as it keeps every other line: {file}");
+    assert!(exits[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()), "{}", exits[0]);
+    remove_settled(&fixture);
+}
+
 /// A journal that is not listening costs no line:
 /// the service writes it to standard error,
 /// with the priority prefix the

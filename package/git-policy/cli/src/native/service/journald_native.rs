@@ -483,6 +483,24 @@ impl Sink {
         return self.native.is_some();
     }
 
+    /// Whether a line the journal takes is also written to the plain standard error.
+    /// What:
+    ///  The answer this branch gives every ordinary line (`also_plain`), so the signal handler,
+    ///  which has no sink to ask, writes the same way.
+    /// Why:
+    ///  A handler that sent only the datagram lost the exit line of every service whose standard error is a file on a host
+    ///  whose journal socket is there: the two signal controls of the timing suite read the file and found nothing
+    ///  (`a_service_stopped_by_a_signal_says_so_and_still_dies_of_it`, measured 2026-11-15 through a probe that printed
+    ///  `sent natively, length 162 ... descriptor 3` where the file stayed empty).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// sink.alsoPlain // true when the journal and the file both keep each line
+    /// ```
+    pub fn also_plain(&self) -> bool {
+        return self.also_plain;
+    }
+
     /// The raw descriptor and socket address a signal handler sends its entry with,
     /// when this sink is native.
     pub fn signal_target(&self) -> Option<(std::os::fd::RawFd, &SocketAddr)> {
