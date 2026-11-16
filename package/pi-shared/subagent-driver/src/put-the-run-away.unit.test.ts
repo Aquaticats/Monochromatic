@@ -8,6 +8,7 @@
 import { execFile, } from 'node:child_process';
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -37,14 +38,9 @@ import {
   startConnectionToPi,
   startRecordOfPiRun,
 } from '../dist/final/node/index.mjs';
+import { LEAVES_AFTER_SIGTERM_SCENARIO, } from './stand-in-pi-output-held-fixture.ts';
 
 const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
-
-/**
- The scenario in which Pi holds its output open, ignores its input closing and SIGTERM, and leaves by itself with a success status
- a little after that signal: an exit the driver can hear of only after the ending's last bound, because nothing closes its output.
- */
-const LEAVES_AFTER_SIGTERM = 'leaves-after-sigterm-with-output-held';
 
 /**
  The scenario in which Pi stays after its input closes until a signal ends it, which is a Pi the ending needed a signal for.
@@ -188,6 +184,10 @@ async function startRun({ scenario, }: { readonly scenario: string },): Promise<
    The run's folder, which is where the feed and the summary go.
    */
   const runFolder = join(folder, 'run',);
+  await mkdir(
+    runFolder,
+    { recursive: true, },
+  );
   await writeFile(
     join(folder, 'pi',),
     `#!/usr/bin/env bash\nexec '${process.execPath}' '${STAND_IN}' "$@"\n`,
@@ -263,7 +263,7 @@ async function startRun({ scenario, }: { readonly scenario: string },): Promise<
  */
 async function feedIn(runFolder: string,): Promise<readonly PiRecord[]> {
   /**
-   The feed, which this test asks for only after the ending wrote its last line.
+   The feed, which a writer appends to a line at a time.
    */
   const shown = await textOrNothingIn(join(runFolder, 'feed.jsonl',),);
   return shown.split('\n',)
@@ -271,6 +271,46 @@ async function feedIn(runFolder: string,): Promise<readonly PiRecord[]> {
     .map(function parsed(line,) {
       return JSON.parse(line,) as PiRecord;
     },);
+}
+
+/**
+ Waits until a run's feed holds a line, because a line the run noted last may still be in its writer's buffer.
+
+ @param runFolder - the run's folder
+
+ @param holds - says whether a line is the one waited for
+
+ @returns every line of the feed, as the feed held them
+
+ @example
+ ```ts
+ const feed = await feedHolding({ runFolder: '/runs/a-1', holds: (entry,) => entry.kind === 'problem', },);
+ ```
+ */
+async function feedHolding({
+  runFolder,
+  holds,
+}: {
+  readonly runFolder: string;
+  readonly holds: (entry: PiRecord,) => boolean
+},): Promise<readonly PiRecord[]> {
+  /**
+   When to give up.
+   */
+  const deadline = Date.now() + LOG_DEADLINE_MILLISECONDS;
+  while (Date.now() <= deadline) {
+    /**
+     The feed as it stands, which the writer grows as it goes.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the feed is read again after each wait, which is the whole point of the loop; see doc/lint/sequential-awaits.md
+    const feed = await feedIn(runFolder,);
+    if (feed.some(holds,)) {
+      return feed;
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the writer appends as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
+  }
+  throw new Error('the feed never held the line the test waits for',);
 }
 
 await describe({
@@ -305,7 +345,7 @@ await describe({
     it({
       name: 'a Pi whose exit is seen only as the ending\'s last bound runs out is still a Pi that left, and the ending says what it took',
       fn: async () => {
-        await using run = await startRun({ scenario: LEAVES_AFTER_SIGTERM, },);
+        await using run = await startRun({ scenario: LEAVES_AFTER_SIGTERM_SCENARIO, },);
         // The tool holds the stand-in's output before the ending starts, so nothing the stand-in's leaving does can close it.
         await waitForLogLine({
           log: run.log,
@@ -323,9 +363,15 @@ await describe({
         expect(putAway.stopProblem,).toContain('SIGTERM',);
         expect(putAway.stopProblem,).toContain('last bound',);
         /**
-         The lines of the run's feed after the ending.
+         What the run's feed holds: the exit the driver was told of, and, after it, the bound that ran out first.
          */
-        const feed = await feedIn(run.runFolder,);
+        const feed = await feedHolding({
+          runFolder: run.runFolder,
+          holds: function isTheEndingsLine(entry,) {
+            return (entry.kind === 'problem') && (entry.problem === putAway.stopProblem);
+          },
+        },);
+        expect(feed.some((entry,) => (entry.kind === 'exit') && (entry.code === 0)),).toBe(true,);
         expect(feed.at(-1,),).toMatchObject({
           kind: 'problem',
           problem: putAway.stopProblem,

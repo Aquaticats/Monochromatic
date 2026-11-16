@@ -466,6 +466,7 @@ export async function supervisePiRun(
     piHasExited: lastConnection.hasExited(),
     sessionStats: putAway.sessionStats,
     piStartAttempts: starts.startsTaken,
+    ...(putAway.stopProblem === undefined ? {} : { stopProblem: putAway.stopProblem, }),
     ...((sessionAtRest.outcome === 'unmasked') ? { sessionAtRest: sessionAtRest.problem, } : {}),
     ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
     ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),

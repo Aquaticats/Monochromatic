@@ -33,12 +33,24 @@ import {
   POLL_MILLISECONDS,
   type RecordOfPiRun,
   type RetryWaiting,
+  SHUTDOWN_GRACE_MILLISECONDS,
+  type ShutDownOutcome,
   startRecordOfPiRun,
   START_PAUSE_MILLISECONDS,
   type WatchRequest,
   watchUntilEnded,
   MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
+
+/**
+ What ending Pi leaves when closing its input was enough, which is the ending every connection a test owns reports.
+ */
+const NOTHING_NEEDED_TO_END: ShutDownOutcome = {
+  stopped: true,
+  signalsSent: [],
+  stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+  outlivedTheLastBound: false,
+};
 
 /**
  Milliseconds in a second, so a limit the options state in seconds is derived from the deadline a test passes.
@@ -382,7 +394,7 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
         problem: `no answer in ${String(bound,)} ms`,
       };
     },
-    shutDown: async () => ({ stopped: true, }),
+    shutDown: async () => NOTHING_NEEDED_TO_END,
   };
 }
 
@@ -432,7 +444,7 @@ function answeringConnection({
         },
       };
     },
-    shutDown: async () => ({ stopped: true, }),
+    shutDown: async () => NOTHING_NEEDED_TO_END,
   };
 }
 
@@ -469,7 +481,7 @@ function connectionWhosePiReplies({
         record: { success: true, },
       };
     },
-    shutDown: async () => ({ stopped: true, }),
+    shutDown: async () => NOTHING_NEEDED_TO_END,
   };
 }
 

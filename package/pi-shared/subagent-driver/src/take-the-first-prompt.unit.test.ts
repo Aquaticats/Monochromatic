@@ -30,11 +30,23 @@ import {
   endReasonOfRun,
   type PiRecord,
   type RecordOfPiRun,
+  SHUTDOWN_GRACE_MILLISECONDS,
+  type ShutDownOutcome,
   startRecordOfPiRun,
   START_PAUSE_MILLISECONDS,
   START_UP_ANSWER_MILLISECONDS,
   MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
+
+/**
+ What ending Pi leaves when closing its input was enough, which is the ending every connection a test hands over reports.
+ */
+const NOTHING_NEEDED_TO_END: ShutDownOutcome = {
+  stopped: true,
+  signalsSent: [],
+  stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+  outlivedTheLastBound: false,
+};
 
 /**
  Milliseconds in a second, so a limit the options state in seconds is derived from the value the driver ships.
@@ -179,7 +191,7 @@ function standInPi({ promptAnswer, }: { readonly promptAnswer: CommandAnswer },)
           };
       },
       shutDown: async function shutDown() {
-        return { stopped: true, };
+        return NOTHING_NEEDED_TO_END;
       },
     },
   };

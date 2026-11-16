@@ -17,6 +17,7 @@ import type {
   CommandAnswer,
   RecordOfPiRun,
 } from './driver-types.ts';
+import { whatTheEndingTook, } from './end-reasons.ts';
 
 /**
  What putting a run away leaves for the summary.
@@ -28,9 +29,15 @@ export type RunPutAway = {
   readonly sessionStats: unknown;
 
   /**
-   Whether Pi's leaving could be confirmed.
+   Whether Pi's leaving was known once the ending's bounds were spent.
    */
   readonly stopped: boolean;
+
+  /**
+   What ending Pi took, when it took more than its input closing: the signals the driver had to send, or the bound that ran out
+   before it saw Pi leave. The summary carries it as `stopProblem`.
+   */
+  readonly stopProblem?: string;
 };
 
 /**
@@ -126,14 +133,25 @@ export async function putTheRunAway(
       Math.floor(withinTeardown(SHUTDOWN_GRACE_MILLISECONDS * SHUTDOWN_STAGES,) / SHUTDOWN_STAGES),
     ),
   },);
-  if (!shutDown.stopped) {
+  /**
+   What the ending took, in the words the summary keeps as `stopProblem`, or nothing when Pi left as its input closed.
+   */
+  const took = whatTheEndingTook(shutDown,);
+  /**
+   What the summary keeps of the ending, when it took anything at all.
+   */
+  const stopProblem = took.problem;
+  // A bound the ending ran out is a problem of the run's end, whichever way Pi's leaving then arrived: the feed says so, and so
+  // does the summary. A signal that worked is no problem, and only the summary says what it cost.
+  if (took.ranOutOfABound && (stopProblem !== undefined)) {
     record.note({
       kind: 'problem',
-      problem: shutDown.reason,
+      problem: stopProblem,
     },);
   }
   return {
     sessionStats: sessionStatsOf(stats,),
     stopped: shutDown.stopped,
+    ...(stopProblem === undefined ? {} : { stopProblem, }),
   };
 }

@@ -99,18 +99,40 @@ export type ShutDownRequest = {
 };
 
 /**
- How ending Pi went.
- */
-export type ShutDownOutcome =
-  | { readonly stopped: true }
-    | {
-      readonly stopped: false;
+ How ending Pi went: what the driver had to do, and how much of it the ending's own bounds allowed.
 
-    /**
-     Why the driver could not confirm that Pi had gone.
-     */
-      readonly reason: string;
-    };
+ What the driver learned of Pi's leaving is the question this answers, never what it hoped: a Pi whose exit the operating system
+ reported is one that left, whichever stage of the ending heard of it. A process a tool of Pi's holds the output of is the case
+ that separates the two: Pi has gone, its output has not ended, and the run must still record that Pi left.
+ */
+export type ShutDownOutcome = {
+  /**
+   Whether Pi's leaving was known once every stage of the ending was over. False is a process the driver could not end, which is
+   the only ending `pi-not-stopped` names.
+   */
+  readonly stopped: boolean;
+
+  /**
+   The signals the driver sent Pi, in the order it sent them; empty when closing Pi's input was enough.
+   */
+  readonly signalsSent: readonly NodeJS.Signals[];
+
+  /**
+   How long each stage of the ending was given, which is the bound the reason names when Pi outlived them.
+   */
+  readonly stageMilliseconds: number;
+
+  /**
+   Whether the last stage of waiting for Pi ran out with its leaving still unseen, so that the ending's own bounds were spent
+   before the driver could say Pi had gone.
+   */
+  readonly outlivedTheLastBound: boolean;
+
+  /**
+   Why the operating system refused a signal, when it refused one: a refused signal is no proof that Pi went.
+   */
+  readonly refusedSignal?: string;
+};
 
 /**
  A running Pi.
@@ -134,8 +156,9 @@ export type ConnectionToPi = {
   readonly send: (request: CommandRequest,) => Promise<CommandAnswer>;
 
   /**
-   Ends Pi: closes its input, then signals it if it stays, then settles every handle. It reports whether Pi's leaving could be
-   confirmed, because a signal the operating system refused is not proof that Pi went.
+   Ends Pi: closes its input, then signals it if it stays, then settles every handle. What the ending took, and whether Pi's
+   leaving was known by the time it was over, are what it answers; a signal the operating system refused is not proof that Pi
+   went.
    */
   readonly shutDown: (request?: ShutDownRequest,) => Promise<ShutDownOutcome>;
 };

@@ -13,6 +13,7 @@ import {
   COMMAND_ANSWER_MILLISECONDS,
   SHUTDOWN_GRACE_MILLISECONDS,
 } from './driver-constants.ts';
+import { didPiLeave, } from './did-pi-leave.ts';
 import type {
   CommandAnswer,
   PiExit,
@@ -221,6 +222,29 @@ export function startConnectionToPi(
   }
 
   /**
+   How Pi left, as soon as the driver can know it: the exit the run's records were told of, or the status the operating system
+   gave the process before its output ended.
+
+   A tool Pi started can hold Pi's output open after Pi has gone, and then the close of that output, which is what this channel
+   calls Pi's leaving, arrives as long as the tool lives. What a run records must not wait for that: Pi has left, and a run whose Pi
+   has left is never one the bounds on ending it ran out on.
+
+   @returns how Pi ended, with every field absent while it runs
+   */
+  function exitKnown(): PiExit {
+    return state.exit ?? exitOfChild();
+  }
+
+  /**
+   Whether this channel can say Pi has gone, which every stage of an ending waits for.
+
+   @returns whether Pi's leaving is known, by the exit this channel marked or by the status the operating system gave the process
+   */
+  function piHasGone(): boolean {
+    return (state.exit !== undefined) || didPiLeave(exitOfChild(),);
+  }
+
+  /**
    Lets go of Pi's pipes and handle, so a process that will not end cannot keep the driver alive.
    */
   function releaseHandles(): void {
@@ -349,15 +373,19 @@ export function startConnectionToPi(
    notification that Pi went.
 
    @param signal - signal to send
+
+   @returns whether the signal was sent, which a process that had already gone is never sent
    */
-  function signalPi(signal: NodeJS.Signals,): void {
+  function signalPi(signal: NodeJS.Signals,): boolean {
     if ((child.exitCode !== null) || (child.signalCode !== null)) {
-      return;
+      return false;
     }
     if (!child.kill(signal,)) {
       state.problem = `the operating system refused ${signal}`;
       listeners.onProblem(`could not send ${signal} to Pi: the operating system refused it.`,);
+      return false;
     }
+    return true;
   }
 
   /**
@@ -365,51 +393,78 @@ export function startConnectionToPi(
 
    @param stageMilliseconds - how long each stage may take
 
-   @returns whether Pi went
+   @returns whether Pi went, and every signal the driver had to send to try for it
    */
-  async function leavePi(stageMilliseconds: number,): Promise<boolean> {
+  async function leavePi(stageMilliseconds: number,): Promise<{
+    readonly stopped: boolean;
+    readonly signalsSent: readonly NodeJS.Signals[];
+  }> {
+    /**
+     The signals this ending sent, in the order it sent them.
+     */
+    const signalsSent: NodeJS.Signals[] = [];
     if (!child.stdin
       .destroyed) {
       child.stdin
         .end();
     }
     if (await wentWithin(stageMilliseconds,)) {
-      return true;
+      return {
+        stopped: true,
+        signalsSent,
+      };
     }
-    signalPi('SIGTERM',);
+    if (signalPi('SIGTERM',)) {
+      signalsSent.push('SIGTERM',);
+    }
     if (await wentWithin(stageMilliseconds,)) {
-      return true;
+      return {
+        stopped: true,
+        signalsSent,
+      };
     }
-    signalPi('SIGKILL',);
-    return await wentWithin(stageMilliseconds,);
+    if (signalPi('SIGKILL',)) {
+      signalsSent.push('SIGKILL',);
+    }
+    return {
+      stopped: await wentWithin(stageMilliseconds,),
+      signalsSent,
+    };
   }
 
   /**
    Ends Pi, closing its input first and then signalling it if it stays, and settles Pi's standard error before letting go of any
    handle.
 
+   Pi's leaving is what the answer turns on, and it is asked for once every stage is over: a Pi that left while its output was
+   still open is one that left, and the run's record says so rather than that the driver could not end it.
+
    @param graceMilliseconds - how long each stage may take
 
-   @returns whether Pi's leaving could be confirmed
+   @returns what the ending took, and whether Pi's leaving was known when it was over
    */
   async function shutDown({
     graceMilliseconds: stageMilliseconds = graceMilliseconds,
   }: ShutDownRequest = {},): Promise<ShutDownOutcome> {
     /**
-     Whether Pi went, which is settled by its input closing and then by each signal in turn.
+     What the stages of leaving did, which is where each signal and each spent bound comes from.
      */
-    const stopped = (state.exit !== undefined) || (await leavePi(stageMilliseconds,));
+    const leaving = await leavePi(stageMilliseconds,);
     await settleStandardError(stageMilliseconds,);
-    if (!stopped) {
-      releaseHandles();
-      return {
-        stopped: false,
-        reason: (state.problem === undefined)
-          ? `Pi was still running ${String(stageMilliseconds,)} ms after SIGKILL.`
-          : `Pi was still running ${String(stageMilliseconds,)} ms after SIGKILL, and a signal had failed: ${state.problem}.`,
-      };
-    }
-    return { stopped: true, };
+    /**
+     Whether Pi's leaving was known once every stage of the ending was over, whenever the driver heard of it.
+     */
+    const stopped = piHasGone();
+    // Pi's pipes are let go of either way: a tool Pi started can hold its output open long after Pi has gone, and a read that
+    // never ends cannot keep the driver from ending.
+    releaseHandles();
+    return {
+      stopped,
+      signalsSent: leaving.signalsSent,
+      stageMilliseconds,
+      outlivedTheLastBound: !leaving.stopped,
+      ...(state.problem === undefined ? {} : { refusedSignal: state.problem, }),
+    };
   }
 
   child.on(
@@ -459,12 +514,8 @@ export function startConnectionToPi(
   );
 
   return {
-    hasExited: function hasExited() {
-      return state.exit !== undefined;
-    },
-    exitDetails: function exitDetails() {
-      return state.exit ?? {};
-    },
+    hasExited: piHasGone,
+    exitDetails: exitKnown,
     write: records.write,
     send,
     shutDown,

@@ -7,7 +7,6 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
 import { close, } from 'node:fs';
 import {
   appendFile,
@@ -41,6 +40,11 @@ import {
   sessionHoldsAValue,
   type StandInMasking,
 } from './stand-in-pi-masking-fixture.ts';
+import {
+  armALeavingThatOutlastsTheSignal,
+  holdThisOutputOpen,
+  LEAVES_AFTER_SIGTERM_SCENARIO,
+} from './stand-in-pi-output-held-fixture.ts';
 import {
   CRASH_STATUS,
   playPrompt,
@@ -76,25 +80,6 @@ const START_FAILURE_STATUS = 1;
  The code the operating system gives a path that is not there.
  */
 const MISSING_PATH_CODE = 'ENOENT';
-
-/**
- Seconds the tool started by `keeps-output-open` lives, so a failed test cannot leave it running.
- */
-const TOOL_SECONDS = '30';
-
-/**
- Milliseconds after the SIGTERM it ignores at which the stand-in of `leaves-after-sigterm-with-output-held` leaves by itself: far
- enough before the last stage's signal that none is sent at all, and late enough that a connection whose exit deadline outlasts
- the ending's own stages hears of the exit only after them.
- */
-const LEAVES_AFTER_SIGTERM_MILLISECONDS = 4_000;
-
-/**
- The scenario in which Pi keeps its output open through a tool it started, ignores its input closing, ignores SIGTERM, and then
- leaves by itself with a success status. It is how a test makes an exit reach the driver only after the ending's last bound, which
- a process killed by a signal cannot: a killed process is reported with the signal, never with a status.
- */
-const LEAVES_AFTER_SIGTERM_SCENARIO = 'leaves-after-sigterm-with-output-held';
 
 /**
  Where commands are logged.
@@ -240,38 +225,12 @@ function writeOddLines(id: unknown,): void {
 }
 
 /**
- Starts a tool that holds this process's output open after this process has gone, and logs its process number.
- */
-async function holdThisOutputOpen(): Promise<void> {
-  /**
-   The tool.
-   */
-  const tool = spawn(
-    'sleep',
-    [TOOL_SECONDS,],
-    {
-      stdio: [
-        'ignore',
-        'inherit',
-        'inherit',
-      ],
-      detached: true,
-    },
-  );
-  tool.unref();
-  await appendFile(
-    log,
-    `tool ${String(tool.pid,)}\n`,
-  );
-}
-
-/**
- Starts that tool for a command, then answers it.
+ Starts a tool that holds this process's output open after this process has gone, then answers the command that asked for it.
 
  @param id - command's identifier
  */
 async function startToolHoldingOutput(id: unknown,): Promise<void> {
-  await holdThisOutputOpen();
+  await holdThisOutputOpen({ log, },);
   answer({ id, },);
 }
 
@@ -442,7 +401,7 @@ if (scenario === 'exit-later') {
 }
 if (scenario === LEAVES_AFTER_SIGTERM_SCENARIO) {
   // The output is held open before the ending starts, so nothing this process's leaving does can close it.
-  await holdThisOutputOpen();
+  await holdThisOutputOpen({ log, },);
 }
 if (scenario === 'ignores-sigterm') {
   process.on(
@@ -452,19 +411,7 @@ if (scenario === 'ignores-sigterm') {
     },
   );
 }
-if (scenario === LEAVES_AFTER_SIGTERM_SCENARIO) {
-  process.on(
-    'SIGTERM',
-    function leaveAfterTheSignal() {
-      setTimeout(
-        function leaveByItself() {
-          exit(0,);
-        },
-        LEAVES_AFTER_SIGTERM_MILLISECONDS,
-      );
-    },
-  );
-}
+armALeavingThatOutlastsTheSignal({ scenario, },);
 for await (const line of createInterface({ input: stdin, },)) {
   await actOnCommand({
     line,

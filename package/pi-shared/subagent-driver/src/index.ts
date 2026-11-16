@@ -87,6 +87,7 @@ export {
   CLEAN_END_REASONS,
   endReasonOfPromptWait,
   finalEndReason,
+  whatTheEndingTook,
 } from './end-reasons.ts';
 export {
   carriesCredentialName,

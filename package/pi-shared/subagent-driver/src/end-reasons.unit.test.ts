@@ -233,31 +233,37 @@ await describe({
   name: whatTheEndingTook.name,
   children: [
     it({
-      name: 'an ending that needed nothing but Pi\'s input closing says nothing',
+      name: 'an ending that needed nothing but Pi\'s input closing says nothing, and no bound ran out',
       fn: async () => {
         expect(whatTheEndingTook({
           stopped: true,
           signalsSent: [],
           stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
           outlivedTheLastBound: false,
-        },),).toBeUndefined();
+        },),).toEqual({ ranOutOfABound: false, },);
       },
     },),
     it({
-      name: 'an ending a signal ended names that signal',
+      name: 'an ending a signal ended names that signal, and no bound of it ran out',
       fn: async () => {
         expect(whatTheEndingTook({
           stopped: true,
           signalsSent: ['SIGTERM',],
           stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
           outlivedTheLastBound: false,
-        },),).toBe('Pi stayed after its input closed and left after the driver sent SIGTERM.',);
+        },),).toEqual({
+          problem: 'Pi stayed after its input closed and left after the driver sent SIGTERM.',
+          ranOutOfABound: false,
+        },);
         expect(whatTheEndingTook({
           stopped: true,
           signalsSent: ['SIGTERM', 'SIGKILL',],
           stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
           outlivedTheLastBound: false,
-        },),).toBe('Pi stayed after its input closed and left after the driver sent SIGTERM and SIGKILL.',);
+        },),).toEqual({
+          problem: 'Pi stayed after its input closed and left after the driver sent SIGTERM and SIGKILL.',
+          ranOutOfABound: false,
+        },);
       },
     },),
     it({
@@ -268,17 +274,19 @@ await describe({
           signalsSent: ['SIGTERM',],
           stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
           outlivedTheLastBound: true,
-        },),).toBe(
-          'Pi stayed after its input closed, the driver sent SIGTERM, and the driver\'s last bound ran out before it saw Pi leave.',
-        );
+        },),).toEqual({
+          problem: 'Pi stayed after its input closed, the driver sent SIGTERM, and the driver\'s last bound ran out before it saw Pi leave.',
+          ranOutOfABound: true,
+        },);
         expect(whatTheEndingTook({
           stopped: false,
           signalsSent: ['SIGTERM', 'SIGKILL',],
           stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
           outlivedTheLastBound: true,
-        },),).toBe(
-          `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL.`,
-        );
+        },),).toEqual({
+          problem: `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL.`,
+          ranOutOfABound: true,
+        },);
       },
     },),
     it({
@@ -290,9 +298,10 @@ await describe({
           stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
           outlivedTheLastBound: true,
           refusedSignal: 'the operating system refused SIGKILL',
-        },),).toBe(
-          `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL, and a signal had failed: the operating system refused SIGKILL.`,
-        );
+        },),).toEqual({
+          problem: `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL, and a signal had failed: the operating system refused SIGKILL.`,
+          ranOutOfABound: true,
+        },);
       },
     },),
   ],

@@ -339,6 +339,7 @@ export function startRecordOfPiRun({
       piStartFailures,
       piStartStoppedBy,
       sessionAtRest,
+      stopProblem,
     },) {
       return {
         endReason,
@@ -365,6 +366,7 @@ export function startRecordOfPiRun({
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
         ...(state.workProblem === undefined ? {} : { workProblem: state.workProblem, }),
+        ...(stopProblem === undefined ? {} : { stopProblem, }),
         ...compactionProblemOf(observed,),
       };
     },

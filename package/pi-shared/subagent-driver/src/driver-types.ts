@@ -31,7 +31,7 @@ export type PiExit = {
  `idle` means the agent ended its turn with nothing of its own still running: a run whose work is still going when the agent
  settles is kept, and ends on its wall clock instead if the work outlasts it. `model-error` means Pi settled on a last assistant
  message that ended in an error nothing recovered from, `pi-not-stopped`
- means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
+ means Pi's leaving was never seen while every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
  it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
 
  `pi-exited` is Pi leaving a run that had taken its prompt, so work may have been done. `pi-exited-before-prompt` is Pi leaving
@@ -294,6 +294,13 @@ export type RunSummary = {
   readonly workProblem?: string;
 
   /**
+   What ending Pi took, when it took more than its input closing: the signals the driver had to send, or the bound that ran out
+   before it saw Pi leave. It sits beside the end reason rather than in its place, because a run whose agent settled did its work
+   whichever way Pi left.
+   */
+  readonly stopProblem?: string;
+
+  /**
    What Pi reported of the compaction it could not finish while the run waited for its prompt: the failure, or the compaction
    still running when the run's own bound ended it. Absent when the run never waited on a compaction.
    */
@@ -396,6 +403,11 @@ export type RunEnding = {
    value is.
    */
   readonly sessionAtRest?: string;
+
+  /**
+   What ending Pi took, when it took more than its input closing, in the words the summary keeps as `stopProblem`.
+   */
+  readonly stopProblem?: string;
 };
 
 /**
