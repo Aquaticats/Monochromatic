@@ -224,23 +224,23 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
         //       ending the scope's group then kills a live process at an arbitrary instruction and a second service recovers the same
         //       batch again (the sixth review of issue 6293, finding 3). The wait the person sees is the caller's own ceiling, which
         //       says a service is preparing.
-        if let Some(preparing) = live_service_that_is_preparing(server.pid_note().as_path()) {
+        // What: What became of the scope is decided by the same fact read at the moment of deciding, and nothing alive is ended.
+        // Why:  A service can claim its note in the instant between the look and the act, so the act must be safe when the look was
+        //       wrong: the leader this command was given is a process of this command's own, and while it is that process the scope
+        //       holds a service that may be preparing, whatever its note says. Ending a group that is empty is pointless too, so no
+        //       group is signalled here at all (the sixth review of issue 6293, findings 1 and 2).
+        if let Some(preparing) = live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| leader.and_then(the_process_still_running)) {
             return StartAttempt::ServiceIsPreparing { service: preparing };
-        }
-        // What: A scope that made nothing answer is ended, and the base's start is what this command does instead.
-        // Why:  A manager that made a scope and then failed costs one extra second and never a commit, and the scope's group is
-        //       what this command started, so ending it is its own to do.
-        if let Some(process) = leader {
-            crate::service_server_start_through_the_manager::end_the_group_of(process);
         }
         if answered(&server.address) {
             return StartAttempt::Greeted;
         }
     }
     let detached: Detached = Detached { program: server.program.clone(), arguments: server.arguments(), log: log.clone() };
-    if spawn(&detached).is_err() {
-        return StartAttempt::DidNotGreet(log);
-    }
+    let started: Option<i32> = match spawn(&detached) {
+        Ok(started) => started,
+        Err(_refused) => return StartAttempt::DidNotGreet(log),
+    };
     if waits_for_a_greeting(&server.address, START_WAIT) {
         return StartAttempt::Greeted;
     }
@@ -248,7 +248,11 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     // Why:  A recovery of the batches an earlier service left open runs before the first greeting, and it may outlast the start wait;
     //       what reports that is the note's process being alive, and the words that follow say a service is preparing rather than that
     //       one failed to start.
-    return match live_service_that_is_preparing(server.pid_note().as_path()) {
+    // What: A service that did not greet is preparing whenever a process this command started is still there.
+    // Why:  The note can be claimed in the instant between the read and this answer, and the child this command started is one fact
+    //       that claim cannot take away: while it is that process a service is coming, and saying it failed would fail a commit for
+    //       a service that is merely slow (the sixth review of issue 6293, finding 2).
+    return match live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| started.and_then(the_process_still_running)) {
         Some(preparing) => StartAttempt::ServiceIsPreparing { service: preparing },
         None => StartAttempt::DidNotGreet(log),
     };
@@ -359,6 +363,64 @@ impl Drop for StarterMarker {
     }
 }
 
+// What:
+//  The instant after this command has looked for a preparing service and before it acts on that look:
+//  once before the manager arm ends a scope's group, and once before a start without a greeting gives up.
+// Why:
+//   A service may claim its note between the look and the act, and no control can time that claim;
+//   holding either instant is what produces the ordering the sixth review names (findings 1 and 2).
+#[cfg(test)]
+thread_local! {
+    /// What a control runs at the instant after the look read the note and before it answers, once.
+    static AFTER_THE_NOTE_WAS_READ: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Runs a control's step at the instant after the look read the note and before it answers.
+/// Why:
+///   A service may claim its note in that instant,
+/// and the ordering it produces, a look that sees nothing and an act that then ends or fails a live service,
+/// is what the sixth review's findings 1 and 2 name;
+/// no control can time that claim otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aControlRunsAfterTheNoteWasRead(() => { claimTheNoteForTheServiceThisCommandStarted(); });
+/// ```
+#[cfg(test)]
+pub(crate) fn a_control_runs_after_the_note_was_read(step: impl Fn() + 'static) {
+    AFTER_THE_NOTE_WAS_READ.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(step));
+    });
+}
+
+/// Runs the step a control left for the instant after the note was read, if one did.
+/// The step stays for the next look too: a start looks more than once, and the first look can come before the service
+///  the control started exists, so a step that fires once would fire before the instant it is about.
+fn run_the_controls_step_after_the_note_was_read() {
+    #[cfg(test)]
+    AFTER_THE_NOTE_WAS_READ.with(|slot| {
+        if let Some(step) = slot.borrow().as_ref() {
+            step();
+        }
+    });
+}
+
+/// What:
+///  A process this command started, when the number it was given still names that process.
+/// Why:
+///  A pid is reused, so the birth identity is what makes "the child this command started is still there" a fact and not a number:
+///  a process that ended, whose number a stranger took, is not the service this command started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theProcessStillRunning(pid) // { pid, birthIdentity } while /proc/<pid>/stat still carries the birth read now
+/// ```
+fn the_process_still_running(pid: i32) -> Option<crate::service_server_pid_note_of_an_instance::ServerProcess> {
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid)).ok().flatten()?;
+    return Some(crate::service_server_pid_note_of_an_instance::ServerProcess { pid, identity });
+}
+
 /// What:
 ///  The service of this worktree that holds the instance and has not greeted yet.
 /// Why:
@@ -373,7 +435,9 @@ impl Drop for StarterMarker {
 /// liveServiceThatIsPreparing(pidNote) // the note's server when it is still that process
 /// ```
 fn live_service_that_is_preparing(note: &Path) -> Option<crate::service_server_pid_note_of_an_instance::ServerProcess> {
-    let named: crate::service_server_pid_note_of_an_instance::ServerProcess = crate::service_server_pid_note_of_an_instance::read(note)?;
+    let named: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note);
+    run_the_controls_step_after_the_note_was_read();
+    let named: crate::service_server_pid_note_of_an_instance::ServerProcess = named?;
     if !crate::service_server_pid_note_of_an_instance::is_still_the_process(&named) {
         return None;
     }

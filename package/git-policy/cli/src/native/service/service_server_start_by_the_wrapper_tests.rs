@@ -156,3 +156,154 @@ fn a_manager_start_that_sees_no_greeting_keeps_a_live_service_that_is_preparing(
     // The stand-in service is this test's own child, and it ends with this control.
     let _ended = std::process::Command::new("/usr/bin/pkill").args(["-9", "-f", PREPARING_SERVICE_VARIABLE]).status();
 }
+
+/// What:
+///  The stand-in service of the claim-after-the-look controls:
+///  a shell process that says which process it is and then waits, granting no greeting,
+///  as a service in its recovery does.
+/// Why:
+///   It is a real second process, and the note can name it by the process number it wrote for itself.
+fn silent_service_script(root: &Path, runs: &Path) -> PathBuf {
+    let script: PathBuf = root.join("silent-service");
+    std::fs::write(
+        script.as_path(),
+        format!("#!/bin/sh\nprintf '%s' \"$$\" > '{runs}/'\"$$\"\nexec /bin/sleep 120\n", runs = runs.display()),
+    )
+    .expect("the stand-in service");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o700)).expect("it runs");
+    }
+    return script;
+}
+
+/// The number of the last silent stand-in service that said it runs,
+/// once one has.
+fn the_silent_service_pid(runs: &Path) -> Option<i32> {
+    let mut pids: Vec<i32> = std::fs::read_dir(runs)
+        .map(|listing| {
+            return listing.flatten().filter_map(|entry| { return entry.file_name().to_string_lossy().parse::<i32>().ok(); }).collect::<Vec<i32>>();
+        })
+        .unwrap_or_default();
+    pids.sort();
+    return pids.last().copied();
+}
+
+/// Waits, bounded, until the silent stand-in service has said which process it is.
+fn wait_for_the_silent_service(runs: &Path) -> i32 {
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < Duration::from_secs(30) {
+        if let Some(pid) = the_silent_service_pid(runs) {
+            return pid;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    panic!("the stand-in service never said which process it is");
+}
+
+/// What:
+///  Writes the note a service writes when it claims an instance,
+///  for a process this control started.
+/// Why:
+///  A claim names the claiming process and its birth identity,
+///  and a control that holds the instant between a look and an act has to produce exactly that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimFor(pid) // write `${pid} ${birthIdentityOf(pid)}` into the note
+/// ```
+fn claim_for(note: &Path, pid: i32) {
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid))
+        .expect("the process's record is readable")
+        .expect("the process this control started is alive");
+    std::fs::write(note, format!("{pid} {identity}\n")).expect("the note a claiming service writes");
+}
+
+/// What:
+///  A manager-started service that claims its note at the instant after the start looked
+///  is waited for, and neither ended nor answered as a failure.
+/// Why:
+///  The sixth review of issue 6293 (finding 1):
+///  the look and the group it permits to be ended were not one step,
+/// so a service claiming between them was killed at an arbitrary instruction.
+#[test]
+fn a_manager_start_that_meets_a_claim_after_its_look_keeps_the_service() {
+    let root: PathBuf = folder("manager-claim-after-the-look");
+    let note: PathBuf = root.join("3f9a.pid");
+    let runs: PathBuf = root.join("runs");
+    std::fs::create_dir_all(runs.as_path()).expect("run folder");
+    let service: PathBuf = silent_service_script(root.as_path(), runs.as_path());
+    let manager_program: PathBuf = root.join("systemd-run");
+    std::fs::write(
+        manager_program.as_path(),
+        format!("#!/bin/sh\ncase \"$*\" in *'-- /bin/true'*) exec /bin/true ;; esac\nexec '{service}'\n", service = service.display()),
+    )
+    .expect("the stand-in manager");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(manager_program.as_path(), std::fs::Permissions::from_mode(0o700)).expect("it runs");
+    }
+    let server: ServerToStart = ServerToStart {
+        address: Bind::Path(root.join("3f9a.sock")),
+        directory: root.clone(),
+        instance: String::from("3f9a"),
+        journal: root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        program: service,
+        manager: Some(crate::service_server_start_through_the_manager::ManagerStart { program: manager_program }),
+    };
+    let awaited: PathBuf = runs.clone();
+    let claimed: PathBuf = note.clone();
+    crate::service_server_start_by_the_wrapper::a_control_runs_after_the_note_was_read(move || {
+        if let Some(pid) = the_silent_service_pid(awaited.as_path()) {
+            claim_for(claimed.as_path(), pid);
+        }
+    });
+    let attempt: StartAttempt = start(&server);
+    let pid: i32 = wait_for_the_silent_service(runs.as_path());
+    let alive: bool = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the process's record").is_some();
+    let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
+    let preparing: bool = match &attempt {
+        StartAttempt::ServiceIsPreparing { service } => service.pid == pid,
+        _other => false,
+    };
+    assert!(preparing, "a service that claimed after the look is waited for, not ended: {attempt:?}");
+    assert!(alive, "and the process the note names is still alive after the start answered");
+}
+
+/// What:
+///  A base start that meets a claim at the instant before it gives up is not a failure.
+/// Why:
+///  The sixth review of issue 6293 (finding 2):
+///  a command failed with "the service did not start" while the service it started was alive and preparing.
+#[test]
+fn a_base_start_that_meets_a_claim_after_its_look_is_not_a_failure() {
+    let root: PathBuf = folder("base-claim-after-the-look");
+    let note: PathBuf = root.join("3f9a.pid");
+    let runs: PathBuf = root.join("runs");
+    std::fs::create_dir_all(runs.as_path()).expect("run folder");
+    let service: PathBuf = silent_service_script(root.as_path(), runs.as_path());
+    let server: ServerToStart = ServerToStart {
+        address: Bind::Path(root.join("3f9a.sock")),
+        directory: root.clone(),
+        instance: String::from("3f9a"),
+        journal: root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        program: service,
+        manager: None,
+    };
+    let awaited: PathBuf = runs.clone();
+    let claimed: PathBuf = note.clone();
+    crate::service_server_start_by_the_wrapper::a_control_runs_after_the_note_was_read(move || {
+        if let Some(pid) = the_silent_service_pid(awaited.as_path()) {
+            claim_for(claimed.as_path(), pid);
+        }
+    });
+    let attempt: StartAttempt = start(&server);
+    let pid: i32 = wait_for_the_silent_service(runs.as_path());
+    let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
+    match attempt {
+        StartAttempt::ServiceIsPreparing { service } => assert_eq!(service.pid, pid, "the service that claimed is the one preparing"),
+        other => panic!("a service that claimed after the look is preparing, not a failure: {other:?}"),
+    }
+}
