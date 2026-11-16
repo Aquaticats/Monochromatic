@@ -337,3 +337,49 @@ fn a_look_ends_within_its_wait_however_many_records_are_young() {
     eprintln!("MEASURE a look over {count} young records with a wait of {wait:?} took {elapsed:?}");
     assert!(elapsed <= wait + Duration::from_millis(20), "a look that was given {wait:?} took {elapsed:?} over {count} young records");
 }
+
+/// How many finished records this control keeps beside the record that finishes during the look,
+/// so the finished listing takes long enough for the rename below to fall inside it.
+const SUCCESSORS_THE_LOOK_WALKS: usize = 4_000;
+
+/// What:
+///  A batch that finishes while the look runs is found, and the look does not say nothing is known.
+/// Why:
+///   A batch is finished by renaming its record from `intent` to `done`. A look that listed the finished records first and
+///   the open ones after found the record in neither: it was still open when the finished folder was read and already
+///   finished when the open folder was read, so a commit that had landed ended the command saying it was not known whether
+///   it was made (the review of `04b80a66cb`, half one B, finding 5a).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeOpen(N, request); after(5ms, () => rename(`${N}.intent`, `${N}.done`)); expect(look({wait: 2s})).toBe(theCommit)
+/// ```
+#[test]
+fn a_batch_that_finishes_during_the_look_is_still_found() {
+    let journal: PathBuf = a_journal("looking-a-batch-finishes-during-the-look");
+    let commit: String = "3".repeat(40);
+    let ours: Intent = a_record(1, "refs/heads/main", &"2".repeat(40), commit.as_str(), &[ID], &[commit.as_str()]);
+    let open: PathBuf = batch_path(journal.as_path(), 1, "intent");
+    std::fs::write(open.as_path(), intent_text(&ours)).expect("the request's open record");
+    for seq in 2..=(SUCCESSORS_THE_LOOK_WALKS as u64 + 1) {
+        let successor: String = format!("{seq:040}");
+        let theirs: Intent = a_record(seq, "refs/heads/main", &"2".repeat(40), successor.as_str(), &[format!("a-successor-{seq}").as_str()], &[successor.as_str()]);
+        std::fs::write(batch_path(journal.as_path(), seq, DONE_EXTENSION), intent_text(&theirs)).expect("a finished record");
+    }
+    let finished: PathBuf = batch_path(journal.as_path(), 1, DONE_EXTENSION);
+    let finisher = std::thread::spawn(move || {
+        // The rename lands inside the look's finished listing, which is the window this control stands on.
+        std::thread::sleep(Duration::from_millis(5));
+        std::fs::rename(open.as_path(), finished.as_path()).expect("the batch is finished while the look runs");
+    });
+    let context: GitContext = crate::test_support::git_context();
+    let looked: Option<String> = looking_for_what_landed(LookForWhatLanded {
+        context: &context,
+        cwd: journal.as_path(),
+        journal: Some(journal.as_path()),
+        id: ID,
+        wait: Duration::from_secs(2),
+    });
+    finisher.join().expect("the rename");
+    assert_eq!(looked, Some(commit), "a batch that finished during the look was reported as nothing known");
+}

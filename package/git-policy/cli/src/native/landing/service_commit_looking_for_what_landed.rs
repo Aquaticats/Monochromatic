@@ -76,12 +76,19 @@ pub(crate) fn looking_for_what_landed(look: LookForWhatLanded<'_>) -> Option<Str
     let journal: &Path = look.journal?;
     let began: Instant = Instant::now();
     loop {
+        // What: The open batches are listed first and the finished ones after.
+        // Why:  A batch is finished by renaming its record, and a look that listed the finished ones first could find the
+        //       record in neither listing: it was still `intent` when the finished folder was read and already `done` when
+        //       the open folder was read, so the look said nothing was known about a commit that had landed
+        //       (the review of `04b80a66cb`, half one B, finding 5a). This order also keeps the window as narrow as the
+        //       open listing, whatever the finished one costs (finding 5b).
+        let open: Option<(Intent, String)> = an_open_batch_making(journal, look.id);
         // A finished batch names the commit each of its requests became, and it is written only once the branch moved.
         if let Some(commit) = a_finished_batch_made(journal, look.id, began + look.wait) {
             return Some(commit);
         }
         // An open batch names the commit it is making; the branch says whether it is made.
-        match an_open_batch_making(journal, look.id) {
+        match open {
             Some((intent, commit)) => {
                 if what_the_branch_shows(look.context, look.cwd, &intent.reference, commit.as_str()) == WhatTheBranchShows::Made {
                     return Some(commit);
