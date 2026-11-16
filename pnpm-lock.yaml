@@ -4344,6 +4344,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 1.5.2(zod@4.6.7)
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/env-local-json-core':
         specifier: workspace:*
         version: link:../../env-local-json/core

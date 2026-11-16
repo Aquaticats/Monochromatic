@@ -2,10 +2,15 @@
  What this machine's user manager is, as far as a start can tell: whether it answers the question the start's own unit depends on,
  and which folder its socket lives in.
 
- Why one question decides: a run's driver only ever runs as a unit of the user manager, so a machine whose manager does not answer
- cannot start a run at all, and a start that made a worktree and ran the branch's install scripts before finding that out would have
- spent the launcher's access on work that cannot be used. The same question is what tells a confined install from an unconfined one,
- and asking it this way means the answer is about the same client the unit start uses, not about a folder that happens to be there.
+ Why the question is a unit of its own: a run's driver only ever runs as a unit of the user manager, so a machine whose manager
+ cannot start a unit cannot start a run, and a start that made a worktree and ran the branch's install scripts before finding that
+ out would have spent the launcher's access on work that cannot be used. The question is the very call the start makes a moment
+ later, one unit earlier: `systemd-run --user --wait --collect --quiet --unit=<name> /bin/true`.
+
+ Why not `systemctl --user show`: the two clients are not the same. A launcher whose `XDG_RUNTIME_DIR` holds no manager socket but
+ whose `DBUS_SESSION_BUS_ADDRESS` names the session bus starts units with `systemd-run --user`, while `systemctl --user` fails there
+ (measured on systemd 262), so a start asked that way refuses where its own unit would have started. Asking with `systemd-run`
+ fails only where the start fails.
 
  A manager that misses one answer is not a missing manager, so the question is asked twice.
 
@@ -34,6 +39,8 @@ export const MANAGER_ANSWER_MILLISECONDS: number = 10 * MILLISECONDS_PER_SECOND;
  Two, not one: the question decides whether a run can start at all, and a manager that missed one answer on a loaded machine is not a
  missing manager.
  */
+const MANAGER_ANSWERS_ASKED: number = 2;
+
 /**
  Where the manager keeps its own socket under the runtime directory of the user.
  */
@@ -55,54 +62,62 @@ export type ManagerAnswer = {
 };
 
 /**
- Asks the manager whether it is there, once.
+ Asks the manager whether it is there, once, by making the very call a start makes a moment later.
 
  @param run - how one command is run
 
  @param folder - the folder the question is asked in
 
+ @param runName - the run's name, which names the question's own unit
+
  @returns whether it answered, and what it answered or said
 
  @example
  ```ts
- const answer = await oneManagerAnswer({ run: runCommandWithChildProcess, folder: '/repo', });
+ const answer = await oneManagerAnswer({ run: runCommandWithChildProcess, folder: '/repo', runName: 'copy-route', });
  ```
  */
 async function oneManagerAnswer({
   run,
   folder,
+  runName,
 }: {
   readonly run: RunCommand;
   readonly folder: string;
+  readonly runName: string;
 },): Promise<ManagerAnswer> {
   /**
-   What the manager said about itself this time.
+   What the manager said when asked for a unit of its own, with caps of the smallest size a unit can have.
    */
   const answered = await run({
-    command: 'systemctl',
+    command: 'systemd-run',
     words: [
       '--user',
-      'show',
-      '--property=Version',
-      '--value',
+      '--wait',
+      '--collect',
+      '--quiet',
+      // Named after the run and never with the `pi-` prefix another name would get: the slot count on this machine reads every
+      // `pi-*` unit as a run, and a question must not be counted as one.
+      `--unit=${runName}-manager-check`,
+      '--property=RuntimeMaxSec=30',
+      '--property=MemoryMax=64M',
+      '--property=CPUQuota=10%',
+      '--property=TasksMax=16',
+      '--property=IOWeight=1',
+      '/bin/true',
     ],
     folder,
     timeoutMilliseconds: MANAGER_ANSWER_MILLISECONDS,
   },);
-  /**
-   What this answer amounts to: the version it named, or the status and words that came instead.
-   */
-  const version = answered.stdout
-    .trim();
-  if ((answered.status === 0) && (version !== '')) {
+  if (answered.status === 0) {
     return {
       answered: true,
-      answer: version,
+      answer: 'a unit of its own started',
     };
   }
   return {
     answered: false,
-    answer: `status ${String(answered.status,)} ${JSON.stringify(`${answered.stdout}${answered.stderr}${answered.problem ?? ''}`.trim(),)}`,
+    answer: `${((answered.killedByItsOwnBound === true) ? `it did not answer inside its own ${String(MANAGER_ANSWER_MILLISECONDS,)} ms bound` : 'it refused')}: status ${String(answered.status,)} ${JSON.stringify(`${answered.stdout}${answered.stderr}${answered.problem ?? ''}`.trim(),)}`,
   };
 }
 
@@ -113,16 +128,19 @@ async function oneManagerAnswer({
 
  @param folder - the folder the question is asked in, which exists whether a manager does or not
 
+ @param runName - the run's name, which names the question's own unit
+
  @returns whether it answered, and what it answered or said
 
  @example
  ```ts
- const answers = await managerAnswerOf({ run: runCommandWithChildProcess, folder: '/repo', });
+ const answers = await managerAnswerOf({ run: runCommandWithChildProcess, folder: '/repo', runName: 'copy-route', });
  ```
  */
 export async function managerAnswerOf({
   run,
   folder,
+  runName,
 }: {
   /**
    How one command is run.
@@ -133,6 +151,11 @@ export async function managerAnswerOf({
    The folder the question is asked in.
    */
   readonly folder: string;
+
+  /**
+   The run's name, which names the question's own unit.
+   */
+  readonly runName: string;
 },): Promise<ManagerAnswer> {
   /**
    What the manager said the first time.
@@ -140,16 +163,18 @@ export async function managerAnswerOf({
   const first = await oneManagerAnswer({
     run,
     folder,
+    runName,
   },);
   if (first.answered) {
     return first;
   }
   /**
-   What it said when it was asked again, which a manager that missed one answer on a loaded machine is worth.
+   What it said when asked again, which a manager that missed one answer on a loaded machine is worth.
    */
   const second = await oneManagerAnswer({
     run,
     folder,
+    runName,
   },);
   if (second.answered) {
     return second;
@@ -177,6 +202,7 @@ export async function managerAnswerOf({
 export async function managerProblemIn({
   run,
   folder,
+  runName,
 }: {
   /**
    How one command is run.
@@ -187,6 +213,11 @@ export async function managerProblemIn({
    The folder the question is asked in.
    */
   readonly folder: string;
+
+  /**
+   The run's name, which names the question's own unit.
+   */
+  readonly runName: string;
 },): Promise<{ readonly problem?: string }> {
   /**
    What the manager answered.
@@ -194,11 +225,12 @@ export async function managerProblemIn({
   const manager = await managerAnswerOf({
     run,
     folder,
+    runName,
   },);
   if (manager.answered) {
     return {};
   }
-  return { problem: `no user manager answered \`systemctl --user show --property=Version\` (${manager.answer}), and a run's driver only ever runs as a unit of this machine's user manager, so no run can be started here. Nothing was made and no run happened: install a user manager, or start the run on a machine that has one, and start it again.` };
+  return { problem: `no user manager started a unit of its own when this start asked (${manager.answer}), and a run's driver only ever runs as a unit of this machine's user manager, so no run can be started here. Nothing was made and no run happened: install a user manager, or start the run on a machine that has one, and start it again.` };
 }
 
 /**

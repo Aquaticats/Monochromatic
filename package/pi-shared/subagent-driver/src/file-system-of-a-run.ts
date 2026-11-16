@@ -77,8 +77,14 @@ export const CANONICAL_PATH_MILLISECONDS: number = 30_000;
 export type RealPathOf = (path: string) => Promise<string>;
 
 /**
- The entries of a shared Git directory that a run never needs to write: the checkout's own `HEAD` and index, its configuration, its
- hooks, its `info` folder, and the Git directory of every other worktree.
+ The entries of a shared Git directory that a run never needs to write: the checkout's own `HEAD` and index, the per-worktree
+ configuration, its hooks, its `info` folder, and the Git directory of every other worktree.
+
+ Why `config` is not one of them: `git push -u`, `git branch --set-upstream-to` and `git switch -c x origin/y` record the upstream in
+ the shared configuration and are ordinary work, and with that file read-only they printed their error and ended zero having
+ recorded nothing, which is the worst of the three outcomes. A run can therefore write its repository's configuration, and a later Git
+ command in that repository could run a program the configuration names; the page states that. The `HEAD`, the index and the hooks
+ stay read-only, so a configuration that names a hook finds no hook to run there.
 
  Why they are named apart from the Git directory a run does write: a run's commit needs its own worktree's state, new objects, and
  its branch's ref, and it asks Git to write those; it does not need to retarget the checkout, replace its index, plant a hook that a
@@ -87,10 +93,9 @@ export type RealPathOf = (path: string) => Promise<string>;
  writable one wins. This is the list of names, each taken as `-` so that a name a repository does not have is skipped rather than
  stopping the unit.
  */
-const ENTRIES_A_RUN_NEVER_WRITES: readonly string[] = [
+export const ENTRIES_A_RUN_NEVER_WRITES: readonly string[] = [
   'HEAD',
   'index',
-  'config',
   'config.worktree',
   'hooks',
   'info',

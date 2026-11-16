@@ -31,6 +31,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   DEPENDENCIES_CLIENT_SECONDS,
   DEPENDENCIES_RECORD_NAME,
+  dependenciesUnitNameOf,
   DEPENDENCIES_UNIT_SECONDS,
   type CommandOutput,
   fileSystemOfARun,
@@ -514,10 +515,14 @@ await describe({
             },);
             expect(linked.confined,).toBe(true,);
             /**
-             The request that started the unit.
+             The request that started the dependency unit, which is the systemd-run ask that names it: the question about the
+             manager is a systemd-run ask of its own and carries no wait for the install.
              */
             const unitRequest = asked.find(function startsTheUnit(request,) {
-              return request.command === 'systemd-run';
+              return (request.command === 'systemd-run')
+                && request.words.some(function namesTheUnit(word,) {
+                  return word === `--unit=${dependenciesUnitNameOf({ runName: 'probe-bounds', },)}`;
+                },);
             },);
             expect(unitRequest,).toBeDefined();
             // The unit may run for its own bound, so the client that waits for it must outlive that bound: a shorter default
@@ -562,6 +567,7 @@ await describe({
                     if (request.command === 'bash') {
                       return { status: 0, stdout: '/bin/mise\n', stderr: '', };
                     }
+                    // Every question the step asks is a unit of its own, and this machine's manager starts none of them.
                     return { status: 1, stdout: '', stderr: 'a manager that did not answer', };
                   },
                 },);
@@ -572,14 +578,12 @@ await describe({
              What the refusal says, which names what was asked and both answers.
              */
             const words = (refused.error as Error).message;
-            expect(words,).toContain('systemctl --user show --property=Version',);
+            expect(words,).toContain('no user manager started a unit of its own',);
             expect(words,).toContain('a manager that did not answer',);
-            expect(words,).toContain('asked 1: status 1',);
-            expect(words,).toContain('asked 2: status 1',);
+            expect(words,).toContain('asked 1: it refused: status 1',);
+            expect(words,).toContain('asked 2: it refused: status 1',);
             // Asked twice, because a manager that missed one answer is not a missing manager.
-            expect(asked.filter(function isTheQuestion(command,) {
-              return command === 'systemctl';
-            },).length,).toBe(2,);
+            expect(asked.length,).toBe(3,);
             // The install never ran, and no record was written: nothing happened for a run that cannot start.
             expect(asked,).not.toContain('/bin/mise',);
             expect(await isThere({ path: join(runFolder, DEPENDENCIES_RECORD_NAME,), },),).toBe(false,);

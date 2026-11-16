@@ -10,14 +10,11 @@
  The unit is named `<run name>-dependencies`, never `pi-*`: the slot count reads every `pi-*` unit as a run. It ends by itself, and
  the manager collects it.
 
- Where this machine has no user manager at all, the install still happens: it runs with the launcher's own access, the answer says
- so, and the run's own folder records it, so a reader of the run knows what protection it lacked and why. No step here depends on
- a manager being there.
-
- A machine that *has* a manager and did not answer is another case, and it is refused rather than degraded: the socket says the
- manager is there, so an install that could not be confined to the worktree would be a fault silently spent, and the branch's own
- lifecycle scripts would run with the launcher's access. The question is asked twice before that, because a manager that missed one
- answer on a loaded machine is not a missing manager.
+ Where this machine's manager does not start a unit of its own, the install is refused rather than run with the launcher's access: a
+ run's driver only ever runs as a unit of that manager, so a start that could not be confined could not become a run either, and the
+ branch's own lifecycle scripts would have run with the launcher's access to no end. The question is asked twice before that, because
+ a manager that missed one answer on a loaded machine is not a missing manager, and it is the very call the unit start makes
+ (`the-user-manager-this-machine-has.ts`).
 
  @module
  */
@@ -243,10 +240,11 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
   const manager = await managerAnswerOf({
     run: request.run,
     folder: request.worktree,
+    runName: request.runName,
   },);
   if (!manager.answered) {
     throw new StartRefusedError(
-      `${request.runName} was not started: no user manager answered \`systemctl --user show --property=Version\` (${manager.answer}), and a run's driver only ever runs as a unit of this machine's user manager. The install was not run, because it could only have run with this launcher's access. Install a user manager, or start the run on a machine that has one, and start it again.`,
+      `${request.runName} was not started: no user manager started a unit of its own when this start asked (${manager.answer}), and a run's driver only ever runs as a unit of this machine's user manager. The install was not run, because it could only have run with this launcher's access. Install a user manager, or start the run on a machine that has one, and start it again.`,
     );
   }
   /**
@@ -339,11 +337,6 @@ export type DependenciesOutcome = {
    */
   readonly status: number;
 
-  /**
-   What the run lacked where no manager answered, which the launcher prints after the status, and nothing when a unit confined
-   the install.
-   */
-  readonly note?: string;
 };
 
 /**

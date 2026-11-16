@@ -266,6 +266,56 @@ async function launch({
   }
 }
 
+/**
+ Says that a refused start asked for no unit of the run's own name and no dependency unit, while the question about the manager, which
+ is a unit of its own, may have been asked.
+
+ Why not "no unit at all": the question a start asks the manager is itself a unit, and a test that demanded silence there would fail
+ for the right reason on the wrong subject.
+
+ @param marker - the file the stand-in `systemd-run` records every call in
+
+ @param runName - the run's name, which names the unit a start must not ask for
+
+ @example
+ ```ts
+ await expectNoUnitOfTheRun({ marker: unitMarker, runName: 'refused', });
+ ```
+ */
+async function expectNoUnitOfTheRun({
+  marker,
+  runName,
+}: {
+  readonly marker: string;
+  readonly runName: string;
+},): Promise<void> {
+  /**
+   What the launcher asked the manager for, or nothing when it asked for nothing.
+   */
+  let asked = '';
+  try {
+    asked = await readFile(marker, 'utf8',);
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+    return;
+  }
+  /**
+   The calls that name a unit.
+   */
+  const units = asked.split('\n',)
+    .filter(function namesAUnit(line,) {
+      return line.includes('--unit=',);
+    },);
+  for (const line of units) {
+    expect(line,).toContain('-manager-check',);
+  }
+  expect(asked,).not.toContain(`--unit=${runName}.service`,);
+  expect(asked,).not.toContain(`--unit=${runName}-dependencies`,);
+}
+
 await describe({
   name: 'start-pi-run-in-a-worktree',
   children: [
@@ -406,7 +456,7 @@ await describe({
         expect(await logIn(launcherGitLog,),).not.toContain('rev-parse --verify',);
         expect(ended.stdout,).not.toContain('dependencies:',);
         expect((await logIn(miseLog,)).trim(),).toBe('exec -- printenv PATH',);
-        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+        await expectNoUnitOfTheRun({ marker: unitMarker, runName: 'refused', },);
         await expect(readdir(runs,),).resolves.toEqual([],);
       },
     },),
@@ -550,7 +600,7 @@ await describe({
         expect(ended.stderr,).toContain('the base main names no commit',);
         expect(await logIn(sessionGitLog,),).toContain(`${WRAPPER_COMMAND} --help`,);
         expect(await logIn(launcherGitLog,),).toContain('rev-parse --verify --quiet main^{commit}',);
-        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+        await expectNoUnitOfTheRun({ marker: unitMarker, runName: 'refused', },);
         await expect(readdir(runs,),).resolves.toEqual([],);
       },
     },),
@@ -696,7 +746,7 @@ await describe({
         expect(ended.stderr,).toContain(SUMMARY_FILE_NAME,);
         expect(ended.stderr,).toContain('--run=<number>',);
         expect(ended.stdout,).not.toContain('dependencies:',);
-        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+        await expectNoUnitOfTheRun({ marker: unitMarker, runName: 'refused', },);
         expect(await readdir(runFolder,),).toEqual([SUMMARY_FILE_NAME,],);
         expect(await readFile(
           join(
@@ -848,7 +898,7 @@ await describe({
         expect(ended.stderr,).toContain(runFolder,);
         expect(ended.stderr,).toContain('stderr.log',);
         expect(ended.stdout,).not.toContain('dependencies:',);
-        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+        await expectNoUnitOfTheRun({ marker: unitMarker, runName: 'refused', },);
         expect(await readdir(runFolder,),).toEqual(['stderr.log',],);
         expect(await readFile(
           join(
@@ -944,7 +994,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `for word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' '{"endReason":"pi-exited","piExit":{"code":1}}' > "$runFolder/summary.json"\nprintf '%s\\n' '${EXTENSION_ERROR}' '    at loadOne (file:///repo/a.ts:12:9)' '${PI_ADVICE}' > "$runFolder/stderr.log"\nprintf '%s\\n' 'Finished with result: exit-code' 'Memory peak: 12.0M'\nexit 1\n`,
+          body: `case "$*" in\n  *-manager-check*)\n    exit 0 ;;\nesac\nfor word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' '{"endReason":"pi-exited","piExit":{"code":1}}' > "$runFolder/summary.json"\nprintf '%s\\n' '${EXTENSION_ERROR}' '    at loadOne (file:///repo/a.ts:12:9)' '${PI_ADVICE}' > "$runFolder/stderr.log"\nprintf '%s\\n' 'Finished with result: exit-code' 'Memory peak: 12.0M'\nexit 1\n`,
         },);
         /**
          The git the session would find, which answers the policy namespace help as the wrapper does.

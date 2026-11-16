@@ -8,6 +8,7 @@
 
 export {
   ACanonicalPathThatDidNotAnswerError,
+  ENTRIES_A_RUN_NEVER_WRITES,
   AGitFolderThatIsNotThereError,
   CANONICAL_PATH_MILLISECONDS,
   type FileSystemOfARun,

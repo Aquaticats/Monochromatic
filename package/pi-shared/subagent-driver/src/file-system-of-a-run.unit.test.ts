@@ -32,6 +32,7 @@ import {
   GitFoldersUnreadableError,
   WorktreeGoneError,
   ACanonicalPathThatDidNotAnswerError,
+  ENTRIES_A_RUN_NEVER_WRITES,
   fileSystemOfARun,
   fileSystemPropertiesOf,
   foldersAToolMakesIn,
@@ -349,7 +350,7 @@ function readOnlyFoldersOf({
 },): readonly string[] {
   return [
     checkoutFolder,
-    ...['HEAD', 'index', 'config', 'config.worktree', 'hooks', 'info', 'worktrees',].map(function inside(entry,) {
+    ...ENTRIES_A_RUN_NEVER_WRITES.map(function inside(entry,) {
       return `-${join(commonDirectory, entry,)}`;
     },),
   ];
@@ -686,7 +687,7 @@ await describe({
             },);
             expect(fileSystemPropertiesOf(fileSystem,),).toEqual([
               `--property=ReadOnlyPaths="${made.checkoutFolder}"`,
-              ...['HEAD', 'index', 'config', 'config.worktree', 'hooks', 'info', 'worktrees',].map(function inside(entry,) {
+              ...ENTRIES_A_RUN_NEVER_WRITES.map(function inside(entry,) {
                 return `--property=ReadOnlyPaths=-"${join(made.commonDirectory, entry,)}"`;
               },),
               `--property=ReadWritePaths="${worktree}"`,

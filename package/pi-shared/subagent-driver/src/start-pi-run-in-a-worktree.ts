@@ -21,7 +21,7 @@ import {
   env,
 } from 'node:process';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
-import { linkDependenciesOrRefuse, } from './dependencies-linked-in-a-unit.ts';
+import { workUntilTheUnitIsAsked, } from './work-until-the-unit-is-asked.ts';
 import {
   StartRefusedError,
   startRefusalsIn,
@@ -263,41 +263,25 @@ await mkdir(
 );
 
 /**
- What the run's unit may and may not write, read once the worktree Git made is there: the checkout stays read-only around the
- run's worktree, the Git directories its commits write, the folder this repository's tools install themselves into (which the
- start's checks made before this), and the run's own folder.
+ What the run's unit may and may not write, read once the worktree Git made is there, and the branch's own dependency install. A
+ refusal here leaves the worktree and this run folder, so it is recorded in the run's own folder before it is thrown.
  */
-const fileSystem = await fileSystemOfARun({
-  git,
+const fileSystem = await workUntilTheUnitIsAsked({
+  runName: options.name,
   checkoutFolder: options.checkoutFolder,
   worktree,
   runFolder,
-  worksInTheCheckoutItself: readOnlyInMain,
+  branch: options.branch,
+  readOnlyInMain,
+  git,
+  cpuPercent: options.cpuPercent,
+  memory: options.memory,
+  taskCount: options.taskCount,
+  sessionPath,
+  home: env.HOME ?? '',
+  run: runCommandWithChildProcess,
+  report: console.log,
 },);
-
-if (!readOnlyInMain) {
-  // The branch's own install scripts run here, so they run inside a unit with this same read-only checkout: a `postinstall` that
-  // writes the checkout is refused by the operating system rather than done with the launcher's access. Where no manager answers
-  // the install still happens with the launcher's access, the note says what protection it lacked, and an install that failed
-  // refuses the start rather than spending a run on a half-installed tree.
-  /**
-   What linking the worktree's dependencies answered, and what to say about it.
-   */
-  const linked = await linkDependenciesOrRefuse({
-    runName: options.name,
-    checkoutFolder: options.checkoutFolder,
-    worktree,
-    runFolder,
-    fileSystem,
-    cpuPercent: options.cpuPercent,
-    memory: options.memory,
-    taskCount: options.taskCount,
-    pathOfMiseEnvironment: sessionPath,
-    home: env.HOME ?? '',
-    run: runCommandWithChildProcess,
-  },);
-  console.log(`dependencies: status ${String(linked.status,)}${((linked.note === undefined) ? '' : `; ${linked.note}`)}`,);
-}
 
 /**
  How many model turns the run may start.

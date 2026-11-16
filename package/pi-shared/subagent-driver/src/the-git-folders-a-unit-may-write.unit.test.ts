@@ -27,6 +27,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  ENTRIES_A_RUN_NEVER_WRITES,
   GitFolderAboveTheCheckoutError,
   fileSystemOfARun,
   fileSystemPropertiesOf,
@@ -309,7 +310,7 @@ async function expectWhatTheUnitMayWrite({
   expect(theCheckoutItself.length,).toBe(([answers.gitDirectory, answers.commonDirectory,].includes(checkoutFolder)) ? 0 : 1,);
   for (const readOnly of fileSystem.foldersAUnitCannotWrite) {
     expect([answers.gitDirectory, answers.commonDirectory,],).not.toContain(readOnly,);
-    expect(['HEAD', 'index', 'config', 'config.worktree', 'hooks', 'info', 'worktrees',].map(function joined(entry,) {
+    expect(ENTRIES_A_RUN_NEVER_WRITES.map(function joined(entry,) {
       return `-${join(answers.commonDirectory, entry,)}`;
     },).includes(readOnly,) || (readOnly === checkoutFolder),).toBe(true,);
   }
