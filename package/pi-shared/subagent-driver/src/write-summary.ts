@@ -10,7 +10,7 @@
 
 import {
   link,
-  unlink,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -120,7 +120,11 @@ export async function writeSummary({
    */
   await using theUnfinishedFile = {
     async [Symbol.asyncDispose](): Promise<void> {
-      await unlink(unfinishedFile,);
+      // Forced, so a removal that finds no file cannot take the place of the failure that kept this function from publishing.
+      await rm(
+        unfinishedFile,
+        { force: true, },
+      );
     },
   };
   await writeFile(
