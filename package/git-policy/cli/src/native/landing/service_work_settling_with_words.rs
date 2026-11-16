@@ -116,7 +116,7 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
         }
         Verdict::Skipped(reason) => {
             match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
+                "trash" => crate::service_log!("the trash {} was left as it is: {reason}", item.item.parent),
                 "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
                 "relink" => crate::service_log!("the package state of {} was left as it is: {reason}", item.item.repository.display()),
                 "subvolume delete" => crate::service_log!("the subvolume {} was left as it is: {reason}", item.item.parent),
@@ -204,11 +204,11 @@ fn forget_the_reason(kind: &str, item: &Claimed) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// sayItFailed(kind, item, reason) // the trash's line goes to standard error, the rest to the journal
+/// sayItFailed(kind, item, reason) // every line goes to the service's log, through the queue that never holds its caller
 /// ```
 fn say_it_failed(kind: &str, item: &Claimed, reason: &str) {
     match kind {
-        "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
+        "trash" => crate::service_warn!("the trash {} could not be emptied: {reason}", item.item.parent),
         "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
         "relink" => crate::service_warn!("the package state of {} could not be relinked: {reason}", item.item.repository.display()),
         "subvolume delete" => crate::service_warn!("the subvolume {} could not be deleted: {reason}", item.item.parent),

@@ -273,6 +273,13 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the writer of the notice stream, which a reader must never hold",
     },
     Allowed {
+        file: "foundation/diagnostic_lines_off_the_calling_thread.rs",
+        rule: "thread-start",
+        why: "the writer of the diagnostic lines, which a reader must never hold: the wait belongs to a thread because the \
+              line is said wherever the code reaches it, and the process waits for it once and bounded at its end; \
+              a bounded write without a thread removes it",
+    },
+    Allowed {
         file: "foundation/scoped_start.rs",
         rule: "thread-start",
         why: "the helper that starts a thread and runs the work in turn where no thread can start; this is the one thread the runtime step replaces last",

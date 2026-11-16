@@ -2,12 +2,20 @@
 
 /// Target discovery across named app-slice services and executable-owned processes.
 use crate::application_targets::{scan_application_targets, ScanRoots};
+/// Which marks stay attached after one scan,
+/// and what to say about a name that holds no program of its application.
+use crate::application_marks::{decide_marks, reports_that_still_apply};
 /// Process events and the update traffic policy.
 use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
-/// The one-time sweep of the scopes of the earlier design.
-use crate::leftover_sweep::{spawn_sweep, SweepSetup};
+/// The one-time sweep of the scopes of the earlier design,
+/// and the pass over the origin scopes that must run before the first adoption.
+use crate::leftover_sweep::{describe_sweep, spawn_sweep, SweepSetup};
+/// The pass over the origin scopes that must run before the first adoption.
+use crate::origin_scope_sweep::stop_empty_origin_scopes_now;
+/// The guard of the manager's bus name.
+use crate::impostor_guard;
 /// Non-panicking bounded log.
 use crate::log_line::{log_line, sanitize};
 /// Shutdown signal descriptors.
@@ -20,17 +28,20 @@ use crate::update_routing::UpdateRouting;
 use crate::update_report::{describe_outcome, policy_failure, Outcome, POLICY_PROCESS_WATCH};
 /// Timing of the process scan.
 use std::time::{Duration, Instant};
+/// Cgroup paths of the marks the watcher holds.
+use std::path::PathBuf;
 /// The directory notification and the marker links retained for each target.
 #[path = "watch_support.rs"]
 mod watch_support;
 /// The items of that module the watcher uses.
-use watch_support::{attach_target, attachment_directory_exists, create_inotify, drain_inotify, is_attached, ActiveAttachment};
+use watch_support::{attach_target, create_inotify, drain_inotify, is_attached, ActiveAttachment};
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
 use std::os::fd::{AsRawFd, OwnedFd};
 
 /// Who the failure reporter notifies.
+#[derive(Clone, Copy)]
 pub struct ReporterIdentity {
     /// User id of the watched user.
     pub uid: u32,
@@ -63,9 +74,20 @@ pub struct ApplicationWatch<'a> {
     rescan_pending: bool,
     /// Delivers failures after startup to a person.
     reporter: RuntimeReporter,
+    /// Who the reporter notifies,
+    /// which the guard of the manager's bus name also runs as.
+    identity: ReporterIdentity,
     /// The sweep of the scopes of the earlier design,
     /// started once when the watcher runs and absent in tests.
     sweep: Option<SweepSetup>,
+    /// Cgroups a desktop application's name selected that held no program of that application,
+    /// as last reported,
+    /// so a rescan every quarter second does not repeat the same line for ever.
+    reported_without_application: Vec<PathBuf>,
+    /// The guard of the manager's bus name this watcher started,
+    /// held so the guard ends when the watcher does:
+    /// dropping the handle closes the guard's standard input.
+    guard: Option<impostor_guard::GuardHandle>,
 }
 
 /// Time between full process scans,
@@ -90,17 +112,44 @@ pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
     return since_last_scan >= FULL_SCAN_INTERVAL || (overrun_pending && since_last_scan >= OVERRUN_RESCAN_SPACING);
 }
 
-/// Reconciles discovered targets and retains attached cgroups until directory removal.
+/// Reconciles discovered targets,
+/// and keeps a mark attached only while the scan still selects its cgroup.
+///
+/// A name-selected cgroup that holds no program of the application the name claims is not marked,
+/// and the watcher says so once for each such cgroup,
+/// because an application whose program the scan cannot recognize would otherwise lose its exemption in silence.
+/// The marks the watcher holds are also what the process watch treats as covered,
+/// so the two can never disagree about which cgroup carries the mark.
 fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
-    watch.active.retain(attachment_directory_exists);
-    let targets = scan_application_targets(&watch.roots)?;
-    for target in targets {
-        if is_attached(&watch.active, &target) {
+    let scan = scan_application_targets(&watch.roots)?;
+    // The cgroups whose mark the watcher holds now,
+    // and which of them stay after this scan reported what it found.
+    let attached: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
+    let decision = decide_marks(&attached, &scan, &watch.reported_without_application);
+    // A released mark is detached by dropping its links,
+    // which is what the kernel unregisters the hooks with.
+    watch.active.retain(|attachment| return decision.keep.contains(&attachment.path));
+    watch.reported_without_application = reports_that_still_apply(&watch.reported_without_application, &scan);
+    for target in &scan.targets {
+        if is_attached(&watch.active, target) {
             continue;
         }
-        if let Some(attachment) = attach_target(&target, watch.mark)? {
+        if let Some(attachment) = attach_target(target, watch.mark)? {
             watch.active.push(attachment);
         }
+    }
+    // The cgroup paths of the marks the watcher holds.
+    let marked: Vec<PathBuf> = watch.active.iter().map(|attachment| return attachment.path.clone()).collect();
+    watch.routing.note_marked(&marked);
+    for cgroup in decision.report {
+        watch.reported_without_application.push(cgroup.clone());
+        watch.reporter.report_failure(
+            "application unit without its program",
+            &format!(
+                "wg-quicker-exempt: POLICY NOT IN FORCE for {:?}: its name claims a desktop application, and no process in it runs that application's program, so the socket mark is not attached to it and the traffic of every process in it stays in the tunnel. A program of the application may be spelled in a way this build does not know, and `list-targets` shows the cgroups it does mark",
+                cgroup.display(),
+            ),
+        );
     }
     return Ok(());
 }
@@ -127,6 +176,15 @@ pub fn prepare_application_watch(
     if let Err(error) = routing.ensure_slice(roots.app_slice) {
         log_line(&policy_failure(&format!("the updates slice cannot be created: {error}")));
     }
+    // The origin scopes are stopped before anything is adopted:
+    // a process joining one is a process this watcher just moved there,
+    // and a stop ends every process in the scope it stops.
+    // The sweep of the earlier design's scopes runs on its own thread, after this.
+    if let Some(setup) = sweep.as_ref()
+        && let Some(line) = describe_sweep(&stop_empty_origin_scopes_now(setup))
+    {
+        log_line(&line);
+    }
     if !routing.pid_namespace_known() {
         log_line(&policy_failure(
             "the watcher cannot read its own pid namespace, so a process in a container or a sandbox cannot be told apart and is treated like any other",
@@ -152,7 +210,10 @@ pub fn prepare_application_watch(
         last_full_scan: Instant::now(),
         rescan_pending: false,
         reporter,
+        identity,
         sweep,
+        reported_without_application: Vec::new(),
+        guard: None,
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
@@ -255,7 +316,28 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
     if let Some(setup) = watch.sweep.take() {
         spawn_sweep(setup);
     }
+    // So does the guard of the manager's bus name,
+    // which keeps a process that is not the user's manager from answering every `systemctl --user` call on the machine.
+    let identity = watch.identity;
+    match impostor_guard::spawn(identity.uid, identity.gid) {
+        Ok(guard) => {
+            log_line(&format!("wg-quicker-exempt: guarding {} on the user's session bus", impostor_guard::MANAGER_BUS_NAME));
+            // Held by the watch until the watcher ends, and closed with the process if it is killed:
+            // the guard ends when its input closes, so no guard outlives its watcher.
+            watch.guard = Some(guard);
+        }
+        Err(error) => {
+            watch.reporter.report_failure(
+                "impostor manager",
+                &format!(
+                    "wg-quicker-exempt: {}: the guard could not start ({error}), so a process that takes the manager's bus name would answer every `systemctl --user` call on this machine for as long as it runs; the policy's own calls go over the manager's private socket and are not affected",
+                    impostor_guard::LOUD_MARKER
+                ),
+            );
+        }
+    }
     let result = poll_until_stopped(watch);
+    watch.guard = None;
     stop_process_events(watch);
     if let Err(error) = &result {
         watch.reporter.report_failure(
