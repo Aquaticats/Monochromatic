@@ -52,6 +52,7 @@ use crate::subvolume_index::{StoredStat, be32, walk_entries};
 use crate::subvolume_index_files::repository_hash_length;
 use crate::transaction_git::GitContext;
 use crate::worktree_clean_untracked_scan::{scan_for_untracked_file, scan_for_untracked_file_awaiting};
+use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -265,6 +266,34 @@ pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Re
         Ok(source) => Ok(source),
         Err(refusal) => Err(refusal.reason),
     };
+}
+
+/// What:
+///  The cleanliness proof that settles every entry its stat data cannot vouch for by reading the file,
+///  and scans for an untracked file as `check_clean` does.
+/// Why:
+///   A worktree added a moment ago holds files whose whole-second times are the index's,
+/// and by Git's own racy
+///  rule that proves nothing either way;
+/// Git settles such an entry by comparing the file with the commit,
+/// and so does
+///  this proof,
+/// which is the one the conversion path already trusts.
+/// The untracked scan is the same one `check_clean` makes,
+/// so
+///  a tree this proves clean is exactly a tree that check would prove clean could it settle the stat data,
+/// and the
+///  volumes a removal goes around sit in untracked directories the scan does not read inside.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkCleanByContent({ context, root, gitDir, commonDir }): Promise<CleanSource>;
+/// ```
+pub fn check_clean_by_content(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+    let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    let platform: crate::subvolume_platform::LinuxPlatform = crate::subvolume_platform::LinuxPlatform::forwarding_to(variables.as_slice(), Some(context.real_git.as_path()));
+    let environment: ConversionEnvironment = crate::subvolume_platform::Platform::conversion_environment(&platform);
+    return the_clean_verdict((check_tracked(root, git_dir, common_dir, Some(&environment), false), scan_for_untracked_file((context, root))));
 }
 
 /// What:

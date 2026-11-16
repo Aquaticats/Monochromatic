@@ -70,6 +70,22 @@ Each rule is the project's own requirement.
   and every `systemctl --user` and `systemd-run --user` call in that time went to it.
   A guard now kills any process that takes that name,
   and the run that started it ends with it.
+- Send a signal only to a process your run started,
+  named by a process number your own command got back when it started it.
+  A number taken from `$PPID`,
+  from a parent's record or from a file is not that:
+  a script whose parent has ended belongs to the account's service manager,
+  and `$PPID` then names the manager.
+  A probe that stops or kills "its parent" starts that parent itself and signals the number it was given,
+  or runs in a process namespace of its own
+  (`unshare --user --map-root-user --pid --fork --mount-proc`,
+  where it sees its own processes and no others,
+  or a container).
+  On 2026-11-15 a review's stand-in Git ran `kill -STOP "$PPID"`,
+  the number was the account's service manager,
+  and for three minutes and five seconds the manager took no request:
+  no agent on the machine could start a command in a scope or a unit,
+  until the reviewer found the manager stopped and sent it `SIGCONT`.
 - A fixture's own `HOME` and `XDG_RUNTIME_DIR` do not keep a program off this machine's session bus:
   `DBUS_SESSION_BUS_ADDRESS` is inherited from the run's environment and still names it.
   Unset it,
@@ -80,6 +96,21 @@ Each rule is the project's own requirement.
   had this machine's user manager start two commit service units for throwaway repositories;
   the run noticed,
   stopped and removed them.
+- A program built in a worktree cannot open connections to outside hosts on this machine.
+  Its application firewall (OpenSnitch) refuses a program it has no rule for:
+  each `connect` ends with `ECONNABORTED`,
+  and the firewall keeps a rule that rejects that program's path from then on.
+  `curl`,
+  `node`,
+  `python3`,
+  `cargo` and the installed tools are allowed.
+  So a test or a probe of a built program takes what it needs from disk or from a server the test starts itself,
+  and a report says so where a path through the network was left unrun for this reason.
+  The firewall and its rules are not a run's to change.
+  On 2026-11-13 a freshly built `mpm-shadow` could reach neither crates.io,
+  the npm registry nor go.dev,
+  while `curl` reached the same addresses from the same environment;
+  `/var/log/opensnitchd.log` holds the two rules saved for its debug and release paths.
 - The run has its own Git worktree on its own branch.
   Other agents work in other worktrees,
   and the main checkout holds other sessions' uncommitted changes.
@@ -100,7 +131,14 @@ Each rule is the project's own requirement.
   `printenv`,
   `set`,
   `export -p`,
-  even piped through a filter),
+  `mise env` in any form,
+  `sops --decrypt`,
+  even piped through a filter or `head`),
+  never print a file that holds credentials
+  (`~/.bashrc`,
+  `~/.pi/agent/models.json`,
+  `~/.pi/agent/auth.json`,
+  `.env.local.json` decrypted),
   and never read another process's environment (`/proc/<pid>/environ`,
   `ps e`,
   `ps -E`):
@@ -108,6 +146,48 @@ Each rule is the project's own requirement.
   and everything a command prints is sent to the model provider.
   To learn one variable,
   name it (`printenv CARGO_TARGET_DIR`).
+  That ban stands as before,
+  and a run does not rely on it alone:
+  see the next rule.
+- A run that cannot read a place that holds a credential does not start:
+  a store that is there and cannot be read,
+  a file of Pi's that cannot be read,
+  a start-up file whose credential line the driver cannot read exactly,
+  or an age identity the machine declares and this code cannot read.
+  "Not there" and "could not be read" are told apart by the operating system's own answer alone,
+  so a folder that denies the way is a stop, never "nothing there",
+  and the message names the file and, for a start-up file, the line.
+- A run that resumes a session masks it into a copy first and resumes that copy;
+  the session file it was given is left exactly as it was,
+  which is the stated limit of resuming:
+  the old file keeps whatever it holds,
+  and nothing of it reaches a request.
+  A free-form Pi argument that names or resumes a session is refused,
+  because only the driver's own `--session` is masked before the start.
+- What a run's Pi masks for you
+  (the driver reads these values once, in its own process,
+  and never writes them anywhere):
+  every value the checkout's `.env.local.json` declares,
+  the provider keys of Pi's own `~/.pi/agent/auth.json` and `~/.pi/agent/models.json`,
+  a token the shell start-up files export
+  (`~/.bashrc`, `~/.bash_profile`, `~/.profile`),
+  the age key that decrypts the store,
+  and a credential-named variable of the driver's own environment.
+  They are replaced in each tool result,
+  in every message Pi keeps in its session,
+  in the whole transcript before every model request,
+  in the run's feed,
+  its summary and Pi's standard error,
+  and in the session file once the run is over,
+  by a marker that names where the value came from,
+  as `[masked secret value of MISE_GITHUB_TOKEN]`:
+  seeing that marker means the value you asked for was there and was taken out,
+  so read the name and go on without the value.
+  What is masked is the value alone and its JSON-escaped,
+  percent-encoded and base64 forms;
+  a value inside a message or a file someone encoded some other way
+  is not one of those forms,
+  which is why the ban above is unchanged.
 - Never write to this repository's Git config (`git remote set-url`,
   `git config` outside a throwaway repository):
   the worktree shares it with every other agent and the main checkout.

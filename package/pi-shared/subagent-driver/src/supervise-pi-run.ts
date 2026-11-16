@@ -1,27 +1,20 @@
 /**
- One whole run: starts Pi, sends the prompt, hands the run to the watch, ends Pi, and writes the summary.
+ One whole run: starts Pi, sends the prompt, hands the run to the watch, ends Pi, and writes the summary. The starts themselves,
+ including another start after a Pi that left before it took the prompt, are in `starts-of-a-run.ts`.
 
  @module
  */
 
 import { mkdir, } from 'node:fs/promises';
+import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import {
-  type ConnectionToPi,
-  startConnectionToPi,
-} from './connection-to-pi.ts';
-import {
-  COMMAND_ANSWER_MILLISECONDS,
-  FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
+  NO_RUN_FAILURE,
 } from './driver-constants.ts';
 import {
-  millisecondsLeftUntil,
-} from './deadline.ts';
-import {
   CLEAN_END_REASONS,
-  endReasonOfPromptWait,
   finalEndReason,
 } from './end-reasons.ts';
 import {
@@ -29,32 +22,86 @@ import {
   stripCredentialsFromEnvironment,
 } from './environment-without-credentials.ts';
 import {
+  readSecretValuesOfThisMachine,
+  type SecretValuesOfThisMachine,
+} from './secret-values-of-this-machine.ts';
+import {
+  createSecretValueMasking,
+  MASKING_NOTHING,
+  type SecretValue,
+  type TextMasking,
+} from './secret-value-masking.ts';
+import { maskingExtensionArguments, } from './secret-values-handed-to-pi.ts';
+import {
   DRIVER_USAGE,
   DriverOptionsError,
 } from './parse-driver-options.ts';
 import type {
-  CommandAnswer,
   DriverOptions,
-  EndReason,
-  PiRecord,
   RecordOfPiRun,
-  RunProgress,
   RunSummary,
 } from './driver-types.ts';
-import { preview, } from './previews-of-pi-messages.ts';
-import { putTheRunAway, } from './put-the-run-away.ts';
-import { endReasonOfRun, } from './take-the-first-prompt.ts';
-import { runCommandWithChildProcess, } from './run-command.ts';
-import { workOutlivingTheTurnIn, } from './work-the-run-left-running.ts';
-import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
-  fieldsOf,
-  recordsIn,
-} from './read-pi-fields.ts';
+  type RunPutAway,
+  putTheRunAway,
+} from './put-the-run-away.ts';
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
-import type { WatchRequest, } from './watch-request.ts';
-import { watchUntilEnded, } from './watch-pi-run.ts';
+import { startsOfARun, } from './starts-of-a-run.ts';
+import { endingLineOf, } from './the-line-a-driver-ends-with.ts';
+import {
+  keepsNoSession,
+  refusedFreeFormWords,
+} from './free-form-arguments-of-pi.ts';
+import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
+import {
+  reportedSessionFile,
+  sessionFileToMaskAtRest,
+} from './a-session-file-this-run-may-rewrite.ts';
+import {
+  maskASessionIntoACopy,
+  maskTheSessionAtRest,
+} from './session-file-at-rest.ts';
 import { writeSummary, } from './write-summary.ts';
+
+/**
+
+ Reads the values of this machine's secret environment, closing the run's feed before saying why there is no run when the store
+ cannot be read.
+
+ @param record - the run's feed and counts, which is taken away by this call when the values cannot be read
+
+ @param read - the read itself
+
+ @returns the values
+
+ @throws SecretEnvironmentUnreadableError when the checkout's store is there and cannot be read
+ */
+async function secretValuesOrNoRun({
+  record,
+  read,
+}: {
+  readonly record: RecordOfPiRun;
+  readonly read: () => Promise<SecretValuesOfThisMachine>;
+},): Promise<SecretValuesOfThisMachine> {
+  try {
+    return await read();
+  }
+  catch (error) {
+    await record.close();
+    throw error;
+  }
+}
+
+/**
+ Says why a session file cannot be rewritten now, naming the file a reader has to look at.
+
+ @param path - the session file Pi may still be writing
+
+ @returns the reason, for the summary and the feed
+ */
+function mayStillBeWritten({ path, }: { readonly path: string },): string {
+  return `Pi's leaving could not be confirmed, so the session may still be written under ${path}`;
+}
 
 /**
  A driver started by a Pi that a driver runs.
@@ -77,91 +124,13 @@ export class PiRunEndedEarlyError extends Error {
 }
 
 /**
- Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
-
- @param options - options of this run
-
- @returns the arguments for Pi
- */
-function piCommandLine(options: DriverOptions,): readonly string[] {
-  return [
-    '--mode',
-    'rpc',
-    '--provider',
-    options.provider,
-    '--model',
-    options.model,
-    ...(options.session === undefined ? [] : [
-      '--session',
-      options.session,
-    ]),
-    ...options.piArguments,
-  ];
-}
-
-/**
- Says how many attempts a run made at the model error it ended on, so the reason the driver prints names them.
-
- @param summary - what the caller reads
-
- @returns the attempts, in words, or nothing when the run ended on no model error
- */
-function attemptsOf(summary: RunSummary,): string {
-  if (summary.modelErrorAttempts === undefined) {
-    return '';
-  }
-  /**
-   How many attempts the run made, as text.
-   */
-  const attempts = String(summary.modelErrorAttempts,);
-  return (summary.modelErrorAttempts === 1)
-    ? ' after 1 attempt'
-    : ` after ${attempts} attempts`;
-}
-
-/**
- Says what Pi's own automatic retry reported when it gave up on the model error the run ended with, so the reason the driver
- prints names the layer that answered that error rather than leaving a reader to think nothing tried.
-
- @param summary - what the caller reads
-
- @returns the note, in words, or nothing when Pi reported giving up on nothing
- */
-function piRetryNoteOf(summary: RunSummary,): string {
-  /**
-   What Pi reported when it stopped retrying.
-   */
-  const exhausted = summary.piRetryGaveUp;
-  if (exhausted === undefined) {
-    return '';
-  }
-  /**
-   How many attempts Pi's retry made, as text.
-   */
-  const attempts = String(exhausted.attempts,);
-  return (exhausted.attempts === 1)
-    ? ', and Pi\'s own automatic retry gave up on it after 1 attempt'
-    : `, and Pi's own automatic retry gave up on it after ${attempts} attempts`;
-}
-
-/**
- Says what Pi reported of a compaction, when one kept the run's prompt waiting, so the message names why Pi took nothing rather
- than leaving a reader to guess.
-
- @param summary - what the caller reads
-
- @returns the note, in words, or nothing when no compaction kept the prompt waiting
- */
-function compactionNoteOf(summary: RunSummary,): string {
-  return (summary.compactionProblem === undefined)
-    ? ''
-    : `, because Pi could not put its session in order: ${summary.compactionProblem}`;
-}
-
-/**
  Runs Pi once and writes everything the caller reads afterwards. `summary.json` appears last, so its presence means the driver
  has finished putting the run away. `piExit` is there only when Pi's exit was seen, and `piHasExited` says whether the driver
  could confirm Pi had gone.
+
+ A start whose Pi exits before it takes the prompt is started again, within the number of starts and the pause the constants name,
+ because nothing of the run's work can have happened. When they are used up the run ends as `pi-exited-before-prompt`, naming what
+ Pi printed, and `piStartFailures` holds every start that failed so a reader counts them.
 
  @param options - options of this run
 
@@ -187,6 +156,20 @@ export async function supervisePiRun(
     readonly environment: NodeJS.ProcessEnv
   },
 ): Promise<RunSummary> {
+  /**
+   A free-form word that resumes a session this package cannot mask before Pi reads it stops the run here, with its reason.
+   */
+  const refused = refusedFreeFormWords({ words: options.piArguments, },);
+  if (refused.length > 0) {
+    throw new DriverOptionsError(
+      `this run's free-form Pi arguments cannot start it:\n${
+        refused.map(function lineOf(refusal,) {
+          return `  ${refusal.word}: ${refusal.reason}`;
+        },)
+          .join('\n',)
+      }\nUsage: ${DRIVER_USAGE}`,
+    );
+  }
   if (environment[NESTED_RUN_VARIABLE] !== undefined) {
     throw new NestedDriverError(
       'This driver was started by a Pi that a driver is already running, and it stops here so agents cannot start agents without end. Do this work in the current session, or finish and let the lead start another run.',
@@ -219,12 +202,42 @@ export async function supervisePiRun(
     { recursive: true, },
   );
   /**
-   The run's feed and counts.
+   The masking this run's own files are written through, which is the pass-through until the values are read a few lines below: the
+   refusal of a store that cannot be read is noted while nothing is masked yet, and every line after that goes through the values.
    */
-  const record = startRecordOfPiRun({ feedFile: join(
-    options.runFolder,
-    'feed.jsonl',
-  ), },);
+  const writeMasking: { masking: TextMasking } = { masking: MASKING_NOTHING, };
+  /**
+   The run's feed and counts, which every start of it writes to, so the run's record covers all of them.
+   */
+  const record = startRecordOfPiRun({
+    feedFile: join(
+      options.runFolder,
+      'feed.jsonl',
+    ),
+    mask: {
+      /**
+       The longest form of any armed value, which is what a writer of Pi's standard error holds back between two writes.
+       
+       @returns the length the masking has at this moment
+       */
+      get longestFormLength(): number {
+        return writeMasking.masking
+          .longestFormLength;
+      },
+      maskText: function maskTextOfAFeedLine(text,) {
+        return writeMasking.masking
+          .maskText(text,);
+      },
+      maskData: function maskDataInAFeedLine(value,) {
+        return writeMasking.masking
+          .maskData(value,);
+      },
+      heldBackSuffixLength: function heldBackForAFeedLine(text,) {
+        return writeMasking.masking
+          .heldBackSuffixLength(text,);
+      },
+    },
+  },);
   /**
    What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
    `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not
@@ -236,88 +249,185 @@ export async function supervisePiRun(
     removedNames: givenToPi.removedNames,
   },);
   /**
-   Declines a dialog, which would otherwise wait for an answer forever.
+   What this machine holds for its secret environment, read once here so every value of it can be masked before it reaches a
+   model. Pi's extension gets them over the descriptor this driver opens for it, and nothing of them is written, logged or
+   summarised.
 
-   @param id - dialog's identifier
+   A store that is there and cannot be read stops the run here, before Pi is started: a run whose values this code does not know
+   is a run that would show them to a model, and a start that cannot mask is worse than no start.
    */
-  function declineDialog(id: unknown,): void {
-    connection.write({
-      type: 'extension_ui_response',
-      id,
-      cancelled: true,
-    },);
-  }
-  /**
-   The running Pi.
-   */
-  const connection: ConnectionToPi = startConnectionToPi({
-    piArguments: piCommandLine(options,),
-    workingFolder: options.workingFolder,
-    environment: {
-      ...givenToPi.environment,
-      [NESTED_RUN_VARIABLE]: '1',
-    },
-    standardErrorFile: join(
-      options.runFolder,
-      'stderr.log',
-    ),
-    listeners: {
-      onEvent: function onEvent(event,) {
-        record.observe({
-          event,
-          declineDialog,
-        },);
-      },
-      onUnreadableLine: function onUnreadableLine(line,) {
-        record.note({
-          kind: 'non-json',
-          line: preview({
-            value: line,
-            length: FEED_PREVIEW_CHARACTERS.unreadableLine,
-          },),
-        },);
-      },
-      onExit: function onExit(exit,) {
-        record.note({
-          kind: 'exit',
-          ...exit,
-        },);
-      },
-      onProblem: function onProblem(problem,) {
-        record.note({
-          kind: 'problem',
-          problem,
-        },);
-      },
-    },
-  },);
-  /**
-   Why the run ended.
-   */
-  const { endReason, } = await endReasonOfRun({
-    connection,
+  const secretValues: SecretValuesOfThisMachine = await secretValuesOrNoRun({
     record,
-    options,
-    inbox,
-    deadline,
-    workLeftRunning: async function workLeftRunning() {
-      return await workOutlivingTheTurnIn({
-        runFolder: options.runFolder,
-        workingFolder: options.workingFolder,
-        processFolder: process.env
-          .PI_RUNS_PROCESS_FOLDER
-          ?? '/proc',
-        run: runCommandWithChildProcess,
+    read: function readThem() {
+      return readSecretValuesOfThisMachine({
+        environment,
+        home: environment.HOME ?? homedir(),
+        checkoutFolder: options.workingFolder,
       },);
     },
   },);
   /**
-   What putting the run away left: Pi's own statistics, and whether its leaving could be confirmed.
+   Every file this run writes from here on goes through the values: the feed, the summary, Pi's standard error, and the session at
+   rest.
    */
-  const putAway = await putTheRunAway({
-    connection,
+  writeMasking.masking = createSecretValueMasking({ values: secretValues.values, },);
+  record.note({
+    kind: 'secret_values',
+    sources: secretValues.sources,
+    unread: secretValues.unread,
+  },);
+  /**
+   The values as a list, which is what the start and the check that the masking is in place both count.
+   */
+  const values: readonly SecretValue[] = secretValues.values;
+  /**
+   The words that load the extension masking them, which sit beside the driver's own entry.
+   */
+  const maskingArguments = await maskingExtensionArguments({ folder: import.meta.dirname, },);
+  /**
+   A session this run resumes is masked before Pi starts, so that no request Pi builds from it, its compaction among them, can carry
+   a value an earlier run left in it. Pi's own hooks cover what this run writes, and never what was already there.
+   */
+  /**
+   The session Pi resumes: the run's masked copy of the session it was told to resume, and nothing else.
+   */
+  let sessionForPi = options.session;
+  /**
+   The copy this run made of the session it was given, which is the only file of that session this run may rewrite later.
+   */
+  let copyOfResumedSession: { readonly path: string } | { readonly absent: true } = { absent: true, };
+  if (options.session !== undefined) {
+    /**
+     What masking the resumed session into a copy found.
+     */
+    const resumed = await maskASessionIntoACopy({
+      sessionFile: options.session,
+      copyFile: join(
+        options.runFolder,
+        'resumed-session.jsonl',
+      ),
+      mask: writeMasking.masking,
+    },);
+    if ('problem' in resumed) {
+      // A value an earlier session holds, which this code cannot take out before Pi reads it: the run does not start.
+      throw new SecretEnvironmentUnreadableError({
+        source: `the session ${options.session}`,
+        cause: resumed.problem,
+      },);
+    }
+    // A session that is not there is one this run's Pi creates, which makes the file this run's own; one that is there is copied and
+    // is never written again by this run, so the file the caller named keeps its entries.
+    if ('path' in resumed) {
+      sessionForPi = resumed.path;
+      copyOfResumedSession = { path: resumed.path, };
+    }
+    record.note({
+      kind: 'session_resumed',
+      copy: ('path' in resumed) ? resumed.path : null,
+      masked: ('path' in resumed) ? 'into-a-copy' : 'no-session-file',
+    },);
+  }
+  /**
+   Where Pi's standard error is kept for every start of this run: a start that will not go on says why there and nowhere else, and
+   one file holds what each start printed.
+   */
+  const standardErrorFile = join(
+    options.runFolder,
+    'stderr.log',
+  );
+  /**
+   The run's starts: Pi until one of them takes the prompt, or until the starts or their time run out.
+   */
+  const starts = await startsOfARun({
+    options,
+    record,
+    inbox,
+    deadline,
+    environment: givenToPi.environment,
+    secretValues: values,
+    maskingArguments,
+    standardErrorFile,
+    ...(sessionForPi === undefined ? {} : { sessionFile: sessionForPi, }),
+    mask: writeMasking.masking,
+  },);
+  /**
+   The Pi of the run's last start, whose ending the summary reads.
+   */
+  const { connection: lastConnection, } = starts;
+  /**
+   What putting the last start away left: Pi's own statistics, and whether its leaving could be confirmed. A start that failed
+   before its Pi took the prompt is already put away, so its own answer stands.
+   */
+  const putAway: RunPutAway = starts.putAway ?? await putTheRunAway({
+    connection: lastConnection,
     record,
   },);
+  /**
+   Every start that ended before its Pi took the prompt, and why none followed the last of them.
+   */
+  const {
+    startFailures,
+    startStoppedBy,
+  } = starts;
+  /**
+   The session file the run leaves behind, which Pi reports in its own statistics or its own state, and which is only ever this run's
+   own file: the copy it made, or the one its Pi created. The session the run was given to resume belongs to another run and is refused
+   by name, so nothing here can rewrite it.
+   */
+  const sessionFile = sessionFileToMaskAtRest({
+    ...(reportedSessionFile({
+      sessionStats: putAway.sessionStats,
+      ...(starts.sessionFile === undefined ? {} : { state: starts.sessionFile, }),
+    })),
+    ...(('path' in copyOfResumedSession) ? { copyThisRunMade: copyOfResumedSession.path, } : {}),
+    ...(options.session === undefined ? {} : { sessionTheCallerNamed: options.session, }),
+  },);
+  /**
+   What masking that file found: Pi's own hooks should have kept every value out of it, and this closes what no hook reaches.
+
+   It runs before the feed is closed and before the summary is written, because a session that still holds a value is a run that did
+   not finish clean, and the reader has to be told where that value is.
+   */
+  /**
+   What masking the session at rest found.
+   */
+  /**
+   Whether Pi has been reaped, which is what makes this run the last writer of its own session file.
+   */
+  const piIsGone = putAway.stopped && lastConnection.hasExited();
+  /**
+   What masking the session at rest found.
+   */
+  const sessionAtRest = ('refused' in sessionFile)
+    // The only file named is another run's, which this run leaves as it is: the summary says so rather than rewriting it.
+    ? {
+      outcome: 'unmasked' as const,
+      problem: sessionFile.refused,
+    }
+    : ('absent' in sessionFile)
+      // A run told to keep no session has none to mask, which is an answer; a run that keeps one and cannot say where is not.
+      ? ((keepsNoSession({ words: options.piArguments, },))
+        ? { outcome: 'absent' as const, }
+        : {
+          outcome: 'unmasked' as const,
+          problem: 'Pi named no session file and the run keeps one, so a value an entry holds was not masked and this summary cannot say where it stands',
+        })
+      : await maskTheSessionAtRest({
+        sessionFile: sessionFile.file,
+        mask: writeMasking.masking,
+        writer: piIsGone
+          ? { gone: true, }
+          : {
+            mayExist: mayStillBeWritten({ path: sessionFile.file
+              .path, },),
+          },
+      },);
+  if (sessionAtRest.outcome === 'unmasked') {
+    record.note({
+      kind: 'session_at_rest',
+      problem: sessionAtRest.problem,
+    },);
+  }
   await record.close();
   /**
    The error Pi settled on, when nothing after it recovered.
@@ -328,21 +438,24 @@ export async function supervisePiRun(
    */
   const feedProblem = record.feedProblem();
   /**
-   Why the run ended, once those two are known.
-   */
-  /**
    How Pi ended, which the summary and the reason both read.
    */
-  const piExit = connection.exitDetails();
+  const piExit = lastConnection.exitDetails();
   /**
    Why the run ended, once every late failure is known.
    */
   const finalReason = finalEndReason({
-    endReason,
+    endReason: starts.endReason,
     stopped: putAway.stopped,
     modelError,
     feedProblem,
     piExit,
+    sessionAtRest: (sessionAtRest.outcome === 'unmasked')
+      ? {
+        failed: true,
+        problem: sessionAtRest.problem,
+      }
+      : NO_RUN_FAILURE,
   },);
   /**
    What the caller reads.
@@ -350,25 +463,23 @@ export async function supervisePiRun(
   const summary = record.summarize({
     endReason: finalReason,
     piExit,
-    piHasExited: connection.hasExited(),
+    piHasExited: lastConnection.hasExited(),
     sessionStats: putAway.sessionStats,
+    piStartAttempts: starts.startsTaken,
+    ...((sessionAtRest.outcome === 'unmasked') ? { sessionAtRest: sessionAtRest.problem, } : {}),
+    ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
+    ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),
   },);
   await writeSummary({
     runFolder: options.runFolder,
     summary,
+    mask: writeMasking.masking,
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
-    throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
-        options.runFolder,
-        'summary.json',
-      )} and Pi's standard error in ${
-        join(
-          options.runFolder,
-          'stderr.log',
-        )
-      }.`,
-    );
+    throw new PiRunEndedEarlyError(endingLineOf({
+      summary,
+      runFolder: options.runFolder,
+    },),);
   }
   return summary;
 }

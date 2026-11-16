@@ -156,11 +156,13 @@ The [public evidence](../audit/depot-tests-identity-adapter-2026-10-18.evidence.
 records individual report hashes,
 lookup counts,
 source/resource admission and cleanup.
-The [source artifact](../audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz)
+The source artifact (`../audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz`)
 retains deciding sources,
 full fixtures,
 original report ZIPs and raw API/log evidence.
 This selected cohort does not qualify the complete 1,956-case suite or a speed benefit.
+`depot-tests-identity-adapter-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 [split]: https://depot.dev/docs/ci/how-to-guides/split-tests
 [nextest-junit]: https://github.com/nextest-rs/nextest/tree/cargo-nextest-0.9.148/site/src/docs/machine-readable

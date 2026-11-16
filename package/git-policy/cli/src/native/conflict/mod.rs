@@ -14,30 +14,23 @@
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
 
-/// Finding and copying the file a conflict-side command replaces.
+/// Finding and copying the file a command replaces.
 pub mod conflict_side_source;
 
 /// The operation in progress and the conflicted paths.
 pub mod conflict_side_state;
 
-/// Whether every token of a command line names a conflicted file.
-pub mod conflict_side_decision;
-
-/// The pathspec modes and magic of a conflict-side line.
+/// The pathspec modes and their spellings, which decide whether a token names one file.
 pub mod conflict_side_modes;
 
-/// The notices of a conflict-side command.
-pub mod conflict_side_notice;
-
-/// The saved copy of each file a conflict-side command replaces.
+/// The saved copy of each file a command replaces.
 pub mod conflict_sides;
 
 /// The move of the nested Git repositories a clean would delete beside the audit log.
 pub mod discarded_nested_repository;
 
-/// The linked-worktree policy's carve-out for conflicted files during a merge,
-/// rebase,
-/// cherry-pick or revert.
+/// The linked-worktree policy's reading of a `checkout` or `restore` that would replace a conflicted file,
+///  and the refusal that names every file it would replace.
 pub mod conflict_side_guard;
 
 /// The linked-worktree policy's carve-out for the abort and skip forms during an operation.

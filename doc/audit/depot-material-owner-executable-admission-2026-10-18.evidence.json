@@ -347,7 +347,19 @@
     "sha256": "6435ee9f846e5f964ef1ad408cc540adb053d8a37d95bde7264766aa7a87459e",
     "bytes": 211223,
     "commit": "8ccda67a087a67dd64922899f6ed559bc08718be",
-    "url": "https://raw.githubusercontent.com/Aquaticats/Monochromatic/8ccda67a087a67dd64922899f6ed559bc08718be/doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz"
+    "url": "https://raw.githubusercontent.com/Aquaticats/Monochromatic/8ccda67a087a67dd64922899f6ed559bc08718be/doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 8ccda67a087a67dd64922899f6ed559bc08718be:doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "finiteBounds": {
     "primaryJobs": 7,

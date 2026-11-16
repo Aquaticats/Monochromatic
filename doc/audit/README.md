@@ -505,3 +505,13 @@ Remaining dependencies to audit,
 - [ ] to-vfile
 - [ ] vue + vue-tsc (dev-only,
        type-checking)
+
+## Removed evidence archives
+
+The evidence archives the records in this folder cite left the tree on 2026-11-13,
+after the owner ordered that no archive stays tracked.
+What a document cites of one is kept as plain text beside it,
+and `doc/audit/removed-archives-and-where-history-holds-each.md` lists every removed archive
+with its bytes,
+SHA-256,
+the commit that last changed it and the command that prints it from history.

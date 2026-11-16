@@ -1,0 +1,2 @@
+[profile-separator] arm=1.3.6 repeat=40 tokens=1000 ok=true
+[profile-separator] arm=1.3.6 repeat=10 tokens=4000 ok=true

@@ -90,6 +90,11 @@ pub(crate) const PID_LOCK_SUFFIX: &str = "~pid.lock";
 /// before the number.
 const PID_TEXT_PREFIX: &str = "pid ";
 
+/// The most of a PID file this read takes:
+/// a few bytes of `pid <number>` and a newline,
+/// and far less than any file a program that meant to hold this reader would offer.
+const PID_FILE_LIMIT: u64 = 4096;
+
 /// What:
 ///  Where a command's Git child can leave reference locks.
 /// Why:
@@ -180,7 +185,12 @@ impl LockLedger {
 /// Number(readFileSync(path, 'utf8').trim().replace(/^pid /, ''))
 /// ```
 pub(crate) fn pid_named_by(path: &Path) -> Option<i32> {
-    let text: String = std::fs::read_to_string(path).ok()?;
+    // Opened the way every other file this judgement reads is opened: without following a link, without blocking on a
+    //  named pipe, and never past a small bound. A pipe left at a lock's PID-file name held every command for ever when
+    //  this read was `std::fs::read_to_string` (a review of `675771e759`, finding 2), and the pass that reads it runs on
+    //  every command.
+    let bytes: Vec<u8> = crate::plain_file::read_plain_file(path, PID_FILE_LIMIT).ok()?;
+    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
     return text.trim().strip_prefix(PID_TEXT_PREFIX)?.trim().parse::<i32>().ok();
 }
 

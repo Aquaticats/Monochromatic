@@ -1,0 +1,24 @@
+# Adds four source arms of @optique/core to the cross-runtime image, so upstream's pull request 1121 and the
+# input-trace prototype can be measured with the published scripts, alone and together, with no mounts or network:
+# upstream main at 84f95710, pull request 1121 at a175cdb7, and each with the prototype patch applied.
+#
+#   podman build --tag localhost/optique-upstream-arms:2026-11-13 --file Containerfile.upstream-arms .
+#   podman run --rm --network none --cpus 2 --memory 4g --pids-limit 512 --blkio-weight 10 \
+#     localhost/optique-upstream-arms:2026-11-13
+
+FROM localhost/optique-cross-runtime:2026-11-13
+
+COPY upstream-arms/main /checkout/main
+COPY upstream-arms/pr1121 /checkout/pr1121
+COPY upstream-arms/main-patched /checkout/main-patched
+COPY upstream-arms/pr1121-patched /checkout/pr1121-patched
+COPY run-arms.ts /run-arms.ts
+
+RUN set -eux; \
+    cd /repo; \
+    for arm in main pr1121 main-patched pr1121-patched; do \
+      sed "s#/path/to/optique#/checkout/$arm#g" /repo/maps/src-checkout.json > "/maps/src-$arm.json"; \
+      deno cache --no-config --import-map "/maps/src-$arm.json" mismatch-count.ts commit-paths.ts token-scaling.ts; \
+    done
+
+ENTRYPOINT ["node", "/run-arms.ts"]

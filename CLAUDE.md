@@ -334,22 +334,23 @@ XVS:
  GPT models cannot be trusted on long-horizon work.
 
 KRV:
- Reviews of a change go to qwen4-max-preview alone:
- Pi with `--provider qwen-token-plan-individual --model qwen4-max-preview`,
- in a worktree of its own,
- on the qwen4 pool.
+ Reviews of a change go to Claude Sonnet alone,
+ by whatever route the harness in use offers,
+ in a worktree of its own;
+ none starts on Kimi K3.1 Pro,
+ which costs too much.
 
 LHZ:
  Long-horizon audits,
  in every harness:
  run Claude Sonnet,
- by whatever route that harness offers,
- and Kimi K3.1 Pro side by side.
+ by whatever route that harness offers;
+ the Kimi K3.1 Pro pool is closed.
 
 PFW:
  Alongside advisor,
  never instead:
- a qwen4 review reads the paths its prompt names,
+ a Sonnet review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
@@ -673,9 +674,15 @@ BRQ:
 
 DQB:
  Before briefing work on a component,
- grep `doc/decision/` for its records
- and state every decision and amendment that bears on the task as the project's own,
+ grep `doc/decision/` and `doc/planning/` for its records;
+ state each decision and amendment bearing on the task as the project's own,
  with path and lines.
+
+DQK:
+ Before briefing work on a package,
+ grep that package's own `SPEC.md` and `doc/` for the behaviour the task touches;
+ a brief never contradicts them,
+ and quotes the lines that decide.
 
 FBN:
  A user saying a cost is fine or acceptable sets a bound,

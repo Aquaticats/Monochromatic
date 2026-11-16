@@ -28,12 +28,13 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
+use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, a_filling_that_did_not_run_to_its_end, bounded, end_the_fills_clean, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 
 /// The environment variable that acknowledges a real tool is absent on this machine,
 /// so its controls may be skipped.
@@ -87,15 +88,125 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
+/// What:
+///  A repository whose ignored `.cache/toolchain-launchers` holds two records naming this checkout's lock:
+///  one for a launcher name the repository's lock declares,
+///  and one for a name it declares nowhere,
+///  which is what the 0.6.0 rename left in this repository's own checkout.
+/// Why:
+///  The copy takes the ignored `.cache` of the source,
+///  and `mpm-shadow install` rewrites a record only for a bin the worktree's own lock declares,
+///  so the second record is the one no install of this release can ever answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repository(fixture, 'repo'); writeFile('.gitignore', '.cache/\n'); writeFile('toolchain.lock.json', declaring('own')); writeRecords('.cache/toolchain-launchers', ['own', 'legacy']);
+/// ```
+fn repository_with_launcher_records(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
+    std::fs::write(repo.join("toolchain.lock.json"), b"{\"schemaVersion\":1,\"tools\":{\"cargo:own\":{\"bins\":[\"own\"]}}}\n").expect("lock");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "toolchain.lock.json"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=lock"]);
+    let launchers: PathBuf = repo.join(".cache/toolchain-launchers");
+    std::fs::create_dir_all(launchers.as_path()).expect("launchers");
+    for name in ["own", "legacy"] {
+        std::fs::write(launchers.join(name), b"#!/bin/sh\nexit 0\n").expect("launcher");
+        let record: String = format!("{{\"toolId\":\"cargo:{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/{name}\",\"scope\":\"repo\"}}\n", repo.join("toolchain.lock.json").display());
+        std::fs::write(launchers.join(format!("{name}.launch")), record).expect("record");
+    }
+    return repo;
+}
+
+/// A fixture `mpm-shadow` that rewrites the record of the one launcher name the fixture's lock declares,
+/// which is all a real install does,
+/// and prints the summary of what it installed.
+fn fake_mpm_shadow(fixture: &Fixture) {
+    let script: String = String::from(
+        "#!/bin/sh\n\
+         printf '{\"toolId\":\"cargo:own\",\"lockFile\":\"%s/toolchain.lock.json\",\"real\":\"/tools/own\",\"scope\":\"repo\"}' \"$MONOCHROMATIC_WORKTREE_ROOT\" > \"$MONOCHROMATIC_WORKTREE_ROOT/.cache/toolchain-launchers/own.launch\"\n\
+         echo 'toolchain install: 1 installed, 0 unchanged, 0 failed'\n\
+         exit 0\n",
+    );
+    executable(bin(fixture).join("mpm-shadow").as_path(), script.as_bytes());
+}
+
+/// What:
+///  A launcher record the new worktree's lock declares nowhere is a copy of an earlier release's layout:
+///  the service removes it and the record,
+///  instead of reporting a package state that was never relinked.
+/// Why:
+///  Every install of this release answers only for the names the worktree's own lock declares,
+///  so such a record stayed stale on every try:
+///  the relink was retried, given up on, and left a notice telling the person to run an install that answers the same way.
+///  The record the lock declares is the one the install rewrote,
+///  which this control reads to show the copy was not simply the only record there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const created = add(fixture, repo, [], 'one', '../one'); assertInvalid: !existsSync(one + '/.cache/toolchain-launchers/legacy.launch');
+/// ```
+#[test]
+fn a_launcher_record_the_lock_declares_nowhere_is_removed_and_never_fails_the_relink() {
+    let fixture: Fixture = fixture("repair-toolchain-copy");
+    let repo: PathBuf = repository_with_launcher_records(&fixture);
+    fake_mpm_shadow(&fixture);
+    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    settle_service_work(repo.as_path());
+    let launchers: PathBuf = fixture.root.join("one/.cache/toolchain-launchers");
+    assert!(!launchers.join("legacy.launch").exists(), "the record no install rewrites is left in the new worktree");
+    assert!(!launchers.join("legacy").exists(), "the launcher beside that record is left in the new worktree");
+    let rewritten: String = std::fs::read_to_string(launchers.join("own.launch")).expect("the record the install rewrote");
+    assert!(rewritten.contains(fixture.root.join("one").to_str().expect("utf8")), "the install did not rewrite its own record: {rewritten}");
+    assert!(repo.join(".cache/toolchain-launchers/legacy.launch").exists(), "the source keeps its own records");
+    remove(&fixture);
+}
+
 /// The lines of a record file,
 /// empty when nothing was recorded.
 /// The commit service runs the tools of a new worktree,
 /// so a record read here is read after every observed wrapped command waited for the service's after-commit work to settle
-/// (`supervised_wait`):
+/// (`supervised_wait`),
+/// or after the bounded wait a control of one attempt takes (`wait_for_pnpm_runs`):
 /// an add returns after the record and the wake,
 /// and the line the tool wrote is there once that wait ends.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
+}
+
+/// How long a control waits for the commit service's first attempt at a repair to have run the tool.
+/// Why:
+///  The add hands the work over and returns,
+/// the wake reaches the lane at once,
+/// and pnpm's own record is what the control reads;
+/// a record nothing writes is the defect the wait names,
+/// so the wait is bounded.
+const PNPM_ATTEMPT_PATIENCE: Duration = Duration::from_secs(30);
+
+/// What:
+///  Wait until the tool's record holds `count` lines.
+/// Why:
+///  A repair whose tool failed is answered with a retry,
+/// and the service tries it again only when the record's claim lease ends (`CLAIM_LEASE`, 120 seconds),
+/// for up to `MAX_TRIES` tries.
+/// A control about the hand-over reads the first attempt,
+/// so it waits for that attempt's record and not for the repair to settle.
+///
+/// # Panics
+///
+/// When the tool ran fewer times than `count` within `PNPM_ATTEMPT_PATIENCE`.
+fn wait_for_pnpm_runs(record: &Path, count: usize) {
+    let began: std::time::Instant = std::time::Instant::now();
+    while recorded(record).len() < count {
+        assert!(
+            began.elapsed() < PNPM_ATTEMPT_PATIENCE,
+            "the commit service ran pnpm {} times within {PNPM_ATTEMPT_PATIENCE:?} and not {count}: {:?}",
+            recorded(record).len(),
+            recorded(record)
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// Add a worktree from the repository and require success.
@@ -104,6 +215,26 @@ fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destinati
     arguments.extend_from_slice(options);
     arguments.extend_from_slice(&["-b", branch, destination]);
     let created: Observed = run_wrapped(fixture, repo, arguments.as_slice());
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    return created;
+}
+
+/// What:
+///  Add a worktree and require success,
+/// without waiting for the after-commit work the add hands over.
+/// Why:
+///  `add` waits for that work to settle,
+/// which is the reading of every control whose point is the state the service left.
+/// A repair whose tool failed is not that state:
+/// a retryable failure keeps the record's claim,
+/// so the service tries it again only when that claim's lease ends (120 seconds),
+/// up to `MAX_TRIES` tries,
+/// and a control about the add's own hand-over would read the retries instead.
+fn add_without_waiting_for_the_after_commit_work(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destination: &str) -> Observed {
+    let mut arguments: Vec<&str> = vec!["worktree", "add"];
+    arguments.extend_from_slice(options);
+    arguments.extend_from_slice(&["-b", branch, destination]);
+    let created: Observed = observe_without_waiting_for_the_after_commit_work(wrapped(fixture).current_dir(repo).args(arguments.as_slice()), b"");
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     return created;
 }
@@ -191,17 +322,23 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
 /// so the switches and the worktree are read from the run the service made,
 /// and a tool that fails is the service's line,
 /// not the add's.
+/// What this control reads is that first run:
+/// a failed tool is answered with a retry the code bounds at the record's claim lease (`CLAIM_LEASE`, 120 seconds) for up to
+/// `MAX_TRIES` tries,
+/// so waiting for the repair to settle would read the retries,
+/// and the control waits for the first attempt's record instead (`wait_for_pnpm_runs`).
 #[test]
 fn a_failing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-fails");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     let record: PathBuf = fake_pnpm(&fixture, 1);
-    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
+    let created: Observed = add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
     let printed: String = stderr_of(&created);
     let line: &str = printed.lines().find(|line: &&str| { return line.contains(REPAIRED_WORDS); }).expect("one line about the repair");
     assert!(line.contains("pnpm"), "{line}");
     assert!(line.contains(fixture.root.join("one").to_str().expect("utf8")), "{line}");
     assert!(fixture.root.join("one/node_modules/dep/index.js").exists(), "the copy is kept");
+    wait_for_pnpm_runs(record.as_path(), 1);
     let ran: Vec<String> = recorded(record.as_path());
     assert_eq!(ran.len(), 1, "pnpm ran once, in the new worktree: {ran:?}");
     assert!(ran[0].contains("--offline") && ran[0].contains("--frozen-lockfile"), "{ran:?}");
@@ -822,6 +959,9 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    // A run may ask for the ending the gate of 2026-11-15T06:00-05:00 met: the filling's own clean ended by a signal from
+    //  outside the runner's ceiling and quiet window, and the resolution after it refused.
+    end_the_fills_clean(&fixture);
     let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "stale", "../deeper/stale");
     let worktree: PathBuf = fixture.root.join("deeper/stale");
     assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
@@ -829,6 +969,12 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
     assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
     assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    // A filling that did not run to its end displaced nothing, so a failure names the filling's own reason rather than an
+    //  empty folder: at the gate of 2026-11-15T06:00-05:00 the machine ended this filling's clean and the control reported
+    //  only that the bytes were not kept, which sent a reader after a clean that never took a byte.
+    if let Some(said) = a_filling_that_did_not_run_to_its_end(&fixture, repo.join(".git").as_path(), worktree.as_path()) {
+        panic!("{said}");
+    }
     // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
     // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
     // (`package_repair_cargo_lock.rs`).

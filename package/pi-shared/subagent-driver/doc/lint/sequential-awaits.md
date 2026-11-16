@@ -19,6 +19,16 @@ and the tests use one per wait inside a polling loop.
   Delivering two messages at once would reorder the inbox,
   and looking at the limits while a delivery is outstanding would report the end of the run before the message's own feed
   line.
+- The starts of a run (`src/supervise-pi-run.ts`):
+  one start of Pi,
+  then the pause,
+  then the next start.
+  Whether another start is made turns on how the last one ended,
+  which is known only after it has ended,
+  and two Pis started at once would both take the same prompt.
+  The loop is bounded by the number of starts,
+  by the time one start-up may take,
+  and by the run's own wall clock.
 - The wait for runs that should have come back (`src/watch-for-overdue-runs.ts`):
   a look,
   then one wait,

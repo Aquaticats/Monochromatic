@@ -91,12 +91,30 @@ Every earlier name keeps working in this release:
    so an upgrade or a downgrade changes no unit text and nothing has to make the user manager re-read what it holds.
   A `systemctl --user status` of the service shows that link as its program.
   A unit the manager already holds at an older text is dropped and started again rather than reloaded,
-   which is this worktree's own unit and nobody else's.
+   which is this worktree's own unit and nobody else's,
+   and the socket is stopped in the mode that leaves the service alone,
+  so a landing another command began in the
+   meantime is never cut.
+  The link the releases before this one named (`service-program` in the notes folder) is pointed at the running
+   executable too,
+  so an instance whose loaded text is one of theirs starts this release instead of a program the
+   install removed.
   That repair never costs a commit:
   a service still landing a batch,
-  a manager that stops answering and a link that cannot be written are each one line,
+  a manager that stops answering,
+  a stop it does not take,
+  and a unit another command starts again inside the wait are each one line,
    the units are left as they are,
   and the commit lands through the service that is running.
+  The one failure a commit outlives rather than mends is the program link:
+   pointing it never ends a commit,
+  but what the link still names decides whether that commit lands.
+  A program of this release (a link a build of this release left at another path) greets as this release and the commit
+   lands;
+  another release's program that will not step aside ends the commit with the message that names the link and the runtime
+   directory that could not hold it;
+  and a path that cannot be executed starts nothing,
+  so the commit ends saying the service did not start.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -976,6 +994,57 @@ Read-only commands,
    ioctl and deletes its administrative directory when the mount has `user_subvol_rm_allowed`
    (the doctor prints the commands that set it);
    in every other case Git removes it.
+  The line the removal prints for a destroyed subvolume says where the destroy ran:
+     one that was handed to the commit service names the delete still to come,
+     and one the command made itself,
+     because another command took the hand-over first,
+     says every file is gone now and that nothing waits for the service.
+  A subvolume or a mount point below the worktree's root that this wrapper did not make is removed around:
+     the wrapper removes every other entry of the worktree,
+     leaves the volume and the directories that lead to it exactly as they stand,
+     deletes the administrative directory so Git forgets the worktree,
+     prints what was left and what frees the path,
+     and exits 0,
+     because the worktree is gone from Git's records.
+     A nested worktree of this repository that stands inside it stays with its registration,
+     its branch and its files.
+  A removal without `--force` whose tree holds such a volume is never handed to Git,
+     whose own removal would delete what is mounted at a mount point;
+     when Git would also refuse what is untracked or modified there,
+     the wrapper refuses with its own report,
+     which names the volumes and words the way on by what the tree in front of it is,
+     and `--force` removes everything around a volume and still leaves it.
+     A tree whose only trouble is entries missing from it is the shape a removal left:
+     the wrapper writes a record of the worktree,
+     its registration and its path before it deletes the first
+     entry,
+     and the same unforced command reads it and finishes the removal,
+     so a command killed in that pass costs the person one more run of what they typed.
+     The record is written over the one an earlier attempt left,
+     so the same command run again after a kill writes it again rather than warning that the pass is
+     unrecorded;
+     a landed removal whose volume had gone by the time its pass ended says so,
+     and never that its own deletions freed the space the snapshot held.
+     Without such a record the report says what the command itself did,
+     names `--force`,
+     and says that moving a volume out cannot finish a tree whose tracked entries are gone.
+     A worktree whose stat fields prove nothing yet,
+     because its files and its index were written in the same whole second just after the add,
+     is proven by its files instead:
+     the wrapper reads the entries its stat data cannot vouch for and the removal goes around the volume,
+     so adding a worktree,
+     putting a snapshot in it and removing it at once is the documented way and not a refusal.
+     A tree that proof also cannot settle is refused in words that say Git reports no change in the worktree at all,
+     give the reason,
+     and name `--force`.
+  A later `git worktree add` at that path meets a directory that is not empty:
+     Git's own line says only that it exists,
+     and the wrapper adds one line naming each volume a removal left and what frees the path.
+  The words are the same ones the automatic removal prints,
+     and an automatic removal is recorded in
+   `<common Git directory>/monochromatic-git-policy-cli/left-in-place-notices`,
+     which the next wrapper command of any worktree of that repository shows once,
+     because a merge's own output is easily missed and the path it names is still taken.
   A forced removal is served without the cleanliness proof,
      because Git's own `--force` removal deletes a worktree that holds changes whatever it holds
      (`builtin/worktree.c`:
@@ -1017,27 +1086,45 @@ Read-only commands,
    `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
    means the service did not delete it yet:
      while a record for it is still queued,
-     the next command of that repository wakes the service that reads the
-   record,
-     which is every commit and every add.
+     a running service finds it by itself within five seconds
+   (`LOOK_AGAIN_AFTER`),
+     and the next command of that repository wakes the service that reads the record,
+     which is every commit
+   and every add.
      A delete the kernel refuses may pass,
      so the service tries it again,
      and it gives up once the attempts a record
    may cost have run out:
-     the directory then stays,
-     the record is kept in the repository's `failed` work state,
+     the record is then kept in the repository's `failed` work state,
      and the service says in
    `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
    (a worktree a program still has open,
    or a mount
    without `user_subvol_rm_allowed`,
-     for two),
-   so the files are yours to remove with `btrfs subvolume delete`.
+     for two).
+     A directory is not left to the service alone:
+     the removal writes a record of its own before it renames anything,
+     and nothing settles that record,
+     so a command of the repository whose output no program reads looks at it,
+     proves the directory is the subvolume the record names,
+     and queues the delete again.
+     That is what finishes a directory whose queue record was settled before the rename,
+     one whose command was killed between the rename and its own repair,
+     and one the service gave up on.
+     After the queueings such a record may cost,
+   which is the three attempts a record may cost,
+     that command
+   prints one line naming the directory,
+   the `journalctl --identifier=monochromatic-git-policy-cli` line holding the service's reason,
+   and the `btrfs subvolume delete` command that removes it,
+     so the files are yours to remove by hand and the space comes back.
      The service deletes one subvolume and nothing else:
      a directory another
    command has put at that name,
-   or a directory that is not a subvolume,
-     is left exactly as it is and named in the journal.
+   or a directory that is not that subvolume,
+     is never queued for a delete:
+     the id the record holds proves what stands there,
+     and the command names the directory and leaves it exactly as it is.
      Nothing of yours is in the removed directory unless you forced the removal:
    a removal without `--force` runs only after the wrapper proved the worktree clean and unlocked,
    and a forced
@@ -1170,9 +1257,6 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    never its own working folder,
    so a program that spawns a wrapped merge with a linked worktree as that folder
    leaves the worktree kept by this rule;
-- no subvolume and no mount point stands below its root,
-   because the kernel can never destroy a subvolume that contains another one,
-   and Git's own removal would delete the files of the worktree inside it;
 - no subvolume and no mount point stands below its Git directory that this wrapper did not make,
    because a registration holding one can never be emptied;
    the wrapper's own folder there is taken first,
@@ -1181,14 +1265,26 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    no tracked file is modified or staged there and no untracked file exists.
 
 A worktree that fails one of those is kept and the report says why.
-A nested worktree of this repository inside it is named with the branch it is on,
-or with the fact that it is on a detached `HEAD`,
-and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
- uncommitted.
-A subvolume or a mount point that is no worktree of this repository is named with what it is,
-with the move or the unmount that keep every file of it first,
-and with a `btrfs subvolume delete` last and for what it destroys,
- because a subvolume there may be another repository's worktree.
+A subvolume or a mount point below the worktree's own root that this wrapper did not make is no longer a reason to
+ keep it:
+the removal goes around it.
+Everything else in the worktree is removed,
+the volume and the directories that lead to it stay exactly as they stand,
+Git forgets the worktree,
+and the line the merge prints names each volume,
+what it is,
+where it stands,
+that the worktree is otherwise gone,
+and what frees the path;
+the same words are recorded in
+ `<git-dir>/monochromatic-git-policy-cli/left-in-place-notices`
+and the next wrapper command of any worktree of that repository shows them once.
+The kernel cannot destroy a subvolume that contains another one,
+and Git's own removal would delete what is mounted at a mount point,
+so neither route may take such a worktree:
+a nested worktree of this repository that stands inside it therefore stays,
+and stays registered,
+with its branch and its files.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -1224,6 +1320,12 @@ The service proves every condition above again,
  the records its Git directory holds,
  the record that this program made the worktree,
  and every commit a reference lock holds.
+It then makes the same look for a subvolume or a mount point it did not make,
+ and goes around one exactly as the merge's own removal does:
+ Git is never started on a tree that holds one,
+ because its removal would delete what is mounted at a mount point.
+A volume that appeared after the merge handed the removal over is therefore left rather than deleted through,
+ and the person reads what stands there and what frees the path on their next command.
 A worktree that no longer meets one of them stays,
  and the next wrapper command in that repository names it once,
  with the path,
@@ -2346,6 +2448,14 @@ the two tools that rewrite link layouts in place are the commit service's work w
   It also downloads the tools the worktree's lock names that are not installed yet,
    and can retire tool copies another checkout still links (both accepted by the owner),
    and its summary of what was installed is part of the success line.
+  The install answers only for the launcher names your `toolchain.lock.json` declares,
+   so a launcher record for any other name is a copy of an older release's layout:
+  it is removed,
+   with the launcher beside it,
+  instead of being reported as package state that was never relinked.
+  A record a relink had set aside when it was stopped is put back by the next one,
+   and one whose name holds another record by then is kept rather than replaced or discarded:
+  one line in that worktree's Git directory names the file and the `mv` command that puts it back.
 
 What the hand-over costs you:
 for as long as the service has not run the record,
@@ -2358,6 +2468,38 @@ When no service can be reached at all (a session with no user service manager,
  such as a container),
  the add relinks the worktree itself,
  which is what every release before this one did.
+
+When a relink does not finish:
+the service tries a tool that failed again on its next round (the record allows three tries),
+ so two installers meeting in one `node_modules` costs a wait rather than the relink.
+A record whose tries run out leaves one line for the next command in that worktree,
+ which says how many times the record allows a try,
+what the last try failed with,
+and the command that finishes
+ the job,
+ and says that something only you can change has to come first,
+because the wrapper already ran that command:
+
+```text
+monochromatic-git-policy-cli: the package state of <worktree> was not relinked, so its links still name the checkout it was copied from. The wrapper tried 3 times and gave up. The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE. Running the same command again would fail the same way, so something only you can change has to come first; after that, `pnpm --dir <worktree> install --offline --frozen-lockfile` or `cd -- <worktree> && mise run toolchain:install` finishes the job.
+```
+
+The line waits in that worktree's own Git directory,
+so only a command run there shows it,
+and one command shows it once.
+When that directory cannot be proved to be the worktree the record is about,
+or refuses the words (a read-only administrative directory),
+the line waits in the Git directory of the worktree whose command added the new one instead,
+so a command there shows it;
+it is never left in a Git directory this wrapper made again,
+which no command in that checkout would read.
+A record whose service was killed on every try has no answer to quote,
+and its line says no answer was kept for it and that the commit service's journal holds the rest,
+rather than guessing at what happened.
+If the service is killed between writing that line and giving the record up,
+the next round writes the same line again,
+so you may read it twice;
+you never read a different one.
 
 Nothing runs for `--no-worktree-copy` or `--no-checkout`.
 `--quiet` silences the one line that reports success;
@@ -2644,70 +2786,87 @@ The deliberate way is always the same:
 
 During a merge,
 a rebase,
-a cherry-pick or a revert there is one exception.
+a cherry-pick or a revert there is no exception.
 `git checkout --ours|--theirs -- <path>`,
 `git checkout <rev> -- <path>`,
 `git checkout --merge -- <path>` and the
  `git restore` forms with `--ours`,
 `--theirs`,
-`--source` or `--merge` run for conflicted paths only
- (the paths with an unmerged index entry),
+`--source` or `--merge` are refused,
  in the main worktree and in a linked one,
- after the wrapper saves your current file.
-The copy goes to `monochromatic-git-policy-cli/discarded/<UTC time>/<path>` in the common Git directory,
-beside `monochromatic-git-policy-cli-audit.jsonl`,
- and the wrapper prints where before Git runs:
+ because the file they replace holds the conflict resolution you have written,
+ which exists nowhere else.
+The refusal names every such file,
+ says that no copy is kept,
+ and names `--no-enforce-worktree`,
+ which replaces the file exactly as real Git does and copies nothing.
+It is one line;
+here it is wrapped to be read:
 
 ```text
-monochromatic-git-policy-cli: saved your copy of a.rs to
-  /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-02T14-01-07/a.rs
-  before this command replaces it (a.rs was conflicted).
+monochromatic-git-policy-cli: git checkout with paths, --force, --patch, --ours or --theirs is
+rejected in the main git worktree: it overwrites files with other content, so your edits to them
+are gone. The merge in progress left `a.rs` with an unmerged index entry, and it holds the
+resolution you have written so far, which exists nowhere else: this command replaces its content,
+and it keeps no copy of it. To settle the conflict and keep what you wrote, edit the file, stage it
+(`git add -- <paths>`) and commit the result with no paths (`git commit --message <message>`);
+`git show :1:<path>`, `git show :2:<path>` and `git show :3:<path>` print the base and the two
+sides, and `git diff -- <path>` prints the file as it stands. If you have decided to replace it on
+purpose, copy the file first (`cp -- <path> <path>.before-the-opt-out`) and pass
+`--no-enforce-worktree` directly after the subcommand: the command then runs exactly as real Git
+runs it, and no copy is kept; `cp -- <path>.before-the-opt-out <path>` puts your file back
+afterwards, and you can delete the copy then.
 ```
 
-A path that is not conflicted keeps the rejection,
- and a line that names conflicted and clean paths together is rejected whole with the clean paths named.
-Write each conflicted file by its own name after `--`;
- a directory,
+A path is named only when it is read as one plain file below the working directory.
+A directory,
+a trailing slash,
 a wildcard,
 pathspec magic,
 a missing `--`,
 `--force`,
 `--patch`,
-`--pathspec-from-file` and
- `restore --staged` are not covered and stay rejected.
+`--pathspec-from-file`,
+`restore --staged` and a global pathspec mode
+ (`--icase-pathspecs`,
+`GIT_ICASE_PATHSPECS` and the glob,
+noglob and literal forms)
+ keep the rejection without a sentence about a conflict,
+ because none of them names one file,
+ and the command is still refused.
  A token that is the value of `--source`,
  `-s` or `--conflict` is never read as `--worktree` or `--staged`,
- so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected,
- and the rejection names `git restore --staged`,
- not a restore of file content.
-A conflicted path that is deleted in your worktree has nothing to copy,
-and the command runs.
-When a copy cannot be written (no space,
-no permission),
-the command is rejected and says why.
- A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never followed:
- Git would replace it with a real directory and it would be lost unsaved,
- so the command is rejected,
- names `dir`
- and says to move it out of the way or save it first.
- A file that changes while it is being copied (an editor's atomic save,
- an append,
- a rewrite in place) is not reported saved:
- the copy is removed,
- the command is rejected,
- and running it again once nothing writes to the file goes through.
- A file that another program changes while the save runs is your risk.
- A pathspec mode (`--icase-pathspecs`,
- `GIT_ICASE_PATHSPECS` and the glob,
- noglob and literal forms) keeps the rejection,
- and when every path you named is a conflicted file the message names the mode and says the same command without it
- is saved first and then allowed.
- The same holds for pathspec magic on a conflicted file's name (`:(icase)a.rs`,
- `:!a.rs`,
- `:/a.rs`):
- the message names the magic and the file,
- and naming the file itself is saved first and then allowed.
-The abort forms of the same operations are decided the same way.
+ so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and is refused
+ as that form,
+ not as a restore of file content.
+ A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never
+ replaced unsaved:
+ Git would replace it with a real directory,
+ so the refusal names `dir/file` and what stands at `dir` stays as you left it.
+ A `GIT_` variable the in-process reader does not tolerate (such as `GIT_CONFIG_GLOBAL`) keeps the refusal
+ and names no file,
+ because which file the line would replace cannot then be read.
+The advice in that message is checked by running it:
+`binary/binary_conflict_side_tests.rs` reads each command out of the refusal and runs it in a fixture
+(the backup,
+the opt-out and the restore;
+the three `git show` sides and `git diff`;
+and the `git add` with the `git commit` that concludes the merge,
+through the wrapper's own commit service).
+A backup it named earlier (`git diff -- <path> > backup.patch`) writes a combined diff on an unmerged path,
+which `git apply` refuses,
+so it named no way back;
+the copy above replaced it,
+and the concluding commit now stages first and passes no paths,
+because a commit that names paths while a merge waits leaves the merge in progress.
+
+This replaced the wrapper's earlier behaviour,
+which copied each conflicted file beside the audit log and
+then let the command run
+ (`SPEC.md`,
+ "What never discarding a person's data means").
+
+The abort forms of the same operations keep their own carve-out.
 `git merge --abort`,
 `git rebase --abort`,
 `git cherry-pick --abort`,
@@ -2857,7 +3016,9 @@ the working directory and the arguments,
 `cwdHex`,
 `argumentsHex`),
  so a name that is not UTF-8 still names the command that was run
- (a decision that saved conflicted files also lists where each copy went).
+ (a decision that saved a copy also lists where each copy went).
+ A `saved-conflict` line is one an earlier release wrote,
+and no command writes it now.
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
@@ -3487,12 +3648,86 @@ and no process a complete scan finds holding it)
 and goes on;
 a lock that proof does not cover stays where it is,
 and so does one whose content is not empty.
+A lock whose holder the wrapper's own record proves gone is cleared before the merge looks at it,
+by the pass the next section describes,
+so a merge does not wait for a process that a kill ended.
 Native Git,
 measured in a fixture,
 never waits:
 a held lock fails the merge in a few milliseconds.
 A merge that native Git runs (a conflict,
 an editor) waits for the lock first in the same way.
+
+#### The lock files a killed command left
+
+A process can be killed at any instruction.
+When a wrapper command or a Git it started ends between creating a lock and renaming it over its target,
+the lock stands and its PID file names a process that no longer exists.
+Before this change the next commit waited a minute for that process and withdrew the person's change;
+the audit of 0.6.1-alpha.14 met exactly that after a merge's process group was killed during a stalled download.
+
+The wrapper now keeps its own account of what it starts,
+in `<common-git-dir>/cli-git-lock-holders/`:
+one file per process,
+naming the wrapper and every Git it started,
+each with the birth identity,
+boot ID,
+PID namespace and machine ID that the commit service's index lock marker already uses.
+A lock is cleared when its PID file names a number no live process has,
+its own birth is strictly later than the lock's (a file system that records no birth time,
+or one whose
+clock is coarse enough to give both files one tick,
+proves neither order and keeps the lock),
+every record of this repository naming that number is a process of this boot,
+this PID namespace and this machine that has ended,
+the file sits on a local file system,
+and the kernel's own read lease says nothing can write into it.
+A number a live process has is never proved gone,
+because the number may have been used before and the live program may be the one that wrote the PID file;
+removing such a lock made a real `git commit --all`,
+held in its editor,
+fail with Git's index-recovery
+message,
+and that is what the proof refuses now.
+A program holding the lock open for writing keeps the lock,
+whatever account owns it,
+and a reader alone does not,
+because a reader cannot write into the file.
+It is removed under an exclusive `flock` of the lock file itself,
+so two commands that meet it at the same instant cannot both remove it and both take it,
+and one line says which lock went and what proved its holder gone.
+Nothing of the repository is lost:
+Git fills a lock and renames it over its target,
+so an `index.lock` that never reached its rename holds only the dead holder's unfinished index,
+and the index that is there is the one the repository had.
+
+Nothing is cleared on a lock the wrapper did not take:
+real Git run directly,
+an editor and an IDE write no record,
+and a process number alone is not a proof,
+because numbers are reused and a Git in another PID namespace writes one this table has never had.
+A record of another namespace or another machine is unknown and is never acted on,
+a lock on a network file system is kept,
+and a lock carrying the commit service's marker goes to the service's own reclaimer.
+A lock that stands,
+whose number no process of this table has and that no record explains,
+gets one line naming the file,
+the number,
+and the `rm` that clears it,
+because that lock cannot release itself and nothing here may remove it.
+
+The pass runs before every wrapped command reaches Git,
+and again in the commit service before its landing waits for the index,
+so a commit is not withdrawn over a lock the wrapper can prove dead.
+It reads the Git directories by their own entries,
+skips the object store and the logs,
+starts no Git,
+and costs one walk of a Git directory's entries on a repository that holds no lock.
+`SPEC.md`,
+"The lock files a killed command left,
+and the record that proves its holder gone",
+has the sequence,
+the proof and its limits.
 
 #### A merge saved for a later command
 
@@ -3509,6 +3744,38 @@ A merge that had already begun its checkout update is the other case:
 a command that meets one waits for the lock,
  bounded,
 because only finishing that merge lets the command read the checkout.
+
+A lock a program takes after the merge has looked,
+and before Git's own fast-forward,
+is a third case,
+and it ends in one of two states:
+
+- A lock a process that no longer runs left is cleared on the commit service's proof of disuse,
+  by the same step that puts the person's own bytes back,
+  and the merge is made again on those bytes and lands.
+- A lock that is still held while nothing of the merge is in the checkout and the branch has not moved,
+  or one that proof does not cover,
+  saves the merge on `refs/cli-git/kept/<n>` and exits 0 like the cases above,
+  and the line states what the checkout holds:
+  the paths the merge changes hold the branch's content where the person's bytes were,
+  those bytes are kept on the capture's ref it names,
+  and the next git command in this worktree puts them back and finishes the merge.
+- A merge whose commit cannot be kept on a side reference is not saved:
+  the command still exits 0,
+  says so,
+  names the capture's ref,
+  and says that the next git command puts the person's own bytes back and that the merge is theirs to run
+  again,
+  which is what that command does.
+- A lock that meets a merge whose branch moved while it was prepared ends the same way:
+  the line says the branch moved and that this merge does not land,
+  no side reference is written for a merge that cannot be applied,
+  and the next git command puts the person's own bytes back.
+
+Every one of those lines states what the settle read,
+so none of them says the branch has not moved,
+or that the checkout is as it was,
+when it is not.
 
 #### A branch that moved while the merge was prepared
 
@@ -3966,24 +4233,26 @@ none is waited out or retried on the moved head yet:
    a start it reports failed ends the wait at once ("commit service did not start"),
    and a unit it reports inactive is asked
    to start after `START_WAIT`.
-  Two causes end the commit at once instead of after that wait,
-  because the command knows them before it waits,
-  and each message names the setting that has to change and every way to change it:
-  a runtime directory that leaves no room for the service's address
-  (that address takes at most 107 bytes,
-  so `XDG_RUNTIME_DIR` may take 40),
-  and a service the account's manager started at another address than the one this command waits at,
+  One cause ends the commit at once instead of after that wait,
+  because the command knows it before it waits,
+  and its message names the setting that has to change and every way to change it:
+  a service the account's manager started at another address than the one this command waits at,
   which happens when `XDG_RUNTIME_DIR` is not the runtime directory the manager runs with
   (a unit,
   a container or a script with one of its own):
   run the commit from your login session,
   or set `XDG_RUNTIME_DIR` to the manager's.
+  A runtime directory whose path leaves no room for the service's socket file is not such a cause:
+  the service is listened at an abstract name derived from that directory instead,
+  and the commit is made (`SPEC.md`,
+  "Where the service listens").
   An account without user services is still told `loginctl enable-linger`,
   which is also what a session bus with no user manager behind it says.
   The commit service remains the only writer of a commit,
   so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
-  heartbeats or not):
+  heartbeats or not)
+  after the lock pass has cleared any lock of a holder the wrapper's record proves gone:
   the client withdraws the request,
   so it
    never lands later by itself,
@@ -4028,8 +4297,10 @@ none is waited out or retried on the moved head yet:
   A request is a JSON object and a framing newline,
   and the service takes it only when the whole line arrived:
   a line that ends with the connection instead of its newline is refused and never queued.
-  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
-  after an attempt that did, the same give-up is reported as a result that is not known,
+  So a commit is called "not made,
+  and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did,
+  the same give-up is reported as a result that is not known,
   and the commit's staged work and scratch tree stay where they are.
   A commit whose whole request did reach the service is never described as one a waking service cannot land:
   that message says the service may still make it and names `git log -1`.
@@ -4041,7 +4312,8 @@ none is waited out or retried on the moved head yet:
   whether the commit was made,
   that your staged changes and working files are as they were,
   and the three steps that end it.
-  Those steps are, in this order:
+  Those steps are,
+  in this order:
   `git monochromatic-git-policy-cli service status`,
   which says whether this worktree's service answers and names the unit that serves it;
   a restart of that one unit (`systemctl --user restart` and the name the status printed),
@@ -4052,7 +4324,8 @@ none is waited out or retried on the moved head yet:
   never the `@*` pattern of every service of the account,
   because restarting them all stops the commits of every other worktree.
   A service that wakes after the command ended makes no commit:
-  the request it still holds is dropped, because the command on that connection is gone.
+  the request it still holds is dropped,
+  because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
@@ -4111,6 +4384,63 @@ none is waited out or retried on the moved head yet:
   issue 6283).
   The twenty commits that stopped inside that staging on 2026-11-10 are measured in
   `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
+- The command's own options are a form real Git refuses (owner,
+  2026-11-12:
+  "Refuse as Git does (Recommended)").
+  The wrapper answers with Git's own status and Git's own words,
+  because preparation removes the very tokens Git validates before it commits
+  (`-a`,
+  the selection controls and the pathspecs the private index already holds),
+  so a mistyped command would otherwise make a commit real Git refuses.
+  The forms are `-i` with `-o`,
+  `-i` with `-a`,
+  `-a` with `--interactive` or `--patch`,
+  any two of the four options Git's compatibility check counts,
+  `--fixup=reword:` with a path or with any of those four,
+  `--pathspec-from-file` with path arguments,
+  with `-a` or with `--interactive`,
+  `-a` with paths,
+  a pathless `-i` or `-o` where Git allows no empty change,
+  and `--pathspec-file-nul` without `--pathspec-from-file`
+  (`src/native/commit/rule_commit_region_git_refuses.rs`).
+  The words are never kept here:
+  the same command line is given to the installed Git with `--dry-run`,
+  which runs Git's own validation,
+  rolls its index lock back and never looks for a commit
+  (`src/native/commit/commit_form_refusal_from_git.rs`),
+  so a release that rewords a message changes nothing in the wrapper.
+  `--dry-run` is the **first** token of that question,
+  which is the one place no option of yours can take it as its value and no `--`
+  of yours can put it after the end of the options:
+  `git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`.
+  The question is also given an index of its own,
+  a copy of yours in the repository scratch directory,
+  so even a lost option could not write your index or hold the lock beside it;
+  the branch reference is the repository's own,
+  so the option's position is what keeps that,
+  and a control over every generated command line watches `HEAD`,
+  every reference,
+  the index and the worktree.
+  The question is asked where the commit itself runs:
+  your `-C` chain moves the directory once,
+  the `-C` tokens do not reach the question,
+  and `--git-dir`,
+  `--work-tree`,
+  `--bare` and a `GIT_DIR` in your environment keep the meaning Git gives them there.
+  Where Git's own answer is that it would run the command,
+  nothing is refused:
+  the commit goes on and the transaction makes it,
+  and since the question committed nothing,
+  nothing is made twice.
+  Nothing is staged,
+  no reference moves and the commit service is not reached,
+  and a commit that is fine costs one comparison of the parsed options and no process.
+  When real Git gives no answer at all,
+  the refusal is one sentence that names the form and says which way the question
+  failed:
+  a Git that could not be started,
+  a Git that showed no sign of work for the bound of that step and was ended,
+  or a Git that ended without an exit status.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
@@ -4402,7 +4732,7 @@ A policy whose protection `warn` would remove produces a configuration warning e
 - `discardedCopies.maxAgeDays`:
    positive integer,
    default `30`.
-  Saves of conflicted files older than this many days are removed when a new save is written.
+  Saves older than this many days are removed when a new save is written.
 - `discardedCopies.maxSize`:
    a number of bytes above zero or a string such as `"256m"`
    (`k`,
@@ -5096,8 +5426,13 @@ on the blocking pool and never on the landing thread:
   `rebase` or `reset` exits 0,
   the client compares a digest of the rules text it would load before and after,
   and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
-  The client never starts a service or a process for this,
-  and a command whose rules text did not change reads two small files and sends nothing.
+  The client writes no unit,
+  asks no manager for a start,
+  and starts no process for this;
+  the service it found by its start arguments is asked,
+  and a service killed between that look and the connection is started by the connection itself,
+  because the socket unit keeps listening.
+  A command whose rules text did not change reads two small files and sends nothing.
 
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
@@ -5113,7 +5448,7 @@ The question is asked only when the cache holds no artifact for that text,
 which one `stat` answers,
 so a warm cache pays nothing beside the read it always made.
 
-Two cases keep the write on the command's path,
+These cases keep the write on the command's path,
 because nothing else can make it:
 
 - a machine where no service runs for that worktree,
@@ -5123,7 +5458,18 @@ because nothing else can make it:
   since the service's own environment carries no such variable and it would compile the configuration's files
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
-  so a repository with both lists leaves them to the service.
+  so a repository with both lists leaves them to the service;
+- a service that takes no connection within its bound,
+  or a look at the processes that gives no answer.
+  The request's look is made within 250 ms (`wait_ceilings.rs`,
+  `WARM_SCAN_CEILING`) and its connection within 250 ms (`WARM_REQUEST_CONNECT_CEILING`),
+  so a process stuck in the kernel and a service whose queue of unaccepted connections is full,
+  which is what a service stopped inside its own process leaves,
+  each cost the command a ceiling and no more;
+  a request that is not made is not sent,
+  and the command compiles and publishes the rules itself.
+  The line that follows the connection is a few hundred bytes into a send buffer of 212,992 bytes,
+  so it is taken even by a service that reads nothing.
 
 The artifact itself is published without a file or directory sync:
 a reader validates its magic,
@@ -5240,19 +5586,21 @@ Two requirements bound the latency the wrapper adds,
 and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- Every commit made through the wrapper adds at most the larger of `5,000 ms` and twice native Git's own time for the same
-  commit
-  (each commit,
-  not a percentile of them):
-  a commit real Git takes 50 ms to make may gain five seconds,
-  and one it takes 30 s to make under disk pressure may gain 60 s.
-  The owner changed the rule on 2026-11-12:
-  "Change the 5s rule to max(5s, double what native git takes)",
-  read as the extra over real Git.
+- Every commit made through the wrapper must not add more than the larger of `5,000 ms` and twice the time the same commit
+  takes with native Git:
+  the wrapper's time minus native Git's time is at most `max(5,000 ms, 2 x native time)`,
+  for each commit,
+  not a percentile of them.
+  The owner changed this rule on 2026-11-12 ("Change the 5s rule to max(5s,
+  double what native git takes)"),
+  read as the extra over real Git,
+  so a commit that native Git needs 30 seconds for under disk pressure may take the wrapper 60 seconds more,
+  while one native Git makes in 50 milliseconds may take the wrapper five seconds more.
   A wrapper time alone says nothing under it,
-  so every wrapper commit is measured beside a native Git commit of the same change set,
+  so every measurement of it pairs the wrapper's commit with native Git's commit of the same state,
   alternating with it,
-  in the same repository and under the same conditions.
+  in the same repository and under the same conditions,
+  and never compares a wrapper time with a read-only native Git query.
   The `native:perf` judge still fails a commit whose paired delta reaches `5,000 ms`,
   which is stricter than this requirement for any commit whose real Git time is over 2.5 s;
   its judge is to be changed to this rule.
@@ -5264,6 +5612,9 @@ which the rule above replaced as the measure of a commit:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
+
+The rule's size changed on 2026-11-12 to `max(5,000 ms, 2 x native time)`;
+the measure stayed the paired one.
 
 The 5-second `timeout --signal=KILL` of the binary tests is a hang guard of the test harness
 (`TIME_BOUND_SECONDS` in `src/native/binary/binary_support.rs`),
@@ -5819,7 +6170,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   - The path-crate layer copies the JSONC crate and the scanner with its engine and compiles them (the scanner's
     build script precompiles the embedded baseline),
     so it is rebuilt only when one of them changes.
-  - The subject layer copies the wrapper's `src/native` and `README.md` (the tests include it) and compiles only the
+  - The subject layer copies the wrapper's `src/native`,
+    `README.md` (the tests include it) and `SPEC.md` (a control reads it),
+    and compiles only the
     wrapper,
     so a test sidecar edit or a source edit recompiles one crate.
   - The linter stage follows the same split:
@@ -7120,6 +7473,26 @@ and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
 
+What the service has to do after a command returns is a record in the worktree's Git directory,
+and a command that writes one wakes the service with one line over its socket.
+A service that keeps running does not wait for that line:
+it reads the notes in its journal every five seconds (`LOOK_AGAIN_AFTER` in
+`src/native/landing/service_claim_watch.rs`)
+and lists the records waiting in each repository the notes name,
+so a client killed between a record and its wake,
+a wake lost on a socket that was full,
+and a wake that was never sent cost the record at most those five seconds and never a commit.
+The look reads nothing finished,
+so a repository whose records were all settled costs one listing of an empty directory,
+and it is not work:
+a service with nothing to do still ends at its idle bound
+(`IDLE_EXIT`).
+A service the manager starts also writes the Git directory of its own worktree into those notes,
+so the records a command left for it are found even when no landing of that process wrote one.
+A repository that no note of the journal names and no wake ever reached is the one case a running service cannot
+find,
+and its record waits for the next wake that names it or for a service that starts and reads the notes again.
+
 The repository is the one the command line names.
 `-C` moves the wrapper,
 and `--git-dir`,
@@ -7231,10 +7604,9 @@ and a commit that ends there names the journal command.
   (`src/native/service/service_provision_instance_unloaded.rs`).
   A service that is landing a batch when that repair asks it to retire is left running and the commit goes on
   through it,
-  and so is one whose manager stops answering:
+  and so is one whose manager stops answering or whose unit another command starts again inside the wait:
   the repair is repeated by the next commit,
-  and no
-  commit waits for a landing or fails for one.
+  and no commit waits for a landing or fails for one.
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
   (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,

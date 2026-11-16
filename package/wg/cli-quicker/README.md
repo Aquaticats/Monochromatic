@@ -147,6 +147,37 @@ longest-prefix selection.
 An explicit numeric `Table` continues to receive routes without automatic policy rules.
 `Table = off` installs no routes.
 
+The main-table suppression rule that automatic routing adds
+(`table main suppress_prefixlength 0`) carries the protocol tag `201`,
+the tag the application-bypass routes and rules already carry,
+because that rule names no interface and no table and has no other identity.
+`down` removes exactly the tagged rule,
+and only for an interface whose fwmark names a policy table,
+which is the mark that automatic routing sets.
+A config with a numeric `Table` installs no policy rule,
+so its `down` and its rollback remove none,
+where they used to delete whichever `suppress_prefixlength 0` rule came first,
+including one another tunnel or an administrator had installed.
+A tunnel an earlier build set up carries the same rule without the tag.
+That rule is never deleted by shape:
+`ip rule delete table main suppress_prefixlength 0` removes the first rule of that shape,
+which is the one with the lowest preference,
+and an administrator or another tunnel can own a rule of the same shape.
+There is no field that names the rule's owner,
+so the program cannot establish that an untagged suppression is its own.
+`down` therefore leaves an untagged suppression in place and warns with the line the rule listing printed
+and the exact command that removes it.
+An interface whose fwmark names a policy table,
+whose tagged rule is absent and whose family lists an untagged
+`suppress_prefixlength 0` rule,
+was most likely set up by an earlier build,
+and the person can remove that leftover with the printed command.
+The rule this program writes is listed with the tag:
+
+```sh
+ip -4 rule show | grep 'suppress_prefixlength 0 proto 201'
+```
+
 Before creating an interface,
 `wg-quicker` uses iproute2 JSON rule output to reject IVPN Desktop's exact split-tunnel rule
 (`fwmark 0xca6c`,
@@ -536,6 +567,60 @@ It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
 
+## An interrupted run, and how long a command may take
+
+`up` installs handlers for `SIGINT` and `SIGTERM` before its first step and removes them when it ends.
+A signal therefore stops the up between two steps,
+runs the same rollback a failing step runs,
+and reports the signal and the step that did not run:
+
+```text
+The up was interrupted by SIGINT before it could install the routes and rules, so it is rolled back: what this up already created is being removed.
+```
+
+Without those handlers the signal's default action ends the process at once,
+before any rollback,
+and whatever the up had already created stayed behind.
+The decision is the owner's:
+"nothing should ever wait forever or indefinitely",
+and an interrupt that leaves a half-configured tunnel is the same failure in the other direction.
+A second signal stops at once and abandons the rollback,
+because a person who asks twice wants the process gone.
+`down` keeps the signal's default action:
+its order already blocks traffic before it removes routing,
+so a `down` that is killed part way leaves traffic blocked and not outside the tunnel.
+
+Every command `wg-quicker` runs itself ends at a deadline:
+`ip`,
+`wg`,
+`nft`,
+`resolvectl` and `sysctl` get sixty seconds,
+and a command still running then is killed and reported as
+`CommandTimeoutError`,
+naming the command and the limit.
+Sixty seconds is a stall detector and not a target:
+measured on the host of the review inside a disposable network namespace,
+the slowest call was `ip link delete` at 52 ms,
+and `wg addconf` with a peer of 5000 prefixes took 5 ms.
+A hook is the user's own command and `wg-quick` waits for it,
+so a hook gets ten minutes,
+which is where it has certainly stopped making progress;
+the error names the hook and the limit,
+so a hook that legitimately needs longer can be changed.
+
+The deadline also bounds the wait for a command's output.
+A command that exits while a process it started still holds its standard output or standard error open,
+as `sh -c 'something &'` does,
+never reports the close of its pipes,
+so the read ends are closed at the deadline and the call answers then.
+That command did exit,
+and its own status is what the call reports:
+a timeout is claimed only for a command the deadline ended,
+because reporting one for a hook that already succeeded would run a rollback for nothing.
+The output the command wrote before it exited is kept,
+a line says that a process it left behind held its output open,
+and anything that process writes later is not waited for.
+
 ## Taking the tunnel down
 
 `wg-quicker down` runs the steps that can fail before it removes any routing.
@@ -589,6 +674,22 @@ error: could not stop the route watcher (<reason>)
 the tunnel fr-par-fr1 is still fully up; nothing was removed
 fix: <what to do>, then run `wg-quicker down fr-par-fr1` again
 ```
+
+A `down` of an interface that is already gone does the removals that do not need the link,
+because another tool can delete a link while the application bypass is active.
+The bypass routes,
+rules and state,
+the route watcher,
+the kill switch and the OpenSnitch allowance all outlive the link,
+and leaving them kept host rules selecting the physical bypass table and a watcher refreshing them.
+Only two steps read the link and are skipped without it:
+removing the policy rules,
+whose table comes from the interface's own fwmark,
+and deleting the interface.
+The traffic block is removed last,
+and the command still reports the missing interface,
+and any cleanup step that failed,
+so an ordinary typo is still an error and a real leftover is named.
 
 The block is installed before any routing is removed and lifted after the interface is verified gone,
 so traffic cannot go outside the tunnel from a tunnel that looks up at any point of the removal:
@@ -902,6 +1003,19 @@ because a tunnel brought up behind the block would carry nothing,
 and a `down` of an interface that is already gone fails even though it tolerates a missing interface,
 because the network stays blocked.
 The rollback of a failed `up` does not use this order and does not block.
+
+A program that cannot be started fails its step with a `CommandSpawnError` that names the program and the system's reason,
+for example a host without `wg`:
+
+```text
+Command could not be started: wg addconf /tmp/wg-quicker-XXXX/addconf.conf
+spawn wg ENOENT
+```
+
+The step fails like any other,
+so the rollback of the `up` runs and the tunnel is not left half configured.
+A program that never ran is never reported as an exit code,
+which is why `ip` and its companions cannot use the "allowed to fail" path for a missing program.
 
 ### Upgrading a running tunnel
 
@@ -1303,6 +1417,15 @@ The notice is built by `startNotices`,
 a pure function of the config facts,
 so a test checks every combination of mark,
 `Table = off` and DNS servers and fails if any start would print nothing.
+It reaches the terminal through the program's own standard error and not through the logger,
+because the logger's console sink drops `warn` records when `MONOCHROMATIC_WARN=false`
+and every console record when `MONOCHROMATIC_LOG_CONSOLE=off`,
+and those switches belong to whoever set them for a machine-wide hook,
+not to the decision that a start is always warned about.
+Both switches still decide what the program's own records do:
+with either one set,
+everything else the program logs stays off the terminal while the notice is printed,
+and nothing but the notice goes to standard output.
 With `Table = off` wg-quicker installs no routing rule and no bypass table,
 so the start prints the `POLICY NOT IN FORCE` report instead of the notice,
 saying that where traffic goes is decided by the user's own routing.
@@ -1403,6 +1526,32 @@ and a watcher that died.
 The same texts stay on the terminal during `up`.
 `wg-quicker-exempt` delivers its own failures the same way,
 under the identifier `wg-quicker-exempt`.
+
+### The watcher's record and the process group it leads
+
+A watcher leads its own process group (`setsid`),
+and `ip monitor route` and the watcher's own `ip` calls are children in that group.
+A stop signals the group and not only the leader,
+which is what reaches the monitor.
+A `SIGKILL` to the leader alone leaves the monitor behind,
+so a stop whose recorded leader is already gone signals the recorded group as well:
+`down` ends the orphaned monitor instead of leaving it with its netlink socket
+(the audit of these packages reproduced the leak before that change).
+A pid the kernel has given to another process is never signalled:
+while a process group exists its number cannot be reused,
+so a live process at that pid with another start time belongs to another group.
+
+The record that names the watcher (`<state>.watcher.json`) is written to a temporary file
+beside it and renamed over it,
+so a kill can leave the whole record or none of it and never half of one.
+A record that holds no identity is a fragment of a watcher that was killed while an earlier build wrote it in place,
+and no watcher of it runs.
+`down` and `up` therefore move such a fragment aside instead of refusing for ever:
+the file is kept beside the record as `<record>.unreadable-<milliseconds since the epoch>`,
+a warning names both paths and says that a watcher of an earlier build may still run,
+and the lifecycle goes on.
+Before that change the parse failure was raised by every later stop and start,
+so a kill in the wrong moment wedged the interface's lifecycle for good.
 
 ### When the route watcher itself dies
 
