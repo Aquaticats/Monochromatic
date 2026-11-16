@@ -413,11 +413,15 @@ fn a_claim_on_a_flushing_thread_flushes_its_record_and_its_directory() {
 /// unlike the held push's two-valued reader (`landing/held_push_holder_and_verdict_tests.rs`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Required {
-    /// Nothing of the owner runs: the claimant takes the item.
+    /// Nothing of the owner runs:
+    /// the claimant takes the item.
     Gone,
-    /// The owner is the process that has the number now: the claimant is told who it is.
+    /// The owner is the process that has the number now:
+    /// the claimant is told who it is.
     Alive,
-    /// The reader cannot tell: the claimant stops without taking anything, and the words say what it could not read.
+    /// The reader cannot tell:
+    /// the claimant stops without taking anything,
+    /// and the words say what it could not read.
     Unknown(UnknownNames),
 }
 
@@ -434,14 +438,16 @@ enum Required {
 enum UnknownNames {
     /// The birth the reader could not compare.
     TheBirth,
-    /// The file, whose empty birth field makes it no claim this command wrote.
+    /// The file,
+    /// whose empty birth field makes it no claim this command wrote.
     TheFile,
 }
 
 /// The birth `birth` with a leading zero on its start tick,
 /// which is the same tick written the way a program that pads numbers writes it.
 /// Why:
-///   A start tick is a number, and one number has one value however many zeros lead it.
+///   A start tick is a number,
+/// and one number has one value however many zeros lead it.
 fn birth_with_a_leading_zero(birth: &str) -> String {
     let Some((prefix, tick)) = birth.split_once(':') else {
         panic!("the birth {birth} is no start tick this control can pad");

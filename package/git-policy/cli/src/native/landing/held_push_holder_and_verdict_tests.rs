@@ -322,11 +322,14 @@ const NO_SUCH_BIRTH: &str = "linux:18446744073709551615";
 /// which is why the claim's own table (`lock/single_owner_claim_tests.rs`) is the one that tells them apart.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Required {
-    /// Nothing of the holder runs: the record may be settled.
+    /// Nothing of the holder runs:
+    /// the record may be settled.
     Gone,
-    /// The holder is the process that has the number now: the record waits for it.
+    /// The holder is the process that has the number now:
+    /// the record waits for it.
     Alive,
-    /// The reader cannot tell: the record stays as it is.
+    /// The reader cannot tell:
+    /// the record stays as it is.
     Unknown,
 }
 
@@ -351,7 +354,8 @@ enum Required {
 /// the number of the process that wrote the record,
 /// and the number of a later process,
 /// which is a live number with a birth the record says belongs to an earlier process.
-///  Where the number is live, an answer of unknown says only that this reader cannot compare the birth it read with the
+///  Where the number is live,
+/// an answer of unknown says only that this reader cannot compare the birth it read with the
 /// process that has the number,
 /// which is the same answer whether that process is the one the record names or a later one:
 /// a respelled birth of an earlier process is no more comparable than a respelled birth of the record's own.
