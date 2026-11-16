@@ -283,13 +283,12 @@ await describe({
         /**
          What the removal threw.
          */
-        const thrown = await removeTrafficBlock({
-          interfaceName: 'wgtest',
-          runCommand: scripted({ answers: [NOT_PERMITTED, LISTED,], },).runner,
-        },).then(
-          (): undefined => undefined,
-          (error: unknown) => error,
-        );
+        const thrown = await thrownBy({
+          run: () => removeTrafficBlock({
+            interfaceName: 'wgtest',
+            runCommand: scripted({ answers: [NOT_PERMITTED, LISTED,], },).runner,
+          },),
+        },);
         expect((thrown as Error).name,).toBe('TrafficBlockError',);
         /**
          Its message.
@@ -306,13 +305,12 @@ await describe({
         /**
          What the removal threw.
          */
-        const thrown = await removeTrafficBlock({
-          interfaceName: 'wgtest',
-          runCommand: scripted({ answers: [NOT_PERMITTED, NOT_PERMITTED,], },).runner,
-        },).then(
-          (): undefined => undefined,
-          (error: unknown) => error,
-        );
+        const thrown = await thrownBy({
+          run: () => removeTrafficBlock({
+            interfaceName: 'wgtest',
+            runCommand: scripted({ answers: [NOT_PERMITTED, NOT_PERMITTED,], },).runner,
+          },),
+        },);
         expect((thrown as Error).name,).toBe('TrafficBlockError',);
         expect(String(thrown,),).toContain('could not tell whether the traffic block (nft table inet wg-quicker-wgtest-blocked) was removed',);
         expect(String(thrown,),).toContain('sudo nft list table inet wg-quicker-wgtest-blocked',);
