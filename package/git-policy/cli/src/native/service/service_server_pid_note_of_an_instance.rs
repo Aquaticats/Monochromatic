@@ -60,9 +60,34 @@ pub fn write(note: &Path, pid: i32) -> std::io::Result<()> {
         // A platform without an identity source cannot make a note a later command may trust, so none is made.
         return Ok(());
     };
-    let temporary: PathBuf = note.with_extension("pid.writing");
+    // What: The temporary file is this write's own.
+    // Why:  Two services of one instance start at once (a worktree made again while an earlier service still ends), and they
+    //       write one note: a name they shared let one rename the other's file away, and the other's rename failed with
+    //       `ENOENT` under a message about the address, which read as a service that could not keep its socket
+    //       (the review of `567ae37198`, finding 2, measured through
+    //       `two_services_pruning_at_once_lose_no_record_that_should_stay` on 2026-11-15).
+    let temporary: PathBuf = note.with_extension(format!("pid.{}.{}.writing", std::process::id(), next_note_number()));
     std::fs::write(&temporary, text)?;
-    return std::fs::rename(&temporary, note);
+    let published: std::io::Result<()> = std::fs::rename(&temporary, note);
+    if published.is_err() {
+        let _left = std::fs::remove_file(&temporary);
+    }
+    return published;
+}
+
+/// What:
+///  A number no other write of this process has taken,
+///  so two writes at once never share a temporary file.
+/// Why:
+///   The process's own number tells two processes apart and does not tell two writes of one process apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nextNoteNumber() // a counter this process increments
+/// ```
+fn next_note_number() -> u64 {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    return COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// What:

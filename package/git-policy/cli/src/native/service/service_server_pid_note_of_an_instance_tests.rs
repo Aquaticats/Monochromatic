@@ -42,3 +42,35 @@ fn text_that_is_not_a_note_names_nothing() {
     assert!(parse("nonsense\n").is_none());
     assert!(parse("12 linux:99\n").is_some());
 }
+
+/// What:
+///  Two writes of one note at once both succeed, and the note names one of the two processes.
+/// Why:
+///  The review of `567ae37198` (finding 2), measured here through the pruning control of two services started at once:
+///  every write took the same `<instance>.pid.writing` before its rename, so one write renamed the other's file away and
+///  the other's rename failed with `ENOENT`, which the service then reported as an address it could not keep.
+#[test]
+fn two_writes_of_one_note_at_once_both_succeed() {
+    let root: std::path::PathBuf = crate::test_support::fixture_root().join("note-two-writers");
+    let _ = std::fs::remove_dir_all(root.as_path());
+    std::fs::create_dir_all(root.as_path()).expect("fixture folder");
+    let note: std::path::PathBuf = path(root.as_path(), "3f9a");
+    for round in 0..8 {
+        let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let mut threads: Vec<std::thread::JoinHandle<std::io::Result<()>>> = Vec::new();
+        for _ in 0..2 {
+            let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&barrier);
+            let written: std::path::PathBuf = note.clone();
+            threads.push(std::thread::spawn(move || {
+                gate.wait();
+                return write(written.as_path(), i32::try_from(std::process::id()).expect("a process number"));
+            }));
+        }
+        for thread in threads {
+            let result: std::io::Result<()> = thread.join().expect("the writing thread");
+            assert!(result.is_ok(), "round {round}: a write of the note must not lose its own file: {result:?}");
+        }
+        assert!(read(note.as_path()).is_some(), "round {round}: the note names a process after both writes");
+    }
+    let _ = std::fs::remove_dir_all(root.as_path());
+}
