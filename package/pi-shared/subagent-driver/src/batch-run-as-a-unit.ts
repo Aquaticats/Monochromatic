@@ -206,6 +206,11 @@ export function batchUnitCommandOf(request: BatchUnitRequest,): {
   readonly command: string;
   readonly words: readonly string[];
 } {
+  /**
+   The limits the unit gets, read and written again here so that no character of them can be read as another option or
+   expanded, and empty when the caller set none or set nothing a pool is named in.
+   */
+  const limitsForTheUnit = (request.poolLimits === undefined) ? '' : limitsTheBatchUnitGets(request.poolLimits,);
   return {
     command: 'systemd-run',
     words: [
@@ -221,9 +226,9 @@ export function batchUnitCommandOf(request: BatchUnitRequest,): {
       `--property=StandardError=append:${request.outputFile}`,
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
-      ...((request.poolLimits === undefined)
+      ...((limitsForTheUnit === '')
         ? []
-        : [`--setenv=${POOL_LIMITS_VARIABLE}=${limitsTheBatchUnitGets(request.poolLimits,)}`]),
+        : [`--setenv=${POOL_LIMITS_VARIABLE}=${limitsForTheUnit}`]),
       `--working-directory=${request.checkoutFolder}`,
       request.node,
       request.batchEntry,

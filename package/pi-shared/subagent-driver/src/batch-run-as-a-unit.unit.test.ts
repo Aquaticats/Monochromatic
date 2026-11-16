@@ -375,13 +375,23 @@ await describe({
           },
         },),
         it({
-          name: 'carries the caller\'s limits variable into the unit when the caller set one, and carries none when the caller set none',
+          name: 'carries the caller\'s limits variable into the unit when the caller set one, and carries none when the caller set none or set nothing a pool is named in',
           fn: async () => {
             /**
              The limits a caller sets to close the pool whose week is spent, which is how the runbook closes a pool.
              */
             const spent = `${OPENCODE_GO.name}=${String(CLOSED_POOL_LIMIT,)}`;
             expect(limitsWordsIn(batchUnitCommandOf(aBatchRequest(),).words,),).toEqual([],);
+            // A shell that exports the variable with nothing in it names no pool, and the gate inside the batch would read the
+            // same from nothing, so the unit is given no word for it.
+            expect(limitsWordsIn(batchUnitCommandOf({
+              ...aBatchRequest(),
+              poolLimits: '',
+            },).words,),).toEqual([],);
+            expect(limitsWordsIn(batchUnitCommandOf({
+              ...aBatchRequest(),
+              poolLimits: '  ',
+            },).words,),).toEqual([],);
             expect(limitsWordsIn(batchUnitCommandOf({
               ...aBatchRequest(),
               poolLimits: spent,
@@ -418,14 +428,15 @@ await describe({
           name: 'refuses a limits value it cannot read before any unit is made, naming the variable, so a mistyped setting closes nothing',
           fn: async () => {
             /**
-             Settings the gate could not read either, each with a character that must never reach systemd as it stands: a dollar
-             sign, a quote, a newline that would glue two settings into one, and a leading dash.
+             Settings the gate could not read either, each with something that must never reach systemd as it stands or names no
+             pool: a dollar sign, a quote, a newline that would glue two settings into one, a leading dash, and a name no pool has.
              */
             const unreadable: readonly string[] = [
               `${OPENCODE_GO.name}=$${String(OPENCODE_GO.limit,)}`,
               `${OPENCODE_GO.name}="${String(OPENCODE_GO.limit,)}"`,
               `${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)}\n${NEURALWATT_DEEPSEEK_FLEX.name}=${String(CLOSED_POOL_LIMIT,)}`,
               `-${OPENCODE_GO.name}=${String(OPENCODE_GO.limit,)}`,
+              `${NEURALWATT_DEEPSEEK_FLEX.name}-typo=${String(OPENCODE_GO.limit,)}`,
             ];
             // One unreadable setting after another, each its own folder of stand-in programs and its own program run, so the
             // settings cannot share a log or a folder.
