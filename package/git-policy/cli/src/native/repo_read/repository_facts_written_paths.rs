@@ -1035,19 +1035,31 @@ fn tree_paths(
         None => OsString::from("HEAD"),
     };
     // What:
-    //  The tree object id the form's own revision resolves to, asked of Git.
+    //  The object id the form's own revision resolves to, asked of Git.
     // Why:
     //  A revision is Git's own grammar, and a reading of it by hand met a new spelling in each review:
     //  `A...B` is the merge base to `checkout` while `ls-tree A...B` refuses it, and a name that is both a
     //  tag and a branch is the branch to `checkout` while `ls-tree` takes the tag.
-    //  So the word is resolved by Git, and the listing and the `--with-tree` query are given the object id,
-    //  which no spelling and no ambiguity can move.
-    let Some(tree): Option<OsString> = resolve_the_tree(facts, named.as_os_str(), how, run_in)? else {
+    //  So the word is resolved by Git as Git itself resolves it, and the listing and the `--with-tree` query
+    //  are given the object id, which no spelling and no ambiguity can move.
+    //  The word is resolved *unpeeled*: `other:sub` names a tree and `:/text` a commit, and appending `^{tree}`
+    //  to either asks about another word (`rev-parse other:sub^{tree}` exits 1 while `rev-parse other:sub`
+    //  answers the tree, measured on this host with native Git 2.56.0, 2026-11-16), which is how the eleventh
+    //  review's first finding came about.
+    let Some(object): Option<OsString> = resolve_the_object(facts, named.as_os_str(), how, run_in)? else {
         return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, how, run_in);
     };
-    return match listed_paths_of(facts, tree.as_os_str(), pathspecs, run_in)? {
-        Some(paths) => Ok(paths),
-        None => Err(tree_reading_failure(named.as_os_str(), "Git named that tree and did not list it")),
+    if let Some(paths) = listed_paths_of(facts, object.as_os_str(), pathspecs, run_in)? {
+        return Ok(paths);
+    }
+    // A resolved object that cannot be listed is either an object that is no tree (a blob a form names with
+    //  `<rev>:<path>`, which Git's command refuses itself) or a read that failed. Git's own type answers which.
+    return match object_kind(facts, object.as_os_str(), run_in)? {
+        Some(kind) if kind == ObjectKind::Tree || kind == ObjectKind::Commit => {
+            Err(tree_reading_failure(named.as_os_str(), "Git named that tree and did not list it"))
+        }
+        Some(_) => Ok(Vec::<Vec<u8>>::new()),
+        None => Err(tree_reading_failure(named.as_os_str(), "Git named that object and did not say what it is")),
     };
 }
 
@@ -1072,136 +1084,268 @@ struct Resolution {
 }
 
 /// What:
-///  The tree object id one revision name denotes to the form that wrote it,
+///  The object id one revision name denotes to the form that wrote it,
 ///  asked of Git in the order the form itself resolves it,
-///  or nothing when Git reads the word as no revision at all,
-///  or a refusal when Git reads it as several objects.
+///  or nothing when Git reads the word as no revision at all.
 ///  `&Resolution` borrows the form's own two facts.
 /// Why:
 ///  Where Git can be asked what a word means, asking it is what keeps the guard equal to the command:
-///  `checkout -f A...B` writes the merge base's tree, and every query that resolves a single object
-///  refuses that spelling (`ls-tree`, `cat-file -t`, `rev-parse --verify`), so a guard that asked one of
-///  them read "this form writes nothing" (the eleventh review's first finding).
+///  `checkout -f A...B` writes the merge base, `git restore --source=other:sub` writes that subtree and
+///  `git reset --hard :/text` that commit, and each of them is one name Git resolves.
 ///  And `checkout -f <name>` writes the tip of `refs/heads/<name>` when that ref exists while
-///  `rev-parse <name>` takes a tag of that name first (its second finding),
+///  `rev-parse <name>` takes a tag of that name first (the eleventh review's second finding),
 ///  so a form that prefers its local branch asks about `refs/heads/<name>` first.
-///  A word Git reads as several objects (a range, a set, a blob) is a revision this reading cannot turn
-///  into one tree, and the refusal names it and prints the opt-out.
+///  `HEAD` is asked about like any other name, because a repository may hold `refs/heads/HEAD`, which
+///  `checkout` prefers (its sixth finding).
+///  A word Git reads as no single object is left to Git: where the parsed set is the symmetric difference of
+///  two commits, the merge base is the object the form writes, and every other shape is a word Git's own
+///  command rejects, so nothing is written and Git's message stands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // resolveTheTree(facts, 'other', { prefers_a_local_branch: true }) === 'f27119e…'
-/// // resolveTheTree(facts, 'work...other', …) throws a refusal that names the word
+/// // resolveTheObject(facts, 'other', { prefers_a_local_branch: true }) === 'f27119e…'
+/// // resolveTheObject(facts, 'main...other', …) === the merge base's id
+/// // resolveTheObject(facts, 'nosuchname', …) === undefined
 /// ```
-fn resolve_the_tree(facts: &mut GitFacts, named: &OsStr, how: Resolution, run_in: &Path) -> Result<Option<OsString>, String> {
-    // `HEAD` is no name a person typed, and needs no resolution.
-    if named == "HEAD" {
-        return Ok(Some(named.to_os_string()));
-    }
+fn resolve_the_object(facts: &mut GitFacts, named: &OsStr, how: Resolution, run_in: &Path) -> Result<Option<OsString>, String> {
     if how.prefers_a_local_branch {
-        let branch: OsString = OsString::from(format!("refs/heads/{}", bytes_of(named)));
-        if let Some(tree) = tree_of_the_expression(facts, branch.as_os_str(), run_in)? {
-            return Ok(Some(tree));
+        let mut branch: Vec<u8> = b"refs/heads/".to_vec();
+        // The name's own bytes: a branch name is bytes, and a lossy reading names another ref
+        //  (the eleventh review's third finding, where a branch holding raw `0xff` became one spelled
+        //  with U+FFFD).
+        branch.extend_from_slice(named.as_encoded_bytes());
+        if let Some(object) = object_id_of(facts, branch.as_slice(), run_in)? {
+            return Ok(Some(object));
         }
     }
-    if let Some(tree) = tree_of_the_expression(facts, named, run_in)? {
-        return Ok(Some(tree));
+    if let Some(object) = object_id_of(facts, named.as_encoded_bytes(), run_in)? {
+        return Ok(Some(object));
     }
-    // Git reads the word as no single object. If it reads it as a revspec at all, the guard cannot say
-    //  which one tree it writes, and it refuses rather than guessing.
-    let reads_it: bool = word_is_a_revspec(facts, named, run_in)?;
-    if reads_it {
-        return Err(tree_reading_failure(
-            named,
-            "Git reads that word as more than one object (a range, a set or an object that is no tree), so the guard cannot tell which tree this form writes",
-        ));
-    }
-    return Ok(None);
+    return merge_base_of_a_symmetric_range(facts, named, run_in);
 }
 
 /// What:
-///  The `OsStr` one name is, as the text a message can carry.
-///  `&OsStr` borrows the name; `String` owns the lossy reading of it for a sentence.
+///  The object id Git resolves one word to, unpeeled,
+///  nothing when Git reads no object by that name,
+///  and a refusal when Git could not answer.
+///  `&[u8]` borrows the word's own bytes.
 /// Why:
-///  A branch name is appended to `refs/heads/` as text, and the name may hold bytes that are not UTF-8;
-///  the sentence a refusal prints reads them lossily, and nothing else does.
+///  `rev-parse --verify --quiet` answers an unknown name with exit 1 and no output, which is the one way
+///  Git says "no such object", and every other failure is Git not finding out: a fatal exit (128), a
+///  message, or output where one object was promised. A guard that read a failed question as "no" let a
+///  command through unlooked (the eleventh review's fifth finding), so a failure is a refusal that names
+///  the word, and the person's work stays where it is.
+///  The answer is taken as an object id when it is one line of hexadecimal digits: Git has two object
+///  formats (40 digits for SHA-1 and 64 for SHA-256) and the repository decides which, so no length is
+///  written here (`git init --object-format=sha256`), and a wrong answer fails the listing that follows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bytesOf = (name) => name.toString();
+/// // const id = (await git(['rev-parse', '--verify', '--quiet', '--end-of-options', word])).stdout.trim();
 /// ```
-fn bytes_of(named: &OsStr) -> String {
-    return named.to_string_lossy().into_owned();
-}
-
-/// What:
-///  The tree object id Git resolves one expression to,
-///  or nothing when it resolves to no tree.
-/// Why:
-///  `^{tree}` makes Git peel the expression as far as a tree, which is what a form that writes a tree
-///  needs: a tag, a commit, a `^{}` peel, a `@{…}` reflog entry and a `:/text` search all answer it,
-///  and the answer is an object id that a listing cannot mistake for another name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // const tree = (await git(['rev-parse', '--verify', '--quiet', '--end-of-options', `${name}^{tree}`])).stdout.trim();
-/// ```
-fn tree_of_the_expression(facts: &mut GitFacts, expression: &OsStr, run_in: &Path) -> Result<Option<OsString>, String> {
-    let mut one: Vec<u8> = expression.as_encoded_bytes().to_vec();
-    one.extend_from_slice(b"^{tree}");
+fn object_id_of(facts: &mut GitFacts, word: &[u8], run_in: &Path) -> Result<Option<OsString>, String> {
     let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
     for token in ["--no-optional-locks", "rev-parse", "--verify", "--quiet", "--end-of-options"] {
         arguments.push(OsString::from(token));
     }
-    arguments.push(path_from_bytes(one.as_slice()));
-    let output: MetadataOutput = facts.query_in(run_in, arguments, "the tree this command writes")?;
-    if !output.success {
-        // A child a signal ended answered nothing at all; only a nonzero exit is an answer about the name.
-        if output.code.is_none() {
-            return Err(String::from(
-                "Git was ended by a signal while the guard asked which tree this command writes, so it cannot tell what would be overwritten",
-            ));
-        }
-        return Ok(None);
-    }
+    arguments.push(path_from_bytes(word));
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "the object this command writes")?;
     let resolved: Vec<u8> = output.stdout.iter().copied().take_while(|byte| return *byte != b'\n').collect();
     let text: &[u8] = trimmed(resolved.as_slice());
-    if text.is_empty() || text.len() != 40 || !text.iter().all(|byte| return byte.is_ascii_hexdigit()) {
-        return Err(format!(
-            "Git answered `{}` when the guard asked which tree this command writes, which is no object id, so the guard cannot tell what would be overwritten",
-            String::from_utf8_lossy(resolved.as_slice())
-        ));
+    if output.success {
+        // One line of hexadecimal digits of one of Git's object formats, and nothing else.
+        if text.is_empty() || !text.iter().all(|byte| return byte.is_ascii_hexdigit()) {
+            return Err(format!(
+                "Git answered `{}` when the guard asked which object this command writes, which is no object id, so the guard cannot tell what would be overwritten",
+                String::from_utf8_lossy(resolved.as_slice())
+            ));
+        }
+        return Ok(Some(path_from_bytes(text)));
     }
-    return Ok(Some(path_from_bytes(text)));
+    // Exit 1 is Git's "not one object by that name": it says so with nothing at all for an unknown name, and
+    //  with the two ends of a range for `A...B`, sometimes beside a warning about an ambiguous refname, which
+    //  says nothing about the question. Both are answers about the word, and the range is read on by the
+    //  merge-base question. Every other failure is a question that was not answered, and a guard that read that
+    //  as "no" let a command through unlooked (the eleventh review's fifth finding).
+    if output.code == Some(1) && mentions_only_object_ids(text) {
+        return Ok(None);
+    }
+    let said: String = String::from_utf8_lossy(trimmed(output.stderr.as_slice())).into_owned();
+    let ending: String = match output.code {
+        Some(code) => format!("Git exited {code} and said `{said}`"),
+        None => String::from("Git was ended by a signal before it answered"),
+    };
+    return Err(format!(
+        "the guard could not find out which object the word `{}` of this command names: {ending}, so the guard cannot tell what would be overwritten",
+        String::from_utf8_lossy(word),
+    ));
 }
 
 /// What:
-///  Whether Git reads a word as a revision of any kind, one object or several.
+///  Whether Git's answer looks like a list of object ids, each optionally prefixed with `^`,
+///  or nothing at all.
+///  `&[u8]` borrows the answer; `bool` says whether every line is such an id.
 /// Why:
-///  The two answers a failed resolution can mean are opposite, and Git alone tells them apart:
-///  a word it reads as no revision is a path to the command (Git writes nothing to a tree for it and
-///  refuses a path it does not know),
-///  while a word it reads as several objects is a form whose tree the guard cannot name.
-///  `rev-parse --revs-only` prints what it parsed and nothing for a word it does not read, and its exit
-///  status is 0 either way, so the answer is the text.
+///  `rev-parse --verify` refuses a range with exit 1 and prints its ends,
+///  which is an answer about the word and not a failure of the question;
+///  a message, a word that is no object id or any other output is a question the guard could not have
+///  answered, and that is a refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // const parsed = (await git(['rev-parse', '--revs-only', '--end-of-options', name])).stdout.trim();
+/// const mentionsOnlyObjectIds = (answer) => answer.toString().trim().split('\n').every((line) => line === '' || /^\^?[0-9a-f]+$/.test(line.trim()));
 /// ```
-fn word_is_a_revspec(facts: &mut GitFacts, named: &OsStr, run_in: &Path) -> Result<bool, String> {
+fn mentions_only_object_ids(answer: &[u8]) -> bool {
+    for line in answer.split(|byte| return *byte == b'\n') {
+        let entry: &[u8] = trimmed(line);
+        if entry.is_empty() {
+            continue;
+        }
+        let id: &[u8] = entry.strip_prefix(b"^").unwrap_or(entry);
+        if id.is_empty() || !id.iter().all(|byte| return byte.is_ascii_hexdigit()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  The merge base Git computes for a word that reads as the symmetric difference of two commits
+///  (`A...B`), or nothing for every other word Git does not resolve as one object.
+/// Why:
+///  `git checkout -f A...B`, `git switch -f --detach A...B` and `git restore --source=A...B` write the merge
+///  base, and no single-object query resolves that spelling
+///  (`rev-parse --verify A...B`, `ls-tree A...B` and `cat-file -t A...B` all refuse it, measured on this host
+///  with native Git 2.56.0, 2026-11-16), so a guard that refused the word refused a command Git runs with
+///  nothing at risk (the eleventh review's first finding).
+///  `rev-parse --revs-only` prints Git's own parsing of the word: two commits for the symmetric difference,
+///  three when the merge base is neither tip, and one plain entry with one `^`-prefixed one for the
+///  asymmetric range, which Git rejects for these forms. So the symmetric shape is the one whose entries are
+///  two commits with no `^`, or those two plus the merge base itself, and `merge-base` answers the object.
+///  Every other shape is left to Git: it reads no tree for it, so the command writes nothing and Git's own
+///  message stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // mergeBaseOfASymmetricRange(facts, 'main...other') === the merge base's id
+/// // mergeBaseOfASymmetricRange(facts, 'main..other') === undefined
+/// ```
+fn merge_base_of_a_symmetric_range(facts: &mut GitFacts, named: &OsStr, run_in: &Path) -> Result<Option<OsString>, String> {
     let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
     for token in ["--no-optional-locks", "rev-parse", "--revs-only", "--end-of-options"] {
         arguments.push(OsString::from(token));
     }
     arguments.push(named.to_os_string());
-    let output: MetadataOutput = facts.query_in(run_in, arguments, "whether Git reads this word as a revision")?;
-    if output.code.is_none() {
-        return Err(String::from(
-            "Git was ended by a signal while the guard asked what a word of this command names, so it cannot tell what would be overwritten",
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "what a word of this command parses as")?;
+    if !output.success {
+        let said: String = String::from_utf8_lossy(trimmed(output.stderr.as_slice())).into_owned();
+        return Err(format!(
+            "the guard could not find out what the word `{}` of this command names: Git exited {} and said `{said}`",
+            String::from_utf8_lossy(named.as_encoded_bytes()),
+            match output.code { Some(code) => code.to_string(), None => String::from("by a signal") },
         ));
     }
-    return Ok(!trimmed(output.stdout.as_slice()).is_empty());
+    let mut plain: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    let mut merged: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for line in output.stdout.split(|byte| return *byte == b'\n') {
+        let entry: &[u8] = trimmed(line);
+        if entry.is_empty() {
+            continue;
+        }
+        match entry[0] {
+            b'^' => merged.push(entry[1..].to_vec()),
+            _ => plain.push(entry.to_vec()),
+        }
+    }
+    // Two commits and nothing else: the merge base is neither of them.
+    //  Or those two plus the merge base itself. Anything else is not the symmetric range of two commits.
+    if plain.len() != 2 {
+        return Ok(None);
+    }
+    if merged.len() == 1 && merged.first() != plain.first() && merged.first() != plain.get(1) {
+        return Ok(merged.first().map(|found| return path_from_bytes(found.as_slice())));
+    }
+    if !merged.is_empty() {
+        return Ok(None);
+    }
+    let mut merging: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "merge-base"] {
+        merging.push(OsString::from(token));
+    }
+    merging.push(path_from_bytes(plain.first().expect("two plain entries").as_slice()));
+    merging.push(path_from_bytes(plain.get(1).expect("two plain entries").as_slice()));
+    let answer: MetadataOutput = facts.query_in(run_in, merging, "the merge base this command writes")?;
+    if !answer.success {
+        // No merge base is Git's own answer for a form that then fails; any other failure is a question the
+        //  guard could not have answered.
+        if answer.code == Some(1) && trimmed(answer.stdout.as_slice()).is_empty() {
+            return Ok(None);
+        }
+        let said: String = String::from_utf8_lossy(trimmed(answer.stderr.as_slice())).into_owned();
+        return Err(format!(
+            "the guard could not find out which merge base the word `{}` of this command names: Git exited {} and said `{said}`",
+            String::from_utf8_lossy(named.as_encoded_bytes()),
+            match answer.code { Some(code) => code.to_string(), None => String::from("by a signal") },
+        ));
+    }
+    let found: &[u8] = trimmed(answer.stdout.as_slice());
+    if found.is_empty() {
+        return Ok(None);
+    }
+    return Ok(Some(path_from_bytes(found)));
+}
+
+/// What:
+///  What kind of object one id is, by Git's own answer, or nothing when Git did not say.
+/// Why:
+///  A resolved object that cannot be listed is either an object no form can write as a tree (a blob a form
+///  names with `<rev>:<path>`, which Git's command refuses) or a read that failed;
+///  Git's own type is what tells them apart, and a failure to say it is a refusal rather than a guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // objectKind(facts, id) === 'tree' | 'commit' | 'blob' | undefined;
+/// ```
+fn object_kind(facts: &mut GitFacts, object: &OsStr, run_in: &Path) -> Result<Option<ObjectKind>, String> {
+    let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "cat-file", "-t"] {
+        arguments.push(OsString::from(token));
+    }
+    arguments.push(object.to_os_string());
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "what kind of object this command writes")?;
+    if !output.success {
+        return Ok(None);
+    }
+    return Ok(match trimmed(output.stdout.as_slice()) {
+        b"tree" => Some(ObjectKind::Tree),
+        b"commit" => Some(ObjectKind::Commit),
+        b"blob" => Some(ObjectKind::Blob),
+        b"tag" => Some(ObjectKind::Tag),
+        _ => None,
+    });
+}
+
+/// What:
+///  The kinds of object Git names.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  The two that can be listed as a tree are what a failed listing is judged by;
+///  a blob and a tag are objects no guarded form writes as one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ObjectKind = 'tree' | 'commit' | 'blob' | 'tag';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ObjectKind {
+    /// A tree.
+    Tree,
+    /// A commit, which a listing peels to its tree.
+    Commit,
+    /// A blob.
+    Blob,
+    /// An annotated tag.
+    Tag,
 }
 
 /// What:
@@ -1262,10 +1406,11 @@ fn tree_of_a_name_git_may_still_reach(
     let Some(remote_branch) = remote_branch_a_checkout_would_create_from(facts, named)? else {
         return Ok(Vec::<Vec<u8>>::new());
     };
-    let Some(tree): Option<OsString> = tree_of_the_expression(facts, remote_branch.as_os_str(), run_in)? else {
+    // The guessed branch is a remote-tracking ref Git named, so its own name is what is asked about.
+    let Some(object): Option<OsString> = object_id_of(facts, remote_branch.as_encoded_bytes(), run_in)? else {
         return Ok(Vec::<Vec<u8>>::new());
     };
-    return match listed_paths_of(facts, tree.as_os_str(), &[], run_in)? {
+    return match listed_paths_of(facts, object.as_os_str(), &[], run_in)? {
         Some(paths) => Ok(paths),
         None => Err(tree_reading_failure(
             remote_branch.as_os_str(),

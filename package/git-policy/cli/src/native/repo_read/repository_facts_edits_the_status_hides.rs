@@ -42,20 +42,35 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The mark `git ls-files -v` prints for an `assume-unchanged` entry:
-/// its tag is the lower-case letter of the entry's state.
+/// its tag is the lower-case letter of the entry's state,
+/// and the `s` that means both marks is an `assume-unchanged` entry as well.
 /// Why:
 ///   `-v` lower-cases the tag of exactly the entries Git was told not to look at,
 ///  and every other entry keeps an upper-case tag.
+///  The tag `s` is a path marked both `assume-unchanged` and `skip-worktree`:
+///  Git's own status hides it for the skip-worktree mark, and the forms that write over a marked edit are
+///  those that reach a skip-worktree entry, so reading it as an `assume-unchanged` edit alone is what made the
+///  guard see an edit where Git kept the file (the eleventh review's seventh finding).
+///  The caller's scope decides: the assume-unchanged reading takes the plain lower-case letters, and the
+///  skip-worktree reading takes `S` and `s`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isMarked = (tag: string) => tag.length === 1 && tag === tag.toLowerCase();
+/// const isMarked = (tag: string, skipWorktreeToo: boolean) => skipWorktreeToo ? tag === 'S' || tag === 's' : tag.length === 1 && tag === tag.toLowerCase() && tag !== 's';
 /// ```
 fn is_marked(tag: &[u8], skip_worktree_too: bool) -> bool {
     if tag.len() != 1 {
         return false;
     }
-    return tag[0].is_ascii_lowercase() || (skip_worktree_too && tag[0] == b'S');
+    return if skip_worktree_too {
+        // Every mark Git hides from the status: an `assume-unchanged` entry (`h` and its kind) and a
+        //  `skip-worktree` one (`S`, or `s` for both marks).
+        tag[0].is_ascii_lowercase() || tag[0] == b'S'
+    } else {
+        // The `assume-unchanged` reading alone: a tag that says skip-worktree as well is left to the reading
+        //  that asks about skip-worktree entries.
+        tag[0].is_ascii_lowercase() && tag[0] != b's'
+    };
 }
 
 /// What:
@@ -95,14 +110,23 @@ pub(super) fn edits_the_status_hides(
         match (entry.kind, what_the_worktree_holds(worktree_root, &entry)?) {
             // A path that is gone is no edit of the person's: Git writes it back.
             (_, Held::NotThere) => {}
+            // A gitlink is a submodule: its worktree is a directory of another repository, which this reading
+            //  does not judge and the submodule reading does, so it is no edit here whatever stands there
+            //  (the eleventh review's seventh finding: an `assume-unchanged` submodule was refused).
+            (IndexKind::Submodule, _) => {}
             // The index holds a link and the worktree a file, or the other way round: a change of type is
             //  the person's row, whatever the bytes of either entry are
             //  (a link replaced by a file holding the link's target text hashes to the same object as the
             //  link, and the comparison of content alone read it as unchanged: the eleventh review's sixth
             //  finding).
-            (IndexKind::Link, Held::Regular { .. })
-            | (IndexKind::File { .. }, Held::Link)
-            | (_, Held::Other) => edited.push(named_path(&entry)),
+            //  A repository that stores no link as a link (`core.symlinks=false`) writes the target's text into a
+            //  plain file and reads it back the same way, so the two kinds are one entry there and its bytes are
+            //  what tells an edit.
+            (IndexKind::Link, Held::Regular { .. }) if symlinks_are_stored(facts, worktree_root)? => {
+                edited.push(named_path(&entry))
+            }
+            (IndexKind::Link, Held::Regular { .. }) => to_compare.push(entry),
+            (IndexKind::File { .. }, Held::Link) | (_, Held::Other) => edited.push(named_path(&entry)),
             (IndexKind::Link, Held::Link) => to_compare.push(entry),
             (IndexKind::File { executable }, Held::Regular { executable: now }) => {
                 // A change of mode is the person's data like a change of bytes, and Git records an
@@ -115,7 +139,7 @@ pub(super) fn edits_the_status_hides(
                 //  asked only where the bit differs and only of a repository that reads it
                 //  (with `core.fileMode=false` the bit survived both a restore and a hard reset in the same
                 //  measurement).
-                if executable != now && file_mode_is_recorded(facts)? {
+                if executable != now && file_mode_is_recorded(facts, worktree_root)? {
                     edited.push(named_path(&entry));
                     continue;
                 }
@@ -160,6 +184,8 @@ enum IndexKind {
     },
     /// A symbolic link, mode `120000`.
     Link,
+    /// A submodule, mode `160000`: another repository's worktree, which this reading does not judge.
+    Submodule,
 }
 
 /// What:
@@ -209,6 +235,7 @@ fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, Str
         //  its kind and mode are the index's own, so neither question finds anything there.
         return Ok(match entry.kind {
             IndexKind::Link => Held::Link,
+            IndexKind::Submodule => Held::Other,
             IndexKind::File { executable } => Held::Regular { executable },
         });
     };
@@ -281,15 +308,50 @@ fn carries_an_executable_bit(metadata: &std::fs::Metadata) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // fileModeIsRecorded() === (await git(['config', '--type=bool', '--get', 'core.fileMode'])).stdout.trim() !== 'false'
+/// // fileModeIsRecorded(root) === (await git(['-C', root, 'config', '--type=bool', '--get', 'core.fileMode'])).stdout.trim() !== 'false'
 /// ```
-fn file_mode_is_recorded(facts: &mut GitFacts) -> Result<bool, String> {
+fn file_mode_is_recorded(facts: &mut GitFacts, worktree_root: &Path) -> Result<bool, String> {
     let mut arguments: Vec<OsString> = crate::global_arguments::without_directory_changes(facts.global_prefix.as_slice());
     for token in ["--no-optional-locks", "config", "--type=bool", "--get", "core.filemode"] {
         arguments.push(OsString::from(token));
     }
-    let output: MetadataOutput = facts.query(arguments, "whether this repository records the executable bit")?;
+    // The setting belongs to the repository the command acts on, and `-C` moved that command to another
+    //  directory: asking from the wrapper's own directory read another repository's setting, which let a
+    //  mode edit through when that repository had the bit off and refused one when it had the bit on
+    //  (the eleventh review's fourth finding, both halves).
+    let output: MetadataOutput = facts.query_in(worktree_root, arguments, "whether this repository records the executable bit")?;
     // A setting that is not there is Git's own default, which records the bit.
+    if !output.success {
+        return Ok(true);
+    }
+    let answer: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    return Ok(answer != "false");
+}
+
+/// What:
+///  Whether this repository stores a link as a link, which is `core.symlinks` and true unless the
+///  configuration says otherwise.
+///  `Result<bool, String>` is "the answer, or why Git could not give one".
+/// Why:
+///  With `core.symlinks=false` Git writes a link as a plain file holding the target's text, and its own
+///  comparison sees the same kind on both sides, so a link in the index and a regular file in the worktree
+///  is no edit there and refusing it refused a command Git runs safely
+///  (the eleventh review's seventh finding, measured with an unmodified link stored as a plain file:
+///  `git reset --hard` is a no-op and the guard refused it).
+///  The question is asked only where the two kinds already differ, so a worktree with no such entry pays no
+///  process for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // symlinksAreStored(root) === (await git(['-C', root, 'config', '--type=bool', '--get', 'core.symlinks'])).stdout.trim() !== 'false'
+/// ```
+fn symlinks_are_stored(facts: &mut GitFacts, worktree_root: &Path) -> Result<bool, String> {
+    let mut arguments: Vec<OsString> = crate::global_arguments::without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "config", "--type=bool", "--get", "core.symlinks"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput = facts.query_in(worktree_root, arguments, "whether this repository stores links as links")?;
+    // A setting that is not there is Git's own default, which stores them.
     if !output.success {
         return Ok(true);
     }
@@ -302,10 +364,14 @@ fn file_mode_is_recorded(facts: &mut GitFacts) -> Result<bool, String> {
 /// Why:
 ///   One listing names every marked entry,
 ///  and the marks of the paths nothing edits cost nothing more.
+///  A path marked both ways prints the tag `s`: `assume-unchanged` alone is what the tag's letter case
+///  tells, and the skip-worktree mark is only read when the caller asked for it, so an entry Git hides from
+///  the status for its skip-worktree mark alone is not read here as an `assume-unchanged` edit
+///  (the eleventh review's seventh finding: `git reset --hard` keeps such a file in real Git).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function markedPaths(facts): Promise<Buffer[]>; // throws
+/// function markedPaths(facts, skipWorktreeToo): Promise<Buffer[]>; // throws
 /// ```
 fn marked_paths(facts: &mut GitFacts, skip_worktree_too: bool) -> Result<Vec<Vec<u8>>, String> {
     let mut arguments: Vec<OsString> = facts.global_prefix.clone();
@@ -476,13 +542,12 @@ fn entry_of(chunk: &[u8]) -> Option<MarkedEntry> {
     }
     return Some(MarkedEntry {
         object: String::from_utf8_lossy(object).into_owned(),
-        // Git writes the mode it keeps: `100755` is an executable file, `100644` is not one, and `120000`
-        //  is a link. A gitlink (`160000`) is no entry of this comparison, and is read as a file whose
-        //  content can never match, which is a refusal rather than a silence.
-        kind: if *mode == b"120000" {
-            IndexKind::Link
-        } else {
-            IndexKind::File { executable: *mode == b"100755" }
+        // Git writes the mode it keeps: `100755` is an executable file, `100644` is not one, `120000` is a
+        //  link and `160000` a submodule.
+        kind: match *mode {
+            b"120000" => IndexKind::Link,
+            b"160000" => IndexKind::Submodule,
+            _ => IndexKind::File { executable: *mode == b"100755" },
         },
         path: chunk[tab + 1..].to_vec(),
     });

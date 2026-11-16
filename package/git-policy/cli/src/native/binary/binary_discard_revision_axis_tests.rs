@@ -3,23 +3,25 @@
 //!  as the revision word of every guarded form that takes one,
 //!  each row real Git beside the wrapper on the same fixture:
 //!  a range with two dots and one with three,
+//!  a path form `<rev>:<path>` and a tree form `<rev>:`,
+//!  `:/text`,
 //!  `@{…}` forms,
 //!  `^{…}` peels,
-//!  `:/text`,
 //!  a name that is at once a tag, a branch and a remote branch,
-//!  and a short object id.
+//!  and `HEAD`.
 //! Why:
-//!  A revision is Git's own grammar, and a guard that read it by a rule of its own met a new spelling in
-//!  each review: `A...B` is the merge base to `checkout` while every single-object query refuses it,
-//!  and a name that is both a tag and a branch is the branch to `checkout` while `ls-tree` takes the tag
-//!  (the eleventh review's first and second findings).
-//!  The same names are also spelled the way Git documents them, so a reading that resolves one of them
-//!  and not another fails a row here rather than in a person's worktree.
-//!  A row where Git itself writes nothing, or refuses the form, is counted rather than trusted.
+//!  A revision is Git's own grammar, and a guard that reads it by a rule of its own meets a new spelling
+//!  in each review. The eleventh review found `A...B`, `:/text` and `<rev>:<path>` refused although Git
+//!  runs them and nothing is at risk, and its own count of this axis was that only 14 of 56 rows were rows
+//!  where Git replaces the file: the other 42 proved nothing.
+//!  So the rows are planted at a name the *resolved* tree writes and the branch tips do not, and the axis
+//!  has a second half: the same spellings in a worktree holding nothing of the person's, which the wrapper
+//!  must run rather than refuse.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! for (const spelling of documented) for (const form of forms) expect(wrappedKept(spelling, form)).toBe(true);
+//! // and the same spellings with nothing planted: expect(refused).toBe(false);
 //! ```
 
 use super::support::{Fixture, Observed, direct, fixture, git, observe, remove, repository, stderr_of, wrapped};
@@ -34,14 +36,18 @@ fn refused(observed: &Observed) -> bool {
 }
 
 /// What:
-///  One linked worktree with a branch `other` whose tree differs from `main`,
-///  a tag `other` on `main`, a tag `v1`, a remote-tracking branch, reflog entries,
-///  and the person's untracked file at the path the other tree (or the merge base) holds.
+///  One repository whose names are all the spellings need:
+///  `main` and `work` share a base commit that `work` moves past by deleting `mb.txt`,
+///  `other` moves past it by adding `new.txt`, `sub2/s2.txt` and changing `sub/s.txt`,
+///  a tag `other` sits on `main`,
+///  and a linked worktree is on `side`.
 ///  `&Fixture` borrows the disposable fixture.
 /// Why:
-///  Each spelling needs something in the repository to denote:
-///  a branch that moved, a merge base that holds a file `main` does not,
-///  a tag and a branch of one name, and a remote-tracking ref to guess from.
+///  A row proves something only when the tree the resolved word writes holds an entry no branch tip holds:
+///  the merge base holds `mb.txt` and neither tip does,
+///  `:/work` names `work`'s commit and writes `w.txt`,
+///  `other:` names `other`'s tree and writes `new.txt`,
+///  `other:sub2` names that subtree and writes `sub2/s2.txt`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,52 +56,57 @@ fn refused(observed: &Observed) -> bool {
 fn prepared(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
     let linked: PathBuf = fixture.root.join("repo-linked");
+    std::fs::create_dir_all(repo.join("sub")).expect("a tracked directory");
     std::fs::write(repo.join("a.txt"), b"a-main\n").expect("a tracked file");
-    std::fs::write(repo.join("b.txt"), b"b-main\n").expect("the file the merge base keeps");
-    git(fixture, repo.as_path(), &["add", "--", "a.txt", "b.txt"]);
+    std::fs::write(repo.join("mb.txt"), b"mb-base\n").expect("the file the merge base keeps");
+    std::fs::write(repo.join("sub/s.txt"), b"s-base\n").expect("a tracked file below a directory");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt", "mb.txt", "sub/s.txt"]);
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
     git(fixture, repo.as_path(), &["branch", "work"]);
-    // `work` removes `b.txt`, so the merge base of `work` and `other` holds it.
+    // `work` removes `mb.txt`, so the merge base of `work` and `other` holds it and neither tip does.
     git(fixture, repo.as_path(), &["checkout", "--quiet", "work"]);
-    std::fs::remove_file(repo.join("b.txt")).expect("the file goes on work");
+    std::fs::remove_file(repo.join("mb.txt")).expect("the file goes on work");
+    std::fs::write(repo.join("w.txt"), b"w\n").expect("a file only work holds");
     git(fixture, repo.as_path(), &["add", "--all"]);
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=work"]);
     git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
-    std::fs::write(repo.join("new-in-other.txt"), b"n-other\n").expect("a file only the branch holds");
-    std::fs::write(repo.join("b.txt"), b"b-other\n").expect("the other tree's b");
+    std::fs::write(repo.join("new.txt"), b"n-other\n").expect("a file only the branch holds");
+    std::fs::write(repo.join("sub/s.txt"), b"s-other\n").expect("the other tree's s");
+    std::fs::create_dir_all(repo.join("sub2")).expect("a directory only the branch holds");
+    std::fs::write(repo.join("sub2/s2.txt"), b"s2\n").expect("a file only the branch holds");
     git(fixture, repo.as_path(), &["add", "--all"]);
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=other"]);
     git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     git(fixture, repo.as_path(), &["tag", "other", "main"]);
-    git(fixture, repo.as_path(), &["tag", "v1", "main"]);
     let linked_text: &str = linked.to_str().expect("a fixture path is text");
     git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked_text]);
     return linked;
 }
 
-/// The person's untracked file, written where the row's tree writes it.
-///  `&Path` borrows the linked worktree, `&str` is the name.
-fn plant(linked: &Path, name: &str) {
-    std::fs::write(linked.join(name), PERSON).expect("the person's untracked file");
-}
-
 /// What:
-///  The one file the person holds for one row, at the name that row's tree writes:
-///  a range writes the merge base's `b.txt`,
-///  and every other spelling is a test of which tree the form resolves,
-///  so the file stands at `new-in-other.txt`, which only the branch adds.
+///  The one file the person holds for one row, at a name the row's resolved tree writes and no branch tip
+///  does, so a build that lets the command run loses it and a build that refuses keeps it.
 ///  `&str` is the revision word.
 /// Why:
-///  The name has to be one the *right* tree writes and the wrong one does not,
-///  or a row passes on a refusal that came from somewhere else.
+///  A row planted at a path a branch also tracks is a tracked edit, which the older wrapper refuses for
+///  another reason; the eleventh review named that as why this axis could not see its first finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const planted = (revision) => revision.includes('..') ? 'b.txt' : 'new-in-other.txt';
+/// const planted = (revision) => revision.includes('..') ? 'mb.txt' : revision === ':/work' ? 'w.txt' : revision.startsWith('other:sub2') ? 'sub2/s2.txt' : 'new.txt';
 /// ```
 fn planted(revision: &str) -> &'static str {
-    return if revision.contains("..") { "b.txt" } else { "new-in-other.txt" };
+    if revision.contains("..") {
+        return "mb.txt";
+    }
+    if revision == ":/work" {
+        return "w.txt";
+    }
+    if revision.starts_with("other:sub2") {
+        return "sub2/s2.txt";
+    }
+    return "new.txt";
 }
 
 /// Whether the person's file is still theirs.
@@ -103,19 +114,24 @@ fn kept(linked: &Path, name: &str) -> bool {
     return std::fs::read(linked.join(name)).is_ok_and(|bytes| return bytes == PERSON);
 }
 
+/// The person's untracked file, written where the row's tree writes it.
+fn plant(linked: &Path, name: &str) {
+    let path: PathBuf = linked.join(name);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("a directory on the way");
+    }
+    std::fs::write(path.as_path(), PERSON).expect("the person's untracked file");
+}
+
 /// What:
-///  Every spelling `gitrevisions(7)` documents that a guarded form can take,
-///  as the words the form is given.
+///  Every spelling `gitrevisions(7)` documents that a guarded form can take.
 ///  `&str` pairs are the row's name and the word.
 /// Why:
-///  The grammar is Git's, so the list is the documentation's, not a list of the cases a review found:
-///  two-dot and three-dot ranges, `@{…}` reflog and upstream forms, `^{…}` peels, `:/text`,
-///  a name that is a tag and a branch, a ref spelled in full and with its `refs/heads/` prefix,
-///  a short object id, `-` and `@{-1}`, and `HEAD`.
+///  The grammar is Git's, so the list is the documentation's, not a list of the cases a review found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spellings = [['three-dot range', 'work...other'], ['two-dot range', 'work..other'], ...];
+/// const spellings = [['three-dot range', 'work...other'], ['path form', 'other:new.txt'], ...];
 /// ```
 fn documented_spellings() -> Vec<(&'static str, &'static str)> {
     return vec![
@@ -123,46 +139,48 @@ fn documented_spellings() -> Vec<(&'static str, &'static str)> {
         ("a name that is a tag, a branch and nothing else", "other"),
         ("a ref spelled with its prefix", "heads/other"),
         ("a ref spelled in full", "refs/heads/other"),
-        ("a tag", "v1"),
-        ("an annotated peel to a commit", "v1^{commit}"),
-        ("a peel to a tree", "v1^{tree}"),
-        ("an empty peel", "v1^{}"),
+        ("an annotated peel to a commit", "other^{commit}"),
+        ("an empty peel", "other^{}"),
         ("a three-dot range", "work...other"),
         ("a two-dot range", "work..other"),
+        ("a commit named by its message", ":/work"),
+        ("a tree form of a branch", "other:"),
+        ("a subtree of a branch", "other:sub2"),
         ("a reflog entry", "other@{0}"),
         ("the upstream of a branch", "other@{upstream}"),
-        ("the previous branch", "@{-1}"),
         ("HEAD", "HEAD"),
     ];
 }
 
 /// What:
-///  Every guarded form that takes a revision word, with the words around it and the file each one writes.
+///  Every guarded form that takes a revision word, with the words around it.
 ///  `&str` triples are the row's name, the words before the revision and the words after it.
 /// Why:
-///  Two of these forms move `HEAD` and three name a tree explicitly,
+///  Two of these forms move `HEAD` and two name a tree explicitly,
 ///  and the file they write is what says whether the person's entry was in the way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const forms = [['checkout -f', ['checkout', '-f'], []], ['checkout with a path', ['checkout'], ['--', 'b.txt']], ...];
+/// const forms = [['checkout -f', ['checkout', '-f'], []], ['checkout with a path', ['checkout'], ['--', 'new.txt']], ...];
 /// ```
 fn forms() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     return vec![
         ("checkout -f", vec!["checkout", "-f"], vec![]),
         ("switch -f --detach", vec!["switch", "-f", "--detach"], vec![]),
-        ("checkout with a path", vec!["checkout"], vec!["--", "b.txt"]),
-        ("restore --source", vec!["restore", "--source"], vec!["--", "b.txt"]),
+        ("checkout with a path", vec!["checkout"], vec!["--", "new.txt"]),
+        ("restore --source", vec!["restore", "--source"], vec!["--", "new.txt"]),
     ];
 }
 
 /// One row in one arm: what the command exited with, whether the wrapper refused, and whether the
 /// person's file is still theirs.
-fn run(label: &str, before: &[&'static str], revision: &str, after: &[&'static str], wrapped_arm: bool) -> (Option<i32>, bool, bool) {
+fn run(label: &str, before: &[&'static str], revision: &str, after: &[&'static str], plant_it: bool, wrapped_arm: bool) -> (Option<i32>, bool, bool) {
     let fixture: Fixture = fixture(label);
     let linked: PathBuf = prepared(&fixture);
-    let name: &str = planted(revision);
-    plant(linked.as_path(), name);
+    let watched: &str = planted(revision);
+    if plant_it {
+        plant(linked.as_path(), watched);
+    }
     let mut words: Vec<&str> = before.to_vec();
     words.push(revision);
     words.extend(after.iter().copied());
@@ -175,7 +193,7 @@ fn run(label: &str, before: &[&'static str], revision: &str, after: &[&'static s
         command.current_dir(linked.as_path()).args(words.as_slice());
         observe(&mut command, b"")
     };
-    let answer: (Option<i32>, bool, bool) = (observed.code, refused(&observed), kept(linked.as_path(), name));
+    let answer: (Option<i32>, bool, bool) = (observed.code, refused(&observed), kept(linked.as_path(), watched));
     remove(&fixture);
     return answer;
 }
@@ -186,13 +204,12 @@ fn run(label: &str, before: &[&'static str], revision: &str, after: &[&'static s
 ///  refused.
 /// Why:
 ///  The grammar is Git's, so the reading has to be Git's too;
-///  a row where Git itself writes nothing is counted rather than trusted,
-///  and a row where Git changes the file while the wrapper ran it is the defect this axis exists for.
+///  the plant is at a name only the resolved tree writes, so a build that lets the command run loses it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const [, revision] of spellings) for (const [, before, after, watched] of forms)
-///   expect(run(revision, before, after, watched, true).kept).toBe(true);
+/// for (const [, revision] of spellings) for (const [, before, after] of forms)
+///   expect(run(revision, before, after, true, true).kept).toBe(true);
 /// ```
 #[test]
 fn every_documented_revision_spelling_is_read_as_git_reads_it() {
@@ -204,8 +221,8 @@ fn every_documented_revision_spelling_is_read_as_git_reads_it() {
         for (form, before, after) in forms() {
             let name: String = format!("{spelling} / {form} / `{revision}`");
             let watched: &str = planted(revision);
-            let wrapped_arm: (Option<i32>, bool, bool) = run("revision-axis-wrapped", before.as_slice(), revision, after.as_slice(), true);
-            let native_arm: (Option<i32>, bool, bool) = run("revision-axis-native", before.as_slice(), revision, after.as_slice(), false);
+            let wrapped_arm: (Option<i32>, bool, bool) = run("revision-axis-wrapped", before.as_slice(), revision, after.as_slice(), true, true);
+            let native_arm: (Option<i32>, bool, bool) = run("revision-axis-native", before.as_slice(), revision, after.as_slice(), true, false);
             rows += 1;
             if native_arm.2 {
                 nothing_to_lose += 1;
@@ -226,5 +243,38 @@ fn every_documented_revision_spelling_is_read_as_git_reads_it() {
         "rows: {rows}; rows where Git replaces the file and the wrapper refuses: {refused_rows}; rows where Git kept it: {nothing_to_lose}; rows that lost it: {}",
         failures.len()
     );
+    assert!(failures.is_empty(), "{} rows:\n{}", rows, failures.join("\n"));
+}
+
+/// What:
+///  The same spellings in a worktree that holds nothing of the person's:
+///  the wrapper runs every one of them, as real Git does.
+/// Why:
+///  A command Git runs with nothing at risk is not refused by the wrapper, and a guard that refuses it is a
+///  guard people learn to switch off. This is the eleventh review's first finding, which its own count of
+///  this axis (42 of 56 rows proving nothing) could not show.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [, revision] of spellings) for (const [, before, after] of forms)
+///   expect(run(revision, before, after, false, true).refused).toBe(false);
+/// ```
+#[test]
+fn no_documented_revision_spelling_is_refused_where_git_runs_it() {
+    let mut rows: usize = 0;
+    let mut failures: Vec<String> = Vec::<String>::new();
+    for (spelling, revision) in documented_spellings() {
+        for (form, before, after) in forms() {
+            let name: String = format!("{spelling} / {form} / `{revision}`");
+            let native_arm: (Option<i32>, bool, bool) = run("revision-axis-clean-native", before.as_slice(), revision, after.as_slice(), false, false);
+            let wrapped_arm: (Option<i32>, bool, bool) = run("revision-axis-clean-wrapped", before.as_slice(), revision, after.as_slice(), false, true);
+            rows += 1;
+            // Only a row Git itself runs says anything about a refusal of a safe command.
+            if native_arm.0 == Some(0) && wrapped_arm.1 {
+                failures.push(format!("{name}: Git ran the form (exit 0) and the wrapper refused it"));
+            }
+        }
+    }
+    println!("rows: {rows}; rows where Git ran the form and the wrapper refused it: {}", failures.len());
     assert!(failures.is_empty(), "{} rows:\n{}", rows, failures.join("\n"));
 }

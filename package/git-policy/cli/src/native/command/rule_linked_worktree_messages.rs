@@ -118,8 +118,12 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "To compare with the committed version, use git diff -- <path> or git show HEAD:<path>. To keep the file as it is now, copy it elsewhere first (cp -- <path> <a directory outside the worktree>), because a patch from git diff holds no untracked file, no ignored file and no edit the index marks assume-unchanged; then use the hatch below. For another branch's files, open that branch in a linked worktree (git worktree add <path> <branch>).",
         ),
         GuardedCommand::CheckoutMove => return (
-            "git checkout <branch>",
-            "it switches branches while uncommitted changes exist, which can carry them over, conflict with them, or overwrite a file that shares the name",
+            "git checkout of a branch or a path",
+            // One word after `checkout` is a branch when Git finds one by that name and a path when it does
+            //  not, and with `--ignore-skip-worktree-bits` it writes that path over the marked edit, so the
+            //  sentence names both shapes instead of claiming a branch switch the person did not type
+            //  (the eleventh review's ninth finding).
+            "it moves to a branch or writes a path while uncommitted changes exist, which can carry them over, conflict with them, or overwrite a file",
             "To switch branches, first commit your work with explicit paths (git commit --message <message> -- <paths>), or leave this worktree alone and open the other branch in its own linked worktree (git worktree add <path> <branch>).",
         ),
         GuardedCommand::SwitchForce => return (
