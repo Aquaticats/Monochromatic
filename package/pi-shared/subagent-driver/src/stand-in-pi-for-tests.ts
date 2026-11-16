@@ -83,6 +83,20 @@ const MISSING_PATH_CODE = 'ENOENT';
 const TOOL_SECONDS = '30';
 
 /**
+ Milliseconds after the SIGTERM it ignores at which the stand-in of `leaves-after-sigterm-with-output-held` leaves by itself: far
+ enough before the last stage's signal that none is sent at all, and late enough that a connection whose exit deadline outlasts
+ the ending's own stages hears of the exit only after them.
+ */
+const LEAVES_AFTER_SIGTERM_MILLISECONDS = 4_000;
+
+/**
+ The scenario in which Pi keeps its output open through a tool it started, ignores its input closing, ignores SIGTERM, and then
+ leaves by itself with a success status. It is how a test makes an exit reach the driver only after the ending's last bound, which
+ a process killed by a signal cannot: a killed process is reported with the signal, never with a status.
+ */
+const LEAVES_AFTER_SIGTERM_SCENARIO = 'leaves-after-sigterm-with-output-held';
+
+/**
  Where commands are logged.
  */
 const log = env.STAND_IN_PI_LOG ?? '/dev/null';
@@ -227,10 +241,8 @@ function writeOddLines(id: unknown,): void {
 
 /**
  Starts a tool that holds this process's output open after this process has gone, and logs its process number.
-
- @param id - command's identifier
  */
-async function startToolHoldingOutput(id: unknown,): Promise<void> {
+async function holdThisOutputOpen(): Promise<void> {
   /**
    The tool.
    */
@@ -251,6 +263,15 @@ async function startToolHoldingOutput(id: unknown,): Promise<void> {
     log,
     `tool ${String(tool.pid,)}\n`,
   );
+}
+
+/**
+ Starts that tool for a command, then answers it.
+
+ @param id - command's identifier
+ */
+async function startToolHoldingOutput(id: unknown,): Promise<void> {
+  await holdThisOutputOpen();
   answer({ id, },);
 }
 
@@ -419,11 +440,28 @@ if (scenario === 'stderr-note') {
 if (scenario === 'exit-later') {
   await leaveLater();
 }
+if (scenario === LEAVES_AFTER_SIGTERM_SCENARIO) {
+  // The output is held open before the ending starts, so nothing this process's leaving does can close it.
+  await holdThisOutputOpen();
+}
 if (scenario === 'ignores-sigterm') {
   process.on(
     'SIGTERM',
     function ignoreSigterm() {
       stdout.write('',);
+    },
+  );
+}
+if (scenario === LEAVES_AFTER_SIGTERM_SCENARIO) {
+  process.on(
+    'SIGTERM',
+    function leaveAfterTheSignal() {
+      setTimeout(
+        function leaveByItself() {
+          exit(0,);
+        },
+        LEAVES_AFTER_SIGTERM_MILLISECONDS,
+      );
     },
   );
 }
@@ -433,6 +471,10 @@ for await (const line of createInterface({ input: stdin, },)) {
     masking,
   },);
 }
-if ((scenario === 'ignores-input-close') || (scenario === 'ignores-sigterm')) {
+if (
+  (scenario === 'ignores-input-close')
+    || (scenario === 'ignores-sigterm')
+    || (scenario === LEAVES_AFTER_SIGTERM_SCENARIO)
+) {
   await wait(STAY_MILLISECONDS,);
 }

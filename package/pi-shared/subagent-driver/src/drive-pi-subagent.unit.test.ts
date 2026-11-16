@@ -258,6 +258,10 @@ const WAIT_PAST_THE_RUN_SECONDS = 600;
 const LOOKS_THAT_WOULD_SEND_A_RETRY = 3;
 /** Status of a run that ended on its own terms. */
 const CLEAN_STATUS = 0;
+/**
+ The scenario in which Pi stays after its input closes until a signal ends it, which is a Pi the ending needed a signal for.
+ */
+const IGNORES_INPUT_CLOSE = 'ignores-input-close';
 /** Status of a run that did not. */
 const FAILED_STATUS = 1;
 /** Seconds a test allows a driver beyond the run's own wall limit, so a stalled driver fails rather than hangs it. */
@@ -828,7 +832,20 @@ await describe({
         expect(run.summary.settled,).toBe(1,);
         expect(run.summary.turns,).toBe(1,);
         expect(run.summary.piExit?.code,).toBe(0,);
+        // Pi left as its input closed, so nothing of the ending is worth a second look.
+        expect(run.summary.stopProblem,).toBeUndefined();
         expect(run.commands,).toContain('get_session_stats',);
+      },
+    },),
+    it({
+      name: 'a Pi that stays after its input closes is recorded as the run it was, with what the ending took',
+      fn: async () => {
+        const run = await runDriver({ scenario: IGNORES_INPUT_CLOSE, },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        // The driver's own signal ended Pi, which is not a failure of the run: the summary says Pi left and what it took.
+        expect(run.summary.piExit?.signal,).toBe('SIGTERM',);
+        expect(run.summary.stopProblem,).toContain('SIGTERM',);
       },
     },),
     it({

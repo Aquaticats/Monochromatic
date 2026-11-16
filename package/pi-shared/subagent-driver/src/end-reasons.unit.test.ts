@@ -13,6 +13,8 @@ import {
   endReasonOfPromptWait,
   finalEndReason,
   NO_RUN_FAILURE,
+  SHUTDOWN_GRACE_MILLISECONDS,
+  whatTheEndingTook,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -77,6 +79,29 @@ await describe({
           sessionAtRest: NO_RUN_FAILURE,
           piExit: {},
         },),).toBe('pi-not-stopped',);
+      },
+    },),
+    it({
+      name: 'a Pi whose exit was seen is never a run the driver could not stop',
+      fn: async () => {
+        // What eight of this machine's summaries said on 2026-11-13: Pi's exit written down beside the reason that says the
+        // driver could not end it. A process that left is not one the bounds on ending it ran out on.
+        expect(finalEndReason({
+          endReason: 'idle',
+          stopped: false,
+          modelError: NO_RUN_FAILURE,
+          feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
+          piExit: { code: 0, },
+        },),).toBe('idle',);
+        expect(finalEndReason({
+          endReason: 'idle',
+          stopped: false,
+          modelError: NO_RUN_FAILURE,
+          feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
+          piExit: { signal: 'SIGKILL', },
+        },),).toBe('idle',);
       },
     },),
     it({
@@ -199,6 +224,75 @@ await describe({
           },
           passedDeadline: true,
         },),).toBe('wall-clock',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: whatTheEndingTook.name,
+  children: [
+    it({
+      name: 'an ending that needed nothing but Pi\'s input closing says nothing',
+      fn: async () => {
+        expect(whatTheEndingTook({
+          stopped: true,
+          signalsSent: [],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: false,
+        },),).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'an ending a signal ended names that signal',
+      fn: async () => {
+        expect(whatTheEndingTook({
+          stopped: true,
+          signalsSent: ['SIGTERM',],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: false,
+        },),).toBe('Pi stayed after its input closed and left after the driver sent SIGTERM.',);
+        expect(whatTheEndingTook({
+          stopped: true,
+          signalsSent: ['SIGTERM', 'SIGKILL',],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: false,
+        },),).toBe('Pi stayed after its input closed and left after the driver sent SIGTERM and SIGKILL.',);
+      },
+    },),
+    it({
+      name: 'an ending whose last bound ran out says so, whether or not Pi\'s leaving then arrived',
+      fn: async () => {
+        expect(whatTheEndingTook({
+          stopped: true,
+          signalsSent: ['SIGTERM',],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: true,
+        },),).toBe(
+          'Pi stayed after its input closed, the driver sent SIGTERM, and the driver\'s last bound ran out before it saw Pi leave.',
+        );
+        expect(whatTheEndingTook({
+          stopped: false,
+          signalsSent: ['SIGTERM', 'SIGKILL',],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: true,
+        },),).toBe(
+          `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL.`,
+        );
+      },
+    },),
+    it({
+      name: 'an ending a refused signal left names the signal that was refused',
+      fn: async () => {
+        expect(whatTheEndingTook({
+          stopped: false,
+          signalsSent: [],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: true,
+          refusedSignal: 'the operating system refused SIGKILL',
+        },),).toBe(
+          `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL, and a signal had failed: the operating system refused SIGKILL.`,
+        );
       },
     },),
   ],
