@@ -382,10 +382,12 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     // The host's namespace numbers come from one pool, shared by every kind of namespace, and a take receives the lowest free number
     // (measured on this host, and `proc_alloc_inum`/`__ns_common_init` in the kernel say the same). So the recovery receives the writer's
     // freed number only when nothing below it is free at its take: the number is free once the writer's processes are gone, and a namespace
-    // that dies anywhere else below it while the schedule is being made leaves a lower number for the next take to receive instead. A round
-    // of the schedule starts packed, because its writer's namespace takes the lowest free number when it is made, so a round that loses the
-    // number is followed by a fresh round, each of which makes its writer's time namespace the pool's lowest free number; the wait for the
-    // state is the package's wait for a state that has to appear.
+    // that dies anywhere else below it while the writer's time namespace is being made leaves a lower number for the next take to receive
+    // instead. Two things follow. The journal is planted before the writer's time namespace exists, because planting it fsyncs a journal's
+    // files (measured: seventeen fsyncs, ninety milliseconds with fast syncs, and 2.07 s of journal work in the slowest traced run), and
+    // none of that may sit where the freed number waits for its taker. And a round that loses the number is followed by a fresh round, each
+    // of which makes its writer's time namespace the pool's lowest free number; the wait for the state is the package's wait for a state that
+    // has to appear.
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");

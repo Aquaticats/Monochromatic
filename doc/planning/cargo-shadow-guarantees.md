@@ -1387,7 +1387,33 @@ The first full gate of round 16 failed once,
 in `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`,
 because another
 session on the host took the freed namespace number (`r16-gate1.log`);
-the schedule is now tried again up to eight times.
+the schedule was then tried again up to eight times.
+That retry was measured on 2026-11-15 and replaced:
+the host hands out namespace numbers from one pool that every kind of namespace draws on,
+lowest free number first (`proc_alloc_inum` and `__ns_common_init`,
+and measured:
+ten takes of a freed number returned that number ten times,
+and no number below a fresh one was free),
+and the control's wait between the writer's time namespace dying and the recovery's take was 135 ms alone,
+and 2.07 s in the slowest traced run,
+because the journal was planted inside it
+(seventeen fsyncs,
+ninety milliseconds with fast syncs).
+So the journal is now planted,
+the scope planned and the live lock written before the writer's time namespace exists,
+the writer is made last and killed at once,
+and the take follows the kill in one process start
+(measured:
+13 ms from the kill and 52 ms from the writer's namespace being made).
+A take that receives another number runs no recovery and leaves the journal as it was,
+so a round that loses the number is followed by a fresh round,
+whose writer's time namespace is the pool's lowest free number,
+until the package's wait for a state that has to appear runs out;
+the assertions and the reuse prerequisite are unchanged.
+Not built,
+described with its measurement:
+nextest's own grouping of the package's namespace takers cannot keep other sessions out,
+and a throwaway virtual machine with a kernel of its own (`mvm`) would leave the package's ordinary test task.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1,
 A3,
@@ -1604,12 +1630,14 @@ written with the code.
   the control) and
   `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` (round 15,
   the review's schedule:
+  a launcher in time namespace T1 inside a user namespace of its own,
   a writer in time namespace
-  T0 with its launcher in T1,
+  T0 that records the launcher's start time on T0's basis,
   the writer's processes killed so that T0 has none,
   a helper that joins the launcher's user namespace
   and creates T2,
-  which receives the freed number;
+  which receives the freed number,
+  with the journal planted before T0 exists and left alone by a take that received another number;
   asserted:
   the launcher is alive,
   the number is reused,
