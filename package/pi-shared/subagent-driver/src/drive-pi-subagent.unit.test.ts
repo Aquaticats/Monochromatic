@@ -1870,6 +1870,47 @@ await describe({
       },
     },),
     it({
+      name: 'masks a value the store declares under a name no credential rule matches, printed as it is by a tool',
+      fn: async () => {
+        /**
+         A name the store declares that the rule about credential-shaped names does not match, which is the plain case: the store's
+         own declaration is what puts the value under the masking.
+         */
+        const declaredName = 'DEPLOYMENT';
+        /**
+         The stand-in value, which is this run's own.
+         */
+        const declaredValue = 'stand-in-deployment-value-0123456789';
+        await using store = await createSopsFixture({ values: { [declaredName]: declaredValue, }, },);
+        const run = await runDriver({
+          scenario: PRINTS_A_VALUE_SCENARIO,
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        /**
+         What the feed says the tool result held, which is a marker naming the declared variable.
+         */
+        const ended = run.feed.find((entry,) => entry.kind === 'tool_end',);
+        expect(String(ended?.result,),).toContain(`[masked secret value of ${declaredName}]`,);
+        expect(JSON.stringify(run.feed,),).not.toContain(declaredValue,);
+        /**
+         Every file the run wrote that still holds the value, which must be none.
+         */
+        const holding = Object.entries(run.runFiles,)
+          .filter(function holdsIt([, text,],) {
+            return text.includes(declaredValue,);
+          },)
+          .map(function nameOf([name,],) {
+            return name;
+          },);
+        expect(holding,).toEqual([],);
+      },
+    },),
+    it({
       name: 'refuses to start a run whose secret environment cannot be read, naming the cause and starting no Pi',
       fn: async () => {
         /**
@@ -1948,6 +1989,47 @@ await describe({
         const copy = run.runFiles['resumed-session.jsonl'] ?? '';
         expect(copy,).not.toContain(MASKED_STORE_VALUE,);
         expect(copy,).toContain('[masked secret value of',);
+      },
+    },),
+    it({
+      name: 'leaves the session it was given alone when Pi names no session file of its own',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session this run was given to resume, which an earlier run still owns and may still be writing.
+         */
+        const sessionFile = join(sessionFolder.path, 'given.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'message', message: { role: 'user', content: `an old session holds ${MASKED_STORE_VALUE}`, }, },)}\n`,
+        );
+        const run = await runDriver({
+          // Pi answers both `get_state` and `get_session_stats` without a session file, so no answer of its own names the copy.
+          scenario: 'sessionless',
+          extraOptions: [`--session=${sessionFile}`,],
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+        },);
+        // The session the run was given is another run's file: it is copied before Pi starts and never written by this run, whatever
+        // Pi omits from its own answers. A fallback to the given path is what this test exists to catch.
+        expect(await readFile(
+          sessionFile,
+          'utf8',
+        ),).toContain(MASKED_STORE_VALUE,);
+        /**
+         What the feed says the run did with the session it was given.
+         */
+        const resumed = run.feed.find((entry,) => entry.kind === 'session_resumed',);
+        expect(resumed?.masked,).toBe('into-a-copy',);
+        // The copy is the run's own file, so the at-rest masking covers it even though no answer of Pi's named it, and the summary
+        // states no problem.
+        expect(run.summary.sessionAtRest,).toBeUndefined();
+        const copy = run.runFiles['resumed-session.jsonl'] ?? '';
+        expect(copy,).not.toContain(MASKED_STORE_VALUE,);
       },
     },),
     it({

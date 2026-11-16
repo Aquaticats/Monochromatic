@@ -339,6 +339,21 @@ async function actOnCommand({
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
     exit(CRASH_STATUS,);
   }
+  // A Pi whose own answers name no session file at all, which is what makes a run fall back to a path of its own choice.
+  if ((scenario === 'sessionless') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
+    /**
+     Everything that answer holds, less the session file.
+     */
+    const {
+      sessionFile: _unreported,
+      ...rest
+    } = ORDINARY_ANSWERS.get(parsed.type,) ?? {};
+    answer({
+      id: parsed.id,
+      data: rest,
+    },);
+    return;
+  }
   if ((parsed.type === 'get_session_stats') && (scenario === 'statless')) {
     emit({
       type: 'response',
