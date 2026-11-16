@@ -15,12 +15,21 @@
 //! ```
 
 use super::support::{
-    ENDED_WITH_SIGKILL, Fixture, SERVICE_LOG_FILE, a_filling_that_did_not_run_to_its_end, end_the_fills_clean_within, executable, fixture,
+    ENDED_WITH_SIGKILL, Fixture, SERVICE_LOG_FILE, a_filling_that_did_not_run_to_its_end, a_filling_that_did_not_run_to_its_end_watching,
+    end_the_fills_clean_within, executable, fixture,
 };
-use git_policy_cli::work_item::{DONE, FAILED, HELD, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, WorkKind, enqueue, state_directory};
 use std::os::unix::process::ExitStatusExt as _;
-use std::path::PathBuf;
+use std::os::unix::ffi::OsStrExt as _;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
+
+/// How long a control waits for the reader to answer before it says the reader did not.
+///  The reader's own bound is the harness's patience, which is far longer; a control that waits this long has already
+/// proved that the reader is not bounded by it.
+const A_READERS_ANSWER_PATIENCE: Duration = Duration::from_secs(3);
+
 
 /// What a stand-in's real program is in this control:
 /// it says which of its runs reached it,
@@ -212,4 +221,200 @@ fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
     let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
     settler.join().expect("the thread that settles the record ends");
     assert!(said.is_none(), "a filling the queue held while it ran and settled in done did not fail: {said:?}");
+}
+
+/// What:
+///  One worktree's prewarm record as the add hands it over,
+///  with the stamp that makes it this filling's record and not an earlier one's.
+/// Why:
+///   The record's id is its object and branch, and its object is the worktree and the moment of the hand-over,
+/// so a control that writes two records for one path writes them with two stamps and gets two ids.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const item = { kind: 'prewarm', repository: worktree, gitDir, ref: PREWARM_REFERENCE, oid: objectNameOf(worktree, created), created };
+/// ```
+fn a_prewarm_record(git_dir: &Path, worktree: &Path, created: &str) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::Prewarm,
+        repository: worktree.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
+        branch_ref: String::from(git_policy_cli::package_repair_prewarm::PREWARM_REFERENCE),
+        oid: git_policy_cli::package_repair_prewarm::object_name_of(worktree, created),
+        parent: String::from("[]"),
+        created: String::from(created),
+        tries: 0,
+    };
+}
+
+/// What:
+///  A fixture whose repository has a queue, a worktree to fill, and the service's line about that filling's failure,
+///  with the record that names `created` in `state`.
+/// Why:
+///   Every control here is about what the reader makes of the queue alone,
+/// so the queue is written by hand and nothing is run:
+///  a control that started a service to produce these states would be a control of the service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { fixture, gitDir, worktree, work } = aQueue(); writeRecord(work, 'failed', aPrewarmRecord(gitDir, worktree, created));
+/// ```
+fn a_queue(name: &str) -> (Fixture, PathBuf, PathBuf, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let git_dir: PathBuf = fixture.root.join("repo/.git");
+    let worktree: PathBuf = fixture.root.join("deeper/stale");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the repository's Git directory");
+    std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
+    let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
+    for state in [PENDING, RECOVERING, CLAIMED, HELD, DONE, FAILED] {
+        std::fs::create_dir_all(state_directory(work.as_path(), state)).expect("a state of the queue");
+    }
+    std::fs::write(
+        fixture.root.join(SERVICE_LOG_FILE),
+        format!(
+            "monochromatic-git-policy-cli-service: the Cargo build directory of {} could not be filled: the copy of {}/target.monochromatic-prewarm could not be cleaned (stopped by signal 9: ) at_ms=1\n",
+            worktree.join("target").display(),
+            worktree.display()
+        ),
+    )
+    .expect("the service's log");
+    return (fixture, git_dir, worktree, work);
+}
+
+/// What:
+///  Put a record in `state` of the queue.
+fn write_record(work: &Path, state: &str, item: &WorkItem) {
+    enqueue(work, item).expect("the record is queued");
+    let id: String = item.id();
+    if state != PENDING {
+        std::fs::rename(state_directory(work, PENDING).join(id.as_str()), state_directory(work, state).join(id.as_str())).expect("the record moves to its state");
+    }
+}
+
+/// What:
+///  A named pipe at `path`,
+///  which nothing writes to.
+/// Why:
+///   A queue directory is a place anything with write access can put anything,
+/// and an entry that is not a regular file is one a reader must not open:
+/// opening a pipe for reading waits for a writer that may never come.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(path, 0o600); // no writer: a reader of it never returns
+/// ```
+fn a_fifo(path: &Path) {
+    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a path without a NUL byte");
+    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode and touches no memory of this process.
+    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "a named pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+}
+
+/// What:
+///  A queue entry that is not a regular file is not opened, so the reader answers within its bound.
+/// Why:
+///   A pipe with no writer keeps a reader that opens it for good,
+/// and the deadline of this reader is looked at between looks,
+/// so an opened pipe means a control hangs instead of failing
+///  (the review of 2026-11-15, the first of its five findings:
+///  with the harness patience shortened to 50 ms the reader was still blocked after 250 ms).
+/// The reader is asked on a thread of its own so this control can fail rather than wait: a pipe is exactly the state in
+/// which the answer never comes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(join(work, 'done/gate')); expect(await within(3s, read())).toBeDefined();
+/// ```
+#[test]
+fn a_queue_entry_that_is_not_a_regular_file_does_not_keep_the_reader_waiting() {
+    // The whole scenario is the reading thread's, because a fixture belongs to the thread that made it and a reader that
+    //  never answers leaves that thread holding it.
+    let (sender, answers) = std::sync::mpsc::channel::<Option<String>>();
+    let reader: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let (fixture, git_dir, worktree, work) = a_queue("filling-with-a-pipe-in-the-queue");
+        a_fifo(state_directory(work.as_path(), DONE).join("gate").as_path());
+        a_fifo(state_directory(work.as_path(), FAILED).join("gate").as_path());
+        write_record(work.as_path(), FAILED, &a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str()));
+        let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+        sender.send(said).expect("the control receives the reader's answer");
+    });
+    let answered: Option<String> = answers
+        .recv_timeout(A_READERS_ANSWER_PATIENCE)
+        .unwrap_or_else(|_| { return panic!("the reader did not answer within {A_READERS_ANSWER_PATIENCE:?} although its bound is the harness's patience: a queue entry that is not a regular file is being opened"); });
+    assert!(answered.is_some(), "the filling failed, so the reader answers with its reason: {answered:?}");
+    assert!(answered.expect("the sentence").contains(FAILED), "the sentence names the state the record stands in");
+    reader.join().expect("the reader ends");
+}
+
+/// What:
+///  A record that settles to `done` while the look is reading the states is the answer the reader gives.
+/// Why:
+///   The queue moves a record from an open state to `done` or `failed` in one rename,
+/// so a look that reads the settled states before the open ones can miss it entirely and call a healthy filling
+///  "no state of the work directory".
+/// The look is told each state as it reaches it, and this control settles the record exactly then,
+/// which makes a moment that no wait could hit certain
+///  (the review of 2026-11-15, the second of its five findings, reproduced with a pipe as the gate).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readWatching((state) => { if (state === 'claimed') settle(); }); expect(said).toBeUndefined();
+/// ```
+#[test]
+fn a_record_that_settles_during_the_look_is_the_answer() {
+    let (fixture, git_dir, worktree, work) = a_queue("filling-settled-during-the-look");
+    let item: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
+    write_record(work.as_path(), CLAIMED, &item);
+    let id: String = item.id();
+    let claimed: PathBuf = state_directory(work.as_path(), CLAIMED).join(id.as_str());
+    let done: PathBuf = state_directory(work.as_path(), DONE).join(id.as_str());
+    let mut settled: bool = false;
+    let mut looking = |state: &str| {
+        // The service settles the record once, when the look has already passed the state it stood in.
+        if state == CLAIMED && !settled {
+            settled = true;
+            std::fs::rename(claimed.as_path(), done.as_path()).expect("the record settles to done");
+        }
+    };
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end_watching(&fixture, git_dir.as_path(), worktree.as_path(), &mut looking);
+    assert!(done.is_file(), "the record is in done, so the filling ran to its end");
+    assert!(said.is_none(), "a filling that settled in done did not fail: {said:?}");
+}
+
+/// What:
+///  An earlier record for the same worktree path does not decide what became of the current filling.
+/// Why:
+///   A worktree removed and added again at one path leaves the earlier filling's record in the queue,
+/// and that record names the same path,
+///  so a reader that takes any record of the path answers for the wrong fill:
+/// an earlier `done` record hides a current failure,
+///  and an earlier `failed` record makes a current healthy fill fail.
+/// The record this control means is the one the add before it wrote, which its stamp tells from the earlier one's
+///  (the review of 2026-11-15, the third of its five findings).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeOlder(done); writeCurrent(failed); expect(said).toContain('failed'); writeOlder(failed); writeCurrent(done); expect(said).toBeUndefined();
+/// ```
+#[test]
+fn an_earlier_record_of_the_same_path_does_not_decide_the_current_filling() {
+    let (fixture, git_dir, worktree, work) = a_queue("filling-with-an-earlier-record");
+    let earlier: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
+    let current: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
+    assert_ne!(earlier.id(), current.id(), "two hand-overs of one path are two records");
+    // An earlier filling that ran to its end, and the current one that failed.
+    write_record(work.as_path(), DONE, &earlier);
+    write_record(work.as_path(), FAILED, &current);
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    let words: String = said.unwrap_or_else(|| { return panic!("the current filling failed, so the reader says so, and an earlier done record does not hide it"); });
+    assert!(words.contains(FAILED), "the sentence names the current filling's state: {words}");
+    assert!(words.contains("stopped by signal 9"), "and quotes the service's reason: {words}");
+    // The other way round: an earlier failure, and a current filling that ran to its end.
+    let later: WorkItem = a_prewarm_record(git_dir.as_path(), worktree.as_path(), git_policy_cli::iso_time::now_iso_never_the_same_twice().as_str());
+    std::fs::remove_file(state_directory(work.as_path(), FAILED).join(current.id().as_str())).expect("the previous control state goes");
+    std::fs::remove_file(state_directory(work.as_path(), DONE).join(earlier.id().as_str())).expect("the previous control state goes");
+    write_record(work.as_path(), FAILED, &earlier);
+    write_record(work.as_path(), DONE, &later);
+    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    assert!(said.is_none(), "the current filling ran to its end, and an earlier failed record does not make it fail: {said:?}");
 }

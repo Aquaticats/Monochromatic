@@ -85,12 +85,34 @@ pub const A_FILLINGS_WORDS_PATIENCE: std::time::Duration = std::time::Duration::
 /// const said = aFillingThatDidNotRunToItsEnd(fixture, gitDir, worktree); // undefined when the record settled in done
 /// ```
 pub fn a_filling_that_did_not_run_to_its_end(fixture: &Fixture, git_dir: &std::path::Path, worktree: &std::path::Path) -> Option<String> {
+    return a_filling_that_did_not_run_to_its_end_watching(fixture, git_dir, worktree, &mut |_state: &str| {});
+}
+
+/// What:
+///  `a_filling_that_did_not_run_to_its_end`,
+///  telling `watching` the name of each state of the queue as the look reaches it.
+/// Why:
+///   A record that moves between two states of one look is a moment no control can hit by waiting,
+///  and it is the moment this reader exists to survive,
+/// so a control is told each state as it is looked at and moves the record then.
+/// Every run of the reader that is not a control passes a closure that does nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = aFillingThatDidNotRunToItsEndWatching(fixture, gitDir, worktree, (state) => { if (state === 'claimed') settle(); });
+/// ```
+pub fn a_filling_that_did_not_run_to_its_end_watching(
+    fixture: &Fixture,
+    git_dir: &std::path::Path,
+    worktree: &std::path::Path,
+    watching: &mut dyn FnMut(&str),
+) -> Option<String> {
     let work: std::path::PathBuf = git_policy_cli::service_work::work_directory(git_dir);
     let began: std::time::Instant = std::time::Instant::now();
     // A record the queue still holds is a filling that may yet run: it is waited for, and a wait that ends with the record
     //  still open says so instead of claiming a verdict it did not see.
     let standing: Standing = loop {
-        let standing: Standing = where_the_filling_stands(work.as_path(), worktree);
+        let standing: Standing = where_the_filling_stands(work.as_path(), worktree, watching);
         if !matches!(standing, Standing::Open(_)) || began.elapsed() >= crate::support_observation::SERVICE_WORK_PATIENCE {
             break standing;
         }
@@ -148,11 +170,11 @@ const NAMED_NOWHERE: &str = "no state of the work directory";
 /// ```ts
 /// const standing = states.find((state) => standsIn(work, state, worktree)) ?? 'nowhere';
 /// ```
-fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path) -> Standing {
-    if stands_in(work, git_policy_cli::work_item::DONE, worktree) {
+fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path, watching: &mut dyn FnMut(&str)) -> Standing {
+    if stands_in(work, git_policy_cli::work_item::DONE, worktree, watching) {
         return Standing::Done;
     }
-    if stands_in(work, git_policy_cli::work_item::FAILED, worktree) {
+    if stands_in(work, git_policy_cli::work_item::FAILED, worktree, watching) {
         return Standing::GivenUp(git_policy_cli::work_item::FAILED);
     }
     for state in [
@@ -161,7 +183,7 @@ fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path) 
         git_policy_cli::work_item::RECOVERING,
         git_policy_cli::work_item::CLAIMED,
     ] {
-        if stands_in(work, state, worktree) {
+        if stands_in(work, state, worktree, watching) {
             return Standing::Open(state);
         }
     }
@@ -179,17 +201,25 @@ fn where_the_filling_stands(work: &std::path::Path, worktree: &std::path::Path) 
 /// ```ts
 /// const stands = readdir(stateDir).some((name) => { const item = decode(readFile(name)); return item.kind === 'prewarm' && item.repository === worktree; });
 /// ```
-fn stands_in(work: &std::path::Path, state: &str, worktree: &std::path::Path) -> bool {
+fn stands_in(work: &std::path::Path, state: &str, worktree: &std::path::Path, watching: &mut dyn FnMut(&str)) -> bool {
     let directory: std::path::PathBuf = git_policy_cli::work_item::state_directory(work, state);
-    let Ok(entries) = std::fs::read_dir(directory) else { return false };
-    for entry in entries.flatten() {
-        let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
-        let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else { continue };
-        if item.kind == git_policy_cli::work_item::WorkKind::Prewarm && item.repository == worktree {
-            return true;
+    let found: bool = match std::fs::read_dir(directory) {
+        Ok(entries) => {
+            let mut found: bool = false;
+            for entry in entries.flatten() {
+                let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
+                let Ok(item) = git_policy_cli::work_item::WorkItem::decode(text.as_str()) else { continue };
+                if item.kind == git_policy_cli::work_item::WorkKind::Prewarm && item.repository == worktree {
+                    found = true;
+                    break;
+                }
+            }
+            found
         }
-    }
-    return false;
+        Err(_unreadable) => false,
+    };
+    watching(state);
+    return found;
 }
 
 /// What:
