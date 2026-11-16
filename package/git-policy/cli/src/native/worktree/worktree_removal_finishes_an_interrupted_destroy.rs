@@ -36,7 +36,8 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
 use crate::plain_file::read_plain_file;
-use crate::process_identity::{is_birth_identity, process_birth_identity};
+use crate::pid_namespace::{UnreadableOwnerStanding, unreadable_owner_standing};
+use crate::process_identity::{birth_identity_value, process_birth_identity};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
 use crate::worktree_removal_interrupted_destroy::{DestroyRecord, RECORD_FOLDER, RECORD_LIMIT, forget_destroy, read_record};
@@ -64,36 +65,79 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 /// so the next command has nothing to
 ///  finish.
 /// A process number alone can be reused,
-/// so the birth identity written beside it decides.
-///  A birth in a spelling this reader cannot compare decides nothing either,
-///  and the record counts as one whose command runs:
-///  the record is written in the one spelling,
-///  so a second one came from a writer that is not this release (an older release,
-///  another tool,
-///  a damaged file).
+/// so the birth identity written beside it decides,
+/// by the value it names:
+/// a leading zero or the platform's tag in another case is the same birth.
+///  A text that names no value decides nothing either,
+///  and the record's own age is the bound there is:
+///  inside the patience the record counts as one whose command runs,
+///  and past it the person reads which record it is and the command that removes it.
 ///  A record of a leaving a removal renamed aside is read the same way and for the same reason:
 ///  that command writes the record before the rename,
 ///  so a command that decided in that window would drop the only record of a directory about to appear.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const running = ownerMayBeRunning(record.owner); // true when nothing proves the owner left
+/// const standing = ownerStanding(record.owner, recordPath); // 'runs' | 'ended' | words
 /// ```
-pub(crate) fn owner_may_be_running(owner: Option<&String>) -> bool {
-    let Some(spelled) = owner else { return true };
-    let Some((spelled_pid, identity)) = spelled.split_once(':') else { return true };
-    let Ok(pid) = spelled_pid.parse::<i64>() else { return true };
+pub(crate) fn owner_standing(owner: Option<&String>, record: &Path) -> OwnerOfTheRecord {
+    let Some(spelled) = owner else { return OwnerOfTheRecord::Runs };
+    let Some((spelled_pid, identity)) = spelled.split_once(':') else { return OwnerOfTheRecord::Runs };
+    let Ok(pid) = spelled_pid.parse::<i64>() else { return OwnerOfTheRecord::Runs };
     return match process_birth_identity(pid) {
-        // The number is taken, and only a birth this reader can compare tells the recorded owner from the program that
-        //  has the number now.
-        Ok(Some(_)) if !is_birth_identity(identity) => true,
-        Ok(Some(now)) => now == identity,
-        Ok(None) => false,
+        Ok(Some(now)) => match (birth_identity_value(identity), birth_identity_value(now.as_str())) {
+            (Some(recorded), Some(live)) => {
+                if recorded == live {
+                    OwnerOfTheRecord::Runs
+                } else {
+                    OwnerOfTheRecord::Ended
+                }
+            }
+            // A birth that names no value is neither a running command's nor an ended one's.
+            _ => cannot_be_told(record, identity, pid),
+        },
+        Ok(None) => OwnerOfTheRecord::Ended,
         Err(error) => {
             warn(TAG, format!("the process {pid} of a recorded destroy cannot be inspected: {error}").as_str());
-            true
+            OwnerOfTheRecord::Runs
         }
     };
+}
+
+/// What:
+///  What a record says whose owner's birth names no value,
+/// from the reading every reader of such a record gives.
+/// Why:
+///   The bound and the words are the ones `pid_namespace.rs` writes,
+///  so no reader of these records can answer differently.
+fn cannot_be_told(record: &Path, birth: &str, pid: i64) -> OwnerOfTheRecord {
+    return match unreadable_owner_standing(record, birth, pid) {
+        UnreadableOwnerStanding::MayRun => OwnerOfTheRecord::Runs,
+        UnreadableOwnerStanding::Ended => OwnerOfTheRecord::Ended,
+        UnreadableOwnerStanding::Refused(words) => OwnerOfTheRecord::CannotBeTold(words),
+    };
+}
+
+/// What:
+///  What a removal's record says about the command that wrote it.
+/// Why:
+///   A record is skipped while its command may run and finished once it ended,
+///  and a birth that names no value is neither:
+///  the command must keep the record and tell the person,
+///  so the third answer carries the words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwnerOfTheRecord = 'runs' | 'ended' | { cannotBeTold: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum OwnerOfTheRecord {
+    /// The command runs, or nothing proves it ended.
+    Runs,
+    /// The command ended.
+    Ended,
+    /// Neither: the record is named in the words a person reads.
+    CannotBeTold(String),
 }
 
 /// What:
@@ -253,12 +297,23 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
             return;
         }
     };
-    if !read.destroyed && owner_may_be_running(read.owner.as_ref()) {
-        // Another command is removing that worktree now, and its record is what it marks when the kernel call returns, so
-        // nothing here reads, decides or forgets anything yet. A marked record is finished even while its owner lives: the
-        // call it names has returned, and the owner's own removal of the registration is what finishing completes.
-        debug(TAG, format!("the record {} was written by a command that may still be running, so it is left alone", record.display()).as_str());
-        return;
+    if !read.destroyed {
+        match owner_standing(read.owner.as_ref(), record) {
+            OwnerOfTheRecord::Runs => {
+                // Another command is removing that worktree now, and its record is what it marks when the kernel call returns, so
+                // nothing here reads, decides or forgets anything yet. A marked record is finished even while its owner lives: the
+                // call it names has returned, and the owner's own removal of the registration is what finishing completes.
+                debug(TAG, format!("the record {} was written by a command that may still be running, so it is left alone", record.display()).as_str());
+                return;
+            }
+            // The record's owner cannot be shown to run or to have ended, and its age is past the patience: the person reads
+            // which record it is and the command that removes it, and nothing here is finished or forgotten.
+            OwnerOfTheRecord::CannotBeTold(words) => {
+                problems.push(words);
+                return;
+            }
+            OwnerOfTheRecord::Ended => {}
+        }
     }
     let worktrees_path: PathBuf = common_dir.join("worktrees");
     let admin: PathBuf = worktrees_path.join(id);

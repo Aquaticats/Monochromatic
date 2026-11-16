@@ -584,7 +584,7 @@ fn an_attempt_of_a_live_owner_named_in_another_spelling_may_still_be_running() {
     let mut wrong: Vec<String> = Vec::new();
     for (what, respelled) in spellings {
         std::fs::write(mine.as_path(), respelled.as_str()).expect("an attempt file of a command that runs");
-        if !removal_state::attempt_may_be_running(root.as_path()) {
+        if !matches!(removal_state::attempt_may_be_running(root.as_path()), removal_state::Attempts::Runs) {
             wrong.push(format!("{what}: the attempt {respelled} was taken for a command that ended, and it runs"));
         }
         std::fs::remove_file(mine.as_path()).expect("the attempt this arm wrote");
@@ -594,11 +594,14 @@ fn an_attempt_of_a_live_owner_named_in_another_spelling_may_still_be_running() {
     let ended: crate::worktree_copy_owner::CopyOwner = crate::test_support::dead_copy_owner();
     let ended_attempt: PathBuf = attempts.join(ended.pid.to_string());
     std::fs::write(ended_attempt.as_path(), ended.birth_identity.as_str()).expect("an attempt of a command that ended");
-    assert!(!removal_state::attempt_may_be_running(root.as_path()), "the attempt of a process that ended is no running command");
+    assert!(
+        matches!(removal_state::attempt_may_be_running(root.as_path()), removal_state::Attempts::Ended),
+        "the attempt of a process that ended is no running command"
+    );
     std::fs::remove_file(ended_attempt.as_path()).expect("the attempt of a command that ended");
     std::fs::write(mine.as_path(), ENDED_IDENTITY).expect("this command's number with another birth");
     assert!(
-        !removal_state::attempt_may_be_running(root.as_path()),
+        matches!(removal_state::attempt_may_be_running(root.as_path()), removal_state::Attempts::Ended),
         "an attempt whose birth is another process's is no running command"
     );
     remove(root.as_path());

@@ -36,7 +36,8 @@
 /// a PID namespace number and a machine ID,
 /// the kinds of text the parts after the birth stand for.
 use crate::claim_time::{current_boot_id, current_machine_id, is_boot_id, is_machine_id};
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity};
+use crate::pid_namespace::pid_namespace_value;
+use crate::process_identity::{ProcessIdentityError, birth_identity_value, current_birth_identity, process_birth_identity};
 use crate::service_index_marker::marker_of;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -327,13 +328,21 @@ fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>, Option<&str>) 
 /// asking `ask` about the process.
 /// Why:
 ///   A boot that has ended ends every process in it,
-/// whatever the reader's numbering.
+/// whatever the reader's numbering,
+/// and whatever the birth part of the text is:
+/// that proof stands apart from the birth,
+/// so it is used wherever it stands,
+/// before a birth this reader cannot read is taken for no evidence at all.
 /// Beyond that the reader compares like with like or says unknown:
-/// a part of the text that is not the kind of text it stands for, or that is that text in another spelling,
-/// is no part it can compare,
+/// a part of the text that is not the kind of text it stands for is no part it can compare,
+/// a start tick and a PID namespace's number are compared by the value they name (a leading zero is the same number,
+/// and the platform's tag is the same tag in either case),
 /// its `/proc` must agree with its own PID,
 /// it must know its boot when the marker names one,
 /// and its PID namespace must be the marker's when the marker names one.
+/// A text that names this platform's start tick and carries no number this reader can read is no value,
+/// so the holder cannot be told from it and the answer is unknown,
+/// which keeps the lock.
 /// A holder the marker does not name (an earlier release's marker) is gone,
 /// as such markers always were.
 ///
@@ -351,21 +360,13 @@ pub fn holder_state_in(
     let Some((pid, birth)) = holder else { return HolderState::Unknown };
     let (identity, boot, scope, machine) = split_birth(birth.as_str());
     // A part of an identity stands for one value in one spelling, so a part written another way is no part this reader
-    //  can compare: two spellings of one boot read as two boots, and a text read as another boot or another process is
-    //  proof that the holder is gone and loses the lock of a Git that runs. A part that is not the kind of text it stands
-    //  for was written by another shape of writer: one that cannot read the boot ID of its host leaves that part out and
-    //  its PID namespace stands where the boot belongs, a boot keeps the dashes the kernel prints where a writer copied
-    //  it as it is, and a machine part with nothing in it names no machine.
-    if !is_birth_identity(identity) {
-        return HolderState::Unknown;
-    }
+    //  can compare: a text read as another boot or another machine is proof that the holder is gone and loses the lock of a
+    //  Git that runs. A part that is not the kind of text it stands for was written by another shape of writer: one that
+    //  cannot read the boot ID of its host leaves that part out and its PID namespace stands where the boot belongs, a boot
+    //  keeps the dashes the kernel prints where a writer copied it as it is, and a machine part with nothing in it names no
+    //  machine.
     if let Some(recorded) = boot
         && !is_boot_id(recorded)
-    {
-        return HolderState::Unknown;
-    }
-    if let Some(recorded) = scope
-        && !is_pid_scope(recorded)
     {
         return HolderState::Unknown;
     }
@@ -385,24 +386,44 @@ pub fn holder_state_in(
     {
         return HolderState::Unknown;
     }
+    // What: a boot that ended ends every process in it.
+    // Why:  This proof stands apart from the birth part and from the PID namespace part, so it is used before either is
+    //       read: whatever spelling the holder's birth is in, no process of the boot it was written in runs now, and a
+    //       lock that stayed for the spelling would block every command until a person removed it.
     if let Some(recorded) = boot
         && !view.boot.is_empty()
         && recorded != view.boot
     {
         return HolderState::Gone;
     }
-    if !view.procfs_agrees || (boot.is_some() && view.boot.is_empty()) {
+    // From here the marker is of this boot (or names none), so the holder's own parts decide, by the value each names.
+    let Some(identity_value) = birth_identity_value(identity) else {
         return HolderState::Unknown;
-    }
+    };
     if let Some(recorded) = scope
-        && view.scope != Some(recorded)
+        && pid_namespace_value(recorded).is_none()
     {
         return HolderState::Unknown;
     }
+    if !view.procfs_agrees || (boot.is_some() && view.boot.is_empty()) {
+        return HolderState::Unknown;
+    }
+    if let Some(recorded) = scope {
+        let Some(recorded_value) = pid_namespace_value(recorded) else {
+            return HolderState::Unknown;
+        };
+        let view_value: Option<String> = view.scope.and_then(pid_namespace_value);
+        if view_value.as_ref() != Some(&recorded_value) {
+            return HolderState::Unknown;
+        }
+    }
     return match ask(*pid) {
         Ok(None) => HolderState::Gone,
-        Ok(Some(now)) if now == identity => HolderState::Running,
-        Ok(Some(_)) => HolderState::Gone,
+        Ok(Some(now)) => match birth_identity_value(now.as_str()) {
+            Some(live) if live == identity_value => HolderState::Running,
+            Some(_) => HolderState::Gone,
+            None => HolderState::Unknown,
+        },
         Err(_) => HolderState::Unknown,
     };
 }

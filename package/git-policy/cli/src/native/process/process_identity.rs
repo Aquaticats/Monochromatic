@@ -163,93 +163,80 @@ const LINUX_START_FIELD_INDEX: usize = 19;
 /// The prefix every Linux birth identity carries before its start tick.
 pub(crate) const LINUX_IDENTITY_PREFIX: &str = "linux:";
 
+/// The platform tag alone,
+/// the part of a birth identity a reader compares without regard to case.
+const LINUX_PLATFORM_TAG: &str = "linux";
+
 /// What:
-///  Whether `text` is the kernel's spelling of a process's start tick:
-///  decimal digits with no sign,
-///  no space and no leading zero.
+///  The value of a number the kernel writes in decimal:
+///  its digits with no leading zero,
+///  or nothing when the text is no decimal number at all.
 /// Why:
-///   The kernel prints the tick one way,
-///  and a reader that compared one number's two spellings would read the second as another process.
+///   A number has one value however many zeros lead it,
+///  and two texts that name one value compared as text name two numbers:
+///  a reader that did that read one process's identity as another's,
+///  and another process is a proved-dead owner.
+///  This is the one reader of a decimal the kernel writes,
+///  for a start tick and for a PID namespace's number,
+///  so a spelling is told apart from a value in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /^(0|[1-9][0-9]*)$/.test(text)
+/// kernelDecimal('0842337') // '842337'
+/// kernelDecimal('0000') // '0'
+/// kernelDecimal('8423337 ') // undefined
 /// ```
-#[cfg(target_os = "linux")]
-fn is_kernel_tick(text: &str) -> bool {
-    let no_leading_zero: bool = text.len() == 1 || !text.starts_with('0');
-    return !text.is_empty() && text.bytes().all(|byte| { return byte.is_ascii_digit(); }) && no_leading_zero;
+pub(crate) fn kernel_decimal(text: &str) -> Option<String> {
+    if text.is_empty() || !text.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+        return None;
+    }
+    let digits: &str = text.trim_start_matches('0');
+    return Some(String::from(if digits.is_empty() { "0" } else { digits }));
 }
 
 /// What:
-///  Whether `birth` names this platform's start tick somewhere other than the start of the text the kernel's spelling
-///  needs it to be:
-///  behind the whitespace a field padder puts before a field,
-///  or behind the tag in another case.
-/// Why:
-///   The tag names this platform,
-///  and a name read without regard to case is the same name;
-///  a text that carries it anywhere but at the start of the one spelling names this platform's start tick and cannot be
-///  compared with it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// namesTheTickAnotherWay(' linux:8423337') // true
-/// namesTheTickAnotherWay('LINUX:8423337') // true
-/// namesTheTickAnotherWay('linux:8423337') // false, the one spelling
-/// namesTheTickAnotherWay('gone') // false, a text with no tag at all
-/// ```
-#[cfg(target_os = "linux")]
-fn names_the_start_tick_another_way(birth: &str) -> bool {
-    let after_whitespace: &str = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); });
-    let Some(head) = after_whitespace.get(..LINUX_IDENTITY_PREFIX.len()) else {
-        return false;
-    };
-    return head.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX);
-}
-
-/// What:
-///  Whether `birth` is a birth identity in the one spelling this platform writes it:
-///  on Linux,
-///  `linux:` and the kernel's start tick;
-///  on the platforms whose inspector prints its own words,
-///  any text.
+///  The value a birth identity names, in the one spelling a reader compares with,
+///  or nothing when the text is no spelling of a value this reader can read.
 /// Why:
 ///   A reader compares a recorded birth with the identity of the process that has the number now,
-///  and a text that is not one spelling of one tick reads as another process,
+///  and two texts that name one value compared as text read as two processes,
 ///  which is proof that the holder is gone and loses a live holder's lock.
-///  So a text that names this platform's start tick in any other spelling is no identity this reader can compare,
-///  and its caller answers unknown;
-///  a text that names something else is compared as the text it is,
-///  as this reader always did,
-///  because macOS and Windows have no grammar here that this reader could respell.
-///  Every reader of a record of a live process goes through this one answer:
-///  the mark of an `index.lock`,
-///  the owner token of a worktree copy,
-///  the owner of a commit transaction,
-///  and the owner and attempt records of a worktree removal.
+///  So every part is read as the value the platform means it:
+///  this platform's tag in either case, and its start tick with any number of leading zeros;
+///  another platform's tag in either case, and the words its inspector prints after it;
+///  and a text with no tag at all as the text it is,
+///  which is what macOS and Windows need.
+///  A text that names this platform's start tick and carries no number a reader can read
+///  (a tick behind the whitespace of a padded field, a text that names the tag with no tick at all)
+///  is no spelling of a value,
+///  and its caller answers that the holder cannot be told.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isBirthIdentity('linux:8423337') // true
-/// isBirthIdentity('linux:08423337') // false, the same tick written with a leading zero
-/// isBirthIdentity(' linux:8423337') // false, the same tick behind a space
-/// isBirthIdentity('LINUX:8423337') // false, the same tick behind the tag in capitals
-/// isBirthIdentity('gone') // true, a text this reader has no grammar for
+/// birthIdentityValue('linux:8423337') // 'linux:8423337'
+/// birthIdentityValue('LINUX:08423337') // 'linux:8423337', the same process in another spelling
+/// birthIdentityValue(' linux:8423337') // undefined, a padded field names no value
+/// birthIdentityValue('linux:not-a-birth') // undefined, a tag with no number
+/// birthIdentityValue('gone') // 'gone', a text this reader has no grammar for
 /// ```
-pub(crate) fn is_birth_identity(birth: &str) -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        let Some(tick) = birth.strip_prefix(LINUX_IDENTITY_PREFIX) else {
-            return !names_the_start_tick_another_way(birth);
+pub(crate) fn birth_identity_value(birth: &str) -> Option<String> {
+    // Whitespace is no part of a value: the wrapper writes none, and a field padder's space leaves a text this reader
+    //  cannot read as the value it names.
+    if birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); }) != birth {
+        return None;
+    }
+    let Some((tag, rest)) = birth.split_once(':') else {
+        return Some(String::from(birth));
+    };
+    if tag.eq_ignore_ascii_case(LINUX_PLATFORM_TAG) {
+        let Some(tick) = kernel_decimal(rest) else {
+            return None;
         };
-        return is_kernel_tick(tick);
+        return Some(format!("{LINUX_IDENTITY_PREFIX}{tick}"));
     }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = birth;
-        return true;
-    }
+    // Another platform's tag names a platform the same way in either case, and what follows it is that inspector's own
+    //  words, which no reader of this kind can respell.
+    return Some(format!("{}:{rest}", tag.to_ascii_lowercase()));
 }
 
 /// What:

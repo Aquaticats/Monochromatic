@@ -137,7 +137,7 @@ fn a_refused_probe_is_an_error() {
             "a signalable PID 1 is not linux:1"
         ),
         Err(OwnerLivenessError::Identity(error)) => panic!("unexpected identity failure: {error}"),
-        Err(OwnerLivenessError::ForeignRecordRefused(text)) => panic!("a bare PID is no foreign record: {text}"),
+        Err(OwnerLivenessError::RecordRefused(text)) => panic!("a bare PID is no foreign record: {text}"),
     }
 }
 
@@ -401,7 +401,7 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
         let record: std::path::PathBuf = owner_file(directory.as_path(), age);
         match (classify_transaction_owner_record(&owner, record.as_path()), due) {
             (Ok(OwnerLiveness::Alive), Due::Alive) | (Ok(OwnerLiveness::Dead), Due::Dead) => {}
-            (Err(OwnerLivenessError::ForeignRecordRefused(text)), Due::Refused) => {
+            (Err(OwnerLivenessError::RecordRefused(text)), Due::Refused) => {
                 let named: bool = text.contains(record.to_string_lossy().as_ref()) && text.contains(own.owner_pid.to_string().as_str());
                 if !named || !text.contains("rm -- ") || !text.contains(must_say) {
                     wrong.push(format!("{what}: the refusal does not name the record, the owner, the command that removes it and {must_say:?}: {text}"));

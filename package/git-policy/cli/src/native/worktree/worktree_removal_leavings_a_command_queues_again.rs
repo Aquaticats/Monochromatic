@@ -41,7 +41,7 @@ use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::plain_file::read_plain_file;
 use crate::service_work::{MAX_TRIES, work_directory};
 use crate::work_item::queued_ids;
-use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
+use crate::worktree_removal_finishes_an_interrupted_destroy::{OwnerOfTheRecord, owner_standing};
 use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, RECORD_LIMIT, forget_the_leaving, leaving_records, queue_the_delete_again, read_the_leaving};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use crate::worktree_remove_hand_over::{DELETE_REFERENCE, recorded_subvolume};
@@ -210,9 +210,18 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
             return;
         }
     };
-    if owner_may_be_running(leaving.owner.as_ref()) {
-        debug(TAG, format!("the record {record:?} was written by a command that may still be running, so it is left alone").as_str());
-        return;
+    match owner_standing(leaving.owner.as_ref(), record) {
+        OwnerOfTheRecord::Runs => {
+            debug(TAG, format!("the record {record:?} was written by a command that may still be running, so it is left alone").as_str());
+            return;
+        }
+        // The record's owner cannot be shown to run or to have ended, and its age is past the patience: the person reads which
+        // record it is and the command that removes it, and whatever stands where it named is left exactly as it is.
+        OwnerOfTheRecord::CannotBeTold(words) => {
+            answer.said.push(words);
+            return;
+        }
+        OwnerOfTheRecord::Ended => {}
     }
     if leaving.item.branch_ref != DELETE_REFERENCE {
         answer.said.push(format!("{SAID} the record {record:?} does not name a subvolume a removal renamed aside, so it was left exactly as it is."));

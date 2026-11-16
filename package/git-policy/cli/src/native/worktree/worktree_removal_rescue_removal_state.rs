@@ -17,12 +17,13 @@
 
 use super::{ATTEMPTS, GITDIR_HEX_PREFIX, TAG, files_of, name_of, path_bytes};
 use crate::diagnostic_log::warn;
-use crate::process_identity::{is_birth_identity, process_birth_identity};
+use crate::pid_namespace::{UnreadableOwnerStanding, unreadable_owner_standing};
+use crate::process_identity::{birth_identity_value, process_birth_identity};
 use std::path::{Path, PathBuf};
 /// What a Git directory,
 /// the process that took a snapshot,
 /// and the checkout say about a removal.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum Removal {
     /// The Git directory is gone,
     /// or it is still registered and its checkout is gone:
@@ -37,6 +38,30 @@ pub(super) enum Removal {
     /// or the evidence cannot be read:
     /// not decided yet.
     Undecided,
+    /// A taker's record names a birth of no value this command can read and has stood past the patience:
+    /// neither a command that runs nor one that ended,
+    /// with the words a person reads.
+    CannotBeTold(String),
+}
+
+/// What:
+///  What the attempts of a snapshot say about the commands that took it.
+/// Why:
+///   A snapshot is kept while one taker may still be removing and discarded once every taker ended,
+///  and a taker whose record names a birth of no value is neither:
+///  the third answer carries the words a person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Attempts = 'ended' | 'runs' | { cannotBeTold: string };
+/// ```
+pub(super) enum Attempts {
+    /// Every taker ended.
+    Ended,
+    /// A taker may still run, or its record cannot be read.
+    Runs,
+    /// A taker's birth names no value, and its record has stood past the patience: the words a person reads.
+    CannotBeTold(String),
 }
 
 /// What:
@@ -44,53 +69,77 @@ pub(super) enum Removal {
 /// which a process that cannot be told apart from it counts as.
 /// Why:
 ///   A process number alone can be reused,
-/// so the birth identity recorded with it decides.
+/// so the birth identity recorded with it decides,
+/// by the value it names.
 /// A record that cannot be read,
 /// or a
 ///  process that cannot be inspected,
 /// is an owner that may be alive:
 /// discarding the snapshot on a guess would lose the records.
+///  A record whose birth names no value is neither a running command's nor an ended one's,
+///  and its own age is the bound:
+///  inside the patience the snapshot is kept,
+///  past it the person reads which record it is and the command that removes it.
 ///  `pub(super)` lets the controls of this file's parent ask it about a snapshot they build.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await attemptsMayBeRunning(snapshot)
 /// ```
-pub(super) fn attempt_may_be_running(snapshot: &Path) -> bool {
+pub(super) fn attempt_may_be_running(snapshot: &Path) -> Attempts {
     // The loop stops at the first attempt that may be running, as `any` did.
+    let mut said: Option<String> = None;
     for path in files_of(snapshot.join(ATTEMPTS).as_path()) {
-        if attempt_file_may_be_running(path.as_path()) {
-            return true;
+        match attempt_file_may_be_running(path.as_path()) {
+            Attempts::Ended => {}
+            Attempts::Runs => return Attempts::Runs,
+            Attempts::CannotBeTold(words) => said = Some(words),
         }
     }
-    return false;
+    return match said {
+        Some(words) => Attempts::CannotBeTold(words),
+        None => Attempts::Ended,
+    };
 }
 
-/// Whether the command that wrote one attempt file may still be running;
-/// a file that cannot be understood counts as running,
-/// and so does one whose birth is spelled another way than this reader can compare:
-/// the file is written in the one spelling,
-/// so a second one came from a writer that is not this release,
-/// and a snapshot taken for a command that may still run is kept.
-fn attempt_file_may_be_running(path: &Path) -> bool {
-    let Ok(pid) = name_of(path).parse::<i64>() else { return false };
+/// What:
+///  What the command that wrote one attempt file says about itself.
+/// Why:
+///   A file that cannot be understood counts as running,
+///  and one whose birth names no value is neither running nor ended:
+///  the file is written in the one spelling of a birth,
+///  so a text of no value came from a writer that is not this release,
+///  and a snapshot taken for a command that may still run is kept.
+fn attempt_file_may_be_running(path: &Path) -> Attempts {
+    let Ok(pid) = name_of(path).parse::<i64>() else { return Attempts::Ended };
     // A plain file, so a name that holds a named pipe counts as a command that may still be running rather than a wait
     //  with no end.
-    let Ok(bytes) = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT) else { return true };
-    let Ok(recorded) = String::from_utf8(bytes) else { return true };
+    let Ok(bytes) = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT) else { return Attempts::Runs };
+    let Ok(recorded) = String::from_utf8(bytes) else { return Attempts::Runs };
     if recorded.is_empty() {
         // Being written.
-        return true;
+        return Attempts::Runs;
     }
     return match process_birth_identity(pid) {
-        // The number is taken, and only a birth this reader can compare tells the recorded command from the program that
-        //  has the number now.
-        Ok(Some(_)) if !is_birth_identity(recorded.as_str()) => true,
-        Ok(Some(now)) => now == recorded,
-        Ok(None) => false,
+        Ok(Some(now)) => match (birth_identity_value(recorded.as_str()), birth_identity_value(now.as_str())) {
+            (Some(theirs), Some(live)) => {
+                if theirs == live {
+                    Attempts::Runs
+                } else {
+                    Attempts::Ended
+                }
+            }
+            // A birth that names no value is neither a running command's nor an ended one's.
+            _ => match unreadable_owner_standing(path, recorded.as_str(), pid) {
+                UnreadableOwnerStanding::MayRun => Attempts::Runs,
+                UnreadableOwnerStanding::Ended => Attempts::Ended,
+                UnreadableOwnerStanding::Refused(words) => Attempts::CannotBeTold(words),
+            },
+        },
+        Ok(None) => Attempts::Ended,
         Err(error) => {
             warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
-            true
+            Attempts::Runs
         }
     };
 }
@@ -169,8 +218,12 @@ pub(super) fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
         Err(_) => return Removal::Undecided,
         Ok(_) => {}
     }
-    if attempt_may_be_running(snapshot) {
-        return Removal::Undecided;
+    match attempt_may_be_running(snapshot) {
+        Attempts::Ended => {}
+        Attempts::Runs => return Removal::Undecided,
+        // The taker's own record is past the patience and names no birth this command can read: nothing here is settled or
+        //  discarded, and the person reads which record it is and the command that removes it.
+        Attempts::CannotBeTold(words) => return Removal::CannotBeTold(words),
     }
     return match checkout_present(git_dir) {
         Some(true) => Removal::Refused,

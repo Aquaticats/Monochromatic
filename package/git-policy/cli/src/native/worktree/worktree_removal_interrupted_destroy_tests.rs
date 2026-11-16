@@ -358,20 +358,28 @@ fn a_record_whose_live_owner_is_named_in_another_spelling_is_a_running_removal()
             format!("{}:{birth}", crate::process_identity_spellings::process_number_with_a_leading_zero(pid)),
         ),
     ];
+    // The record a decision is measured against: a file that has just been written, so the patience is no factor here.
+    let root: PathBuf = crate::test_support::fixture("removal-record-spelling");
+    let record: PathBuf = root.join("a-record");
+    std::fs::write(record.as_path(), b"x").expect("the record");
     let mut wrong: Vec<String> = Vec::new();
     for (what, owner) in owners {
-        if !crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running(Some(&owner)) {
-            wrong.push(format!("{what}: the owner {owner} was taken for a command that ended, and it runs"));
+        if crate::worktree_removal_finishes_an_interrupted_destroy::owner_standing(Some(&owner), record.as_path())
+            != crate::worktree_removal_finishes_an_interrupted_destroy::OwnerOfTheRecord::Runs
+        {
+            wrong.push(format!("{what}: the owner {owner} was not taken for a command that runs, and it runs"));
         }
     }
     // The other answer of the same reader, so an arm that passes is not a reader that never answers "ended": the same
     // record of a process that ended is no running command.
     let ended: crate::worktree_copy_owner::CopyOwner = crate::test_support::dead_copy_owner();
     let ended_owner: String = format!("{}:{}", ended.pid, ended.birth_identity);
-    assert!(
-        !crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running(Some(&ended_owner)),
+    assert_eq!(
+        crate::worktree_removal_finishes_an_interrupted_destroy::owner_standing(Some(&ended_owner), record.as_path()),
+        crate::worktree_removal_finishes_an_interrupted_destroy::OwnerOfTheRecord::Ended,
         "the record {ended_owner} of a process that ended is no running removal"
     );
+    crate::test_support::remove(root.as_path());
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
@@ -393,8 +401,6 @@ fn a_record_whose_live_owner_is_named_in_another_spelling_is_a_running_removal()
 #[test]
 fn a_record_of_an_owner_that_cannot_be_told_is_named_past_the_patience() {
     let root: PathBuf = crate::test_support::fixture("removal-record-unreadable-birth");
-    let common: PathBuf = root.join("common");
-    std::fs::create_dir_all(common.as_path()).expect("the common directory");
     // A directory stands where the registration of the removal stands, so the record names something real; the owner
     //  check comes before anything reads it.
     let admin: crate::fs_beneath::ObjectId =
@@ -405,6 +411,9 @@ fn a_record_of_an_owner_that_cannot_be_told_is_named_past_the_patience() {
     let ended: String = format!("{pid}:linux:1");
     let mut wrong: Vec<String> = Vec::new();
     for (index, owner) in [unreadable.as_str(), ended.as_str()].into_iter().enumerate() {
+        // Each row has a common directory of its own, so one row's record is not read again by the next row's command.
+        let common: PathBuf = root.join(format!("common-{index}"));
+        std::fs::create_dir_all(common.as_path()).expect("the common directory");
         let target: PathBuf = root.join(format!("gone-{index}"));
         let record: PathBuf = record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new(format!("wt-{index}").as_str()), &admin, target.as_path(), Some(owner))
             .map(|()| { return crate::worktree_removal_interrupted_destroy::record_path(common.as_path(), std::ffi::OsStr::new(format!("wt-{index}").as_str())); })

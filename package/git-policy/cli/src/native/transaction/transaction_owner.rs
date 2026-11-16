@@ -22,10 +22,12 @@ use crate::json_record::{
 };
 /// Birth identities and the existence probe.
 use crate::process_identity::{
-    ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity,
+    ProcessIdentityError, birth_identity_value, current_birth_identity, process_birth_identity,
 };
-/// The namespace an owner record names and the rule for an owner of another one.
-use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
+/// The namespace an owner record names, the rule for an owner of another one, and the bound on a birth that names no value.
+use crate::pid_namespace::{
+    ForeignStanding, UnreadableOwnerStanding, current_pid_namespace, foreign_owner_standing, unreadable_owner_standing,
+};
 
 /// Owner record schema;
 ///  version 2 marks the per-transaction directory layout.
@@ -100,13 +102,14 @@ pub enum OwnerLivenessError {
     Probe(std::io::Error),
     /// The birth identity could not be read.
     Identity(ProcessIdentityError),
-    /// The record names another PID namespace and is neither alive nor dead:
-    /// its measured age is past the patience,
-    /// or its own time cannot be trusted.
-    /// The text is the error to
-    ///  stop with (`pid_namespace.rs`,
-    /// `RefusedForeignRecord`).
-    ForeignRecordRefused(String),
+    /// The record is neither alive nor dead, and the text is the error to stop with:
+    /// it names another PID namespace and its measured age is past the patience,
+    /// or its own time cannot be trusted (`pid_namespace.rs`,
+    /// `RefusedForeignRecord`),
+    /// or its birth identity is no value this command can read and its age is past the patience
+    /// (`pid_namespace.rs`,
+    /// `RefusedUnreadableBirth`).
+    RecordRefused(String),
 }
 
 /// What:
@@ -231,17 +234,18 @@ fn process_exists(pid: i64) -> Result<bool, OwnerLivenessError> {
 ///   An exited process,
 ///  a zombie,
 ///  or a younger process reusing the PID is a dead owner.
-///  A birth in a spelling this reader cannot compare is no proof of a dead one:
-///  the wrapper writes the one spelling,
-///  so a second one was written by a writer that is not this release (an older release,
-///  another tool,
-///  a damaged file),
-///  and read as another process it settles a merge that runs:
+///  The recorded birth and the one the process has now are compared by the value each names,
+///  so a leading zero or the platform's tag in another case is the same birth:
+///  compared as text, that spelling read as another process, which is a proved-dead owner,
+///  and a dead owner settles a merge that runs:
 ///  the record goes,
 ///  the refs that keep its commit go,
 ///  its kept copies are put back or removed beside its paths,
 ///  and its branch is read as one nobody is working on.
-///  Such an owner counts as one that may still run (`is_birth_identity`, the answer the lock's mark is read by).
+///  A text that names no value at all is neither a live owner's nor a dead one's,
+///  and a caller that has the record reads its age
+///  (`classify_transaction_owner_record`,
+///  `unreadable_owner_standing`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,13 +258,15 @@ pub fn classify_transaction_owner(
     if !process_exists(owner_pid)? {
         return Ok(OwnerLiveness::Dead);
     }
-    match process_birth_identity(owner_pid).map_err(OwnerLivenessError::Identity)? {
-        // The number is taken, and only a birth this reader can compare tells the recorded owner from the program that
-        //  has the number now.
-        Some(_) if !is_birth_identity(owner_identity) => return Ok(OwnerLiveness::Alive),
-        Some(current) if current == owner_identity => return Ok(OwnerLiveness::Alive),
-        Some(_) | None => return Ok(OwnerLiveness::Dead),
-    }
+    return match process_birth_identity(owner_pid).map_err(OwnerLivenessError::Identity)? {
+        Some(current) => match (birth_identity_value(owner_identity), birth_identity_value(current.as_str())) {
+            (Some(recorded), Some(live)) => Ok(if recorded == live { OwnerLiveness::Alive } else { OwnerLiveness::Dead }),
+            // A birth that names no value is no proof that the owner ended: what it holds stays, and the record's own age
+            //  is the bound a caller with the record applies.
+            _ => Ok(OwnerLiveness::Alive),
+        },
+        None => Ok(OwnerLiveness::Dead),
+    };
 }
 
 /// What:
@@ -273,6 +279,12 @@ pub fn classify_transaction_owner(
 /// the same rule serves recovery,
 /// the lease check
 ///  and the reservation queue.
+/// A record whose birth identity names no value is the same state:
+/// inside the patience it stands for an owner that may run,
+/// and past it the command stops with the record named,
+/// which is the owner's rule of 2026-11-04,
+/// "Refuse and name it (Recommended)",
+/// applied to a birth.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -288,10 +300,22 @@ pub fn classify_transaction_owner_record(
         //  command that read the parsed copy before it went on is not stopped over a file that is not there
         //  (cross-vendor review of 2026-11-09, finding 3).
         Some(ForeignStanding::Finished) => return Ok(OwnerLiveness::Dead),
-        Some(ForeignStanding::Refused(refused)) => return Err(OwnerLivenessError::ForeignRecordRefused(refused.describe(owner.owner_pid))),
+        Some(ForeignStanding::Refused(refused)) => return Err(OwnerLivenessError::RecordRefused(refused.describe(owner.owner_pid))),
         None => {}
     }
-    return classify_transaction_owner(owner.owner_pid, owner.owner_identity.as_str());
+    let liveness: OwnerLiveness = classify_transaction_owner(owner.owner_pid, owner.owner_identity.as_str())?;
+    // What: a birth that names no value is neither a live owner's nor a gone one's, and the record's own age is the bound.
+    // Why:  Read as alive the record stays settled as an owner's for as long as any process holds its number, which is for
+    //       ever; read as dead it settles a merge that runs. Past the patience the person is told which record it is and
+    //       the command that removes it.
+    if liveness == OwnerLiveness::Alive && birth_identity_value(owner.owner_identity.as_str()).is_none() {
+        return match unreadable_owner_standing(owner_path, owner.owner_identity.as_str(), owner.owner_pid) {
+            UnreadableOwnerStanding::MayRun => Ok(OwnerLiveness::Alive),
+            UnreadableOwnerStanding::Ended => Ok(OwnerLiveness::Dead),
+            UnreadableOwnerStanding::Refused(words) => Err(OwnerLivenessError::RecordRefused(words)),
+        };
+    }
+    return Ok(liveness);
 }
 
 /// Owner record and liveness controls stay out of the release executable.

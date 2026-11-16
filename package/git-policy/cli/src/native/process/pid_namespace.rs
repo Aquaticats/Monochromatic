@@ -133,12 +133,41 @@ pub fn current_pid_namespace() -> Option<String> {
 }
 
 /// What:
+///  The value a PID namespace names:
+///  the number inside the `/proc/self/ns/pid` link's `pid:[...]` text,
+///  or a bare number,
+///  with no leading zero,
+///  or nothing when the text is no number at all.
+/// Why:
+///  A namespace is named by one number,
+/// and one number has one value however many zeros lead it:
+/// two texts that name one value compared as text name two namespaces,
+/// and a record's own namespace read as another one is judged by its age and can refuse the command of a live owner.
+/// A text that is no number names no namespace this reader can compare.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pidNamespaceValue('pid:[04026531836]') // '4026531836'
+/// pidNamespaceValue('4026531836') // '4026531836'
+/// pidNamespaceValue('pid:[x]') // undefined
+/// ```
+pub fn pid_namespace_value(text: &str) -> Option<String> {
+    let number: &str = text
+        .strip_prefix("pid:[")
+        .and_then(|rest| { return rest.strip_suffix(']'); })
+        .unwrap_or(text);
+    return crate::process_identity::kernel_decimal(number);
+}
+
+/// What:
 ///  Whether a recorded namespace and the reader's namespace are both known and differ.
 /// Why:
 ///   Without both names nothing proves the PID space differs,
 /// so the PID probe keeps its old meaning;
 /// a record
 ///  written before this field existed carries no name.
+/// The two are compared by the number each names, so a namespace written with a leading zero is the namespace it names;
+/// a text that names no number is read as one this reader cannot show to be its own, which judges the record by its age.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +175,12 @@ pub fn current_pid_namespace() -> Option<String> {
 /// ```
 pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool {
     return match (recorded, current) {
-        (Some(recorded_name), Some(current_name)) => recorded_name != current_name,
+        (Some(recorded_name), Some(current_name)) if recorded_name == current_name => false,
+        (Some(recorded_name), Some(current_name)) => match (pid_namespace_value(recorded_name), pid_namespace_value(current_name)) {
+            (Some(recorded_value), Some(current_value)) => recorded_value != current_value,
+            // A text that names no namespace number is no name this reader can show to be its own.
+            _ => true,
+        },
         _ => false,
     };
 }
@@ -364,22 +398,7 @@ impl RefusedForeignRecord {
     /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
     /// ```
     pub fn describe(&self, owner_pid: i64) -> String {
-        let state: String = match &self.because {
-            ForeignRefusal::PastThePatience(age) => format!(
-                "and it is {minutes} minutes old, past the {patience} minutes after which monochromatic-git-policy-cli no longer takes such a record for a live owner's; \
-                 its age is read from this host's clock, so a clock that was set forward here, or one that is behind where the record was written, makes it read older than \
-                 the hold",
-                minutes = age.as_secs() / 60,
-                patience = FOREIGN_OWNER_PATIENCE.as_secs() / 60
-            ),
-            ForeignRefusal::TimeAhead => String::from(
-                "and its own time is later than this reader's clock, so how long it has stood cannot be measured: a clock that was set back here, or one that is ahead \
-                 where the record was written, explains that, and nothing says whether its owner still runs",
-            ),
-            ForeignRefusal::TimeUnreadable(reason) => format!(
-                "and its time cannot be read ({reason}), so how long it has stood cannot be measured and nothing says whether its owner still runs"
-            ),
-        };
+        let state: String = refusal_state(&self.because);
         return format!(
             "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid} in the PID namespace {namespace}, which is not this one, {state}. Nothing was \
              changed. The owner may still be alive in another container, and a Git process that monochromatic-git-policy-cli left running (a write it could not \
@@ -427,17 +446,190 @@ pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Opt
         return None;
     }
     let namespace: String = recorded.map_or_else(String::new, String::from);
-    let because: ForeignRefusal = match foreign_record_age(record_path) {
-        RecordAge::Measured(age) if age_outlives_patience(age) => ForeignRefusal::PastThePatience(age),
-        RecordAge::Measured(_) => return Some(ForeignStanding::Standing),
-        // An owner that finished removes its record, and nothing is left to hold anything: the reader that finds it gone
-        // says so instead of stopping the command over a file that is not there
-        // (cross-vendor review of 2026-11-09, finding 3).
-        RecordAge::Gone => return Some(ForeignStanding::Finished),
-        RecordAge::Ahead => ForeignRefusal::TimeAhead,
-        RecordAge::Unreadable(reason) => ForeignRefusal::TimeUnreadable(reason),
+    return Some(match aged(record_path) {
+        Aged::Standing => ForeignStanding::Standing,
+        Aged::Finished => ForeignStanding::Finished,
+        Aged::Refused(because) => ForeignStanding::Refused(RefusedForeignRecord { record: record_path.to_path_buf(), namespace, because }),
+    });
+}
+
+/// What:
+///  What a record's own age says about a holder that its process number cannot decide.
+/// Why:
+///   Two owners are judged by the age of their record rather than by the number it names:
+///  one of another PID namespace,
+///  whose number means nothing here,
+///  and one whose birth identity is no value this command can read,
+///  whose number names a process that may be the owner or may have taken its number.
+///  Both share one reading of the age,
+///  so they cannot drift apart,
+///  and a record that is gone is finished for both:
+///  its owner removed it,
+///  so nothing holds and no command stops over a file that is not there
+///  (cross-vendor review of 2026-11-09,
+///  finding 3).
+enum Aged {
+    /// The record stands and is inside the patience: its owner may still run.
+    Standing,
+    /// The record is gone: its owner finished and removed it.
+    Finished,
+    /// The record is neither, with the reason its age cannot decide it.
+    Refused(ForeignRefusal),
+}
+
+/// `Aged` for a record file,
+/// from one reading of its own time.
+fn aged(record_path: &Path) -> Aged {
+    #[cfg(test)]
+    STANDING_LOOKUPS.with(|count| { count.set(count.get() + 1); });
+    return match foreign_record_age(record_path) {
+        RecordAge::Measured(age) if age_outlives_patience(age) => Aged::Refused(ForeignRefusal::PastThePatience(age)),
+        RecordAge::Measured(_) => Aged::Standing,
+        RecordAge::Gone => Aged::Finished,
+        RecordAge::Ahead => Aged::Refused(ForeignRefusal::TimeAhead),
+        RecordAge::Unreadable(reason) => Aged::Refused(ForeignRefusal::TimeUnreadable(reason)),
     };
-    return Some(ForeignStanding::Refused(RefusedForeignRecord { record: record_path.to_path_buf(), namespace, because }));
+}
+
+/// What:
+///  A record whose birth identity is no value this command can read, and which has stood past the patience:
+///  neither a live owner's nor a gone one's.
+/// Why:
+///   The wrapper writes one spelling of a birth,
+///  so a text that is no spelling of a value was written by something that is not this release (an older release,
+///  another tool,
+///  a damaged file).
+///  It may be a live owner's record, written another way, or a dead one's,
+///  and a process that has the number says nothing either,
+///  because the birth that would tell the two apart cannot be read.
+///  Owner,
+///  2026-11-04,
+///  "Refuse and name it (Recommended)" is the rule for the same state of a record of another PID namespace,
+///  and this is that rule applied to a birth:
+///  inside the patience the record stands for an owner that may run,
+///  and past it the command stops,
+///  changes nothing,
+///  and says which record it found,
+///  why it cannot read it,
+///  and what a person does about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RefusedUnreadableBirth = { record: string; birth: string; because: ForeignRefusal };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefusedUnreadableBirth {
+    /// The record file.
+    pub record: std::path::PathBuf,
+    /// The birth identity the record names, as it is written.
+    pub birth: String,
+    /// Why the record's age cannot decide it either.
+    pub because: ForeignRefusal,
+}
+
+impl RefusedUnreadableBirth {
+    /// What:
+    ///  The sentence a command stops with, or says:
+    ///  the record file,
+    ///  the owner's PID,
+    ///  the birth the record names,
+    ///  how long it has stood,
+    ///  and the exact `rm`.
+    /// Why:
+    ///   The person must be able to decide.
+    ///  Nothing in the record says whether its owner still runs,
+    ///  so the words say that the record may be a live owner's and that a command of this repository may be working;
+    ///  the condition for removing it covers the Git processes the wrapper leaves running,
+    ///  not only a running monochromatic-git-policy-cli command.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid}, and the birth identity it names (${birth}) ... rm -- ${quoted(record)}`
+    /// ```
+    pub fn describe(&self, owner_pid: i64) -> String {
+        return format!(
+            "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid}, and the birth identity it names ({birth}) is no spelling of a value this \
+             command can read, so whether that process still runs cannot be told from the record, {state}. Nothing was changed. A record like that was written by a release \
+             or a program that is not this one, so its owner may still be running and a Git process monochromatic-git-policy-cli left running (a write it could not safely \
+             end, such as a merge, a reset or a branch update) may still be working for it; `ps` shows them. When no monochromatic-git-policy-cli command and no such Git \
+             process runs for this repository, remove the record with `rm -- {path}` and run the command again.",
+            record = self.record.display(),
+            birth = self.birth,
+            state = refusal_state(&self.because),
+            path = crate::stale_ref_lock_message::shell_quote(self.record.as_path())
+        );
+    }
+}
+
+/// What:
+///  Why a record's own age cannot decide its holder,
+///  as the sentence that follows the rest of a refusal.
+/// Why:
+///   Both refusals (another namespace, and a birth of no value) are excused by the same three facts,
+///  so the sentences are written once.
+fn refusal_state(because: &ForeignRefusal) -> String {
+    return match because {
+        ForeignRefusal::PastThePatience(age) => format!(
+            "and it is {minutes} minutes old, past the {patience} minutes after which monochromatic-git-policy-cli no longer takes such a record for a live owner's; \
+             its age is read from this host's clock, so a clock that was set forward here, or one that is behind where the record was written, makes it read older than \
+             the hold",
+            minutes = age.as_secs() / 60,
+            patience = FOREIGN_OWNER_PATIENCE.as_secs() / 60
+        ),
+        ForeignRefusal::TimeAhead => String::from(
+            "and its own time is later than this reader's clock, so how long it has stood cannot be measured: a clock that was set back here, or one that is ahead \
+             where the record was written, explains that, and nothing says whether its owner still runs",
+        ),
+        ForeignRefusal::TimeUnreadable(reason) => format!(
+            "and its time cannot be read ({reason}), so how long it has stood cannot be measured and nothing says whether its owner still runs"
+        ),
+    };
+}
+
+/// What:
+///  What a record whose birth identity is no value this command can read says about the owner its process number names.
+/// Why:
+///   Three answers, and callers give them their own words:
+///  inside the patience the record stands for an owner that may run and what it holds stays,
+///  a record that is gone held nothing,
+///  and past the patience it is neither,
+///  so the command stops or says so with the record named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnreadableOwnerStanding = 'may-run' | 'ended' | { refused: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum UnreadableOwnerStanding {
+    /// Inside the patience: the owner may still run, and what it holds stays.
+    MayRun,
+    /// The record is gone, so its owner removed it and nothing holds.
+    Ended,
+    /// Neither, past the patience, with the words a command stops with or says.
+    Refused(String),
+}
+
+/// What:
+///  What a record whose birth identity `birth` is no value this command can read says about the owner `owner_pid`,
+///  from one reading of the record's own age.
+/// Why:
+///   This is the one answer every reader of such a record gives,
+///  so the bound and the words cannot differ between the mark of a lock,
+///  the record of a worktree copy,
+///  the record of a commit transaction and the records of a worktree removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unreadableOwnerStanding(recordPath, birth, pid) // 'may-run' | 'ended' | words
+/// ```
+pub fn unreadable_owner_standing(record_path: &Path, birth: &str, owner_pid: i64) -> UnreadableOwnerStanding {
+    return match aged(record_path) {
+        Aged::Standing => UnreadableOwnerStanding::MayRun,
+        Aged::Finished => UnreadableOwnerStanding::Ended,
+        Aged::Refused(because) => UnreadableOwnerStanding::Refused(
+            RefusedUnreadableBirth { record: record_path.to_path_buf(), birth: String::from(birth), because }.describe(owner_pid),
+        ),
+    };
 }
 
 #[cfg(test)]

@@ -341,6 +341,10 @@ pub fn settle_removals(common_dir: &Path) -> Vec<String> {
         let Some(git_dir) = named_git_dir(named.as_str()) else { continue };
         match removal_of(git_dir.as_path(), snapshot.as_path()) {
             Removal::Undecided => {}
+            // A taker whose birth names no value is neither a command that runs nor one that ended, and its record has stood
+            // past the patience: the snapshot stays with the records it keeps, and the person reads which record it is and
+            // the command that removes it.
+            Removal::CannotBeTold(words) => problems.push(words),
             Removal::Refused => {
                 let _discarded = std::fs::remove_dir_all(snapshot.as_path());
             }

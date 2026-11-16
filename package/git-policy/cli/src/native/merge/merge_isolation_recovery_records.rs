@@ -232,8 +232,10 @@ pub(crate) fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<Owne
                 record.display()
             )));
         }
-        // Owner, 2026-11-04, "Refuse and name it (Recommended)": the command stops, and nothing has been changed.
-        Err(OwnerLivenessError::ForeignRecordRefused(text)) => return Err(RecoveryError(text)),
+        // Owner, 2026-11-04, "Refuse and name it (Recommended)": the command stops, and nothing has been changed. A record
+        //  whose birth identity names no value is the same state, bounded by its own age, and it stops here too (the
+        //  refusal names the record and the command that removes it).
+        Err(OwnerLivenessError::RecordRefused(text)) => return Err(RecoveryError(text)),
         Err(OwnerLivenessError::Identity(error)) => {
             return Err(RecoveryError(format!(
                 "reading the identity of the owner {} of the merge record {} failed: {error}",

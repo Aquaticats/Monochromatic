@@ -27,8 +27,8 @@
 //! if (!CopyOwner.fromToken(token).isAlive(path)) { /* the item may be taken over */ }
 //! ```
 
-use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
-use crate::process_identity::{current_birth_identity, is_birth_identity, process_birth_identity};
+use crate::pid_namespace::{ForeignStanding, UnreadableOwnerStanding, current_pid_namespace, foreign_owner_standing, unreadable_owner_standing};
+use crate::process_identity::{birth_identity_value, current_birth_identity, process_birth_identity};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use std::path::Path;
 
@@ -224,42 +224,89 @@ impl CopyOwner {
     /// # Errors
     ///  When the platform refuses to report the process,
     ///  or when the owner is in another namespace and its item is older than the
-    ///  patience.
+    ///  patience,
+    ///  or when its birth is no value this reader can read and the item is older than the patience.
     pub fn is_alive(&self, item: &Path) -> Result<bool, WorktreeCopyError> {
-        return self.alive_by(foreign_owner_standing(self.pid_namespace.as_deref(), item));
+        // What: the answer that keeps the item is "may run", and the one that takes it is "ended"; neither is a proof of
+        //       the other, so the third answer carries the words a command stops with.
+        // Why:  `token_owner_is_dead` and every recovery sweep read this one decision, so the three answers are made here.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // switch (owner.standing(itemPath)) { case 'may-run': return true; case 'ended': return false; case 'refused': throw refused; }
+        // ```
+        return match self.alive_by(item, foreign_owner_standing(self.pid_namespace.as_deref(), item))? {
+            OwnerStanding::MayRun => Ok(true),
+            OwnerStanding::Ended => Ok(false),
+            OwnerStanding::CannotBeTold(refusal) => Err(refusal),
+        };
     }
 
     /// `is_alive` from a standing that was read already,
     /// so one decision never reads the age twice.
-    fn alive_by(&self, standing: Option<ForeignStanding>) -> Result<bool, WorktreeCopyError> {
+    fn alive_by(&self, item: &Path, standing: Option<ForeignStanding>) -> Result<OwnerStanding, WorktreeCopyError> {
         match standing {
             Some(ForeignStanding::Refused(refused)) => return Err(WorktreeCopyError(refused.describe(self.pid))),
-            Some(ForeignStanding::Standing) => return Ok(true),
+            Some(ForeignStanding::Standing) => return Ok(OwnerStanding::MayRun),
             // The item of another namespace that its owner removed is a finished add's: nothing of it runs
             //  (cross-vendor review of 2026-11-09, finding 3).
-            Some(ForeignStanding::Finished) => return Ok(false),
+            Some(ForeignStanding::Finished) => return Ok(OwnerStanding::Ended),
             None => {}
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
-        match process_birth_identity(self.pid).map_err(raw_failure_of)? {
-            Some(current) => {
-                // What: The number is taken, and only a birth this reader can compare tells the recorded owner from the
-                //       program that has the number now.
-                // Why:  The wrapper writes the one spelling,
-                //       so a record in another one was written by a writer that is not this release (an older release, another
-                //       tool, a damaged file). Read as another process it takes what a running command holds: its journal, its
-                //       stage claim, its owed copy and the private index a prediction reads. A spelling this reader cannot
-                //       compare is no proof of a dead owner, so the owner counts as one that may still run and the item stays
-                //       (`is_birth_identity`, the answer the lock's mark is read by). The cost is an item whose owner ended
-                //       and wrote another spelling: it stays until a person removes it.
-                if !is_birth_identity(self.birth_identity.as_str()) {
-                    return Ok(true);
-                }
-                return Ok(current == self.birth_identity);
-            }
-            None => return Ok(false),
-        }
+        return match process_birth_identity(self.pid).map_err(raw_failure_of)? {
+            Some(current) => match (birth_identity_value(self.birth_identity.as_str()), birth_identity_value(current.as_str())) {
+                // What: the two births name one value or two, and a value is what names one process.
+                // Why:  The wrapper writes one spelling of its birth, so a record in another one came from a writer that is
+                //       not this release (an older release, another tool, a damaged file). Compared as text, that spelling
+                //       read as another process, and another process is a proved-dead owner: what a running command holds
+                //       went with it.
+                (Some(recorded), Some(live)) => Ok(if recorded == live { OwnerStanding::MayRun } else { OwnerStanding::Ended }),
+                // What: a birth that names no value is neither a live owner's nor a dead one's, and the item's own age is
+                //       the only bound there is.
+                // Why:  Inside the patience the record stands for an owner that may run, past it the command stops with the
+                //       item named, and neither answer takes an item of a command that runs nor keeps one for ever.
+                _ => Ok(self.cannot_be_told_by(item)),
+            },
+            None => Ok(OwnerStanding::Ended),
+        };
     }
+
+    /// What:
+    ///  What the item says when the record's birth is no value this reader can read.
+    /// Why:
+    ///   The reading of the item's age and the words are the ones every reader of such a record gives
+    ///  (`unreadable_owner_standing`), so a copy cannot answer one way and a transaction another.
+    fn cannot_be_told_by(&self, item: &Path) -> OwnerStanding {
+        return match unreadable_owner_standing(item, self.birth_identity.as_str(), self.pid) {
+            UnreadableOwnerStanding::MayRun => OwnerStanding::MayRun,
+            UnreadableOwnerStanding::Ended => OwnerStanding::Ended,
+            UnreadableOwnerStanding::Refused(words) => OwnerStanding::CannotBeTold(WorktreeCopyError(words)),
+        };
+    }
+}
+
+/// What:
+///  What a copy owner's record says about the owner.
+/// Why:
+///   A reader of these records answers one of three things,
+///  and the third is not a yes or a no:
+///  the owner runs,
+///  it ended,
+///  or the record names no value that would tell the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwnerStanding = 'may-run' | 'ended' | { refused: WorktreeCopyError };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum OwnerStanding {
+    /// The owner runs, or nothing proves it ended.
+    MayRun,
+    /// The owner ended, or the number names a process of another birth.
+    Ended,
+    /// Neither: the item is named in the error a command stops with.
+    CannotBeTold(WorktreeCopyError),
 }
 
 /// What:
@@ -273,11 +320,10 @@ impl CopyOwner {
 /// and an owner the
 ///  platform will not report on is not proven dead,
 /// so its item is kept rather than taken.
-/// A record whose birth is another spelling of one the platform can report names a process this reader cannot
-///  compare, so it is not proven dead either and its item stays.
-/// An owner of another namespace whose item
-///  is older than the patience is neither:
-/// the command stops (owner,
+/// A record whose birth is no value this reader can read is neither a live owner's nor a dead one's:
+///  inside the patience it counts as one that may run,
+///  and past it the command stops with the item named
+///  (owner,
 /// 2026-11-04,
 /// "Refuse and name it (Recommended)"),
 /// from one
@@ -292,15 +338,12 @@ pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, Wor
     let Some(owner) = token.and_then(CopyOwner::from_token) else {
         return Ok(true);
     };
-    let standing = foreign_owner_standing(owner.pid_namespace.as_deref(), item);
-    if let Some(ForeignStanding::Refused(refused)) = &standing {
-        return Err(WorktreeCopyError(refused.describe(owner.pid)));
-    }
-    // `match` on the proof: only a clean answer of "not running" is a dead owner; what the platform will not say is not proof.
-    match owner.alive_by(standing) {
-        Ok(alive) => return Ok(!alive),
-        Err(_unproven) => return Ok(false),
-    }
+    return match owner.alive_by(item, foreign_owner_standing(owner.pid_namespace.as_deref(), item))? {
+        OwnerStanding::MayRun => Ok(false),
+        OwnerStanding::Ended => Ok(true),
+        // The foreign refusal and this one are both "neither alive nor dead", and both are never swallowed here.
+        OwnerStanding::CannotBeTold(refusal) => Err(refusal),
+    };
 }
 
 #[cfg(test)]
