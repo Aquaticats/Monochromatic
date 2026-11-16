@@ -8,8 +8,9 @@ use std::fs;
 
 use mpm_shadow::cli::{build_command, declared_verbs};
 use mpm_shadow::constants::USAGE_EXIT_CODE;
+use mpm_shadow::toolchain::cargo_installs::{current_link, version_directory};
 use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
-use mpm_shadow::toolchain::scope::{EXPOSURE_DIR_RELATIVE, LOCK_FILE_NAME, PLAN_FILE_NAME};
+use mpm_shadow::toolchain::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, LOCK_FILE_NAME, PLAN_FILE_NAME, Scope, repo_scope};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -496,3 +497,230 @@ fn a_global_install_refuses_to_add_a_tool_offline_and_leaves_the_machine_files_a
     assert_eq!(fs::read_to_string(config.join(PLAN_FILE_NAME)).expect("read the global plan"), plan_before);
     assert_eq!(fs::read_to_string(config.join(LOCK_FILE_NAME)).expect("read the global lock"), lock_before);
 }
+
+//region An install with nothing to do opens the launcher folder once, however many bins the plan declares
+
+// What:
+// The bound this control checks is the plan's own: a plan declares one launcher folder for its one scope, so an
+// install with nothing to do opens that folder a number of times that does not grow with the bins the plan declares.
+// Why a fixture of two sizes rather than one measured number:
+// the number of opens an install makes of its records legitimately grows with the bins, so a bound per bin would need
+// a written-down allowance; the relation between two plans of the same shape needs none, and a per-bin open of the
+// folder's listing breaks it (measured 2026-11-16 on a plan declaring 174 bins: 175 opens of the launcher folder
+// against 1 before the cleanup of killed writes learned to look once per folder).
+
+/// The crate the control's plan declares:
+/// one of this repository's own,
+/// so every declared bin is exposed through a launcher whose record the install writes.
+const CONTROL_CRATE: &str = "monochromatic-mpm-shadow-control";
+
+/// The version of the control's crate the fixture leaves installed under the disposable home.
+const CONTROL_VERSION: &str = "0.6.0";
+
+/// The bins the control's smaller plan declares.
+const FEW_BINS: usize = 2;
+
+/// The bins the control's larger plan declares.
+const MANY_BINS: usize = 40;
+
+/// The bin names of a plan declaring `bins` bins: the crate's own program first, then one per further bin.
+fn declared_bins(bins: usize) -> Vec<String> {
+    let mut names: Vec<String> = vec![CONTROL_CRATE.to_string()];
+    while names.len() < bins {
+        names.push(format!("{CONTROL_CRATE}-bin-{}", names.len() - 1));
+    }
+    return names;
+}
+
+/// What:
+/// A worktree whose plan declares `bins` bins of one repository-published crate,
+/// with that crate already installed under a disposable home,
+/// so that an `install` after the first has nothing to do.
+/// Why:
+/// The cost at stake is what an install does when it changes nothing,
+/// which it reaches at every start of work in a checkout;
+/// this fixture is the smallest state that gets there.
+struct NothingToDo {
+    directory: tempfile::TempDir,
+}
+
+impl NothingToDo {
+    fn new(bins: usize) -> NothingToDo {
+        let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+        let fixture = NothingToDo { directory };
+        fs::create_dir_all(fixture.work()).expect("make the worktree");
+        fs::create_dir_all(fixture.home()).expect("make the home");
+        let names: Vec<String> = declared_bins(bins);
+        fs::write(fixture.work().join(PLAN_FILE_NAME), plan_declaring(&names)).expect("write the plan");
+        fs::write(fixture.work().join(LOCK_FILE_NAME), lock_declaring(&names)).expect("write the lock");
+        fixture.sign_lock();
+        fixture.install_the_crate(&names);
+        // The first install makes the launchers and their records; every install after it has nothing to do.
+        let first = fixture.run(&["install", "--frozen-lockfile"]);
+        assert_eq!(first.status.code(), Some(0), "{}", text(&first.stderr));
+        return fixture;
+    }
+
+    fn home(&self) -> PathBuf {
+        return self.directory.path().join("home");
+    }
+
+    fn work(&self) -> PathBuf {
+        return self.directory.path().join("work");
+    }
+
+    /// The scope the binary resolves for this fixture,
+    /// so the test names the same launcher folder the install writes into.
+    fn scope(&self) -> Scope {
+        let home: String = self.home().to_string_lossy().to_string();
+        return repo_scope(&self.work(), &EnvMap::from_pairs(&[("HOME", home.as_str())])).expect("resolve the scope");
+    }
+
+    /// Rewrites the lock with the digest the binary's own gate computes,
+    /// the way `update` would have written it.
+    fn sign_lock(&self) {
+        let path: PathBuf = self.work().join(LOCK_FILE_NAME);
+        let parsed = parse_lock(&fs::read_to_string(&path).expect("read the lock"), "lock").expect("the fixture lock parses");
+        fs::write(&path, render_lock(&parsed.lock)).expect("write the signed lock");
+    }
+
+    /// Installs the control's crate into the fixture's home the way `cargo binstall` leaves it:
+    /// one version directory holding every declared program and cargo's own record of them,
+    /// and the `current` link the bin search follows.
+    fn install_the_crate(&self, names: &[String]) {
+        let scope: Scope = self.scope();
+        let version: PathBuf = version_directory(&scope.toolchain_root, CONTROL_CRATE, CONTROL_VERSION);
+        let programs: PathBuf = version.join("bin");
+        fs::create_dir_all(&programs).expect("make the crate's bin directory");
+        for name in names {
+            let program: PathBuf = programs.join(name);
+            fs::write(&program, "#!/bin/sh\nexit 0\n").expect("write the program");
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make the program executable");
+            }
+        }
+        let quoted: Vec<String> = names.iter().map(|name| return format!("\"{name}\"")).collect();
+        fs::write(
+            version.join(".crates.toml"),
+            format!(
+                "[v1]\n\"{CONTROL_CRATE} {CONTROL_VERSION} (registry+https://github.com/rust-lang/crates.io-index)\" = [{}]\n",
+                quoted.join(", ")
+            ),
+        )
+        .expect("write cargo's record");
+        std::os::unix::fs::symlink(CONTROL_VERSION, current_link(&scope.toolchain_root, CONTROL_CRATE)).expect("link current");
+    }
+
+    /// Runs the binary with only `HOME` and `PATH` in its environment,
+    /// so nothing of this shell (a session bus address above all) reaches it.
+    fn command(&self) -> Command {
+        let mut command: Command = Command::new(env!("CARGO_BIN_EXE_mpm-shadow"));
+        command.current_dir(self.work().join("sub"));
+        command.env_clear().env("HOME", self.home()).env("PATH", "/usr/bin:/bin");
+        return command;
+    }
+
+    fn run(&self, arguments: &[&str]) -> Output {
+        fs::create_dir_all(self.work().join("sub")).expect("make the directory the command runs in");
+        return self.command().args(arguments).output().expect("run mpm-shadow");
+    }
+
+    /// The `openat` lines of one install run under `strace`,
+    /// which is how a machine counts the files a program opens.
+    fn traced_install(&self) -> Vec<String> {
+        let trace: PathBuf = self.directory.path().join("openat-of-one-install.txt");
+        let mut traced: Command = Command::new("strace");
+        traced.current_dir(self.work().join("sub"));
+        traced.env_clear().env("HOME", self.home()).env("PATH", "/usr/bin:/bin");
+        traced
+            .args(["--quiet", "--follow-forks", "--trace=openat", "--output"])
+            .arg(&trace)
+            .args([env!("CARGO_BIN_EXE_mpm-shadow"), "install", "--frozen-lockfile"]);
+        let output: Output = match traced.output() {
+            Ok(output) => output,
+            Err(error) => {
+                panic!(
+                    "this control counts the files an install opens, so it runs the binary under `strace`, and starting it failed: {error}. Install strace on this machine and run the task again."
+                );
+            }
+        };
+        let stdout: String = text(&output.stdout);
+        assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+        assert!(stdout.contains("0 installed"), "the fixture must have nothing to do: {stdout}");
+        assert!(stdout.contains("0 failed"), "the fixture must have nothing to do: {stdout}");
+        return fs::read_to_string(&trace).expect("read the trace").lines().map(str::to_string).collect();
+    }
+}
+
+/// The plan text declaring `names` as the bins of the control's crate.
+fn plan_declaring(names: &[String]) -> String {
+    let quoted: Vec<String> = names.iter().map(|name| return format!("        \"{name}\",\n")).collect();
+    return format!(
+        "{{\n  \"schemaVersion\": 1,\n  \"tools\": {{\n    \"cargo:{CONTROL_CRATE}\": {{\n      \"request\": \"cargo:{CONTROL_CRATE}@{CONTROL_VERSION}\",\n      \"route\": \"cargo-binstall\",\n      \"packageId\": \"{CONTROL_CRATE}\",\n      \"bins\": [\n{}      ]\n    }}\n  }},\n}}\n",
+        quoted.join("")
+    );
+}
+
+/// The lock text declaring `names` as the bins of the control's crate,
+/// without a digest: `sign_lock` adds the one the binary's gate computes.
+fn lock_declaring(names: &[String]) -> String {
+    let mut document: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    document.insert("schemaVersion".to_string(), serde_json::Value::from(1));
+    document.insert("generatedFrom".to_string(), serde_json::Value::String(PLAN_FILE_NAME.to_string()));
+    let mut tool: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    tool.insert("request".to_string(), serde_json::Value::String(format!("cargo:{CONTROL_CRATE}@{CONTROL_VERSION}")));
+    tool.insert("version".to_string(), serde_json::Value::String(CONTROL_VERSION.to_string()));
+    tool.insert("route".to_string(), serde_json::Value::String("cargo-binstall".to_string()));
+    tool.insert("packageId".to_string(), serde_json::Value::String(CONTROL_CRATE.to_string()));
+    tool.insert(
+        "bins".to_string(),
+        serde_json::Value::Array(names.iter().map(|name| return serde_json::Value::String(name.clone())).collect()),
+    );
+    tool.insert("env".to_string(), serde_json::Value::Object(serde_json::Map::new()));
+    tool.insert("options".to_string(), serde_json::Value::Object(serde_json::Map::new()));
+    tool.insert("artifacts".to_string(), serde_json::Value::Object(serde_json::Map::new()));
+    let mut tools: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    tools.insert(format!("cargo:{CONTROL_CRATE}"), serde_json::Value::Object(tool));
+    document.insert("tools".to_string(), serde_json::Value::Object(tools));
+    return format!("\n{}\n", serde_json::to_string_pretty(&serde_json::Value::Object(document)).expect("render the lock"));
+}
+
+/// The system calls in `trace` that opened exactly `path`, not a file inside it.
+fn opens_of(trace: &[String], path: &Path) -> usize {
+    let opened: String = format!("openat(AT_FDCWD, \"{}\"", path.display());
+    return trace.iter().filter(|line| return line.contains(&opened)).count();
+}
+
+/// What:
+/// An install with nothing to do opens the launcher folder the same number of times whatever number of bins the plan
+/// declares.
+/// Why:
+/// The plan gives the scope one launcher folder,
+/// so its opens cannot be a function of the bins;
+/// a listing of that folder per launch record is what made an install with nothing to do cost more than an install
+/// that predates the cleanup of what a killed write leaves
+/// (175 listings across a plan of 174 bins),
+/// and this relation is what fails if such a per-bin listing comes back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it('opens the launcher folder once, however many bins the plan declares', () => {
+///   expect(opensOfTheLauncherFolder(FEW_BINS)).toBe(opensOfTheLauncherFolder(MANY_BINS));
+/// });
+/// ```
+#[test]
+#[cfg(target_os = "linux")]
+fn an_install_with_nothing_to_do_opens_the_launcher_folder_no_more_often_for_many_bins_than_for_few() {
+    let few = NothingToDo::new(FEW_BINS);
+    let few_opens: usize = opens_of(&few.traced_install(), &few.scope().launcher_dir);
+    let many = NothingToDo::new(MANY_BINS);
+    let many_opens: usize = opens_of(&many.traced_install(), &many.scope().launcher_dir);
+    assert_eq!(
+        few_opens, many_opens,
+        "an install with nothing to do opened the launcher folder {few_opens} times for a plan declaring {FEW_BINS} bins and {many_opens} times for one declaring {MANY_BINS}: the plan declares one launcher folder, so its opens must not grow with the bins"
+    );
+}
+
+//endregion An install with nothing to do opens the launcher folder once, however many bins the plan declares
