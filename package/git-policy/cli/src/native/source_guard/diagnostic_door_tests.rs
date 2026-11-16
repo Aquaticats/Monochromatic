@@ -103,6 +103,78 @@ fn findings_of_the_door(text: &str) -> Vec<String> {
 }
 
 /// What:
+///  The words a stop of a push hands back,
+/// as the type whose files may say them only through the door.
+/// Why:
+///   The stop writes nothing on its way out,
+/// and its callers say what it returned;
+/// the review of `944eacedc7`
+///  found that such a caller wrote the words itself and waited for a reader that had stopped draining,
+/// so the shape that has
+///  to hold is that every file handling these words says them with `warn` or `debug`, which are the door.
+const THE_STOPS_WORDS: &str = "WhatAStopWouldSay";
+
+/// What:
+///  The words that say a file writes standard error where its caller stands,
+/// for the files that handle a stop's words:
+/// the shared handle,
+///  the terse macro,
+/// and a write of bytes.
+/// Why:
+///   The door's own list carries the bare `stderr(`,
+/// which is a finding in the door and no finding in a file that builds a child's
+///  `Stdio::stderr(..)`;
+/// a file that handles the stop's words builds such a stream for the push it runs,
+/// so what it may not do
+///  is write one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_WRITE_OF_ONES_OWN = ['std::io::stderr()', 'write_all(', 'eprintln!(']
+/// ```
+const A_WRITE_OF_ONES_OWN: [&str; 3] = ["std::io::stderr()", "write_all(", "eprintln!("];
+
+/// What:
+///  The words of a line said through the door.
+/// Why:
+///   `warn` and `debug` are the two levels of `foundation/diagnostic_log.rs`,
+/// which hands every line to the writer;
+/// a file that
+///  says a line any other way is the finding this const names.
+const THE_DOOR_WORDS: [&str; 2] = ["warn(", "debug("];
+
+/// What:
+///  What a file that handles the stop's words gets wrong,
+/// as one sentence per finding,
+/// and nothing when it says them through the door
+///  and writes no stream itself.
+/// Why:
+///  A file that names no such word is not this check's business,
+/// which is what makes the check follow the shape rather than a list of
+///  files that grows stale.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const findingsOfAStopsWords = (text) => text.includes(THE_STOPS_WORDS) ? [...A_HAND_WRITE.filter((w) => text.includes(w)), ...(THE_DOOR_WORDS.some((w) => text.includes(w)) ? [] : ['no door'])] : []
+/// ```
+fn findings_of_a_stops_words(text: &str) -> Vec<String> {
+    let code: String = code_only(text);
+    if !code.contains(THE_STOPS_WORDS) {
+        return Vec::new();
+    }
+    let mut found: Vec<String> = Vec::new();
+    for word in A_WRITE_OF_ONES_OWN {
+        if code.contains(word) {
+            found.push(format!("it writes a stream itself: it carries `{word}`"));
+        }
+    }
+    if !THE_DOOR_WORDS.iter().any(|word| return code.contains(word)) {
+        found.push(String::from("it says no line through the door's `warn` or `debug`"));
+    }
+    return found;
+}
+
+/// What:
 ///  What the writer's text gets wrong,
 ///  as one sentence per finding,
 ///  and nothing when it writes the descriptor and never the shared handle.
@@ -203,6 +275,49 @@ fn no_release_file_says_a_line_with_eprintln() {
         eprintln_in_release(release_sources().as_slice()),
         Vec::<String>::new(),
         "a line that waits for the reader where the command stands is what this guard exists to prevent; say it through the door"
+    );
+}
+
+/// Every release file that handles the words a stop hands back says them through the door.
+#[test]
+fn every_file_that_handles_the_stops_words_says_them_through_the_door() {
+    let files: Vec<(String, String)> = release_sources();
+    let mut findings: Vec<String> = Vec::new();
+    let mut seen: usize = 0;
+    for (path, text) in &files {
+        let found: Vec<String> = findings_of_a_stops_words(text.as_str());
+        if text.contains(THE_STOPS_WORDS) {
+            seen = seen.saturating_add(1);
+        }
+        for sentence in found {
+            findings.push(format!("{path}: {sentence}"));
+        }
+    }
+    assert!(seen > 0, "some release file handles the stop's words, so this check is about something");
+    assert_eq!(
+        findings,
+        Vec::<String>::new(),
+        "the words a stop hands back are said through the door, never by a write of the caller's own"
+    );
+}
+
+/// The stop's words' check fails on a file that writes the stream itself and on one that says no line through the door.
+#[test]
+fn the_stops_words_check_fails_on_a_file_that_writes_the_stream_itself() {
+    let writes: String = String::from("fn say(word: &WhatAStopWouldSay) { let _ = std::io::stderr().write_all(word.as_bytes()); }\n");
+    let found: Vec<String> = findings_of_a_stops_words(writes.as_str());
+    assert!(found.iter().any(|sentence| return sentence.contains("std::io::stderr()")), "the finding names the write: {found:?}");
+    let silent: String = String::from("fn say(word: &WhatAStopWouldSay) { println!(\"{}\", word.len()); }\n");
+    let found: Vec<String> = findings_of_a_stops_words(silent.as_str());
+    assert!(found.iter().any(|sentence| return sentence.contains("no line through")), "the finding names the lost door: {found:?}");
+    let through_the_door: String = String::from("fn say(word: &WhatAStopWouldSay) { warn(TAG, word); }\n");
+    assert!(
+        findings_of_a_stops_words(through_the_door.as_str()).is_empty(),
+        "a file that says the words with `warn` is no finding"
+    );
+    assert!(
+        findings_of_a_stops_words("fn unrelated() {}\n").is_empty(),
+        "a file that handles no such word is not this check's business"
     );
 }
 

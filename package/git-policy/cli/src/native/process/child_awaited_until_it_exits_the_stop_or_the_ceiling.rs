@@ -282,8 +282,9 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
         Some(arm) => tokio::select! {
             biased;
             () = arm.stop_told() => {
-                // The stop writes nothing: its words are said here. This path is the commit step's own, which the owner chose
-                //  to keep waiting for its output, so a line of it waits no longer than the step already does.
+                // The stop writes nothing: its words are said here. Another command can be held behind them: the commit step
+                //  runs inside the service, and the person's command waits for its answer, so the words go through the door of
+                //  `foundation/diagnostic_log.rs`, which answers this caller at once.
                 stop_push(owned, STOP_GRACE, LockLedger::none()).await.say();
                 return Err(crate::child_watch::ended_by_the_stop(what));
             }
@@ -328,8 +329,9 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
                 // The bound came and the kernel still held it: the step is ended here as any step at its ceiling is.
                 HowTheStallEnded::TheBound => waited = began.elapsed(),
                 HowTheStallEnded::TheStopOfTheService => {
-                    // The stop writes nothing: its words are said here. This path is the commit step's own, which the owner chose
-                //  to keep waiting for its output, so a line of it waits no longer than the step already does.
+                    // The stop writes nothing: its words are said here. Another command can be held behind them: the commit step
+                //  runs inside the service, and the person's command waits for its answer, so the words go through the door of
+                //  `foundation/diagnostic_log.rs`, which answers this caller at once.
                 stop_push(owned, STOP_GRACE, LockLedger::none()).await.say();
                     return Err(crate::child_watch::ended_by_the_stop(what));
                 }

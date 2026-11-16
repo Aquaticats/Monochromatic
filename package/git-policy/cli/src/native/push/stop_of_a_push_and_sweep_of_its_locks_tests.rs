@@ -586,9 +586,9 @@ fn a_stop_whose_standard_error_is_full_answers_inside_its_ceiling_and_holds_no_l
     );
     assert!(
         returned,
-        "the stop did not answer while its standard error was a pipe nobody drains: a write on its path waited for a reader"
+        "the stop, or the words it handed back with `say`, did not answer while standard error was a pipe nobody drains: a write waited for a reader"
     );
-    for needed in ["RETURNED", "owed_recorded=true", "words_carry_the_owed_sweep=true", "later_push_swept=true"] {
+    for needed in ["RETURNED", "owed_recorded=true", "words_carry_the_owed_sweep=true", "later_push_swept=true", "SAY_RETURNED"] {
         assert!(printed.contains(needed), "the child reported {needed}: {printed}");
     }
 }
@@ -635,8 +635,15 @@ fn the_stop_of_this_child_with_a_full_standard_error() {
     // The later stop's sweep ran (its one place was free again) and it says which lock it removed: the first stop's owed
     //  sweep is behind nothing.
     let later_push_swept: bool = !staging.exists() && later.warnings().contains("removed the packed-references staging file");
+    // What each caller of the stop does next, with standard error a pipe nobody drains: the words go through the door of
+    //  `foundation/diagnostic_log.rs`, which hands them to a thread of its own and answers the caller at once, so this
+    //  returns even though the reader never reads.
+    let saying: Instant = Instant::now();
+    said.say();
+    later.say();
+    let say_ms: u128 = saying.elapsed().as_millis();
     println!(
-        "RETURNED took_ms={} owed_recorded={owed_recorded} words_carry_the_owed_sweep={words_carry_the_owed_sweep} later_push_swept={later_push_swept} staging_left={} later_words={:?}",
+        "RETURNED took_ms={} owed_recorded={owed_recorded} words_carry_the_owed_sweep={words_carry_the_owed_sweep} later_push_swept={later_push_swept} staging_left={} say_ms={say_ms} SAY_RETURNED later_words={:?}",
         took.as_millis(),
         staging.exists(),
         later.warnings()

@@ -318,7 +318,9 @@ async fn run_bounded_git_held(
                 // The command never got its request, so it is stopped here and the failure names why. The stop is the one every
                 //  stopped query gets: asked to end, forced past the grace, and bounded, so a child the kernel does not release is
                 //  handed to the sweep instead of being waited for.
-                // The stop writes nothing: its words are said here, where the stop has returned and holds nothing of its own.
+                // The stop writes nothing: its words are said here. Another command can be held behind them, so they go
+                //  through the door of `foundation/diagnostic_log.rs`: this query runs inside the service's push, which holds
+                //  the push's claim while it waits.
                 stop_push(adopt(started), grace, locks).await.say();
                 return Err(SingleFlightError::Start(std::io::Error::other(error)));
             }
@@ -333,6 +335,8 @@ async fn run_bounded_git_held(
         Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref())).await {
             Ok(outcome) => outcome?,
             Err(_passed) => {
+                // Another command can be held behind these words (the service's push holds its claim here), so the door of
+                //  `foundation/diagnostic_log.rs` says them.
                 stop_push(child, grace, locks).await.say();
                 return Err(SingleFlightError::Ceiling {
                     arguments: arguments.to_owned(),
@@ -375,7 +379,8 @@ async fn run_bounded_git_held(
             stderr: read_back(&mut stderr, cap)?,
         }),
         Err(cause) => {
-            // The stop writes nothing: its words are said here, where the stop has returned and holds nothing of its own.
+            // The stop writes nothing: its words are said here. Another command can be held behind them (the service's push
+            //  holds its claim here), so they go through the door of `foundation/diagnostic_log.rs`.
             stop_push(child, grace, locks).await.say();
             Err(match cause {
                 // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.

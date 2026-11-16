@@ -244,12 +244,26 @@ impl WhatAStopWouldSay {
     /// What:
     ///  Say every line here, with the volume the stop would have used.
     /// Why:
-    ///   Only a caller that holds nothing another push waits on says these:
-    /// no place of the blocking budget, no lock of
-    ///  the repository and no claim of the push's record.
-    /// A stop's own path never calls this,
-    /// because a reader that stopped
-    ///  draining would hold everything the stop has still to give back.
+    ///   A stop's own path never calls this,
+    /// because a reader that stopped draining would hold everything the stop has
+    ///  still to give back;
+    /// its callers say the words once the stop has returned.
+    ///  Every one of them can be reached while another command is held:
+    /// the auto-push holds its claim,
+    /// the commit step answers a person's
+    ///  command that waits for it,
+    /// and the sweep's task runs beside a service that serves the next push.
+    /// So the words go through the door of
+    ///  `foundation/diagnostic_log.rs`,
+    /// which hands each line to a thread of its own and answers its caller at once
+    ///  (`foundation/diagnostic_lines_off_the_calling_thread.rs`):
+    /// a reader that never drains costs the
+    ///  caller the door's own bound and never a wait for the reader
+    /// (`doc/handover/cli-git-rust-implementation.md`,
+    ///  "Owner decisions in force",
+    /// "Only where another command can be held"),
+    /// and a control holds this under a pipe nobody drains
+    ///  (`a_stop_whose_standard_error_is_full_answers_inside_its_ceiling_and_holds_no_later_push`).
     pub fn say(&self) {
         for line in &self.lines {
             match line {
@@ -488,8 +502,10 @@ fn start_the_sweep_task(sweep: AStopHandedToATask, said: &mut WhatAStopWouldSay)
             return;
         };
         // What this task would say is said by the task itself, at its end: by then it holds no place of the blocking budget,
-        //  no lock of the repository and no claim of the push's record, so a reader that stopped draining holds this task and
-        //  nothing a later push waits for.
+        //  no lock of the repository and no claim of the push's record.
+        // It can still be said while another command is held: the
+        //  task runs beside a service that serves the next push, and a task stuck in a write would hold a worker of the
+        //  runtime, so its words go through the door of `foundation/diagnostic_log.rs` as every other stop's do.
         let mut words: WhatAStopWouldSay = WhatAStopWouldSay::default();
         // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
         let _earlier: usize = reap_abandoned_children();

@@ -277,7 +277,9 @@ async fn await_upload(
         Ok(status) => UploadEnd::Finished(outcome_of(status)),
         Err(cause) => {
             // The upload is ended with the grace every stopped child gets, and what it started goes with it.
-            // The stop writes nothing: its words are said here, where the stop has returned and holds nothing of its own.
+            // The stop writes nothing: its words are said here. Another command can be held behind them, so they go through
+            //  the door of `foundation/diagnostic_log.rs`: this upload is the auto-push's step, which holds the push's claim,
+            //  or the last thing a typed `git push` waits for.
             stop_push(child, STOP_GRACE, locks).await.say();
             UploadEnd::Stopped(cause)
         }

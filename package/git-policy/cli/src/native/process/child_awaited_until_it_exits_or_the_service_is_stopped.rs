@@ -35,8 +35,9 @@ pub async fn wait_until_exit_or_stop(mut owned: OwnedChild, mut stop: Option<Sto
     return tokio::select! {
         biased;
         () = arm.stop_told() => {
-            // The stop writes nothing: its words are said here. This path is the commit step's own, which the owner chose to
-            //  keep waiting for its output, so a line of it waits no longer than the step already does.
+            // The stop writes nothing: its words are said here. Another command can be held behind them: the commit step
+            //  runs inside the service, and the person's command waits for its answer, so the words go through the door of
+            //  `foundation/diagnostic_log.rs`, which answers this caller at once.
             crate::bounded_push::stop_push(owned, crate::bounded_push::STOP_GRACE, crate::stopped_git_locks::LockLedger::none()).await.say();
             Err(crate::child_watch::ended_by_the_stop(what))
         }
