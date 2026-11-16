@@ -77,7 +77,7 @@ pub(crate) fn looking_for_what_landed(look: LookForWhatLanded<'_>) -> Option<Str
     let began: Instant = Instant::now();
     loop {
         // A finished batch names the commit each of its requests became, and it is written only once the branch moved.
-        if let Some(commit) = a_finished_batch_made(journal, look.id) {
+        if let Some(commit) = a_finished_batch_made(journal, look.id, began + look.wait) {
             return Some(commit);
         }
         // An open batch names the commit it is making; the branch says whether it is made.
@@ -127,12 +127,11 @@ pub(crate) fn journal_of_request(request: &CommitRequest) -> Option<PathBuf> {
 ///  Whether the request landed is a question about its own record, and how many other commits landed since has nothing to
 ///  do with it: reading a count of the newest refused a record behind seventeen successors, and a landed commit exited 1
 ///  saying it was not known whether it was made (the review of `dbee36149c`, finding 1).
-/// The read is bounded by what the journal itself keeps: `DONE_RETAINED` (1024) finished records are the most it holds
-///  between sweeps, so the look costs the same after sixteen finished batches as after sixteen thousand.
-/// A record is pruned only when a newer one pushes it past that count, so a record still names its commit for as long as the
-///  journal holds it; a request's longest wait is `ANSWER_CEILING` (35 s) of silence, six reconnects, and one unanswered
-///  withdrawal, and the retention holds while fewer than `DONE_RETAINED` batches land in it.
-/// Past that the record is gone and the look finds nothing: it then says nothing is known, never that nothing was made.
+/// The read ends at `until`: the clock is read between records (`newest_finished_batches_read_until`), so a look handed a
+///  deadline ends at it whatever the journal holds (the review of `da9c767270`, finding 4).
+///  `DONE_RETAINED` (1024) does not bound what the look meets: pruning keeps every record a client may still read, so
+///  young records pass that count and the directory can hold far more.
+/// Past the deadline the record may be unread: the look then says nothing is known, never that nothing was made.
 /// A record's name is its batch's sequence number, so the identity is inside the record and the read searches it.
 ///
 /// What:
@@ -146,8 +145,8 @@ pub(crate) fn journal_of_request(request: &CommitRequest) -> Option<PathBuf> {
 /// ```ts
 /// finishedBatches.find((record) => record.ids.includes(id))?.commits[at]
 /// ```
-fn a_finished_batch_made(journal: &Path, id: &str) -> Option<String> {
-    for (_path, record) in newest_finished_batches_read_only(journal, usize::MAX) {
+fn a_finished_batch_made(journal: &Path, id: &str, until: Instant) -> Option<String> {
+    for (_path, record) in crate::service_journal::newest_finished_batches_read_until(journal, until) {
         let Some(parsed) = record else { continue };
         if let Some(commit) = the_commit_of(&parsed, id) {
             return Some(commit);

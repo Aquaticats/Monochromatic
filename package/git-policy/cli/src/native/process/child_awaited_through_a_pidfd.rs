@@ -244,14 +244,20 @@ impl OwnedChild {
     pub fn end_with_the_processes_it_started(&mut self) -> bool {
         // The tree is read before the leader is signalled: a child's link to its parent is gone once the parent has exited.
         let walked: Option<Vec<TreeMember>> = i32::try_from(self.id()).ok().and_then(descendants_of_read);
-        let below_ended: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
         // What:
         //  The leader is signalled by `end_and_reap`, which owns the grace after that signal,
-        //  and the answer is true when the leader was left running **or** any member below it was not shown to have ended.
+        //  and the answer is true when the leader was left running,
+        //  when a member below it was not shown to have ended,
+        //  or when the tree could not be read at all.
         // Why:
         //  `Delivered::Unproven` is a member the kernel refused a descriptor or a signal for: nothing was sent and it may
-        //  still run, so the words may not say the step "was ended" (the review of `dbee36149c`, finding 2).
-        let below_may_still_run: bool = below_ended.iter().any(|answer| { return *answer == Delivered::Unproven; });
+        //  still run (the review of `dbee36149c`, finding 2).
+        //  A `/proc` that cannot be read is not an empty tree: nothing was looked at, so something may still run and the
+        //  words may not say the step "was ended" (the review of `da9c767270`, finding 2).
+        let below_may_still_run: bool = match walked {
+            None => true,
+            Some(members) => kill_members(members.as_slice()).iter().any(|answer| { return *answer == Delivered::Unproven; }),
+        };
         let leader_left_running: bool = self.end_and_reap();
         return leader_left_running || below_may_still_run;
     }

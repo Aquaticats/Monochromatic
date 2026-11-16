@@ -247,6 +247,10 @@ fn remove_the_leftovers_of_makers_that_are_gone(usual: &Path) {
         let name: OsString = entry.file_name();
         let Some(maker) = the_maker_of_this_workspaces_name(name.as_ref(), usual_name) else { continue };
         let path: PathBuf = entry.path();
+        // Only a name a filling marked is the wrapper's to remove; a name that merely looks right is somebody's.
+        if !a_filling_made_this(path.as_path()) {
+            continue;
+        }
         let dead: bool = matches!(crate::worktree_copy_owner::token_owner_is_dead(Some(maker.token().as_str()), path.as_path()), Ok(true));
         if !dead {
             continue;
@@ -333,7 +337,7 @@ fn give_back(names: &TheNames) {
 /// const giveBackTheStagedState = (staging) => { if (!makerAtTheEndOf(basename(staging))) return; removeIfAny(staging); removeIfAny(`${staging}.target`); };
 /// ```
 fn give_back_the_staged_state(staging: &Path) {
-    if staging.file_name().and_then(the_maker_at_the_end_of).is_none() {
+    if staging.file_name().and_then(the_maker_at_the_end_of).is_none() || !a_filling_made_this(staging) {
         debug(TAG, format!("{} is not a name this job staged, so it is left exactly as it is found", staging.display()).as_str());
         return;
     }
@@ -343,6 +347,43 @@ fn give_back_the_staged_state(staging: &Path) {
     if let Err(reason) = remove_if_any(target_of(staging).as_path()) {
         debug(TAG, format!("{reason}; the clean's target of the staged state stays for the next filling").as_str());
     }
+}
+
+/// The file a filling writes beside a staged name it made:
+/// the one thing a removal may rest on, because a record cannot write it into a directory it did not stage.
+pub(crate) const STAGED_MARKER_SUFFIX: &str = ".made";
+
+/// The marker beside the staged name `staged`.
+fn marker_of_the_staging(staged: &Path) -> PathBuf {
+    let mut named: OsString = staged.as_os_str().to_os_string();
+    named.push(STAGED_MARKER_SUFFIX);
+    return PathBuf::from(named);
+}
+
+/// What:
+///  The words a filling writes beside a name it staged.
+const STAGED_MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli staged the directory beside this file and may remove it.\n";
+
+/// What:
+///  Write the marker beside a staged name this filling made,
+///  and never over one that is there.
+fn note_that_a_filling_made(staged: &Path) {
+    let marker: PathBuf = marker_of_the_staging(staged);
+    if let Err(reason) = crate::private_storage::write_private_file_unsynced(marker.as_path(), STAGED_MARKER_TEXT) {
+        debug(TAG, format!("{} could not be written, so {} is left for a later filling ({reason})", marker.display(), staged.display()).as_str());
+    }
+}
+
+/// What:
+///  Whether a filling wrote the marker beside `staged`,
+///  which is what makes the directory there the wrapper's to remove.
+/// Why:
+///  A name is a string, and a record can spell it: a removal on a record's word needs something the wrapper itself wrote,
+///  and a marker a record cannot have written into a directory it did not stage is that
+///  (the review of `da9c767270`, finding 1).
+fn a_filling_made_this(staged: &Path) -> bool {
+    let limit: u64 = (STAGED_MARKER_TEXT.len() as u64).saturating_add(1);
+    return matches!(crate::private_storage::read_regular_file(marker_of_the_staging(staged).as_path(), limit), Ok(text) if text == STAGED_MARKER_TEXT);
 }
 
 /// What:
@@ -559,7 +600,7 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     //  Nothing may be removed or published on the strength of a name a record asserts:
     //  the path must be the one this wrapper computed for this destination (the review of `7a6504e5b6`, finding 1).
     if let Some(staged) = entry.staged_in.as_ref()
-        && !staged_state_is_ours(entry.to.as_path(), staged.as_path())
+        && (!staged_state_is_ours(entry.to.as_path(), staged.as_path()) || !a_filling_made_this(staged.as_path()))
     {
         return Err(format!(
             "the prewarm record names {} as the state the add staged, and this wrapper stages nothing there for {}; nothing was read, published or removed",
@@ -665,7 +706,12 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
         return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
     }
     return match std::fs::rename(destination, staging.as_path()) {
-        Ok(()) => Ok(Staged::Staged(staging)),
+        Ok(()) => {
+            // What: The name this add staged under is marked as the wrapper's own.
+            // Why:  The filling and a later look remove what stands there only on this mark (the review of `da9c767270`).
+            note_that_a_filling_made(staging.as_path());
+            Ok(Staged::Staged(staging))
+        }
         Err(error) => Err(format!(
             "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
             destination.display()

@@ -330,7 +330,7 @@ where
     let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
     let held: Arc<ThePlaceOfOneJob> = ThePlaceOfOneJob::holding(place);
     // A caller that stops waiting drops this, and the job the pool still holds queued must then do nothing.
-    let mut call: TheCallOnAJob = TheCallOnAJob { claimed: Arc::clone(&claimed), held: Arc::clone(&held), settled: false };
+    let mut call: TheCallOnAJob = TheCallOnAJob { claimed: Arc::clone(&claimed), held: Arc::clone(&held), slow: slow_work.as_ref().map(Arc::clone), settled: false };
     let (jobs_claim, jobs_place) = (Arc::clone(&claimed), Arc::clone(&held));
     let jobs_slow: Option<Arc<ThePlaceOfOneJob>> = slow_work.as_ref().map(|slow| { return Arc::clone(slow); });
     let outcome = run_blocking_job(move || {
@@ -879,8 +879,13 @@ async fn run_a_job_once_awaited_no_longer_than_with<T: Send + 'static, J: FnOnce
 struct TheCallOnAJob {
     /// The claim on the job's work.
     claimed: Arc<TheClaimOnAJobsWork>,
-    /// The place the job holds.
+    /// The place of the process's bound the job holds.
     held: Arc<ThePlaceOfOneJob>,
+    /// The place of slow work the job holds, when its work is slow work.
+    /// Why:
+    ///  A place is given back at every ending, the ending in which the work never started among them
+    ///  (the review of `da9c767270`, finding 3).
+    slow: Option<Arc<ThePlaceOfOneJob>>,
     /// Whether this call has already decided who gives the place back.
     settled: bool,
 }
@@ -894,6 +899,9 @@ impl Drop for TheCallOnAJob {
         //  unless that job took the claim, in which case it gives the place back when its work ends.
         if self.claimed.the_reporter_takes_it() {
             self.held.give_it_back();
+            if let Some(slow) = self.slow.as_ref() {
+                slow.give_it_back();
+            }
         }
     }
 }

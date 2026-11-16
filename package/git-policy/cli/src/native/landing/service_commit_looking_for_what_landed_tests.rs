@@ -299,3 +299,41 @@ fn the_finished_batch_of_a_request_is_found_behind_its_successors() {
     });
     assert_eq!(looked, Some(commit), "the request's own finished batch was not found behind seventeen newer ones");
 }
+
+/// What:
+///  A look ends within its own wait however many finished records the journal holds.
+/// Why:
+///  Pruning keeps every record a client may still read, so young records pass `DONE_RETAINED` and the journal can hold far
+///  more than that count. The look read all of them and only then compared its clock, so a 1 ms look took 120 ms over
+///  4,096 records: a bound on a look is checked while looking (the review of `da9c767270`, finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeRecords(DONE_RETAINED * 4); expect(look({wait: 1ms}).elapsed).toBeLessThanOrEqual(1ms + oneRecord)
+/// ```
+#[test]
+fn a_look_ends_within_its_wait_however_many_records_are_young() {
+    let journal: PathBuf = a_journal("looking-many-young-records");
+    let commit: String = "7".repeat(40);
+    let count: usize = crate::service_journal::DONE_RETAINED * 4;
+    let ours: Intent = a_record(1, "refs/heads/main", &"2".repeat(40), commit.as_str(), &[ID], &[commit.as_str()]);
+    std::fs::write(batch_path(journal.as_path(), 1, DONE_EXTENSION), intent_text(&ours)).expect("the request's record");
+    for seq in 2..=count as u64 {
+        let successor: String = format!("{seq:040}");
+        let theirs: Intent = a_record(seq, "refs/heads/main", &"2".repeat(40), successor.as_str(), &[format!("a-successor-{seq}").as_str()], &[successor.as_str()]);
+        std::fs::write(batch_path(journal.as_path(), seq, DONE_EXTENSION), intent_text(&theirs)).expect("a successor's record");
+    }
+    let context: GitContext = crate::test_support::git_context();
+    let wait: Duration = Duration::from_millis(1);
+    let began: Instant = Instant::now();
+    let _looked: Option<String> = looking_for_what_landed(LookForWhatLanded {
+        context: &context,
+        cwd: journal.as_path(),
+        journal: Some(journal.as_path()),
+        id: ID,
+        wait,
+    });
+    let elapsed: Duration = began.elapsed();
+    eprintln!("MEASURE a look over {count} young records with a wait of {wait:?} took {elapsed:?}");
+    assert!(elapsed <= wait + Duration::from_millis(20), "a look that was given {wait:?} took {elapsed:?} over {count} young records");
+}

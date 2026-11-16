@@ -226,3 +226,55 @@ fn a_helper_the_kernel_refused_to_signal_is_reported_as_possibly_running() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  An enumeration of the child's processes that failed says something may still run, never that nothing does.
+/// Why:
+///  `descendants_of_read` answers nothing when `/proc` cannot be read, and nothing may not be turned into "no descendants":
+///  a helper then lives on while the caller is told nothing may still run (the review of `da9c767270`, finding 2).
+///  The soft limit on open files is lowered for the length of the call, which is what makes `/proc` unreadable, and it is
+///  restored in the same test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// limitOpenFilesTo(open + 1); expect(owned.endWithTheProcessesItStarted()).toBe(true); restore(); kill(helper)
+/// ```
+#[test]
+fn an_enumeration_that_failed_says_the_helper_may_still_run() {
+    let root: PathBuf = fixture("child-ended-with-an-unreadable-proc");
+    let reported: PathBuf = root.join("helper");
+    let child: std::process::Child = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(format!("sleep {THE_HELPERS_OWN_SLEEP_SECONDS} & echo $! > '{}'; wait", reported.display()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("a child of this test");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !reported.exists() && began.elapsed() < crate::parallel_test_support::PATIENCE {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let written: String = std::fs::read_to_string(reported.as_path()).expect("the helper reported its own number");
+    let helper: u32 = written.trim().parse().expect("the number the shell wrote is a process id");
+    // The limit is lowered to the descriptors this process holds, so listing `/proc` cannot open anything.
+    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: `getrlimit` and `setrlimit` read and write only this local value.
+    assert_eq!(unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) }, 0, "the limit is readable");
+    let restored = limit;
+    let open_now: u64 = std::fs::read_dir("/dev/fd").expect("this process's own descriptors").count() as u64;
+    limit.rlim_cur = limit.rlim_max.min(open_now);
+    // SAFETY: as above; the limit is put back below.
+    let _lowered = unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) };
+    let mut owned = adopt(child);
+    let may_still_run: bool = owned.end_with_the_processes_it_started();
+    // SAFETY: as above; this restores the limit the test process had.
+    let _restored = unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &restored) };
+    // SAFETY: `kill` takes a process id and a signal number and touches no memory; this control started that process.
+    let _ended = unsafe { libc::kill(i32::try_from(helper).unwrap_or(i32::MAX), libc::SIGKILL) };
+    assert!(
+        may_still_run,
+        "the enumeration of the child's processes failed, and the answer said nothing may still run while the helper lived"
+    );
+    remove(root.as_path());
+}

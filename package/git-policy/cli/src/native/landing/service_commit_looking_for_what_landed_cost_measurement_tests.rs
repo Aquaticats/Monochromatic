@@ -55,7 +55,7 @@ fn a_look_at_a_finished_record_costs_what_the_journal_holds() {
         let mut timings: Vec<Duration> = Vec::new();
         for _round in 0..5 {
             let began: Instant = Instant::now();
-            let found: Option<String> = a_finished_batch_made(journal.as_path(), id.as_str());
+            let found: Option<String> = a_finished_batch_made(journal.as_path(), id.as_str(), began + Duration::from_secs(60));
             timings.push(began.elapsed());
             assert!(found.is_some(), "the request's record was not found with {count} records");
         }

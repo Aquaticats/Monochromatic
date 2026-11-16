@@ -632,6 +632,25 @@ pub fn prune_done(dir: &Path, retained: usize, now: &ClaimTime) -> usize {
 /// ```ts
 /// newestFinishedBatchesReadOnly(dir, 16)
 /// ```
+pub fn newest_finished_batches_read_until(dir: &Path, until: std::time::Instant) -> Vec<(PathBuf, Option<Intent>)> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut finished: Vec<(u64, PathBuf)> = entries.flatten().filter_map(finished_batch_of_entry).collect();
+    finished.sort_by_key(newest_first_key);
+    let mut found: Vec<(PathBuf, Option<Intent>)> = Vec::new();
+    for (_seq, path) in finished {
+        // What: The clock is read between records, so a read handed a deadline ends at it.
+        // Why:  Pruning keeps young records past `DONE_RETAINED`, so the count a reader meets is not a bound it may rely on.
+        if std::time::Instant::now() >= until {
+            break;
+        }
+        let parsed: Option<Intent> = finished_record_of(path.as_path());
+        found.push((path, parsed));
+    }
+    return found;
+}
+
 pub fn newest_finished_batches_read_only(dir: &Path, newest: usize) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();

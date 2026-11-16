@@ -581,3 +581,45 @@ fn a_slow_job_whose_waiter_was_dropped_keeps_the_place_of_slow_work() {
         "the second ask did not answer that no place of slow work came: {answer:?}"
     );
 }
+
+/// What:
+///  A slow job whose caller gave up while it was still queued gives both of its places back.
+/// Why:
+///  A place is given back at every ending, the ending in which the work never started among them. The caller's drop gave
+///  back the place of the bound alone, and the place of slow work stayed in the queued closure, so the next slow job was
+///  refused for as long as that closure stayed queued (the review of `da9c767270`, finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// capThePoolToOneThread(); occupyIt(); const answer = await within(50ms, slowJob()); expect(answer).toBe('noAnswer');
+/// expect(slowPlaces.availablePermits()).toBe(1)
+/// ```
+#[test]
+fn a_slow_job_cancelled_while_queued_gives_back_both_of_its_places() {
+    let _room: usize = crate::parallel_test_support::room_for("a slow job cancelled while queued gives back both of its places", THE_ROOM_OF_ONE_SLOW_PLACE);
+    assert_eq!(places_a_round_may_take(), 1, "this control needs the one place slow work has at this room");
+    // One thread of the blocking pool, made before this process has any other use for it.
+    crate::lazy_runtime::cap_workers(1);
+    let (told, took) = std::sync::mpsc::channel::<()>();
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held_until_released: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(held));
+    let occupier = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _answer = crate::blocking_job::run_blocking_job(move || {
+            let _said = told.send(());
+            let _ = held_until_released.lock().expect("the control's release").recv();
+        })
+        .await;
+    })
+    .expect("a worker for the job that occupies the pool");
+    assert!(took.recv_timeout(PATIENCE).is_ok(), "the job that occupies the pool never started");
+    // The slow job's place of the bound is taken and its closure is queued: its caller's ceiling passes.
+    let answer: TheAnswerOfAJobAwaited<()> = run_on_runtime(async {
+        return run_a_slow_job_once_awaited_no_longer_than("a control's slow job", Duration::from_millis(50), (), |_| ()).await;
+    })
+    .expect("the runtime");
+    assert!(matches!(answer, TheAnswerOfAJobAwaited::NoAnswer), "the caller of the queued slow job did not give up: {answer:?}");
+    let slow_places_free: usize = slow_places().available_permits();
+    let _let_the_occupier_go = release.send(());
+    occupier.abort();
+    assert_eq!(slow_places_free, 1, "the queued slow job kept the place of slow work after its caller gave up");
+}
