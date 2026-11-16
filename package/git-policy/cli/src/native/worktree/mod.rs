@@ -159,6 +159,10 @@ pub mod worktree_removal_leaves_a_subvolume_for_the_service;
 /// and the queueing of its delete that outlives the queue record's own state.
 pub mod worktree_removal_leaving_that_outlives_its_record;
 
+/// The attempts one leaving may cost:
+/// a slot taken by the one command that makes the attempt, published before it, and marked once it is made.
+pub mod worktree_removal_leaving_attempts;
+
 /// The look every command makes at those records:
 /// the delete of a leaving no queue record owes is queued again,
 /// and a place this program may not act on is named for the person.

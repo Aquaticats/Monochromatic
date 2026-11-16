@@ -857,3 +857,236 @@ fn clear_the_queue_and_the_attempts(place: &Place, item: &WorkItem) {
         let _removed: std::io::Result<()> = std::fs::remove_file(attempt);
     }
 }
+
+/// What:
+///  How many of the commands that ran acted on one leaving: each answer that says it queued or asked is one act.
+/// Why:
+///   A budget of attempts is a promise about acts,
+///  and the acts are what a person sees:
+///  a queued delete or a wake the command asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const acts = answers.filter((answer) => answer.queued).length;
+/// ```
+fn acts_of(answers: &[Leavings]) -> usize {
+    return answers.iter().filter(|answer| { return answer.queued }).count();
+}
+
+/// What:
+///  Run the look in `callers` threads that start together,
+///  and answer every answer it gave.
+/// Why:
+///   Commands of one repository run at once,
+///  and a budget that two of them can both pass is no budget:
+///  the barrier makes every caller decide on the same state,
+///  which is the state a real overlap is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = await Promise.all(range(callers).map(async () => { await barrier.wait(); return look(common); }));
+/// ```
+fn callers_at_once(common: &Path, callers: usize) -> Vec<Leavings> {
+    let start: Arc<Barrier> = Arc::new(Barrier::new(callers + 1));
+    let answers: Vec<Leavings> = std::thread::scope(|scope| {
+        let mut handles: Vec<std::thread::JoinHandle<Leavings>> = Vec::new();
+        for _caller in 0..callers {
+            let shared: Arc<Barrier> = Arc::clone(&start);
+            let their_common: PathBuf = common.to_path_buf();
+            handles.push(std::thread::spawn(move || {
+                let _together: std::sync::BarrierWaitResult = shared.wait();
+                return queue_the_leavings_a_record_no_longer_names(their_common.as_path());
+            }));
+        }
+        let _together: std::sync::BarrierWaitResult = start.wait();
+        let mut collected: Vec<Leavings> = Vec::new();
+        for handle in handles {
+            collected.push(handle.join().expect("a caller that ran"));
+        }
+        return collected;
+    });
+    return answers;
+}
+
+/// What:
+///  How many ordinary commands ask for one leaving's delete before they stop asking.
+/// Why:
+///   The attempts a record may cost bound the asks,
+///  so a sequence of commands that asks once each must stop at that bound and name the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let asked = 0; for (let round = 0; round < 2 * MAX_TRIES; round += 1) { const answer = look(common); if (answer.queued) asked += 1; else if (answer.said.length > 0) break; }
+/// ```
+fn commands_that_ask_before_the_bound(common: &Path) -> usize {
+    let mut asked: usize = 0;
+    for _round in 0..(2 * MAX_TRIES) {
+        let answer: Leavings = queue_the_leavings_a_record_no_longer_names(common);
+        if answer.queued {
+            asked += 1;
+            continue;
+        }
+        break;
+    }
+    return asked;
+}
+
+/// What:
+///  Every path that can queue a delete or ask for one stays inside the attempts a leaving may cost,
+///  two callers at once and a kill between the slot and the act included,
+///  and none leaves a leaving nothing will ever attempt again.
+/// Why:
+///  A command can be killed at any instruction,
+///  and a repository's commands run at once.
+///  A budget holds only if the attempt is counted by the one that makes it,
+///  atomically and before the act,
+///  so that two callers cannot both take the same attempt
+///  and a caller killed between the slot and the act leaves an attempt the next command makes.
+///  Four paths can act on a leaving:
+///  the deleting look's requeue,
+///  the deleting look's ask,
+///  the scan's requeue of a marked leftover,
+///  and the hand-over's own repair requeue.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the ask, raced one caller beyond the budget
+/// expect(actsOf(callersAtOnce(common, MAX_TRIES + 1))).toBeLessThanOrEqual(MAX_TRIES);
+/// // two pending leavings, one command at a time: one wake per command, so the asks stop at the budget
+/// expect(commandsThatAskBeforeTheBound(common)).toBeLessThanOrEqual(MAX_TRIES);
+/// // the scan's requeue and the hand-over's repair are counted, so the sequence stops at the budget
+/// expect(1 + commandsThatAskBeforeTheBound(common)).toBeLessThanOrEqual(MAX_TRIES);
+/// // and three commands killed between the slot and the act leave the delete to the next command
+/// expect(lookAfterThreeKills(common).queued).toBe(true);
+/// ```
+#[test]
+fn every_path_that_acts_on_a_leaving_stays_inside_the_attempt_budget() {
+    // The child of this same test binary: it dies at the one step it was told, so the caller that would act never does.
+    if let Ok(common) = std::env::var("BUDGET_CONTROL_COMMON") {
+        let watching: String = std::env::var("BUDGET_CONTROL_STEP").expect("the step this child dies at");
+        let watched: String = watching.clone();
+        crate::worktree_attempt_budget_test_support::act_at_each_step(move |step: &str| {
+            if step == watched {
+                // SAFETY: `_exit` ends this process at once and reads nothing this program owns.
+                unsafe { libc::_exit(KILLED_AT_A_STEP) };
+            }
+        });
+        let answer: Leavings = queue_the_leavings_a_record_no_longer_names(Path::new(&common));
+        panic!("the child ran past {watching}: queued={} said={:?}", answer.queued, answer.said);
+    }
+    // Every finding's own words, collected so one run of this control shows all of them and not only the first.
+    let mut failures: Vec<String> = Vec::new();
+    // § 1. The look's ask, one caller beyond the budget, all starting together.
+    let Some(pending): Option<Place> = a_place_a_removal_renames_into("budget-ask-race") else { return };
+    let (pending_id, pending_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(pending.place.as_path(), "kept.txt", b"held\n");
+    let pending_item: WorkItem = removal_item(pending.common.as_path(), pending.place.as_path(), pending_id);
+    enqueue(work_of(&pending).as_path(), &pending_item).expect("the pending record one round owes");
+    record_a_leaving_with_owner(pending.common.as_path(), &pending_item, Some("1:ended")).expect("the leaving record whose delete a round owes");
+    let raced: Vec<Leavings> = callers_at_once(pending.common.as_path(), usize::try_from(MAX_TRIES).expect("the budget") + 1);
+    let raced_acts: usize = acts_of(raced.as_slice());
+    if raced_acts > usize::try_from(MAX_TRIES).expect("the budget") {
+        failures.push(format!("§1 the ask: {raced_acts} commands acted on one leaving, and a leaving may cost {MAX_TRIES} attempts"));
+    }
+    let after_the_race: Leavings = queue_the_leavings_a_record_no_longer_names(pending.common.as_path());
+    assert!(
+        after_the_race.queued || state_directory(work_of(&pending).as_path(), PENDING).join(pending_item.id()).is_file(),
+        "and nothing is left that nothing will ever attempt again: {:?}",
+        after_the_race.said,
+    );
+    assert_eq!(delete_subvolume_of(&pending_item), Verdict::Done, "the control takes its subvolume");
+    assert!(!pending_hidden.exists(), "and the directory the name held is gone with it");
+    remove(pending.root.as_path());
+
+    // § 2. Two pending leavings, one command at a time: one wake serves both, so the asks must stop at the budget.
+    let Some(two): Option<Place> = a_place_a_removal_renames_into("budget-two-leavings") else { return };
+    let (first_id, first_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(two.place.as_path(), "first.txt", b"first\n");
+    let (second_id, second_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(two.place.as_path(), "second.txt", b"second\n");
+    let first: WorkItem = removal_item(two.common.as_path(), two.place.as_path(), first_id);
+    let second: WorkItem = removal_item(two.common.as_path(), two.place.as_path(), second_id);
+    enqueue(work_of(&two).as_path(), &first).expect("the first pending record");
+    enqueue(work_of(&two).as_path(), &second).expect("the second pending record");
+    record_a_leaving_with_owner(two.common.as_path(), &first, Some("1:ended")).expect("the first leaving");
+    record_a_leaving_with_owner(two.common.as_path(), &second, Some("1:ended")).expect("the second leaving");
+    let asked_rounds: usize = commands_that_ask_before_the_bound(two.common.as_path());
+    if asked_rounds > usize::try_from(MAX_TRIES).expect("the budget") {
+        failures.push(format!("§2 two pending leavings: {asked_rounds} commands asked, and each leaving may cost {MAX_TRIES} attempts"));
+    }
+    let _kept_first: bool = first_hidden.is_dir();
+    assert_eq!(delete_subvolume_of(&first), Verdict::Done, "the control takes its first subvolume");
+    assert_eq!(delete_subvolume_of(&second), Verdict::Done, "the control takes its second subvolume");
+    remove(two.root.as_path());
+
+    // § 3. The scan's requeue is one act, so the whole sequence stops at the budget.
+    let Some(scan): Option<Place> = a_place_a_removal_renames_into("budget-scan-requeue") else { return };
+    let (scan_id, scan_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(scan.place.as_path(), "kept.txt", b"held\n");
+    let scan_held: File = File::open(scan_hidden.as_path()).expect("the scanned subvolume");
+    mark_the_leaving(&scan_held, scan_id).expect("the proof of this program's leftover");
+    let scan_item: WorkItem = removal_item(scan.common.as_path(), scan.place.as_path(), scan_id);
+    let scanned: Leavings = queue_the_leavings_a_record_no_longer_names(scan.common.as_path());
+    assert!(scanned.queued, "the scan queues the delete it proved: {:?}", scanned.said);
+    let after_the_scan: usize = commands_that_ask_before_the_bound(scan.common.as_path());
+    if after_the_scan >= usize::try_from(MAX_TRIES).expect("the budget") {
+        failures.push(format!("§3 the scan's requeue: it queued the delete and then {after_the_scan} further commands asked, which is more than {MAX_TRIES} attempts for one leaving"));
+    }
+    assert_eq!(delete_subvolume_of(&scan_item), Verdict::Done, "the control takes its subvolume");
+    remove(scan.root.as_path());
+
+    // § 4. The hand-over's own repair requeue is one act, so the whole sequence stops at the budget.
+    let Some(handed): Option<Place> = a_place_a_removal_renames_into("budget-hand-over-repair") else { return };
+    let made: PathBuf = handed.place.join("made");
+    subvolume_create_at(made.as_path()).expect("the subvolume a removal hands over");
+    let made_id: u64 = subvolume_id(&File::open(made.as_path()).expect("the subvolume"), made.as_path()).expect("its own id");
+    let item: WorkItem = removal_item(handed.common.as_path(), handed.place.as_path(), made_id);
+    let work: PathBuf = work_of(&handed);
+    let holder: Place = Place { root: handed.root.clone(), common: handed.common.clone(), place: handed.place.clone() };
+    let last_id: String = item.id();
+    crate::worktree_hand_over_test_support::act_after_the_rename(move |renamed: &Path| {
+        // The round that looked before the rename settled the record, and what the subvolume holds now is a subvolume of
+        // its own, which the kernel refuses to destroy over: the removal's own delete is refused and it queues the repair.
+        let claimed: Claimed = claim_next_of(work.as_path(), &ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("a claim").expect("the record is claimable");
+        settle(work.as_path(), &claimed, DONE).expect("a round settled a delete it found nothing for");
+        subvolume_create_at(renamed.join("inner").as_path()).expect("a subvolume inside it");
+    });
+    let parent: File = open_root(handed.place.as_path()).expect("the directory the worktrees stand in");
+    hand_over_with(handed.common.as_path(), &parent, handed.place.as_path(), std::ffi::OsStr::new("made"), made_id, made.as_path(), std::ffi::OsStr::new("wt"), &NobodyTold).expect("handed over");
+    crate::worktree_hand_over_test_support::stop_acting();
+    assert!(owed(&holder, &item), "the repair queued the delete again: {}", last_id);
+    // What a later command sees: the removing command ended, so nothing of its own is still between a record and a rename.
+    record_a_leaving_with_owner(handed.common.as_path(), &item, Some("1:ended")).expect("the leaving of the command that ended");
+    let after_the_repair: usize = commands_that_ask_before_the_bound(handed.common.as_path());
+    if after_the_repair >= usize::try_from(MAX_TRIES).expect("the budget") {
+        failures.push(format!("§4 the hand-over's repair: the repair queued the delete and then {after_the_repair} further commands asked, which is more than {MAX_TRIES} attempts for one leaving"));
+    }
+    let repaired: WorkItem = removal_item(handed.common.as_path(), handed.place.as_path(), made_id);
+    // What the repair's delete would find: the subvolume the control put inside it, so that the kernel refused the
+    // command's own destroy and the repair ran. It goes before the delete the control makes.
+    let inside: PathBuf = PathBuf::from(repaired.parent.as_str()).join("inner");
+    let leaving_directory: File = File::open(repaired.parent.as_str()).expect("the directory the rename made");
+    snapshot_destroy_in(&leaving_directory, std::ffi::OsStr::new("inner"), inside.as_path()).expect("the control takes the subvolume it put inside the leaving");
+    assert_eq!(delete_subvolume_of(&repaired), Verdict::Done, "the control takes the subvolume the repair named");
+    remove(handed.root.as_path());
+
+    // § 5. Three commands killed between the slot and the act leave the delete to the next command.
+    let Some(killed): Option<Place> = a_place_a_removal_renames_into("budget-killed-before-the-act") else { return };
+    let (killed_id, killed_hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(killed.place.as_path(), "kept.txt", b"held\n");
+    let killed_item: WorkItem = removal_item(killed.common.as_path(), killed.place.as_path(), killed_id);
+    record_a_leaving_with_owner(killed.common.as_path(), &killed_item, Some("1:ended")).expect("the leaving record of a command that ended");
+    let executable: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
+    for attempt in 1..=MAX_TRIES {
+        let status: std::process::ExitStatus = std::process::Command::new(executable.as_path())
+            .arg("every_path_that_acts_on_a_leaving_stays_inside_the_attempt_budget")
+            .arg("--nocapture")
+            .env("BUDGET_CONTROL_COMMON", killed.common.as_path())
+            .env("BUDGET_CONTROL_STEP", crate::worktree_attempt_budget_test_support::BEFORE_THE_DELETE_IS_QUEUED)
+            .status()
+            .expect("a child killed between its slot and the act");
+        assert_eq!(status.code(), Some(KILLED_AT_A_STEP), "attempt {attempt} died between its slot and the act");
+    }
+    let after_the_kills: Leavings = queue_the_leavings_a_record_no_longer_names(killed.common.as_path());
+    assert!(after_the_kills.queued, "after {MAX_TRIES} commands died between their slot and the act, the next command still queues the delete: {:?}", after_the_kills.said);
+    assert!(owed(&killed, &killed_item), "and a round finds the delete it owes");
+    assert_eq!(delete_subvolume_of(&killed_item), Verdict::Done, "the control takes its subvolume");
+    assert!(!killed_hidden.exists(), "and the directory the name held is gone with it");
+    remove(killed.root.as_path());
+    assert!(failures.is_empty(), "each path stayed inside the attempts a leaving may cost:\n{}", failures.join("\n"));
+}
