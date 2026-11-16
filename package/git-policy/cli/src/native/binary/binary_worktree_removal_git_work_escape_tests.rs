@@ -1575,3 +1575,133 @@ fn a_removal_whose_option_follows_the_path_is_judged_too() {
     assert!(usage_scene.task.join(TRACKED).exists(), "and removes nothing");
     remove(&usage_scene.fixture);
 }
+
+//region a file Git does not read as a name authorizes nothing
+
+/// What one row plants under the common Git directory:
+/// a place that is no name Git reads, with what the file at it holds.
+/// Why:
+///  Git reads a reflog only at a regular file whose own name is a ref name (`check_refname_format` in Git's
+/// `refs.c`, through `files_reflog_iterator_advance` in `refs/files-backend.c`), and only the lines of it it can parse;
+///  every other file is a file it never reads, however much it looks like a reflog.
+enum Plant {
+    /// A file at the path, holding this.
+    File(&'static str, Holds),
+    /// A directory at the path, holding a file of this name and content.
+    Directory(&'static str, &'static str, Holds),
+}
+
+/// What a planted file holds.
+enum Holds {
+    /// One line Git writes in a reflog, naming the commit, written now.
+    AName,
+    /// That line, and after it a line Git cannot read.
+    ANameThenGarbage,
+    /// Only a line Git cannot read.
+    Garbage,
+    /// Nothing at all.
+    Nothing,
+    /// That line without the newline that ends it.
+    ANameWithoutItsNewline,
+    /// The commit's own name, as a ref file holds it.
+    TheObjectName,
+}
+
+/// What:
+///  The text a planted file holds.
+/// Why:
+///  A reflog line Git keeps names a commit inside the window `gc.reflogExpire` keeps, and one that is older
+///  is expired before the collection asks what the file names, which would answer a different question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = (holds, base, commit, when) => `${base} ${commit} Fixture <fixture@example.invalid> ${when} +0000\tx\n`
+/// ```
+fn planted_text(holds: &Holds, base: &str, commit: &str, when: u64) -> String {
+    let line: String = format!("{base} {commit} Fixture <fixture@example.invalid> {when} +0000\tplanted: a name this file would be\n");
+    return match holds {
+        Holds::AName => line,
+        Holds::ANameThenGarbage => format!("{line}this line is not a reflog line\n"),
+        Holds::Garbage => String::from("this line is not a reflog line\n"),
+        Holds::Nothing => String::new(),
+        Holds::ANameWithoutItsNewline => line.trim_end_matches('\n').to_owned(),
+        Holds::TheObjectName => format!("{commit}\n"),
+    };
+}
+
+/// What:
+///  Plant one row's file under the fixture's common Git directory.
+/// Why:
+///  The directory a row plants in is part of the row:
+///  `logs` beside the working tree's own logs, and `refs` beside the references Git reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plant(gitDir, row, base, commit, when)
+/// ```
+fn plant(common_dir: &std::path::Path, row: &Plant, base: &str, commit: &str) -> std::path::PathBuf {
+    let when: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("after the epoch").as_secs();
+    let (path, name, holds): (std::path::PathBuf, &str, &Holds) = match row {
+        Plant::File(path, holds) => (common_dir.join(path), "", holds),
+        Plant::Directory(path, name, holds) => (common_dir.join(path), name, holds),
+    };
+    std::fs::create_dir_all(path.parent().expect("a parent")).expect("the folders of the plant");
+    if !name.is_empty() {
+        std::fs::create_dir_all(path.as_path()).expect("a directory where a file was expected");
+        let inner: std::path::PathBuf = path.join(name);
+        std::fs::write(inner.as_path(), planted_text(holds, base, commit, when)).expect("the plant");
+        return inner;
+    }
+    std::fs::write(path.as_path(), planted_text(holds, base, commit, when)).expect("the plant");
+    return path;
+}
+
+/// What:
+///  A file that Git does not read as a name authorizes no removal,
+///  whatever it holds, and the commit the worktree alone names is still there after a collection.
+/// Why:
+///   A `.lock` file is an update that was never renamed into place, and a killed Git leaves one behind;
+///  its line read as a surviving name authorized a removal that deleted the only name of a detached commit,
+///  and `git gc --prune=now` then took the commit (a review of `09fd2138d7`).
+///  Every row is a place under the common Git directory that is no name Git reads, planted so that it alone would
+///  make the commit look reachable if this program read it: the removal must refuse, and the commit must outlive the
+///  collection that follows.
+#[test]
+fn a_file_git_does_not_read_as_a_name_authorizes_no_removal() {
+    let rows: Vec<(&str, Plant)> = vec![
+        ("a lock beside HEAD's log", Plant::File("logs/HEAD.lock", Holds::AName)),
+        ("a lock beside a branch's log", Plant::File("logs/refs/heads/topic.lock", Holds::AName)),
+        ("a lock holding a readable line and then garbage", Plant::File("logs/HEAD.lock", Holds::ANameThenGarbage)),
+        ("a name Git refuses because it starts a part with a dot", Plant::File("logs/.hidden", Holds::AName)),
+        ("a name Git refuses for its space", Plant::File("logs/refs/heads/name with space", Holds::AName)),
+        ("a name Git refuses for its tilde", Plant::File("logs/refs/heads/name~1", Holds::AName)),
+        ("a name Git refuses because it ends in a dot", Plant::File("logs/refs/heads/name.", Holds::AName)),
+        ("a log holding only a line Git cannot read", Plant::File("logs/HEAD", Holds::Garbage)),
+        ("an empty log", Plant::File("logs/HEAD", Holds::Nothing)),
+        ("a log line without the newline that ends it", Plant::File("logs/HEAD", Holds::ANameWithoutItsNewline)),
+        ("a directory where a ref file was expected", Plant::Directory("refs/heads/topic", "planted.lock", Holds::AName)),
+        ("a lock where a ref file was expected", Plant::File("refs/heads/topic.lock", Holds::TheObjectName)),
+    ];
+    for (index, (row, shape)) in rows.iter().enumerate() {
+        let scene: Scene = a_repository_with_a_recorded_worktree(&format!("removal-no-name-{index}"));
+        let task: String = scene.task.display().to_string();
+        let commit: String = scene.detach_and_commit();
+        let named: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", &format!("{commit}^")]);
+        let base: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+        // The control: with nothing planted, the removal is refused, so the plant is what would change the verdict.
+        let control: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+        assert_eq!(control.code, Some(1), "{row}: the detached commit keeps the worktree: {}", stderr_of(&control));
+        let planted: std::path::PathBuf = plant(scene.repo.join(".git").as_path(), shape, base.as_str(), commit.as_str());
+        assert!(planted.exists(), "{row}: the row planted its file");
+        let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{row}: a file Git does not read as a name authorizes nothing: {said}");
+        assert!(scene.task.exists(), "{row}: and the worktree stays");
+        run_direct(&scene.fixture, scene.repo.as_path(), &["gc", "--prune=now"]);
+        let readable: Observed = run_direct(&scene.fixture, scene.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
+        assert_eq!(readable.code, Some(0), "{row}: and the commit is still there after a collection: {}", stderr_of(&readable));
+        remove(&scene.fixture);
+    }
+}
+
+//endregion
