@@ -72,6 +72,22 @@ async fn advance_in_another_worktree(
     }
     let head = run_query_awaiting(there, &argv(&["rev-parse", "--verify", "HEAD^{commit}"])).await?;
     if head.code != Some(0) || String::from_utf8_lossy(&head.stdout).trim() != local {
+        let head_here: String = String::from_utf8_lossy(&head.stdout).trim().to_owned();
+        // What: a worktree that shows the branch and already stands at the merge is done, not refused.
+        // Why:  with the branch in two worktrees, an earlier holder's move moves the branch before this one is asked,
+        // so its HEAD names the merge; answering "the branch moved since the push was made" said a false thing and
+        // advised `git merge --ff-only`, which prints "Already up to date." there
+        //  (a review of this commit, its finding 6).
+        let at_the_merge: bool = head.code == Some(0)
+            && matches!(crate::auto_push_reconcile_basics_and_limits::is_ancestor_awaiting(there, merge_oid, head_here.as_str()).await?, Some(true));
+        if at_the_merge {
+            let status = run_query_awaiting(there, &argv(&["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=no"])).await?;
+            let kept: bool = status.code == Some(0) && !status_paths(&status.stdout).is_empty();
+            return Ok(Advanced::Elsewhere {
+                worktree: place.to_path_buf(),
+                kept,
+            });
+        }
         return Ok(Advanced::Not {
             reason: String::from(BRANCH_MOVED),
             advice: advice_to_move(merge_oid, where_to.as_str()),

@@ -188,16 +188,26 @@ pub fn the_repair_owner_after_its_owner_died(
     match claim_the_take(claim.as_path(), owner) {
         Ok(()) => {}
         Err(ClaimRefused::TakenByAnother) => {
-            // A claimant that is gone leaves its claim; the next command clears that one and tries once more.
+            // What: a claim whose claimant is gone, or whose bytes cannot be read, is set aside by renaming it, and
+            // exactly one command wins that rename.
+            // Why:  removing it and claiming again let two commands that both read the same dead claim each remove the
+            // other's live claim and each take the dead place, so two repairs wrote one index
+            //  (a review of commit `4a2425a378`, its finding 5); a rename is the step only one of them can win, and a
+            // claim that names nobody is no live claim at all  (its finding 4).
             let claimant: Option<TransactionOwner> = the_owner_named_by(claim.as_path());
-            match claimant.as_ref().map(|named| return crate::transaction_owner::classify_transaction_owner_record(named, claim.as_path())) {
-                Some(Ok(crate::transaction_owner::OwnerLiveness::Dead)) => {
-                    let _cleared: std::io::Result<()> = std::fs::remove_file(claim.as_path());
-                    claim_the_take(claim.as_path(), owner).ok()?;
-                }
-                // A live claimant, one that cannot be judged, or one that cannot be read: nothing is taken.
-                _ => return None,
+            let gone: bool = match claimant.as_ref().map(|named| return crate::transaction_owner::classify_transaction_owner_record(named, claim.as_path())) {
+                Some(Ok(crate::transaction_owner::OwnerLiveness::Dead)) => true,
+                // A claim whose bytes cannot be read names no live command either.
+                None => true,
+                // A live claimant, or one that cannot be judged, keeps its claim.
+                _ => false,
+            };
+            if !gone {
+                return None;
             }
+            let aside: PathBuf = claim.with_extension(format!("cleared-{}", owner.transaction_id));
+            std::fs::rename(claim.as_path(), aside.as_path()).ok()?;
+            claim_the_take(claim.as_path(), owner).ok()?;
         }
         Err(ClaimRefused::CannotWrite(error)) => {
             let _why = error;
@@ -216,6 +226,7 @@ pub fn the_repair_owner_after_its_owner_died(
         None
     };
     let _released: std::io::Result<()> = std::fs::remove_file(claim.as_path());
+    let _aside_removed: std::io::Result<()> = std::fs::remove_file(claim.with_extension(format!("cleared-{}", owner.transaction_id)));
     return taken;
 }
 
@@ -323,10 +334,27 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
         let asked = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{}^{{commit}}", movement.target_ref).as_str()])).await;
         let tip: String = match asked {
             Ok(printed) if printed.code == Some(0) => String::from_utf8_lossy(&printed.stdout).trim().to_owned(),
+            // What: `rev-parse --verify` answers 1 for a ref that does not exist, which is the answer "the branch is
+            // gone", and every other status is a read that failed.
+            // Why:  a record whose branch was deleted or renamed names nothing that can be finished, so it goes and the
+            // command runs; taking the answer for a failed read stopped every command in every worktree of the
+            // repository, `git commit` and `git branch` among them, and the message named no file
+            //  (a review of commit `4a2425a378`, its finding 1).
+            Ok(printed) if printed.code == Some(1) => {
+                let _noted = writeln!(
+                    out,
+                    "monochromatic-git-policy-cli: the record {} names {}, which this repository no longer has, so the record is removed",
+                    record.display(),
+                    movement.target_ref
+                );
+                crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement)
+                    .finish(crate::auto_push_branch_move_record::AFinishedRecord::NeverMoved);
+                continue;
+            }
             _ => {
                 debug_line(out, &format!("the tip of {} could not be read, so the record {} is left", movement.target_ref, record.display()));
                 settled = Settled::Unknown {
-                    why: format!("the tip of {} could not be read", movement.target_ref),
+                    why: format!("the tip of {} could not be read, so the record {} is left", movement.target_ref, record.display()),
                 };
                 continue;
             }
@@ -356,6 +384,23 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
             }
         };
         if !ours {
+            // What: a worktree that shows the record's branch and stands at the tip that branch names agrees with it,
+            // so the record has nothing left to finish and goes.
+            // Why:  the record exists to finish a checkout an interrupted move left behind, and this one is not it;
+            // nothing else removed a record for a branch no worktree took, so every command paid its Git starts for
+            // ever  (a review of commit `4a2425a378`, its finding 1; `README.md` and `SPEC.md` say the record is removed
+            // when a command in the worktree that shows the branch agrees with it).
+            let agrees: bool = shown.as_deref() == Some(movement.target_ref.as_str())
+                && crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git).await.is_ok_and(|head| return head == tip);
+            if agrees {
+                crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement.clone())
+                    .finish(crate::auto_push_branch_move_record::AFinishedRecord::TheCheckoutHoldsTheTip(
+                        crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip::from_the_checkout(
+                            movement.target_ref.as_str(),
+                            tip.as_str(),
+                        ),
+                    ));
+            }
             continue;
         }
         // What: one repair of this checkout at a time, taken by one exclusively created record.
@@ -487,15 +532,15 @@ pub(crate) async fn holds_what_a_move_wrote(git: &PushGit, old_oid: &str, new_oi
         if paths.is_empty() {
             continue;
         }
-        let in_the_index: Vec<Vec<u8>> =
-            crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, end, paths.as_slice())
+        // What: an entry this end really has, present in this worktree's index or in its file.
+        // Why:  an absent path is not the move's leftover: a file the merge added and a person deleted, or one they
+        // untracked with `git rm --cached`, holds nothing an end wrote  (a review of commit `4a2425a378`, its
+        // findings 2 and 3).
+        let wrote: Vec<Vec<u8>> =
+            crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, end, paths.as_slice())
                 .await
-                .map_err(|error| format!("this worktree's index could not be read: {error}"))?;
-        let in_the_file: Vec<Vec<u8>> =
-            crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, end, paths.as_slice())
-                .await
-                .map_err(|error| format!("this worktree's files could not be read: {error}"))?;
-        if !in_the_index.is_empty() || !in_the_file.is_empty() {
+                .map_err(|error| format!("this worktree's index and files could not be read: {error}"))?;
+        if !wrote.is_empty() {
             return Ok(true);
         }
     }
@@ -584,9 +629,15 @@ fn this_commands_repair_of_the_checkout<W: Write + ?Sized>(git_dir: &Path, out: 
         return Some(taken);
     }
     let Some(theirs) = the_owner_named_by(place.as_path()) else {
-        // A record that cannot be read is not taken over: it may name a live command.
-        debug_line(out, &format!("the repair owner's record {} could not be read, so this command does not repair the checkout", place.display()));
-        return None;
+        // What: a place whose bytes cannot be read is not a live claim: it is set aside under another name and the
+        // place is taken.
+        // Why:  a live claim names its holder, and bytes that name nobody proved nothing when they were written, so
+        // waiting the whole bound for them and then stopping the command for ever is an answer the person can do
+        // nothing about  (a review of commit `4a2425a378`, its finding 4).
+        debug_line(out, &format!("the repair owner's record {} could not be read, so it is set aside and the place is taken", place.display()));
+        let aside: PathBuf = place.with_extension(format!("unreadable-{}", owner.transaction_id));
+        let _moved: std::io::Result<()> = std::fs::rename(place.as_path(), aside.as_path());
+        return the_repair_owner(git_dir, &owner);
     };
     match crate::transaction_owner::classify_transaction_owner_record(&theirs, place.as_path()) {
         Ok(crate::transaction_owner::OwnerLiveness::Dead) => return the_repair_owner_after_its_owner_died(git_dir, &owner, place.as_path(), &theirs),
@@ -604,6 +655,14 @@ fn this_commands_repair_of_the_checkout<W: Write + ?Sized>(git_dir: &Path, out: 
 /// ```ts
 /// const record = (state, owner) => JSON.stringify({ schemaVersion, state, transactionId, ownerPid, ownerIdentity, createdAt }) + '\n'
 /// ```
+/// What:
+///  The bytes of one repair place record, in the state its writer chose, for the control that plants one.
+/// Why:
+///   A control that plants a claim has to write the shape this file's own writer writes.
+pub fn the_places_record_for_a_control(state: &str, owner: &TransactionOwner) -> String {
+    return the_places_record(state, owner);
+}
+
 fn the_places_record(state: &str, owner: &TransactionOwner) -> String {
     let mut writer: ObjectWriter = ObjectWriter::new();
     writer
@@ -613,6 +672,12 @@ fn the_places_record(state: &str, owner: &TransactionOwner) -> String {
         .integer("ownerPid", owner.owner_pid)
         .string("ownerIdentity", owner.owner_identity.as_str())
         .string("createdAt", owner.created_at.as_str());
+    // What: the pid namespace the place names, when the owner has one, as the branch-move record writes it.
+    // Why:  a holder in another namespace judged by a bare pid in this one may be taken over while it is alive
+    //  (a review of commit `4a2425a378`, its finding 8).
+    if let Some(namespace) = &owner.owner_pid_namespace {
+        writer.string("ownerPidNamespace", namespace.as_str());
+    }
     return format!("{}\n", writer.finish());
 }
 

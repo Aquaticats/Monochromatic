@@ -97,11 +97,10 @@ impl std::fmt::Display for SingleFlightError {
             ),
             Self::Ceiling { arguments, seconds } => write!(
                 formatter,
-                "git {arguments} was still running at its {seconds}-second ceiling and was stopped: one command of a merge step may \
-                 not run for ever, so the merge it was computing is not made. Nothing was changed: the commit is kept, no reference \
-                 moved and the worktree was not touched. Hint: a merge driver that keeps working without returning does this; make \
-                 it return, or set {} higher",
-                crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE
+                "git {arguments} was still running at its {seconds}-second ceiling and was stopped: no query may run for ever, so the \
+                 step it was doing is not finished. A read-only query changed nothing. A write that was stopped reports here as a refused \
+                 write, and the move's own record is kept for the next command. Hint: a program that keeps working without returning does \
+                 this; make it return",
             ),
         };
     }

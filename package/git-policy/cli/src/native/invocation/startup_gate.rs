@@ -266,10 +266,8 @@ fn settle_merges(
                 Ok(crate::auto_push_branch_move_repairs::Settled::OldTipLeft { branch, paths }) => {
                     return Err(RecoveryError(format!(
                         "this checkout still holds {branch}'s files from before its move on {}, and this command could not write the branch's \
-                         own files over them, so it stops rather than let a commit record them. The record of that move is kept. Once nothing \
-                         holds the checkout's index, run the command again, or bring those files forward with `git checkout {branch} -- {}` \
-                         (keep a copy of them first: that overwrites what they hold).",
-                        crate::auto_push_dirty_paths::listed(&paths),
+                         own files over them, so it stops rather than let a commit record them. The record of that move is kept. Nothing was \
+                         written: run `git status` there and decide what those files should hold, then run the command again.",
                         crate::auto_push_dirty_paths::listed(&paths)
                     )));
                 }

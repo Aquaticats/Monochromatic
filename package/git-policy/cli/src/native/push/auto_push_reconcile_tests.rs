@@ -5096,3 +5096,46 @@ fn one_dead_repair_owner_is_taken_by_one_command_even_with_a_third() {
 }
 
 //endregion
+
+/// What:
+///  Two commands that both read the same dead claim take its dead place once, and the loser takes nothing.
+/// Why:
+///  Clearing the dead claim with an unconditional removal let each command remove what the other had just
+///  published, so both took the dead place and two repairs wrote one index
+///  (a review of this commit, its finding 5).
+///  The clear is now a rename, which exactly one of them can win.
+#[test]
+fn one_dead_claim_is_cleared_by_one_command() {
+    use crate::auto_push_branch_move_repairs::{ARepairInHand, REPAIR_OWNER_SUFFIX, the_repair_owner, the_repair_owner_after_its_owner_died};
+    let root: PathBuf = fixture("ar-one-clears-a-dead-claim");
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir(git_dir.as_path()).expect("Git directory");
+    let dead_owner = current_owner();
+    let dead = the_repair_owner(git_dir.as_path(), &dead_owner).expect("the dead place");
+    let dead_path: PathBuf = dead.record_path().to_path_buf();
+    std::mem::forget(dead);
+    // What: a claim whose claimant is gone, left beside the dead place, as a command killed inside the take leaves it.
+    // Why: that is the step two commands race.
+    let claim: PathBuf = dead_path.with_extension(format!("claim-{}", dead_owner.transaction_id));
+    let mut gone_claimant = dead_owner.clone();
+    gone_claimant.transaction_id = String::from("gone-claimant");
+    // What: a claimant that is gone: a pid no process has, as a killed command's record names one.
+    // Why: a claim naming a live process is a live claim, and nothing is taken over it.
+    gone_claimant.owner_pid = 2147483647;
+    gone_claimant.owner_identity = String::from("linux:1");
+    std::fs::write(claim.as_path(), format!("{}\n", crate::auto_push_branch_move_repairs::the_places_record_for_a_control("repair-claim", &gone_claimant)))
+        .expect("the dead claim");
+    let mut first_owner = current_owner();
+    first_owner.transaction_id = String::from("first-taker");
+    let first: Option<ARepairInHand> = the_repair_owner_after_its_owner_died(git_dir.as_path(), &first_owner, dead_path.as_path(), &dead_owner);
+    let mut second_owner = current_owner();
+    second_owner.transaction_id = String::from("second-taker");
+    let second: Option<ARepairInHand> = the_repair_owner_after_its_owner_died(git_dir.as_path(), &second_owner, dead_path.as_path(), &dead_owner);
+    assert!(first.is_some(), "the first command takes the dead place");
+    assert!(second.is_none(), "and the second, which read the same dead claim, takes nothing");
+    let held: String = std::fs::read_to_string(first.as_ref().expect("the place").record_path()).expect("the place's record");
+    assert!(held.contains("first-taker"), "the place names the one command that took it: {held}");
+    assert!(first.as_ref().expect("the place").record_path().to_string_lossy().ends_with(REPAIR_OWNER_SUFFIX));
+    drop(first);
+    remove(root.as_path());
+}

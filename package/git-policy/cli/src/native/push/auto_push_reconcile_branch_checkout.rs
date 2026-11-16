@@ -235,14 +235,14 @@ async fn the_checkout_brought_awaiting(git: &PushGit, old_oid: &str, tip_oid: &s
             // What: what still holds this end, asked after the write.
             // Why:  that is the question the gate's and the record's proof is about, and it is asked at the moment
             // it is answered.
-            let in_the_index: Vec<Vec<u8>> =
-                crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, end.as_str(), paths.as_slice()).await?;
-            let in_the_file: Vec<Vec<u8>> =
-                crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, end.as_str(), paths.as_slice())
-                    .await?;
-            for path in in_the_index.iter().chain(in_the_file.iter()) {
-                if !left.contains(path) {
-                    left.push(path.clone());
+            // What: what still holds an entry this end really has, asked after the write.
+            // Why:  an absent path holds nothing, so a person's deletion or `git rm --cached` is never read as the
+            // move's leftover  (a review of this commit, its findings 2 and 3).
+            let wrote: Vec<Vec<u8>> =
+                crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, end.as_str(), paths.as_slice()).await?;
+            for path in wrote {
+                if !left.contains(&path) {
+                    left.push(path);
                 }
             }
         }
@@ -317,12 +317,19 @@ async fn bring_the_paths_forward_awaiting(
     to: &str,
     paths: &[Vec<u8>],
 ) -> Result<Vec<String>, SingleFlightError> {
-    let in_the_index: Vec<Vec<u8>> =
-        crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, from, paths).await?;
+    // What: only the paths where `from` really has an entry and this checkout holds it, in its index or in its file.
+    // Why:  an absent path is not an entry, so a file the merge added and a person then deleted is not the move's
+    // debris and is never brought back  (a review of this commit, its findings 2 and 3).
+    let wrote: Vec<Vec<u8>> = crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, from, paths).await?;
+    let mut in_the_index: Vec<Vec<u8>> = Vec::new();
     let mut in_the_file_only: Vec<Vec<u8>> = Vec::new();
-    for path in &crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, from, paths).await? {
-        if !in_the_index.contains(path) {
-            in_the_file_only.push(path.clone());
+    let holds_in_the_index: Vec<Vec<u8>> =
+        crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, from, paths).await?;
+    for path in wrote {
+        if holds_in_the_index.contains(&path) {
+            in_the_index.push(path);
+        } else {
+            in_the_file_only.push(path);
         }
     }
     return crate::auto_push_reconcile_branch_checkout_files::the_branchs_own_entries_written_awaiting(

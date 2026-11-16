@@ -7,10 +7,11 @@
 //!  A query that shows no sign of work for the quiet window is stopped and reported,
 //! so the commit stays saved.
 //! A query that
-//!  works is never stopped for being slow:
-//! no total time bounds it (owner,
-//! 2026-11-03:
-//! "Stop only on no progress";
+//!  works is stopped only by its own total ceiling,
+//!  which is four quiet windows (`QUERY_CEILING_WINDOWS`),
+//!  so no query runs for ever;
+//! the quiet window remains the first bound and the owner's rule of 2026-11-03
+//!  ("Stop only on no progress") is how that window works.
 //! the
 //!  coordinator's scope addition to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
 //! open to the owner's

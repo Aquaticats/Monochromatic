@@ -143,6 +143,46 @@ pub(crate) async fn the_paths_the_checkout_disagrees_with_its_branch_awaiting(
 /// ```ts
 /// paths.filter((path) => !movedOn.includes(path)) // movedOn = git diff --name-only <local> -- <paths>
 /// ```
+/// What:
+///  The paths of `paths` where the entry `tree` holds is present there and is what this checkout holds, in its
+/// index or in its file.
+/// Why:
+///  What proves a path is a move's own leftover is an entry the move wrote there, and an absent path is not an
+/// entry: `git diff <tree> -- <path>` answers "no difference" when neither the tree nor the worktree has the
+/// path, so a file the merge added and a person then deleted read as the move's debris and the repair wrote it
+/// back  (a review of commit `4a2425a378`, its finding 2), and `git rm --cached` with the file still there
+/// stopped every command (its finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const present = await lsTree(tree, paths); return present.filter((path) => indexHoldsOrFileHolds(tree, path))
+/// ```
+pub(crate) async fn the_paths_the_move_wrote_awaiting(
+    git: &PushGit,
+    tree: &str,
+    paths: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, SingleFlightError> {
+    let arguments: Vec<OsString> = naming(paths, argv(&["ls-tree", "--name-only", "-z", tree, "--"]));
+    let listed = run_query_awaiting(git, &arguments).await?;
+    if listed.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: format!("ls-tree --name-only -z {tree}"),
+            code: listed.code,
+            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
+        });
+    }
+    let present: Vec<Vec<u8>> = diff_paths(&listed.stdout);
+    let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, tree, paths).await?;
+    let in_the_file: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, tree, paths).await?;
+    let mut wrote: Vec<Vec<u8>> = Vec::new();
+    for path in paths {
+        if present.contains(path) && (in_the_index.contains(path) || in_the_file.contains(path)) {
+            wrote.push(path.clone());
+        }
+    }
+    return Ok(wrote);
+}
+
 pub(crate) async fn the_paths_still_holding_the_old_tip_awaiting(
     git: &PushGit,
     local: &str,
