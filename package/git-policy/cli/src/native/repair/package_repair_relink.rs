@@ -519,7 +519,7 @@ fn not_written(reason: String) -> NotTaken {
 /// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; wake(config, commonDir, undefined, silent) };
 /// ```
 fn wake_the_service(address: Bind, host: Option<&crate::service_host_of_a_worktree::ServiceHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
-    let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..commit_client_config(address, host) };
+    let config: ClientConfig = commit_client_config(address, host).with_its_own_bound(start_wait);
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
 }

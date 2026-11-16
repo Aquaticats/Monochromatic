@@ -328,7 +328,7 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     // Why:  The worktree must work for the person's next command either way: an answer that does not come within the bound
     //       means this command does the filling itself instead of waiting on a service
     //       (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
-    let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..commit_client_config(address, host.as_ref()) };
+    let config: ClientConfig = commit_client_config(address, host.as_ref()).with_its_own_bound(reach.start_wait);
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);

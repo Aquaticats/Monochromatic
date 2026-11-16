@@ -221,8 +221,13 @@ fn ask_the_manager(manager: &ManagerStart, server: &ServerToStart) -> std::io::R
 /// `start` with the manager's start given by the caller,
 /// so a control can hand in a scope that leaves no process number and starts its server late.
 pub(crate) fn start_seamed(server: &ServerToStart, wait: Duration, manager_start: &mut dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>) -> StartAttempt {
-    if answered(&server.address) {
-        return StartAttempt::Greeted;
+    // What: Whether anything holds the address is asked before the greeting is: one `accepts` costs the connect and no read.
+    // Why:  `answered` spends `GREETING_READ` (a second) on a service that takes the connection and says nothing, and a
+    //       hand-over asks this before its own two-second wake: the wake then waited a look plus its whole bound, where
+    //       `main` waited only its bound (measured 2026-11-16: 3,157 ms against 2,154 ms for a `merge --ff-only` behind a
+    //       stopped service). A service that is there is waited for by the caller either way.
+    if accepts(&server.address) {
+        return StartAttempt::AnotherCommandStartsIt;
     }
     // What: The folder the address and the marker live in is made before a marker is taken.
     // Why:  A marker cannot be created in a folder that is not there, and a start that could not even take its marker must
@@ -236,9 +241,10 @@ pub(crate) fn start_seamed(server: &ServerToStart, wait: Duration, manager_start
         Err(_refused) => return StartAttempt::DidNotGreet(server.log()),
     };
     let _held = starter;
-    // The command that held the marker before this one may have finished between the two looks.
-    if answered(&server.address) {
-        return StartAttempt::Greeted;
+    // The command that held the marker before this one may have made the service exist between the two looks, and the caller
+    //  waits for whatever is there.
+    if accepts(&server.address) {
+        return StartAttempt::AnotherCommandStartsIt;
     }
     // What: Something that accepts a connection but greets nothing is a service that is alive and slow, and no server is started
     //       beside it.

@@ -348,6 +348,22 @@ pub fn run(arguments: &[String]) -> i32 {
             }
         }
     }
+    // What: The beat this service moves while it works, made before the socket is bound.
+    // Why:  A service whose runtime is being built, or that a debugger froze, greets nothing, and a command in front of it
+    //       has two minutes of silence to spend otherwise: the beat is the fact that tells a working service from one that
+    //       stopped inside itself (`service_beat_of_an_instance.rs`, and the review of `e347be3115`, part one, finding 2).
+    let mut beat: Option<crate::service_beat_of_an_instance::Beat> = None;
+    if let (Some(instance), Some(directory)) = (named_instance.as_deref(), socket_directory_of(&address)) {
+        let file: PathBuf = crate::service_beat_of_an_instance::path(directory.as_path(), instance);
+        match crate::service_beat_of_an_instance::Beat::take(file) {
+            Ok(taken) => beat = Some(taken),
+            // A beat that cannot be made is no reason not to serve: the reader falls back to the log.
+            Err(error) => crate::service_warn!("the beat of this service cannot be kept in {} ({error})", directory.display()),
+        }
+    }
+    if let Some(beating) = beat.as_mut() {
+        beating.start();
+    }
     let context: LandContext = LandContext {
         git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
@@ -388,9 +404,12 @@ pub fn run(arguments: &[String]) -> i32 {
     //  filled before the first commit that would compile it.
     crate::service_rules_precompile::warm_remembered(context.journal.as_path());
     serve(listener, &context, &settings);
-    // The end of the service: the address and the note go with it, so nothing looks for a service that exited.
+    // The end of the service: the address, the note and the beat go with it, so nothing looks for a service that exited.
     if let Some(files) = own_files {
         files.remove();
+    }
+    if let Some(beating) = beat {
+        beating.remove();
     }
     return 0;
 }

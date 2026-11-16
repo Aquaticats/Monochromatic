@@ -436,3 +436,78 @@ fn a_connection_of_another_account_is_refused_and_told_nothing() {
     serving.join().expect("the listener ends");
     assert!(received.lock().expect("what the program was sent").is_empty(), "the program of another account was sent nothing: {:?}", String::from_utf8_lossy(received.lock().expect("what the program was sent").as_slice()));
 }
+
+/// What:
+///  A service that keeps no beat is ended and replaced, and one whose beat moves is waited for.
+/// Why:
+///  The review of `e347be3115` (part one, finding 2): a service that takes the connection and greets nothing was waited the
+///  whole recovering ceiling (122,308 ms measured), where `main` restarted its unit in about two seconds. `SPEC.md` says a
+///  service that went silent is the service that stopped and that the command starts a fresh one; the beat is the fact that
+///  tells a frozen service from one that is still building its runtime.
+#[test]
+fn a_service_that_keeps_no_beat_is_ended_and_one_that_beats_is_waited_for() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("beat-reach");
+    let directory: std::path::PathBuf = root.join("monochromatic-git-policy-cli");
+    std::fs::create_dir_all(directory.as_path()).expect("the folder of the address");
+    let socket: String = address("beat-reach");
+    // A listener of this control's own stands in for the service: it greets nothing, as a frozen one does.
+    let silent = listen_at(socket.as_str()).expect("the address answers");
+    let holding = std::thread::spawn(move || {
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while let Ok((stream, _)) = silent.accept() {
+            held.push(stream);
+        }
+    });
+    // A process the note names, so the reach may end it as it ends a service whose beat stopped: this control's own child.
+    let mut service: std::process::Child = std::process::Command::new("/bin/sleep").arg("60").spawn().expect("a process to end");
+    let pid: i32 = i32::try_from(service.id()).expect("a process number");
+    let instance: String = String::from("3f9a");
+    let note: std::path::PathBuf = crate::service_server_pid_note_of_an_instance::path(directory.as_path(), instance.as_str());
+    crate::service_server_pid_note_of_an_instance::write(note.as_path(), pid).expect("the note");
+    let beat: std::path::PathBuf = crate::service_beat_of_an_instance::path(directory.as_path(), instance.as_str());
+    let taken: crate::service_beat_of_an_instance::Beat = crate::service_beat_of_an_instance::Beat::take(beat.clone()).expect("the beat");
+    // The beat is stale: the service stopped inside itself.
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(beat.as_path()).expect("the beat");
+    file.set_modified(std::time::SystemTime::now() - crate::service_beat_of_an_instance::BEAT_PATIENCE - std::time::Duration::from_secs(1)).expect("an older beat");
+    let mut settings: ClientConfig = config(socket.as_str());
+    settings.recovering_ceiling = Duration::from_millis(900);
+    settings.starter = Some(crate::service_server_start_by_the_wrapper::ServerToStart {
+        address: Bind::Abstract(socket),
+        directory: directory.clone(),
+        instance: instance.clone(),
+        git_dir: root.join("repo/.git"),
+        journal: root.join("journal"),
+        git: std::path::PathBuf::from("/usr/bin/git"),
+        // A program that runs and exits without binding, so the replacement's own failure is quick and explicit.
+        program: std::path::PathBuf::from("/bin/true"),
+        manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
+    });
+    let mut announced: bool = false;
+    let began = std::time::Instant::now();
+    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
+    let took = began.elapsed();
+    assert!(reached.is_err(), "a service that greets nothing is not reached: {reached:?}");
+    assert!(took < Duration::from_secs(5), "the command ends in seconds, not after the recovering ceiling: {took:?}");
+    let ended: bool = matches!(service.try_wait(), Ok(Some(_)));
+    if !ended {
+        let _killed = service.kill();
+        let _reaped: std::io::Result<std::process::ExitStatus> = service.wait();
+    }
+    assert!(ended, "the service whose beat stopped was ended, and a fresh one was started");
+    // The same state with a beat that moves: the service is working, and the command waits for it and ends nothing.
+    let mut working: std::process::Child = std::process::Command::new("/bin/sleep").arg("60").spawn().expect("a process to end");
+    let working_pid: i32 = i32::try_from(working.id()).expect("a process number");
+    crate::service_server_pid_note_of_an_instance::write(note.as_path(), working_pid).expect("the note of the working service");
+    crate::service_beat_of_an_instance::touch_for_a_control(beat.as_path()).expect("a fresh beat");
+    let reached_again = reach(&settings, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
+    let still_running: bool = matches!(working.try_wait(), Ok(None));
+    let _killed = working.kill();
+    let _reaped: std::io::Result<std::process::ExitStatus> = working.wait();
+    taken.remove();
+    std::mem::forget(holding);
+    assert!(reached_again.is_err(), "the service that is there and silent is not reached: {reached_again:?}");
+    assert!(still_running, "a service whose beat moves is waited for, and never ended");
+    let _ = std::fs::remove_dir_all(root.as_path());
+}

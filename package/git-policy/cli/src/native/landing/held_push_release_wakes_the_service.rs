@@ -84,9 +84,7 @@ impl WakeTheService for AskTheService<'_> {
             return;
         }
         // The held push's record is durable, so the wake waits the hand-over's own greeting bound.
-        let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
-        config.start_wait = HAND_OVER_GREETING_WAIT;
-        config.start_ceiling = HAND_OVER_GREETING_WAIT;
+        let config: ClientConfig = crate::service_client::client_config(address, host.as_ref()).with_its_own_bound(HAND_OVER_GREETING_WAIT);
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.
         let mut silent: std::io::Sink = std::io::sink();
         let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &mut silent);

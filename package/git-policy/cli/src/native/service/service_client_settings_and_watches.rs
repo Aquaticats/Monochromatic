@@ -100,6 +100,29 @@ pub struct ClientConfig {
     pub recovering_ceiling: Duration,
 }
 
+impl ClientConfig {
+    /// What:
+    ///  This command's own bound for its service, given to every wait the reach makes.
+    /// Why:
+    ///   A hand-over is not a commit: a person's merge, add or removal waits its own `HAND_OVER_GREETING_WAIT` for a
+    /// greeting and then does the work itself, so a service that is there and silent must end that wait at that bound and not
+    /// at the commit's recovering ceiling. The sites that set `start_wait` and `start_ceiling` and left this one behind were a
+    /// merge of 121,021 ms, an add and a removal that had not returned at 200,000 ms, and a `git status` of 122,679 ms, where
+    /// `main` took 2,141 ms, 2,368 ms, 2,248 ms and 5,764 ms (the review of `e347be3115`, part two-a finding 2 and part two-b
+    /// finding 1, measured 2026-11-16).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const config = { ...clientConfig(address, host), startWait: 2_000, startCeiling: 2_000, recoveringCeiling: 2_000 };
+    /// ```
+    pub fn with_its_own_bound(mut self, wait: Duration) -> Self {
+        self.start_wait = wait;
+        self.start_ceiling = wait;
+        self.recovering_ceiling = wait;
+        return self;
+    }
+}
+
 /// What:
 ///  A scratch directory a waiting command keeps fresh,
 /// and how often.

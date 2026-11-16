@@ -267,9 +267,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
             None => {
                 // A wake reads the record once and returns: the commit's start ceiling would hold the add for a start this
                 //  command does not need, so the wait ends at the hand-over's own bound.
-                let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
-                config.start_wait = reach.start_wait;
-                config.start_ceiling = reach.start_wait;
+                let config: ClientConfig = crate::service_client::client_config(address, host.as_ref()).with_its_own_bound(reach.start_wait);
                 // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
                 //  second report of it.
                 match wake(&config, trash.common_dir.as_path(), None, notices) {

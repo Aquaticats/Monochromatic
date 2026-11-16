@@ -234,9 +234,7 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
     //       bound and never the commit's start wait.
     // Why:  A person removing a worktree waits for none of what the service does with the record, and every later command of the
     //       repository wakes the same service (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
-    let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
-    config.start_wait = HAND_OVER_GREETING_WAIT;
-    config.start_ceiling = HAND_OVER_GREETING_WAIT;
+    let config: ClientConfig = crate::service_client::client_config(address, host.as_ref()).with_its_own_bound(HAND_OVER_GREETING_WAIT);
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {
         Ok(()) => Ok(()),

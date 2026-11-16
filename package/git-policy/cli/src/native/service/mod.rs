@@ -205,6 +205,7 @@ pub mod service_server_socket_binding;
 pub mod service_main;
 
 /// The wrapper's side of a commit through the commit service.
+pub mod service_beat_of_an_instance;
 pub mod service_client;
 
 /// The words a waiting command is told about its own wait.

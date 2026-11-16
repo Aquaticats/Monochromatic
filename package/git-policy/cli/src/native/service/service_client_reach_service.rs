@@ -33,6 +33,8 @@ use std::time::{Duration, Instant};
 pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let started: Instant = Instant::now();
     let mut connected: bool = false;
+    // How many services that stopped inside themselves this command has ended to start a fresh one.
+    let mut replaced: usize = 0;
     loop {
         // What: Every pass of this loop asks the bound before it does anything else, so no path through it can be taken
         //       again without the clock being looked at.
@@ -82,8 +84,32 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
                     }
                     // A service that greeted before and now greets nothing is the one that stopped.
                     Heard::Silent if service_seen => return Err(ClientFailure::ServiceSilent),
-                    // Connected, but nothing greeted: the service is still starting or is going away.
-                    Heard::Message(_) | Heard::Closed | Heard::Silent => trace.refused += 1,
+                    // Connected, but nothing greeted: the service is still starting, is going away, or has stopped inside itself.
+                    heard => {
+                        trace.refused += 1;
+                        // What: A service that is there and keeps no beat is one that stopped inside itself, and it is ended so
+                        //       this command can start a fresh one; a service whose beat moves is waited for.
+                        // Why:  `SPEC.md` says a service that greeted and went silent for `HEARTBEAT_SILENCE` is the service that
+                        //       stopped, and that the command starts a fresh one and sends its request again, which the
+                        //       journal's record of the request makes safe to repeat. A frozen service, a debugger holding it,
+                        //       or every thread of it in a call that never returns was given two minutes here before
+                        //       (the review of `e347be3115`, part one, finding 2: 122,308 ms, where `main` restarted the unit
+                        //       in about two seconds), and a hand-over spent the same ceiling (part two-b, finding 1: a merge
+                        //       of 121,021 ms, an add and a removal that had not returned at 200,000 ms, where `main` took two).
+                        if !matches!(heard, Heard::Message(_))
+                            && let Some(server) = config.starter.as_ref()
+                            && replaced < REPLACEMENTS_PER_COMMAND
+                            && !crate::service_beat_of_an_instance::is_working(server.directory().as_path(), server.instance.as_str())
+                        {
+                            let _ended: crate::service_ended_through_a_pinned_handle::Ended = crate::service_ended_through_a_pinned_handle::end_the_service(
+                                server.directory().as_path(),
+                                server.instance.as_str(),
+                                None,
+                            );
+                            replaced += 1;
+                            trace.refused += 1;
+                        }
+                    }
                 }
             }
             Err(_) => match config.activation {
@@ -103,7 +129,11 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         }
         // What: The wait says what it waits for and on whom, once it has lasted long enough to matter.
         // Why:  A wait nobody can see is indistinguishable from a hang.
-        if !*announced && started.elapsed() >= START_NOTICE_GRACE {
+        // What: A wait says what it waits for once it has lasted long enough to matter, and not about a service this command
+        //       has just found stopped and replaced.
+        // Why:  The recovering sentence says the service is there and returning to work, which is false once its silence was
+        // the sign that it stopped (the review of `e347be3115`, part two-a, finding 6, second half).
+        if !*announced && replaced == 0 && started.elapsed() >= START_NOTICE_GRACE {
             *announced = true;
             let address: String = crate::service_server::address_text(&config.address);
             let _written = writeln!(
@@ -119,6 +149,14 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         std::thread::sleep(CONNECT_PAUSE);
     }
 }
+
+/// What:
+///  How many services one command ends because they keep no beat, before it reports the state it found.
+/// Why:
+///   A service that is ended and replaced and still keeps no beat is not the state a second replacement changes, and a loop
+/// that replaced one for ever would be a command that never ends; two replacements cover a service killed while the first
+/// replacement started.
+const REPLACEMENTS_PER_COMMAND: usize = 2;
 
 /// What:
 ///  The longest one connection attempt may wait for the greeting,

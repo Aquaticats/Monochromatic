@@ -416,9 +416,7 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
     let handoff: ServiceHandoff = ServiceHandoff {
         config: {
             // The push record is durable, so the wake waits the hand-over's own greeting bound.
-            let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
-            config.start_wait = HAND_OVER_GREETING_WAIT;
-            config.start_ceiling = HAND_OVER_GREETING_WAIT;
+            let config: ClientConfig = crate::service_client::client_config(address, host.as_ref()).with_its_own_bound(HAND_OVER_GREETING_WAIT);
             config
         },
         repository: watch.layout.worktree_root.clone(),
