@@ -374,6 +374,11 @@ pub(super) fn keeping_the_service_log(fixture: &Fixture, verdict: Result<(), Str
 /// and the next one starts as in production,
 /// with no extra limit and
 ///  no tracer.
+///  A service's own stream closes with it,
+/// so the copy of what it wrote ends after this,
+/// which is not the same as this call waiting for it:
+/// a caller that decides anything by the log waits for that end (`settle_the_service_log`)
+/// after the services have ended here.
 pub(super) fn end_the_pressure(fixture: &Fixture) {
     if let Some(services) = fixture.service.lock().expect("the fixture's service lock").as_ref() {
         services.stop_all();

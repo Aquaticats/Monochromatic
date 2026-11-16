@@ -158,11 +158,12 @@ struct Case {
     /// or the recovery after it did not hold.
     verdict: Result<(), String>,
     /// What the limited attempt's service wrote,
-    /// read after the pressure ended and before the recovery ran,
+    /// read after the pressure ended and once the copy of its stream had ended,
     /// so it holds nothing the recovery's service wrote.
     limited_log: String,
     /// What the service wrote while the recovery ran:
-    /// the log after the recovery, less what the limited attempt's service had written.
+    /// the log after the recovery, less what the limited attempt's service had written,
+    /// each read once the copies of their streams had ended.
     recovery_log: String,
     /// How the limited service ended,
     /// for the control that says it ended,
@@ -203,8 +204,14 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     } else {
         Ok(())
     };
+    // The recovery's service is stopped too, so that the copy of its stream can end: the whole log then holds every byte
+    //  both services wrote, and the recovery's part is what its own service said.
+    end_the_pressure(&fixture);
+    let whole_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
+    // A failure carries the log this case has just read whole: nothing writes to the file now that every service has
+    //  ended.
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND));
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &whole_log);
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);
@@ -235,21 +242,34 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 }
 
 /// What:
-///  What the fixture's service log holds now, as the file has it:
+///  What the fixture's service log holds,
+///  read only once every copy of a service's stream has ended:
 ///  evidence for a person reading why the case failed,
 ///  and never what a verdict rests on.
 /// Why:
-///  A copy runs on a thread of its own, so the file holds what a service wrote only once that thread has written it,
-/// and the end of the copy is an event this control does not need to wait for when it decides nothing.
+///  A copy runs on a thread of its own,
+/// and it writes each chunk into the log before it writes that chunk into the person's stream,
+/// so the file holds what a service wrote only once that thread has ended,
+/// and a reading made before that is a strict prefix of the service's words.
+///  The end of the copy is the event, and it cannot be a sleep of a guessed length:
+/// the pipe closes when the last service holding it ends,
+/// and the copy ends after that.
+/// A copy that has not ended within `bound` is named in the reading,
+/// because a person reading a failure has to know that the words under a label may be short,
+/// and that bytes a copy writes later are read under whatever label comes next.
 ///  Every service of a fixture appends to this one file,
 /// so a read made before the recovery runs holds the limited attempt's words alone,
 /// and a read made after it holds both,
 /// which `the_log_of_the_recovery` tells apart by this text rather than by a byte count that changes between the reads.
 fn the_service_log_of(fixture: &Fixture, bound: std::time::Duration) -> String {
-    // This seam is the shape a case already read in; the wait this bound is for comes with the control below, which
-    //  fails here.
-    let _until_the_copy_is_waited_for = bound;
-    return std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
+    let every_copy_ended: bool = super::support::settle_the_service_log(fixture, bound);
+    let held: String = std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
+    if every_copy_ended {
+        return held;
+    }
+    return format!(
+        "({A_READING_THAT_COULD_NOT_WAIT_SAYS_SO} within {bound:?}, so this reading may lack what a service wrote, and bytes a copy writes later are read under a later label)\n{held}"
+    );
 }
 
 /// What:
@@ -259,6 +279,10 @@ fn the_service_log_of(fixture: &Fixture, bound: std::time::Duration) -> String {
 ///  Both services append to one file,
 /// so the recovery's successful commit would otherwise be read as the limited attempt's outcome,
 /// which two reviews of this control mistook once already.
+///  Taking the earlier reading off the front is sound only when each reading was made after the copy of the stream it
+/// names had ended,
+/// which is what `the_service_log_of` waits for:
+/// a reading that gave up says so, and then no part of this log can be given to one service rather than the other.
 fn the_log_of_the_recovery(limited: &str, whole: &str) -> String {
     let Some(added) = whole.strip_prefix(limited) else {
         return format!("(the recovery's part of the log cannot be told apart from the limited attempt's; the whole log was {whole})");
@@ -1137,8 +1161,14 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let limited_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
     let commits_after: String = commits_of_the_branch(&fixture, repo.as_path());
     let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
+    // The recovery's service is stopped too, so that the copy of its stream can end: the whole log then holds every byte
+    //  both services wrote, and the recovery's part is what its own service said.
+    end_the_pressure(&fixture);
+    let whole_log: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
+    // A failure carries the log this case has just read whole: nothing writes to the file now that every service has
+    //  ended.
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
-    let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND));
+    let recovery_log: String = the_log_of_the_recovery(&limited_log, &whole_log);
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);

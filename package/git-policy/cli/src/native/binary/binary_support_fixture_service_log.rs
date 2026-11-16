@@ -13,8 +13,10 @@
 //! the thread then ends,
 //! and `kept_stderr_pipe` answers a channel that says so.
 //! A read that decides anything waits for that event first
-//! (`end_the_pressure` does);
+//! (`settle_the_service_log`), once every service holding the stream has ended (`end_the_pressure`);
 //! a line in the log is never what a control's verdict rests on.
+//! The read that waits and the stop it waits after are separate calls on purpose:
+//! stopping a service is not waiting for a thread, and a control that reads while its service still runs says so.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -94,7 +96,10 @@ pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<(OwnedFd, std::sync::mps
 ///  What this reads is evidence for a person,
 /// never the event a control's verdict rests on:
 /// the file holds what a service wrote only once the copy of its stream has ended,
-/// so this is read after the pressure has ended and the copy's end was waited for (`end_the_pressure`).
+/// so a caller that stands by these words waits for that end (`settle_the_service_log`) after the services holding the
+/// stream have ended,
+/// which is what a fault case does (`binary_fault_limits_tests.rs`, `the_service_log_of`);
+/// a caller that cannot wait names the moment it read rather than the service.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
