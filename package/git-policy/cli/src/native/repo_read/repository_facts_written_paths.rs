@@ -1380,37 +1380,6 @@ fn listed_paths_of(
     return Ok(Some(nul_separated_paths(output.stdout.as_slice())));
 }
 
-/// What:
-///  Whether Git holds an object the name resolves to,
-///  which tells a name Git does not know from a tree it could not read.
-/// Why:
-///  `git ls-tree` exits nonzero for both,
-///  and the two mean opposite things for a guard:
-///  a name Git does not know is a form Git refuses itself, so nothing is written,
-///  while an object Git knows and cannot list is a read that failed,
-///  and what such a command writes is unknown.
-///  `rev-parse --verify` resolves the name without reading the object,
-///  so it answers for a tree whose bytes are missing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const known = (facts, 'topic') => facts.query(['rev-parse', '--verify', '--quiet', '--end-of-options', 'topic']).success;
-/// ```
-fn git_holds_an_object_named(facts: &mut GitFacts, named: &OsStr) -> Result<bool, String> {
-    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    for token in ["--no-optional-locks", "rev-parse", "--verify", "--quiet", "--end-of-options"] {
-        arguments.push(OsString::from(token));
-    }
-    arguments.push(named.to_os_string());
-    let output: MetadataOutput = facts.query(arguments, "whether Git knows this revision")?;
-    // `rev-parse --verify --quiet` answers through its exit status, so a child a signal ended answered nothing.
-    if !output.success && output.code.is_none() {
-        return Err(String::from(
-            "Git was ended by a signal while the guard asked whether it knows the revision this command names, so it cannot tell what would be overwritten",
-        ));
-    }
-    return Ok(output.success);
-}
 
 /// What:
 ///  Whether the repository leaves `checkout`'s guess of a remote branch on.

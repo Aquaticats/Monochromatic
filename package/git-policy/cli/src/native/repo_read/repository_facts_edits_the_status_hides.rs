@@ -91,7 +91,7 @@ pub(super) fn edits_the_status_hides(
     let mut edited: Vec<String> = Vec::<String>::new();
     let mut to_compare: Vec<MarkedEntry> = Vec::<MarkedEntry>::new();
     for entry in marked_entries(facts, marked.as_slice())? {
-        let named = |entry: &MarkedEntry| return String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        let named_path = |held: &MarkedEntry| return String::from_utf8_lossy(held.path.as_slice()).into_owned();
         match (entry.kind, what_the_worktree_holds(worktree_root, &entry)?) {
             // A path that is gone is no edit of the person's: Git writes it back.
             (_, Held::NotThere) => {}
@@ -102,7 +102,7 @@ pub(super) fn edits_the_status_hides(
             //  finding).
             (IndexKind::Link, Held::Regular { .. })
             | (IndexKind::File { .. }, Held::Link)
-            | (_, Held::Other) => edited.push(named(&entry)),
+            | (_, Held::Other) => edited.push(named_path(&entry)),
             (IndexKind::Link, Held::Link) => to_compare.push(entry),
             (IndexKind::File { executable }, Held::Regular { executable: now }) => {
                 // A change of mode is the person's data like a change of bytes, and Git records an
@@ -116,7 +116,7 @@ pub(super) fn edits_the_status_hides(
                 //  (with `core.fileMode=false` the bit survived both a restore and a hard reset in the same
                 //  measurement).
                 if executable != now && file_mode_is_recorded(facts)? {
-                    edited.push(named(&entry));
+                    edited.push(named_path(&entry));
                     continue;
                 }
                 to_compare.push(entry);

@@ -105,18 +105,6 @@ impl Difference {
             Difference::TypeFromALinkToItsTargetsText => "a link turned into a file of its target's text",
         };
     }
-
-    /// What the index records for this row's path before the person touches it.
-    /// Why:
-    ///  A row about a bit being removed needs the index to hold it,
-    ///  and a row about a link needs a link.
-    fn the_index_holds(&self) -> &'static str {
-        return match self {
-            Difference::ModeOwnerRemoved => "an executable file",
-            Difference::TypeFromALinkToItsTargetsText => "a link",
-            _ => "a plain file",
-        };
-    }
 }
 
 /// Whether the wrapper itself rejected the command.
