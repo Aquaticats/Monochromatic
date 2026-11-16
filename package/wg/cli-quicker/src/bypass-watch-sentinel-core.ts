@@ -12,7 +12,7 @@ import {
 import type { FailureDelivery, } from './runtime-failure-report.ts';
 import { systemIsStopping, } from './system-stop.ts';
 import {
-  readWatcherIdentity,
+  readWatcherRecord,
   type WatcherProcessIdentity,
 } from './tunnel-bypass-watcher-sidecar.ts';
 import {
@@ -181,11 +181,11 @@ export async function judgeWatcherEnd(
   {
     statePath,
     identity,
-    read = readWatcherIdentity,
+    read = readWatcherRecord,
   }: {
     readonly statePath: string;
     readonly identity: WatcherProcessIdentity;
-    readonly read?: typeof readWatcherIdentity;
+    readonly read?: typeof readWatcherRecord;
   },
 ): Promise<SentinelVerdict> {
   try {
@@ -193,11 +193,19 @@ export async function judgeWatcherEnd(
      Record now on disk.
      */
     const record = await read({ statePath, },);
-    if ((record !== PROCESS_ABSENT)
-      && (record.ownerId === identity.ownerId)
-      && (record.pid === identity.pid)
-      && (record.startTime === identity.startTime))
-      return { kind: 'unexpected', };
+    if (record.kind === 'identity') {
+      /**
+       Identity the record holds,
+       which is this watcher's when all three parts match.
+       */
+      const { identity: recordedIdentity, } = record;
+      if ((recordedIdentity.ownerId === identity.ownerId)
+        && (recordedIdentity.pid === identity.pid)
+        && (recordedIdentity.startTime === identity.startTime))
+        return { kind: 'unexpected', };
+    }
+    // A record that holds no identity is not this watcher's record either,
+    // and the exclusion a stop wrote is the identity.
     return { kind: 'expected', };
   }
   catch (error) {

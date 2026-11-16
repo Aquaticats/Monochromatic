@@ -27,7 +27,7 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::support::{Fixture, fixture, git, give_service_environment, repository, start_fixture_service, FixtureService};
+use super::support::{Fixture, cpu_ticks, fixture, git, give_service_environment, repository, start_fixture_service, ticks_per_second, FixtureService};
 use git_policy_cli::service_claim_watch::LOOK_AGAIN_AFTER;
 use git_policy_cli::service_fault::AFTER_PROMOTE;
 use git_policy_cli::service_work::work_directory;
@@ -174,34 +174,6 @@ fn commit_through(setup: &Setup, content: &str) -> String {
 fn push_lines_naming(setup: &Setup, commit: &str) -> usize {
     let log: String = crate::support_fixture_service_log::service_log(setup.fixture.root.as_path());
     return log.lines().filter(|line| { return line.contains("pushed branch=") && line.contains(commit); }).count();
-}
-
-/// What:
-///  The clock ticks the whole of one process of this fixture used,
-/// as the kernel counts them,
-/// over every thread of it.
-/// Why:
-///   `/proc/<pid>/stat` is the main thread's alone,
-/// and the look runs on a worker of the service's runtime:
-/// a reading of
-///  the main thread alone showed no processor time and no switch for a service that looked every five seconds.
-fn cpu_ticks(pid: u32) -> Option<u64> {
-    let mut used: u64 = 0;
-    for thread in std::fs::read_dir(format!("/proc/{pid}/task")).ok()?.flatten() {
-        let stat: String = std::fs::read_to_string(thread.path().join("stat")).ok()?;
-        let after_name: &str = stat.rsplit_once(')')?.1;
-        let fields: Vec<&str> = after_name.split_whitespace().collect();
-        let user: u64 = fields.get(11)?.parse().ok()?;
-        let system: u64 = fields.get(12)?.parse().ok()?;
-        used += user + system;
-    }
-    return Some(used);
-}
-
-fn ticks_per_second() -> f64 {
-    // SAFETY: `sysconf` reads a constant of the system and touches no memory of this process.
-    let per_second: i64 = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
-    return if per_second > 0 { per_second as f64 } else { 100.0 };
 }
 
 /// What:
