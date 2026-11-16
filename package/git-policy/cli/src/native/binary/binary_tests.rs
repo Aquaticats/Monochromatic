@@ -71,6 +71,11 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
+/// The record a commit leaves in the service journal, run through the built wrapper,
+/// and the temporary files a kill leaves in the journal, the cache and the manager's own directory.
+#[path = "binary_journal_paths_and_temporary_files_tests.rs"]
+mod journal_paths_and_temporary_files;
+
 /// The bound one observed command is given,
 /// who ended it,
 /// and the two pipes its output came through.
