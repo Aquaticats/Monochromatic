@@ -171,7 +171,21 @@ await describe({
         )
           expect(isPublicAddress({ family: '-4', address, },),).toBe(false,);
         expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text: '2606:4700::6810:84e5', },), },),).toBe(true,);
-        for (const text of ['::', '::1', 'fe80::1', 'fc00::1', 'fd12::1', 'ff02::1',])
+        for (
+          const text of [
+            '::',
+            '::1',
+            'fe80::1',
+            'fc00::1',
+            'fd12::1',
+            'ff02::1',
+            // The IETF protocol assignments block is no more public unicast than Teredo,
+            // except the sub-blocks IANA lists separately; those have their own case below.
+            '2001:2::1',
+            '2001:db8::1',
+            '100:0:0:1::1',
+          ]
+        )
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
         for (const address of ['192.0.0.8', '192.0.2.1', '198.51.100.4', '203.0.113.9', '198.18.0.1', '198.19.255.254', '192.88.99.1',])
           expect(isPublicAddress({ family: '-4', address, },),).toBe(false,);
@@ -179,12 +193,64 @@ await describe({
           expect(isPublicAddress({ family: '-4', address, },),).toBe(true,);
         for (const text of ['::ffff:7f00:1', '::ffff:0:0', '64:ff9b::808:808', '2002:c000:204::1', '2001:db8::1', '100::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
-        for (const text of ['2003::1', '2001:db9::1', '64:ff9c::1', '100:0:0:1::1',])
+        for (const text of ['2003::1', '2001:db9::1', '64:ff9c::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
         for (const text of ['fec0::1', '64:ff9b:1::1', '3fff::1', '3fff:fff:ffff::1', '2001::1', '2001:0:4136:e378::1', '5f00::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
-        for (const text of ['2001:4860:4860::8888', '2001:1::1', '2001:4:112::1', '3ffe::1', '4000::1', '5e00::1', '2606:4700:4700::1111',])
+        // The translation prefix `100:0:0:1::/64` is a special-purpose address and never public unicast.
+        for (const text of ['2001:4860:4860::8888', '3ffe::1', '4000::1', '5e00::1', '2606:4700:4700::1111',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: 'the globally reachable sub-blocks of the IETF protocol assignments',
+  children: [
+    it({
+      name: 'accepts every sub-block the IANA IPv6 Special-Purpose Address Registry lists as globally reachable inside 2001::/23, measured against the registry fetched on 2026-11-11',
+      fn: async () => {
+        // The registry answers `2001::/23` with a footnote and gives each separately listed sub-block
+        // its own answer; these seven are the ones whose answer is `True`.
+        for (
+          const text of [
+            '2001:1::1',
+            '2001:1::2',
+            '2001:1::3',
+            '2001:3::1',
+            '2001:4:112::1',
+            '2001:20::1',
+            '2001:30::1',
+          ]
+        )
+          expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'still refuses the rest of 2001::/23, which the registry does not list as globally reachable',
+      fn: async () => {
+        for (
+          const text of [
+            // Teredo, whose registry answer is not `True`.
+            '2001::1',
+            // Benchmarking.
+            '2001:2::1',
+            // The deprecated ORCHID block, whose registry row is terminated and carries no answer.
+            '2001:10::1',
+            // One address past a separately listed sub-block, and the space between them.
+            '2001:1::4',
+            '2001:4::1',
+            '2001:4:111::1',
+            '2001:5::1',
+            '2001:1f::1',
+            '2001:40::1',
+            '2001:1ff::1',
+          ]
+        )
+          expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
+        // Just past the end of the whole block.
+        expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text: '2001:200::1', },), },),).toBe(true,);
       },
     },),
   ],

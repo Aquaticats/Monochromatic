@@ -28,7 +28,7 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
+use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, a_filling_that_did_not_run_to_its_end, bounded, end_the_fills_clean, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
@@ -959,6 +959,9 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    // A run may ask for the ending the gate of 2026-11-15T06:00-05:00 met: the filling's own clean ended by a signal from
+    //  outside the runner's ceiling and quiet window, and the resolution after it refused.
+    end_the_fills_clean(&fixture);
     let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "stale", "../deeper/stale");
     let worktree: PathBuf = fixture.root.join("deeper/stale");
     assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
@@ -966,6 +969,12 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
     assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
     assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    // A filling that did not run to its end displaced nothing, so a failure names the filling's own reason rather than an
+    //  empty folder: at the gate of 2026-11-15T06:00-05:00 the machine ended this filling's clean and the control reported
+    //  only that the bytes were not kept, which sent a reader after a clean that never took a byte.
+    if let Some(said) = a_filling_that_did_not_run_to_its_end(&fixture, repo.join(".git").as_path(), worktree.as_path()) {
+        panic!("{said}");
+    }
     // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
     // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
     // (`package_repair_cargo_lock.rs`).
