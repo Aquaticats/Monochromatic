@@ -573,6 +573,16 @@ so one entry another filling is starting never stops the queue behind it.
 Every one of these steps waits at most the queue's lock wait and refuses naming the holder, which is what the section below
 says of the lock. Nothing waits on a claim: a claim is taken or answered, never waited for.
 
+Two edges this leaves, both written here so a reader who meets one knows what it is:
+
+- A claim is recovered only when the process that holds it is gone. A filling that is alive and stuck inside one start keeps that
+  entry claimed for as long as it lives, and what ends it is the filling's own unit, whose `RuntimeMaxSec` bounds the command:
+  a claim is never taken from a filling that might still be starting its entry.
+- The evidence of a start is the output file its unit was given, which the manager opens when the unit starts. A filling killed in
+  the moment between asking for the unit and that file being opened leaves a claim whose evidence is not there yet, so the next
+  pass gives the claim back and one entry can be handed over twice. The moment is the manager's, a few milliseconds, and closing it
+  needs the unit's own name to be the latch that refuses a second start, which is the launcher's to give.
+
 ### One writer at a time
 
 The lock is one file beside the queue, `<queue>.lock`,
