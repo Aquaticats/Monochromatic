@@ -263,28 +263,61 @@ fn a_process_scan_that_could_not_finish_keeps_the_version() {
 /// A version a process of this account holds is kept even when the kernel will not describe that process,
 /// and the line says an unspecified process may run it.
 /// Why:
-/// The review of this change ran a same-user process that opened a file under a version, moved into the version and
-/// made itself undumpable: the scan could read neither its programs nor its folders, so no held path named the
-/// version, and the newest-only removals would have deleted a version in active use.
+/// The review of the fifth change ran a same-user process that opened a file under a version, moved into the version
+/// and made itself undumpable: the scan could read neither its programs nor its folders, so no held path named the
+/// version.
+/// The owner's answer of 2026-11-15 is the age rule:
+/// a hidden process started after a version was installed keeps that version,
+/// and one started before it is taken not to run it.
 #[test]
-fn a_version_a_process_hides_its_use_of_is_kept() {
+fn a_hidden_process_started_after_the_version_keeps_it() {
     let rig = Rig::new();
     let directory: PathBuf = version_directory(&rig, "0.2.0");
     let program: PathBuf = directory.join("release-folder").join(FIXTURE_BIN);
     fs::create_dir_all(directory.join("release-folder")).expect("make the version directory");
     fs::write(&program, b"#!/bin/sh\n").expect("write a file of the version");
+    // The version is there first, so the process below started after it was installed.
     let _hiding: HiddenUse = HiddenUse::started_in(&directory, &program);
 
     let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
     let kept: Option<String> = keeps.keep_reason(FIXTURE_DIRECTORY, "0.2.0", &directory);
 
-    let line: String = kept.expect("an opaque process holding this version keeps it");
+    let line: String = kept.expect("a hidden process started after the version keeps it");
     assert!(line.contains("it is in use"), "the line says the version is in use: {line}");
     assert!(line.contains("runs"), "the line says what the process may run: {line}");
     assert!(line.contains("may"), "the line says the scan cannot tell which version: {line}");
 }
 
 /// What:
+/// A hidden process that started before the version was installed is taken not to run it,
+/// so the version is not kept for it.
+/// Why:
+/// The owner's answer of 2026-11-15 keeps that gap:
+/// such a process re-executing itself into the version later is possible and accepted,
+/// and the alternative keeps every version on a machine with a hidden process for good.
+#[test]
+fn a_hidden_process_started_before_the_version_does_not_keep_it() {
+    let rig = Rig::new();
+    let directory: PathBuf = version_directory(&rig, "0.2.0");
+    // The hidden process starts beside the store, before the version exists; it holds a file there.
+    let elsewhere: PathBuf = rig._directory.path().join("not-the-store");
+    fs::create_dir_all(&elsewhere).expect("make a directory beside the store");
+    let held: PathBuf = elsewhere.join("a-file-it-holds");
+    fs::write(&held, b"x").expect("write the file it holds");
+    let _hiding: HiddenUse = HiddenUse::started_in(&elsewhere, &held);
+    // The version is installed after the hidden process started.
+    std::thread::sleep(std::time::Duration::from_millis(1_100));
+    fs::create_dir_all(directory.join("release-folder")).expect("make the version directory");
+    fs::write(directory.join("release-folder").join(FIXTURE_BIN), b"#!/bin/sh\n").expect("write a file of the version");
+
+    let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
+    let kept: Option<String> = keeps.keep_reason(FIXTURE_DIRECTORY, "0.2.0", &directory);
+
+    assert_eq!(kept, None, "a hidden process that started before the version kept it");
+}
+
+/// What:
+/// A process of this account that the kernel will not describe:/// What:
 /// A process of this account that the kernel will not describe:
 /// it works inside `directory`,
 /// holds `program` open,

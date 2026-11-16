@@ -128,3 +128,44 @@ fn a_claim_a_killed_remover_left_does_not_block_an_install() {
     assert!(second.is_ok(), "the same stale claim still blocked a retry: {:?}", second.err());
     assert!(live_owner(&downloads).is_some(), "the install owns the directory after taking it");
 }
+
+/// What:
+/// Taking a stale claim removes exactly the claim it read, never a live claim another remover put there in the
+/// meantime.
+/// Why:
+/// The review of this change read a claim naming a dead maker, had another remover replace it with a live one before
+/// the unlink, and the unlink removed the live claim: both removers then held the right to one downloads directory.
+/// The harness holds the reader on a FIFO at the claim's name, so the replacement lands between the read and the
+/// unlink by construction.
+#[cfg(unix)]
+#[test]
+fn a_stale_claim_is_taken_by_removing_exactly_the_claim_it_read() {
+    use std::io::Write;
+    use std::os::unix::fs::MetadataExt;
+
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let downloads: PathBuf = downloads_of(&root, "bin", "0.29.4");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    let claim: PathBuf = downloads.with_file_name(".0.29.4.download-removal");
+    let fifo: PathBuf = downloads.with_file_name("claim-fifo");
+    let status = std::process::Command::new("mkfifo").arg(&fifo).status().expect("run mkfifo");
+    assert!(status.success(), "mkfifo failed");
+    fs::rename(&fifo, &claim).expect("put a FIFO where the claim belongs");
+    let root_for_thread: PathBuf = root.clone();
+    let remover: std::thread::JoinHandle<_> = std::thread::spawn(move || return take_removal_right(&root_for_thread, "bin", "0.29.4"));
+    let mut writer: fs::File = fs::OpenOptions::new().write(true).open(&claim).expect("open the claim's writer");
+    // The live claim another remover would put there, naming this process.
+    let live: PathBuf = downloads.with_file_name("live-replacement-claim");
+    fs::write(&live, format!("{}.0\n", std::process::id())).expect("write the live claim");
+    let live_inode: u64 = fs::symlink_metadata(&live).expect("read the live claim").ino();
+    fs::rename(&live, &claim).expect("replace the old claim with the live one");
+    writer.write_all(b"4294967294.12345\n").expect("release the reader with a dead maker");
+    drop(writer);
+    let right = remover.join().expect("the remover thread ended").expect("the removal right");
+
+    assert!(matches!(&right, RemovalRight::Held { .. }), "the probe did not reach the stale-claim branch");
+    let after_inode: u64 = fs::symlink_metadata(&claim).expect("the claim after the take").ino();
+    drop(right);
+    assert_eq!(after_inode, live_inode, "stale cleanup removed the live replacement claim");
+}

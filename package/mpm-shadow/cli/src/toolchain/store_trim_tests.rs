@@ -1538,3 +1538,112 @@ fn a_kill_after_the_deletes_takes_the_marker_away() {
 }
 
 //endregion
+
+//region every act on the store goes through a proof of where it lands
+
+/// What:
+/// Recovery deletes nothing while any lock a cleanup reads could not be read,
+/// even when the readable part of that lock names a tool.
+/// Why:
+/// The review of this change wrote a lock with a good `node` row and a row with no version:
+/// the run printed the removal of a tombstoned payload and then said every version is kept until the locks can be
+/// read, in that order, and the only copy of the version was gone.
+#[test]
+fn an_unreadable_lock_deletes_no_tombstone() {
+    let rig = crate::toolchain::fakes::Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    fs::write(
+        rig.scope.lock_file.clone(),
+        r#"{"tools":{"node":{"version":"2","route":"archive"},"broken":{"route":"archive"}}}"#,
+    )
+    .expect("write the half-readable lock");
+    let payload: PathBuf = root.join("node").join(".mpm-shadow-removing.1").join("user-payload");
+    fs::create_dir_all(payload.parent().expect("the tombstone has a parent")).expect("make the tombstone");
+    fs::write(&payload, b"keep me").expect("write the payload");
+    fs::write(unfinished_marker(&root), b"").expect("leave the recovery marker");
+
+    trim_after_install(&rig.context(), &[]);
+
+    assert!(payload.is_file(), "the unreadable-lock recovery deleted the tombstoned payload");
+}
+
+/// What:
+/// Recovery does not search a tool's folder through a link:
+/// a store whose `node` is a link elsewhere lists no tombstone there and deletes nothing outside.
+/// Why:
+/// The review of this change made `node` a link to an outside folder holding a removing name, and recovery deleted it
+/// and its payload: the tombstones scan followed the link and the recovery deletion had none of the containment the
+/// ordinary removal has.
+#[test]
+fn recovery_does_not_follow_a_link_at_a_tools_folder() {
+    let directory = crate::test_scratch::scratch();
+    let root: PathBuf = directory.path().join("store");
+    let outside: PathBuf = directory.path().join("outside-tool-directory");
+    fs::create_dir_all(&root).expect("make the store");
+    fs::create_dir_all(outside.join(".mpm-shadow-removing.1")).expect("make the outside tombstone");
+    fs::write(outside.join(".mpm-shadow-removing.1").join("user-payload"), b"keep me outside").expect("write it");
+    std::os::unix::fs::symlink(&outside, root.join("node")).expect("point the tool's folder outside the store");
+    fs::write(unfinished_marker(&root), b"").expect("leave the recovery marker");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let (_lines, _unfinished) = finish_removals(std::slice::from_ref(&root), &tools, &fixture_run());
+    let (lines_after_marker, unfinished_after_marker) =
+        finish_removals(std::slice::from_ref(&root), &tools, &fixture_run());
+    settle_markers(std::slice::from_ref(&root), &tools, &unfinished_after_marker);
+
+    assert!(
+        outside.join(".mpm-shadow-removing.1").join("user-payload").is_file(),
+        "recovery deleted a payload outside the store through the tool link: {lines_after_marker:?}"
+    );
+}
+
+/// What:
+/// A recovery marker that is a link is refused, and the file it points at is not emptied:
+/// the removal keeps the version it was about and says why.
+/// Why:
+/// The review of this change made the marker a link to an outside file and ran a removal:
+/// the write of the marker followed the link and the file became empty, before the version moved.
+#[test]
+fn a_recovery_marker_that_is_a_link_is_refused() {
+    let directory = crate::test_scratch::scratch();
+    let root: PathBuf = directory.path().join("store");
+    let version: PathBuf = root.join("node").join("1");
+    fs::create_dir_all(&version).expect("make the version");
+    fs::write(version.join("payload"), b"old version").expect("write the version");
+    let locked: PathBuf = root.join("node").join("2");
+    fs::create_dir_all(&locked).expect("make the locked version");
+    fs::write(locked.join("payload"), b"locked version").expect("write it");
+    let victim: PathBuf = directory.path().join("outside-user-file");
+    fs::write(&victim, b"do not truncate").expect("write the outside file");
+    std::os::unix::fs::symlink(&victim, unfinished_marker(&root)).expect("a link where the marker belongs");
+    let written: SystemTime = fs::symlink_metadata(&version).expect("read it").modified().expect("write time");
+    let candidate = TrimCandidate {
+        root: root.clone(),
+        tool: "node".to_string(),
+        version: "1".to_string(),
+        directory: version.clone(),
+        downloads: None,
+        bytes: 11,
+        written,
+        naming: crate::toolchain::store_versions::EntryNaming::of(&fs::symlink_metadata(&version).expect("read it")),
+        leftover: false,
+    };
+    let plan: TrimPlan = TrimPlan { total_bytes: 11, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
+
+    let outcome = apply_trim(&plan, &fixture_run());
+
+    assert_eq!(
+        fs::read(&victim).expect("read the outside file"),
+        b"do not truncate",
+        "the recovery marker truncated the outside file"
+    );
+    assert_eq!(outcome.removed, 0, "the removal went on with a marker it could not write: {:?}", outcome.lines);
+    assert!(version.join("payload").is_file(), "the version went although its marker could not be written");
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("marker") && line.contains("link")),
+        "the line says why it stayed: {:?}",
+        outcome.lines
+    );
+}
+
+//endregion
