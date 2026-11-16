@@ -52,7 +52,7 @@ use std::path::Path;
 /// The forbidden work and the justified exceptions.
 #[path = "blocking_code_off_the_runtime_rules_tests.rs"]
 mod rules;
-use rules::{ALLOWED, Allowed, BLOCKING_WAITS, Place, REACHED_FROM_A_TASK_KNOWN, RULES, Rule, STORAGE_CALLS, holds_any};
+use rules::{ALLOWED, Allowed, BLOCKING_WAITS, BOUNDED_RUNNERS, Place, REACHED_FROM_A_TASK_KNOWN, RULES, Rule, SERVICE_STATE_CALLS, SERVICE_STATE_FILES, SERVICE_STATE_INSIDE_A_BOUND, STORAGE_CALLS, STORAGE_ON_THE_SERVICE_PATH, holds_any};
 
 use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
 
@@ -614,6 +614,179 @@ fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Functi
 ///  (the third review of this branch, finding 4: a `canonicalize` two plain calls below an `async fn`).
 const REACHED_FROM_A_TASK: &str = "blocking-function-on-a-task";
 
+/// The rule id of a storage call, or a call to the service's own state, written where a commit waits on it.
+/// Why:
+///  The landing thread and the start in front of the accept loop are where storage holds a commit,
+/// and the rules that read one line cannot see a call through an import, a call merely beside a bound, or a plain file
+/// call in a function that is not a task
+///  (the fifth review of this branch, finding 5: three plants, each passing that scan).
+const SERVICE_STATE_OFF_THE_BOUND: &str = "service-state-call-outside-a-bound";
+
+/// What:
+///  The findings of a storage call, or a call to the service's own state,
+///  written in one of `SERVICE_STATE_FILES` where no bound holds it:
+///  on the landing thread, or in front of the accept loop,
+///  which are the two places a commit waits on storage.
+/// Why:
+///  Each of those files is read whole here:
+/// a line inside a closure handed to a bounded runner is excused,
+///  a function the bound itself calls is named in `SERVICE_STATE_INSIDE_A_BOUND` with the sentence that says which bound
+///  holds it,
+///  and anything else is a finding.
+fn service_state_calls_beside_their_bound(root: &Path, sources: &[String]) -> Result<Vec<Finding>, String> {
+    let candidates: std::collections::BTreeSet<String> = SERVICE_STATE_CALLS
+        .iter()
+        .map(|call| { return String::from(call.strip_suffix('(').unwrap_or(call).rsplit("::").next().unwrap_or(call)); })
+        .collect();
+    let mut found: Vec<Finding> = Vec::new();
+    for name in sources {
+        if !SERVICE_STATE_FILES.contains(&name.as_str()) {
+            continue;
+        }
+        let text: String = std::fs::read_to_string(root.join(name.as_str())).map_err(|error| return format!("cannot read {name}: {error}"))?;
+        let imported: std::collections::BTreeSet<String> = names_brought_in_by_an_import(text.as_str(), &candidates);
+        let inside_a_bound: std::collections::BTreeSet<usize> = lines_inside_a_bounded_runner(text.as_str())?;
+        let lines: BodyLines = code_lines(&read_the_code_of(text.as_str())?);
+        let mut function: String = String::new();
+        for (number, line, _joined) in lines {
+            if let Some((named, _is_async)) = signature_of(line.as_str()) {
+                function = named;
+            }
+            if inside_a_bound.contains(&number) && !names_a_bounded_runner(line.as_str()) {
+                continue;
+            }
+            if SERVICE_STATE_INSIDE_A_BOUND.iter().any(|(file, kept, _why)| { return *file == name.as_str() && *kept == function.as_str(); }) {
+                continue;
+            }
+            // What: Only the part of a line that is not a bounded closure written on it is the caller's own work.
+            // Why:  `(work_within(ceiling, || 1), holders_beside(...))` runs its second element on the caller's thread,
+            //       and a rule that excused the whole line for naming a runner passed it
+            //       (the fifth review of this branch, finding 5, second plant).
+            let here: String = the_part_of_a_line_the_caller_runs(line.as_str());
+            if here.trim().is_empty() {
+                continue;
+            }
+            let calls_imported: bool = imported.iter().any(|brought| { return calls_a_whole_name(here.as_str(), brought.as_str()); });
+            if holds_any(here.as_str(), STORAGE_ON_THE_SERVICE_PATH) || holds_any(here.as_str(), SERVICE_STATE_CALLS) || calls_imported {
+                found.push((name.clone(), SERVICE_STATE_OFF_THE_BOUND, number));
+            }
+        }
+    }
+    return Ok(found);
+}
+
+/// What:
+///  The part of `line` that runs on the caller's thread:
+///  everything outside a closure handed to a bounded runner written on that same line.
+/// Why:
+///   A line can hold both, and only what is outside the closure is the caller's own work
+///  (the fifth review of this branch, finding 5: a plant that put the two on one line passed the scan).
+fn the_part_of_a_line_the_caller_runs(line: &str) -> String {
+    let Some(at) = BOUNDED_RUNNERS.iter().filter_map(|runner| { return line.find(runner); }).min() else { return String::from(line) };
+    let before: &str = &line[..at];
+    let after: &str = &line[at..];
+    let Some(open) = after.find('{') else { return String::from(line) };
+    let mut depth: usize = 0;
+    let mut end: usize = after.len();
+    for (index, character) in after.char_indices().skip(open) {
+        if character == '{' {
+            depth += 1;
+        } else if character == '}' {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                end = index + 1;
+                break;
+            }
+        }
+    }
+    return format!("{before}{}", &after[end..]);
+}
+
+/// Whether `text` calls `name` as a whole name: no letter, digit or `.` before it.
+fn calls_a_whole_name(text: &str, name: &str) -> bool {
+    let needle: String = format!("{name}(");
+    let mut from: usize = 0;
+    while let Some(at) = text[from..].find(needle.as_str()) {
+        let before: Option<char> = text[..from + at].chars().next_back();
+        if before.is_none_or(|character| { return !(character.is_alphanumeric() || character == '_' || character == '.'); }) {
+            return true;
+        }
+        from += at + needle.len();
+    }
+    return false;
+}
+
+/// The candidates `text` brings into scope by an `use` line,
+/// which a call to them then names bare.
+fn names_brought_in_by_an_import(text: &str, candidates: &std::collections::BTreeSet<String>) -> std::collections::BTreeSet<String> {
+    let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for line in text.lines() {
+        let trimmed: &str = line.trim_start();
+        if !trimmed.starts_with("use ") {
+            continue;
+        }
+        for candidate in candidates {
+            if trimmed.contains(&format!("::{candidate};")) || trimmed.contains(&format!("::{candidate},")) || trimmed.contains(&format!("{{{candidate},")) {
+                found.insert(candidate.clone());
+            }
+        }
+    }
+    return found;
+}
+
+/// What:
+///  The lines of a file that sit inside a closure handed to one of `BOUNDED_RUNNERS`,
+///  which is off the caller's thread or awaited under a ceiling.
+/// Why:
+///  A bound whose closure opens on a later line is still a bound,
+/// and a line that merely names a runner beside an unbounded call is not
+///  (the fifth review of this branch planted both shapes).
+fn lines_inside_a_bounded_runner(text: &str) -> Result<std::collections::BTreeSet<usize>, String> {
+    let read: ReadCode = read_the_code_of(text)?;
+    let mut inside: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    let mut depth: usize = 0;
+    let mut inside_from: Option<usize> = None;
+    let mut a_bound_is_coming: bool = false;
+    for (index, (opened, closed)) in read.braces.iter().enumerate() {
+        let number: usize = index + 1;
+        let line: &str = read.masked.get(index).map_or("", |masked| { return masked.as_str(); });
+        depth += opened;
+        if inside_from.is_none() {
+            // What: A bound named before a signature's brace is not that brace's bound.
+            // Why:  The brace of a function is not a closure, and a runner named in an earlier function would
+            //       otherwise make the whole next function read as the bound's own body.
+            if signature_of(line).is_some() {
+                a_bound_is_coming = false;
+            }
+            if names_a_bounded_runner(line) {
+                a_bound_is_coming = true;
+            }
+            if a_bound_is_coming && *opened > 0 {
+                inside_from = Some(depth);
+                a_bound_is_coming = false;
+            }
+        }
+        if let Some(from) = inside_from {
+            inside.insert(number);
+            depth = depth.saturating_sub(*closed);
+            if depth < from {
+                inside_from = None;
+            }
+            continue;
+        }
+        depth = depth.saturating_sub(*closed);
+    }
+    return Ok(inside);
+}
+
+/// Whether `line` names one of the calls that run their work under a bound.
+fn names_a_bounded_runner(line: &str) -> bool {
+    if holds_any(line, &["work_within(", "work_within_reporting("]) {
+        return true;
+    }
+    return POOL_CALLS.iter().any(|call| { return line.contains(call); });
+}
+
 /// What:
 ///  Every `(relative path, rule id, line number)` the rules find in the release sources of `root`.
 fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Finding>, String> {
@@ -630,6 +803,7 @@ fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Finding>, String>
         }
     }
     found.extend(through_the_crates_own_functions(every_function.as_slice()));
+    found.extend(service_state_calls_beside_their_bound(root, sources.as_slice())?);
     for name in sources {
         let text: String = std::fs::read_to_string(root.join(name.as_str()))
             .map_err(|error| return format!("cannot read {name}: {error}"))?;
@@ -956,7 +1130,7 @@ fn every_listed_exception_still_matches_code() {
 /// so a rule that stopped matching would fail here.
 #[test]
 fn each_rule_fires_on_its_own_forbidden_text() {
-    let samples: [(&str, &str); 10] = [
+    let samples: [(&str, &str); 9] = [
         ("thread-start", "let started = std::thread::Builder::new().spawn(move || work());"),
         ("blocking-sleep", "std::thread::sleep(POLL_PAUSE);"),
         ("unretried-start", "let output = command.output();"),
@@ -966,7 +1140,6 @@ fn each_rule_fires_on_its_own_forbidden_text() {
         ("blocking-helper-on-a-task", "let (retries, watch) = restored_within(ceiling, plan, watch, instance);"),
         ("plain-tokio-fs", "let metadata = tokio::fs::metadata(path).await;"),
         ("block-in-place", "let value = tokio::task::block_in_place(|| read_it());"),
-        ("service-state-call-outside-a-bound", "let places = crate::service_journal_holders::holders(journal.as_path(), place.as_ref());"),
     ];
     for (id, sample) in samples {
         let rule: &Rule = RULES

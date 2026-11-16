@@ -109,10 +109,77 @@ const BLOCKING_HELPERS: &[&str] = &[
 /// written before the acceptor).
 ///  The list names what this branch's own service state is reached by, so a call that comes back unbounded is named;
 ///  a storage call it does not know about is what the guard cannot see.
-const SERVICE_STATE_CALLS: &[&str] = &[
+pub(super) const SERVICE_STATE_CALLS: &[&str] = &[
     "service_journal_holders::take_ones_place(",
     "service_journal_holders::holders(",
     "service_journal_holders::holders_beside(",
+];
+
+/// The files whose code runs on the landing thread or in front of the accept loop:
+/// the service's own state, its start, and the note it keeps beside the socket.
+/// Why:
+///  A read or a write there stands where a commit waits, so a storage call in one of them is a finding unless a bound
+/// holds it (the fifth review of this branch, findings 4 and 5).
+pub(super) const SERVICE_STATE_FILES: &[&str] = &[
+    "service/service_busy.rs",
+    "service/service_busy_step_record_on_this_thread.rs",
+    "service/service_journal_holders.rs",
+    "service/service_file_work_off_the_workers.rs",
+    "service/service_prune_old_records_beside_the_loop.rs",
+    "service/service_server.rs",
+    "service/service_decision_record_hold_control_window.rs",
+    "service/service_start_step_hold_control_window.rs",
+    "landing/service_claim_watch.rs",
+];
+
+/// The storage calls this path may not make without a bound.
+pub(super) const STORAGE_ON_THE_SERVICE_PATH: &[&str] = &[
+    "std::fs::read(",
+    "std::fs::read_to_string(",
+    "std::fs::write(",
+    "std::fs::metadata(",
+    "std::fs::symlink_metadata(",
+    "std::fs::remove_file(",
+    "std::fs::remove_dir_all(",
+    "std::fs::create_dir_all(",
+    "std::fs::rename(",
+    "std::fs::set_permissions(",
+    "std::fs::canonicalize(",
+    "File::create(",
+    "File::open(",
+    "OpenOptions::new()",
+    ".sync_all()",
+    ".sync_data(",
+];
+
+/// What:
+///  The functions of one of `SERVICE_STATE_FILES` whose storage is reached only through a bound,
+///  or that are the bound's own job,
+///  each with the sentence that says which.
+/// Why:
+///   The pass that reads the whole file cannot see through a call,
+/// so the functions a bound calls are named here once,
+/// and a name whose code no longer reaches storage is stale and fails the scan.
+pub(super) const SERVICE_STATE_INSIDE_A_BOUND: &[(&str, &str, &str)] = &[
+    ("service/service_journal_holders.rs", "take_ones_place", "the job of `take_its_place_within`, which awaits it under `THE_PLACE_TAKEN_CEILING`"),
+    ("service/service_journal_holders.rs", "holders", "the job of `promise_of_never_landing`, which awaits it under `HOLDERS_ANSWER_CEILING`"),
+    ("service/service_journal_holders.rs", "holders_beside", "the job of `promise_of_never_landing`, which awaits it under `HOLDERS_ANSWER_CEILING`"),
+    ("service/service_journal_holders.rs", "take_ones_place", "the job of `take_its_place_within`"),
+    ("service/service_busy.rs", "take_its_place_within", "it awaits its own job under `THE_PLACE_TAKEN_CEILING`, and the job is written on the bound's own line"),
+    ("service/service_busy.rs", "promise_of_never_landing", "it awaits its own job under `HOLDERS_ANSWER_CEILING`"),
+    ("landing/service_claim_watch.rs", "write_down", "the job `write_the_note_where_it_belongs` hands to `off_the_workers` under `WATCH_NOTE_WRITE_CEILING`"),
+    ("landing/service_claim_watch.rs", "write_the_note_where_it_belongs", "the job of the door, awaited under `WATCH_NOTE_WRITE_CEILING`"),
+    ("service/service_journal_holders.rs", "drop", "the place is removed when the board that holds it ends, which is a service stopping"),
+    ("service/service_journal_holders.rs", "take_away_when_left_over", "called from `holders`, which `promise_of_never_landing` awaits under `HOLDERS_ANSWER_CEILING`"),
+    // What: The after-commit loop's own upkeep of the notes of the repositories it looks at, and its scan.
+    // Why:  They read and remove a note of a repository the loop looks at,
+    //       on the loop's task, which is main's and not this branch's;
+    //       the owner of the round converts it to the door as the rest of that task was converted.
+    //       The line is a row of this ledger so that the scan is complete, and it is named as a defect that stays.
+    ("landing/service_claim_watch.rs", "scan", "the after-commit loop's own look at a repository's notes, on the loop's task: main's, and the round's owner converts it"),
+    ("landing/service_claim_watch.rs", "retry_reading", "the after-commit loop's retry of a note whose write did not finish: main's, and the round's owner converts it"),
+    ("service/service_decision_record_hold_control_window.rs", "the_decision_record_waits_where_a_control_says_within", "a test-only hold, armed by its own variable, whose marker files are a control's own hand; it ends at `CONTROL_PARK_CEILING`"),
+    ("service/service_start_step_hold_control_window.rs", "the_start_step_waits_where_a_control_says_within", "a test-only hold, armed by its own variable, whose marker files are a control's own hand; it ends at `CONTROL_PARK_CEILING`"),
 ];
 
 /// The bounded runners a service-state call may sit inside:
@@ -120,7 +187,7 @@ const SERVICE_STATE_CALLS: &[&str] = &[
 /// Why:
 ///  The rule reads one line, so the bound that excuses a call is the one written beside it;
 /// a closure whose brace is on another line is what the pool-call reading of this scan already follows for tasks.
-const BOUNDED_RUNNERS: &[&str] = &[
+pub(super) const BOUNDED_RUNNERS: &[&str] = &[
     "work_within(",
     "work_within_reporting(",
     "work_awaited_within_a_ceiling::",
@@ -233,19 +300,6 @@ pub(super) const RULES: &[Rule] = &[
         place: Place::Everywhere,
         matches: |line, _joined| {
             return line.contains("block_in_place");
-        },
-    },
-    Rule {
-        id: "service-state-call-outside-a-bound",
-        reason: "calls the service's own state where storage can hold it: on the one thread that lands and answers, or \
-                 before the accept loop, a journal that stops answering holds every commit; a bounded helper runs it \
-                 off that path (`work_within`, `work_awaited_within_a_ceiling`, `off_the_workers`, a pool call)",
-        place: Place::Everywhere,
-        matches: |line, _joined| {
-            if holds_any(line, BOUNDED_RUNNERS) {
-                return false;
-            }
-            return holds_any(line, SERVICE_STATE_CALLS);
         },
     },
 ];
