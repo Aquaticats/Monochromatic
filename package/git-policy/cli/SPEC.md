@@ -3260,6 +3260,20 @@ Git answers the question:
  one `git rev-list --objects` takes every dying name as a tip and every surviving reference as an exclusion,
  and the surviving logs join the exclusions only when that answer is not empty,
  so the log files are read only where the references leave something unanswered.
+A surviving reflog is only a file Git itself reads as one, and only the lines of it Git reads:
+a regular file below the common `logs` directory whose own name Git's ref name rule takes
+ (`check_refname_format` with an allowance for a one-level name, which is what Git's reflog iterator asks of each file
+ it walks, `refs/files-backend.c`),
+ with each line of the shape Git writes and reads (`old new name <email> time zone`, ending in its newline;
+ unsaid by Git is anything else, so a line Git skips is no proof here either).
+A lock file is an update that was never renamed into place, and a killed Git leaves one behind:
+reading `logs/HEAD.lock` as a reflog made a detached worktree's only name for its commit look reachable from a name that
+outlives the worktree, and the collection that followed destroyed the commit
+ (a review of `09fd2138d7`).
+The control of this rule plants every shape a folder can hold without being a name
+ (`binary/binary_worktree_removal_git_work_escape_tests.rs`,
+ `a_file_git_does_not_read_as_a_name_authorizes_no_removal`),
+ and each row requires the refusal and the commit after `git gc --prune=now`.
 An object a surviving name reaches,
  or one an object a surviving name reaches was built on,
  is not stranded.
