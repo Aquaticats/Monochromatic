@@ -130,6 +130,24 @@ In the order a run that names no model of its own takes them:
   "Remove Qwen hosted Deepseek from the pool."
   It took 18 runs before.
   The runs already on it are still counted there and finish there.
+- `opencode-go`:
+  20 runs,
+  which a run that names no model of its own takes first.
+  Its account has a weekly limit.
+  The owner,
+  2026-11-11:
+  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
+  It was closed from then until the owner wrote,
+  on 2026-11-16:
+  "My opencode-go limits have been reset."
+  It stands before both Neuralwatt pools because the owner ranked it so the same day:
+  "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."
+  That reverses the ranking of 2026-11-11
+  ("In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."),
+  whose words about its speed are why a run moved there gets twice the wall clock it asked for, as on flex,
+  until this pool's own runs have been timed.
+  `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again,
+  and default runs then go to `neuralwatt-flex`.
 - `neuralwatt`:
   standard DeepSeek,
   closed to new runs (limit 0),
@@ -141,14 +159,9 @@ In the order a run that names no model of its own takes them:
 - `neuralwatt-flex`:
   DeepSeek flex,
   20 runs,
-  which a run that names no model of its own takes first now.
+  which a run that names no model of its own takes when `opencode-go` is full or closed.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
-- `opencode-go`:
-  closed to new runs (limit 0) until the owner says its week has reset.
-  The owner,
-  2026-11-11:
-  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
   Kimi K3.1 Pro flex,
   taken only by a run that names that model,
@@ -181,7 +194,7 @@ In the order a run that names no model of its own takes them:
 
 A closed pool takes no new run at all,
 and keeps its place in the table,
-so the count prints it at zero room (`opencode-go 0/0`) and the runs already on it are still counted where they are.
+so the count prints it at zero room (`neuralwatt-kimi-flex 0/0`) and the runs already on it are still counted where they are.
 Every pool's limit can be set for one command without a code change,
 which is how a pool with a weekly or monthly quota is closed and reopened:
 `PI_RUNS_POOL_LIMITS` holds `<pool name>=<n>` pairs separated by commas,
@@ -189,8 +202,8 @@ a limit of zero closes the pool,
 and any number above zero is the room it takes again.
 
 ```sh
-# reopen OpenCode Go once the owner says the week has reset
-PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
+# close OpenCode Go when its week is spent
+PI_RUNS_POOL_LIMITS=opencode-go=0 start-pi-run-when-a-pool-has-room --counts-only
 # reopen Neuralwatt's Kimi flex pool, which the owner closed on 2026-11-15, for one command
 PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20 start-pi-run-when-a-pool-has-room --counts-only
 # close the qwen plan's `qwen4-max-preview` pool for the day
