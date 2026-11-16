@@ -31,7 +31,7 @@
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, SERVICE_LOG_FILE, direct, fixture, git, repository, service_log, start_fixture_service};
 use git_policy_cli::service_client_listen_and_ask_to_retire::ask_to_retire;
-use git_policy_cli::service_hold_a_step_for_a_control::{HOLD_DIRECTORY_VARIABLE, HOLD_VARIABLE, INSIDE_A_SCRATCH_REMOVAL, let_go_file, reached_file};
+use git_policy_cli::service_hold_a_step_for_a_control::{HOLD_DIRECTORY_VARIABLE, HOLD_VARIABLE, INSIDE_A_SCRATCH_REMOVAL, INSIDE_A_SYNC, let_go_file, reached_file};
 use git_policy_cli::service_instance::socket_for;
 use git_policy_cli::service_provision::RETIREMENT_WAIT;
 use std::ffi::{OsStr, OsString};
@@ -72,6 +72,10 @@ const THE_MOST_COMMITS: usize = THE_PLACES_OF_THE_LANE * 2;
 /// one that is still waiting for a place of the lane.
 const A_BATCH_WAS_SYNCED: &str = "the background sync of";
 
+/// The line an exit writes when the bound ended its wait for the syncs of its last landings,
+/// which is what tells this control that the wait ended at that bound and not at a batch that finished.
+const A_SYNC_LEFT_TO_THE_WRITE_BACK: &str = "leaving with the syncs of its last landings still waiting";
+
 /// A repository with a bare remote and a service of the repository's own that holds the removal of a scratch tree open.
 struct Setup {
     /// The disposable fixture, removed at the end.
@@ -95,15 +99,15 @@ impl Setup {
         return socket_for(self.service.runtime.as_path(), self.git_dir().as_path());
     }
 
-    /// Whether the service has reached the removal the control holds.
-    fn reached(&self) -> bool {
-        return reached_file(self.holds.as_path(), INSIDE_A_SCRATCH_REMOVAL).exists();
+    /// Whether the service has reached the step `point` the control holds.
+    fn reached(&self, point: &str) -> bool {
+        return reached_file(self.holds.as_path(), point).exists();
     }
 
-    /// Let the held removal go on,
+    /// Let the held step `point` go on,
     /// and every later one with it.
-    fn let_go(&self) {
-        std::fs::write(let_go_file(self.holds.as_path(), INSIDE_A_SCRATCH_REMOVAL), b"").expect("the file that lets a held removal go");
+    fn let_go(&self, point: &str) {
+        std::fs::write(let_go_file(self.holds.as_path(), point), b"").expect("the file that lets a held step go");
     }
 
     /// How many batches of a landing's records the service has written a line for,
@@ -111,6 +115,12 @@ impl Setup {
     fn batches_synced(&self) -> usize {
         let said: String = std::fs::read_to_string(self.fixture.root.join(SERVICE_LOG_FILE)).unwrap_or_default();
         return said.matches(A_BATCH_WAS_SYNCED).count();
+    }
+
+    /// What the service wrote on its standard error,
+    /// whole.
+    fn log(&self) -> String {
+        return std::fs::read_to_string(self.fixture.root.join(SERVICE_LOG_FILE)).unwrap_or_default();
     }
 
     /// Whether the service of this worktree has ended,
@@ -122,11 +132,11 @@ impl Setup {
 
 /// What:
 ///  A repository tracking a bare remote,
-///  and a service of its own started with the removal of a scratch tree held open.
+///  and a service of its own started with the steps `holds` names held open.
 /// Why:
 ///   The holds are named before the first command starts the service,
 /// because the service reads them once for its own life.
-fn setup(name: &str) -> Setup {
+fn setup(name: &str, holds: &[&str]) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
@@ -138,19 +148,19 @@ fn setup(name: &str) -> Setup {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
-    let holds: PathBuf = fixture.root.join("holds");
-    std::fs::create_dir_all(holds.as_path()).expect("the directory the holds go in");
-    name_the_holds(&fixture, holds.as_path());
+    let directory: PathBuf = fixture.root.join("holds");
+    std::fs::create_dir_all(directory.as_path()).expect("the directory the holds go in");
+    name_the_holds(&fixture, directory.as_path(), holds);
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, service, holds };
+    return Setup { fixture, repo, service, holds: directory };
 }
 
-/// Name the step this control holds in the fixture service's environment.
-fn name_the_holds(fixture: &Fixture, holds: &Path) {
+/// Name the steps a control holds in the fixture service's environment.
+fn name_the_holds(fixture: &Fixture, directory: &Path, holds: &[&str]) {
     let mut environment = fixture.service_environment.lock().expect("the fixture's service environment");
-    environment.push((OsString::from(HOLD_VARIABLE), OsString::from(INSIDE_A_SCRATCH_REMOVAL)));
-    environment.push((OsString::from(HOLD_DIRECTORY_VARIABLE), holds.as_os_str().to_os_string()));
+    environment.push((OsString::from(HOLD_VARIABLE), OsString::from(holds.join(","))));
+    environment.push((OsString::from(HOLD_DIRECTORY_VARIABLE), directory.as_os_str().to_os_string()));
 }
 
 /// Commit `content` through the service and answer what the command said and how long it took.
@@ -217,7 +227,7 @@ fn retire_with_a_batch_waiting_behind_the_lane(setup: &Setup) -> Option<Duration
         let synced_before: usize = setup.batches_synced();
         let (made, took): (Output, Duration) = commit_and_time(setup, format!("attempt {attempts}\n").as_str());
         assert!(made.status.success(), "{}", String::from_utf8_lossy(made.stderr.as_slice()));
-        wait_until("a removal of a landing's scratch tree was reached", &|| { return setup.reached(); });
+        wait_until("a removal of a landing's scratch tree was reached", &|| { return setup.reached(INSIDE_A_SCRATCH_REMOVAL); });
         std::thread::sleep(THE_WATCH_FOR_A_SYNC);
         let synced_after: usize = setup.batches_synced();
         eprintln!(
@@ -263,7 +273,7 @@ fn retire_with_a_batch_waiting_behind_the_lane(setup: &Setup) -> Option<Duration
 ///  bound still shows what the kill left.
 #[test]
 fn a_service_asked_to_retire_leaves_within_a_bound_while_slow_work_holds_its_lane() {
-    let setup: Setup = setup("a-service-asked-to-retire-with-a-batch-waiting");
+    let setup: Setup = setup("a-service-asked-to-retire-with-a-batch-waiting", &[INSIDE_A_SCRATCH_REMOVAL]);
     let ended: Option<Duration> = retire_with_a_batch_waiting_behind_the_lane(&setup);
     let landed: String = head(&setup);
     eprintln!("MEASURE the_service_ended_within={ended:?} of {RETIREMENT_WAIT:?}");
@@ -284,10 +294,65 @@ fn a_service_asked_to_retire_leaves_within_a_bound_while_slow_work_holds_its_lan
         String::from_utf8_lossy(newer.stderr.as_slice())
     );
     assert_ne!(newer_landed, landed, "the newer client's commit is a commit of its own");
-    setup.let_go();
+    setup.let_go(INSIDE_A_SCRATCH_REMOVAL);
     assert!(
         ended.is_some(),
         "the service was still there {RETIREMENT_WAIT:?} after it was asked to retire, while slow work held the lane its records wait behind, so a newer release's commit fails with a service \"still running\""
+    );
+    let took: Duration = ended.unwrap_or_default();
+    assert!(took < RETIREMENT_WAIT, "the service ended {took:?} after it was asked to retire, which is past the {RETIREMENT_WAIT:?} a newer release waits for it");
+    remove_settled(&setup.fixture);
+}
+
+/// What:
+///  A service asked to retire with a sync of a landing's records held inside itself leaves at the bound it spends on those
+///  syncs, and says in its log that what it could not sync is the write-back's,
+///  and the commit it landed is still in the repository once everything is killed.
+/// Why:
+///   The other control reaches the end where the records are synced at once because the service is leaving;
+/// this one reaches the end where they are not:
+/// a sync that is already inside its work when the service decides to leave cannot be stopped from it,
+/// and a device that stalls makes one as slow as that.
+/// Nothing may wait for it without an end, so the exit stops waiting at `THE_EXITS_SYNCS_ARE_MADE_WITHIN` and says so,
+/// and what it gives up is what a kill at that instruction gives up:
+/// the records reach the disk with the operating system's own write-back and the commit is on its branch.
+/// The line the exit writes is the proof that it was the bound that ended the wait and not a batch that finished.
+#[test]
+fn a_service_asked_to_retire_leaves_at_its_bound_when_a_sync_itself_does_not_end() {
+    let setup: Setup = setup("a-service-asked-to-retire-with-a-sync-held", &[INSIDE_A_SYNC]);
+    let (made, made_ms): (Output, Duration) = commit_and_time(&setup, "one\n");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(made.stderr.as_slice()));
+    let landed: String = head(&setup);
+    eprintln!("MEASURE commit_whose_sync_is_held_ms={} landed={landed}", made_ms.as_millis());
+    wait_until("the background sync of the landing was reached", &|| { return setup.reached(INSIDE_A_SYNC); });
+    let ask_began: Instant = Instant::now();
+    ask_to_retire(setup.socket().as_path());
+    eprintln!("MEASURE the_ask_itself_ms={}", ask_began.elapsed().as_millis());
+    let asked: Instant = Instant::now();
+    let mut ended: Option<Duration> = None;
+    while asked.elapsed() < RETIREMENT_WAIT {
+        if setup.service_ended() {
+            ended = Some(asked.elapsed());
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if ended.is_none() && setup.service_ended() {
+        ended = Some(asked.elapsed());
+    }
+    let said: String = setup.log();
+    eprintln!("MEASURE the_service_ended_within={ended:?} of {RETIREMENT_WAIT:?} said_the_bound={}", said.contains(A_SYNC_LEFT_TO_THE_WRITE_BACK));
+    // A kill of everything: what the commit is left as when the process dies at that instruction is what the exit leaves.
+    setup.service.stop_all();
+    assert!(repository_has(&setup, landed.as_str()), "the commit the client was answered about is no longer in the repository after everything was killed");
+    setup.let_go(INSIDE_A_SYNC);
+    assert!(
+        ended.is_some(),
+        "the service was still there {RETIREMENT_WAIT:?} after it was asked to retire, while a sync of its records was held open, so its exit waits for a sync without an end"
+    );
+    assert!(
+        said.contains(A_SYNC_LEFT_TO_THE_WRITE_BACK),
+        "the exit ended its wait for the syncs without saying so, so this control cannot tell the bound from a batch that finished: {said}"
     );
     let took: Duration = ended.unwrap_or_default();
     assert!(took < RETIREMENT_WAIT, "the service ended {took:?} after it was asked to retire, which is past the {RETIREMENT_WAIT:?} a newer release waits for it");

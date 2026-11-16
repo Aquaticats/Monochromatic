@@ -907,7 +907,8 @@ mod a_commit_lands_while_every_kind_of_work_is_held;
 mod a_trash_left_by_its_ceiling_comes_back_after_its_lease;
 
 /// A service asked to retire while the lane of its slow work holds every place it may take and a landing's batch of records
-/// waits behind it:
-/// how long it takes to end, what the landed commit is after a kill, and a commit of a newer client meanwhile.
+/// waits behind it,
+/// and a service asked to retire while a sync of its records is held inside itself:
+/// how long each takes to end, what a landed commit is after a kill, and a commit of a newer client meanwhile.
 #[path = "binary_a_service_asked_to_retire_leaves_within_a_bound_tests.rs"]
 mod a_service_asked_to_retire_leaves_within_a_bound;
