@@ -180,13 +180,13 @@ fn index_bytes(pairs: &[(Vec<u8>, u64)]) -> Vec<u8> {
     return bytes;
 }
 
-/// A repository directory holding exactly the pack and index the control wrote.
-fn write_store(root: &Path, pack: &[u8], index: &[u8]) -> PathBuf {
+/// A repository directory holding the pack and index the control wrote under `stem`.
+fn write_store(root: &Path, stem: &str, pack: &[u8], index: &[u8]) -> PathBuf {
     let git_dir: PathBuf = root.join("written");
     let pack_dir: PathBuf = git_dir.join("objects/pack");
     std::fs::create_dir_all(pack_dir.as_path()).expect("the pack directory");
-    std::fs::write(pack_dir.join("pack-written.pack"), pack).expect("the pack");
-    std::fs::write(pack_dir.join("pack-written.idx"), index).expect("the index");
+    std::fs::write(pack_dir.join(format!("pack-{stem}.pack")), pack).expect("the pack");
+    std::fs::write(pack_dir.join(format!("pack-{stem}.idx")), index).expect("the index");
     return git_dir;
 }
 
@@ -205,7 +205,7 @@ fn store_of_tree_and_blob(root: &Path) -> (PathBuf, Vec<Written>) {
     let (pack, offsets) = pack_bytes(entries.as_slice(), 2);
     let mut pairs: Vec<(Vec<u8>, u64)> = entries.iter().zip(offsets.iter()).map(|(entry, offset)| { return (name_of(entry), *offset); }).collect();
     pairs.sort();
-    let git_dir: PathBuf = write_store(root, pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
+    let git_dir: PathBuf = write_store(root, "written", pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
     return (git_dir, entries);
 }
 
@@ -231,6 +231,58 @@ fn a_pack_the_test_wrote_is_read() {
     let tree = database.read(name_of(&entries[0]).as_slice()).expect("the tree is read");
     assert_eq!(tree.kind, ObjectKind::Tree);
     assert_eq!(tree.bytes, entries[0].payload);
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A delta whose base sits outside its own pack,
+///  once in another pack and once in the loose store.
+/// Why:
+///   Git 2.56.0 appends such a base to the pack when it finishes a thin one
+///  (`fix_unresolved_deltas` in `builtin/index-pack.c` calls `append_obj_to_pack`),
+///  so a finished pack it wrote never holds this form,
+///  while a pack that arrives some other way can:
+///  the reader resolves the base by name through every pack and the loose files,
+///  and this control proves both places.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const base = whole('tree', 'x'.repeat(30)); const delta = refDelta(nameOf(base));
+/// ```
+#[test]
+fn a_delta_whose_base_sits_in_another_pack_or_loose_is_read() {
+    let root: PathBuf = fixture("repo-read-written-elsewhere");
+    let base: Vec<u8> = vec![b'x'; 30];
+    let mut grown: Vec<u8> = base.clone();
+    grown.push(b'b');
+    let first: Written = whole(2, base.as_slice());
+    let base_name: Vec<u8> = name_of(&first);
+    let mut over_pack = whole(2, base.as_slice());
+    over_pack.code = 7;
+    over_pack.base = base_name.clone();
+    over_pack.payload = vec![30, 31, 0x90, 30, 1, b'b'];
+    // The pack that holds the base whole, and the pack that holds only the delta over it.
+    let (base_pack, base_offsets) = pack_bytes(&[first], 1);
+    let git_dir: PathBuf = write_store(root.as_path(), "base", base_pack.as_slice(), index_bytes(&[(base_name.clone(), base_offsets[0])]).as_slice());
+    let (delta_pack, delta_offsets) = pack_bytes(&[over_pack.clone()], 1);
+    let grown_name: Vec<u8> = object_name(ObjectKind::Tree, grown.as_slice(), ObjectFormat::Sha1);
+    std::fs::write(git_dir.join("objects/pack/pack-delta.pack"), &delta_pack).expect("the delta's pack");
+    std::fs::write(git_dir.join("objects/pack/pack-delta.idx"), index_bytes(&[(grown_name.clone(), delta_offsets[0])])).expect("the delta's index");
+    // Whichever pack the directory lists first, the delta is reached by its own name and its base by the base's name.
+    let database: ObjectDatabase = opened(git_dir.as_path());
+    let read = database.read(grown_name.as_slice()).expect("a delta over a base in another pack is read");
+    assert_eq!(read.kind, ObjectKind::Tree);
+    assert_eq!(read.bytes, grown, "the delta is applied over the base in the other pack");
+    assert_eq!(database.read(base_name.as_slice()).expect("the base itself is read from its own pack").bytes, base);
+    // The loose store as the base's only home.
+    std::fs::remove_file(git_dir.join("objects/pack/pack-base.pack")).expect("the base's pack goes");
+    std::fs::remove_file(git_dir.join("objects/pack/pack-base.idx")).expect("the base's index goes");
+    let hex: String = crate::repo_read_object::to_hex(base_name.as_slice());
+    std::fs::create_dir_all(git_dir.join("objects").join(&hex[..2])).expect("the loose directory");
+    let loose_bytes: Vec<u8> = framed(2, base.as_slice());
+    std::fs::write(git_dir.join("objects").join(&hex[..2]).join(&hex[2..]), loose_bytes).expect("the loose base");
+    let loose: ObjectDatabase = opened(git_dir.as_path());
+    assert_eq!(loose.read(grown_name.as_slice()).expect("a delta over a loose base is read").bytes, grown);
     crate::test_support::remove(root.as_path());
 }
 
@@ -277,7 +329,7 @@ fn a_delta_that_comes_back_to_its_own_entry_is_refused() {
     let entries: Vec<Written> = vec![looping];
     let (pack, offsets) = pack_bytes(entries.as_slice(), 1);
     let pairs: Vec<(Vec<u8>, u64)> = vec![(name_of(&whole(2, base.as_slice())), offsets[0])];
-    let git_dir: PathBuf = write_store(root.as_path(), pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
+    let git_dir: PathBuf = write_store(root.as_path(), "written", pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
     let database: ObjectDatabase = opened(git_dir.as_path());
     assert!(database.read(pairs[0].0.as_slice()).is_none(), "a chain that comes back to its own entry answers nothing");
     crate::test_support::remove(root.as_path());
@@ -327,7 +379,7 @@ fn a_delta_chain_longer_than_the_pack_holds_is_refused() {
         (object_name(ObjectKind::Tree, third_bytes.as_slice(), ObjectFormat::Sha1), offsets[2]),
     ];
     pairs.sort();
-    let git_dir: PathBuf = write_store(root.as_path(), pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
+    let git_dir: PathBuf = write_store(root.as_path(), "written", pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
     // Positive control: the shorter chain is the same builder's and answers, so the longer one is what is refused.
     let (shorter_pack, shorter_offsets) = pack_bytes(entries[..2].to_vec().as_slice(), 2);
     let mut shorter_pairs: Vec<(Vec<u8>, u64)> = vec![
@@ -363,7 +415,7 @@ fn an_entry_whose_stated_size_disagrees_with_its_bytes_is_refused() {
         let entries: Vec<Written> = vec![entry];
         let (pack, offsets) = pack_bytes(entries.as_slice(), 1);
         let pairs: Vec<(Vec<u8>, u64)> = vec![(name_of(&whole(3, content.as_slice())), offsets[0])];
-        let git_dir: PathBuf = write_store(root.as_path(), pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
+        let git_dir: PathBuf = write_store(root.as_path(), "written", pack.as_slice(), index_bytes(pairs.as_slice()).as_slice());
         let database: ObjectDatabase = opened(git_dir.as_path());
         assert!(database.read(pairs[0].0.as_slice()).is_none(), "a stated size of {stated:?} answers nothing");
     }
