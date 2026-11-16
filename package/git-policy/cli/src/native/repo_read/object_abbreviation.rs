@@ -408,7 +408,7 @@ pub fn abbreviate(object_directory: &Path, setting: Setting, hex: &str) -> Optio
     }
     let own: PathBuf = std::fs::canonicalize(object_directory).ok()?;
     let mut roots: Vec<PathBuf> = vec![own.clone()];
-    alternates_of(own.as_path(), 0, &mut roots)?;
+    alternates_of(own.as_path(), 0, &mut roots).ok()?;
     let name_length: usize = target.len();
     let mut opened: Vec<(PathBuf, Packed)> = Vec::new();
     for root in &roots {

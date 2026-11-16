@@ -176,6 +176,26 @@ pub fn inflate_zlib(whole_input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)
 }
 
 /// What:
+///  The name the bytes of `kind` hash to,
+/// framed with the kind word and the size as Git frames an object for its own hash.
+/// Why:
+///   A store is trusted only when the object it hands back is the one that was asked for,
+/// so a pack index or a loose file that names other bytes must make the reader give up rather than answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = objectName(kind, bytes, format); // sha1('<kind> <size>\0' + bytes)
+/// ```
+pub fn object_name(kind: ObjectKind, bytes: &[u8], format: ObjectFormat) -> Vec<u8> {
+    let mut framed: Vec<u8> = format!("{} {}\0", kind.word(), bytes.len()).into_bytes();
+    framed.extend_from_slice(bytes);
+    return match format {
+        ObjectFormat::Sha1 => crate::subvolume_sha::sha1(framed.as_slice()).to_vec(),
+        ObjectFormat::Sha256 => crate::subvolume_sha::sha256(framed.as_slice()).to_vec(),
+    };
+}
+
+/// What:
 ///  Read a loose object file's bytes:
 /// the zlib stream of `<kind> <size>\0<content>`;
 /// the kind and content come back

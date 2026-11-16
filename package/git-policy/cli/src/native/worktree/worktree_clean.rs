@@ -388,11 +388,27 @@ fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> 
     let entries: Vec<IndexEntry> = or_unreadable(parse_index(bytes.as_slice(), format), "the index has a layout the reader does not know")?;
     let stats = or_unreadable(stored_stats(bytes.as_slice(), hash_length), "the index entries have no plain layout")?;
     let commit: String = or_unreadable(head_commit(git_dir, common_dir, format), "HEAD is not a plain ref to a commit")?;
-    let database: ObjectDatabase = or_unreadable(ObjectDatabase::open(common_dir, None, format), "the object database has a layout the reader does not know")?;
+    // The store's own refusal is handed on in its words: it names which store is in the way and what makes it readable,
+    // and a person meets it where a removal refuses.
+    let database: ObjectDatabase = match ObjectDatabase::open_or_reason(common_dir, None, format) {
+        Ok(database) => database,
+        Err(reason) => return Err(CleanRefusal::unreadable(reason.as_str())),
+    };
     let commit_name: Vec<u8> = or_unreadable(crate::repo_read_object::from_hex(commit.as_bytes(), format), "HEAD names no object")?;
     let commit_object = or_unreadable(database.read(commit_name.as_slice()), "the commit of HEAD is unreadable")?;
     let commit_fields = or_unreadable(parse_commit(commit_object.bytes.as_slice(), format), "the commit of HEAD has a layout the reader does not know")?;
-    let tree: Vec<FlatEntry> = or_unreadable(flatten_tree(&database, commit_fields.tree.as_slice(), format), "the tree of HEAD is unreadable")?;
+    let tree: Vec<FlatEntry> = match flatten_tree(&database, commit_fields.tree.as_slice(), format) {
+        Some(tree) => tree,
+        None => {
+            return Err(CleanRefusal::unreadable(
+                format!(
+                    "the tree of HEAD ({tree}) is unreadable: an object it names is missing, damaged or larger than this reader reads; `git fsck --full` names what is wrong with it",
+                    tree = crate::repo_read_object::to_hex(commit_fields.tree.as_slice())
+                )
+                .as_str(),
+            ));
+        }
+    };
     return Ok(State { bytes, index_seconds, hash_length, format, entries, stats, commit, tree_id: commit_fields.tree, tree });
 }
 
@@ -667,3 +683,7 @@ pub fn dirty_source(git_dir: &Path, common_dir: &Path, why: CleanRefusal) -> Res
 #[cfg(test)]
 #[path = "worktree_clean_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "worktree_clean_packed_store_tests.rs"]
+mod packed_store_tests;
