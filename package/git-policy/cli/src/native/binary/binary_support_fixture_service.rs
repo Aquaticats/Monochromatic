@@ -35,6 +35,26 @@ pub struct Fixture {
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
     /// How the fixture's services are started when a fault control needs more than the plain program.
     pub service_launch: std::sync::Mutex<ServiceLaunch>,
+    /// The folders this fixture's sockets stand in,
+    /// named and owned here,
+    /// removed when the fixture goes.
+    pub socket_folders: std::sync::Mutex<crate::support_socket_folders::SocketFolders>,
+}
+
+/// How a fixture's service ended,
+/// or that it did not.
+/// Why an event and not a line:
+///  the state a control names is that this process ended, by itself, with this status;
+/// a line the service wrote about it arrives through a copy thread of its own and says only what the service claimed.
+pub enum ServiceEnd {
+    /// It ended by itself,
+    /// with this status.
+    Ended(std::process::ExitStatus),
+    /// It still ran when the bound passed.
+    StillRunning,
+    /// The fixture held no service for this worktree,
+    /// so nothing could end.
+    NotServed,
 }
 
 /// The process groups the helper processes of one test thread lead,
@@ -234,6 +254,9 @@ pub struct FixtureService {
     /// The running service of each worktree,
     /// by the worktree's own Git directory.
     children: std::sync::Mutex<std::collections::HashMap<PathBuf, Child>>,
+    /// The end of the channel of every copy of a service's stream this fixture started,
+    /// so a read of the log can wait for the copy instead of the clock.
+    log_copies: std::sync::Mutex<Vec<std::sync::mpsc::Receiver<()>>>,
     /// The runtime directory the wrapper finds the services' sockets in.
     pub runtime: PathBuf,
 }
@@ -343,7 +366,11 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
     // The socket file stands in a folder of its own, which a socket unit's `DirectoryMode=` makes in production.
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("the folder of the sockets");
-    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
+    return FixtureService {
+        children: std::sync::Mutex::new(std::collections::HashMap::new()),
+        log_copies: std::sync::Mutex::new(Vec::new()),
+        runtime,
+    };
 }
 
 /// What:
@@ -355,23 +382,30 @@ pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
 /// and a fixture root under a deep checkout does not.
 /// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
 ///  on a long checkout and passed on a short one (2026-11-08),
-///  so a test depended on how deep the repository sat.
+///  so a test depended on how deep the repository sat;
+/// and it then depended on the length of the home directory as well (2026-11-15),
+///  so the folder now comes from `socket_folder`,
+/// which asks every place this account offers and names them when none
+///  is short enough.
 /// The service's own socket already lives in such a directory,
 /// and this is the one place that makes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt-${pid}-${n}`
+/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt3f9a1c/rt-0`
 /// ```
 pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
-    let _ = fixture;
-    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
+    let name: String = format!("rt-{number}");
+    // The runtime directory is one socket path less its name and the socket's own suffix, and every instance of this
+    //  package is `INSTANCE_LENGTH` hexadecimal digits, so the suffix is the same whatever the worktree is.
+    let instance: String = "0".repeat(git_policy_cli::service_instance::INSTANCE_LENGTH);
+    let longest_folder: usize = git_policy_cli::service_instance::longest_runtime_directory(instance.as_str()).saturating_sub(1 + name.len());
+    let folder: PathBuf = fixture.socket_folders.lock().expect("the fixture's socket folders").folder("rt", longest_folder);
+    let runtime: PathBuf = folder.join(name.as_str());
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
     return runtime;
 }
-
 /// What:
 ///  Starts `command` from a thread that lives as long as this test process,
 /// and returns the child.
@@ -402,7 +436,6 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
     spawner.lock().expect("the spawner's sender").send((command, reply)).expect("the spawner thread runs");
     return answer.recv().expect("the spawner thread answers");
 }
-
 
 impl FixtureService {
     /// What:
@@ -460,6 +493,10 @@ impl FixtureService {
             }
             Bind::Inherited => panic!("the fixture's service names the address it listens at"),
         }
+        let (kept_log, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+            crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log");
+        command.stderr(Stdio::from(kept_log));
+        self.log_copies.lock().expect("the fixture's log copies").push(when_the_copy_ends);
         command
             .arg("--instance")
             .arg(instance.as_str())
@@ -474,8 +511,7 @@ impl FixtureService {
             .env("GIT_COMMITTER_NAME", "Fixture")
             .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::from(crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+            .stdout(Stdio::null());
         for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
             command.env(name, value);
         }
@@ -558,6 +594,65 @@ impl FixtureService {
     }
 
     /// What:
+    ///  Waits, bounded, for every copy of a service's stream this fixture started to end,
+    ///  and answers whether they all did.
+    /// Why:
+    ///   A copy runs on a thread of its own, and the file holds what a service wrote only once that thread has written it.
+    /// The pipe closes when the last service holding it ends,
+    /// so a copy whose service ended always ends,
+    /// and the wait is the event a deciding read needs rather than a sleep of a guessed length.
+    ///  The answer is the whole meaning of the call:
+    /// `true` says every copy of the service's words has ended, so a read that decides anything may trust the file.
+    /// A copy that has not ended before the bound stays here for the next wait,
+    /// and so does one whose copier is gone without a word,
+    /// because "nothing left to wait for" is not "everything ended";
+    /// only a copy whose end was received is forgotten.
+    ///  One wait runs at a time,
+    /// so a second caller cannot find the copies taken out and answer for them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const settled = service.awaitCopies(10_000); // every copyEnded arrived; a give-up leaves the rest queued
+    /// ```
+    /// What:
+    ///  Records the end of a copy of a service's stream that a control started itself,
+    ///  so that one wait sees every copy of this fixture's words.
+    /// Why:
+    ///   A control that judges this wait holds a copy open on purpose,
+    /// so it starts the pipe itself,
+    /// and a wait that saw only the copies the fixture started would not be waiting for the one the control made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// service.recordACopy(copyEnded); // the wait now sees the copy the control holds open
+    /// ```
+    pub fn record_a_log_copy(&self, when_the_copy_ends: std::sync::mpsc::Receiver<()>) {
+        self.log_copies.lock().expect("the fixture's log copies").push(when_the_copy_ends);
+    }
+
+    pub fn settle_the_service_log(&self, bound: std::time::Duration) -> bool {
+        // The lock is held for the whole wait: a caller that found the copies taken out would answer that every copy
+        // ended while this one is still waiting for it.
+        let mut copies = self.log_copies.lock().expect("the fixture's log copies");
+        let began: std::time::Instant = std::time::Instant::now();
+        loop {
+            let reached: Result<(), std::sync::mpsc::RecvTimeoutError> = {
+                let Some(ended) = copies.first() else { return true };
+                ended.recv_timeout(bound.saturating_sub(began.elapsed()))
+            };
+            match reached {
+                // This copy ended, and its end is the only thing a wait may forget.
+                Ok(()) => {
+                    let _ended = copies.remove(0);
+                }
+                // A copy that has not ended, or whose copier is gone without a word, is not an end: it stays for the
+                // next wait, and the answer is that not every copy ended.
+                Err(_) => return false,
+            }
+        }
+    }
+
+    /// What:
     ///  Forgets the services that ended on their own,
     /// so that the next start of their worktree's service runs again.
     /// Why:
@@ -612,6 +707,65 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
         }
     }
     return found;
+}
+
+/// How long a copy of a service's stream may take to end once the services holding it have ended:
+/// the pipe closes with the last of them,
+/// so a copy that has not ended by this bound means something still holds the stream,
+/// and the read that waited says the log it sees may be incomplete.
+pub(crate) const SERVICE_LOG_END_BOUND: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  Waits, bounded, for every copy of a service's stream this fixture started to end,
+///  and answers whether they all did.
+/// Why:
+///  A copy runs on a thread of its own, so `SERVICE_LOG_FILE` holds what a service wrote only once that thread has
+/// written it;
+/// a read that decides anything calls this first,
+/// which is the event and not a sleep of a guessed length.
+/// The services whose streams are waited for must have ended:
+/// the copy of a running service's stream ends only when it does.
+pub fn settle_the_service_log(fixture: &Fixture, bound: std::time::Duration) -> bool {
+    let service = fixture.service.lock().expect("the fixture's service lock");
+    return service.as_ref().is_none_or(|services| { return services.settle_the_service_log(bound); });
+}
+
+/// What:
+///  Waits, bounded, for the service of a worktree or of its own Git directory to end, and answers how it ended.
+/// Why:
+///   A control whose subject is a service that ends reads that end as the event it is:
+///  the child's own exit status,
+/// never a line the service wrote about itself,
+/// which arrives through a copy thread and says only what the service claimed.
+///  The bound is the control's, and a service still running when it passes is one that did not end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const end = await serviceEndOf(fixture, repo, 10_000); // { kind: 'ended', status } | 'still-running' | 'not-served'
+/// ```
+pub fn wait_for_the_service_to_end(fixture: &Fixture, worktree_or_its_git_dir: &Path, bound: std::time::Duration) -> ServiceEnd {
+    // The services are recorded by the worktree's own Git directory, which is what `serve` keys them by.
+    let named_git_dir: PathBuf = worktree_or_its_git_dir.join(".git");
+    let own_git_dir: PathBuf = if named_git_dir.exists() { named_git_dir } else { worktree_or_its_git_dir.to_path_buf() };
+    let key: PathBuf = std::fs::canonicalize(own_git_dir.as_path()).unwrap_or(own_git_dir);
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let reached: Option<Option<std::process::ExitStatus>> = {
+            let service = fixture.service.lock().expect("the fixture's service lock");
+            let Some(services) = service.as_ref() else { return ServiceEnd::NotServed };
+            let mut children = services.children.lock().expect("the fixture's services");
+            children.get_mut(&key).map(|child| { return child.try_wait().ok().flatten(); })
+        };
+        match reached {
+            None => return ServiceEnd::NotServed,
+            Some(Some(status)) => return ServiceEnd::Ended(status),
+            Some(None) => {}
+        }
+        if began.elapsed() > bound {
+            return ServiceEnd::StillRunning;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// What:
@@ -683,6 +837,12 @@ impl Drop for Fixture {
         // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
         end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+        // Then the folders this control's sockets stood in, which are this fixture's own and nobody else's.
+        if let Ok(folders) = self.socket_folders.lock() {
+            for folder in folders.made_folders() {
+                settle_fixture(folder.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+            }
+        }
     }
 }
 

@@ -237,9 +237,7 @@ fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespac
 /// as a number.
 #[test]
 fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let launcher = Held(Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts"));
     let pid: i32 = i32::try_from(launcher.0.id()).expect("a process id");
     let start: u64 = process_start(pid).expect("the start time here");
@@ -346,9 +344,7 @@ fn processes_in_time_namespace(inode: u64) -> Vec<i32> {
 /// and the recovery's own reading of the start time differs.
 #[test]
 fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     // The namespace numbers are handed out by one allocator for the whole host, so another session that creates a namespace between the
     // writer's death and the recovery's creation takes the freed number (which the first full gate of round 16 met). The schedule is
     // therefore tried again, a bounded number of times, until the freed number is reused; the test fails if it never is.

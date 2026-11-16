@@ -48,6 +48,11 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// The folder a binary control's sockets stand in,
+/// and the short runtime directory one of them holds.
+#[path = "binary_support_socket_folders.rs"]
+mod support_socket_folders;
+
 /// How a fixture tells that its service is at work and that it is ready.
 #[path = "binary_support_fixture_service_readiness.rs"]
 mod support_fixture_service_readiness;
@@ -278,6 +283,12 @@ mod merge_carries_edits_kill;
 /// and the person's work is merged onto the branch as it is now.
 #[path = "binary_merge_carries_edits_moved_tests.rs"]
 mod merge_carries_edits_moved;
+
+/// A lock another program takes in the window between a merge's look at the index and its last step:
+/// the merge saved behind a live holder,
+/// and a lock a killed Git left cleared so the merge lands.
+#[path = "binary_merge_lock_after_the_clear_tests.rs"]
+mod merge_lock_after_the_clear;
 
 /// The word-level second merge pass after a merge,
 /// rebase,
@@ -699,7 +710,6 @@ mod stale_ref_lock;
 /// kept when it does not.
 #[path = "binary_killed_holder_lock_tests.rs"]
 mod killed_holder_lock;
-
 
 /// The message and identity options through the service,
 /// compared with native Git field by field.

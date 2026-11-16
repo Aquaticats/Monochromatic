@@ -18,9 +18,9 @@
 //! ```
 
 use crate::index_holder_wait::{
-    CLEARS_A_DEAD_OWNERS_LOCK, IndexLook, IndexWait, RECOVERY_CONSEQUENCE, look_at_the_index_lock_once, wait_for_index_release_while_finishing_a_merge,
+    CLEARS_A_DEAD_OWNERS_LOCK, IndexLook, IndexWait, look_at_the_index_lock_once, wait_for_index_release_while_finishing_a_merge,
 };
-use crate::index_lock_evidence::dead_owner_diagnostic;
+use crate::index_lock_evidence::{THE_ENDING_SAYS_IT, dead_owner_diagnostic};
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::service_index_placement::SYSTEM;
 use crate::service_index_unheld_removal::{Unheld, remove_if_the_owner_is_gone};
@@ -74,6 +74,10 @@ pub fn may_write<W: Write + ?Sized>(git_dir: &Path, installed_before: bool, out:
 /// because the
 ///  recovery is idempotent.
 /// A wait that ended on a lock a gone process left is answered by clearing it.
+///  The steps that write the index for a carry,
+/// a clear and a putting back ask this same question
+///  (`merge_isolation_carry_writes.rs`),
+/// so the line a wait prints about such a lock is one every path that prints it keeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,11 +116,12 @@ fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way<W: Write + ?Size
     return match look_at_the_index_lock_once(index) {
         IndexLook::Free => false,
         IndexLook::LeftByAGoneProcess(pid) => {
+            // This path clears the lock next, so its ending states that and the line does not first say the merge waits.
             let _noted = out.write_all(
                 dead_owner_diagnostic(
                     crate::service_index_lock::lock_path_of(index).as_path(),
                     pid,
-                    RECOVERY_CONSEQUENCE,
+                    THE_ENDING_SAYS_IT,
                     CLEARS_A_DEAD_OWNERS_LOCK,
                 )
                 .as_bytes(),

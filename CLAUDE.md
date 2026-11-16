@@ -673,9 +673,15 @@ BRQ:
 
 DQB:
  Before briefing work on a component,
- grep `doc/decision/` for its records
- and state every decision and amendment that bears on the task as the project's own,
+ grep `doc/decision/` and `doc/planning/` for its records;
+ state each decision and amendment bearing on the task as the project's own,
  with path and lines.
+
+DQK:
+ Before briefing work on a package,
+ grep that package's own `SPEC.md` and `doc/` for the behaviour the task touches;
+ a brief never contradicts them,
+ and quotes the lines that decide.
 
 FBN:
  A user saying a cost is fine or acceptable sets a bound,
