@@ -26,6 +26,7 @@ import {
   ReviewGitError,
   briefFileOfAReview,
   codeFilesAmong,
+  kindOfAFileAReviewReads,
   materialOfAReview,
   pathsInAListing,
   rangeOfABranch,
@@ -705,6 +706,7 @@ await describe({
             expect(testsFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`, `${aSourceFolder()}/gate_tests.rs`,],);
             expect(asked,).toContainEqual([
               'diff',
+              '--no-renames',
               ranges[0],
               '--',
               aSourceFolder(),
@@ -1307,6 +1309,42 @@ await describe({
                 expect([brief.includes(`- \`${recordedAnswer}\``,),],).toEqual([true,],);
                 expect([brief.includes(`\`${recordedAnswer}\` is left out`,),],).toEqual([false,],);
                 expect([line.includes('2 files to read',),],).toEqual([true,],);
+              },
+            },),
+            it({
+              name: 'is a test when the file own name is tests.rs, and no test when a name only ends with those letters or only holds them, so a Rust test module beside its code is read as a test and a name that looks like one is not',
+              fn: async () => {
+                expect([kindOfAFileAReviewReads({ path: 'package/ide/app/src/native/tests.rs', },),],).toEqual(['a-test',],);
+                for (const notATest of [
+                  `${aSourceFolder()}/mytests.rs`,
+                  `${aSourceFolder()}/contests.rs`,
+                  `${aSourceFolder()}/tests.rs.bak`,
+                  `${aSourceFolder()}/a-tests.rs`,
+                ]) {
+                  expect([notATest, kindOfAFileAReviewReads({ path: notATest, },),],).toEqual([notATest, 'code',],);
+                }
+              },
+            },),
+            it({
+              name: 'reads a test the change removed in the diff, and lists no file of it to read in full, so a brief is never given a test to open that the commit does not hold',
+              fn: async () => {
+                /**
+                 The test the change removed.
+                 */
+                const removedTest = `${aSourceFolder()}/deleted.unit.test.ts`;
+                /**
+                 What the reading answered for it.
+                 */
+                const material = await materialOfAReview({
+                  git: gitTouching({ paths: [removedTest,], removed: [removedTest,], },),
+                  checkoutFolder: '/repo',
+                  ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+                  source: aSourceFolder(),
+                  commit: aCommit(),
+                },);
+                expect([material.kind,],).toEqual(['tests-and-fixtures',],);
+                expect([('files' in material) ? material.files : [],],).toEqual([[],],);
+                expect([('filesRemoved' in material) ? material.filesRemoved : [],],).toEqual([[removedTest,],],);
               },
             },),
             it({

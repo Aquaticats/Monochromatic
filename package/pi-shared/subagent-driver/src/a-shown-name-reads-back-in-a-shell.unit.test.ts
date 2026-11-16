@@ -66,6 +66,14 @@ function theNames(): readonly Buffer[] {
     },),
     Buffer.concat([folder, Buffer.from('every',), Buffer.from(BYTES_A_NAME_MAY_HOLD,), Buffer.from('.ts',)],),
     Buffer.concat([folder, Buffer.from('é.unit.test.ts', 'utf8',)],),
+    // The names a brief's own grammar, a shell line or a Markdown list is most likely to break on.
+    Buffer.concat([folder, Buffer.from('-a-leading-dash.ts',)],),
+    Buffer.concat([folder, Buffer.from('a name with spaces.ts',)],),
+    Buffer.concat([folder, Buffer.from("a 'quoted' name.ts",)],),
+    Buffer.concat([folder, Buffer.from(String.raw`back\slash.ts`,)],),
+    Buffer.concat([folder, Buffer.from('line\nbreak.ts',)],),
+    Buffer.concat([folder, Buffer.from('tests.rs',)],),
+    Buffer.concat([folder, Buffer.from('mytests.rs',)],),
   ];
 }
 
@@ -182,6 +190,30 @@ await describe({
               .toEqual(names.map(function asHex(name,) {
                 return name.toString('hex',);
               },),);
+          },
+        },),
+        it({
+          name: 'is explained whenever the brief changes it to show it, an apostrophe or a backslash escape as much as a hex one, and a name shown as it is needs no explanation',
+          fn: async () => {
+            /**
+             The list the brief gives for one raw name, with the name as the brief shows it.
+             */
+            function theListItem(raw: string,): string {
+              /**
+               The name as the brief shows it.
+               */
+              const shown = pathsInAListing({ listing: `${Buffer.from(raw, 'latin1',).toString('latin1',)}\0`, },)[0] ?? '';
+              return filesToListItems({ files: [shown,], },);
+            }
+            for (const raw of [
+              "package/a/src/it's.ts",
+              String.raw`package/a/src/back\slash.ts`,
+              'package/a/src/line\nbreak.ts',
+              'package/a/src/it\'s-\u00E9.ts',
+            ]) {
+              expect([raw, theListItem(raw,).includes("a shell reads as a `$'...'` word",),],).toEqual([raw, true,],);
+            }
+            expect([theListItem('package/a/src/gate.rs',).includes("a shell reads as a `$'...'` word",),],).toEqual([false,],);
           },
         },),
         it({

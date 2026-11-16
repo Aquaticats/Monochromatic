@@ -144,6 +144,34 @@ function aKotlinTestFile(): string {
 }
 
 /**
+ The real Rust test module this repository tracks as `tests.rs`, which holds `#[test]` tests in a file of its own name.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aRustTestModule();
+ ```
+ */
+function aRustTestModule(): string {
+  return 'package/ide/app/src/native/tests.rs';
+}
+
+/**
+ A test the change removed, which the reviewed commit no longer holds.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aRemovedTestFile();
+ ```
+ */
+function aRemovedTestFile(): string {
+  return `${aSourceFolder()}/deleted.unit.test.ts`;
+}
+
+/**
  The recorded answer the review's second finding named, which sits in a `fixture` folder beside its test.
 
  @returns the path, from the top of the checkout
@@ -259,7 +287,10 @@ async function makeFolder(): Promise<{
  const git = gitTouching({ paths: [aTestFile()], },);
  ```
  */
-function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
+function gitTouching({ paths, removed = [], }: {
+  readonly paths: readonly string[];
+  readonly removed?: readonly string[];
+},): (
   request: { readonly words: readonly string[] },
 ) => Promise<CommandOutput> {
   return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
@@ -268,9 +299,19 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
      */
     // Git prints a listing it cannot quote with `-z`, so one NUL byte ends each name.
     const listed = (paths.length === 0) ? '' : `${paths.join('\0',)}\0`;
+    /**
+     The paths the reviewed commit holds, which a removed path is not.
+     */
+    const held = paths.filter(function isHeld(path,) {
+      return !removed.includes(path,);
+    },);
+    /**
+     The held paths as git prints them with `-z`.
+     */
+    const heldListing = (held.length === 0) ? '' : `${held.join('\0',)}\0`;
     return {
       status: 0,
-      stdout: (words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),
+      stdout: (words[0] === 'ls-tree') ? heldListing : ((words[1] === '--name-only') ? listed : 'a diff of them'),
       stderr: '',
     };
   };
@@ -288,7 +329,10 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
  await using written = await writeAChangeThrough([aTestFile()]);
  ```
  */
-async function writeAChangeThrough(paths: readonly string[],): Promise<{
+async function writeAChangeThrough(
+  paths: readonly string[],
+  removed: readonly string[] = [],
+): Promise<{
   readonly briefed: BriefOfOneReview
   readonly reviewsFolder: string
   readonly [Symbol.asyncDispose]: () => Promise<void>
@@ -305,7 +349,7 @@ async function writeAChangeThrough(paths: readonly string[],): Promise<{
    What the writer answered.
    */
   const briefed = await writeReviewBrief({
-    git: gitTouching({ paths, },),
+    git: gitTouching({ paths, removed, },),
     checkoutFolder: '/repo',
     review: aReview(),
     commit: aCommit(),
@@ -498,6 +542,64 @@ await describe({
             for (const file of filesOfAnUnlistedKind()) {
               expect(brief,).toContain(`- \`${file}\``,);
             }
+          },
+        },),
+        it({
+          name: 'asks for a break under a real Rust file named tests.rs, because a test module named for what it holds is a test and not the code beside it',
+          fn: async () => {
+            await using written = await writeAChangeThrough([aRustTestModule(),],);
+            expect(written.briefed.written,).toBe(true,);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: written.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            expect(brief,).toContain('a change to the tests under',);
+            expect(brief,).toContain(`- \`${aRustTestModule()}\``,);
+            expect(brief,).toContain('For each changed test above, plant a break under it',);
+          },
+        },),
+        it({
+          name: 'asks of a test the change removed only that its text be read in the diff, and never that a break be planted or a file run that the reviewed commit no longer holds; a test the commit holds is still asked for both',
+          fn: async () => {
+            /**
+             A writer for a change whose only test was removed.
+             */
+            await using removed = await writeAChangeThrough([aRemovedTestFile(),], [aRemovedTestFile(),],);
+            /**
+             The brief of that change.
+             */
+            const removedBrief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: removed.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            expect(removedBrief,).toContain(`- \`${aRemovedTestFile()}\``,);
+            expect(removedBrief,).toContain('the change diff is where they are read',);
+            expect([removedBrief.includes('plant a break under it',),],).toEqual([false,],);
+            expect([removedBrief.includes('run that test by name',),],).toEqual([false,],);
+            /**
+             The control: the same test held by the commit, whose brief asks for the break.
+             */
+            await using held = await writeAChangeThrough([aRemovedTestFile(),],);
+            /**
+             The brief of the control.
+             */
+            const heldBrief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: held.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            expect(heldBrief,).toContain('For each changed test above, plant a break under it',);
           },
         },),
         it({
