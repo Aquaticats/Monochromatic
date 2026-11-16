@@ -164,9 +164,16 @@ export const OPENCODE_GO: ProviderPool = {
 };
 
 /**
- Neuralwatt's Kimi flex pool, which only a run naming its model takes.
+ Neuralwatt's Kimi flex pool, which only a run naming its model takes, and which no new run takes since the owner closed it on
+ 2026-11-15.
 
- The owner, 2026-11-10: "Neuralwatt rate limits are per model." and "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now,
+ The owner, 2026-11-15T23:2x-05:00: "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+ Please use Sonnet for reviews and audits from now on. Close the Kimi pool for now, but let the already running runs finish.
+ Anyway, I'll probably figure out something better in the next week." So the pool carries a `closed` reason and keeps its
+ limit of 20, the number it returns to, and a caller reopens it for one command with `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20`.
+ Runs already going on the pool are still counted there and left to end.
+
+ What the limit was set from: the owner, 2026-11-10: "Neuralwatt rate limits are per model." and "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now,
  until upstream clarifies or we hit something." The 7 that a 2026-11-11 Kimi flex 429 named ("max 7 in flight at once") was an
  assumption never measured, and the owner restored 22 the same night with "Why did you downgrade everything to 6 and 7?". The
  owner then set every flex pool with "Change flex concurrency to 22-2=20 per model", which is where 20 comes from: 20 of 28
@@ -179,6 +186,9 @@ export const NEURALWATT_KIMI_FLEX: ProviderPool = {
   limit: 20,
   wallFactor: 2,
   takesDefaultRuns: false,
+  closed: {
+    reason: 'the owner closed the Kimi pool on 2026-11-15 because Kimi K3.1 Pro costs almost prohibitively much',
+  },
 };
 
 /**
@@ -242,7 +252,7 @@ export const PROVIDER_POOLS: readonly ProviderPool[] = [
  provider has a weekly or monthly quota is closed and reopened without a code change.
 
  A limit of zero closes the pool, and any number above zero is the room it takes again, so `PI_RUNS_POOL_LIMITS=opencode-go=20`
- reopens the pool the owner set aside, and `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0` closes another for the day.
+ reopens the pool the owner set aside, and `PI_RUNS_POOL_LIMITS=qwen-token-plan=0` closes another for the day.
  */
 export const POOL_LIMITS_VARIABLE = 'PI_RUNS_POOL_LIMITS';
 
