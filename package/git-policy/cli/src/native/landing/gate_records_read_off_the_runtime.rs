@@ -3,7 +3,9 @@
 //! each a job of the process's blocking pool awaited by the push's task,
 //! and each awaited no longer than the after-commit work's other state steps.
 //! Why:
-//!  A push runs as a task of the runtime (`service_work.rs`, `push_awaiting`),
+//!  A push runs as a task of the runtime
+//! (`service_work.rs`,
+//! `push_awaiting`),
 //! and these two reads list the worktree's `blocked` and `held` directories
 //!  and read every record in them with `std::fs`.
 //! A read there waits in the kernel on a slow disk,
@@ -109,7 +111,9 @@ pub(crate) struct GateRecords {
 ///  each a job of the process's blocking pool awaited within the after-commit work's state ceiling,
 ///  or the words the push answers with when one of them did not answer.
 /// Why:
-///   The push's round answers `Retry` with these words (`service_work.rs`, `push_awaiting`):
+///   The push's round answers `Retry` with these words
+/// (`service_work.rs`,
+/// `push_awaiting`):
 /// nothing of the branch was sent,
 ///  so the commit is neither lost nor reported as made,
 /// the item keeps its place for the next round,
@@ -153,11 +157,13 @@ pub(crate) async fn gate_records_within_awaiting(ceiling: Duration, work_dir: &P
 /// What:
 ///  The words a push answers with when a gate record it must read before it sends anything did not answer.
 /// Why:
-///   They name the commit, so the person's record says which commit is still only here,
+///   They name the commit,
+/// so the person's record says which commit is still only here,
 ///  what did not answer and within which ceiling,
 /// and that the push is tried again,
 ///  which the retry plan the service keeps then dates
-/// (`service_work_handlers_replanning_and_acceptance.rs`, `planned_retry`).
+/// (`service_work_handlers_replanning_and_acceptance.rs`,
+/// `planned_retry`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,7 +224,8 @@ impl Drop for ACeilingForTheControl {
 ///   A push runs beside the drain and reads the same kind of storage,
 /// so a read that may not end is given the wait the owner's "nothing should ever wait forever or
 ///  indefinitely" rule allows the drain's own steps
-/// (`wait_ceilings.rs`, `AFTER_COMMIT_STATE_CEILING`).
+/// (`wait_ceilings.rs`,
+/// `AFTER_COMMIT_STATE_CEILING`).
 fn the_gate_records_ceiling() -> Duration {
     #[cfg(test)]
     {

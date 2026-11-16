@@ -43,11 +43,13 @@ use std::time::{Duration, Instant};
 const THE_CONTROLS_CEILING: Duration = Duration::from_millis(200);
 
 /// How much longer than the ceiling a round may take and still be one that ended at it:
-/// the place, the thread and the settling of an ordinary push on this host,
+/// the place,
+/// the thread and the settling of an ordinary push on this host,
 /// measured well under a second.
 const THE_CONTROLS_SLACK: Duration = Duration::from_secs(2);
 
-/// The first pause before the push is tried again, in the controls.
+/// The first pause before the push is tried again,
+/// in the controls.
 const PAUSE: Duration = Duration::from_millis(800);
 
 /// The words every control's pushes are given,
@@ -60,7 +62,8 @@ const NO_PROMPT: [(&str, &str); 2] = [("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPAS
 /// which is the state one round of the service acts on.
 /// Why:
 ///   A push's gate records are read after Git answered which commit the branch names,
-/// so the control needs real Git, a real remote and a real queued item,
+/// so the control needs real Git,
+/// a real remote and a real queued item,
 /// and every fixture has its own bare remote.
 ///
 /// In TS you'd write (pseudocode):
@@ -68,7 +71,8 @@ const NO_PROMPT: [(&str, &str); 2] = [("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPAS
 /// const stage = stage('some-name'); // repo + remote + enqueued push item
 /// ```
 struct Stage {
-    /// The fixture directory, removed when the control ends.
+    /// The fixture directory,
+    /// removed when the control ends.
     root: PathBuf,
     /// The working repository.
     repo: PathBuf,
@@ -81,7 +85,8 @@ struct Stage {
 /// What:
 ///  The push record of one landed commit of `repo`.
 /// Why:
-///   A record's id is its file name, so a control that plants a FIFO at a record's name plants it at this one's.
+///   A record's id is its file name,
+/// so a control that plants a FIFO at a record's name plants it at this one's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,7 +107,9 @@ fn push_item(stage: &Stage) -> WorkItem {
 
 /// What:
 ///  The stage of one control:
-///  a repository, a bare remote, the commit the remote already holds,
+///  a repository,
+/// a bare remote,
+/// the commit the remote already holds,
 ///  and the record of the push it is owed.
 /// Why:
 ///   The remote's own ref file is what every control reads to learn whether a commit reached it,
@@ -209,7 +216,8 @@ fn make_pipe(path: &Path) {
 
 /// What:
 ///  A record whose read does not return:
-/// a FIFO at `record`, and a writer of this control's own that holds it open,
+/// a FIFO at `record`,
+/// and a writer of this control's own that holds it open,
 /// both let go when this value is dropped.
 /// Why:
 ///   A gate record that does not answer is what a mount that stopped answering does to a read,
@@ -408,7 +416,8 @@ fn a_held_record_that_does_not_answer_ends_the_round_within_the_ceiling_and_the_
 ///  The read of the stored verdicts is a job of the blocking pool awaited within the ceiling,
 ///  even on the current-thread runtime the build falls back to.
 /// Why:
-///   That runtime has one thread, so a read made on it holds the service itself;
+///   That runtime has one thread,
+/// so a read made on it holds the service itself;
 /// the answer is the ceiling's words and not the record's,
 ///  and it comes within the ceiling rather than when the record answers.
 ///
@@ -571,7 +580,8 @@ fn a_push_with_readable_gate_records_is_sent_or_held_back_as_it_was() {
 const ROUNDS: usize = 400;
 
 /// How many records of each state the measured work tree holds:
-/// a handful, which is what a push of an ordinary branch reads.
+/// a handful,
+/// which is what a push of an ordinary branch reads.
 const RECORDS_OF_EACH_STATE: usize = 5;
 
 /// The ceiling the bounded arm is given:
@@ -678,7 +688,8 @@ async fn rounds(work: &Path, branch: &str) -> (Vec<u128>, Vec<u128>) {
 }
 
 /// The two reads as the push's task made them before the change:
-/// in the body of the task, timed around both.
+/// in the body of the task,
+/// timed around both.
 fn on_the_tasks_thread(work: &Path, branch: &str) -> u128 {
     let began: Instant = Instant::now();
     let verdicts: Vec<crate::work_item_holding::BlockedVerdict> = crate::work_item_holding::blocked_verdicts(work);
@@ -691,7 +702,9 @@ fn on_the_tasks_thread(work: &Path, branch: &str) -> u128 {
 }
 
 /// The two reads as the push makes them now:
-/// as jobs of the blocking pool, awaited within a ceiling, timed around both.
+/// as jobs of the blocking pool,
+/// awaited within a ceiling,
+/// timed around both.
 async fn on_a_job_of_the_pool(work: &Path, branch: &str) -> u128 {
     let began: Instant = Instant::now();
     let verdicts: Vec<crate::work_item_holding::BlockedVerdict> =
@@ -709,7 +722,8 @@ async fn on_a_job_of_the_pool(work: &Path, branch: &str) -> u128 {
 /// Why:
 ///   The change buys a bound and a thread that stays free with the cost of a place of the process's bound and
 ///  the hop to it,
-/// and the cost is the ratio of the two middles, interleaved round by round.
+/// and the cost is the ratio of the two middles,
+/// interleaved round by round.
 /// The middle is what a reader compares:
 /// the largest samples of both arms move with this host's load and say nothing about the change.
 ///
