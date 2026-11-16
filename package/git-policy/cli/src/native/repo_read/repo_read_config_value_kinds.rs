@@ -177,6 +177,9 @@ pub(crate) enum Kind {
     /// `m` or `g` suffix;
     /// never bare,
     /// never empty.
+    /// A kind whose lower bound is not negative takes no minus sign,
+    /// whether Git reads the key as a signed or an unsigned number,
+    /// so a spelling that carries one is left to Git.
     Integer { low: i64, high: i64 },
     /// Any text;
     /// never bare.
@@ -198,6 +201,8 @@ pub(crate) enum Kind {
     /// a false word,
     /// an empty value,
     /// or a number from the shortest abbreviation up.
+    /// A spelling that stands for zero is a number out of range to Git, not a false word,
+    /// so it is left to Git.
     Abbreviation,
     /// `core.commentChar` and `core.commentString`:
     /// not empty,
@@ -356,6 +361,7 @@ pub(crate) fn plain_kind(key: &str) -> Option<Kind> {
         "fetch.negotiationalgorithm" => Kind::OneOf { words: &["skipping", "noop", "consecutive", "default"], empty: false },
         "format.pretty" => Kind::OneOf { words: &["oneline", "short", "medium", "full", "fuller", "reference", "email", "raw", "mboxrd"], empty: true },
         "grep.patterntype" => Kind::OneOf { words: &["default", "basic", "extended", "fixed", "perl"], empty: false },
+        "index.maxpathlen" => NON_NEGATIVE,
         "index.threads" => Kind::IntegerOrBoolean,
         "index.version" => Kind::Integer { low: 2, high: 4 },
         "log.date" => Kind::OneOf {
