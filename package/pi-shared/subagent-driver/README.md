@@ -268,10 +268,11 @@ which is what the retrying start reads.
 Its `ALREADY RUNNING` line names what holds the name and since when:
 `ALREADY RUNNING: copy-route, held since Sat 2026-11-14 09:42:51 EST by unit pi-copy-route.service (active)`,
 or `held … by launcher process 1234` for a launcher that has not made its unit yet.
-A launcher whose unit is not going and whose newest run folder holds a summary is one that outlived its run,
-and it holds no name:
-on 2026-11-14 one such launcher held the name of a finished review for three hours,
-and the start that asked for that run again was answered `ALREADY RUNNING` and lost.
+Every live launcher of a run's name is the holder of that name:
+it has not made its unit yet, or its unit is going, or it is waiting for work the run left running, removing its worktree, or about to resume that run.
+The count and the launcher's own wake path therefore give one answer:
+a launcher dropped from the count while its wake resumed the run let a replacement start into the same unit and worktree,
+which the review of `main...35d724bdbe` reproduced.
 The counts line ends with `<n> GiB free on <volume>`,
 and a refusal under the floor names that room,
 the floor,
@@ -415,7 +416,12 @@ What a launcher may still wait for after its run's end, and each wait's bound:
 - the work the run left running, for `WORK_AFTER_A_TURN_MILLISECONDS` (thirty minutes);
 - a resumed launcher, for the run's wall clock plus that same grace,
   and the wait ends at that bound whether or not the launcher closed its streams:
-  the bound sends `SIGTERM`, a stated grace later it sends `SIGKILL`, and the caller has its answer at the bound either way;
+  the bound sends `SIGTERM`, a stated grace later a program of its own kills it,
+  and the caller has its answer at the bound either way.
+  The kill is a program started detached rather than a timer of the caller,
+  because a caller that answered at its bound and exited took its own timer with it (the review of `main...35d724bdbe`),
+  and that program holds the moment the child began against the moment the number names when the grace is over,
+  so a number the kernel reused is left alone;
 - every git question and every `systemctl` question, for the thirty seconds `run-command.ts` gives a machine question.
 
 A process the kernel has already taken away when its own files are asked for is no work of the run:
@@ -600,7 +606,10 @@ The count is taken once a round and every entry the round starts is counted agai
 because a run just started has no unit for some seconds and a second count would read its place as free.
 A place asked for counts from the moment its batch is asked for:
 every `launch-*` unit that is still active is read back to the list beside the runs it starts,
-and each entry of that list whose `pi-*` unit has not appeared holds a place.
+and each entry of that list whose `pi-*` unit has not appeared holds a place,
+unless a run of that entry's name finished after the list was written:
+that entry took its place from this batch already, and the batch can never start it again,
+so holding the place for it reports a free place as full and stalls the queue behind it.
 That closes the gap a count of `pi-*` units alone leaves:
 on 2026-11-14 a filling at a level of 24 passed it by four,
 because a review it had asked for waited in a launcher with no unit yet.
@@ -664,13 +673,16 @@ and what it asks first is the manager:
   the entry leaves the queue (which is what the filling that was killed meant to do) and the record stays;
 - the manager cannot say what the batch is doing, so nothing is touched and a line says so;
 - the run exists (a `pi-*` unit is going, or a run folder of its name holds a summary written after the start),
-  so the entry stays out of the queue and the round says so once;
-- the batch is not going and the queue still holds the entry, which a start that never got handed on leaves,
-  so the record goes and the next round tries the entry again;
-- otherwise the launcher ended without a run,
-  and the answer it wrote decides what happens:
-  a start that only gave up waiting for a place puts the entry back at the **head** of the queue,
-  and any other failure sets the entry aside with that reason.
+  so the entry leaves the queue and the round says so once;
+- neither of those, and the launcher wrote no answer either:
+  whether its start is still in flight cannot be told apart from a start that never happened, so the record and the entry are both left
+  as they are and a line says why.
+  A settlement that dropped the record here deleted the only way back to a start in flight,
+  which the review of `main...35d724bdbe` reproduced;
+- the launcher wrote an answer, so the start is over:
+  a start that only gave up waiting for a place leaves the entry in the queue (or puts it back at the **head**),
+  any other failure sets the entry aside with that reason,
+  and a start whose answer is not there while its entry is already out of the queue goes back to be tried again.
 
 Why a start failed is a value, not a line:
 the batch writes `<runs>/<name>-start-answer.json` for every entry it started,
@@ -678,7 +690,12 @@ holding the status that entry's start ended with and whether that status is the 
 The last line the batch prints is how many entries failed,
 so a settling that read it took `1 of 1 entries failed: a` for the reason and hid the deadline
 (the review of `main...090e416990` reproduced that).
-A start whose answer is not there is set aside with a reason that says so.
+
+An entry's name is one path segment: checked where an entry is read, and again wherever the name is joined to a folder.
+A name that is not one is refused as unreadable rather than written beside the runs,
+because an entry named `../outside` replaced a file beside them (the review of `main...35d724bdbe`).
+Every record is written through a file whose name nothing can predict and renamed into place,
+so a link standing at a record path is replaced rather than written through.
 
 The record goes away once the entry is settled,
 which is what makes the filling say it once.
