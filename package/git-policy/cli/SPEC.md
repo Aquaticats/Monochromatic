@@ -19571,6 +19571,22 @@ The axis `every_documented_revision_spelling_is_read_as_git_reads_it` runs the f
 person's file planted in the tree's way,
 and carries the branch itself as its control: the wrapper refuses that row, so a row that runs proves
 the wrapping and not a fixture that lets everything through.
+What the branch costs, measured on this host on 2026-11-16 with ten interleaved rounds on one
+20,000-file worktree, the order rotated each round, state put back with real Git, and the same `main`
+binary run twice as a noise arm:
+`checkout -f <branch>` 127.9 ms against `main`'s 277.3 ms (ratio 0.44, 0.34 to 0.66 over the warm
+rounds), `reset --hard HEAD` 162.9 against 303.7 (0.49, 0.26 to 0.75), and
+`restore --source=<branch> -- <path>` 75.1 against 34.3 (2.28, 1.05 to 4.04), the one row slower than
+`main`; against `8c24e293a3` the same three are 0.95, 1.01 and 0.89.
+`main` against itself ranged 0.58 to 1.72 on those rows, so only the restore row's median stands outside
+the spread.
+The restore row's time is the written-path reading this range added and not the revision question: the
+same build costs about twice `main` on `restore --worktree -- <path>`, a form that names no revision
+(2.04, 1.86 to 2.26, fourteen alternating rounds), while `rev-parse HEAD` through the two builds is 0.99
+(0.94 to 1.13).
+A Git start on this worktree is 1.7 ms (`rev-parse --verify`) or 3.3 ms (`ls-files --with-tree`), so
+saving one would not remove the gap, and the `cat-file -t` the whole-tree forms now ask adds no measured
+time there (0.95 against the reviewed tip, inside the spread).
 The revision handed to `--with-tree` keeps its own bytes,
 because Git resolves the name it is given and a lossy conversion is another name:
 `topic` followed by raw `0xff` became `topic` followed by U+FFFD in that argument,
