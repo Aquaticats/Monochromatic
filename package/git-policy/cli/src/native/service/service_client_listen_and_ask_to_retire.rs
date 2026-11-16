@@ -125,8 +125,30 @@ pub enum Reached {
 /// ```
 #[cfg(target_os = "linux")]
 pub(crate) fn connection_is_this_account(stream: &UnixStream) -> bool {
+    if another_account_was_armed() {
+        return false;
+    }
     return a_connection_of_the_account(the_users_id_on_the_other_end(stream), own_users_id());
 }
+
+// What:
+//  A control that makes the next connections answer as a peer of another account.
+// Why:
+//   The kernel's own word cannot be produced on demand here: a second account needs a user namespace whose authorisation this
+// run cannot be given (`unshare --user --map-users=1:1:1` answered `Permission denied` inside the run's own namespace on
+// 2026-11-16), so the answer is injected, as the repository injects a refused pidfd and a refused signal.
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    /// How many of the next connections answer as another account's.
+    static FOREIGN_CONNECTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Make the next `count` connections answer as a peer of another account.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn the_next_connections_answer_as_another_account(count: usize) {
+    FOREIGN_CONNECTIONS.with(|left| { left.set(count); });
+}
+
 
 /// The user id of this process.
 #[cfg(target_os = "linux")]
@@ -174,6 +196,23 @@ fn the_users_id_on_the_other_end(stream: &UnixStream) -> Option<u32> {
 /// ```
 fn a_connection_of_the_account(their_user: Option<u32>, our_user: u32) -> bool {
     return their_user == Some(our_user);
+}
+
+/// Whether a control armed an answer of another account, which only a test build can.
+#[cfg(all(test, target_os = "linux"))]
+fn another_account_was_armed() -> bool {
+    let left: usize = FOREIGN_CONNECTIONS.with(std::cell::Cell::get);
+    if left == 0 {
+        return false;
+    }
+    FOREIGN_CONNECTIONS.with(|armed| { armed.set(armed.get().saturating_sub(1)); });
+    return true;
+}
+
+/// No control is armed in the release build, so the kernel's answer stands alone.
+#[cfg(all(not(test), target_os = "linux"))]
+fn another_account_was_armed() -> bool {
+    return false;
 }
 
 /// `connection_is_this_account` where the account is the directory's to keep out,

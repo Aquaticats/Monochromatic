@@ -403,3 +403,36 @@ fn a_service_that_greets_slower_than_a_look_does_not_make_the_wait_run_for_ever(
         other => panic!("the wait ends with the sentence for a service that is there, not {other:?}"),
     }
 }
+
+/// What:
+///  A connection a process of another account took is refused, and not one byte of the request is written to it.
+/// Why:
+///  The review of `e347be3115` (part two-a, finding 1): an abstract address has no permission bits, so a process of another
+///  account can hold it; the client wrote the commit request to it six times (4,169 bytes each, with the message, the
+///  identities and the paths), where `main` refused in 92 ms and sent nothing. Nothing of this command's work may reach a
+///  program it did not start.
+#[test]
+fn a_connection_of_another_account_is_refused_and_told_nothing() {
+    use std::io::Write;
+    let socket: String = address("foreign");
+    let service = listen_at(socket.as_str()).expect("the listener holds the address");
+    let received: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::clone(&received);
+    let serving = std::thread::spawn(move || {
+        let (mut stream, _) = service.accept().expect("a connection");
+        // A greeting, so the client would read this program as a service if it did not ask who took the connection.
+        let _sent = stream.write_all(line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+        let _timeout = stream.set_read_timeout(Some(Duration::from_millis(700)));
+        let mut bytes: Vec<u8> = Vec::new();
+        if let Ok(read) = stream.read_to_end(&mut bytes) {
+            let _ = read;
+        }
+        seen.lock().expect("what the program was sent").extend_from_slice(bytes.as_slice());
+    });
+    crate::service_client_listen_and_ask_to_retire::the_next_connections_answer_as_another_account(1);
+    let mut announced: bool = false;
+    let reached = reach(&config(socket.as_str()), &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
+    assert_eq!(reached.err(), Some(ClientFailure::OtherAccount), "a service of another account is refused before anything is written");
+    serving.join().expect("the listener ends");
+    assert!(received.lock().expect("what the program was sent").is_empty(), "the program of another account was sent nothing: {:?}", String::from_utf8_lossy(received.lock().expect("what the program was sent").as_slice()));
+}

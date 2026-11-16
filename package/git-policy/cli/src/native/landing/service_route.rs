@@ -420,6 +420,9 @@ enum Answered {
     SaidNothing,
     /// Nothing took the connection.
     Nothing,
+    /// A process of another account took it,
+    /// so it is no service of this worktree.
+    AnotherAccount,
 }
 
 /// What:
@@ -440,6 +443,12 @@ fn asking(socket: &Path) -> Answered {
     let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(&Bind::Path(socket.to_path_buf())) else {
         return Answered::Nothing;
     };
+    // What: A service of another account is not this worktree's service, whatever it says.
+    // Why:  An abstract address has no permission bits, so a name another account holds is a program another account runs
+    //       (`connection_is_this_account`).
+    if !crate::service_client_listen_and_ask_to_retire::connection_is_this_account(&stream) {
+        return Answered::AnotherAccount;
+    }
     let _timeout = stream.set_read_timeout(Some(HAND_OVER_GREETING_WAIT));
     let mut reader: std::io::BufReader<std::os::unix::net::UnixStream> = std::io::BufReader::new(stream);
     return match crate::service_client_listen_and_ask_to_retire::listen(&mut reader) {
@@ -543,6 +552,14 @@ pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> Sta
                  frozen, a debugger holds it, or it waits for a disk that never answers. Nothing replaces or ends a service that \
                  is still there, so end it with `{STOP_COMMAND}` and run the commit again, which starts a fresh one.{files}\n",
                 HAND_OVER_GREETING_WAIT.as_secs()
+            ),
+        },
+        Answered::AnotherAccount => StatusReport {
+            code: 1,
+            stdout: String::new(),
+            stderr: format!(
+                "{what} is held by a process of another account, which is no commit service of this worktree. Use your own \
+                 account, or ask the other account to stop its process.{files}\n"
             ),
         },
         Answered::Nothing => StatusReport {

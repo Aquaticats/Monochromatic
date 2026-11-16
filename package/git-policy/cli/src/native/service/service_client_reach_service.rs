@@ -60,6 +60,14 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         }
         trace.tries += 1;
         match connect(&config.address) {
+            // What: A connection this account did not take is no service of this command, and nothing is written to it.
+            // Why:  An abstract address has no permission bits, so the directory's mode protects a socket file and nothing
+            //       protects a name: a process of another account that holds it read the commit request six times on
+            //       2026-11-16, with the person's message, identities and paths in it, where this answer sends it nothing
+            //       (`connection_is_this_account`; the service refuses another account's client at its own end too).
+            Ok(stream) if !crate::service_client_listen_and_ask_to_retire::connection_is_this_account(&stream) => {
+                return Err(ClientFailure::OtherAccount);
+            }
             Ok(stream) => {
                 connected = true;
                 let patience: Duration = if service_seen { config.heartbeat_silence } else { greeting_patience(config, started) };

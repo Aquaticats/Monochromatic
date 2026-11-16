@@ -279,3 +279,32 @@ fn the_status_of_a_service_whose_queue_is_full_says_it_does_not_answer() {
     drop(listener);
     crate::test_support::remove(root.as_path());
 }
+
+/// What:
+///  A status report says that a process of another account holds the address, and never that the service answers.
+/// Why:
+///  The review of `e347be3115` (part two-a, finding 4, second half): an abstract address has no permission bits, so a program
+///  of another account can hold the name this worktree's service would use, and a report that called it the worktree's
+///  service would send the person to a program that is not theirs.
+#[test]
+fn the_status_of_an_address_another_account_holds_says_so() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("stfa");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("git directory");
+    let socket: std::path::PathBuf = socket_for(root.as_path(), git_dir.as_path());
+    std::fs::create_dir_all(socket.parent().expect("the folder of the address")).expect("socket folder");
+    let listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a listening socket");
+    let serving = std::thread::spawn(move || {
+        use std::io::Write;
+        let (mut stream, _) = listener.accept().expect("a connection");
+        let _sent = stream.write_all(b"{\"type\":\"welcome\",\"version\":12,\"release\":\"another\"}\n");
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    });
+    crate::service_client_listen_and_ask_to_retire::the_next_connections_answer_as_another_account(1);
+    let report: StatusReport = service_status(Some(root.as_path()), Some(git_dir.as_path()));
+    serving.join().expect("the listener ends");
+    assert_eq!(report.code, 1, "{}", report.stderr);
+    assert!(report.stderr.contains("another account"), "the report names whose process holds it: {}", report.stderr);
+    assert!(!report.stderr.contains("does not answer here"), "and never that nothing is there: {}", report.stderr);
+    crate::test_support::remove(root.as_path());
+}
