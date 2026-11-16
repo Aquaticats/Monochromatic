@@ -312,7 +312,9 @@ pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str
     };
     // A write cut off before its rename leaves a file nothing names, so the sweep of this folder runs before the write and
     //  removes what a dead writer left (`temporary_file_of_a_writer.rs`).
-    let swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(directory, crate::service_journal::TEMPORARY_GRACE);
+    let swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(directory, crate::service_journal::TEMPORARY_GRACE, &|name| {
+        return name.ends_with(".tmp") || name.starts_with(".tmp-");
+    });
     if swept.removed > 0 {
         debug(TAG, format!("removed {} temporary file(s) a killed write of the cache left", swept.removed).as_str());
     }

@@ -17,6 +17,17 @@
 
 use crate::service_messages::ClientFailure;
 use std::path::{Path, PathBuf};
+/// The first bytes of every name this package gives a unit, the link beside them and the notes of a worktree.
+/// Why:
+///   The manager's own directory holds another program's files too,
+///  so a sweep of the temporaries there needs a name it can call its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NAME_PREFIX = 'monochromatic-git-policy-cli'
+/// ```
+const NAME_PREFIX: &str = "monochromatic-git-policy-cli";
+
 /// The words that mark a unit file as written by this wrapper:
 /// the marker its units carry now,
 /// and the descriptions the
@@ -55,7 +66,11 @@ fn sweep_beside(path: &Path) {
     let Some(folder) = path.parent() else {
         return;
     };
-    let swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(folder, crate::service_journal::TEMPORARY_GRACE);
+    // The manager's own directory holds another program's files too, so only a temporary whose name begins with the one this
+    //  package gives its units, its link and its notes, or that stands in a folder of this package, is removed.
+    let swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(folder, crate::service_journal::TEMPORARY_GRACE, &|name| {
+        return name.starts_with(NAME_PREFIX) || folder.file_name().is_some_and(|part| { return part.to_string_lossy().starts_with(NAME_PREFIX); });
+    });
     if swept.removed > 0 {
         crate::service_log!("removed {} temporary file(s) a killed write of a unit left in {}", swept.removed, folder.display());
     }

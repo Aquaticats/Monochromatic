@@ -1659,7 +1659,7 @@ fn a_unit_directory_loses_what_a_killed_provisioning_left_and_keeps_a_live_write
     let gone: u32 = 4_000_000_000;
     let dead: PathBuf = directory.join(format!("monochromatic-git-policy-cli@{INSTANCE}.socket.tmp-{gone}-0"));
     std::fs::write(&dead, "[Unit]\n").expect("the staging file of a killed write");
-    let dead_link: PathBuf = directory.join(format!("service.linktmp-{gone}-0"));
+    let dead_link: PathBuf = directory.join(format!("monochromatic-git-policy-cli-bin.linktmp-{gone}-0"));
     std::fs::write(&dead_link, "[Unit]\n").expect("the staging link of a killed write");
     let live: PathBuf = directory.join(format!("monochromatic-git-policy-cli@{INSTANCE}.service.tmp-{}-1", std::process::id()));
     std::fs::write(&live, "[Unit]\n").expect("the staging file of this process");

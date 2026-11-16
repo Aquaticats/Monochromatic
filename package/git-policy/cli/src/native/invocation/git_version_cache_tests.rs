@@ -325,7 +325,7 @@ fn the_cache_folder_loses_what_a_killed_write_left_and_keeps_a_live_writers_file
     std::fs::create_dir_all(cache.as_path()).expect("cache directory");
     // A process number no process of this machine has: the writer of that file is provably gone.
     let gone: u64 = 4_000_000_000;
-    let dead: PathBuf = cache.join(format!("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.{gone}-0.tmp"));
+    let dead: PathBuf = cache.join(format!("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.{gone}_0.tmp"));
     std::fs::write(&dead, "the text of a version").expect("the staging file of a killed write");
     let live: PathBuf = crate::temporary_file_of_a_writer::name_of(cache.join("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f1").as_path());
     std::fs::write(&live, "the text of a version").expect("the staging file of this process");

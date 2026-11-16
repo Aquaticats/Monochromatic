@@ -555,29 +555,66 @@ fn both_fields_name_one_value(text: &str, encoded: bool) -> bool {
         let (Some(plain), Some(hexadecimal)) = (intent_value(text, key), intent_value(text, format!("{key}{HEX_SUFFIX}").as_str())) else {
             continue;
         };
-        let written: Vec<&str> = plain.split('\t').collect();
+        let spelled: Vec<&str> = plain.split('\t').collect();
         let bytes: Vec<&str> = hexadecimal.split('\t').collect();
-        if written.len() != bytes.len() {
-            return false;
+        // A cleanup's last item is the reftable flag and not a path, so the two fields are compared item by item.
+        if matches!(key, "cleanup") {
+            if spelled.len() != bytes.len() {
+                return false;
+            }
+            for (number, (written, digits)) in spelled.iter().zip(bytes).enumerate() {
+                // The last item is the reftable flag, which is the same word on both lines and spells no bytes.
+                if number >= CLEANUP_PATH_ITEMS {
+                    if written.as_bytes() != digits.as_bytes() {
+                        return false;
+                    }
+                    continue;
+                }
+                let Some(decoded) = path_bytes::bytes_of_hex(digits) else {
+                    return false;
+                };
+                if !one_value_is_the_bytes(written, decoded.as_slice(), encoded) {
+                    return false;
+                }
+            }
+            continue;
         }
-        for (number, (spelled, digits)) in written.iter().zip(bytes).enumerate() {
-            // The items of a cleanup past its paths name something else: the reftable flag is not a path.
-            if matches!(key, "cleanup") && number >= CLEANUP_PATH_ITEMS {
-                continue;
-            }
-            let Some(decoded) = path_bytes::bytes_of_hex(digits) else {
+        // The items are compared as the one field they are, so the tab between them is part of what is compared: a path of the
+        //  earlier release may hold one itself.
+        let mut items: Vec<Vec<u8>> = Vec::new();
+        for digits in &bytes {
+            let Some(found) = path_bytes::bytes_of_hex(digits) else {
                 return false;
             };
-            let named: Option<Vec<u8>> = match encoded {
-                true => path_bytes::decode_field(spelled),
-                false => Some(path_bytes::lossy_text_of(decoded.as_slice()).into_bytes()),
-            };
-            if named.as_deref() != Some(decoded.as_slice()) {
-                return false;
-            }
+            items.push(found);
+        }
+        if !one_value_is_the_bytes(plain, items.join(&b'\t').as_slice(), encoded) {
+            return false;
         }
     }
     return true;
+}
+
+/// What:
+///  Whether one plain value of a record spells the bytes beside it.
+/// Why:
+///   A record of this release escapes the value, so undoing the escape is what it must spell;
+///  a record of the earlier release wrote the lossy text of those bytes,
+///  and a line reader takes the carriage return that ends a line off that text,
+///  so a value that ends there names the same bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const oneValueIsTheBytes = (written, bytes, encoded) => encoded ? decodeField(written)?.equals(bytes) ?? false : written === lossy(bytes) || `${written}\r` === lossy(bytes)
+/// ```
+fn one_value_is_the_bytes(written: &str, bytes: &[u8], encoded: bool) -> bool {
+    return match encoded {
+        true => path_bytes::decode_field(written).as_deref() == Some(bytes),
+        false => {
+            let spelled: String = path_bytes::lossy_text_of(bytes);
+            written == spelled || format!("{written}\r") == spelled
+        }
+    };
 }
 
 /// What:
@@ -617,10 +654,13 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
     let cleanup: Option<Cleanup> = match intent_value(text, format!("cleanup{HEX_SUFFIX}").as_str()) {
         Some(hexadecimal) => Some(parse_cleanup(hexadecimal, CleanupForm::Hexadecimal)?),
         None => match intent_value(text, "cleanup") {
-            Some(plain) => parse_cleanup(plain, match encoded {
+            // An empty field names no cleanup, as an earlier release wrote it.
+            Some("") => None,
+            // A cleanup field that is there and does not read is damage, and never a batch that named none.
+            Some(plain) => Some(parse_cleanup(plain, match encoded {
                 true => CleanupForm::Encoded,
                 false => CleanupForm::Plain,
-            }),
+            })?),
             None => None,
         },
     };
@@ -633,8 +673,11 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         new: field_text_of(text, "new", encoded)?,
         ids: intent_list(text, "ids", encoded)?,
         commits: intent_list(text, "commits", encoded)?,
-        // Intents written before this field existed name no command.
-        holders: holders_of(text, encoded).unwrap_or_default(),
+        // Intents written before this field existed name no command, and one whose field is there and does not undo is damage.
+        holders: match intent_value(text, "holders") {
+            Some(_present) => holders_of(text, encoded)?,
+            None => Vec::new(),
+        },
         paths: intent_path_list(text, "paths", encoded).ok()??,
         // Intents written before these fields existed name neither.
         derived: field_text_of(text, "derived", encoded).as_deref() == Some("1"),

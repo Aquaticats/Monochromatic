@@ -356,6 +356,78 @@ fn a_record_of_an_earlier_release_is_read_without_undoing_an_escape() {
     assert_eq!(read.paths, vec![b"100%done".to_vec()], "and so is the path it names");
 }
 
+/// What:
+///  A record the earlier release wrote whose path holds a tab is still read,
+///  and the path is the whole name.
+/// Why:
+///   That release spelled a list of paths as its lossy text joined by tabs,
+/// so a name that holds a tab of its own split into two items of the plain field while the bytes field held one;
+/// the bytes field is the path, and the two fields still spell one value when they are read as the one field they are.
+#[test]
+fn a_record_of_an_earlier_release_whose_path_holds_a_tab_is_still_read() {
+    let mut sent: Intent = intent(24);
+    sent.paths = vec![b"a\tb".to_vec()];
+    let earlier: String = earlier_release_text(&sent);
+    let read: Intent = parse_intent(earlier.as_str()).expect("a path with a tab is still read");
+    assert_eq!(read.paths, vec![b"a\tb".to_vec()], "the bytes field is the path");
+}
+
+/// What:
+///  A record the earlier release wrote whose last path ends in a carriage return is still read.
+/// Why:
+///   The plain field ended with that byte,
+/// and a line reader takes the carriage return that ends a line off the line,
+/// so the two fields of that record differ by it and still name one value.
+#[test]
+fn a_record_of_an_earlier_release_whose_path_ends_a_line_with_a_carriage_return_is_still_read() {
+    let mut sent: Intent = intent(25);
+    sent.paths = vec![b"a b.txt".to_vec(), b"a\r".to_vec()];
+    let earlier: String = earlier_release_text(&sent);
+    let read: Intent = parse_intent(earlier.as_str()).expect("a path that ends a line with a carriage return is still read");
+    assert_eq!(read.paths, sent.paths, "the bytes field is the path");
+}
+
+/// What:
+///  A field of this release's format that is there and does not undo is damage,
+///  and never a record that names no holder and no cleanup.
+/// Why:
+///   A holder or a cleanup read as absent is work the landing never does,
+/// so a damaged field would leave the push of a landed commit unsettled or the conclusion state in place.
+#[test]
+fn a_field_that_does_not_undo_is_no_intent() {
+    let mut sent: Intent = intent(26);
+    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/scratch"), reftable: false });
+    let text: String = intent_text(&sent);
+    for damaged in [
+        text.replace("holders=1/2/3\t-", "holders=%").as_str(),
+        text.replace("cleanup=/work/repo/.git\t", "cleanup=%\t").as_str(),
+    ] {
+        assert_ne!(damaged, text, "the control damaged a field");
+        assert_eq!(parse_intent(damaged), None, "a field that does not undo is damage");
+    }
+}
+
+/// The text of `sent` as the release before this one wrote it:
+/// no format line,
+/// and each value its plain text joined by tabs.
+fn earlier_release_text(sent: &Intent) -> String {
+    return intent_text(sent)
+        .lines()
+        .filter(|line| { return *line != crate::path_bytes_in_records::FIELD_ENCODING_HEADER.trim_end(); })
+        .map(|line| {
+            let Some((key, value)) = line.split_once('=') else {
+                return String::from(line);
+            };
+            let items: Vec<String> = value
+                .split('\t')
+                .map(|item| { return String::from_utf8_lossy(crate::path_bytes_in_records::decode_field(item).unwrap_or_default().as_slice()).into_owned(); })
+                .collect();
+            return format!("{key}={}", items.join("\t"));
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+}
+
 /// The restart decision follows the branch:
 /// unmoved drops,
 /// at the new value or past it finishes,

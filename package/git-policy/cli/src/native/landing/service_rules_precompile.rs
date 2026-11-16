@@ -295,7 +295,11 @@ fn first_look_at(journal: &Path, repository: &Path) -> bool {
 /// a failure only costs the warm after a restart.
 fn remember(journal: &Path, repository: &Path) {
     let target: PathBuf = journal.join(REMEMBERED_FILE);
-    let staging: PathBuf = journal.join(format!("{REMEMBERED_FILE}.new"));
+    // A kill between the write and the rename leaves the staging file, so it names the process writing it and the write that
+    //  follows sweeps what a dead one left (`temporary_file_of_a_writer.rs`).
+    let staging: PathBuf = crate::temporary_file_of_a_writer::name_of(target.as_path());
+    let _swept: crate::temporary_file_of_a_writer::Swept =
+        crate::temporary_file_of_a_writer::sweep_temporaries(journal, crate::service_journal::TEMPORARY_GRACE, &|_name| { return true; });
     let bytes: &[u8] = crate::path_bytes::path_bytes_of(repository);
     let text: String = format!("{}{REMEMBERED_FIELD_PREFIX}{}\n", crate::path_bytes_in_records::FIELD_ENCODING_HEADER, crate::path_bytes_in_records::encode_field(bytes));
     if let Err(error) = std::fs::write(&staging, text) {

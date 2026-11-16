@@ -226,7 +226,7 @@ pub(super) fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTemp
     //  it when dropped; the crate's own file-making call wraps the system error with the staging path, which hides the error code.
     // A write cut off before its publish leaves its staging file behind, so the folder loses what a dead writer left before
     //  this write puts its own there; a live writer's file is never touched.
-    let _swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(directory, crate::service_journal::TEMPORARY_GRACE);
+    let _swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(directory, crate::service_journal::TEMPORARY_GRACE, &|_name| { return true; });
     return tempfile::Builder::new()
         .prefix(prefix.as_os_str())
         // The process writing it ends the name before the suffix, so a sweep can prove a write abandoned.

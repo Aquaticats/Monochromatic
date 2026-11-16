@@ -272,6 +272,26 @@ pub fn lossy_text_of(bytes: &[u8]) -> String {
 }
 
 /// What:
+///  The lossy text of a list of values joined by tabs,
+///  which is how a record of lines spelled a list of paths before this format.
+/// Why:
+///   Every item of a list is one value,
+/// and the reader compares the whole field rather than its items,
+///  because an item of the earlier release's spelling may itself hold a tab.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lossyTextOfBytes = (items: Uint8Array[]) => items.map((item) => new TextDecoder().decode(item)).join('\t')
+/// ```
+pub fn lossy_text_of_bytes(items: &[Vec<u8>]) -> String {
+    let mut spelled: Vec<String> = Vec::with_capacity(items.len());
+    for item in items {
+        spelled.push(lossy_text_of(item.as_slice()));
+    }
+    return spelled.join("\t");
+}
+
+/// What:
 ///  The path as text when one `key=value` line of a line-oriented record can hold it,
 /// nothing when it cannot.
 /// Why:

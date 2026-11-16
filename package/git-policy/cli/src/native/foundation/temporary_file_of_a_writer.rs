@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 pub const TEMPORARY_SUFFIXES: [&str; 2] = [".tmp", ".partial"];
 
 /// What:
-///  The separator between a temporary's own name and the writer's process number.
+///  The separator between a temporary's own name and the writer's fields.
 /// Why:
 ///   A record's name may hold dots,
 ///  so the reader takes the field before the suffix and not the first field.
@@ -46,6 +46,62 @@ pub const TEMPORARY_SUFFIXES: [&str; 2] = [".tmp", ".partial"];
 /// const WRITER_SEPARATOR = '.'
 /// ```
 const WRITER_SEPARATOR: char = '.';
+
+/// What:
+///  The separator between the fields of one writer: its process number, its birth identity and the count of its write.
+/// Why:
+///   A name that held only the process number could be made again by another process the kernel later gave that number,
+///  and a sweep of the remains of the first would then be a sweep of the second's write in progress.
+///  A birth identity names one process for its whole life,
+///  so two writers never share a name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const WRITER_FIELD_SEPARATOR = '_'
+/// ```
+const WRITER_FIELD_SEPARATOR: char = '_';
+
+/// What:
+///  One process that wrote a temporary file,
+///  as its name spells it.
+/// Why:
+///   The process number is what the kernel is asked about,
+///  and the birth identity is what keeps a number the kernel gives again from making the same name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Writer = { pid: number; birth?: string }
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Writer {
+    /// The process number the writer had.
+    pub pid: u32,
+    /// Its birth identity, when the name carries one.
+    pub birth: Option<String>,
+}
+
+/// What:
+///  The fields this process's temporaries carry:
+/// its process number and its birth identity,
+/// or its process number alone when the platform will not name its birth.
+/// Why:
+///   A name is the one place a sweep can read who wrote the file,
+///  and a birth identity is what makes the name belong to this process and to no later one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writerFields = () => [process.pid, birthIdentityOf(process.pid)].filter(Boolean).join('_')
+/// ```
+pub fn writer_fields() -> String {
+    let pid: u32 = std::process::id();
+    return match crate::process_identity::process_birth_identity(i64::from(pid)) {
+        Ok(Some(birth)) => format!("{pid}{WRITER_FIELD_SEPARATOR}{birth}"),
+        // A platform that will not name the birth of its own process still writes a name, which the kernel's answer about the
+        //  number can judge; only the defence against a number given again is lost.
+        Ok(None) => pid.to_string(),
+        Err(_unreadable) => pid.to_string(),
+    };
+}
 
 /// What:
 ///  The separator a unit file's staging name carries before the writer's number,
@@ -96,7 +152,7 @@ static WRITES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(
 pub fn name_of(target: &Path) -> PathBuf {
     let write: u64 = WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut temporary: std::ffi::OsString = target.as_os_str().to_owned();
-    temporary.push(format!("{WRITER_SEPARATOR}{}-{write}.tmp", std::process::id()));
+    temporary.push(format!("{WRITER_SEPARATOR}{}{WRITER_FIELD_SEPARATOR}{write}.tmp", writer_fields()));
     return PathBuf::from(temporary);
 }
 
@@ -111,19 +167,28 @@ pub fn name_of(target: &Path) -> PathBuf {
 /// ```ts
 /// const writerOf = (name) => /^(.*)\.(\d+)(-\d+)?\.(tmp|partial)$/.exec(name)?.[2]
 /// ```
-pub fn writer_of(name: &str) -> Option<u32> {
+pub fn writer_of(name: &str) -> Option<Writer> {
     if let Some(stem) = TEMPORARY_SUFFIXES.iter().find_map(|suffix| { return name.strip_suffix(suffix); }) {
         let (_, field) = stem.rsplit_once(WRITER_SEPARATOR)?;
-        // The writer's number comes first in the field, and the count of this write follows it after a dash.
-        return field.split('-').next()?.parse().ok();
+        let mut parts = field.split(WRITER_FIELD_SEPARATOR);
+        let pid: u32 = parts.next()?.parse().ok()?;
+        // The birth identity and the count of this write follow, and the last field is always the count, when there is one.
+        // The last field is the count of this write, so what stands between the number and it is the birth identity, when the
+        //  name carries one at all.
+        let rest: Vec<&str> = parts.collect();
+        let birth: Option<String> = match rest.len() {
+            0 | 1 => None,
+            count => Some(rest[..count - 1].join(WRITER_FIELD_SEPARATOR.to_string().as_str())),
+        };
+        return Some(Writer { pid, birth });
     }
     // A unit file and the link beside it were staged by the release before this one as `<name>.tmp-<pid>-<count>` and
-    //  `<name>.linktmp-<pid>-<count>`, whose writer is the field after the marker.
+    //  `<name>.linktmp-<pid>-<count>`, whose writer is the field after the marker and whose name carries no birth identity.
     let rest: &str = match name.rsplit_once(LINK_TEMPORARY_SEPARATOR) {
         Some((_, after)) => after,
         None => name.rsplit_once(TEMPORARY_SEPARATOR)?.1,
     };
-    return rest.split('-').next()?.parse().ok();
+    return Some(Writer { pid: rest.split('-').next()?.parse().ok()?, birth: None });
 }
 
 /// What:
@@ -137,8 +202,10 @@ pub fn writer_of(name: &str) -> Option<u32> {
 /// ```ts
 /// const isGone = (pid) => readBirthIdentity(pid) === undefined
 /// ```
-pub fn writer_is_gone(pid: u32) -> bool {
-    return matches!(crate::process_identity::process_birth_identity(i64::from(pid)), Ok(None));
+pub fn writer_is_gone(writer: &Writer) -> bool {
+    // Only the kernel's answer that no process of that number exists proves a writer gone; a number another process took over,
+    //  and an identity spelled another way than this write spelled it, prove nothing and keep the file.
+    return matches!(crate::process_identity::process_birth_identity(i64::from(writer.pid)), Ok(None));
 }
 
 /// What:
@@ -155,8 +222,8 @@ pub fn writer_is_gone(pid: u32) -> bool {
 /// const isAbandoned = (name, modified, grace) => { const pid = writerOf(name); return pid !== undefined ? isGone(pid) : olderThan(modified, grace) }
 /// ```
 pub fn is_abandoned(name: &str, modified: std::io::Result<std::time::SystemTime>, grace: std::time::Duration) -> bool {
-    if let Some(pid) = writer_of(name) {
-        return writer_is_gone(pid);
+    if let Some(writer) = writer_of(name) {
+        return writer_is_gone(&writer);
     }
     return match modified.map(|written| { return written.elapsed(); }) {
         Ok(Ok(age)) => age > grace,
@@ -211,14 +278,16 @@ fn candidates_a_temporary(name: &str) -> bool {
 ///  and only the kernel's answer that no such process exists removes it;
 /// a name without a writer is one an earlier release wrote,
 ///  and it is removed only once it is far older than any write takes.
+/// The caller says which names in that folder are its own,
+///  because a folder this package writes into may be one another program writes into as well.
 /// A folder that cannot be read is no failure:
 ///  the write that follows reports the real one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { removed } = sweepTemporaries(folder, grace) // 1
+/// const { removed } = sweepTemporaries(folder, grace, (name) => name.startsWith('monochromatic-git-policy-cli')) // 1
 /// ```
-pub fn sweep_temporaries(folder: &Path, grace: std::time::Duration) -> Swept {
+pub fn sweep_temporaries(folder: &Path, grace: std::time::Duration, ours: &dyn Fn(&str) -> bool) -> Swept {
     let Ok(entries) = std::fs::read_dir(folder) else {
         return Swept::default();
     };
@@ -228,7 +297,7 @@ pub fn sweep_temporaries(folder: &Path, grace: std::time::Duration) -> Swept {
         let Some(name) = listed.to_str() else {
             continue;
         };
-        if !candidates_a_temporary(name) {
+        if !candidates_a_temporary(name) || !ours(name) {
             continue;
         }
         if !is_abandoned(name, entry.metadata().and_then(|metadata| { return metadata.modified(); }), grace) {

@@ -346,7 +346,7 @@ pub fn write(git_dir: &Path, held: &Held) -> std::io::Result<()> {
     // The write's own process is part of the name it is staged under, so a kill between the write and the rename leaves a file
     //  the next write of this folder proves abandoned and removes.
     let staged: PathBuf = crate::temporary_file_of_a_writer::name_of(path_of(git_dir, held.seq).as_path());
-    let _swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(folder.as_path(), crate::service_journal::TEMPORARY_GRACE);
+    let _swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(folder.as_path(), crate::service_journal::TEMPORARY_GRACE, &|_name| { return true; });
     let _stale = std::fs::remove_file(staged.as_path());
     crate::private_storage::write_private_file(staged.as_path(), text(held).as_bytes())?;
     let record: PathBuf = path_of(git_dir, held.seq);
