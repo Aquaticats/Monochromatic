@@ -374,3 +374,60 @@ fn a_record_whose_live_owner_is_named_in_another_spelling_is_a_running_removal()
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// What:
+///  A record of a removal whose owner's birth names no value, and which has stood past the patience,
+///  is named to the person instead of being skipped in silence.
+/// Why:
+///  Another command's recovery finishes and forgets the record of a command it takes for gone,
+///  and leaves alone one whose command may run:
+///  the record is the only place the removal that runs can mark its success.
+///  A birth that names no value is neither of those.
+///  Read as a command that runs it leaves the record skipped on every command for ever;
+///  read as one that ended it finishes a removal that may be running.
+///  The record's own age is the bound,
+///  and past the patience the person reads which record it is and the command that removes it.
+///  The last record below has a birth this command can read, and it is finished,
+///  so the row is not a reader that never answers.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_record_of_an_owner_that_cannot_be_told_is_named_past_the_patience() {
+    let root: PathBuf = crate::test_support::fixture("removal-record-unreadable-birth");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    // A directory stands where the registration of the removal stands, so the record names something real; the owner
+    //  check comes before anything reads it.
+    let admin: crate::fs_beneath::ObjectId =
+        crate::fs_beneath::identity_of(&std::fs::File::open(root.as_path()).expect("the fixture root")).expect("an identity");
+    let pid: i64 = i64::from(std::process::id());
+    let aged: std::time::Duration = crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60);
+    let unreadable: String = format!("{pid}:linux:not-a-birth");
+    let ended: String = format!("{pid}:linux:1");
+    let mut wrong: Vec<String> = Vec::new();
+    for (index, owner) in [unreadable.as_str(), ended.as_str()].into_iter().enumerate() {
+        let target: PathBuf = root.join(format!("gone-{index}"));
+        let record: PathBuf = record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new(format!("wt-{index}").as_str()), &admin, target.as_path(), Some(owner))
+            .map(|()| { return crate::worktree_removal_interrupted_destroy::record_path(common.as_path(), std::ffi::OsStr::new(format!("wt-{index}").as_str())); })
+            .expect("the record of a removal");
+        std::fs::File::options()
+            .write(true)
+            .open(record.as_path())
+            .expect("open the record")
+            .set_modified(std::time::SystemTime::now() - aged)
+            .expect("age the record");
+        let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
+        if owner == unreadable.as_str() {
+            let named: bool = problems.len() == 1 && problems[0].contains(record.to_string_lossy().as_ref()) && problems[0].contains(pid.to_string().as_str());
+            if !named || !problems[0].contains("rm -- ") || !problems[0].contains("birth identity") {
+                wrong.push(format!("the record of an owner that cannot be told: the person read {problems:?}, and the record {record:?} should be named with the command that removes it"));
+            }
+            if !record.exists() {
+                wrong.push(String::from("the record of an owner that cannot be told was removed, and nothing proves its command ended"));
+            }
+        } else if !problems.is_empty() || record.exists() {
+            wrong.push(format!("the record of a command that ended: the person read {problems:?} and the record exists: {}", record.exists()));
+        }
+    }
+    crate::test_support::remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

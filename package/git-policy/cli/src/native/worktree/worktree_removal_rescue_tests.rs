@@ -604,3 +604,58 @@ fn an_attempt_of_a_live_owner_named_in_another_spelling_may_still_be_running() {
     remove(root.as_path());
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// What:
+///  A snapshot whose taker's birth names no value, and which has stood past the patience,
+///  is named to the person instead of staying undecided in silence.
+/// Why:
+///  A snapshot is discarded when every taker has ended and kept while one may be removing,
+///  and a taker whose birth names no value is neither.
+///  Read as one that runs the snapshot stays undecided on every command for ever;
+///  read as one that ended the snapshot of a removal that runs is discarded with the records it keeps.
+///  The taker's own record is the bound,
+///  and past the patience the person reads which snapshot it is and the command that removes it.
+///  The last snapshot below has a birth this command can read, and it is discarded,
+///  so the row is not a reader that never answers.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_snapshot_whose_taker_cannot_be_told_is_named_past_the_patience() {
+    let root: PathBuf = fixture("rescue-snapshot-unreadable-birth");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.join(SNAPSHOT_DIRECTORY).as_path()).expect("the snapshot directory");
+    let git_dir: PathBuf = root.join("a-git-directory");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a removal that runs");
+    let pid: i64 = i64::from(std::process::id());
+    let aged: std::time::Duration = crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60);
+    let mut wrong: Vec<String> = Vec::new();
+    for (index, birth) in ["linux:not-a-birth", "linux:1"].into_iter().enumerate() {
+        let snapshot: PathBuf = common.join(SNAPSHOT_DIRECTORY).join(format!("one-{index}"));
+        std::fs::create_dir_all(snapshot.join(ATTEMPTS).as_path()).expect("the attempts directory");
+        std::fs::write(snapshot.join(GIT_DIR_FILE).as_path(), git_dir.to_string_lossy().as_bytes()).expect("the name of the Git directory");
+        // The checkout the Git directory names is gone, so a snapshot whose taker has ended is a removal that finished and
+        //  the first arm never reads this: its taker cannot be told, and the command stops before the checkout is asked.
+        std::fs::write(git_dir.join(GIT_DIR_FILE).as_path(), root.join("no-checkout").to_string_lossy().as_bytes()).expect("the name of the checkout");
+        let attempt: PathBuf = snapshot.join(ATTEMPTS).join(pid.to_string());
+        std::fs::write(attempt.as_path(), birth).expect("an attempt of the command that took the snapshot");
+        std::fs::File::options()
+            .write(true)
+            .open(attempt.as_path())
+            .expect("open the attempt")
+            .set_modified(std::time::SystemTime::now() - aged)
+            .expect("age the attempt");
+        let problems: Vec<String> = settle_removals(common.as_path());
+        if birth == "linux:not-a-birth" {
+            let named: bool = problems.len() == 1 && problems[0].contains(attempt.to_string_lossy().as_ref()) && problems[0].contains(pid.to_string().as_str());
+            if !named || !problems[0].contains("rm -- ") || !problems[0].contains("birth identity") {
+                wrong.push(format!("the snapshot of a taker that cannot be told: the person read {problems:?}, and the attempt {attempt:?} should be named with the command that removes it"));
+            }
+            if !snapshot.exists() {
+                wrong.push(String::from("the snapshot of a taker that cannot be told was discarded, and nothing proves its taker ended"));
+            }
+        } else if problems.iter().any(|line| { return line.contains(attempt.to_string_lossy().as_ref()); }) {
+            wrong.push(format!("the snapshot of a taker that ended: the person read {problems:?}, and no word about the attempt {attempt:?} is due"));
+        }
+    }
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

@@ -333,3 +333,85 @@ fn a_live_owners_record_with_its_namespace_spelled_another_way_is_never_dead() {
         "a namespace with a leading zero is the same namespace, so nothing proves the owner gone"
     );
 }
+
+/// What:
+///  the answer a row of an owner table is due.
+/// Why:
+///  A record's holder can be shown to run,
+///  shown to have ended,
+///  or neither,
+///  and the last has words a person reads: a row that says only "not alive" would let a silent wait pass as a pass.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Due {
+    /// The pid names the owner.
+    Alive,
+    /// The process ended, or the number was reused by a process of another birth.
+    Dead,
+    /// Neither, and the record is named in the words a command stops with.
+    Refused,
+}
+
+/// What:
+///  A transaction record is read by the value its birth names, and a record whose birth names no value is bounded by
+///  its own age.
+/// Why:
+///  The wrapper writes one spelling of a birth,
+///  so a second one came from a writer that is not this release,
+///  and a spelling is a value written another way: two spellings of one start tick are one process,
+///  and two ticks are two.
+///  A text that names no tick is neither a live owner's nor a gone one's,
+///  and the record's own age is the only bound on it:
+///  inside the patience the record stands for an owner that may run,
+///  and past it the command stops with the record named and the command that removes it.
+///  The namespace is a number too: one number written with a leading zero is that namespace, not another one.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
+    let directory: std::path::PathBuf = crate::test_support::fixture("transaction-owner-value-table");
+    let own: TransactionOwner = current_transaction_owner("the-live-owner", "2026-10-29T00:00:00.000Z").expect("this process has an identity");
+    let live: String = own.owner_identity.clone();
+    let namespace: String = own.owner_pid_namespace.clone().expect("this host reports the PID namespace of a process");
+    let young: std::time::Duration = std::time::Duration::from_secs(30);
+    let aged: std::time::Duration = crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60);
+    let capitalised: String = crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(live.as_str());
+    let padded: String = crate::process_identity_spellings::birth_with_a_leading_zero(live.as_str());
+    let behind_a_space: String = crate::process_identity_spellings::birth_behind_a_space(live.as_str());
+    let padded_namespace: String = crate::process_identity_spellings::namespace_with_a_leading_zero(namespace.as_str());
+    // What each row names: the birth, the namespace the record writes (none means the field is absent), the age of the
+    // record, the answer due, and the words a refusal must say besides the record's path.
+    let rows: [(&str, String, Option<String>, std::time::Duration, Due, &str); 10] = [
+        ("the birth as the wrapper writes it", live.clone(), None, young, Due::Alive, ""),
+        ("the platform's tag in capitals", capitalised.clone(), None, young, Due::Alive, ""),
+        ("a leading zero on the start tick", padded.clone(), None, young, Due::Alive, ""),
+        ("a start tick of another value", String::from("linux:1"), None, young, Due::Dead, ""),
+        ("the tag in capitals over another tick", String::from("LINUX:1"), None, young, Due::Dead, ""),
+        ("a birth behind a space", behind_a_space.clone(), None, young, Due::Alive, ""),
+        ("a text naming the tag with no tick, young", String::from("linux:not-a-birth"), None, young, Due::Alive, ""),
+        ("a text naming the tag with no tick, past the patience", String::from("linux:not-a-birth"), None, aged, Due::Refused, "birth identity"),
+        ("a leading zero on the namespace, past the patience", live.clone(), Some(padded_namespace.clone()), aged, Due::Alive, ""),
+        ("another namespace, past the patience", live.clone(), Some(String::from("pid:[1]")), aged, Due::Refused, "PID namespace"),
+    ];
+    // Every row is asked and every wrong answer is kept, so one run of the control names each row that was read another
+    //  way instead of stopping at the first.
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, birth, recorded_namespace, age, due, must_say) in rows {
+        let mut owner: TransactionOwner = own.clone();
+        owner.owner_identity = birth.clone();
+        owner.owner_pid_namespace = recorded_namespace;
+        let record: std::path::PathBuf = owner_file(directory.as_path(), age);
+        match (classify_transaction_owner_record(&owner, record.as_path()), due) {
+            (Ok(OwnerLiveness::Alive), Due::Alive) | (Ok(OwnerLiveness::Dead), Due::Dead) => {}
+            (Err(OwnerLivenessError::ForeignRecordRefused(text)), Due::Refused) => {
+                let named: bool = text.contains(record.to_string_lossy().as_ref()) && text.contains(own.owner_pid.to_string().as_str());
+                if !named || !text.contains("rm -- ") || !text.contains(must_say) {
+                    wrong.push(format!("{what}: the refusal does not name the record, the owner, the command that removes it and {must_say:?}: {text}"));
+                }
+            }
+            (verdict, _) => {
+                wrong.push(format!("{what}: the reader answered {verdict:?} for {birth}, and {due:?} is due"));
+            }
+        }
+    }
+    crate::test_support::remove(directory.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

@@ -181,11 +181,11 @@ fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
 ///  a space before the birth,
 ///  a leading zero on the process number,
 ///  and a leading zero on the PID namespace.
-///  Two spellings of one boot or one start tick are no proof of another,
-///  and a padded number is the same number,
-///  so a reader that cannot compare them like for like answers unknown or running,
-///  never gone.
-///  Read as another boot or another process, the lock of a Git that runs is removed.
+///  A spelling is a value written another way, and two spellings of one start tick, one process number or one
+///  namespace are one value: read as another process, the lock of a holder that runs would go.
+///  The boot in capitals and the birth behind a space are no spellings this reader writes,
+///  and main decided that such a part is no part it can compare (`is_boot_id`, and the space is no part of a value),
+///  so those two arms answer unknown and the lock stays either way.
 #[test]
 fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let identity: String = own_identity().expect("this process has an identity");
@@ -209,10 +209,10 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let respelled_space: String = format!(" {identity}");
     let arms: [(&str, &str, &str, &str, HolderState); 6] = [
         ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
-        ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
-        ("the platform's tag in capitals", "capitals-tag", pid_field.as_str(), respelled_tag.as_str(), HolderState::Unknown),
+        ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Running),
+        ("the platform's tag in capitals", "capitals-tag", pid_field.as_str(), respelled_tag.as_str(), HolderState::Running),
         ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
-        ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
+        ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Running),
         ("a space before the birth", "space-before-birth", pid_field.as_str(), respelled_space.as_str(), HolderState::Unknown),
     ];
     // Every arm is asked and every wrong answer is kept, so one run of the control names each spelling that was read
@@ -433,4 +433,84 @@ fn a_landing_names_the_lock_of_another_machine() {
     let lines: String = said.borrow().join("\n");
     assert!(lines.contains("another machine") && lines.contains(&format!("rm -- '{}'", lock.display())), "{lines}");
     remove(root.as_path());
+}
+
+/// What:
+///  Each part of a marker's identity is read as the value it names,
+///  and a proof that stands apart from the birth is used wherever it stands.
+/// Why:
+///  Three answers are due, and each row of the table says which:
+///  the holder runs when every part names the value the reader has,
+///  it is gone when a proof outside the birth says so (a process that ended,
+///  or another boot of this machine, which ends every process in it whatever its birth says),
+///  and nothing can be told when a part is no spelling of a value this reader can read.
+///  A text this reader cannot read is not proof that the holder is gone, and it is not proof that it runs either.
+#[test]
+fn each_part_of_a_marker_is_read_as_the_value_it_names() {
+    // The live process the marker names, so the reader's own answer is a fixed one.
+    let live: String = String::from("linux:8423337");
+    let runs = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
+        return Ok(Some(live.clone()));
+    };
+    // A marker of this machine, in the boot and the PID namespace the reader is given, naming `birth`.
+    let naming = |name: &str, boot: &str, scope: &str| -> (i64, String) {
+        return (100, format!("{name}#{boot}#{scope}#{MACHINE_A}"));
+    };
+    let rows: [(&str, (i64, String), HolderState); 12] = [
+        ("the birth as the wrapper writes it", naming("linux:8423337", BOOT_B, SCOPE), HolderState::Running),
+        ("the platform's tag in capitals", naming("LINUX:8423337", BOOT_B, SCOPE), HolderState::Running),
+        ("a leading zero on the start tick", naming("linux:08423337", BOOT_B, SCOPE), HolderState::Running),
+        ("a leading zero on the PID namespace", naming("linux:8423337", BOOT_B, "04026532000"), HolderState::Running),
+        ("a start tick of another value", naming("linux:8423336", BOOT_B, SCOPE), HolderState::Gone),
+        ("a birth behind a space", naming(" linux:8423337", BOOT_B, SCOPE), HolderState::Unknown),
+        ("a text naming the tag with no tick", naming("linux:not-a-birth", BOOT_B, SCOPE), HolderState::Unknown),
+        ("the boot in capitals", naming("linux:8423337", BOOT_UPPERCASE, SCOPE), HolderState::Unknown),
+        ("another boot of this machine, the birth as the wrapper writes it", naming("linux:8423337", BOOT_A, SCOPE), HolderState::Gone),
+        ("another boot of this machine, the platform's tag in capitals", naming("LINUX:8423337", BOOT_A, SCOPE), HolderState::Gone),
+        ("another boot of this machine, a text naming the tag with no tick", naming("linux:not-a-birth", BOOT_A, SCOPE), HolderState::Gone),
+        ("another machine, another boot", (100, format!("linux:8423337#{BOOT_A}#{SCOPE}#{MACHINE_B}")), HolderState::Unknown),
+    ];
+    // Every row is asked and every wrong answer is kept, so one run of the control names each part that was read as
+    //  another value instead of stopping at the first.
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, holder, expected) in rows {
+        let state: HolderState = holder_state_in(Some(&holder), &view(BOOT_B, Some(MACHINE_A)), &runs);
+        if state != expected {
+            wrong.push(format!("{what}: the reader answered {state:?} for {}, and {expected:?} is due", holder.1));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// The boot ID `BOOT_A` in capitals,
+/// which is the same boot written the way a program that upper-cases hex digits writes it.
+/// Why:
+///  The arm it feeds proves that a boot part this reader does not write is still no part it compares,
+///  which is main's decision for a part of an identity.
+const BOOT_UPPERCASE: &str = "00112233445566778899AABBCCDDEEFF";
+
+/// Allowed:
+///  the lock of this machine in a boot that has ended is reclaimed whatever spelling its birth is in.
+/// Why:
+///  An ended boot ends every process in it,
+///  so no birth part inside it can name a process that runs,
+///  and a birth part this reader cannot read into a value says nothing that could keep the lock.
+///  Read the other way,
+///  a lock left by a kill before a reboot blocks every command of the worktree until a person removes it.
+#[test]
+fn a_lock_of_an_ended_boot_is_reclaimed_whatever_the_birth_spelling() {
+    on_machine(Some(MACHINE_A));
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let births: [&str; 3] = ["linux:1", "LINUX:1", "linux:not-a-birth"];
+    let mut wrong: Vec<String> = Vec::new();
+    for (index, birth) in births.into_iter().enumerate() {
+        let (root, _index, lock) = index_in(format!("ended-boot-spelling-{index}").as_str());
+        std::fs::write(&lock, v2_lock_text(&format!("{birth}#{BOOT_B}#{scope}#{MACHINE_A}"))).expect("a lock of an ended boot");
+        let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
+        if outcome != Reclaimed::Removed || lock.exists() {
+            wrong.push(format!("the birth {birth} in a boot that ended: the lock was {outcome:?}, and it exists afterwards: {}", lock.exists()));
+        }
+        remove(root.as_path());
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
