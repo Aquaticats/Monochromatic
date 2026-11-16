@@ -1711,6 +1711,9 @@ Not final and not approved; written by the coordinating session. Reviews are by 
 - **Two more fresh runs from the owner's answers, queued at 22:16:31:** the fixer writing the quote's marker on a line it breaks inside a blockquote
   (the linter's README, lines 148 to 152, says the opposite today; the run leaves the flags to the run that makes `--fix` follow oxlint);
   and cargo-shadow's test task ending with a status of its own when it left tests out (`package/cargo-shadow/cli/mise.toml`, the task at line 22, ends with 0 today in both cases).
+- **Two driver decisions of the owner carried to their authors:** "Do not count the commit service" went as a note into the inbox of the going scan-for-work author at 22:17:08;
+  the thin review started once more on another model ("the other of the pair; Sonnet while Qwen is dry") was appended at 22:17:29 to the brief of the review-briefs author, which still waits in the queue.
+  The third (a stray worktree removed after a bound) is in the note kept for the two-starts author.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
