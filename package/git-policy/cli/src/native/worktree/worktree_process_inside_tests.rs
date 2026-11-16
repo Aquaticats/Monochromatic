@@ -157,7 +157,9 @@ fn a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere: &Path, p
 ///  so the read answers that the process may hold a file there;
 ///  and that answer is bounded the way a hidden working folder is:
 ///  a process that started before the worktree was made is taken to be outside it,
-///  though one that changed into it afterwards is the miss this rule leaves.
+///  though one whose working folder stays elsewhere,
+///  and that opens a file in it afterwards,
+///  is the miss this rule leaves.
 ///  The bound is what keeps the walk from stopping at every program that hides its own memory,
 ///  a password manager that runs from login above all:
 ///  measured on this host,
@@ -192,7 +194,7 @@ fn a_process_whose_descriptor_table_cannot_be_read_keeps_the_worktree_only_befor
         younger.expect("the process whose files could not be read").why(),
         "process 5353 belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it"
     );
-    assert_eq!(older, None, "a process older than the worktree is taken to be outside it, though one that changed into it afterwards is the miss this rule leaves");
+    assert_eq!(older, None, "a process older than the worktree is taken to be outside it, though one whose working folder stays elsewhere and that opens a file in it afterwards is the miss this rule leaves");
 }
 
 /// What:

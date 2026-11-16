@@ -218,6 +218,20 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   leaves the tunnel without a move.
   The named terminals and desktop applications are selected this way,
   and so is every `pi-<name>.service` Pi agent unit.
+  A desktop application's name is believed only while the cgroup it names holds that application's own program
+  (`is_application_executable` in `src/application_targets.rs`,
+  one program rule per application,
+  shared with the process watch so a name and a program cannot disagree about what an application is).
+  A unit a user named `app-firefox@anything.service` and filled with another program is therefore not marked,
+  where the name alone used to be enough;
+  the watcher reports such a cgroup once,
+  under `POLICY NOT IN FORCE` for that cgroup,
+  naming it and saying that its traffic stays in the tunnel,
+  and `list-targets` lists it as not marked.
+  That report is how an application whose program this build spells differently is noticed
+  instead of losing its exemption in silence.
+  The two names that need no evidence are the Pi units and the updates slice,
+  which the owner accepted as names alone.
   The user's service manager cannot move a service's main process,
   so a Pi unit is never moved:
   the mark attached to the unit's own cgroup covers the agent,
@@ -303,20 +317,35 @@ whatever the number of loop wakeups.
 The watcher does not write `cgroup.procs`.
 It asks the user's systemd manager to adopt the pids
 (`StartTransientUnit` with `PIDs` and `Slice`,
-or `AttachProcessesToUnit`,
-through `busctl`,
-run as the watched user through `setpriv` when the watcher is root).
+or `AttachProcessesToUnit`).
 systemd's cgroup delegation document states the single-writer rule:
 each cgroup has one writer,
 and a writer that ignores it leaves software fighting over ownership.
 A direct write would put processes into a cgroup the manager never created,
 which it would not garbage-collect and whose pid-to-unit map would go stale.
-The `busctl` client is used instead of hand-written D-Bus wire code in a root process.
-A call costs about 3.4 ms of CPU and 20 ms of wall time,
-measured,
-so a persistent connection would save a fraction of a percent of a CPU at the rate of moves seen on this host
-and would need a D-Bus library or hand-written wire code in a root process;
-neither is used.
+The call goes over the manager's own private socket
+(`/run/user/<uid>/systemd/private`),
+never over a bus name,
+and see [One process may not answer for the manager](#one-process-may-not-answer-for-the-manager).
+The wire format is written in this program
+(`src/dbus_wire.rs`),
+because `busctl` is a bus client and asks the bus daemon first,
+which a private socket does not answer
+(`Call failed: Invalid request descriptor`,
+reproduced),
+and because the old bus-name call is what a second manager could take over.
+One connection and one login precede each call,
+and the socket's peer credentials are checked before anything is written.
+Each call has one deadline,
+taken before the connect:
+not the socket's read timeout,
+which restarts with every read,
+so a manager that emits an unrelated message more often than the timeout cannot keep an unanswered call open.
+A call that passes its deadline is a `TimedOut` refusal,
+which pauses the moves for a few seconds.
+
+The group id handed to `setpriv` is the watched user's,
+not the matched process's.
 
 The matched process moves together with its live descendants of the same user that sit in the same cgroup.
 A descendant a user placed in another cgroup on purpose stays there.
@@ -372,8 +401,26 @@ or failed with no cgroup,
 and nothing removes them:
 the manager stops a scope when its last process exits,
 and a scope that never held one gets no such event.
-When the watcher starts it sweeps them once,
-on a thread of its own,
+When the watcher starts it sweeps them once.
+The scopes of one origin are stopped before the first target scan and the first adoption,
+in the watcher's own thread:
+a process joining an origin scope is a process a watcher moved there,
+and the manager ends every process in a scope it stops,
+so a sweep running beside adoption cannot make that decision safely.
+Ordering alone does not exclude a second watcher of the same user,
+which moves processes into the same origin scopes while the starting watcher sweeps,
+so both sides hold one lock file per watched user,
+`/run/wg-quicker-exempt-adoption-<uid>.lock`:
+an origin batch reads its scopes and sends its stop under that lock,
+and every move takes it across its manager call and its confirmation.
+A move that cannot take it at once is left for the next scan,
+and its log line says its traffic uses the tunnel until then,
+which keeps the watcher's loop out of another watcher's slow manager call.
+A batch whose lock stays held for five seconds is left for the next watcher start,
+and the sweep line says how many scopes that was and what was waited for.
+The scopes of the earlier per-process design,
+which the current watcher never fills,
+are swept on a thread of its own,
 so the policy is enforced while the manager works.
 It lists the manager's units that match the earlier design's names (two runs of digits,
 not a path),
@@ -386,6 +433,14 @@ which ends with its processes,
 a scope whose state cannot be read,
 or a scope of the current design,
 whose name is a path.
+The sweep also stops a scope that holds the processes of one origin while its cgroup holds no process,
+including one an earlier build named with a second `.scope`:
+the manager stops a scope when its last process exits,
+but a scope that was created for a process that was already exiting stays empty for ever,
+and nothing else would ever find it again.
+A running scope of that kind that holds a process is left alone,
+and the manager cannot report an active scope that adopted a process as empty,
+because the start job attaches the processes before the scope becomes active.
 Its counts are logged once.
 Nothing can put a process into an empty scope of the earlier design afterwards,
 so a scope that reads empty stays empty.
@@ -423,6 +478,22 @@ underscore and an inner dot becomes `\xNN`.
 the real name keeps the parent,
 because two origins with the same last component would otherwise share one cap).
 A name that would pass the 255-byte unit name limit is cut and ends in a hash of the whole path.
+The name ends in exactly one `.scope`:
+the dot of a trailing unit suffix of the origin
+(`run-p1-i2.scope`,
+`x.service`) is escaped as `\x2e`,
+so `app.slice/foo` and `app.slice/foo.scope` keep distinct scopes
+instead of one scope with the other origin's cap,
+and `app.slice/run-p1-i2.scope` is `wg-quicker-update-app.slice-run\x2dp1\x2di2\x2escope.scope`.
+The spelling earlier builds wrote is still found before a new scope is made,
+so an origin whose scope is already running under
+`wg-quicker-update-app.slice-run\x2dp1\x2di2.scope.scope`
+receives its later processes there instead of in a second scope with a copy of the cap.
+
+The description `systemctl status` shows names the origin cgroup and the method that moved the process,
+for example
+`wg-quicker: adopted from /user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash (moved because it is a program under the toolchain install roots)`,
+so a test run's scope is not read as an update run of its own.
 
 The first process from an origin makes the scope with `StartTransientUnit`:
 with the origin's limits,
@@ -537,6 +608,110 @@ thread CPU time),
 one move's group collection went from 12061 read calls and 31.7 ms to 292 and 1.95 ms,
 and a pass over every process from 12005 read calls and 29.7 ms to 3302 and 25.9 ms with procfs files read in two calls instead of about five.
 The periodic scan and the scan after dropped events still read every process.
+
+### One process may not answer for the manager
+
+On 2026-11-11T03:51:27-05:00 an agent's probe started a second
+`/usr/lib/systemd/systemd --user` on this machine.
+systemd asks for `org.freedesktop.systemd1` on the session bus with replacement allowed,
+and the real manager never asks for it back,
+so the impostor owned the name until it was killed hours later.
+Every watcher call went to it,
+and adopted scopes,
+and a container build inside one,
+ended up in its tree with its limits.
+The owner,
+after that:
+"Make sure no imposer can never succeed again."
+
+What the watcher does now,
+in order:
+
+1. It reads the main process of `user@<uid>.service` from the system manager
+   (`systemctl show --property=MainPID`),
+   which answers over its own root-owned socket.
+2. It opens the user manager's private socket and reads `SO_PEERCRED`.
+   A pid that is not that main process is refused loudly,
+   naming both pids and the socket,
+   and nothing is written,
+   so nothing is moved.
+   The pid comes from the kernel for the connected socket,
+   so a socket the user planted at that path answers with its own pid and is refused.
+3. Every call goes over that socket,
+   so no name lookup happens anywhere on the path.
+4. The root watcher starts the `__impostor-guard` child as the watched user,
+   because a user bus refuses a connection from root.
+   It asks the session bus who owns `org.freedesktop.systemd1`,
+   and hears `NameOwnerChanged` for that name;
+   a poll every five seconds is the backstop.
+   An owner that is not the user's manager is killed with `SIGKILL`,
+   never `SIGTERM`,
+   because an impostor manager stops the units it started when it is asked to stop.
+   The real manager is then asked to take the name again
+   (`systemctl --user daemon-reexec`),
+   at most once in five minutes.
+   No owner at all asks for that re-execution too,
+   once.
+   A bus that cannot be asked changes nothing,
+   because guessing could kill the manager itself.
+   Every action,
+   and every refusal,
+   goes to the watcher log,
+   the journal
+   and the desktop of the watched user.
+
+The guard runs as the watched user,
+and the re-execution it asks for drops to that user's own primary group,
+never to the user id taken as a group id:
+a host whose accounts have a primary group number other than the user id,
+or no group numbered like the user at all,
+made `setpriv --regid <uid>` fail,
+so the manager was never asked to take the name again after an impostor had been killed.
+`the_reexecution_drops_to_the_users_primary_group` covers it.
+
+Every call to that bus ends at a deadline measured from its start,
+and not only at the socket timeout:
+a bus that answers with a message of another serial,
+or with a signal,
+more often than that timeout would restart it on every read,
+and the guard would skip those messages for ever without ever finishing its question about the name.
+The wait for `NameOwnerChanged` is bounded by one deadline the same way,
+so a bus that keeps sending other messages cannot starve the poll that ends it.
+
+Every signal is proven first.
+The pid a bus reports is not an identity the kernel keeps:
+an owner can exit and the kernel can give its number to another process of the same user,
+so the guard asks the bus again whether the same unique connection name still names that pid,
+and sends `SIGKILL` through a process descriptor (`pidfd`) opened for it,
+which refers to that process and not to the number.
+A pid the bus no longer names,
+or names with another pid,
+is never signalled;
+a kernel without process descriptors falls back to the bus proof and a direct signal.
+The guard also ends when its watcher does:
+the watcher holds the guard's standard input for its whole life,
+and the guard's loop ends when that input reaches its end,
+which a stop,
+an exit or a kill of the watcher all close.
+Without that,
+a guard outlived its watcher and kept polling the bus,
+and every restart added another one.
+
+The guard's decisions and its signal are tested
+(`src/impostor_guard_tests.rs`):
+the impostor is killed with the one signal it cannot handle,
+a second impostor inside the gap is killed without another re-execution,
+and the manager owning the name is left alone.
+`src/manager_socket_tests.rs` proves the refusal:
+a socket answered by another process is refused,
+the refusal names both pids,
+and no byte is sent;
+the same socket with the right pid is called and answered.
+The live ignored test `the_real_manager_creates_attaches_and_follows_limits`
+does the whole adoption against the real manager through that socket.
+
+The coordinator's stopgap service `guard-user-manager-bus-name`
+does the same from outside the packages until a watcher with this code is deployed.
 
 ### Warned on start, loud on failure
 
@@ -819,6 +994,37 @@ a manager restart,
 and a bug in the sentinel itself.
 The bypass route watcher of `wg-quicker` has its own sentinel.
 
+### Which marks stay
+
+A mark is exemption from the tunnel,
+so it stays attached only while the scan still selects its cgroup
+(`src/application_marks.rs`).
+A name-selected cgroup whose application has gone,
+and an executable-owned cgroup whose program has exited,
+lose their mark at the next reconciliation:
+the links are dropped,
+which is what the kernel unregisters the hooks with,
+and the cgroup's traffic belongs in the tunnel like every other cgroup's.
+Keeping the mark while the cgroup directory still existed
+left the bypass on after the application had exited,
+and the report that said the mark was not attached described the opposite of what was in force.
+A cgroup is reported once when its name claims an application it does not hold,
+and reported again after it regains the application and loses it later.
+
+### Confirming a move
+
+An adoption is confirmed from `/proc/<pid>/cgroup`,
+and the answer is the scope's own cgroup path,
+compared by whole components:
+a unit whose name contains the slice's name sits beside the slice and not in it,
+so `.../app.slice/app-monochromatic\x2dupdates.slice-task.scope` is not a move
+even though it holds every character of `app-monochromatic\x2dupdates.slice`.
+A confirmation that asked whether the text contained the slice accepted that lookalike,
+recorded a successful adoption,
+and left the process outside the updates slice with no retry and no report.
+A process that does not appear in the scope within the confirmation limit is a failure that is reported,
+and `a_lookalike_cgroup_name_is_not_proof_that_the_process_moved` covers it.
+
 ### Verification
 
 `mise run //package/wg/cli-quicker-exempt:test:unit` runs matcher,
@@ -866,13 +1072,43 @@ A failed attach removes partial new pins and leaves the prior complete set activ
 Attach and detach hold `/run/wg-quicker-exempt.lock` through the full lifecycle mutation.
 The loader verifies that `/sys/fs/bpf` is a distinct bpffs mount before creating pins.
 
-The descriptor-keeper fallback uses a two-phase handshake.
+The descriptor-keeper fallback uses a two-phase handshake,
+and both handshakes end at a limit:
+the watcher's `READY` and `COMMITTED` and the holder's `READY` and `COMMITTED` are read through one bounded reader
+(`src/line_ready.rs`),
+a candidate that has not spoken within sixty seconds is refused and ended,
+and a candidate that never ends is ended by the same bounded wait.
+Without the bound a child that neither spoke nor exited held the lifecycle lock of `watch-start`,
+and every later lifecycle command waited for ever for it.
+The limit covers every byte of the line and not only the first one:
+readiness and the line are separate steps,
+a child can write part of a line and keep its stream open,
+and a read to the newline then waits for the rest of a line that may never come.
+A handshake that stops arriving,
+mid-line or before it,
+ends at the sixty seconds with the message it waited for,
+and one line is capped at a few kilobytes,
+so a stream that never sends a newline cannot fill memory either.
+`line_ready_tests.rs` reads both handshakes' sources to keep the blocking read and the unbounded child wait out of them,
+because a child that speaks in time proves nothing about the one that never speaks.
 A candidate creates all links before the parent writes transition state and sends `COMMIT`.
 The child records a commit marker,
  the parent validates and stops the prior holder,
  then finalizes active state.
 Recovery retains the prior holder if an uncommitted candidate died
 and adopts a live committed candidate after interruption.
+
+A stop of the watcher or of a holder signals the process group it leads,
+not only its process:
+each one starts its `ip` calls,
+its `setpriv` and `busctl` clients and the leftover sweep's `systemctl`
+as children of a session it leads,
+and a signal to the leader alone left an in-flight manager client running,
+able to change the user's manager after `watch-stop` returned.
+The group is signalled only when the validated process leads it (its `pgrp` is its pid),
+and the bounded wait that follows covers the group as well.
+`keeper_process_tests.rs` runs a session leader with a child of its own and proves the group is empty afterwards,
+which fails when only the leader is signalled.
 Detach checks PID,
  process start time,
  full command,
@@ -957,7 +1193,7 @@ Release builds omit injection seam.
    Qure,
    and OdyTTY processes.
    Firefox matching accepts exact `firefox` and `firefox-bin` names only under a `firefox` or `firefox-nightly` directory.
-   The release launcher matches `app-firefox@*.service`.
+   The release launcher's `app-firefox@*.service` unit is marked while it holds one of those two images.
    Firefox ESR's directory and service remain tunnel-routed.
    ChatGPT matching accepts every executable inside the root-owned `/usr/lib/chatgpt` package tree,
    which includes the subprocess agents that application spawns.
@@ -979,6 +1215,9 @@ Release builds omit injection seam.
    because the mark belongs to the cgroup.
    A unit whose name begins with `pi-` is marked whoever created it,
    because a unit name is a name the user can choose.
+   The named desktop applications need their own program in the cgroup:
+   a `app-firefox@*.service` or `app-com.mitchellh.ghostty@*.service` unit that holds something else keeps its traffic in the tunnel,
+   and the watcher says which cgroup that was.
 - Process discovery attaches entire current cgroup.
    If Helium,
    Pale Moon,

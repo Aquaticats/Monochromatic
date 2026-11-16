@@ -14,6 +14,10 @@ import {
   FEED_PREVIEW_CHARACTERS,
 } from './driver-constants.ts';
 import {
+  MASKING_NOTHING,
+  type TextMasking,
+} from './secret-value-masking.ts';
+import {
   type Feed,
   startFeed,
 } from './feed-of-a-run.ts';
@@ -125,6 +129,14 @@ export type RecordOfPiRunRequest = {
    */
   readonly now?: () => number;
 
+  /**
+   The masking every feed line goes through, which is one boundary for every record a run writes: a tool's arguments, a tool's
+   result, an inbox preview, a problem, and Pi's own event detail all pass it.
+
+   The field has no default: a caller that writes a run's feed has to say what masks it, so a line nobody thought about cannot be
+   written as it came. A caller that holds no values passes {@link MASKING_NOTHING} and says so.
+   */
+  readonly mask: TextMasking;
 };
 
 /**
@@ -133,6 +145,8 @@ export type RecordOfPiRunRequest = {
  @param feedFile - file that receives one JSON line per noted event
 
  @param now - where the record reads the time
+
+ @param mask - the masking every feed line goes through
 
  @returns the record
 
@@ -144,6 +158,7 @@ export type RecordOfPiRunRequest = {
 export function startRecordOfPiRun({
   feedFile,
   now = Date.now,
+  mask,
 }: RecordOfPiRunRequest,): RecordOfPiRun {
   /**
    When the run started.
@@ -221,7 +236,21 @@ export function startRecordOfPiRun({
    */
   function note(entry: PiRecord,): void {
     activity.at = now();
-    feed.note(entry,);
+    // One boundary for every line: the entry is masked as the data it serialises to, so a field nobody thought of, a key, and a
+    // method an object carries are all covered by the same answer.
+    /**
+     The entry as data, or why it could not be masked.
+     */
+    const masked = mask.maskData(entry,);
+    feed.note(
+      ('value' in masked)
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the line's own fields are what the round trip proved.
+        ? masked.value as PiRecord
+        : {
+          kind: 'withheld',
+          cause: masked.cause,
+        },
+    );
   }
 
   /**
@@ -309,6 +338,7 @@ export function startRecordOfPiRun({
       piStartAttempts,
       piStartFailures,
       piStartStoppedBy,
+      sessionAtRest,
     },) {
       return {
         endReason,
@@ -326,6 +356,7 @@ export function startRecordOfPiRun({
         piStartAttempts: piStartAttempts ?? 1,
         ...(piStartFailures === undefined ? {} : { piStartFailures, }),
         ...(piStartStoppedBy === undefined ? {} : { piStartStoppedBy, }),
+        ...(sessionAtRest === undefined ? {} : { sessionAtRest, }),
         ...modelErrorOf({
           run: observed,
           retries: state.retriesSinceAnswer,

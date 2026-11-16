@@ -1,6 +1,9 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { run, } from './runner.ts';
+import {
+  HOOK_DEADLINE_MILLISECONDS,
+  run,
+} from './runner.ts';
 
 /**
  Module logger for shared tunnel helpers.
@@ -64,6 +67,9 @@ export function prefixLength({ prefix, }: { readonly prefix: string; },): number
 /**
  Executes hook commands, expanding `%i` to the interface name, like wg-quick.
  
+ A hook is a command the user chose,
+ so it gets the hook bound and not the one the program's own commands get.
+ 
  @param hooks - Hook command strings in declaration order.
  
  @param interfaceName - Interface name substituted for `%i`.
@@ -103,6 +109,7 @@ export async function executeHooks(
         '-c',
         expanded,
       ],
+      deadlineMilliseconds: HOOK_DEADLINE_MILLISECONDS,
     },);
   }
   /* oxlint-enable eslint/no-await-in-loop */
