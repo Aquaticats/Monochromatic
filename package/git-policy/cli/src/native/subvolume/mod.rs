@@ -210,6 +210,11 @@ pub mod subvolume_command;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_test_support;
 
+/// Which entries of one tree are not proved to stand, byte for byte, in another:
+/// the proof the deletion of the old tree and of a rollback's subvolume rest on.
+#[cfg(target_os = "linux")]
+pub mod subvolume_tree_proof;
+
 /// The controls of the rule that a person's bytes are deleted only when they are proved to stand in the tree kept.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_never_discards_data_tests;

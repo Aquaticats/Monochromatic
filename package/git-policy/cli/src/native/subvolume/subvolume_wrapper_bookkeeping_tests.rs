@@ -18,7 +18,7 @@ use crate::subvolume_error::Interrupt;
 use crate::subvolume_preflight::layout_of;
 use crate::subvolume_anchor::Anchor;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree, watch_entries};
-use crate::subvolume_sync_pass_state_and_checks::{Directory, PARKED_SUFFIX, PARTIAL_NAME, Pass, Published, watch_before_the_judgement, watch_the_freed_name};
+use crate::subvolume_sync_pass_state_and_checks::{Directory, PARTIAL_NAME, Pass, Published, watch_before_the_judgement, watch_the_freed_name};
 use crate::subvolume_wrapper_bookkeeping::{OwnBookkeeping, notice_kinds, own_bookkeeping_of};
 use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, migrate_arguments, run_command};
 use crate::test_support::{fixture, remove};
@@ -108,8 +108,8 @@ fn records_below_the_git_directory() -> PathBuf {
 /// One update-only pass with a cut-off,
 /// as the deletion of the old tree runs it.
 fn carry(source: &Path, destination: &Path) -> SyncStats {
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(A_CUTOFF_AFTER_EVERY_ENTRY) };
-    return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: Some(A_CUTOFF_AFTER_EVERY_ENTRY) };
+    return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never(), None, None).expect("a pass");
 }
 
 /// The exit status of one command and everything it said,
@@ -435,12 +435,13 @@ fn review_notice_copy_does_not_replace_a_concurrently_created_destination_file()
 /// The options a control that drives one step at a time runs with:
 /// copy only,
 /// which is what the first pass of a migration does.
-const COPY: SyncOptions<'static> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
+const COPY: SyncOptions<'static> = SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None };
 
 /// A pass over `source` and `destination` that a control drives one step at a time.
 fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
     return Pass {
         note_uncarried: None,
+        parking: None,
         platform,
         source,
         destination,
@@ -604,8 +605,8 @@ fn an_ordinary_file_the_destination_gained_during_the_copy_is_kept() {
     let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(move |_calls| {
         std::fs::write(written_into.as_path(), concurrent_text).expect("the concurrent file");
     }));
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
     platform.on_clone = Box::new(|_calls| {});
     assert_eq!(stats.kept_at_the_destination, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
     assert_eq!(std::fs::read(destination.join("person-notes.txt")).expect("the destination file"), concurrent_text, "the concurrent file is not replaced");
@@ -636,13 +637,13 @@ fn a_name_the_pass_found_free_is_created_and_one_it_saw_is_replaced_only_as_the_
     std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
     assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&listing)).expect("a publish"), Published::KeptTheDestinationEntry);
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"somebody else's file", "the entry the pass did not examine is put back");
-    assert!(!destination.join(format!("file.txt{PARKED_SUFFIX}")).exists(), "and nothing stays parked after the judgement");
+    assert!(!destination.join(crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("file.txt"))).exists(), "and nothing stays parked after the judgement");
     // The very object the pass examined: it is superseded, and the copy takes the name.
     let seen: std::fs::Metadata = std::fs::symlink_metadata(destination.join("file.txt")).expect("the entry the pass saw");
     std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
     assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&seen)).expect("a publish"), Published::Placed);
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("replaced"), b"the copy", "the object the pass examined is replaced");
-    assert!(!destination.join(format!("file.txt{PARKED_SUFFIX}")).exists(), "the parked entry the pass examined is removed");
+    assert!(!destination.join(crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("file.txt"))).exists(), "the parked entry the pass examined is removed");
     remove(parent.as_path());
 }
 //endregion
@@ -666,8 +667,8 @@ fn review_repro_destination_written_in_place_during_copy_is_kept() {
     let platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(move |_calls| {
         std::fs::write(written_into.as_path(), concurrent_text).expect("in-place destination write");
     }));
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
     println!("destination after publication: {:?}; kept report: {:?}", std::fs::read(destination_note.as_path()), stats.kept_at_the_destination);
     assert_eq!(std::fs::read(destination_note.as_path()).expect("destination after publication"), concurrent_text);
     remove(parent.as_path());
@@ -816,34 +817,39 @@ fn review_repro_a_file_put_at_the_freed_name_is_kept() {
             std::fs::write(freed, concurrent_text).expect("a file at the freed name");
         })));
     }
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
     watch_the_freed_name(None);
     assert_eq!(std::fs::read(destination_note.as_path()).expect("the destination after the pass"), concurrent_text, "the file put at the freed name is not replaced: {stats:#?}");
     assert!(!stats.kept_at_the_destination.is_empty(), "the pass says it did not place the source's copy: {stats:#?}");
-    assert_eq!(std::fs::read(placed_into.with_file_name(format!("person-notes.txt{PARKED_SUFFIX}"))).expect("the entry the pass examined"), b"original destination\n", "the entry the pass had examined is not lost");
+    assert_eq!(std::fs::read(placed_into.with_file_name(crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("person-notes.txt")))).expect("the entry the pass examined"), b"original destination\n", "the entry the pass had examined is not lost");
     remove(parent.as_path());
 }
 
 /// A parked entry a killed pass left behind is named by the next command and never deleted:
 /// the deletion of the old tree waits for it.
 #[test]
-fn a_parked_entry_left_by_a_kill_holds_the_deletion_back() {
+fn a_parked_entry_left_by_a_kill_is_named_where_it_is_and_what_it_is() {
     let (parent, root) = checkout_with_worktree("parked-entry-left");
     let platform: PlainPlatform = PlainPlatform::new();
     let (migration_code, migration_said) = run(&platform, &migrate_arguments(), root.as_path());
     assert_eq!(migration_code, DONE, "{migration_said}");
-    let parked: PathBuf = root.join(format!("person-notes.txt{PARKED_SUFFIX}"));
-    std::fs::write(parked.as_path(), b"what a killed replacement had parked\n").expect("a parked entry");
+    let layout = layout_of(root.as_path()).expect("layout");
+    // A parked copy stands in the checkout, and the record beside the checkout names it and the file it copies.
+    let parked_name: std::ffi::OsString = crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("person-notes.txt"));
+    let parked: PathBuf = root.join(parked_name.as_os_str());
+    std::fs::write(parked.as_path(), b"what a killed replacement had parked\n").expect("a parked copy");
+    std::fs::write(layout.parked_path.as_path(), format!("{}\tperson-notes.txt\n", parked_name.to_string_lossy()).as_bytes()).expect("the record of parked copies");
     let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
-    assert_eq!(code, REFUSED, "{said}");
-    assert!(said.contains("person-notes.txt") && said.contains(PARKED_SUFFIX), "the refusal names the parked entry: {said}");
-    assert!(parked.is_file(), "nothing deletes a parked entry");
+    // A parked copy is no entry of the old tree, so it does not hold the deletion back; the words name it, the file it
+    //  copies and what the person can do, and nothing deletes it.
+    assert!(said.contains(".cli-git-migrate-parked-") && said.contains("person-notes.txt"), "the words name the parked copy and the file it copies: {said}");
+    assert!(said.contains("delete it when nothing in it is yours"), "and what the person can do: {said}");
+    assert!(parked.is_file(), "nothing deletes a parked copy");
+    let _ = code;
     remove(parent.as_path());
 }
 
-/// A record an earlier run wrote is read by a run that has passed nothing:
-/// the deletion asks the durable record, not only its own memory.
 #[test]
 fn the_deletion_reads_the_durable_record_of_an_earlier_run() {
     let (parent, root) = checkout_with_worktree("durable-record-fresh-run");
@@ -873,8 +879,8 @@ fn a_source_path_replaced_during_the_copy_is_counted_as_another_kind() {
         std::fs::write(replacement.as_path(), b"the replacement written during the copy\n").expect("replacement");
         std::fs::rename(replacement.as_path(), replaced.as_path()).expect("replace the source path");
     }));
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
     platform.on_clone = Box::new(|_calls| {});
     assert_eq!(stats.changed_while_passing, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
     assert!(!destination.join("person-notes.txt").exists(), "the copy of the inode that no longer stands there is not placed: {stats:#?}");
@@ -901,8 +907,8 @@ fn review_repro_source_write_after_the_last_source_check_is_not_in_the_published
     watch_the_freed_name(Some(Box::new(move |_freed: &Path| {
         std::fs::write(during_freed_name.as_path(), b"new source written after the source check\n").expect("concurrent source write");
     })));
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
     watch_the_freed_name(None);
     println!("source={:?} destination={:?} stats={stats:?}", std::fs::read(source_file.as_path()), std::fs::read(destination_file.as_path()));
     assert_eq!(std::fs::read(destination_file.as_path()).expect("destination"), b"new source written after the source check\n");
@@ -920,14 +926,14 @@ fn review_repro_same_size_and_timestamp_destination_write_is_not_deleted() {
     std::fs::write(destination_file.as_path(), b"old words\n").expect("destination");
     set_mtime(source_file.as_path(), 2_000_000_000);
     set_mtime(destination_file.as_path(), 1_000_000_000);
-    let parked: PathBuf = destination_file.with_file_name(format!("file.txt{PARKED_SUFFIX}"));
+    let parked: PathBuf = destination_file.with_file_name(crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("file.txt")));
     let during_freed_name: PathBuf = parked.clone();
     watch_the_freed_name(Some(Box::new(move |_freed: &Path| {
         std::fs::write(during_freed_name.as_path(), b"new words\n").expect("same-size concurrent write");
         set_mtime(during_freed_name.as_path(), 1_000_000_000);
     })));
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
     watch_the_freed_name(None);
     println!("destination={:?} parked_exists={} stats={stats:?}", std::fs::read(destination_file.as_path()), parked.exists());
     assert_eq!(std::fs::read(destination_file.as_path()).expect("destination"), b"new words\n");
@@ -1044,8 +1050,8 @@ fn review_walk_a_source_write_at_every_instruction_is_carried_or_recorded() {
         set_mtime(destination_file.as_path(), 1_000_000_000);
         let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
         write_at(seam, source_file.clone(), written, &mut platform);
-        let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-        let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+        let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: None };
+        let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
         clear_the_seams();
         let at_the_destination: Vec<u8> = std::fs::read(destination_file.as_path()).unwrap_or_default();
         let recorded: bool = stats.changed_while_passing.iter().any(|path| return path == Path::new("file.txt"))
@@ -1071,7 +1077,7 @@ fn review_walk_a_write_to_the_parked_entry_at_every_instruction_is_kept_or_recor
         std::fs::write(destination_file.as_path(), b"old words\n").expect("destination");
         set_mtime(source_file.as_path(), 2_000_000_000);
         set_mtime(destination_file.as_path(), 1_000_000_000);
-        let parked: PathBuf = destination_file.with_file_name(format!("file.txt{PARKED_SUFFIX}"));
+        let parked: PathBuf = destination_file.with_file_name(crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("file.txt")));
         let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
         let once: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         if seam == "while-the-name-is-freed" {
@@ -1093,12 +1099,13 @@ fn review_walk_a_write_to_the_parked_entry_at_every_instruction_is_kept_or_recor
                 set_mtime(target.as_path(), 1_000_000_000);
             })));
         }
-        let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
-        let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None).expect("a pass");
+        let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: None };
+        let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never(), None, None).expect("a pass");
         clear_the_seams();
         let at_the_destination: Vec<u8> = std::fs::read(destination_file.as_path()).unwrap_or_default();
         let at_the_parked_name: Vec<u8> = std::fs::read(parked.as_path()).unwrap_or_default();
-        let recorded: bool = stats.kept_at_the_destination.iter().any(|path| return path == Path::new("file.txt") || path == &PathBuf::from(format!("file.txt{PARKED_SUFFIX}")))
+        let recorded: bool = stats.kept_at_the_destination.iter().any(|path| return path == Path::new("file.txt"))
+            || stats.parked_copies.iter().any(|(name, _original)| return name == &PathBuf::from(crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("file.txt"))))
             || stats.changed_while_passing.iter().any(|path| return path == Path::new("file.txt"));
         println!("seam {seam}: destination={:?} parked={:?} recorded={recorded} stats={stats:?}", at_the_destination, at_the_parked_name);
         assert!(

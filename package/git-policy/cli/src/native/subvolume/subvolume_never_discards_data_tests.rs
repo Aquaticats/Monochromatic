@@ -221,7 +221,7 @@ fn one_cell(cell: &Cell<'_>) -> Result<(), String> {
             watch_entries(Some(Box::new(move |examined: &Path| {
                 // The pass hands the walk each entry of a folder after the whole folder was listed, so a write here lands
                 //  after the listing and before this entry is handled.
-                let is_a_later_entry: bool = examined.file_name().map(|name| return name == "src").unwrap_or(false);
+                let is_a_later_entry: bool = examined.file_name().map(|part| return part == "src").unwrap_or(false);
                 if !is_a_later_entry || only_once.swap(true, Ordering::SeqCst) {
                     return;
                 }
@@ -241,9 +241,10 @@ fn one_cell(cell: &Cell<'_>) -> Result<(), String> {
                 }
                 // Nothing here: the parked entry is written by the seam below, which needs its name.
             })));
-            let only_once: Arc<AtomicBool> = seam.clone();
+            let once_for_the_judgement: Arc<AtomicBool> = seam.clone();
+            let wanted: std::ffi::OsString = crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new(target));
             watch_before_the_judgement(Some(Box::new(move |parked: &Path| {
-                if only_once.swap(true, Ordering::SeqCst) {
+                if parked.file_name() != Some(wanted.as_os_str()) || once_for_the_judgement.swap(true, Ordering::SeqCst) {
                     return;
                 }
                 std::fs::write(parked, b"THE-OTHER-PARTYS-WRITE\n").expect("a write into the parked entry");
@@ -324,19 +325,19 @@ fn review_a_listed_file_turned_into_a_pipe_is_not_waited_on() {
     let pipe_after_the_pass: PathBuf = pipe.clone();
     let run_in_a_thread = std::thread::spawn(move || {
         // The seam is installed in the thread that runs the pass, because the walk's callback belongs to its thread.
-        let pipe: PathBuf = pipe;
+        let the_pipe: PathBuf = pipe;
         let only_once: Arc<AtomicBool> = once;
         watch_entries(Some(Box::new(move |examined: &Path| {
-            let is_a_later_entry: bool = examined.file_name().map(|name| return name == "src").unwrap_or(false);
+            let is_a_later_entry: bool = examined.file_name().map(|part| return part == "src").unwrap_or(false);
             if !is_a_later_entry || only_once.swap(true, Ordering::SeqCst) {
                 return;
             }
-            std::fs::remove_file(pipe.as_path()).expect("remove the file");
+            std::fs::remove_file(the_pipe.as_path()).expect("remove the file");
             let mut made: std::process::Command = std::process::Command::new("/usr/bin/mkfifo");
-            made.arg(pipe.as_path()).status().expect("mkfifo");
+            made.arg(the_pipe.as_path()).status().expect("mkfifo");
         })));
-        let platform: PlainPlatform = PlainPlatform::new();
-        let answered: (i32, String) = run(&platform, &remove_old_arguments(), root_for_the_thread.as_path());
+        let in_the_thread: PlainPlatform = PlainPlatform::new();
+        let answered: (i32, String) = run(&in_the_thread, &remove_old_arguments(), root_for_the_thread.as_path());
         watch_entries(None);
         let _sent = sender.send(answered);
     });
@@ -391,7 +392,7 @@ fn review_a_persons_file_that_ends_in_the_parked_suffix_migrates() {
     std::fs::write(root.join(name), b"a person's own file\n").expect("a file with that ending");
     let (code, said) = run(&platform, &migrate_arguments(), root.as_path());
     assert_eq!(code, DONE, "{said}");
-    assert!(!said.contains("parked"), "no pass takes a person's file for one this program parked: {said}");
+    assert!(!said.contains(".cli-git-migrate-parked-") && !said.contains("this command parked"), "no pass takes a person's file for one this program parked: {said}");
     assert!(holds(root.join(name).as_path(), b"a person's own file\n"));
     let (removed, removed_said) = run(&platform, &remove_old_arguments(), root.as_path());
     assert_eq!(removed, DONE, "the deletion finishes, since the copy equals the original: {removed_said}");
@@ -429,7 +430,7 @@ fn review_a_parked_copy_a_kill_left_is_named_where_it_is_and_what_it_is() {
     // A person who removes the copy is not refused for ever by it.
     std::fs::remove_file(parked[0].as_path()).expect("the person's removal");
     let (after, after_said) = run(&platform, &remove_old_arguments(), root.as_path());
-    assert!(!after_said.contains("parked"), "the copy a person removed is not named again: {after_said}");
+    assert!(!after_said.contains(".cli-git-migrate-parked-"), "the copy a person removed is not named again: {after_said}");
     let _ = after;
     remove(parent.as_path());
 }
@@ -445,25 +446,27 @@ fn review_a_file_put_at_the_name_during_the_put_back_is_kept() {
     let layout = layout_of(root.as_path()).expect("layout");
     let third_party: &[u8] = b"ANOTHER-COMMANDS-FILE\n";
     std::fs::write(layout.old_path.join("README.md"), b"a later write\n").expect("the later write");
-    let once: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    // The two seams speak for README.md alone, because the pass parks and puts back other entries too.
+    let the_parked_name: std::ffi::OsString = crate::subvolume_sync_pass_state_and_checks::parked_name(Path::new("README.md"));
+    let into_the_parked_entry: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     {
-        let only_once: Arc<AtomicBool> = once.clone();
+        let only_once: Arc<AtomicBool> = into_the_parked_entry.clone();
+        let wanted: std::ffi::OsString = the_parked_name.clone();
         watch_before_the_judgement(Some(Box::new(move |parked: &Path| {
-            if only_once.swap(true, Ordering::SeqCst) {
+            if parked.file_name() != Some(wanted.as_os_str()) || only_once.swap(true, Ordering::SeqCst) {
                 return;
             }
             std::fs::write(parked, b"THE-OTHER-PARTYS-WRITE\n").expect("a write into the parked entry");
         })));
     }
+    let at_the_freed_name: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     {
-        let only_once: Arc<AtomicBool> = once.clone();
-        let name: PathBuf = root.join("README.md");
+        let only_once: Arc<AtomicBool> = at_the_freed_name.clone();
         watch_before_the_put_back(Some(Box::new(move |freed: &Path| {
-            if only_once.swap(true, Ordering::SeqCst) {
+            if freed.file_name() != Some(std::ffi::OsStr::new("README.md")) || only_once.swap(true, Ordering::SeqCst) {
                 return;
             }
             std::fs::write(freed, third_party).expect("another command's file at the freed name");
-            let _ = name;
         })));
     }
     let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
@@ -494,7 +497,7 @@ fn parked_copies_in(root: &Path) -> Vec<PathBuf> {
                 }
                 continue;
             }
-            if crate::subvolume_sync_pass_state_and_checks::is_a_parked_name(item.file_name().as_os_str()) {
+            if item.file_name().as_encoded_bytes().starts_with(crate::subvolume_sync_pass_state_and_checks::PARKED_PREFIX.as_bytes()) {
                 found.push(path);
             }
         }

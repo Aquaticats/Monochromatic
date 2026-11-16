@@ -81,6 +81,97 @@ fn read_path_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
 }
 
 /// What:
+///  The record of the entries a pass parks while it replaces them,
+///  and of the parked copies an earlier run left.
+/// Why:
+///  A parked copy is a file of somebody's whose name says nothing,
+///  so this program's own parked copies are known by this record and never by a name's ending;
+///  and the line is written before the parking,
+///  so a kill at any instruction after it leaves the knowledge that the name holds this program's copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheParking implements Parking { aboutToPark(original, parked) { this.lines.set(parked, original); writeBesideThenRename(...); } }
+/// ```
+struct TheParking<'a> {
+    /// The file beside the checkout.
+    path: &'a Path,
+    /// Every parked copy the record names,
+    /// by its name and the path it is a copy of.
+    lines: std::collections::BTreeMap<PathBuf, PathBuf>,
+    /// The failure of a write,
+    /// kept so the pass stops with it once it returns.
+    failed: Option<MigrateError>,
+}
+
+impl TheParking<'_> {
+    /// Write the record as it stands,
+    /// and remember a failure.
+    fn write(&mut self) {
+        let mut text: String = String::new();
+        for (parked, original) in &self.lines {
+            text.push_str(parked.to_string_lossy().as_ref());
+            text.push('\t');
+            text.push_str(original.to_string_lossy().as_ref());
+            text.push('\n');
+        }
+        if let Err(failure) = MigrateError::from_io_result(write_beside_then_rename(self.path, text.as_bytes()), "write the list of parked copies", self.path) {
+            self.failed = Some(failure);
+        }
+    }
+}
+
+impl crate::subvolume_sync_pass_state_and_checks::Parking for TheParking<'_> {
+    fn about_to_park(&mut self, original: &Path, parked: &Path) {
+        self.lines.insert(parked.to_path_buf(), original.to_path_buf());
+        self.write();
+    }
+    fn judged(&mut self, parked: &Path) {
+        if self.lines.remove(parked).is_some() {
+            self.write();
+        }
+    }
+    fn known(&self) -> &std::collections::BTreeMap<PathBuf, PathBuf> {
+        return &self.lines;
+    }
+}
+
+/// What:
+///  The parked copies the record beside the checkout names,
+///  read line by line as `parked<TAB>original`.
+/// Why:
+///   A line the record cannot parse names nothing,
+///  and a name that leads nowhere is dropped by the next pass that writes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parked = readParked(path); // Map<parked, original>
+/// ```
+fn read_the_parked_record(path: &Path) -> std::io::Result<std::collections::BTreeMap<PathBuf, PathBuf>> {
+    let file: std::fs::File = crate::plain_file::open_plain_file(path)?;
+    let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(file);
+    let mut lines: std::collections::BTreeMap<PathBuf, PathBuf> = std::collections::BTreeMap::new();
+    let mut line: Vec<u8> = Vec::new();
+    loop {
+        line.clear();
+        let read: usize = std::io::BufRead::read_until(&mut reader, b'\n', &mut line)?;
+        if read == 0 {
+            break;
+        }
+        if line.last() == Some(&b'\n') {
+            line.pop();
+        }
+        let text: String = String::from_utf8_lossy(line.as_slice()).into_owned();
+        let Some((parked, original)) = text.split_once('\t') else { continue };
+        if parked.is_empty() || original.is_empty() {
+            continue;
+        }
+        lines.insert(PathBuf::from(parked), PathBuf::from(original));
+    }
+    return Ok(lines);
+}
+
+/// What:
 ///  The record of entries no pass carried,
 ///  written beside the checkout as each one is learned.
 /// Why:
@@ -210,6 +301,9 @@ pub struct Run<'a> {
     /// Relative paths of entries that were another kind of entry when the carry reached them,
     /// so nothing was written at their path.
     pub changed_while_passing: BTreeSet<PathBuf>,
+    /// The parked copies the record beside the checkout names,
+    /// by the name each stands under and the path it is a copy of.
+    pub parked: std::collections::BTreeMap<PathBuf, PathBuf>,
     /// Relative paths an earlier command recorded as not carried,
     /// read from the list beside the checkout.
     /// They forbid the deletion until a person copies them or accepts the loss,
@@ -268,6 +362,8 @@ impl Run<'_> {
         //  (`Run::uncarried`), and answers then. A link at the name is such a case, and a plain write of the next list
         //  replaces that link rather than following it.
         let recorded: BTreeSet<PathBuf> = read_path_list(layout.left_out_path.as_path()).unwrap_or_default();
+        // A record that cannot be read here is asked again by the deletion, as the list of entries no pass carried is.
+        let parked: std::collections::BTreeMap<PathBuf, PathBuf> = read_the_parked_record(layout.parked_path.as_path()).unwrap_or_default();
         return Ok(Run {
             platform,
             layout,
@@ -279,6 +375,7 @@ impl Run<'_> {
             conflicts: BTreeSet::new(),
             kept_at_the_destination: BTreeSet::new(),
             changed_while_passing: BTreeSet::new(),
+            parked,
             recorded,
         });
     }
@@ -334,7 +431,34 @@ impl Run<'_> {
     /// const stats = await run.passUnrecorded('carry back', source, destination, { delete: false, updateOnly: true });
     /// ```
     pub fn pass_unrecorded(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
-        return self.pass_core(label, source, destination, SyncOptions { delete, update_only, excluded: &[], created_since: None });
+        return self.pass_core(label, source, destination, SyncOptions { never_replaces: false,  delete, update_only, excluded: &[], created_since: None });
+    }
+
+    /// What:
+    ///  Run the carry back of a rollback:
+    ///  create what the original directory lacks,
+    ///  and name what it holds and the new root holds differently,
+    ///  because the tree this pass writes into is the one the person keeps.
+    /// Why:
+    ///   See `SyncOptions::never_replaces`;
+    ///  the proof against the subvolume the rollback deletes is what holds the deletion back,
+    ///  and the record names each path.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await run.passCarryBack('carry back', newRoot, oldTree);
+    /// ```
+    pub fn pass_carry_back(&mut self, label: &str, source: &Path, destination: &Path) -> Result<SyncStats, MigrateError> {
+        let stats: SyncStats = self.pass_core(
+            label,
+            source,
+            destination,
+            SyncOptions { never_replaces: true, delete: false, update_only: true, excluded: &[], created_since: None },
+        )?;
+        for path in &stats.copied_sample {
+            self.line(format!("{label}: carried {}", path.display()).as_str());
+        }
+        return Ok(stats);
     }
 
     /// What:
@@ -355,7 +479,7 @@ impl Run<'_> {
     /// const stats = await run.passLate('late writes', oldTree, root, catchupSeconds);
     /// ```
     pub fn pass_late(&mut self, label: &str, source: &Path, destination: &Path, since: i64) -> Result<SyncStats, MigrateError> {
-        let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
+        let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
         self.record_unreadable(label, &stats)?;
         self.record_uncarried(&stats)?;
         for path in &stats.copied_sample {
@@ -379,6 +503,7 @@ impl Run<'_> {
             let mut record: TheRecord<'_> =
                 TheRecord { path: self.layout.left_out_path.as_path(), paths: everything_the_run_holds(self), unreadable: &self.unreadable, failed: None };
             record.begin();
+            let mut parking: TheParking<'_> = TheParking { path: self.layout.parked_path.as_path(), lines: self.parked.clone(), failed: None };
             let stats: SyncStats = sync_tree(
                 self.platform,
                 source,
@@ -386,10 +511,15 @@ impl Run<'_> {
                 SyncOptions { excluded: excluded.as_slice(), ..requested },
                 self.interrupt,
                 Some(&mut |path: &Path, _kind: Uncarried| return record.note(path)),
+                Some(&mut parking),
             )?;
             if let Some(failure) = record.failed.take() {
                 return Err(failure);
             }
+            if let Some(failure) = parking.failed.take() {
+                return Err(failure);
+            }
+            self.parked = parking.lines.clone();
             stats
         };
         self.line(

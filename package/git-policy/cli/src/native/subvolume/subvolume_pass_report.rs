@@ -77,14 +77,14 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
         ));
     }
     for path in &stats.kept_at_the_destination {
-        // A parked entry is what a replacement this pass parks before it judges it: it holds somebody's entry, and the
-        // words say where it stands rather than that the destination kept a copy.
-        let parked: bool = path.file_name().is_some_and(|name| return crate::subvolume_sync_pass_state_and_checks::is_a_parked_name(name));
-        if parked {
-            lines.push(format!("{label}: kept {}, an entry a replacement parked here and did not judge, because the name it stood at was taken again; nothing deletes it", path.display()));
-            continue;
-        }
         lines.push(format!("{label}: did not place {} because the destination holds an entry there that this pass did not put there, and it stays", path.display()));
+    }
+    for (parked, original) in &stats.parked_copies {
+        lines.push(format!(
+            "{label}: kept {parked}, a copy of {original} that this command parked when a replacement was interrupted, and it did not judge it; nothing here deletes it: look at it, and delete it when nothing in it is yours",
+            parked = parked.display(),
+            original = original.display()
+        ));
     }
     for path in &stats.changed_while_passing {
         lines.push(format!(

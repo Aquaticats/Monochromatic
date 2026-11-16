@@ -30,8 +30,8 @@ fn checkout_with_worktrees(name: &str) -> (PathBuf, PathBuf) {
 /// so every file has a new inode and change time.
 fn copy_of(source: &Path, destination: &Path) {
     std::fs::create_dir(destination).expect("destination");
-    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
-    sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never(), None).expect("copy");
+    let options: SyncOptions<'_> = SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None };
+    sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never(), None, None).expect("copy");
 }
 
 /// Only worktrees inside the checkout are found,

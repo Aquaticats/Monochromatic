@@ -31,7 +31,11 @@ use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
-use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, installed_identity_refusal, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy};
+use crate::subvolume_tree_proof::is_this_programs_own;
+use crate::subvolume_rollback_identity::{
+    PairLook, PinnedRoot, installed_identity_refusal, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy,
+    unproved_cause, unproved_remedy,
+};
 use crate::subvolume_rollback_stage::stage_is_not_a_subvolume;
 use crate::subvolume_rollback_subvolume_removal::{remove_if_present, remove_subvolume_tree};
 use crate::subvolume_remove::remove_tree;
@@ -63,6 +67,28 @@ fn old_tree_missing(run: &Run<'_>) -> Refusal {
             "If the old tree was moved, move it back to that path and run the command again; if it was deleted, the checkout cannot be rolled back and the new subvolume is the only copy.",
         ),
     };
+}
+
+/// What:
+///  The paths a person has already accepted may go,
+///  which the proof of the deletion does not name.
+/// Why:
+///  Each flag answers for its own record and nothing else,
+///  so an entry nobody recorded is still named even when a flag was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const accepted = new Set([...(discardUnreadable ? run.unreadable : []), ...(discardLeftOut ? run.uncarried() : [])]);
+/// ```
+fn accepted_paths(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<std::collections::BTreeSet<PathBuf>, MigrateError> {
+    let mut accepted: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    if discard_unreadable {
+        accepted.extend(run.unreadable.iter().cloned());
+    }
+    if discard_left_out {
+        accepted.extend(run.uncarried()?);
+    }
+    return Ok(accepted);
 }
 
 /// The refusal of a deletion whose old tree is a symbolic link:
@@ -262,7 +288,22 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
         if !old_path.exists() {
             return Ok(Some(vec![old_tree_missing(run)]));
         }
-        let carried: SyncStats = run.pass_unrecorded("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
+        // The carry back brings what is newer in the new root, as it always did; what it cannot bring is not deleted on a
+        //  modification time, because the proof against the subvolume this deletes reads every byte it holds.
+        // The carry back replaces nothing: the tree it writes into is the one the person keeps, so a modification time
+        //  is no reason to delete a byte of it. What differs is named, and the proof against the subvolume this deletes
+        //  refuses over it unless the person accepts it.
+        let mut carried: SyncStats = run.pass_carry_back("carry back (files newer in the new root)", root.as_path(), old_path.as_path())?;
+        // What this program writes for itself is nobody's bytes to report: the index it rewrote, the locks a Git holds,
+        //  the partial copy it was making. The proof leaves the same paths out, so the two agree.
+        let root_for_the_filter: PathBuf = root.clone();
+        let the_roots_own_kind = || return std::fs::symlink_metadata(root_for_the_filter.as_path()).expect("the root").file_type();
+        carried.kept_at_the_destination.retain(|path| {
+            return !is_this_programs_own(root_for_the_filter.as_path(), path, std::fs::symlink_metadata(root_for_the_filter.join(path)).map(|found| return found.file_type()).unwrap_or_else(|_gone| return the_roots_own_kind()));
+        });
+        carried.changed_while_passing.retain(|path| {
+            return !is_this_programs_own(root_for_the_filter.as_path(), path, std::fs::symlink_metadata(root_for_the_filter.join(path)).map(|found| return found.file_type()).unwrap_or_else(|_gone| return the_roots_own_kind()));
+        });
         if !carried.unreadable.is_empty() && !discard_unreadable {
             let mut shown: Vec<String> = Vec::new();
             for path in carried.unreadable.iter().take(10) {
@@ -275,6 +316,23 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_ou
         }
         if let Some(refusal) = carry_back_left_out(run, &carried, discard_left_out) {
             return Ok(Some(vec![refusal]));
+        }
+        // What the carry back kept is what the proof against the subvolume names,
+        //  so the person's flag answers for exactly those paths.
+        for path in carried.kept_at_the_destination.iter() {
+            run.kept_at_the_destination.insert(path.clone());
+        }
+        for path in carried.changed_while_passing.iter() {
+            run.changed_while_passing.insert(path.clone());
+        }
+        for path in carried.left_out.iter() {
+            run.left_out.insert(path.clone());
+        }
+        for path in carried.conflicts.iter() {
+            run.conflicts.insert(path.clone());
+        }
+        for path in carried.unreadable.iter() {
+            run.unreadable.insert(path.clone());
         }
         run.checkpoint("rollback-before-exchange")?;
         before_exchange();
@@ -399,12 +457,27 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
         return Ok(Some(vec![refusal]));
     }
     if new_path.exists() {
+        // The same rule in the other direction: every byte of the subvolume this deletes is read against the restored
+        //  original directory, and what the person accepted with the flag is what the carry back recorded and no more.
+        let accepted: std::collections::BTreeSet<PathBuf> = accepted_paths(run, discard_unreadable, discard_left_out)?;
+        let unproved: Vec<PathBuf> = crate::subvolume_tree_proof::entries_not_in(new_path.as_path(), root.as_path(), &accepted)?;
+        if !unproved.is_empty() {
+            return Ok(Some(vec![Refusal { cause: unproved_cause(run, &unproved), remedy: unproved_remedy() }]));
+        }
         run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());
         remove_subvolume_tree(run, new_path.as_path())?;
     }
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
+    // The record describes entries of a migration that this rollback undid:
+    //  the old tree is the checkout again, so nothing in that record is still true,
+    //  and a later migration must not report it.
+    remove_if_present(run.layout.left_out_path.as_path())?;
     run.line(format!("rolled back: {} is the original directory again, and the migration journal is deleted.", root.display()).as_str());
+    let parked_copies: Vec<(PathBuf, PathBuf)> = run.parked.iter().map(|(parked, original)| return (parked.clone(), original.clone())).collect();
+    for (parked, original) in parked_copies {
+        run.line(format!("{} holds the parked copy {parked}, a copy of {original} that this command parked when a replacement was interrupted, carried back with the rest; look at it, and delete it when nothing in it is yours", root.display(), parked = parked.display(), original = original.display()).as_str());
+    }
     return Ok(None);
 }
 
@@ -520,11 +593,32 @@ pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, disca
     if !refusals.is_empty() {
         return Ok(Some(refusals));
     }
+    // The rule this deletion follows, and the same one for every way a name reached the checkout:
+    //  every byte the old tree holds is read against the checkout at this moment,
+    //  and a modification time proves nothing,
+    //  because a person can set one with `touch`, `cp -p`, `tar -x` or `rsync -a`.
+    //  What a person accepted with `--discard-left-out` is the recorded paths and no others.
+    let accepted: std::collections::BTreeSet<PathBuf> = accepted_paths(run, discard_unreadable, discard_left_out)?;
+    let unproved: Vec<PathBuf> = crate::subvolume_tree_proof::entries_not_in(old_path.as_path(), run.layout.root.as_path(), &accepted)?;
+    if !unproved.is_empty() {
+        return Ok(Some(vec![Refusal { cause: unproved_cause(run, &unproved), remedy: unproved_remedy() }]));
+    }
+    // A parked copy stands in the checkout and is no entry of the old tree, so it never holds this deletion back;
+    //  it is named, because nothing here deletes it and the person has to look at it.
+    let parked_copies: Vec<(PathBuf, PathBuf)> = run.parked.iter().map(|(parked, original)| return (parked.clone(), original.clone())).collect();
+    for (parked, original) in parked_copies {
+        run.line(format!("{} keeps the parked copy {parked}, a copy of {original} that this command parked when a replacement was interrupted; look at it, and delete it when nothing in it is yours", run.layout.root.display(), parked = parked.display(), original = original.display()).as_str());
+    }
     run.line(format!("deleting {} (every file is unlinked; this can take minutes)", old_path.display()).as_str());
     MigrateError::from_io_result(remove_tree(&old_path), "delete", old_path.as_path())?;
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
     remove_if_present(run.layout.left_out_path.as_path())?;
+    // The record of parked copies stays while it names one: what it names is in the checkout, and a later command tells
+    //  the person about it again.
+    if run.parked.is_empty() {
+        remove_if_present(run.layout.parked_path.as_path())?;
+    }
     run.line("the old tree is deleted and the migration journal is removed.");
     return Ok(None);
 }

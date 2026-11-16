@@ -36,32 +36,54 @@ pub(crate) const PARTIAL_NAME: &str = ".cli-git-migrate-partial";
 /// How many times a file that keeps changing under the copy is copied before the pass gives up.
 pub(crate) const COPY_ATTEMPTS: u32 = 3;
 
-/// The end of the name an entry the pass replaces is parked under while its own copy takes the name.
-/// A name ending in it is never deleted by a later pass:
-/// what it holds is somebody's until the pass that parked it judged it.
-pub(crate) const PARKED_SUFFIX: &str = ".cli-git-migrate-displaced";
+/// The start of the name an entry the pass replaces is parked under while its own copy takes the name.
+/// The rest of the name is a digest of the entry's path,
+/// so the name is always short enough to stand beside any file name a checkout can hold,
+/// and a person's own file is never taken for one of these:
+/// the record of parked copies beside the checkout is what tells them apart.
+pub(crate) const PARKED_PREFIX: &str = ".cli-git-migrate-parked-";
 
 /// What:
 ///  The name an entry is parked under while the pass replaces it:
-///  its own name with the parked suffix,
-///  so a person who meets one reads which path it stood at.
+///  a fixed short prefix and a digest of the entry's own path.
 /// Why:
-///   The name is derived, not chosen,
-///  because a later pass must be able to recognise a parked entry without a journal.
+///   A name derived from the entry's own is too long for the longest file name a checkout can hold,
+///  and a name's ending is no way to tell this program's parked copy from a person's file.
+///  The record of parked copies beside the checkout names each of them with the file it is a copy of.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const parkedName = (name) => `${name}.cli-git-migrate-displaced`;
+/// const parkedName = (relative) => `.cli-git-migrate-parked-${digest(relative)}`;
 /// ```
-pub(crate) fn parked_name(name: &OsStr) -> OsString {
-    let mut text: OsString = name.to_os_string();
-    text.push(PARKED_SUFFIX);
+pub(crate) fn parked_name(relative: &Path) -> OsString {
+    let mut text: OsString = OsString::from(PARKED_PREFIX);
+    text.push(crate::service_instance::digest_of_bytes(relative.as_os_str().as_encoded_bytes()).as_str());
     return text;
 }
 
-/// Whether a destination name is one a pass parked an entry under.
-pub(crate) fn is_a_parked_name(name: &OsStr) -> bool {
-    return name.as_encoded_bytes().ends_with(PARKED_SUFFIX.as_bytes());
+/// What:
+///  What the pass tells about the entries it parks,
+///  and what it knows of those an earlier run parked and no judgement settled.
+/// Why:
+///  The record is written before the entry is parked,
+///  so a kill at any instruction after that leaves the knowledge that the name holds this program's parked copy,
+///  and a copy a person removes costs its line at the next pass.
+///  A pass that is given no record (the conversion of a worktree, a control) reports no parked copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface Parking { aboutToPark(original, parked); judged(parked); known(): Map<string, string>; }
+/// ```
+pub trait Parking {
+    /// Record that the entry at `original` is about to be parked at `parked`,
+    /// before the parking happens.
+    fn about_to_park(&mut self, original: &Path, parked: &Path);
+    /// Drop the record of `parked`:
+    /// the entry it holds was judged and is gone from that name.
+    fn judged(&mut self, parked: &Path);
+    /// Every parked entry the record names,
+    /// by the name it stands under and the path it is a copy of.
+    fn known(&self) -> &std::collections::BTreeMap<PathBuf, PathBuf>;
 }
 
 /// What:
@@ -116,6 +138,14 @@ pub struct SyncOptions<'a> {
     pub update_only: bool,
     /// Paths relative to the roots that the pass leaves alone.
     pub excluded: &'a [PathBuf],
+    /// Never replace:
+    /// a source entry the destination holds is left as it is unless the two are equal,
+    ///  and one that differs is counted as an entry this pass did not place.
+    /// The carry back of a rollback is such a pass:
+    ///  the tree it writes into is the one the person keeps,
+    ///  so a modification time is no reason to delete a byte of it,
+    ///  and the proof against the subvolume the rollback deletes names what differs.
+    pub never_replaces: bool,
     /// Update-only pass:
     /// a source entry the destination lacks is created only when it was modified at or after this
     ///  second (since the epoch);
@@ -193,6 +223,10 @@ pub struct SyncStats {
     /// That entry stays and this one is reported, so the deletion of the old tree waits for the person:
     /// relative paths.
     pub kept_at_the_destination: Vec<PathBuf>,
+    /// The parked copies a directory held whose replacement no pass finished,
+    /// each by the name it stands under and the path it is a copy of,
+    /// in relative paths.
+    pub parked_copies: Vec<(PathBuf, PathBuf)>,
     /// Source entries that were another kind of entry when the copy reached them,
     /// so nothing was written at their name.
     /// They are reported for the same reason as `kept_at_the_destination`;
@@ -256,6 +290,9 @@ impl Directory {
 
 /// The state of one pass.
 pub(crate) struct Pass<'a> {
+    /// The record of the entries the pass parks and of those an earlier run parked,
+    /// when the caller keeps one.
+    pub(crate) parking: Option<&'a mut dyn Parking>,
     /// Told every entry the pass does not carry, as it learns it,
     /// so the record is durable before the pass goes on to the next entry;
     /// nothing when the caller keeps no record.
@@ -602,8 +639,13 @@ impl Pass<'_> {
         let name: &OsStr = relative.file_name().unwrap_or_default();
         let destination: PathBuf = directory.child(name);
         let shown: PathBuf = self.shown(relative);
-        let parked: PathBuf = directory.child(parked_name(name).as_os_str());
-        let parked_relative: PathBuf = relative.with_file_name(parked_name(name).as_os_str());
+        let parked: PathBuf = directory.child(parked_name(relative).as_os_str());
+        let parked_relative: PathBuf = relative.with_file_name(parked_name(relative).as_os_str());
+        // The record is written before the parking, so a kill at any instruction after it leaves the knowledge that
+        //  this name holds the pass's own parked copy and not a person's file.
+        if let Some(parking) = self.parking.as_mut() {
+            parking.about_to_park(relative, parked_relative.as_path());
+        }
         // The name is freed by parking what stands there, and never by removing it.
         match crate::rename_that_never_replaces::rename_noreplace(destination.as_path(), parked.as_path()) {
             Ok(()) => {}
@@ -644,6 +686,9 @@ impl Pass<'_> {
                 return Err(MigrateError::io("create the copy at the freed name", shown.as_path(), &error));
             }
         }
+        // The reading of the copy this pass made at the name, which is what tells it from a file another command put there
+        //  before the put-back.
+        let ours: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(destination.as_path()), "examine", shown.as_path())?;
         #[cfg(test)]
         note_before_the_judgement(parked.as_path());
         // The parked entry is judged as the object it is: the object the pass examined, and unchanged since the reading
@@ -661,14 +706,33 @@ impl Pass<'_> {
         };
         if superseded {
             remove_entry(parked.as_path(), parked_relative.as_path())?;
+            if let Some(parking) = self.parking.as_mut() {
+                parking.judged(parked_relative.as_path());
+            }
             return Ok(Published::Placed);
         }
-        // Not the object the pass examined: it goes back to its name, over the copy this pass just made there, and the
-        //  copy is dropped.
+        // Not the object the pass examined: it goes back to its name, and only the copy this pass made there goes.
+        //  The name is read first: a file another command put there is that command's and stays, and the parked entry
+        //  keeps its own name for the person to look at.
+        let our_copy_is_there: bool = matches!(
+            std::fs::symlink_metadata(destination.as_path()).ok().as_ref(),
+            Some(found) if same_reading(found, &ours)
+        );
+        if !our_copy_is_there {
+            return Ok(Published::KeptTheDestinationEntry);
+        }
         remove_if_present(destination.as_path(), shown.as_path())?;
         #[cfg(test)]
         note_before_the_put_back(destination.as_path());
-        MigrateError::from_io_result(std::fs::rename(parked.as_path(), destination.as_path()), "put the entry the pass did not examine back", shown.as_path())?;
+        // The put-back creates the name and never replaces what came to stand there since the removal above.
+        match crate::rename_that_never_replaces::rename_noreplace(parked.as_path(), destination.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(Published::KeptTheDestinationEntry),
+            Err(error) => return Err(MigrateError::io("put the entry the pass did not examine back", shown.as_path(), &error)),
+        }
+        if let Some(parking) = self.parking.as_mut() {
+            parking.judged(parked_relative.as_path());
+        }
         return Ok(Published::KeptTheDestinationEntry);
     }
 
@@ -708,30 +772,40 @@ impl Pass<'_> {
     }
 
     /// What:
-    ///  The parked entries a directory holds,
-    ///  whose replacements the pass that parked them did not finish.
+    ///  The parked copies a directory holds,
+    ///  whose replacements the pass that parked them did not finish,
+    ///  named by the record of parked copies and never by a name's ending.
     /// Why:
-    ///   A parked entry is somebody's until a pass judges it,
-    ///  so every later pass names it and none deletes it.
+    ///   A parked copy is somebody's until a pass judges it,
+    ///  so every later pass names it and none deletes it;
+    ///  and a person's own file whose name happens to begin like one is that person's and is not named.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const parked = parkedEntriesIn(directory); // string[]
+    /// const parked = parkedCopiesTheRecordNames(directory, relative); // [parked, original][]
     /// ```
-    pub(crate) fn parked_entries_in(&mut self, directory: &Directory, relative: &Path) {
-        let listing: std::fs::ReadDir = match std::fs::read_dir(directory.anchor.path()) {
-            Ok(found) => found,
-            Err(_unreadable) => return,
-        };
-        for item in listing.flatten() {
-            if !is_a_parked_name(item.file_name().as_os_str()) {
+    pub(crate) fn parked_entries_in(&mut self, relative: &Path) {
+        let Some(parking) = self.parking.as_ref() else { return };
+        let mut found: Vec<(PathBuf, PathBuf)> = Vec::new();
+        for (parked, original) in parking.known() {
+            if parked.parent() != Some(relative) {
                 continue;
             }
-            let path: PathBuf = relative.join(item.file_name());
-            if !self.stats.kept_at_the_destination.contains(&path) {
-                self.uncarried(path.as_path(), Uncarried::KeptAtTheDestination);
+            if std::fs::symlink_metadata(self.destination.join(parked)).is_ok() {
+                found.push((parked.clone(), original.clone()));
             }
         }
+        for one in found {
+            if !self.stats.parked_copies.contains(&one) {
+                self.stats.parked_copies.push(one);
+            }
+        }
+    }
+
+    /// Whether a destination name is a parked copy the record holds,
+    /// which no pass deletes.
+    pub(crate) fn is_a_recorded_parked_copy(&self, path: &Path) -> bool {
+        return self.parking.as_ref().map(|parking| return parking.known().contains_key(path)).unwrap_or(false);
     }
 }
 

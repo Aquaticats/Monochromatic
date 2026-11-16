@@ -142,6 +142,10 @@ pub struct Layout {
     pub journal_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.unreadable.txt`.
     pub unreadable_path: PathBuf,
+    /// `<parent>/.cli-git-migrate-<name>.parked.txt`:
+    /// the parked copies this program left in the checkout,
+    /// each with the path it is a copy of.
+    pub parked_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.left-out.txt`:
     /// the entries of the old tree the late-write carry left out,
     /// which the deletion of the old tree does not delete without a word.
@@ -194,6 +198,7 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
         journal_path: dotted(parent, name, ".journal.json"),
         unreadable_path: dotted(parent, name, ".unreadable.txt"),
         left_out_path: dotted(parent, name, ".left-out.txt"),
+        parked_path: dotted(parent, name, ".parked.txt"),
         claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
     });
 }

@@ -354,6 +354,44 @@ pub(crate) fn uncarried_cause(run: &Run<'_>, uncarried: &BTreeSet<PathBuf>) -> S
 /// copy what is wanted,
 /// then accept the loss with the flag,
 /// or delete the old tree by hand.
+/// What:
+///  The cause of the refusal for the entries whose bytes are not proved to stand in the tree that is kept.
+/// Why:
+///   The proof compares content,
+///  so a file replaced by one with an older modification time,
+///  or a write made while a copy was being placed,
+///  is caught here even though nothing recorded it:
+///  the words say what was compared and what was found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cause = unprovedCause(run, unproved);
+/// ```
+pub(crate) fn unproved_cause(run: &Run<'_>, unproved: &[PathBuf]) -> String {
+    return format!(
+        "{} of {} did not reach {} byte for byte ({}); nothing is deleted while that is so",
+        unproved.len(),
+        run.layout.old_path.display(),
+        run.layout.root.display(),
+        shown_left_out(unproved.iter())
+    );
+}
+
+/// What:
+///  The remedy of a refusal whose cause is a proof that failed.
+/// Why:
+///   See `uncarried_remedy`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remedy = unproved_remedy();
+/// ```
+pub(crate) fn unproved_remedy() -> String {
+    return String::from(
+        "Copy each of those paths from the tree that is going to be kept into the tree that stands, or copy what they hold out of the tree that was going to be deleted, then run the command again. Nothing was deleted.",
+    );
+}
+
 pub(crate) fn uncarried_remedy() -> String {
     return String::from(
         "Copy anything you want to keep out of the old tree first. If what it keeps is there on purpose, pass --discard-left-out together with --remove-old to delete the old tree with it; you can also delete the old tree yourself.",

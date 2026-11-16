@@ -258,7 +258,7 @@ impl Pass<'_> {
         remove_if_present(directory.partial().as_path(), self.shown(relative).join(&directory.temporary).as_path())?;
         // A parked entry is what a replacement this pass parks and has not judged yet: a kill leaves it, and nothing
         //  here deletes or renames it, so the person is told and the old tree is kept.
-        self.parked_entries_in(&directory, relative);
+        self.parked_entries_in(relative);
         if self.options.delete && !self.options.update_only {
             self.delete_extras(&directory, relative, &names)?;
         }
@@ -287,9 +287,9 @@ impl Pass<'_> {
             if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_encoded_bytes()) {
                 continue;
             }
-            // A parked entry is somebody's until a pass judges it, and a kill can leave one whose name the source no
-            //  longer has: it stays, and the walk has already named it.
-            if is_a_parked_name(item.file_name().as_os_str()) {
+            // A parked copy is somebody's until a pass judges it, and a kill can leave one whose name the source no
+            //  longer has: it stays, and the walk has already named it. Only the record says which names are ours.
+            if self.is_a_recorded_parked_copy(relative.join(item.file_name()).as_path()) {
                 continue;
             }
             remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;
@@ -470,8 +470,9 @@ pub fn sync_tree<'a>(
     options: SyncOptions<'a>,
     interrupt: &'a Interrupt,
     note_uncarried: Option<&'a mut dyn FnMut(&Path, Uncarried)>,
+    parking: Option<&'a mut dyn Parking>,
 ) -> Result<SyncStats, MigrateError> {
-    let mut pass: Pass<'a> = Pass { note_uncarried, platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
+    let mut pass: Pass<'a> = Pass { parking, note_uncarried, platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
     let root_metadata: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
     let mut stack: Vec<Work> = vec![Work::Finish { relative: PathBuf::new(), metadata: root_metadata, created: false }, Work::Visit(PathBuf::new())];
     while let Some(work) = stack.pop() {
@@ -494,6 +495,7 @@ pub fn sync_tree<'a>(
     pass.stats.holder_records_left_out.sort();
     pass.stats.notices_carried.sort();
     pass.stats.kept_at_the_destination.sort();
+    pass.stats.parked_copies.sort();
     pass.stats.changed_while_passing.sort();
     return Ok(pass.stats);
 }

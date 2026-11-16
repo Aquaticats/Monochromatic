@@ -267,7 +267,7 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     interrupt.check("journaled")?;
     ensure_stage(platform, job, interrupt)?;
     interrupt.check("created")?;
-    let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None }, interrupt, None)?;
+    let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None }, interrupt, None, None)?;
     say.say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
     for text in what_a_pass_could_not_carry("  copy", &first) {
         say.say(text.as_str());
@@ -280,7 +280,7 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     // The instant the removal compares change times against is taken before the pass, not after it: an edit made while the
     // pass runs can land after the pass examined that entry, and it carries a change time before the pass ends.
     let proof_started_ms: i64 = crate::worktree_convert_journal::now_milliseconds();
-    let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None }, interrupt, None)?;
+    let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { never_replaces: false,  delete: true, update_only: false, excluded: &[], created_since: None }, interrupt, None, None)?;
     for text in what_a_pass_could_not_carry("  proving copy", &second) {
         say.say(text.as_str());
     }
