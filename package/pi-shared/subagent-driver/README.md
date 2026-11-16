@@ -564,6 +564,11 @@ The generation is part of the review's name,
 so its run,
 its branch,
 its unit and its worktree all carry it.
+The reviews folder is made by the first brief that needs it,
+and a change name that holds a slash gets its parent folders made too.
+The record is put in place by a rename,
+so a reader sees a whole record or none,
+and a record cut off by a kill is a leftover the next start leaves alone.
 It then writes the diff of the ranges under the source folder,
 the brief that names the files the reviewer reads,
 an empty `reproductions/` folder,
@@ -731,7 +736,7 @@ A folder a killed start left is never taken over or removed by a start:
 it stays as a leftover with its record,
 and the next start of that branch takes the next name.
 The starter finds a branch's review by the branch its folder's record names,
-through the generations,
+through the generations and through the folders of a name that holds a slash,
 so a leftover of another change whose name matches a generation does not hide it.
 
 When a review ends,
