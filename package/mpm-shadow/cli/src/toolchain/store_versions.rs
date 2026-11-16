@@ -177,6 +177,49 @@ pub fn write_size_records(toolchain_root: &Path, records: &BTreeMap<String, Size
 }
 
 /// What:
+/// Whether `name` is exactly one directory name:
+/// not empty, not `.` or `..`, and holding no separator, no NUL and no path component.
+/// Why:
+/// Every row of a lock that becomes a folder under the store goes through here.
+/// A row that becomes a path (`safe/../../../outside`) made the cleanup scan a sibling folder and delete data the store
+/// does not own, so a name that is not exactly one directory name refuses the row instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function oneDirectoryName(name: string): string | undefined
+/// ```
+pub fn one_directory_name(name: &str) -> Option<String> {
+    if name.is_empty() || name == "." || name == ".." {
+        return None;
+    }
+    if name.contains('/') || name.contains('\\') || name.contains('\0') {
+        return None;
+    }
+    if name.chars().any(|character| return character.is_control()) {
+        return None;
+    }
+    return Some(name.to_string());
+}
+
+/// What:
+/// The crate name a `cargo binstall` lock row names,
+/// with the id's `cargo:` prefix taken off.
+/// Why:
+/// The door in `one_directory_name` is the only thing allowed to decide a folder name, and this is the value that
+/// reaches it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function crateNameOfLockRow(id: string): string
+/// ```
+fn crate_name_of_lock_row(id: &str) -> String {
+    return match id.strip_prefix("cargo:") {
+        Some(rest) => rest.to_string(),
+        None => id.to_string(),
+    };
+}
+
+/// What:
 /// The directory under a toolchain root whose children are the versions of one tool,
 /// relative to the root (`node`,
 /// `cargo/apple-codesign`),
@@ -193,13 +236,14 @@ pub fn install_directory_name(route: Route, id: &str) -> Option<String> {
     return match route {
         // A crate `cargo binstall` installs gets one directory per crate under the store's `cargo` namespace.
         Route::CargoBinstall => {
-            let crate_name: &str =
-                if let Some(rest) = id.strip_prefix("cargo:") { rest } else { id };
-            Some(format!("{CARGO_NAMESPACE}/{crate_name}"))
+            let crate_name: String = crate_name_of_lock_row(id);
+            return one_directory_name(&crate_name).map(|name| return format!("{CARGO_NAMESPACE}/{name}"));
         }
         // An archive, a Go module, the Android SDK and a crate installed from git each own a top-level directory
         // named after the tool's id, with one directory per version below it.
-        Route::Archive | Route::GoInstall | Route::AndroidSdk | Route::CargoGit => Some(install_dir_name(id)),
+        Route::Archive | Route::GoInstall | Route::AndroidSdk | Route::CargoGit => {
+            return one_directory_name(&install_dir_name(id));
+        }
         // pnpm, uv, rustup and the `bin` downloader keep their payload in their own home, not in a version directory.
         Route::MpmPnpm | Route::MpmUvx | Route::RustupToolchain | Route::RustupComponents | Route::BinSourced => None,
     };

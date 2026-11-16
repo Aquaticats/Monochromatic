@@ -182,13 +182,19 @@ pub struct RunOutcome {
     /// The exit code;
     /// 1 when the program could not start or was killed by a signal.
     pub code: i32,
+    /// Whether the program was ended at its ceiling, or a descendant held its output past it, so what is here is
+    /// not all it said.
+    pub cut_off: bool,
 }
 
 /// The methods of `RunOutcome`.
 impl RunOutcome {
-    /// Whether the program exited with code 0.
+    /// Whether the program exited with code 0 and said everything it had to say.
+    /// Why:
+    /// An outcome whose output was cut off at the ceiling is not a success: a reader that parses the output as if it
+    /// were whole (a worktree listing above all) must see a failure.
     pub fn succeeded(&self) -> bool {
-        return self.code == 0;
+        return self.code == 0 && !self.cut_off;
     }
 
     /// Standard error if it printed any,
@@ -270,6 +276,7 @@ fn bounded(mut command: Command, ceiling: Ceiling) -> RunOutcome {
                 stdout: String::new(),
                 stderr: format!("cannot start {}: {error}", command.get_program().to_string_lossy()),
                 code: 1,
+                cut_off: false,
             };
         }
     };
@@ -346,7 +353,7 @@ fn bounded(mut command: Command, ceiling: Ceiling) -> RunOutcome {
         Some(ended) => ended.code().unwrap_or(1),
         None => 1,
     };
-    return RunOutcome { stdout, stderr, code };
+    return RunOutcome { stdout, stderr, code, cut_off: killed || held_past_the_ceiling };
 }
 
 /// The environment tool installs run with:

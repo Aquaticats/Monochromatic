@@ -239,7 +239,7 @@ pub fn install_bin_sourced(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
             last = Some(outcome);
         }
         if !installed {
-            let failure: RunOutcome = last.unwrap_or(RunOutcome { stdout: String::new(), stderr: "no attempt ran".to_string(), code: 1 });
+            let failure: RunOutcome = last.unwrap_or(RunOutcome { stdout: String::new(), stderr: "no attempt ran".to_string(), code: 1, cut_off: false });
             return Err(failed_step(&format!("bin install ({name})"), &tool.declaration.id, &failure));
         }
     }

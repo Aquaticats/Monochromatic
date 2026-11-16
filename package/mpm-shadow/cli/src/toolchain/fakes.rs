@@ -60,14 +60,14 @@ impl FakeRunner {
 
     /// Answers requests whose line starts with `prefix` with this stdout and exit code.
     pub(crate) fn answer(&self, prefix: &str, stdout: &str, code: i32) {
-        self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code }));
+        self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code, cut_off: false }));
     }
 
     /// Answers requests whose line starts with `prefix` with this stdout and exit code,
     /// but only after a request whose line starts with `trigger` was received
     /// (a listing that shows a package only once `add` ran).
     pub(crate) fn answer_after(&self, trigger: &str, prefix: &str, stdout: &str, code: i32) {
-        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code };
+        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code, cut_off: false };
         self.after_rules.borrow_mut().push((trigger.to_string(), prefix.to_string(), outcome));
     }
 
@@ -76,13 +76,13 @@ impl FakeRunner {
     /// Why:
     /// A listing that fails still prints something, and a test must prove which stream is read.
     pub(crate) fn answer_streams(&self, prefix: &str, stdout: &str, stderr: &str, code: i32) {
-        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: stderr.to_string(), code };
+        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: stderr.to_string(), code, cut_off: false };
         self.rules.borrow_mut().push((prefix.to_string(), outcome));
     }
 
     /// Answers requests whose line starts with `prefix` with a failure printing `stderr`.
     pub(crate) fn fail(&self, prefix: &str, stderr: &str) {
-        self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: String::new(), stderr: stderr.to_string(), code: 1 }));
+        self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: String::new(), stderr: stderr.to_string(), code: 1, cut_off: false }));
     }
 
     /// Every request received,
@@ -133,7 +133,7 @@ impl Runner for FakeRunner {
                 return outcome.clone();
             }
         }
-        return RunOutcome { stdout: String::new(), stderr: String::new(), code: 0 };
+        return RunOutcome { stdout: String::new(), stderr: String::new(), code: 0, cut_off: false };
     }
 }
 

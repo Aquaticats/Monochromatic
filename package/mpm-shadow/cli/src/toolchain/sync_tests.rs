@@ -524,7 +524,7 @@ struct RecordingCeilings {
 impl super::runner::Runner for RecordingCeilings {
     fn run(&self, request: &super::runner::RunRequest) -> super::runner::RunOutcome {
         self.ceilings.borrow_mut().push(request.deadline);
-        return super::runner::RunOutcome { stdout: String::new(), stderr: String::new(), code: 0 };
+        return super::runner::RunOutcome { stdout: String::new(), stderr: String::new(), code: 0, cut_off: false };
     }
 }
 

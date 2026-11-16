@@ -740,6 +740,33 @@ impl NamedVersions {
         return self.by_tool.keys().cloned().collect();
     }
 
+    /// What:
+    /// Adds the pins the running sync holds in its own hands to this set.
+    /// Why:
+    /// A lock the going sync decoded is protected by what the sync holds, whatever the file does afterwards: a lock
+    /// replaced or removed under the pass left its pin unprotected and a version the sync still pinned was deleted.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function holding(named: NamedVersions, tools: LockedTool[]): void
+    /// ```
+    pub fn holding(&mut self, tools: &[super::model::LockedTool]) {
+        for tool in tools {
+            let name_source: String = match tool.declaration.route {
+                Route::CargoBinstall => crate_of_entry(&tool.declaration.id, &Value::Null),
+                _ => tool.declaration.id.clone(),
+            };
+            let Some(directory_name) = install_directory_name(tool.declaration.route, &name_source) else {
+                continue;
+            };
+            self.by_tool
+                .entry(directory_name)
+                .or_default()
+                .entry(tool.version.clone())
+                .or_insert_with(|| return "the lock this sync holds".to_string());
+        }
+    }
+
     /// The lock naming `version` of the tool in `directory_name`,
     /// or `None` when no lock names it.
     pub fn naming_lock(&self, directory_name: &str, version: &str) -> Option<&str> {
@@ -846,6 +873,10 @@ pub struct TrimRun {
     /// so it does not depend on which processes the machine happens to be running;
     /// a real pass leaves this `None` and reads the table itself.
     pub holders: Option<StoreHolders>,
+    /// The lock files this pass read,
+    /// so each deletion can read them again at its own instant.
+    /// A control that does not exercise that can leave it empty.
+    pub locks: Vec<PathBuf>,
 }
 
 /// The methods of `TrimRun`.
@@ -1052,6 +1083,9 @@ struct ToSettle<'a> {
     holders: &'a StoreHolders,
     /// What to do.
     action: Settle,
+    /// A check run at the instant the action acts,
+    /// so a link or a lock that changed during the walk is seen: it answers why the tree must stay.
+    recheck: Option<&'a dyn Fn() -> Option<String>>,
     /// When the work limit runs out.
     deadline: Instant,
 }
@@ -1092,10 +1126,20 @@ fn settle(tree: &ToSettle<'_>) -> Settled {
         });
     }
     return match tree.action {
-        Settle::Delete => match delete_tree_within(tree.path, tree.deadline) {
-            None => Settled::Done,
-            Some(failure) => Settled::Kept(failure),
-        },
+        Settle::Delete => {
+            // What: the checks a pass made before its walk are made again immediately before the deletion.
+            // Why: another sync can repoint `current` or write a lock during the walk, and a version it names then is
+            // not removed.
+            if let Some(recheck) = tree.recheck
+                && let Some(reason) = recheck()
+            {
+                return Settled::Kept(reason);
+            }
+            return match delete_tree_within(tree.path, tree.deadline) {
+                None => Settled::Done,
+                Some(failure) => Settled::Kept(failure),
+            };
+        }
         Settle::Aside | Settle::Back => move_to(tree.path, tree.target, &now, tree.deadline),
     };
 }
@@ -1125,6 +1169,30 @@ fn move_to(path: &Path, target: &Path, judged: &JudgedTree, deadline: Instant) -
         }
         None => Settled::Kept(format!("{} could not be read after the move, so it is left there", target.display())),
     };
+}
+
+/// What:
+/// Why the version at `root/tool/version` must stay, read at the instant a deletion acts:
+/// a lock that names it now, a lock that cannot be read, or the tool's `current` link naming it now.
+/// Why:
+/// A version's protection is a fact about this moment, and the moment a deletion acts is the one that counts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stillNamed(run: TrimRun, root: string, tool: string, version: string): string | undefined
+/// ```
+fn still_named(run: &TrimRun, root: &Path, tool: &str, version: &str) -> Option<String> {
+    if current_names(root, tool, version) {
+        return Some("the tool's current link names it now".to_string());
+    }
+    if run.locks.is_empty() {
+        return None;
+    }
+    let named: NamedVersions = read_named_versions(&run.locks);
+    if let Some(reason) = &named.unreadable {
+        return Some(format!("{reason}, so it may name this version"));
+    }
+    return named.naming_lock(tool, version).map(|lock| return format!("the lock {lock} names it now"));
 }
 
 /// What:
@@ -1299,17 +1367,20 @@ pub(crate) fn move_aside(candidate: &TrimCandidate, holders: &StoreHolders, dead
     let mut downloads_marker: Option<PathBuf> = None;
     if let (Some(downloads), Some(judged)) = (&candidate.downloads, &downloads_judged) {
         let target: PathBuf = tombstone_of(downloads);
-        match settle(&ToSettle { path: downloads, target: &target, judged, holders, action: Settle::Aside, deadline }) {
+        match settle(&ToSettle { path: downloads, target: &target, judged, holders, recheck: None,
+                action: Settle::Aside, deadline }) {
             Settled::Done => downloads_marker = Some(target),
             Settled::Kept(reason) => return Err(format!("its archives stay where they are: {reason}")),
         }
     }
     let version_marker: PathBuf = tombstone_of(&candidate.directory);
-    match settle(&ToSettle { path: &candidate.directory, target: &version_marker, judged: &version_judged, holders, action: Settle::Aside, deadline }) {
+    match settle(&ToSettle { path: &candidate.directory, target: &version_marker, judged: &version_judged, holders, recheck: None,
+                action: Settle::Aside, deadline }) {
         Settled::Done => {}
         Settled::Kept(reason) => {
             if let (Some(marker), Some(downloads), Some(judged)) = (&downloads_marker, &candidate.downloads, &downloads_judged) {
-                let _ = settle(&ToSettle { path: marker, target: downloads, judged, holders, action: Settle::Back, deadline });
+                let _ = settle(&ToSettle { path: marker, target: downloads, judged, holders, recheck: None,
+                action: Settle::Back, deadline });
             }
             return Err(reason);
         }
@@ -1329,14 +1400,22 @@ pub(crate) fn move_aside(candidate: &TrimCandidate, holders: &StoreHolders, dead
 /// ```ts
 /// function removeLeftover(candidate: TrimCandidate, holders: StoreHolders): boolean  // false when it was gone
 /// ```
-fn remove_leftover(candidate: &TrimCandidate, holders: &StoreHolders, deadline: Instant) -> Result<bool, String> {
+fn remove_leftover(candidate: &TrimCandidate, holders: &StoreHolders, run: &TrimRun) -> Result<bool, String> {
     if let Err(error) = fs::symlink_metadata(&candidate.directory)
         && error.kind() == ErrorKind::NotFound
     {
         return Ok(false);
     }
     let judged: JudgedTree = judged_of_candidate(candidate);
-    return match settle(&ToSettle { path: &candidate.directory, target: &candidate.directory, judged: &judged, holders, action: Settle::Delete, deadline }) {
+    return match settle(&ToSettle {
+        path: &candidate.directory,
+        target: &candidate.directory,
+        judged: &judged,
+        holders,
+        action: Settle::Delete,
+        recheck: None,
+        deadline: run.deadline(),
+    }) {
         Settled::Done => Ok(true),
         Settled::Kept(reason) => Err(reason),
     };
@@ -1374,7 +1453,7 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     continue;
                 }
                 if candidate.leftover {
-                    match remove_leftover(candidate, &first_look, run.deadline()) {
+                    match remove_leftover(candidate, &first_look, run) {
                         Ok(true) => {
                             outcome.removed += 1;
                             outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
@@ -1417,6 +1496,7 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     judged: &aside.version_judged,
                     holders: &second_look,
                     action: Settle::Delete,
+                    recheck: Some(&|| return still_named(run, &candidate.root, &candidate.tool, &candidate.version)),
                     deadline: run.deadline(),
                 })
             {
@@ -1429,7 +1509,8 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     target: marker,
                     judged,
                     holders: &second_look,
-                    action: Settle::Delete,
+                    recheck: None,
+                action: Settle::Delete,
                     deadline: run.deadline(),
                 })
             {
@@ -1457,7 +1538,8 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                         target: &candidate.directory,
                         judged: &aside.version_judged,
                         holders: &second_look,
-                        action: Settle::Back,
+                        recheck: None,
+                action: Settle::Back,
                         deadline: run.deadline(),
                     }) {
                         Settled::Done => {
@@ -1470,7 +1552,8 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                                     target: downloads,
                                     judged,
                                     holders: &second_look,
-                                    action: Settle::Back,
+                                    recheck: None,
+                action: Settle::Back,
                                     deadline: run.deadline(),
                                 });
                             }
@@ -1588,6 +1671,7 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
                 &marker.version,
                 named,
                 &holders,
+                run,
                 run.deadline(),
                 &mut outcome,
                 format!("{} and finished a deletion an earlier run started", marker.version_directory.display()),
@@ -1604,6 +1688,7 @@ pub fn finish_removals_with(run: &TrimRun, named: &NamedVersions) -> FinishOutco
                 &marker.version,
                 named,
                 &holders,
+                run,
                 run.deadline(),
                 &mut outcome,
                 format!("{} and finished a deletion an earlier run started", downloads.display()),
@@ -1647,6 +1732,7 @@ fn finish_the_deletion(
     version: &str,
     named: &NamedVersions,
     holders: &StoreHolders,
+    run: &TrimRun,
     deadline: Instant,
     outcome: &mut FinishOutcome,
     line_when_done: String,
@@ -1668,7 +1754,15 @@ fn finish_the_deletion(
         outcome.lines.push(format!("mpm-shadow: kept {}: the lock {lock} names it now, so its deletion waits", tree.display()));
         return;
     }
-    match settle(&ToSettle { path: tree, target: tree, judged: &judged, holders, action: Settle::Delete, deadline }) {
+    match settle(&ToSettle {
+        path: tree,
+        target: tree,
+        judged: &judged,
+        holders,
+        action: Settle::Delete,
+        recheck: Some(&|| return still_named(run, root, tool, version)),
+        deadline: run.deadline(),
+    }) {
         Settled::Done => {
             if let Some(record) = record_of_marker(tree) {
                 let _ = fs::remove_file(record);
@@ -1724,7 +1818,8 @@ fn finish_without_a_version(marker: &RemovalMarker, holders: &StoreHolders, dead
         outcome.lines.push(format!("mpm-shadow: kept {}: it could not be read in full at this moment", downloads.display()));
         return;
     };
-    match settle(&ToSettle { path: downloads, target: downloads, judged: &judged, holders, action: Settle::Delete, deadline }) {
+    match settle(&ToSettle { path: downloads, target: downloads, judged: &judged, holders, recheck: None,
+                action: Settle::Delete, deadline }) {
         Settled::Done => outcome.lines.push(format!(
             "mpm-shadow: removed {} and finished a removal an earlier run started",
             downloads.display()
@@ -1789,12 +1884,14 @@ fn put_an_archive_back(marker: &RemovalMarker, holders: &StoreHolders, deadline:
                 live.display()
             ));
         }
-        return match settle(&ToSettle { path: archive, target: archive, judged: &judged, holders, action: Settle::Delete, deadline }) {
+        return match settle(&ToSettle { path: archive, target: archive, judged: &judged, holders, recheck: None,
+                action: Settle::Delete, deadline }) {
             Settled::Done => Ok(()),
             Settled::Kept(reason) => Err(reason),
         };
     }
-    return match settle(&ToSettle { path: archive, target: live, judged: &judged, holders, action: Settle::Back, deadline }) {
+    return match settle(&ToSettle { path: archive, target: live, judged: &judged, holders, recheck: None,
+                action: Settle::Back, deadline }) {
         Settled::Done => Ok(()),
         Settled::Kept(reason) => Err(reason),
     };
@@ -1840,7 +1937,8 @@ fn restore_the_removal(marker: &RemovalMarker, locked: Option<&str>, holders: &S
         // What: the name holds something else now.
         // Why: this copy is deleted only when its record proves it whole and the name holds a finished copy of it.
         if whole && finished_copy_at(&marker.tool, &marker.version_directory) {
-            match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_marker, judged: &judged, holders, action: Settle::Delete, deadline }) {
+            match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_marker, judged: &judged, holders, recheck: None,
+                action: Settle::Delete, deadline }) {
                 Settled::Done => {
                     let _ = fs::remove_file(record_of(&marker.version_directory));
                     outcome.lines.push(format!(
@@ -1884,7 +1982,8 @@ fn restore_the_removal(marker: &RemovalMarker, locked: Option<&str>, holders: &S
         };
         after
     };
-    match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_directory, judged: &judged_now, holders, action: Settle::Back, deadline }) {
+    match settle(&ToSettle { path: &marker.version_marker, target: &marker.version_directory, judged: &judged_now, holders, recheck: None,
+                action: Settle::Back, deadline }) {
         Settled::Done => {
             let _ = fs::remove_file(record_of(&marker.version_directory));
             if marker.downloads_marker.is_some()
@@ -2156,7 +2255,7 @@ pub fn trim_after_install_with(ctx: &Context, installed: &[(String, String)], ho
         return;
     }
     let bounds: TrimBounds = TrimBounds::from_env(ctx.env);
-    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: roots.clone(), holders };
+    let mut run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: roots.clone(), holders, locks: Vec::new() };
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
     // What: every lock this pass can read is read before anything is recovered.
@@ -2164,10 +2263,14 @@ pub fn trim_after_install_with(ctx: &Context, installed: &[(String, String)], ho
     // locks afterwards let recovery delete data a current lock still named, and a lock that could not be read
     // protected nothing at all.
     let (lock_files, lock_problem) = visible_locks(ctx, run.deadline());
-    let named: NamedVersions = match lock_problem {
+    run.locks = lock_files.clone();
+    let mut named: NamedVersions = match lock_problem {
         Some(reason) => NamedVersions { by_tool: BTreeMap::new(), unreadable: Some(reason) },
         None => read_named_versions(&lock_files),
     };
+    // What: the pins this sync decoded are added to the locks' own.
+    // Why: the lock file may be gone or replaced before this pass reads it, and the sync still holds its pin.
+    named.holding(ctx.tools);
     // What: the removals an earlier run started are finished or undone, judged by the locks just read.
     // Why: a tree a killed pass left is judged again from nothing, by what is on the drive now, and a lock that names
     // its version keeps it.

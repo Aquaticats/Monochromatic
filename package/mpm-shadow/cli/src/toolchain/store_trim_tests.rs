@@ -328,6 +328,7 @@ impl Fixture {
             started: Instant::now(),
             roots: vec![self.root.clone()],
             holders: Some(holders_of_fixture(std::slice::from_ref(&self.root))),
+            locks: Vec::new(),
         };
     }
 }
@@ -725,6 +726,7 @@ fn keeps_a_version_a_process_uses_when_the_store_path_is_a_symlink() {
         started: Instant::now(),
         roots: vec![store.clone()],
         holders: Some(holders_of_fixture(std::slice::from_ref(&store))),
+        locks: Vec::new(),
     };
     let look: StoreHolders = run.look();
     let held: Option<String> = held_reason(&look, &victim);
@@ -819,7 +821,7 @@ fn keeps_the_deadline_when_the_work_limit_is_the_largest_number() {
     let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_WORK_LIMIT", "18446744073709551615")]);
     let bounds: TrimBounds = TrimBounds::from_env(&env);
 
-    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: vec![PathBuf::from("/store")], holders: None };
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: vec![PathBuf::from("/store")], holders: None, locks: Vec::new() };
 
     // What: the deadline is asked first.
     // Why: adding this limit to the start is what panicked, so the panic has to be what a broken run meets before any
@@ -1136,6 +1138,7 @@ fn writes_the_marker_for_a_root_whose_removals_were_all_deferred() {
         started: Instant::now(),
         roots: vec![fixture.root.clone()],
         holders: Some(holders_of_fixture(std::slice::from_ref(&fixture.root))),
+        locks: Vec::new(),
     };
     let plan: TrimPlan = plan_trim(&fixture.candidates(), &run.bounds, SystemTime::now(), &|_found| return None);
 
@@ -1692,7 +1695,7 @@ fn replays_a_real_store_listing() {
     // then the removals.
     // Why: the second look the removals take is what the review's second finding bought, so its cost has to be
     // visible next to the rest of a pass.
-    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone(), holders: Some(holders_of_fixture(&replayed_roots)) };
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone(), holders: Some(holders_of_fixture(&replayed_roots)), locks: Vec::new() };
     let look_clock: Instant = Instant::now();
     let planning_look: StoreHolders = run.look();
     let look_ms: u128 = look_clock.elapsed().as_millis();
@@ -1725,7 +1728,7 @@ fn replays_a_real_store_listing() {
         }
     }
     lines.push(format!("planned removal: {} MiB", planned_removal / MIB));
-    let removal_run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone(), holders: Some(holders_of_fixture(&replayed_roots)) };
+    let removal_run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone(), holders: Some(holders_of_fixture(&replayed_roots)), locks: Vec::new() };
     let removal_clock: Instant = Instant::now();
     let outcome: TrimOutcome = apply_trim(&plan, &removal_run);
     let remove_ms: u128 = removal_clock.elapsed().as_millis();
@@ -1955,7 +1958,7 @@ fn keeps_a_copy_aside_when_the_process_table_could_not_be_read_in_full() {
     holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string() });
     holders.incomplete = crate::toolchain::store_path_holders::undescribed_reason(&holders.opaque);
 
-    let finished = finish_removals(&TrimRun { bounds: fixture.run().bounds, started: Instant::now(), roots: vec![fixture.root.clone()], holders: Some(holders) });
+    let finished = finish_removals(&TrimRun { bounds: fixture.run().bounds, started: Instant::now(), roots: vec![fixture.root.clone()], holders: Some(holders), locks: Vec::new() });
 
     assert!(!version.exists(), "a copy a process may run was put back while the scan could not tell: {:?}", finished.lines);
     assert!(marker.join("program").exists(), "a copy a process may run was deleted: {:?}", finished.lines);
@@ -2008,6 +2011,7 @@ fn control_run(root: &Path) -> TrimRun {
         started: Instant::now(),
         roots: vec![root.to_path_buf()],
         holders: Some(StoreHolders::default()),
+        locks: Vec::new(),
     };
 }
 
@@ -2251,7 +2255,7 @@ struct RecordedGit {
 impl crate::toolchain::runner::Runner for RecordedGit {
     fn run(&self, request: &crate::toolchain::runner::RunRequest) -> crate::toolchain::runner::RunOutcome {
         self.deadlines.borrow_mut().push(request.deadline);
-        return crate::toolchain::runner::RunOutcome { stdout: String::new(), stderr: String::new(), code: 0 };
+        return crate::toolchain::runner::RunOutcome { stdout: String::new(), stderr: String::new(), code: 0, cut_off: false };
     }
 }
 
@@ -2403,3 +2407,87 @@ fn keeps_the_only_complete_archive_while_a_replacement_downloads() {
 }
 
 //endregion the ninth review: the names on disk, the locks read before recovery, and the archives in flight
+use crate::toolchain::context::{Context, Host};
+use crate::toolchain::fakes::{FakeHttp, FakeRunner};
+use crate::toolchain::fixtures::{sample_lock, sample_scope_on_disk};
+use crate::toolchain::runner::{Ceiling, ProcessRunner, RunOutcome, RunRequest, Runner};
+use crate::toolchain::scope::{EnvMap, Scope, global_scope};
+use crate::toolchain::store_path_holders::StoreHolders;
+use crate::toolchain::store_trim::trim_after_install_with;
+use crate::test_scratch::scratch;
+
+fn immediate_trim_env(env: &EnvMap) -> EnvMap {
+    return env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0s")
+        .with("MPM_SHADOW_STORE_WORK_LIMIT", "5s");
+}
+
+fn run_trim(scope: &Scope, env: &EnvMap, runner: &FakeRunner) {
+    let locked = sample_lock();
+    let http = FakeHttp::new();
+    let host = Host::current();
+    let context = Context { scope, env, runner, http: &http, host: &host, tools: &locked.tools };
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1".to_string())], Some(StoreHolders::default()));
+}
+
+#[test]
+fn reproduction_cargo_package_id_cannot_escape_the_store() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let env = immediate_trim_env(&env);
+    let runner = FakeRunner::new();
+    let outside = scope.toolchain_root.parent().expect("store parent").join("outside");
+    let user_data = outside.join("old").join("user-data.txt");
+    std::fs::create_dir_all(scope.toolchain_root.join("cargo").join("safe")).expect("make traversal prefix");
+    std::fs::create_dir_all(user_data.parent().expect("data parent")).expect("make outside version");
+    std::fs::write(&user_data, b"not owned by the toolchain store").expect("write outside data");
+    std::fs::write(
+        &scope.lock_file,
+        r#"{"tools":{"cargo:review":{"version":"locked","route":"cargo-binstall","packageId":"safe/../../../outside"}}}"#,
+    )
+    .expect("write lock with escaping package id");
+
+    run_trim(&scope, &env, &runner);
+
+    assert!(
+        user_data.exists(),
+        "cleanup left the store through packageId and deleted {}",
+        user_data.display()
+    );
+}
+
+#[test]
+fn reproduction_disappearing_current_lock_keeps_the_loaded_pin() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let env = immediate_trim_env(&env);
+    let runner = FakeRunner::new();
+    let locked = sample_lock();
+    let node = locked.tools.iter().find(|tool| tool.declaration.id == "node").expect("sample node");
+    let user_data = scope.toolchain_root.join("node").join(&node.version).join("user-data.txt");
+    std::fs::create_dir_all(user_data.parent().expect("version parent")).expect("make pinned version");
+    std::fs::write(&user_data, b"the version loaded from the current lock").expect("write pinned data");
+
+    let global = global_scope(&env).expect("global scope");
+    std::fs::create_dir_all(global.lock_file.parent().expect("global lock parent")).expect("make global lock parent");
+    std::fs::write(
+        &global.lock_file,
+        r#"{"tools":{"node":{"version":"different","route":"archive"}}}"#,
+    )
+    .expect("write an unrelated global lock so cleanup still scans the store");
+
+    // sync_tools has already decoded sample_lock into Context at this point.
+    // A concurrent lock replacement removes the old path before cleanup re-reads it.
+    std::fs::remove_file(&scope.lock_file).expect("remove the current lock after Context was loaded");
+    let http = FakeHttp::new();
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &env, runner: &runner, http: &http, host: &host, tools: &locked.tools };
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1".to_string())], Some(StoreHolders::default()));
+
+    assert!(
+        user_data.exists(),
+        "cleanup ignored the pin already present in Context and deleted {}",
+        user_data.display()
+    );
+}
+
+#[test]
