@@ -163,7 +163,11 @@ No recommendation to file is made.
 
 Source selections were checked against the clone and confirmed in `agent-browser`.
 The release endpoint responses were also confirmed in the browser.
-The Markdown renderer produced the expected headings, code blocks, lists, and links.
+The Markdown renderer produced the expected headings,
+code blocks,
+lists,
+and links.
+The file passed the scoped Markdown lint task after its dependency fetch.
 Browser confirmation initially failed with agent-browser's
 `Failed to read: Resource temporarily unavailable (os error 11)` diagnostic;
 see [the existing diagnostic investigation](agent-browser-eagain.md).
