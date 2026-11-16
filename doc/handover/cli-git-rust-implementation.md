@@ -39723,6 +39723,12 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
   Two concern a launcher that cannot see the manager (the install then runs unconfined), and two are older or by reading (unbounded file-system calls; `${...}` in a path expanded by systemd).
   The author's eighth run is queued first (11:29:14) and is the first brief written under the owner's rule of 2026-11-16: per finding a control against `main` and against its tip; what the branch brings is fixed first; holes `main` has wider are closed as far as the run reaches and otherwise written on the package's page as stated limits.
 - **The resume canary of the masking merge started at about 11:28** with the corrected batch file, in the place that review freed (fifteen Pi units and two Sonnet reviews before it).
+- **The masking's answer is in `main`: `24f353ebb8`, 2026-11-16T11:35:14-05:00.** The resume canary run with the rehearsal tree's driver ended as an ordinary run does (three turns, one `secret_values` line, one `session_resumed` line, no `session-unmasked`), which with the fresh-start canary met the condition set before the merge.
+  The offline install in the main checkout ended with status 0, and a fresh-start canary and a resume canary were started through `main` at about 11:36; the rotation is put to the owner when both have ended well (the owner's answer of 11:25).
+  Every Pi run started from now has the three fixes. The review's seven findings follow on `main`: three go on the limits page, and the page's false sentences and the stray `stand-in-session` files are one small correction for the author.
+- **What is left, measured at 11:33 because the owner asked for a better estimate than a count of tasks:** the queue holds 81 entries (49 reviews of a branch tip, 21 authors resumed, 11 fresh runs); 214 work branches are not merged into `main`, 91 of them with a commit in the last three days;
+  of 139 run names active in those three days the median has had two runs, 31 have had five or more, the longest eighteen. Five Sonnet reviews returned in the 57 minutes from 10:31 to 11:28 at a mean of about 24 minutes.
+  No date of completion can be given from this: how many new branches each review brings was not measured, and no pass has merged today.
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
@@ -39737,6 +39743,10 @@ Seven answers of the owner, asked through the question tool when the owner wrote
 - **A merge on a branch with no upstream: "Push it to origin".** Chosen against this session's recommendation (decline and say so). The recorded condition of 2026-11-02 is amended: such a merge, in a repository that has `origin`, is pushed to origin under the branch's own name and the upstream is set.
   It needs the amendments at `package/git-policy/cli/SPEC.md` line 9068 and `README.md` line 556, a new reason word, and the ancestry walk's cost measured; a fresh run builds it.
 - **The rotation of the credential values: "Ask again after the merge (Recommended)".** Put to the owner once the second masking merge is in `main` and a resume canary and a fresh canary have both passed through `main`.
+
+One more answer, at about 11:34 on 2026-11-16, asked with the morning's measurements beside it (reviews finish at up to about 7 an hour at three places, author runs end at about 6 to 7 an hour, so 49 queued reviews do not shrink):
+
+- **How the 18 agent places are split: "5 reviews, 13 Pi runs (Recommended)".** Five Sonnet reviews at once; the unit that fills Pi places runs at level 13 since 11:34:59 (no going run is stopped). The cap of 18 is unchanged.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
