@@ -1520,11 +1520,6 @@ fn git_text_or_empty<S: AsRef<std::ffi::OsStr>>(fixture: &Fixture, repo: &Path, 
     return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
 }
 
-/// What one command did, read from the repository it ran in.
-fn outcome_of(case: &Case, repo: &Path, code: Option<i32>, base: &str) -> Outcome {
-    return outcome_with_words(case, repo, code, base, "");
-}
-
 /// What one command did, with the words a refusal printed.
 fn outcome_with_words(case: &Case, repo: &Path, code: Option<i32>, base: &str, words: &str) -> Outcome {
     let fixture: &Fixture = &case.fixture;
@@ -1553,9 +1548,9 @@ fn outcome_with_words(case: &Case, repo: &Path, code: Option<i32>, base: &str, w
         .any(|name| { return repo.join(".git").join(name).exists(); })
         || repo.join(".git").join("rebase-merge").exists();
     let policy_refusal: bool = !words.is_empty() && words.contains("\"core-finding\"");
-    let tail: String = words.lines().filter(|line| { return !line.trim().is_empty(); }).last().unwrap_or("").trim().to_string();
-    let tail: String = tail.chars().take(400).collect();
-    return Outcome { exit: code, moved, files, parents, content, conclusion_open, policy_refusal, words: tail };
+    let last_line: String = words.lines().filter(|line| { return !line.trim().is_empty(); }).next_back().unwrap_or("").trim().to_string();
+    let said: String = last_line.chars().take(400).collect();
+    return Outcome { exit: code, moved, files, parents, content, conclusion_open, policy_refusal, words: said };
 }
 
 /// What:
@@ -1657,7 +1652,7 @@ fn a_table_of_commit_states_and_forms_matches_what_git_builds() {
             let as_intended: bool = wrapped.exit == Some(0)
                 && wrapped.moved
                 && wrapped.parents.len() == 1
-                && wrapped.parents.first() == Some(&base)
+                && wrapped.parents.first() == Some(base)
                 && wrapped.conclusion_open;
             if as_intended {
                 deliberate += 1;

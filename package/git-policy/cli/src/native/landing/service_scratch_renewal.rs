@@ -101,7 +101,7 @@ impl ScratchRenewal {
             match crate::tree_held_by_a_live_process::claim_a_made_tree(tree) {
                 Err(crate::tree_held_by_a_live_process::TreeIsGoing) => (kept, None),
                 // A volume that cannot answer leaves the mark alone, as every holder did before the claim existed.
-                Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree)) => (tree, None),
+                Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(unanswered)) => (unanswered, None),
                 Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
                     let (made, claim) = claimed.into_parts();
                     (made, Some(claim))
