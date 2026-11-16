@@ -90,18 +90,25 @@ impl ScratchRenewal {
     /// ```ts
     /// ScratchRenewal.start(path, REFRESH_EVERY);
     /// ```
-    pub fn start(tree: PathBuf, every: Duration) -> Option<(PathBuf, Self)> {
-        let (path, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = match crate::tree_held_by_a_live_process::claim_a_made_tree(tree) {
-            // A tree a sweep is taking is no tree to renew: nothing can keep one alive that is on its way out.
-            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => return None,
-            // A volume that cannot answer leaves the mark alone, as every holder did before the claim existed.
-            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(unanswered)) => (unanswered, None),
-            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
-                let (made, claim) = claimed.into_parts();
-                (made, Some(claim))
-            }
-        };
-        return Some((path.clone(), Self::start_holding(path.as_path(), every, held)));
+    pub fn start(tree: PathBuf, every: Duration) -> (PathBuf, Self) {
+        // What: The path stays this value's whether or not its claim can be taken.
+        // Why:  The renewal's mark is what keeps a stocked tree fresh, and its claim is the second answer a sweep reads;
+        //       a tree whose claim cannot be taken is still one to renew (`service_shadow_draw.rs`, the stock), and a
+        //       commit handed such a tree asks for its own claim before it builds and gives it up when that is refused.
+        //       A maker is the case that must not keep a refused tree, and a maker claims through `claim_a_made_tree`.
+        let kept: PathBuf = tree.clone();
+        let (path, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) =
+            match crate::tree_held_by_a_live_process::claim_a_made_tree(tree) {
+                Err(crate::tree_held_by_a_live_process::TreeIsGoing) => (kept, None),
+                // A volume that cannot answer leaves the mark alone, as every holder did before the claim existed.
+                Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree)) => (tree, None),
+                Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
+                    let (made, claim) = claimed.into_parts();
+                    (made, Some(claim))
+                }
+            };
+        let renewal: Self = Self::start_holding(path.as_path(), every, held);
+        return (path, renewal);
     }
 
     /// What:

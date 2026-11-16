@@ -40,7 +40,7 @@ fn a_live_tree_is_kept_fresh_and_a_released_one_is_not() {
     let tree: PathBuf = root.join("tree");
     std::fs::create_dir_all(&tree).expect("tree");
     std::fs::File::open(&tree).expect("open").set_modified(SystemTime::now() - SCRATCH_STALE_AFTER).expect("age it");
-    let (_where, renewal): (PathBuf, ScratchRenewal) = ScratchRenewal::start(tree.clone(), QUICK).expect("the tree is nobody else's");
+    let (_where, renewal): (PathBuf, ScratchRenewal) = ScratchRenewal::start(tree.clone(), QUICK);
     let began: std::time::Instant = std::time::Instant::now();
     while age_of(tree.as_path()) > SCRATCH_STALE_AFTER / 2 {
         assert!(began.elapsed() < PATIENCE, "the renewal never came: {:?}", age_of(tree.as_path()));

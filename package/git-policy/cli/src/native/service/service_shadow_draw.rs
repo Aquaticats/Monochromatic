@@ -238,13 +238,11 @@ impl DrawnShadows {
         // Why:  A tree a sweep had already taken is one this stock cannot hand out: nothing can keep a tree alive that a removal
         //       is emptying, so the stock leaves it to the sweep and the next fill draws another
         //       (`tree_held_by_a_live_process.rs`, `claim_a_made_tree`).
-        let (path, renewal): (PathBuf, ScratchRenewal) = match ScratchRenewal::start(tree, SCRATCH_REFRESH_EVERY) {
-            Some(started) => started,
-            None => {
-                crate::diagnostic_log::debug("shadowDraw", "the drawn tree is being removed by a sweep, so the stock leaves it to the sweep");
-                return;
-            }
-        };
+        // What: The renewal keeps the tree whether or not its claim can be taken.
+        // Why:  A stocked tree's freshness is its mark, and the claim is the second answer a sweep reads;
+        //       a stock that dropped the tree would draw another for nothing, and a commit handed it asks for its own claim
+        //       before it builds (`shadow_drawn.rs`, `HandedShadow`).
+        let (path, renewal): (PathBuf, ScratchRenewal) = ScratchRenewal::start(tree, SCRATCH_REFRESH_EVERY);
         let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         ready.push(Waiting { path, since: Instant::now(), _renewal: renewal });
     }
