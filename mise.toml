@@ -974,16 +974,19 @@ run = "dprint check --list-different"
 #
 # The judgment reads Cargo's own markers and never decides that a fetch must not happen. A lock file it cannot read,
 # a package from a source that is neither a registry nor a git repository, a cargo home holding more than one
-# registry, a crate without its downloaded `.crate`, and a crate folder without the `{"v":1}` marker Cargo writes only
-# after the crate's last file lands (or, for a git source, without a ready checkout of the locked revision) all fetch
-# as before; a crate another Cargo is unpacking right now has no marker yet, so that one fetches too.
+# registry, a crate without its downloaded `.crate`, a crate folder without the `{"v":1}` marker Cargo writes only
+# after the crate's last file lands, a registry index without the `config.json` or the cached summaries Cargo reads
+# offline, and a git source without a database that recorded its URL, without that database holding the locked
+# revision, or without a ready checkout of it all fetch as before; a crate another Cargo is unpacking right now has no
+# marker yet, so that one fetches too.
 #
 # What it does not judge is whether a lock file is current, because nothing here runs cargo for a lock file whose
-# crates are all in place: a stale lock file no longer fails this step. A stale lock file fails the lint through the
-# closure check, which runs `cargo metadata --offline --locked` for each package and gets this answer from one
-# (measured on 2026-11-13 with a fixture lock: exit 101, "cannot update the lock file ... because --locked was
-# passed"), as the owner decided on 2026-11-13. The order the owner fixed on 2026-11-07 ("Fetch then warn") is
-# unchanged: this only decides which lock files need the fetch.
+# crates are all in place: a stale lock file no longer fails this step. It is the closure check's to fail, as the owner
+# decided on 2026-11-13, and
+# `fix/linter-monochromatic-lint-stale-cargo-lock-file-fails-the-lint-through-the-closure-check` is the change that
+# makes it fail there; this branch is meant to reach `main` with that change or after it. Where that change has not
+# landed, the closure check reports a stale lock file as a warning finding that does not fail the lint. The order the
+# owner fixed on 2026-11-07 ("Fetch then warn") is unchanged: this only decides which lock files need the fetch.
 [tasks."fetch:rust-dependencies"]
 description = "Download every locked Cargo dependency of each package (default: all with a Cargo.lock) so the offline closure check can read them"
 usage = """
@@ -992,22 +995,40 @@ arg "[directories]" var=#true help="Package directories to fetch (default: every
 shell = "node --input-type=module-typescript -e"
 run = '''
 {{vars.parse_usage_args}}
-const { execFileSync, spawnSync } = await import('node:child_process')
-const { readFileSync, readdirSync, statSync } = await import('node:fs')
+const { execFileSync, spawn, spawnSync } = await import('node:child_process')
+const { closeSync, openSync, readFileSync, readdirSync, readSync, statSync } = await import('node:fs')
 const { homedir } = await import('node:os')
 const { dirname, join } = await import('node:path')
 
 //region Judging a lock file against the cargo home without taking Cargo's lock
 // Cargo holds `<cargo home>/.package-cache` exclusively while it resolves, downloads and unpacks, and this task used
 // to take it once per lock file whether or not anything was to download. Everything below reads the cargo home as
-// any other file would, under no lock, and answers one question: does `cargo fetch --locked` have anything to do?
+// any other file would, under no lock, and answers one question: would `cargo fetch --locked` download, or unpack,
+// or resolve anything for this lock file? What that means for an offline reader is measured, not assumed: on a
+// disposable home, `cargo metadata --offline --locked` for one crates.io crate exits 0 only while the registry index
+// holds its `config.json` and one readable cached summary of the crate (`registry/index/<registry>/config.json` and
+// `.cache/<1|2|3>[/<letter>]/<name>` with Cargo's summary-cache version as the file's first byte, or the raw index
+// file of a git-protocol index), and the crate's `.crate` in `registry/cache`; it exits 101 "no matching package" with
+// any of those four absent or with a summary whose first byte Cargo does not know, and 101 "failed to download" with
+// the tarball absent or empty even when the crate is unpacked. The unpacked folder is not required (Cargo unpacks from
+// the tarball under the lock), and neither are a git checkout's marker or its `FETCH_HEAD`; this judgment asks for
+// those anyway, which is stricter than the reader and never looser. Cargo's own source for the version this repository
+// pins is the authority for each: `src/sources/registry/index/cache.rs` (`CURRENT_CACHE_VERSION`, the cache format),
+// `src/sources/registry/http_remote.rs` (`config.json`), `crates/cargo-util/src/registry.rs` (`make_dep_path`), and
+// `src/sources/registry/mod.rs` (`download`, `get_pkg`).
+//
+// What this does not bound is the reading itself: every read of the cargo home here is synchronous (`statOf`,
+// `entriesOf`, `textOf`, `firstByteOf`), as Cargo's own reads of the same home are, so a cargo home on a filesystem
+// that never answers blocks this task the way it blocks Cargo. Bounding that would mean judging off the thread that
+// decides, in a child process or a worker whose answer has a deadline; this task does not do that, and says so here
+// rather than claiming otherwise.
 // The markers are Cargo's own, read from its source on 2026-11-13 (src/sources/registry/mod.rs, `unpack_package`, and
 // src/sources/git/utils.rs, `CheckoutGuard`): a registry crate's source folder gets `.cargo-ok` holding `{"v":1}` only
 // after its last file is unpacked, and a git checkout's folder gets an empty `.cargo-ok` only after its reset finished.
 // A folder without its marker is absent or half written, and a concurrent Cargo can make a reader see exactly that,
 // so the answer is a fetch.
 //
-// A registry is only crates.io here, because Cargo names the folder it caches a registry in after that registry and a
+// A registry is only crates.io here, because Cargo names the folders it caches a registry in after that registry and a
 // lock file naming any other one cannot be checked against the one folder. A git source needs all of what Cargo holds
 // for one URL (`GitSource::fetch_db` bails in offline mode when the database is absent or lacks the locked revision,
 // whatever the checkout holds): a database under `git/db`, a ready checkout of the locked revision, and the revision
@@ -1027,10 +1048,17 @@ const CRATES_IO_FOLDER_PREFIXES = ['index.crates.io-', 'github.com-']
 // own text is hex of that length up to a SHA-256 repository's 64 (`git2::Oid`).
 const SHORTEST_GIT_CHECKOUT_NAME = 7
 const GIT_REVISION_SHAPE = /^[0-9a-f]{7,64}$/u
-// A bound on asking a git database whether it holds a revision, so a database that cannot answer cannot make this
-// task wait forever (the rule that nothing may). A `git cat-file` on this machine's shared home's databases took 30 ms
-// to 40 ms on 2026-11-13, and a question that runs past the bound counts as an answer of no.
+// A ceiling on asking a git database whether it holds a revision: at it the answer is no and the task fetches, whether
+// or not the git it started has died. A `git cat-file` on this machine's shared home's databases took 30 ms to 40 ms on
+// 2026-11-13. The reads of the cargo home that decide before this question have no such ceiling; see beside them.
 const GIT_QUESTION_CEILING_MILLISECONDS = 10_000
+// The two things a registry index must hold for `cargo metadata --offline --locked` to resolve a crate offline: the
+// registry's own `config.json`, and one summary per crate. A sparse index keeps the summaries in a `.cache` folder
+// whose files begin with Cargo's summary-cache version (`CURRENT_CACHE_VERSION`, 3 in 1.101.0-nightly); a git-protocol
+// index keeps the raw files instead and has no `.cache` folder, so either place answers for a summary.
+const INDEX_CONFIG_FILE = 'config.json'
+const SPARSE_SUMMARY_FOLDER = '.cache'
+const SUMMARY_CACHE_VERSION = 3
 
 /** The `[[package]]` entries of a `Cargo.lock` as `{ name, version, source }`, or undefined when it is not understood. */
 const lockPackages = (text) => {
@@ -1079,6 +1107,24 @@ const entriesOf = (path) => {
   }
 }
 
+/** A file's first byte, or undefined when it cannot be read. */
+const firstByteOf = (path) => {
+  try {
+    const descriptor = openSync(path, 'r')
+    try {
+      const buffer = Buffer.alloc(1)
+      return readSync(descriptor, buffer, 0, 1, 0) === 1 ? buffer[0] : undefined
+    }
+    finally {
+      closeSync(descriptor)
+    }
+  }
+  catch {
+    // Unreadable is the answer this check needs: the caller treats it as no summary at all and the lock file is fetched.
+    return undefined
+  }
+}
+
 /** A text file's content, or undefined when it cannot be read. */
 const textOf = (path) => {
   try {
@@ -1110,7 +1156,14 @@ const readCargoHome = (cargoHome) => {
   // Each database's folder name to the revision abbreviations checked out of it, and each repository name to the
   // databases carrying it.
   const readyGitCheckouts = new Map()
+  let indexFolder
+  let summaryFolder
+  let indexConfigPresent = false
   if (registryName !== undefined) {
+    indexFolder = join(cargoHome, 'registry', 'index', registryName)
+    summaryFolder = join(indexFolder, SPARSE_SUMMARY_FOLDER)
+    const indexConfig = statOf(join(indexFolder, INDEX_CONFIG_FILE))
+    indexConfigPresent = indexConfig !== undefined && indexConfig.size > 0
     for (const entry of entriesOf(join(cargoHome, 'registry', 'cache', registryName))) {
       if (entry.name.endsWith('.crate')) { tarballSizes.set(entry.name, statOf(join(cargoHome, 'registry', 'cache', registryName, entry.name))?.size) }
     }
@@ -1136,11 +1189,37 @@ const readCargoHome = (cargoHome) => {
       readyGitCheckouts.set(checkoutEntry.name, abbreviationsOfDatabase)
     }
   }
-  return { registryName, tarballSizes, unpackedRegistryCrates, readyGitCheckouts, gitDatabases }
+  return { registryName, indexFolder, summaryFolder, indexConfigPresent, tarballSizes, unpackedRegistryCrates, readyGitCheckouts, gitDatabases }
+}
+
+/**
+ A crate's place in a registry index, as Cargo lays it out (`cargo_util::registry::make_dep_path`): `1/a`, `2/ab`,
+ `3/a/abc` for short names, and `ab/cd/abcdef` for longer ones, all of it lowercased.
+ */
+const summaryPathOf = (name) => {
+  const lowercased = name.toLowerCase()
+  if (lowercased.length === 1) { return '1/' + lowercased }
+  if (lowercased.length === 2) { return '2/' + lowercased }
+  if (lowercased.length === 3) { return '3/' + lowercased[0] + '/' + lowercased }
+  return lowercased.slice(0, 2) + '/' + lowercased.slice(2, 4) + '/' + lowercased
+}
+
+/** Why the registry index cannot give an offline reader this crate's summaries, or undefined when it can. */
+const indexSummaryMissingFrom = ({ home, name }) => {
+  if (home.registryName === undefined) { return undefined }
+  if (!home.indexConfigPresent) { return 'no ' + INDEX_CONFIG_FILE + ' in the cargo home\'s registry index' }
+  const summaryPath = summaryPathOf(name)
+  if (statOf(join(home.indexFolder, summaryPath)) !== undefined) { return undefined }
+  const cacheVersion = firstByteOf(join(home.summaryFolder, summaryPath))
+  if (cacheVersion === undefined) { return 'no cached summary of ' + name + ' in the cargo home\'s registry index' }
+  if (cacheVersion !== SUMMARY_CACHE_VERSION) { return 'its cached summary of ' + name + ' has cache version ' + String(cacheVersion) + ', not ' + String(SUMMARY_CACHE_VERSION) }
+  return undefined
 }
 
 /** Why the registry crate the lock file names is not in the cargo home, or undefined when it is there and unpacked. */
 const registryCrateMissingFrom = ({ home, name, version }) => {
+  const summaryMissing = indexSummaryMissingFrom({ home, name })
+  if (summaryMissing !== undefined) { return summaryMissing }
   const packageName = name + '-' + version
   const tarballSize = home.tarballSizes.get(packageName + '.crate')
   if (tarballSize === undefined) { return 'no ' + packageName + '.crate in the cargo home' }
@@ -1185,18 +1264,39 @@ const fetchedUrlsOf = (databaseFolder) => {
  A database does not lose a revision it has while one pass runs, and one a concurrent garbage collection empties is a
  fetch on the next pass, as a collection emptying a crate the pass has just read is.
  */
-const answeredRevisions = new Map()
+const askedRevisions = new Map()
 
-/** Whether a git database holds the revision, asked of git under a bound; a database that cannot answer is a no. */
-const databaseHoldsRevision = ({ databaseFolder, revision }) => {
+/**
+ Whether a git database holds the revision, asked of git under the ceiling above.
+ The question is a child process that does not keep this one alive, raced against a timer: at the ceiling the child is
+ killed with SIGKILL and the answer is no, so a git that ignores SIGTERM, and a git that no signal can end because it
+ waits on a filesystem that does not answer, cannot hold this task. A child that survives stays the kernel's and the
+ scope's to reap; the answer here does not wait for it.
+ */
+const askGitForRevision = async ({ databaseFolder, revision }) => {
+  const child = spawn('git', ['--git-dir=' + databaseFolder, 'cat-file', '-e', revision], { stdio: ['ignore', 'ignore', 'ignore'] })
+  child.unref()
+  const answered = new Promise((resolve) => {
+    child.once('error', () => { resolve(false) })
+    child.once('close', (status) => { resolve(status === 0) })
+  })
+  const ceiling = new Promise((resolve) => {
+    // The timer is what keeps this process alive while the question waits; it is cleared as soon as git answers.
+    const timer = setTimeout(() => { child.kill('SIGKILL'); resolve(false) }, GIT_QUESTION_CEILING_MILLISECONDS)
+    void answered.then(() => { clearTimeout(timer) })
+  })
+  return await Promise.race([answered, ceiling])
+}
+
+/** Whether a git database holds the revision, asked once per database and revision in this pass. */
+const databaseHoldsRevision = async ({ databaseFolder, revision }) => {
   const asked = databaseFolder + ' ' + revision
-  const answered = answeredRevisions.get(asked)
-  if (answered !== undefined) { return answered }
-  const gitProcess = process.getBuiltinModule('node:child_process')
-  const question = gitProcess.spawnSync('git', ['--git-dir=' + databaseFolder, 'cat-file', '-e', revision], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: GIT_QUESTION_CEILING_MILLISECONDS })
-  const holds = question.status === 0
-  answeredRevisions.set(asked, holds)
-  return holds
+  let question = askedRevisions.get(asked)
+  if (question === undefined) {
+    question = askGitForRevision({ databaseFolder, revision })
+    askedRevisions.set(asked, question)
+  }
+  return await question
 }
 
 /** The repository name, URL and locked revision of a git source, or undefined when the source text is not understood. */
@@ -1214,7 +1314,7 @@ const gitSourceOf = (source) => {
  The database is the one whose recorded URL is the lock file's URL, the checkout is under that database's own folder
  name, and the revision is asked of that database: two URLs that share a repository name are never one database.
  */
-const gitCheckoutMissingFrom = ({ cargoHome, home, packageName, source }) => {
+const gitCheckoutMissingFrom = async ({ cargoHome, home, packageName, source }) => {
   const gitSource = gitSourceOf(source)
   if (gitSource === undefined) { return packageName + ' names a git source this reader does not understand' }
   const { repository, revision, url } = gitSource
@@ -1227,14 +1327,14 @@ const gitCheckoutMissingFrom = ({ cargoHome, home, packageName, source }) => {
     const readyHere = abbreviations !== undefined && [...abbreviations].some((name) => revision.startsWith(name) && name.length >= SHORTEST_GIT_CHECKOUT_NAME)
     if (!readyHere) { continue }
     const databaseFolder = join(cargoHome, 'git', 'db', database.folder)
-    if (!databaseHoldsRevision({ databaseFolder, revision })) { return packageName + ' has a git database of ' + url + ' that does not hold ' + abbreviation }
+    if (!await databaseHoldsRevision({ databaseFolder, revision })) { return packageName + ' has a git database of ' + url + ' that does not hold ' + abbreviation }
     return undefined
   }
   return packageName + ' has no ready checkout of ' + url + ' at ' + abbreviation
 }
 
 /** Whether `cargo fetch --locked` has anything to download for one lock file, and what decided it. */
-const fetchDecision = ({ cargoHome, home, lockText }) => {
+const fetchDecision = async ({ cargoHome, home, lockText }) => {
   const packages = lockPackages(lockText)
   if (packages === undefined) { return { fetch: true, reason: 'the lock file was not understood' } }
   const sources = new Map()
@@ -1255,7 +1355,7 @@ const fetchDecision = ({ cargoHome, home, lockText }) => {
   const registryMissing = registryPackages.map((entry) => [entry, registryCrateMissingFrom({ home, name: entry.name, version: entry.version })])
     .filter(([, why]) => why !== undefined)
   const gitPackages = packages.filter((entry) => typeof entry.source === 'string' && entry.source.startsWith('git+'))
-  const gitMissing = gitPackages.map((entry) => [entry, gitCheckoutMissingFrom({ cargoHome, home, packageName: entry.name + '-' + entry.version, source: entry.source })])
+  const gitMissing = (await Promise.all(gitPackages.map(async (entry) => [entry, await gitCheckoutMissingFrom({ cargoHome, home, packageName: entry.name + '-' + entry.version, source: entry.source })])))
     .filter(([, why]) => why !== undefined)
   if (registryMissing.length > 0) {
     const [[first, firstWhy]] = registryMissing
@@ -1282,7 +1382,7 @@ for (const directory of directories) {
   const lockText = textOf(directory + '/Cargo.lock')
   const decision = lockText === undefined
     ? { fetch: true, reason: 'its Cargo.lock was not readable' }
-    : fetchDecision({ cargoHome, home, lockText })
+    : await fetchDecision({ cargoHome, home, lockText })
   if (!decision.fetch) {
     skipped += 1
     continue
