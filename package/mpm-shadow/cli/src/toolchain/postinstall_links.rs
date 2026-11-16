@@ -141,8 +141,8 @@ fn resolved_beside(link: &Path) -> PathBuf {
 /// What:
 /// Whether the scope made the link at `path` and may retire it:
 /// a repository scope owns the links inside its own checkout and none inside a checkout nested in it;
-/// the global scope owns its recorded paths wherever they are,
-/// because its record is never copied from another place.
+/// the global scope owns the recorded paths under the person's home,
+/// because a path outside it is one no plan of this scope writes.
 /// Why:
 /// The record stores absolute paths,
 /// and a worktree made as a snapshot of another checkout starts with that checkout's record.

@@ -138,15 +138,40 @@ pub(crate) fn in_a_pid_namespace(status: &str) -> bool {
 }
 
 /// What:
+/// Whether `/proc/self/uid_map` is something other than the machine's own identity map,
+/// which is what a command in a user namespace reads.
+/// Why:
+/// The kernel hides the outer process ids of a nested PID namespace from an unprivileged user namespace
+/// (`NSpid` then names only the inner id), so the id alone cannot tell a sandbox from the machine.
+/// A user namespace is what lets a container or `unshare --user --pid` mount a `/proc` of its own, and this machine's
+/// own map is one line, `0 0 4294967295`.
+/// A map of another shape is a map this command cannot say much about, and the cleanup keeps every version.
+pub(crate) fn in_a_user_namespace(uid_map: &str) -> bool {
+    let mut mappings: Vec<Vec<u64>> = Vec::new();
+    for line in uid_map.lines().filter(|line| return !line.trim().is_empty()) {
+        let fields: Vec<u64> = line.split_whitespace().filter_map(|field| return field.parse().ok()).collect();
+        mappings.push(fields);
+    }
+    return mappings != [vec![0, 0, u64::from(u32::MAX)]];
+}
+
+/// What:
 /// Why this command cannot see every process of the account, or `None` when it can.
 /// Why:
 /// A PID namespace, or a `/proc` that cannot be read, is a scan that would answer "nothing holds this" about a part of
 /// the machine, and the cleanup's answer to that is to keep every version.
 fn what_the_scan_cannot_see() -> Option<String> {
     let status: String = std::fs::read_to_string("/proc/self/status").ok()?;
+    let uid_map: String = std::fs::read_to_string("/proc/self/uid_map").ok()?;
     if in_a_pid_namespace(&status) {
         return Some(
             "this command runs in a PID namespace, so the process table it can read holds only that namespace's processes and one outside it may run a version"
+                .to_string(),
+        );
+    }
+    if in_a_user_namespace(&uid_map) {
+        return Some(
+            "this command runs in a user namespace, so it may be reading only part of the machine's process table and a process outside it may run a version"
                 .to_string(),
         );
     }

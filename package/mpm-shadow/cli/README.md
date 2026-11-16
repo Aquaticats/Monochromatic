@@ -1111,7 +1111,8 @@ The version this run installed is kept as well.
 A removal renames the version out of its name (`.mpm-shadow-removing.<version>`)
 before deleting anything,
 so a run killed halfway leaves a marker the next install finishes,
-and it removes for at most two seconds per pass,
+and it removes while the pass's work limit of two seconds lasts,
+so a pass that removes many versions stops and says how many it left,
 so an install never waits on a long deletion.
 The cleanup's work limit is looked at between the versions of the inventory and between the steps of a removal;
 the
@@ -1341,7 +1342,7 @@ except a version that is in use (see the bullets below).
   in the same words everywhere:
 
   ```text
-  <tool id> is locked at <locked> in this tree's lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mpm update <tool id>` or merge main
+  <tool id> is locked at <locked> in this tree's lock, <path to that lock file>, but <used> runs, because this root keeps only the newest finished version of a repository tool, unless a lock names the older one or a process runs it; upgrade this tree's lock with `mpm update <tool id>` or merge main
   ```
 
   The lock file is named because a launcher and a shell read whichever lock their own record names,
@@ -1410,7 +1411,7 @@ the newest finished copy wins wherever it is.
   in the same words everywhere the tree's sentence appears:
 
   ```text
-  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g <tool id>`
+  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because this root keeps only the newest finished version of a repository tool, unless a lock names the older one or a process runs it; upgrade the global lock with `mpm-shadow update -g <tool id>`
   ```
 
 #### Older managed copies
@@ -1652,7 +1653,13 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
 
 `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...` deletes what no known lock names.
 It runs only when asked;
-`install` never deletes another tree's version.
+A version another tree's lock names is kept whenever that lock is read,
+and what the cleanup cannot see is stated
+above:
+another repository's lock is not there,
+so a clone of this repository outside its worktrees is unseen
+(`prune --toolchain --lock` names it),
+and a worktree on a disk that is not mounted stops the cleanup.
 
 - Known locks are this scope's lock,
   the `toolchain.lock.json` of every worktree `git worktree list --porcelain` reports,
@@ -1749,7 +1756,8 @@ and removes a recorded link the lock no longer declares.
   Before this rule,
   that install removed the source checkout's links and left its `.cache/*-bin` folders empty
   (`doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md`).
-- The global scope keeps retiring every path its own record names,
+- The global scope retires every path its own record names that lies under the home,
+and leaves one outside it,
   because nothing copies that record.
 - A repository scope no longer retires a link whose plan `linkDir` is an absolute path outside the checkout;
   the plan uses only relative ones,

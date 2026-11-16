@@ -38,6 +38,12 @@ and `cost-of-a-pass-on-the-real-store.txt`.
   six unnamed `aws` versions at 250 MiB each,
   and 4.5 GiB of flat download files named `<tool>-<version>-<file>` under `downloads/`,
   which nothing reads.
+  (Measured on 2026-11-14.
+  The Android SDK route writes that shape while it downloads,
+  under a name carrying its own
+  version;
+  the in-use floor is what keeps a removal away from it,
+  and "the flat downloads name" below says so.)
 - The process table held seven store paths,
   all inside versions the locks also named.
   Reading the `exe`,
@@ -543,6 +549,90 @@ never a version.
   and the `bin` downloader keep in their own homes,
   which mpm-shadow never wrote.
 
+## What a pass can and cannot see, and what a person does about it
+
+A pass knows of these lock files,
+and of no others:
+this tree's `toolchain.lock.json`,
+every worktree `git worktree list --porcelain` reports for this repository,
+and this machine's global lock.
+It knows of these processes:
+every process of this account in its own PID namespace whose `/proc/<pid>/{exe,cwd,fd,maps}` it may read.
+Everything else is outside what it can see,
+and each case below is either refused or stated.
+
+- **Another repository's lock**,
+or a clone of this repository that git does not list as a worktree,
+is not read:
+the store is shared,
+so its version can be removed.
+What a person does:
+name that lock with `prune --toolchain --lock <path>`,
+or keep the version's tool out of this store's cleanup by
+installing it elsewhere.
+Stated because no command can enumerate the locks of the account's other clones.
+- **A worktree on a disk that is not mounted** is a worktree whose `.git` entry is not there,
+and git marks it
+`prunable`;
+the command refuses rather than treat its lock as one that names nothing.
+What a person does:
+mount the disk,
+or run `git worktree prune` if the worktree is gone,
+or name its lock with `--lock`.
+- **A lock row with a route this release does not know** makes the whole lock unreadable,
+and the line names the file
+and the row,
+so nothing that file could name is removed.
+What a person does:
+run the release that knows the route,
+or delete the row from the lock.
+- **A process in another PID namespace**,
+or a command inside a user namespace,
+is a process table the scan says it
+cannot trust:
+every version is kept and `prune --toolchain` refuses.
+What a person does:
+run the cleanup from the machine's own namespace.
+- **A process of another user** is not asked:
+the kernel does not show its program or its folders to this account,
+and a
+store under this account's home is not what such a process runs.
+- **A hidden process's re-execution** is not seen:
+a process the kernel will not describe keeps the versions installed
+before it started and is taken not to run ones installed after it,
+so one that re-executes itself into an older version
+later is not accounted for.
+What a person does:
+end that process before a cleanup whose removals matter.
+- **A link planted between the proof and the act** is the window `proved_under` leaves:
+the act lands on the path that
+was proved,
+and a link that appears after the proof can make a rename move a different entry of the store to another
+name in it,
+never to a file outside it.
+What a person does:
+nothing,
+unless another process is writing the store while the cleanup runs,
+which only this
+account's own commands do.
+- **The three older removals** (`remove_older_archives`,
+`remove_older_than_newest`,
+`remove_version`) delete a version
+at its own name without moving it aside,
+so a kill in the middle leaves a partial directory there;
+only an older version is removed that way,
+and the next install of that tool removes it again.
+- **A link at a recovery marker,
+or one unreadable lock anywhere**,
+stops every cleanup in every pass until it is put
+right:
+that is the safe direction,
+and the line names the file each time.
+- **A program that reads `/dev/tty`** runs in a process group of its own,
+so a terminal stops it with `SIGTTIN` and it
+waits until its bound;
+a program that needs a terminal is not part of an install this package runs.
+
 ## What a kill at each step leaves, and what the next pass does
 
 A removal writes these names in this order,
@@ -555,8 +645,10 @@ and a kill after each leaves a state a later pass reads:
 2. **the downloads claim**:
    nothing has moved;
    the claim names a dead maker,
-   so the next pass clears it and takes the
-   marker away.
+   so the pass that next judges that version clears it.
+   A claim whose version is gone is cleared by the recovery pass's sweep of each tool's downloads directory,
+   and one whose version is still there and is not judged again stays until a pass judges it or sweeps it:
+   it keeps installs out of that one directory and nothing else.
 3. **the archives' removing name**:
    the version is still at its own name,
    so the removal never began;
@@ -599,11 +691,14 @@ both answers that judge a holder by its number and start
 time read its state as well,
 so a zombie holds nothing.
 A process of this account the kernel will not describe may hold any version,
-and its name is no evidence either way,
-so
-the two removals an install makes and `prune` keep every version they judge and say why.
-That keeps every removable version on a machine with such a process,
-which is the owner's question and recorded in `doc/toolchain-version-cleanup.md`'s report of the round that added it.
+and its name is no evidence either way.
+The owner's age rule of 2026-11-15 is what all four removals ask:
+such a process keeps a version it started after and is taken not to run one it started before,
+and a version whose install time cannot be read,
+or a process whose start cannot be read,
+is kept.
+What that does not see:
+a hidden process that re-executes itself into a version installed before it started.
 
 ## What a command waits on, and for how long
 
@@ -673,7 +768,8 @@ and a rename replaces the entry it lands on,
 so a link at the last name does not send those acts outside the store,
 while a link on the way still does.
 
-Three wrappers are the only places the cleanup makes such an act:
+Three wrappers are the only places the cleanup removes,
+moves or writes a version's own entry through:
 `remove_tree_proved`,
 `remove_file_proved` and
 `rename_proved`,
@@ -701,7 +797,15 @@ was moved with what was read by device and inode;
 a claim that is not the one read goes back where it was,
 because removing the name as it stands would remove a live claim another remover wrote in the meantime.
 
-The one act of the cleanup that is not proved is `remove_copy`'s removal of the old copy itself:
+Two acts in the store are not proved by `proved_under`,
+and both replace or remove a name rather than a tree:
+the root's `current` link that `apply_loser` writes and removes,
+and the size record `write_size_records` writes.
+Neither follows a link and neither removes what a link points at,
+so a link planted at the tool's directory diverts them to another name in the same store,
+or replaces that link itself,
+and never reaches a file outside it.
+The act outside the store that is not proved is `remove_copy`'s removal of the old copy itself:
 that file is `~/.cargo/bin/<bin>`,
 outside the store,
 and removing it removes the link itself and never a target.

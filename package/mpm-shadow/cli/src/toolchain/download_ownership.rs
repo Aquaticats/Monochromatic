@@ -50,8 +50,8 @@ const OWNER_PREFIX: &str = ".mpm-shadow-downloading.";
 /// which sits beside the version's directory so it can be created before the directory is looked at.
 pub(crate) const REMOVAL_SUFFIX: &str = ".download-removal";
 
-/// How long an install waits for a removal claim to go before it gives up:
-/// two seconds.
+/// How long an install waits for a removal claim to go before it gives up.
+/// It is `OWNERSHIP_WAIT`, ten seconds, since the owner's decision of 2026-11-15;
 /// Why:
 /// A removal of one downloads directory takes milliseconds,
 /// so a claim that is still there after two seconds belongs to a command that is not finishing;

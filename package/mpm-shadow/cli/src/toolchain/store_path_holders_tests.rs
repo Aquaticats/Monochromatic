@@ -181,4 +181,13 @@ fn a_nested_pid_namespace_is_a_table_the_scan_cannot_trust() {
     assert!(!crate::toolchain::store_path_holders::in_a_pid_namespace(machine), "the machine's own namespace is the whole machine");
     assert!(crate::toolchain::store_path_holders::in_a_pid_namespace(nested), "a nested PID namespace holds only its own processes");
     assert!(!crate::toolchain::store_path_holders::in_a_pid_namespace(without), "a kernel that prints no NSpid line is this namespace");
+    // What a sandbox reads: the kernel hides the outer ids, so the user namespace's map is what tells.
+    let machine_map: &str = "         0          0 4294967295\n";
+    let sandbox_map: &str = "         0       1000          1\n";
+    assert!(!crate::toolchain::store_path_holders::in_a_user_namespace(machine_map), "the machine's own map is one line");
+    assert!(crate::toolchain::store_path_holders::in_a_user_namespace(sandbox_map), "a sandbox map is another shape");
+    assert!(
+        crate::toolchain::store_path_holders::in_a_user_namespace("         0          0 4294967295\n         1          1          1\n"),
+        "a map with a second line is not the machine's own"
+    );
 }

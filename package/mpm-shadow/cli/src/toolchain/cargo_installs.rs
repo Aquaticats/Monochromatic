@@ -586,7 +586,7 @@ pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used
         ),
         ScopeKind::Global => format!(
             "{tool_id} is locked at {locked} in this machine's global lock, {lock}, but {used} runs, because older repository tools are \
-             never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g {word}`"
+             only kept while a lock names it or a process runs it; upgrade the global lock with `mpm-shadow update -g {word}`"
         ),
     };
 }

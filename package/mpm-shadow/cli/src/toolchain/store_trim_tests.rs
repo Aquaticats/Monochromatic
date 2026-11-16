@@ -1942,7 +1942,7 @@ fn a_removal_out_of_its_work_limit_moves_nothing_and_says_so() {
         .into_iter()
         .find(|found| return found.version == "26.11.0")
         .expect("the oldest version is a candidate");
-    let archives: PathBuf = candidate.downloads.clone().expect("its downloads were seen");
+    let moved_archives: PathBuf = candidate.downloads.clone().expect("its downloads were seen");
     let plan: TrimPlan = TrimPlan { total_bytes: 10, over_bound: true, steps: vec![TrimStep::Remove(candidate.clone())] };
     let started: Instant = Instant::now();
     let run: TrimRun = TrimRun {
@@ -1953,7 +1953,7 @@ fn a_removal_out_of_its_work_limit_moves_nothing_and_says_so() {
     let outcome: TrimOutcome = apply_trim(&plan, &run, &nothing_new_is_named);
 
     assert!(candidate.directory.is_dir(), "a version was moved by a pass whose work limit was gone");
-    assert!(archives.join("archive.tar.gz").is_file(), "the archives were left under their removing name");
+    assert!(moved_archives.join("archive.tar.gz").is_file(), "the archives were left under their removing name");
     assert_eq!(outcome.removed, 0, "{:?}", outcome.lines);
     assert!(
         outcome.lines.iter().any(|line| return line.contains("limit") && line.contains("left 1 version")),

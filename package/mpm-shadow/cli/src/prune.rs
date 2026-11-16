@@ -141,7 +141,7 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
 /// would keep an old cached version and delete a newer one.
 /// Trees still on the TypeScript toolchain keep installing into `$CARGO_HOME`,
 /// so that file is still read.
-/// The newest wins because older repository tools are never kept once a newer one is installed.
+/// The newest wins because this root keeps one finished version of a repository tool unless a lock names an older one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

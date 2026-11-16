@@ -482,7 +482,8 @@ fn paths_named(removed: &[PathBuf]) -> String {
 /// Why:
 /// This is the cleanup the version-keyed layout needs.
 /// It runs only when asked:
-/// `install` never deletes another tree's version.
+/// A version another tree's lock names is kept whenever that lock is read; a clone of this repository outside its
+/// worktrees is not read, which is why `--lock` exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
