@@ -10215,15 +10215,21 @@ a boot ID is 32 lowercase hexadecimal digits,
 and a birth identity is `linux:` and the kernel's start tick with no sign,
 no space and no leading zero
 (`is_boot_id` in `src/native/landing/claim_time.rs`,
-`is_birth_identity` in `src/native/process/process_identity.rs`).
+`birth_text` in `src/native/process/process_identity.rs`).
 A part written another way (its letters in capitals,
 the kernel's dashes,
-a tick with a leading zero or behind a space)
-is no part this reader can compare,
-so the judgement is unknown and the lock stays:
-reading two spellings of one boot as two boots,
-or two spellings of one start tick as two processes,
-would prove a live holder gone and remove the lock of a Git that runs.
+a tick with a leading zero or behind a space,
+padding before a tag's colon)
+is no part this reader can compare.
+Compared against a process that has the number,
+two spellings of one boot as two boots,
+or of one start tick as two processes,
+would prove a live holder gone and remove the lock of a Git that runs,
+so there the judgement is unknown and the lock stays.
+The birth is compared only with the identity of the process that has the number,
+so a number the process table answers nothing for ends the holder whatever the birth field holds:
+a proof that stands apart from a part the reader cannot read is still used,
+which is what keeps a killed service's lock clearable by the next command.
 
 #### The proof
 
@@ -13296,13 +13302,18 @@ A record whose command still runs decides the other way:
 that command's checks may refuse the commit,
 so the automatic push stops before it until they answer
 (see "A blocked commit is never published").
-A record settles only on a proof that its command is gone,
-and a part of its holder text that is not a boot ID or a birth identity in the one spelling this program writes
-is no part a reader can compare:
+A record settles only on a proof that its command is gone.
+A boot part that is not a boot ID,
+and a birth part that is not a birth this program can compare,
+are parts no reader can compare,
+because two spellings of one boot or of one birth compare as two of them.
+Where the number names a process,
 such a record is unknown,
-which keeps it held and named,
-because two spellings of one boot or one birth compare as two of them
+which keeps it held and named
 (`proven_gone` in `src/native/landing/held_push_holder_and_verdict.rs`).
+Where the number answers nothing the record is settled whatever its other parts say:
+a proof that stands apart from a part the reader cannot read is still used,
+which is what keeps a command that was killed from holding its commit for ever.
 A command whose output a program reads settles the held records too and shows no line,
 because the settlement is not a notice:
 the approval a dead command recorded must not wait for a command a person types,

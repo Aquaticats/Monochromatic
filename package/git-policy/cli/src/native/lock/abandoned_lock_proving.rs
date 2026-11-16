@@ -37,8 +37,13 @@
 //!    a boot with the kernel's dashes,
 //!    or a machine part with nothing in it):
 //!    each part after the birth stands in its own place,
-//!    so a text whose parts cannot be told apart judges unknown,
+//!    so a text whose boot,
+//!    namespace or machine cannot be told apart judges unknown,
 //!    and the lock stays.
+//!    The birth itself is compared only beside a process that has the number,
+//!    so a birth that cannot be read proves nothing there:
+//!    a number no process has ends the holder whatever its birth field holds,
+//!    which is what keeps a killed service's lock clearable by the next command.
 //!  - the wrapper's own forwarded command:
 //!    its `self` record carries the birth the exec'd Git keeps,
 //!    so it stays.
