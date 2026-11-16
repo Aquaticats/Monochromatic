@@ -88,7 +88,7 @@ description = "Write what one review of a change reads: the diff of its ranges u
 run = "node src/write-a-brief-for-a-review.ts"
 
 [tasks."check-a-review-that-ended"]
-description = "Say one verdict per ended review (complete, ran nothing, statement missing or not matching its session, no review file, cut), and write the batch entry that starts a review again when it needs one"
+description = "Say one verdict per ended review (complete, ran nothing, still running, statement missing or not matching its session, no review file, cut), write one second review's brief and batch entry when a thin review is owed it, and start that second review only when --start is given"
 run = "node src/check-a-review-that-ended.ts"
 
 [tasks."start-reviews-of-finished-branches"]

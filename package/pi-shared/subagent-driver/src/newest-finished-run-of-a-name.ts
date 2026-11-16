@@ -148,6 +148,53 @@ export async function attemptsOfARun({
 }
 
 /**
+ Reads the newest attempt of one run's name, when it has not finished.
+
+ A run folder's summary appears whole and last, so a newest attempt without one is a run still going; no second review is written
+ under it.
+
+ @param runsFolder - folder the driver writes its runs into
+
+ @param runName - the run's name
+
+ @returns the running attempt's folder, or nothing when the newest attempt has finished
+
+ @example
+ ```ts
+ const running = await runningAttemptOf({ runsFolder: '/runs', runName: 'review-a' });
+ ```
+ */
+export async function runningAttemptOf({
+  runsFolder,
+  runName,
+}: {
+  readonly runsFolder: string;
+  readonly runName: string;
+},): Promise<{ readonly run?: string }> {
+  /**
+   Every attempt of that name, newest first.
+   */
+  const attempts = await attemptsOfARun({
+    runsFolder,
+    runName,
+  },);
+  /**
+   The newest attempt.
+   */
+  const [newest,] = attempts;
+  if (newest === undefined) {
+    return {};
+  }
+  return (await isThere(join(
+    runsFolder,
+    newest.folder,
+    SUMMARY_FILE_NAME,
+  ),))
+    ? {}
+    : { run: newest.folder, };
+}
+
+/**
  Reads the newest attempt of one run's name that has a summary.
 
  @param runsFolder - folder the driver writes one run folder per run into

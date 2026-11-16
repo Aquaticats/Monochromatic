@@ -201,7 +201,7 @@ await describe({
           },
         },),
         it({
-          name: 'confirms a built program outside the worktree, in the build directory every agent shares (F6)',
+          name: 'does not confirm a built program outside the worktree, in a build directory tied to no worktree (F3 limit)',
           fn: async () => {
             const command = `${aSharedBuildProgram()} --version`;
             const compared = await compareCommands({
@@ -209,8 +209,9 @@ await describe({
               session: aSession(command, 0,),
               reviewFolder: '/reviews/a',
             },);
-            expect(compared.problems,).toEqual([],);
-            expect(compared.builtPrograms,).toEqual([aSharedBuildProgram(),],);
+            expect(compared.problems,).not.toEqual([],);
+            expect(compared.problems[0],).toContain('not a program a build wrote in this review\'s worktree or its own folder');
+            expect(compared.builtPrograms,).toEqual([],);
           },
         },),
         it({
@@ -352,7 +353,7 @@ await describe({
               session: aSession('/usr/local/bin/wrapper commit', 0,),
               reviewFolder: '/reviews/a',
             },);
-            expect(plain.problems[0],).toContain('no build output segment');
+            expect(plain.problems[0],).toContain('not a program a build wrote');
             const unstated = await compareCommands({
               statement: aStatement(`${aBuiltProgram()} commit`,),
               session: aSession(`${aBuiltProgram()} commit`, 0,),

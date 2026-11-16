@@ -140,29 +140,34 @@ export {
 export {
   type CommandComparison,
   type StatedCommandCheck,
-  compareCommands,
-} from './review-command-matching.ts';
+} from './build-path-of-a-review.ts';
+export { compareCommands, } from './review-command-matching.ts';
 export {
   type ReviewCheck,
+  type ReviewerOfARun,
   type ReviewVerdict,
+  NO_REVIEWER,
   CHECK_LIMITS_LINE,
 } from './review-check-types.ts';
 export {
   checkAReview,
-  checkLineOf,
 } from './checking-a-review.ts';
+export { checkLineOf, } from './review-check-line.ts';
 export {
   type ReadingAtAPath,
   type ReviewCoverage,
-  type StatementReading,
   type TextAtAPath,
   coverageIn,
   coverageReasonsOf,
   fileProblemsIn,
   readingAtAPath,
-  readingOfAStatement,
   textAtAPath,
 } from './review-check-reading.ts';
+export {
+  type StatementReading,
+  briefFilesIn,
+  readingOfAStatement,
+} from './reading-a-review.ts';
 export {
   READ_LIMIT_BYTES,
   type RegularFileReading,
@@ -189,10 +194,12 @@ export {
 } from './restart-brief-text.ts';
 export {
   type RestartOutcome,
-  type RestartStartingSeams,
   restartOfAReview,
-  startRestarts,
 } from './restarting-a-review.ts';
+export {
+  type RestartStartingSeams,
+  startRestarts,
+} from './starting-a-restart.ts';
 export { writeRestartPlan, } from './writing-a-restart-plan.ts';
 export {
   type StartOwnership,

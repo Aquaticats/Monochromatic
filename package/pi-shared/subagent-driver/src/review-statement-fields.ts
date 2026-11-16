@@ -158,13 +158,15 @@ function fileReadIn({
     file,
   },);
   /**
-   How the review read the file, as the entry says.
+   How the review read the file, as the entry says, in the case the shape carries.
    */
   const read = textIn({
     value: entry.read,
     where: `${where}.read`,
     file,
-  },);
+  },)
+    .trim()
+    .toLowerCase();
   if (!FILE_READ_STATES.includes(read,)) {
     throw reviewStatementErrorOf({
       file,
@@ -279,13 +281,15 @@ function findingIn({
     file,
   },);
   /**
-   How the review says the finding was shown, as the entry says.
+   How the review says the finding was shown, as the entry says, in the case the shape carries.
    */
   const shownBy = textIn({
     value: entry.shownBy,
     where: `${where}.shownBy`,
     file,
-  },);
+  },)
+    .trim()
+    .toLowerCase();
   if (!FINDING_SHOWN_BY.includes(shownBy,)) {
     throw reviewStatementErrorOf({
       file,

@@ -180,8 +180,11 @@ ninety-nine lines,
 Neuralwatt's models among them,
 and one Claude model,
 `claude-haiku-5-5` on `opencode-go`),
-so a review is handed to a harness that has Sonnet,
-and no Pi run reviews or audits until Pi lists one.
+so a first review is handed to a harness that has Sonnet,
+and no Pi run writes the first review or a long audit until Pi lists one.
+The second review of a thin first review runs on the other of the pair:
+when the first ran on Sonnet, Pi serves the Qwen side of the pair;
+when it ran on Qwen, the Sonnet side is owed and the command writes the note.
 The rest of this paragraph is what held until then,
 kept because the Kimi pool's numbers return with it when the owner reopens it.
 Reviews of a change ran on Kimi K3.1 Pro alone,
@@ -191,10 +194,11 @@ after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 A review of a change is written and checked by
 `package/pi-shared/subagent-driver`'s `write-a-brief-for-a-review` and `check-a-review-that-ended`:
 the brief demands a statement of what the review read and what it ran through a program a build wrote,
-wherever its build folder stands,
-and the check reads the ended review's file, run and session and says whether it is complete, ran nothing,
+in the review's worktree or its own folder,
+and the check reads the ended review's file, run and session and says whether it is complete, ran nothing, still running,
 is missing its statement or a match with its session, wrote no review file, or was cut,
-then starts one second review on the other model of the pair, once, or writes the note that owes it
+then writes one second review's brief and batch entry on the other model of the pair, once, or writes the note that owes it,
+and starts that second review only when the caller passes `--start`
 (see `package/pi-shared/subagent-driver/doc/a-review-states-what-it-read-and-ran.md`).
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."

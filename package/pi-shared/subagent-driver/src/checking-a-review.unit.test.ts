@@ -548,7 +548,7 @@ await describe({
           },
         },),
         it({
-          name: 'answers complete for a program a shared build directory outside the worktree holds, which the statement and session name (F6)',
+          name: 'answers a mismatch for a program a build directory outside the worktree holds, which this check cannot tie to the reviewed commit (F3 limit)',
           fn: async () => {
             await using fixture = await makeFixture();
             await writeTheReading({ fixture, },);
@@ -579,8 +579,9 @@ await describe({
               reviewsFolder: fixture.reviewsFolder,
               runsFolder: fixture.runsFolder,
             },);
-            expect(check.verdict,).toBe('complete',);
-            expect(check.builtPrograms,).toEqual([program,],);
+            expect(check.verdict,).toBe('statement missing or not matching its session',);
+            expect(check.builtPrograms,).toEqual([],);
+            expect(check.reasons.join(' '),).toContain('not a program a build wrote in this review\'s worktree or its own folder');
           },
         },),
         it({
@@ -609,7 +610,7 @@ await describe({
             },);
             expect(check.verdict,).toBe('ran nothing',);
             expect(check.thin,).toBe(true,);
-            expect(check.reasons[0],).toContain('thin: no command it lists ran a program built from commit');
+            expect(check.reasons[0],).toContain('thin: no command it lists ran a program a build wrote');
             // The coverage is still named, so a second review knows what is left even when the first ran nothing.
             expect(check.coverage?.filesNotReadWhole,).toEqual(['package/a/src/two.rs',],);
           },
@@ -634,7 +635,6 @@ await describe({
               runsFolder: fixture.runsFolder,
             },);
             expect(check.verdict,).toBe('statement missing or not matching its session',);
-            expect(check.reasons[0],).toContain('## Findings',);
             expect(check.reasons[0],).toContain(REVIEW_STATEMENT_HEADING,);
           },
         },),

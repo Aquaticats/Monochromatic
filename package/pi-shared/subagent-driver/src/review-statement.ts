@@ -160,7 +160,10 @@ function closingFenceAt({
 }
 
 /**
- Reads the statement a review file holds as its first section.
+ Reads the statement a review file holds as a section after its title.
+
+ A section that is not the first one is read anyway: a review that put another section before it made a slip of form, and the
+ statement is still what it read and ran.
 
  @param shown - the review file's text
 
@@ -168,8 +171,7 @@ function closingFenceAt({
 
  @returns the statement
 
- @throws ReviewStatementError when the file holds no statement section, the section is not the first one, or the block does not
- fit the shape
+ @throws ReviewStatementError when the file holds no statement section, or the block does not fit the shape
 
  @example
  ```ts
@@ -184,9 +186,17 @@ export function statementInReview({
   readonly file: string;
 },): ReviewStatement {
   /**
-   The review file's lines.
+   The review file's lines, with the line endings a review written on another machine may carry made uniform.
    */
-  const lines = shown.split('\n',);
+  const lines = shown.replaceAll(
+    '\r\n',
+    '\n',
+  )
+    .replaceAll(
+    '\r',
+    '\n',
+    )
+    .split('\n',);
   /**
    Where the review's title is, which the statement follows.
    */
@@ -200,25 +210,18 @@ export function statementInReview({
     });
   }
   /**
-   Where the review's first section is.
+   Where the statement's section is, wherever it stands after the title, its heading compared without the spaces around it.
    */
-  const sectionAt = lines.findIndex(function isASection(
+  const sectionAt = lines.findIndex(function isTheStatement(
     line,
     at,
   ) {
-    return (at > titleAt) && line.startsWith('## ',);
+    return (at > titleAt) && (line.trim() === REVIEW_STATEMENT_HEADING);
   },);
   if (sectionAt === (-1)) {
     throw reviewStatementErrorOf({
       file,
       message: `has no "${REVIEW_STATEMENT_HEADING}" section after its title`,
-    });
-  }
-  if (lines[sectionAt] !== REVIEW_STATEMENT_HEADING) {
-    throw reviewStatementErrorOf({
-      file,
-      message: `has "${lines[sectionAt] ?? ''}" as its first section, not "${REVIEW_STATEMENT_HEADING}"; the statement is the `
-        + 'first section after the title',
     });
   }
   /**
@@ -245,6 +248,9 @@ export function statementInReview({
 /**
  Says whether the commit a statement names is the commit the review recorded it read, allowing an abbreviated id.
 
+ A statement commit shorter than the shortest abbreviation this reader accepts is refused, and so is one that is no hexadecimal
+ hash: a single letter is a prefix of every commit, and a statement that names it is not a commit at all.
+
  @param stated - the commit the statement names
 
  @param recorded - the commit the review's record names
@@ -263,6 +269,22 @@ export function commitIsTheSame({
   readonly stated: string;
   readonly recorded: string;
 },): boolean {
-  return stated.startsWith(recorded,)
-    || recorded.startsWith(stated,);
+  /**
+   The shortest abbreviation a stated commit may be, which is git's own shortest default.
+   */
+  const shortest = 7;
+  /**
+   Whether the stated text is a hexadecimal hash.
+   */
+  const hexadecimal = (stated.length >= shortest)
+    && stated.split('',)
+      .every(function isHex(character,) {
+        return ((character >= '0') && (character <= '9')) || ((character >= 'a') && (character <= 'f'))
+          || ((character >= 'A') && (character <= 'F'));
+      },);
+  if (!hexadecimal) {
+    return stated === recorded;
+  }
+  return recorded.startsWith(stated,)
+    || stated.startsWith(recorded,);
 }

@@ -643,8 +643,10 @@ each command run with its exit code and, when it ran a program a build wrote,
 that program's path,
 and each finding as shown by `run` or by `reading`.
 A program a build wrote is one whose path lies in a build output folder,
-whether that folder is in the worktree, in the build directory every agent shares, or in the reviewer's scratch folder;
-a command that merely names such a path ran nothing.
+in the reviewer's worktree or in the reviewer's own scratch folder;
+a program from the main checkout, or from a build folder tied to no worktree,
+is not confirmed as built from the reviewed commit.
+A command that merely names such a path ran nothing.
 The brief carries the skeleton to copy and says what the package compares it with.
 The shape is documented in `doc/a-review-states-what-it-read-and-ran.md`,
 and the reader that holds a block to it is `src/review-statement-fields.ts`.
@@ -819,12 +821,12 @@ and every line about a review that needs one says what is missing.
 
 ```text
 # --review=rewrite-the-gate --reviews-folder=/reviews --runs-folder=/runs
-review-rewrite-the-gate: complete; read 3927 of the diff's 3927 lines; 12 of 12 files read whole; 3 command(s) ran a program built from commit abc1234: /repo/.../target/debug/monochromatic-git-policy-cli; the run ended idle
+review-rewrite-the-gate: complete; read 3927 of the diff's 3927 lines; 12 of 12 files read whole; 3 command(s) ran a program a build wrote in this review's worktree or its own folder: /repo/.../target/debug/monochromatic-git-policy-cli; the run ended idle
 ```
 
-For a first review that is thin or incomplete, the command starts one second review by itself,
-in a folder, branch and run name of its own:
-`<change>-restart-2`, counting the review itself as the first run.
+For a first review that is thin or incomplete, the command writes one second review's brief and batch entry, and starts it only when the caller passes `--start`;
+its folder, branch and run name are its own:
+run and folder `review-<change>-restart-2`, branch `test/review-<change>-restart-2`, counting the review itself as the first run.
 Its worktree starts at the commit the earlier review recorded it read;
 its brief opens with what the earlier run did and did not do,
 and names the earlier review file and reproduction scripts so the second run does not repeat the reading;

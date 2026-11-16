@@ -139,14 +139,20 @@ export function wholeNumberIn({
   readonly where: string;
   readonly file: string;
 },): number {
-  if (((typeof value) !== 'number') || (!Number.isInteger(value,))
-    || (value < 0)) {
+  /**
+   The value as a number, which a review may also have written as text (`"0"`) by a slip of form.
+   */
+  const number = ((typeof value) === 'string') && (value.trim() !== '')
+    ? Number(value.trim(),)
+    : value;
+  if (((typeof number) !== 'number') || (!Number.isInteger(number,))
+    || (number < 0)) {
     throw reviewStatementErrorOf({
       file,
       message: `${where} is no whole number from zero, so how many lines it names cannot be read`,
     });
   }
-  return value;
+  return number;
 }
 
 /**

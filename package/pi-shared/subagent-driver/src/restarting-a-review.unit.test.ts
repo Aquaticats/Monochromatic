@@ -231,6 +231,7 @@ function aCheck({
     endReason: 'idle',
     endedByItself: true,
     coverage: {
+      unnamedNotWhole: false,
       diffLines: aDiff()
         .split('\n',)
         .length - 1,

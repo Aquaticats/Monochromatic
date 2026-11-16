@@ -11,6 +11,7 @@
  */
 
 import {
+  rename,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -26,6 +27,11 @@ import {
  The code the operating system gives a path that already exists.
  */
 const ALREADY_THERE_CODE = 'EEXIST';
+
+/**
+ The code the operating system gives a path that is not there.
+ */
+const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The code the operating system gives a process that is not there.
@@ -199,13 +205,62 @@ export async function takeTheStart({
     number,
   },)}\n`;
   // A marker whose process is gone is taken over once: that is the state a kill before the run folder leaves, and nothing else
-  // ever takes it. A marker whose process is alive is somebody's start, and is not touched.
-  /* oxlint-disable eslint/no-await-in-loop -- the two attempts are ordered by design, the second only after the first found an
-     owner whose process is gone; the marker's create is what decides. See doc/lint/sequential-awaits.md. */
-  for (const attempt of [
-    0,
-    1,
-  ]) {
+  // ever takes it. The takeover is one atomic rename to a name of its own, so two checks that both read the stale marker cannot
+  // both take it: only one rename succeeds, and the other finds the marker already gone.
+  try {
+    await writeFile(
+      file,
+      mine,
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+      },
+    );
+    return {
+      kind: 'mine',
+      file,
+    };
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== ALREADY_THERE_CODE) {
+      throw error;
+    }
+    /**
+     The process number the marker names.
+     */
+    const { pid, } = await markerPidIn(file,);
+    if ((pid !== undefined) && (String(pid,) !== '')
+      && processIsAlive(pid,)) {
+      return {
+        kind: 'somebody else',
+        line: `${file} names process ${String(pid,)}, which is still there`,
+      };
+    }
+    /**
+     Where the stale marker is moved to, which only one caller can do.
+     */
+    const taken = `${file}.stale`;
+    try {
+      await rename(
+        file,
+        taken,
+      );
+    }
+    catch (moved) {
+      // The marker is already gone: another check took it between this one's read and its rename.
+      if (errorCodeOf(moved,) === MISSING_PATH_CODE) {
+        return {
+          kind: 'somebody else',
+          line: `${file} was taken by another check`,
+        };
+      }
+      throw moved;
+    }
+    // The stale marker is this caller's to remove; its own marker is created next.
+    await rm(
+      taken,
+      { force: true, },
+    );
     try {
       await writeFile(
         file,
@@ -220,37 +275,14 @@ export async function takeTheStart({
         file,
       };
     }
-    catch (error) {
-      if (errorCodeOf(error,) !== ALREADY_THERE_CODE) {
-        throw error;
-      }
-      /**
-       The process number the marker names.
-       */
-      const { pid, } = await markerPidIn(file,);
-      if ((pid !== undefined) && (String(pid,) !== '')
-        && processIsAlive(pid,)) {
+    catch (created) {
+      if (errorCodeOf(created,) === ALREADY_THERE_CODE) {
         return {
           kind: 'somebody else',
-          line: `${file} names process ${String(pid,)}, which is still there`,
+          line: `${file} was taken by another check`,
         };
       }
-      if (attempt === 1) {
-        return {
-          kind: 'somebody else',
-          line: `${file} is held by a start that keeps taking over`,
-        };
-      }
-      // The marker's process is gone; the start died before a run folder was made, so this check takes it over.
-      await rm(
-        file,
-        { force: true, },
-      );
+      throw created;
     }
   }
-  /* oxlint-enable eslint/no-await-in-loop */
-  return {
-    kind: 'somebody else',
-    line: `${file} is held`,
-  };
 }

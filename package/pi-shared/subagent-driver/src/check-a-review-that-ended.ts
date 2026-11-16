@@ -5,12 +5,14 @@
  the options.
 
  The check is bookkeeping of evidence: a review file that is there, a statement of what the review read and ran that matches the
- session, at least one command run through a program a build wrote, and a run that ended by itself. A review that read part of the
- diff and says so is complete and says which files it did not read whole; it is thin, and a second review answers it once.
+ session, at least one command run through a program a build wrote or a build task, and a run that ended by itself. A review that
+ read part of the diff and says so is complete and says which files it did not read whole; it is thin, and a second review answers
+ it once.
 
- A second review is started by this command by itself, once, on the other reviewer of the pair the project's rules name. Where no Pi
- model serves that reviewer, the brief and the note saying the review is owed are written, and nothing is started. A second review
- that is still thin is reported and left for whoever coordinates, never started a third time.
+ This command reads and reports. It writes the second review a thin or incomplete first review is owed, and starts it only when
+ the caller adds `--start`; where no Pi model serves the other reviewer of the pair, it writes the brief and the note saying the
+ review is owed, and starts nothing. A second review that is still thin is reported and left for whoever coordinates, never started
+ a third time.
 
  @module
  */
@@ -24,7 +26,6 @@ import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { CHECK_LIMITS_LINE, } from './review-check-types.ts';
 import {
   checkAReview,
-  checkLineOf,
 } from './checking-a-review.ts';
 import {
   keepFailedOutput,
@@ -37,18 +38,18 @@ import {
 import {
   otherReviewerOf,
   type ReviewerOfAChange,
+  runNameOfAReview,
 } from './reviewer-of-a-change.ts';
 import type { RestartPlan, } from './restart-brief.ts';
-import {
-  restartOfAReview,
-  startRestarts,
-} from './restarting-a-review.ts';
+import { restartOfAReview, } from './restarting-a-review.ts';
+import { startRestarts, } from './starting-a-restart.ts';
 import {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
 import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
+import { checkLineOf, } from './review-check-line.ts';
 
 // The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
 // or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
@@ -134,13 +135,23 @@ for (const review of options.reviews) {
   }
   process.stdout
     .write(`${restart.line}\n`,);
-  if (restart.kind === 'written') {
+  if (restart.kind === 'reported') {
+    continue;
+  }
+  if ((restart.kind === 'written') && options.start) {
     startable.push(restart.plan,);
+  }
+  else if (restart.kind === 'written') {
+    process.stdout
+      .write(`${runNameOfAReview({
+        review: restart.plan
+          .restartReview,
+      },)}: written and not started; run this command with --start to start it\n`,);
   }
 }
 /* oxlint-enable eslint/no-await-in-loop */
 
-if (startable.length > 0) {
+if ((options.start) && (startable.length > 0)) {
   /**
    The retrying start this package ships beside this command.
    */

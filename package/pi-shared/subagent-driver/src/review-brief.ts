@@ -67,6 +67,45 @@ export function subjectOfAReview({ source, }: { readonly source: string },): str
 }
 
 /**
+ Reads one text as a Markdown code span, whose fence is longer than any run of backticks the text holds.
+
+ @param text - the text to read, such as a path
+
+ @returns the text in a code span no backtick in it can close
+
+ @example
+ ```ts
+ const span = codeSpanOf({ text: 'package/a/`odd`.ts' });
+ ```
+ */
+export function codeSpanOf({ text, }: { readonly text: string },): string {
+  /**
+   The longest run of backticks in the text.
+   */
+  const longest = { count: 0, };
+  /**
+   The run being counted.
+   */
+  const run = { count: 0, };
+  for (const character of text) {
+    run.count = (character === '`') ? run.count + 1 : 0;
+    longest.count = Math.max(
+      longest.count,
+      run.count,
+    );
+  }
+  /**
+   The fence, one backtick longer than the longest run.
+   */
+  const fence = '`'.repeat(longest.count + 1,);
+  /**
+   Whether the span needs padding: its content begins or ends with a backtick, so the fence is not read as part of it.
+   */
+  const padded = text.startsWith('`',) || text.endsWith('`',);
+  return padded ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`;
+}
+
+/**
  Builds the value of every placeholder the review brief carries.
 
  @param review - the change the review reads
@@ -127,7 +166,7 @@ export function reviewBriefValues({
     EARLIER: earlier,
     SUBJECT: subjectOfAReview({ source, },),
     FILES: files.map(function asAListItem(path,) {
-      return `- \`${path}\``;
+      return `- ${codeSpanOf({ text: path, },)}`;
     },)
       .join('\n',),
     REPRODUCTIONS_FOLDER: reproductionsFolderOfAReview({

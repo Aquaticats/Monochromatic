@@ -9,8 +9,9 @@
  */
 
 import { join, } from 'node:path';
+import { collapsed, } from './command-words.ts';
 import type { BatchEntry, } from './batch-list.ts';
-import { checkLineOf, } from './checking-a-review.ts';
+import { checkLineOf, } from './review-check-line.ts';
 import type { ReviewCheck, } from './review-check-types.ts';
 import { textAtAPath, } from './review-check-reading.ts';
 import {
@@ -73,9 +74,9 @@ function statementSentenceOf({ check, }: { readonly check: ReviewCheck },): stri
   return `Its statement says it read ${String(linesRead,)} of the diff's ${String(diffLines,)} lines, and `
     + `${String(whole,)} of ${String(whole + notWhole.length,)} files whole${notWholeNote}. `
     + `It ran ${String(check.builtPrograms
-      .length,)} command(s) through a program built from commit `
-    + `${check.statement
-      .commit}.`;
+      .length,)} command(s) through a program a build wrote, named for commit `
+    + `${collapsed(check.statement
+      .commit,)}.`;
 }
 
 /**
@@ -216,12 +217,19 @@ export function filesForARestart({
   readonly diff: string;
 },): readonly string[] {
   if (leftFilesUnread({ check, },)) {
-    return check.coverage
+    return (check.coverage
       ?.filesNotReadWhole
-      ?? [];
+      ?? []).filter(function isOneLine(path,) {
+        return (path !== '') && (!path.includes('\n',))
+          && (!path.includes('\r',));
+      },);
   }
   return filesInDiff({ diff, },)
-    .files;
+    .files
+    .filter(function isOneLine(path,) {
+      return (path !== '') && (!path.includes('\n',))
+        && (!path.includes('\r',));
+    },);
 }
 
 /**
@@ -286,7 +294,7 @@ export function owedNoteTextOf({
     + `${reviewer.name}, the other of the pair the project's rules name, and no Pi model on this machine is `
     + `${reviewer.name}.\n\n`
     + `What the first review left, as the check read it:\n\n`
-    + `    ${checkLineOf({ check, },)}\n\n`
+    + `    ${collapsed(checkLineOf({ check, },),)}\n\n`
     + `The second review reads commit \`${commit}\`, and the brief it reads is \`${briefFile}\`.\n\n`
     + `Hand that brief to a harness that has ${reviewer.name}, or run this command again once Pi lists that model: it starts `
     + `this second review then, once, and never a third.\n`;

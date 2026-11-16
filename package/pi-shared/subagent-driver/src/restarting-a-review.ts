@@ -27,8 +27,9 @@ import {
   BATCH_STAGGER_MILLISECONDS,
   type StartedEntry,
   entryLineOf,
+  startedOrFailed,
 } from './batch-list.ts';
-import { checkLineOf, } from './checking-a-review.ts';
+import { checkLineOf, } from './review-check-line.ts';
 import type { ReviewCheck, } from './review-check-types.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
@@ -41,6 +42,8 @@ import {
   type RestartPlan,
   restartPlanOf,
 } from './restart-brief.ts';
+import { ReviewDiffError, } from './review-diff.ts';
+import { restartPlanOrCannot, } from './starting-a-restart.ts';
 import { writeRestartPlan, } from './writing-a-restart-plan.ts';
 import {
   FIRST_RESTART_NUMBER,
@@ -92,6 +95,10 @@ export type RestartOutcome =
     | {
       readonly kind: 'written';
       readonly plan: RestartPlan;
+      readonly line: string;
+    }
+    | {
+      readonly kind: 'reported';
       readonly line: string;
     }
     | {
@@ -203,10 +210,23 @@ export async function restartOfAReview({
   readonly reviewer: ReviewerOfAChange;
 },): Promise<RestartOutcome> {
   /**
-   Whether this review needs another run at all: a complete review that read every file whole and ran a build program does not.
+   Whether this review needs another run at all: a complete review that read every brief file whole and showed a run does not, and
+   one whose newest attempt has not finished must not have one written under it.
    */
   if ((check.verdict === 'complete') && (!check.thin)) {
     return { kind: 'not needed', };
+  }
+  if (check.verdict === 'still running') {
+    return { kind: 'not needed', };
+  }
+  // A statement this reader cannot read is reported, not answered with a second paid review: a second review cannot repair the
+  // first reviewer's form, and the project pays for every start.
+  if (check.verdict === 'statement missing or not matching its session') {
+    return {
+      kind: 'reported',
+      line: `${check.review}: the statement cannot be read against its session, so no second review was written; left for whoever `
+        + `coordinates: ${checkLineOf({ check, },)}`,
+    };
   }
   /**
    Which run of the review this check is.
@@ -277,9 +297,9 @@ export async function restartOfAReview({
     }
   }
   /**
-   The second review, planned from what the first read.
+   The second review, planned from what the first read, or the line that says why it cannot be.
    */
-  const planned = await restartPlanOf({
+  const plannedOrFailure = await restartPlanOrCannot({
     check,
     number,
     reviewsFolder,
@@ -288,6 +308,16 @@ export async function restartOfAReview({
     focus,
     reviewer,
   },);
+  if (plannedOrFailure.kind === 'cannot') {
+    return {
+      kind: 'cannot',
+      line: plannedOrFailure.line,
+    };
+  }
+  /**
+   The plan that could be read.
+   */
+  const {planned} = plannedOrFailure;
   if (planned.plan === undefined) {
     return {
       kind: 'cannot',
@@ -316,160 +346,7 @@ export async function restartOfAReview({
     : {
       kind: 'written',
       plan: planned.plan,
-      line: planned.plan
-        .line,
+      line: `${planned.plan
+        .line}; start it with --start`,
     };
-}
-
-/**
- What starting the second reviews a check asked for needs.
- */
-export type RestartStartingSeams = {
-  /**
-   Starts one entry through the retrying start, which a test replaces with a fake launcher.
-   */
-  readonly start: (request: {
-    readonly name: string;
-    readonly words: readonly string[];
-  }) => Promise<StartedEntry>;
-
-  /**
-   How the command passes time between one start and the next.
-   */
-  readonly wait: (milliseconds: number) => Promise<void>;
-
-  /**
-   Shows one line as it happens.
-   */
-  readonly report?: (line: string) => void;
-};
-
-/**
- Starts each planned second review through the retrying start, one at a time, after taking its start marker.
-
- This is the only place a review is started, and the command calls it for every plan it wrote whose reviewer Pi can serve. A test
- hands it a fake launcher, so no test starts a run, a unit or a Pi.
-
- @param plans - the second reviews to start
-
- @param runsFolder - folder the driver writes its runs into
-
- @param checkoutFolder - the top of the checkout the worktrees are made in
-
- @param seams - the answers the command asks, which a test replaces
-
- @returns one line per plan: what its start answered, or who had already taken it
-
- @example
- ```ts
- const lines = await startRestarts({ plans, runsFolder: '/runs', checkoutFolder: '/repo', seams });
- ```
- */
-export async function startRestarts({
-  plans,
-  runsFolder,
-  checkoutFolder,
-  seams,
-}: {
-  readonly plans: readonly RestartPlan[];
-  readonly runsFolder: string;
-  readonly checkoutFolder: string;
-  readonly seams: RestartStartingSeams;
-},): Promise<readonly string[]> {
-  /**
-   One start per plan, each resolving when its run has ended, or the line that says another check had it.
-   */
-  const starts: {
-    readonly plan: RestartPlan;
-    readonly start?: Promise<StartedEntry>;
-    readonly line?: string
-  }[] = [];
-  /* oxlint-disable eslint/no-await-in-loop -- one second review after another, because the stagger is what keeps their slots in
-     the order the reviews were given, and each start marker is taken before the next is planned. See
-     doc/lint/sequential-awaits.md. */
-  for (const plan of plans) {
-    /**
-     Whether this process took the start, or the line that says who has it.
-     */
-    const ownership: StartOwnership = await takeTheStart({
-      reviewsFolder: plan.reviewsFolder,
-      review: plan.review,
-      number: plan.number,
-    },);
-    if (ownership.kind === 'somebody else') {
-      starts.push({
-        plan,
-        line: `${plan.restartReview}: not started, because ${ownership.line}`,
-      },);
-      continue;
-    }
-    /**
-     The entry the plan starts, which a plan with no entry never reaches here.
-     */
-    const {entry} = plan;
-    starts.push({
-      plan,
-      start: seams.start({
-        name: entry?.name ?? runNameOfAReview({ review: plan.restartReview, },),
-        words: retryWordsOfAReview({
-          review: plan.restartReview,
-          commit: plan.commit,
-          briefFile: plan.briefFile,
-          runsFolder,
-          checkoutFolder,
-          ...((entry === undefined) ? {} : {
-            provider: entry.provider ?? '',
-            model: entry.model ?? '',
-          }),
-        },),
-      },),
-    },);
-    await seams.wait(BATCH_STAGGER_MILLISECONDS,);
-  }
-  /* oxlint-enable eslint/no-await-in-loop */
-  /**
-   Each plan with what its start answered, in the plans' order.
-   */
-  const answered: {
-    readonly plan: RestartPlan;
-    readonly started?: StartedEntry;
-    readonly line?: string
-  }[] = await Promise.all(starts.map(async function answeredStart(entry: {
-    readonly plan: RestartPlan;
-    readonly start?: Promise<StartedEntry>;
-    readonly line?: string;
-  },) {
-    if (entry.start === undefined) {
-      return {
-        plan: entry.plan,
-        ...((entry.line === undefined) ? {} : { line: entry.line, }),
-      };
-    }
-    return {
-      plan: entry.plan,
-      started: await entry.start,
-    };
-  },),);
-  return answered.map(function lineFor(entry: {
-    readonly plan: RestartPlan;
-    readonly started?: StartedEntry;
-    readonly line?: string;
-  },) {
-    /**
-     The line the start ended with, or the line that says why it did not start.
-     */
-    const line = (entry.started === undefined)
-      ? (entry.line ?? `${entry.plan
-        .restartReview}: not started`)
-      : entryLineOf({
-        name: entry.plan
-          .entry
-          ?.name
-          ?? runNameOfAReview({ review: entry.plan
-            .restartReview, },),
-        started: entry.started,
-      },);
-    seams.report?.(line,);
-    return line;
-  },);
 }

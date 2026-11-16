@@ -95,19 +95,23 @@ function candidatesOf({
 
  @param folders - the folders a script's relative path may be written from
 
+ @param cache - what each candidate script's text is, so one script is read once
+
  @returns the text of every script the command runs, in order
 
  @example
  ```ts
- const texts = await scriptTextsRanBy({ command: 'node repro.ts', folders: ['/reviews/a'] });
+ const texts = await scriptTextsRanBy({ command: 'node repro.ts', folders: ['/reviews/a'], cache: new Map() });
  ```
  */
 export async function scriptTextsRanBy({
   command,
   folders,
+  cache = new Map(),
 }: {
   readonly command: string;
   readonly folders: readonly string[];
+  readonly cache?: Map<string, Promise<string>>;
 },): Promise<readonly string[]> {
   /**
    Every script word the command runs.
@@ -128,17 +132,34 @@ export async function scriptTextsRanBy({
       folders,
     },);
     /**
-     What each candidate holds.
+     What each candidate holds, read once for the whole comparison.
      */
-    const read = await Promise.all(candidates.map(async function readOne(candidate,) {
+    const read = await Promise.all(candidates.map(function readOne(candidate,): Promise<string> {
       /**
-       What the read answered.
+       The text this candidate is already known to hold, or a read that is kept for the next command.
        */
-      const one = await readRegularFileAt({
-        path: candidate,
-        limitBytes: SCRIPT_TEXT_LIMIT_BYTES,
-      },);
-      return (one.kind === 'text') ? one.text : '';
+      const kept = cache.get(candidate,);
+      if (kept !== undefined) {
+        return kept;
+      }
+      /**
+       The read, kept before it is awaited so a later command shares it.
+       */
+      const reading = (async function textOf(): Promise<string> {
+        /**
+         What the read answered.
+         */
+        const one = await readRegularFileAt({
+          path: candidate,
+          limitBytes: SCRIPT_TEXT_LIMIT_BYTES,
+        },);
+        return (one.kind === 'text') ? one.text : '';
+      })();
+      cache.set(
+        candidate,
+        reading,
+      );
+      return reading;
     },),);
     return read.find(function isText(text,) {
       return text !== '';
@@ -161,6 +182,36 @@ export async function scriptTextsRanBy({
  */
 function tailOf({ word, }: { readonly word: string },): string {
   return word.startsWith('./',) ? word.slice(2,) : word;
+}
+
+/**
+ Reads a program's path from its first build-output segment, so a script that holds `target/debug/a` rather than the whole path is
+ still recognised, and a one-letter file name alone is not.
+
+ @param path - the program's absolute path
+
+ @returns its path from the first `target`, `dist`, `debug` or `release` segment, or the whole path when none is there
+
+ @example
+ ```ts
+ const tail = buildTailOf('/w/package/a/target/debug/a');
+ ```
+ */
+export function buildTailOf(path: string,): string {
+  /**
+   The path's segments.
+   */
+  const segments = path.split('/',);
+  /**
+   Where the first build-output segment stands, or minus one when none does.
+   */
+  const at = segments.findIndex(function isABuildSegment(segment,) {
+    return (segment === 'target') || (segment === 'dist')
+      || (segment === 'debug')
+      || (segment === 'release');
+  },);
+  return (at === (-1)) ? path : segments.slice(at,)
+    .join('/',);
 }
 
 /**
@@ -202,14 +253,15 @@ export function commandRunsTheProgram({
         folders,
       },)
         .some(function resolvesTo(candidate,) {
-          // A word that names a shell variable cannot be resolved, so its own file name is what is compared. A relative word
-          // names a path under a folder the command moved to, which this reader does not follow, so the program's own tail is
-          // what is compared; every other word must name the program's own path.
+          // A word that names a shell variable cannot be resolved, so the build tail the program's path begins with is what is
+          // compared. A relative word names a path under a folder the command moved to, which this reader does not follow, so its
+          // own tail is compared only when it holds a folder; a bare word such as `git` is a program found on PATH, never a path.
           return (candidate === program)
             || (ran.word
-              .includes('$',)
-              && (basename(candidate,) === basename(program,)))
+              .includes(buildTailOf(program,),))
             || ((!isAbsolute(ran.word,))
+              && ran.word
+                .includes('/',)
               && program.endsWith(`/${tailOf({ word: ran.word, },)}`,));
         },);
     },);
@@ -217,37 +269,44 @@ export function commandRunsTheProgram({
     return true;
   }
   return scriptTexts.some(function holds(one,) {
-    return one.includes(program,) || one.includes(basename(program,),);
+    return one.includes(program,) || one.includes(buildTailOf(program,),);
   },);
 }
 
 /**
- Says whether any command a session records ran a build tool, directly or in a script it runs.
+ Says whether any command a session records ran a build tool, directly or in a script it runs, and names those commands.
 
  @param commands - the commands the session records
 
  @param folders - the folders a command's script may be written from
 
- @returns whether a build ran
+ @param cache - what each candidate script's text is, so one script is read once
+
+ @returns whether a build ran, and the commands that ran one
 
  @example
  ```ts
- const built = await buildRanInACommand({ commands, folders: ['/w', '/reviews/a'] });
+ const built = await buildRanInACommand({ commands, folders: ['/w', '/reviews/a'], cache: new Map() });
  ```
  */
 export async function buildRanInACommand({
   commands,
   folders,
+  cache,
 }: {
   readonly commands: readonly SessionCommand[];
   readonly folders: readonly string[];
-},): Promise<boolean> {
+  readonly cache: Map<string, Promise<string>>;
+},): Promise<{
+  readonly ran: boolean;
+  readonly commands: readonly string[]
+}> {
   /**
    Each command's own answer, and each of its scripts' answers.
    */
   const answers = await Promise.all(commands.map(async function buildIn(command,) {
     if (buildToolRanIn({ command: command.command, },)) {
-      return true;
+      return command.command;
     }
     /**
      The text of each script this command runs.
@@ -255,12 +314,20 @@ export async function buildRanInACommand({
     const texts = await scriptTextsRanBy({
       command: command.command,
       folders,
+      cache,
     },);
     return texts.some(function builds(text,) {
       return scriptRunsABuildTool({ text, },);
-    },);
+    },) ? command.command : '';
   },),);
-  return answers.some(function builds(one,) {
-    return one;
+  /**
+   The commands that ran a build tool.
+   */
+  const built = answers.filter(function isABuild(command,) {
+    return command !== '';
   },);
+  return {
+    ran: built.length > 0,
+    commands: built,
+  };
 }

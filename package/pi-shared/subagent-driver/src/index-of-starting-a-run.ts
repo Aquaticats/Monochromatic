@@ -210,6 +210,7 @@ export {
   promptFileOf,
   retryWordsOf,
   startBatch,
+  startedOrFailed,
 } from './batch-list.ts';
 export {
   BATCH_USAGE,

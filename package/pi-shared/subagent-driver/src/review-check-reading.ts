@@ -14,10 +14,8 @@ import {
   ReviewReadingError,
   readingIn,
 } from './material-of-a-review.ts';
-import {
-  type CommandComparison,
-  compareCommands,
-} from './review-command-matching.ts';
+import type { CommandComparison, } from './build-path-of-a-review.ts';
+import { compareCommands, } from './review-command-matching.ts';
 import {
   type FilesInADiff,
   ReviewDiffError,
@@ -31,7 +29,10 @@ import {
   statementInReview,
   commitIsTheSame
 } from './review-statement.ts';
+import { pathOf, } from './git-quoted-path.ts';
+import { proseStatementIn, } from './review-statement-prose.ts';
 import {
+  briefFileOfAReview,
   diffFileOfAReview,
   reviewFileOfAReview,
   reviewFolderOf,
@@ -77,22 +78,13 @@ export type ReviewCoverage = {
    The files the review says it read in part or not at all, which a second review may read.
    */
   readonly filesNotReadWhole: readonly string[];
-};
 
-/**
- What reading a review's statement, session and diff answered.
- */
-export type StatementReading =
-  | {
-    readonly kind: 'read';
-    readonly statement: ReviewStatement;
-    readonly diff: FilesInADiff;
-    readonly comparison: CommandComparison;
-  }
-    | {
-      readonly kind: 'unreadable';
-      readonly reasons: readonly string[];
-    };
+  /**
+   Whether the review states that some brief files were not read whole and names none of them, so a second review reads every
+   brief file.
+   */
+  readonly unnamedNotWhole: boolean;
+};
 
 /**
  What a record of what a review read says.
@@ -197,7 +189,7 @@ export async function readingAtAPath(file: string,): Promise<ReadingAtAPath> {
 
  @param statement - what the review says it read
 
- @param diff - the files the diff touches and its lines
+ @param briefFiles - the files the review's brief lists and its lines
 
  @returns the coverage
 
@@ -209,28 +201,41 @@ export async function readingAtAPath(file: string,): Promise<ReadingAtAPath> {
 export function coverageIn({
   statement,
   diff,
+  briefFiles,
 }: {
   readonly statement: ReviewStatement;
   readonly diff: FilesInADiff;
+  readonly briefFiles: readonly string[];
 },): ReviewCoverage {
+  /**
+   The statement's state for each path, by the path the brief gave.
+   */
+  const states = new Map(statement.files
+    .map(function pair(file,) {
+      return [
+        pathOf(file.path,),
+        file.read,
+      ];
+    },),);
+  /**
+   The brief's files, each once.
+   */
+  const brief = [...new Set(briefFiles.map(function pathOfFile(path,) {
+    return pathOf(path,);
+  },),),];
   return {
     diffLines: diff.lines,
     linesRead: statement.diff
       .linesRead,
-    filesReadWhole: statement.files
-      .filter(function whole(file,) {
-        return file.read === 'whole';
-      },)
-      .map(function pathOf(file,) {
-        return file.path;
-      },),
-    filesNotReadWhole: statement.files
-      .filter(function partial(file,) {
-        return file.read !== 'whole';
-      },)
-      .map(function pathOf(file,) {
-        return file.path;
-      },),
+    filesReadWhole: brief.filter(function whole(path,) {
+      return states.get(path,) === 'whole';
+    },),
+    filesNotReadWhole: brief.filter(function partial(path,) {
+      return states.get(path,) !== 'whole';
+    },),
+    unnamedNotWhole: statement.prose
+      ?.unnamedNotWhole
+      ?? false,
   };
 }
 
@@ -261,6 +266,9 @@ export function coverageReasonsOf(coverage: ReviewCoverage,): readonly string[] 
       ? []
       : [`not read whole: ${coverage.filesNotReadWhole
         .join(', ')}`]),
+    ...((coverage.unnamedNotWhole)
+      ? ['the review names none of the files it did not read whole, so a second review reads every file the brief lists']
+      : []),
   ];
 }
 
@@ -269,7 +277,7 @@ export function coverageReasonsOf(coverage: ReviewCoverage,): readonly string[] 
 
  @param statement - what the review says it read
 
- @param diff - the files the diff touches
+ @param briefFiles - the files the review's brief lists
 
  @returns one line per file the statement leaves out or names although the diff does not touch it
 
@@ -280,149 +288,44 @@ export function coverageReasonsOf(coverage: ReviewCoverage,): readonly string[] 
  */
 export function fileProblemsIn({
   statement,
-  diff,
+  briefFiles,
 }: {
   readonly statement: ReviewStatement;
-  readonly diff: FilesInADiff;
+  readonly briefFiles: readonly string[];
 },): readonly string[] {
   /**
    The paths the statement names.
    */
   const stated = new Set(statement.files
-    .map(function pathOf(file,) {
-      return file.path;
+    .map(function pathOfFile(file,) {
+      return pathOf(file.path,);
     },),);
   /**
-   The files the diff touches that the statement does not name.
+   The brief's files, each once.
    */
-  const missing = diff.files
-    .filter(function unnamed(path,) {
-      return !stated.has(path,);
-    },);
+  const brief = [...new Set(briefFiles.map(function pathOfFile(path,) {
+    return pathOf(path,);
+  },),),];
   /**
-   The files the statement names that the diff does not touch.
+   The brief files the statement does not name.
    */
-  const extra = statement.files
-    .map(function pathOf(file,) {
-      return file.path;
-    },)
-    .filter(function untouched(path,) {
-      return !diff.files
-        .includes(path,);
-    },);
-  /**
-   The missing files' line, when any file is missing.
-   */
-  const missingLine = (missing.length === 0) ? [] : [`the statement does not say how ${missing.join(', ')} was read`];
-  /**
-   The extra files' line, when the statement names any.
-   */
-  const extraLine = (extra.length === 0) ? [] : [`the statement names ${extra.join(', ')}, which the diff does not touch`];
-  return [
-    ...missingLine,
-    ...extraLine,
-  ];
-}
-
-/**
- Reads the statement, the diff and the session's comparison, so the verdict is one decision over all of them.
-
- @param review - the change the review read
-
- @param reviewsFolder - folder that holds one folder per review
-
- @param session - what the review's session records
-
- @returns the statement and what it was compared with, or the reasons it could not be read
-
- @example
- ```ts
- const reading = await readingOfAStatement({ review, reviewsFolder: '/reviews', session });
- ```
- */
-export async function readingOfAStatement({
-  review,
-  reviewsFolder,
-  session,
-}: {
-  readonly review: string;
-  readonly reviewsFolder: string;
-  readonly session: SessionReadings;
-},): Promise<StatementReading> {
-  /**
-   The review file the statement is read from.
-   */
-  const reviewFile = reviewFileOfAReview({
-    reviewsFolder,
-    review,
+  const missing = brief.filter(function unnamed(path,) {
+    return !stated.has(path,);
   },);
   /**
-   What the review file holds.
+   The count problem, when a prose review counts a list other than the brief's.
    */
-  const shown = await textAtAPath({ path: reviewFile, },);
-  if (shown.kind === 'unreadable') {
-    return {
-      kind: 'unreadable',
-      reasons: [`${reviewFile} cannot be read as a statement: ${shown.reason}`,],
-    };
-  }
-  try {
-    /**
-     The statement the review wrote.
-     */
-    const statement = statementInReview({
-      shown: (shown.kind === 'the text') ? shown.text : '',
-      file: reviewFile,
-    },);
-    /**
-     The diff file's path, which the statement's files and line count are compared with.
-     */
-    const diffFile = diffFileOfAReview({
-      reviewsFolder,
-      review,
-    },);
-    /**
-     What the diff file holds.
-     */
-    const diffShown = await textAtAPath({ path: diffFile, },);
-    if (diffShown.kind !== 'the text') {
-      return {
-        kind: 'unreadable',
-        reasons: [
-          (diffShown.kind === 'no file')
-            ? `${diffFile} is not there, so the files and lines the statement names cannot be compared`
-            : `${diffShown.reason}, so the files and lines the statement names cannot be compared`,
-        ],
-      };
-    }
-    /**
-     The files the diff touches.
-     */
-    const diff = filesInDiff({ diff: diffShown.text, },);
-    return {
-      kind: 'read',
-      statement,
-      diff,
-      comparison: await compareCommands({
-        statement,
-        session,
-        reviewFolder: reviewFolderOf({
-          reviewsFolder,
-          review,
-        },),
-      },),
-    };
-  }
-  catch (error) {
-    // A statement or a diff this reader cannot read is what the verdict reports; any other failure is the machine's.
-    if ((error instanceof ReviewStatementError) || (error instanceof ReviewDiffError)) {
-      return {
-        kind: 'unreadable',
-        reasons: [error.message,],
-      };
-    }
-    throw error;
-  }
+  const countProblem = (statement.prose === undefined) || (statement.prose
+    .filesGivenCount
+    === brief.length)
+    ? []
+    : [`the statement says its brief lists ${String(statement.prose
+      .filesGivenCount,)} files and the brief lists ${
+       String(brief.length,)}`];
+  return [
+    ...((missing.length === 0) ? [] : [`the statement does not say how ${missing.join(', ')} was read`]),
+    ...countProblem,
+  ];
 }
 
 /**

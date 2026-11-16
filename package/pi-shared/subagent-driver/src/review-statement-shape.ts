@@ -53,6 +53,13 @@ export type ReviewCommandRun = {
   readonly exit: number;
 
   /**
+   Whether the review stated that code, which a prose review does not: a code it did not state has none to compare.
+
+   @default true
+   */
+  readonly exitStated?: boolean;
+
+  /**
    The path of the program the review's own worktree built that this command ran, when it ran one.
    */
   readonly ranBuiltProgram?: string;
@@ -109,6 +116,28 @@ export type ReviewStatement = {
    Each finding, with whether a run or reading showed it.
    */
   readonly findings: readonly ReviewFinding[];
+
+  /**
+   What a prose review states about its coverage, when the review was written in the prose form the coordinator asks for rather than
+   in this package's JSON block: the number of brief files it read whole and the number it was given. A review that names none of
+   the files it did not read whole leaves them unnamed here, and a second review reads every file the brief lists.
+   */
+  readonly prose?: {
+    /**
+     The brief files the review says it read whole.
+     */
+    readonly filesReadWholeCount: number;
+
+    /**
+     The brief files the review says it was given.
+     */
+    readonly filesGivenCount: number;
+
+    /**
+     Whether the review names none of the files it did not read whole.
+     */
+    readonly unnamedNotWhole: boolean;
+  };
 };
 
 /**
@@ -147,5 +176,5 @@ export class ReviewStatementError extends Error {
   /**
    The name printed with the message.
    */
-  override readonly name = 'ReviewStatementError';
+  override readonly name: string = 'ReviewStatementError';
 }

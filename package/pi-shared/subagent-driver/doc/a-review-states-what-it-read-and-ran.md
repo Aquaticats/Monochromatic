@@ -126,13 +126,16 @@ with its reasons on the same line.
   which is one whose path holds a `target` segment,
   a `dist` segment,
   or a `debug` or `release` segment of a Cargo target directory,
-  **wherever that folder stands**.
-  A program a review built in its worktree,
-  in the build directory every agent shares,
-  or in its own scratch folder therefore counts the same;
-  no folder is compared with the worktree or with a name of this machine,
+  **in the review's worktree or in its own review folder**.
+  A program from the main checkout,
+  or from a build folder tied to no worktree,
+  is not confirmed:
+  nothing this check reads ties it to the reviewed commit.
+  That is a stated limit, not a mismatch the review caused;
+  a review that relied on one says where it was built.
+  Folders are compared after every existing symbolic link is resolved,
   so the aliases `/home/user`,
-  `/var/home/user` and `/var/mnt/encrypted` decide nothing.
+  `/var/home/user` and `/var/mnt/encrypted` still decide nothing.
 - A program is counted only when the command **runs** it:
   a word in a segment's program position,
   the script an interpreter or shell runs,
@@ -232,7 +235,7 @@ started by the command itself;
 a person needs no flag.
 A second review is the review's own name with `-restart-<n>`:
 `review-<change>-restart-2`,
-on branch `test/<change>-restart-2`,
+on branch `test/review-<change>-restart-2`,
 in the folder `<reviews folder>/<change>-restart-2`.
 The numbers count the review itself as the first run.
 The command starts it by itself;

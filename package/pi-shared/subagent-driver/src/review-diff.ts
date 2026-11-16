@@ -8,6 +8,8 @@
  @module
  */
 
+import { pathOf, } from './git-quoted-path.ts';
+
 /**
  A diff whose file headers cannot be read.
 
@@ -102,10 +104,74 @@ type DiffSectionView = {
 };
 
 /**
+ Reads the paths a quoted header names, each unquoted.
+
+ @param line - a `diff --git "a/..." "b/..."` header
+
+ @returns the post-image path, or nothing when the line does not hold two quoted paths
+
+ @example
+ ```ts
+ const path = quotedPathInHeader({ line: 'diff --git "a/r\\303\\251sum.ts" "b/r\\303\\251sum.ts"' });
+ ```
+ */
+function quotedPathInHeader({ line, }: { readonly line: string },): string | typeof NOT_A_PATH {
+  /**
+   The quoted fields the line holds, each with its quotes.
+   */
+  const fields: string[] = [];
+  /**
+   Where the next character is read from.
+   */
+  const cursor = { at: DIFF_HEADER_PREFIX.length, };
+  while ((fields.length < 2) && (cursor.at < line.length)) {
+    if (line[cursor.at] !== '"') {
+      cursor.at += 1;
+      continue;
+    }
+    /**
+     Where the field's closing quote is.
+     */
+    const start = cursor.at;
+    cursor.at += 1;
+    while (cursor.at < line.length) {
+      if (line[cursor.at] === '\\') {
+        cursor.at += 2;
+        continue;
+      }
+      if (line[cursor.at] === '"') {
+        cursor.at += 1;
+        break;
+      }
+      cursor.at += 1;
+    }
+    fields.push(line.slice(
+      start,
+      cursor.at,
+    ),);
+  }
+  if (fields.length < 2) {
+    return NOT_A_PATH;
+  }
+  /**
+   The post-image path, without its `b/` prefix.
+   */
+  const after = pathOf(fields[1] ?? '',);
+  if (after === '/dev/null') {
+    /**
+     The pre-image path, for a header that names a deletion.
+     */
+    const before = pathOf(fields[0] ?? '',);
+    return before.startsWith('a/',) ? before.slice(2,) : before;
+  }
+  return after.startsWith('b/',) ? after.slice(2,) : after;
+}
+
+/**
  Reads the path a file header names.
 
- The quoted form is refused rather than half-read: git quotes a path holding a space, a quote or a control character, and the
- quoted text is not the path a reviewer copies from `git diff --name-only`.
+ A path git quotes, for a name holding a non-ASCII byte, a quote or a control character, is unquoted so it compares with the path a
+ reviewer copies from the brief.
 
  @param line - one line of a diff
 
@@ -117,6 +183,9 @@ type DiffSectionView = {
  ```
  */
 function pathInHeader({ line, }: { readonly line: string },): string | typeof NOT_A_PATH {
+  if (line.startsWith('diff --git "',)) {
+    return quotedPathInHeader({ line, },);
+  }
   if (!line.startsWith(DIFF_HEADER_START,)) {
     return NOT_A_PATH;
   }
@@ -232,6 +301,7 @@ function splitDiffIn({ diff, }: { readonly diff: string },): SplitDiff {
     current: [] as DiffSection[],
     fromPath: '',
     resolved: false,
+    inHunk: false,
   };
   for (const line of diff.split('\n',)) {
     /**
@@ -250,6 +320,7 @@ function splitDiffIn({ diff, }: { readonly diff: string },): SplitDiff {
       state.current = [section,];
       state.fromPath = '';
       state.resolved = false;
+      state.inHunk = false;
       continue;
     }
     if (line.startsWith(DIFF_HEADER_PREFIX,)) {
@@ -272,12 +343,18 @@ function splitDiffIn({ diff, }: { readonly diff: string },): SplitDiff {
       }
       current.lines
         .push(line,);
+      // A line the change adds can itself start `+++ `, so only a line before the first hunk settles the path.
+      if (line.startsWith('@@ ',)) {
+        state.inHunk = true;
+        continue;
+      }
       // The post-image line names the file git compares as new; a deletion names no file there and keeps the pre-image's name.
-      if (line.startsWith('+++ ',)) {
+      if ((line.startsWith('+++ ',)) && (!state.resolved)
+        && (!state.inHunk)) {
         /**
-         What the post-image line names.
+         What the post-image line names, without the quotes git may put around it.
          */
-        const after = line.slice('+++ '.length,);
+        const after = pathOf(line.slice('+++ '.length,),);
         if (after === '/dev/null') {
           if (state.fromPath !== '') {
             current.path = state.fromPath;
@@ -288,11 +365,12 @@ function splitDiffIn({ diff, }: { readonly diff: string },): SplitDiff {
         }
         state.resolved = true;
       }
-      else if ((line.startsWith('--- ',)) && (!state.resolved)) {
+      else if ((line.startsWith('--- ',)) && (!state.resolved)
+        && (!state.inHunk)) {
         /**
-         What the pre-image line names.
+         What the pre-image line names, without the quotes git may put around it.
          */
-        const before = line.slice('--- '.length,);
+        const before = pathOf(line.slice('--- '.length,),);
         if (before.startsWith('a/',)) {
           state.fromPath = before.slice('a/'.length,);
         }

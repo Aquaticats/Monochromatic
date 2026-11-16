@@ -1,26 +1,27 @@
 /**
- Reads a command as a shell would split it, just far enough to tell which words are run: the program of each segment, and the script
- an interpreter or a shell runs.
+ Reads a command as a shell would split it, just far enough to tell which words are run: the program of each segment after the
+ wrappers in front of it, the script an interpreter or a shell runs, the text `bash -c` runs, and the build task a `mise run` or
+ `cargo` call asks for.
 
- A word that merely names a path is not run. `ls dist/x.js` names a program's path; `node dist/x.js` and `dist/x.js --version` run
- it, and a script that a command runs is itself run, so its own text is what says whether it starts a built program.
+ A word that merely names a path is not run. `ls dist/x.js` names a program's path; `node dist/x.js`, `timeout 60 dist/x.js` and
+ `systemd-run --user --scope -- timeout 60 dist/x.js` run it. Wrappers nest, which is why the program is read through every wrapper in
+ turn rather than through one.
 
- This is a reading of the common shell forms, never a shell: pipes, `&&`, `||`, `;`, newlines, `VAR=value` prefixes, and the
- wrappers a review command uses (`sudo`, `env`, `timeout`, `nice`, `nohup`, `exec`, `command`, `xargs`, `systemd-run`) are
- understood, and anything else is left as the program it is written as.
+ This is a reading of the common shell forms, never a shell: pipes, `&&`, `||`, `;`, newlines, here-documents, `VAR=value` prefixes,
+ and the wrappers a review command uses (`sudo`, `env`, `time`, `timeout`, `nice`, `nohup`, `exec`, `command`, `xargs`, `ionice`,
+ `stdbuf`, `systemd-run`, and `mise exec --`) are understood; anything else is left as the program it is written as.
 
  @module
  */
-
-/**
- No program in a segment, as a symbol so that no word can stand for it.
- */
-const NO_PROGRAM: unique symbol = Symbol('segment runs no program',);
-
-/**
- No script in an interpreter's words, as a symbol so that no word can stand for it.
- */
-const NO_SCRIPT: unique symbol = Symbol('interpreter runs no script file',);
+import {
+  VALUE_OPTIONS,
+  basenameOf,
+  isAssignment,
+  isAnOption,
+  segmentsIn,
+  skipOptions,
+  wordsIn,
+} from './command-line.ts';
 
 /**
  One word a command runs, and whether it is the program of its segment or a script an interpreter runs.
@@ -57,6 +58,18 @@ const BUILD_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ The words of a `mise run` task that make it a build or a run rather than a formatting or listing task.
+ */
+const BUILD_TASK_WORDS: readonly string[] = [
+  'build',
+  'test',
+  'bench',
+  'run',
+  'check',
+  'conformance',
+];
+
+/**
  The interpreters whose next word is a script file the command runs.
  */
 const INTERPRETERS: ReadonlySet<string> = new Set([
@@ -76,282 +89,61 @@ const INTERPRETERS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ The shells whose `-c` word is a command string this reader reads as a command of its own.
+ */
+const SHELLS: ReadonlySet<string> = new Set([
+  'bash',
+  'sh',
+  'dash',
+  'zsh',
+  'fish',
+]);
+
+/**
  The wrappers whose own words come before the program a segment runs.
  */
 const WRAPPERS: ReadonlySet<string> = new Set([
   'sudo',
   'env',
+  'time',
   'timeout',
   'nice',
   'nohup',
   'exec',
   'command',
   'xargs',
+  'ionice',
+  'stdbuf',
   'systemd-run',
 ]);
 
 /**
- The wrapper options that take the word after them as their value, which is not the program.
+ How many wrappers one program word is read through before the reading stops.
  */
-const VALUE_OPTIONS: ReadonlySet<string> = new Set([
-  '-s',
-  '--signal',
-  '-k',
-  '--kill-after',
-  '-u',
-  '--unset',
-  '-n',
-  '-I',
-  '-P',
-  '-L',
-  '--unit',
-  '--description',
-  '--slice',
-  '--working-directory',
-]);
+const WRAPPER_DEPTH = 8;
 
 /**
- Splits a command at the shell's own separators, outside quotes.
-
- @param command - the command as written
-
- @returns its segments, in order, each with its words as written
-
- @example
- ```ts
- const segments = segmentsIn({ command: 'cd a && node b.ts | tee c' });
- ```
+ How deep a shell command inside a shell command is followed.
  */
-function segmentsIn({ command, }: { readonly command: string },): readonly string[] {
-  /**
-   The segments read so far, and the one being read.
-   */
-  const state = {
-    segments: [] as string[],
-    current: '',
-    quote: '',
-    escaped: false,
-  };
-  for (const character of command) {
-    if (state.escaped) {
-      state.current += character;
-      state.escaped = false;
-      continue;
-    }
-    if (character === '\\') {
-      state.current += character;
-      state.escaped = true;
-      continue;
-    }
-    if (state.quote !== '') {
-      state.current += character;
-      if (character === state.quote) {
-        state.quote = '';
-      }
-      continue;
-    }
-    if ((character === '\'') || (character === '"')
-      || (character === '`')) {
-      state.quote = character;
-      state.current += character;
-      continue;
-    }
-    if ((character === ';') || (character === '\n')
-      || (character === '|')
-      || (character === '&')) {
-      state.segments
-        .push(state.current,);
-      state.current = '';
-      continue;
-    }
-    state.current += character;
-  }
-  state.segments
-    .push(state.current,);
-  return state.segments;
-}
+const INLINE_DEPTH = 4;
 
 /**
- Reads one segment's words, with their quotes taken off.
-
- @param segment - one segment of a command
-
- @returns its words, in order
-
- @example
- ```ts
- const words = wordsIn({ segment: 'node "a file.ts"' });
- ```
+ No program in a segment, as a symbol so that no word can stand for it.
  */
-function wordsIn({ segment, }: { readonly segment: string },): readonly string[] {
-  /**
-   The words read so far, and the one being read.
-   */
-  const state = {
-    words: [] as string[],
-    current: '',
-    quote: '',
-    escaped: false,
-    started: false,
-  };
-  for (const character of segment) {
-    if (state.escaped) {
-      state.current += character;
-      state.escaped = false;
-      state.started = true;
-      continue;
-    }
-    if (character === '\\') {
-      state.escaped = true;
-      continue;
-    }
-    if (state.quote !== '') {
-      if (character === state.quote) {
-        state.quote = '';
-      }
-      else {
-        state.current += character;
-      }
-      continue;
-    }
-    if ((character === '\'') || (character === '"')
-      || (character === '`')) {
-      state.quote = character;
-      state.started = true;
-      continue;
-    }
-    if ((character === ' ') || (character === '\t')
-      || (character === '\r')) {
-      if (state.started) {
-        state.words
-          .push(state.current,);
-        state.current = '';
-        state.started = false;
-      }
-      continue;
-    }
-    state.current += character;
-    state.started = true;
-  }
-  if (state.started) {
-    state.words
-      .push(state.current,);
-  }
-  return state.words;
-}
+const NO_PROGRAM: unique symbol = Symbol('segment runs no program',);
 
 /**
- Says whether a word is a `NAME=value` assignment written before a program.
-
- @param word - one word of a segment
-
- @returns whether the shell reads it as an assignment
-
- @example
- ```ts
- const assignment = isAssignment('HOME=/tmp');
- ```
+ No script in an interpreter's words, as a symbol so that no word can stand for it.
  */
-function isAssignment(word: string,): boolean {
-  /**
-   Where the equals sign stands.
-   */
-  const at = word.indexOf('=',);
-  if (at <= 0) {
-    return false;
-  }
-  /**
-   The name before it.
-   */
-  const name = word.slice(
-    0,
-    at,
-  );
-  for (const [index, character,] of name.split('')
-    .entries()) {
-    /**
-     Whether this character may stand in a name.
-     */
-    const isName = ((character >= 'A') && (character <= 'Z'))
-      || ((character >= 'a') && (character <= 'z'))
-      || ((character >= '0') && (character <= '9'))
-      || (character === '_');
-    if ((!isName) || ((index === 0) && ((character >= '0') && (character <= '9')))) {
-      return false;
-    }
-  }
-  return true;
-}
+const NO_SCRIPT: unique symbol = Symbol('interpreter runs no script file',);
 
 /**
- Says whether a word is an option rather than a program or a value.
-
- @param word - one word of a segment
-
- @returns whether it begins with a dash
-
- @example
- ```ts
- const option = isAnOption('--quiet');
- ```
+ No command string in an interpreter's words, as a symbol so that no word can stand for it.
  */
-function isAnOption(word: string,): boolean {
-  return word.startsWith('-',);
-}
+const NO_INLINE_COMMAND: unique symbol = Symbol('interpreter runs no command string',);
 
 /**
- Skips the options at the cursor, with the values of the options that take one.
-
- @param words - the segment's words
-
- @param cursor - where the next word is read from, advanced past the options
-
- @param stopAtDoubleDash - whether a `--` ends the options and leaves the word after it to the caller
-
- @returns where the next word that is no option stands, or nothing when a `--` was reached
-
- @example
- ```ts
- const at = skipOptions({ words, cursor, stopAtDoubleDash: true });
- ```
- */
-function skipOptions({
-  words,
-  cursor,
-  stopAtDoubleDash,
-}: {
-  readonly words: readonly string[];
-  readonly cursor: { at: number };
-  readonly stopAtDoubleDash: boolean;
-},): { readonly kind: 'at a word' } | {
-  readonly kind: 'after a double dash';
-  readonly at: number
-} {
-  while (cursor.at < words.length) {
-    /**
-     The word this step reads.
-     */
-    const word = words[cursor.at] ?? '';
-    if (stopAtDoubleDash && (word === '--')) {
-      return {
-        kind: 'after a double dash',
-        at: cursor.at + 1,
-      };
-    }
-    if (!isAnOption(word,)) {
-      return { kind: 'at a word', };
-    }
-    cursor.at += 1;
-    // An option that names a value takes the word after it, which is not the program.
-    if ((!word.includes('=',)) && VALUE_OPTIONS.has(word,)) {
-      cursor.at += 1;
-    }
-  }
-  return { kind: 'at a word', };
-}
-
-/**
- Reads the program one segment runs, after its assignments and the wrappers before it.
+ Reads the program one segment runs, after every wrapper in front of it, and through `mise exec --`.
 
  @param words - the segment's words
 
@@ -367,45 +159,61 @@ function programIn({ words, }: { readonly words: readonly string[] },): string |
    Where the next word is read from.
    */
   const cursor = { at: 0, };
-  while ((cursor.at < words.length) && (isAssignment(words[cursor.at] ?? '',))) {
+  for (let depth = 0; depth < WRAPPER_DEPTH; depth += 1) {
+    while ((cursor.at < words.length) && (isAssignment(words[cursor.at] ?? '',))) {
+      cursor.at += 1;
+    }
+    /**
+     The first word that is no assignment.
+     */
+    const head = words[cursor.at];
+    if ((head === undefined) || (head === '')) {
+      return NO_PROGRAM;
+    }
+    /**
+     The program's name, which decides whether it is a wrapper.
+     */
+    const name = basenameOf(head,);
+    if ((name === 'mise') && ((words[cursor.at + 1] === 'exec') || (words[cursor.at + 1] === 'x'))) {
+      // `mise exec -- node dist` runs the node program the rest of the words name.
+      cursor.at += 2;
+      if (words[cursor.at] === '--') {
+        cursor.at += 1;
+      }
+      continue;
+    }
+    if (!WRAPPERS.has(name,)) {
+      return head;
+    }
     cursor.at += 1;
-  }
-  /**
-   The first word that is no assignment.
-   */
-  const head = words[cursor.at];
-  if ((head === undefined) || (head === '')) {
-    return NO_PROGRAM;
-  }
-  if (!WRAPPERS.has(head,)) {
-    return head;
-  }
-  cursor.at += 1;
-  // `env HOME=/tmp cargo build` sets variables after the wrapper and before the program.
-  while ((cursor.at < words.length) && (isAssignment(words[cursor.at] ?? '',))) {
-    cursor.at += 1;
-  }
-  /**
-   Where the wrapper's own options end.
-   */
-  const afterOptions = skipOptions({
-    words,
-    cursor,
-    stopAtDoubleDash: head === 'systemd-run',
-  },);
-  if (afterOptions.kind === 'after a double dash') {
-    return words[afterOptions.at] ?? NO_PROGRAM;
-  }
-  if (head === 'timeout') {
-    // The first word after the options is how long the command may take; the program follows it.
-    cursor.at += 1;
-    skipOptions({
+    // `env HOME=/tmp cargo build` sets variables after the wrapper and before the program.
+    while ((cursor.at < words.length) && (isAssignment(words[cursor.at] ?? '',))) {
+      cursor.at += 1;
+    }
+    /**
+     Where the wrapper's own options end.
+     */
+    const afterOptions = skipOptions({
       words,
       cursor,
-      stopAtDoubleDash: false,
+      stopAtDoubleDash: name === 'systemd-run',
     },);
+    if (afterOptions.kind === 'after a double dash') {
+      cursor.at = afterOptions.at;
+      continue;
+    }
+    if (name === 'timeout') {
+      // The first word after the options is how long the command may take; the program follows it.
+      cursor.at += 1;
+      skipOptions({
+        words,
+        cursor,
+        stopAtDoubleDash: false,
+      },);
+    }
+    // Every other wrapper is now behind us; the word at the cursor may be another wrapper.
   }
-  return words[cursor.at] ?? NO_PROGRAM;
+  return NO_PROGRAM;
 }
 
 /**
@@ -448,9 +256,41 @@ function scriptIn({ words, }: { readonly words: readonly string[] },): string | 
 }
 
 /**
- Reads every word a command runs: each segment's program, and the script an interpreter or shell runs.
+ Reads the command string a shell's `-c` word carries.
+
+ @param words - the segment's words after the shell's own word
+
+ @returns the command string, or nothing when the shell runs a script file
+
+ @example
+ ```ts
+ const inline = inlineCommandIn({ words: ['-c', 'cd a && node b.ts'] });
+ ```
+ */
+function inlineCommandIn({ words, }: { readonly words: readonly string[] },): string | typeof NO_INLINE_COMMAND {
+  for (const [at, word,] of words.entries()) {
+    if ((word === '-c') || (word === '--command')) {
+      return words[at + 1] ?? NO_INLINE_COMMAND;
+    }
+    if ((word === '-e') || (word === '--eval')
+      || (word === '-p')
+      || (word === '--print')) {
+      return NO_INLINE_COMMAND;
+    }
+    if (!isAnOption(word,)) {
+      return NO_INLINE_COMMAND;
+    }
+  }
+  return NO_INLINE_COMMAND;
+}
+
+/**
+ Reads every word a command runs: each segment's program, the script an interpreter or shell runs, and the commands a shell's `-c`
+ string carries.
 
  @param command - the command as written
+
+ @param depth - how many shell command strings this reading is already inside
 
  @returns the executed words, each once, in the order they run
 
@@ -461,8 +301,10 @@ function scriptIn({ words, }: { readonly words: readonly string[] },): string | 
  */
 export function executedWordsIn({
   command,
+  depth = 0,
 }: {
   readonly command: string;
+  readonly depth?: number;
 },): readonly ExecutedWord[] {
   /**
    The executed words read so far.
@@ -484,7 +326,11 @@ export function executedWordsIn({
       word: program,
       role: 'program',
     },);
-    if (!INTERPRETERS.has(basenameOf(program,),)) {
+    /**
+     The program's name, which decides whether it is an interpreter.
+     */
+    const name = basenameOf(program,);
+    if (!INTERPRETERS.has(name,)) {
       continue;
     }
     /**
@@ -492,9 +338,26 @@ export function executedWordsIn({
      */
     const at = words.indexOf(program,);
     /**
+     The words after the interpreter.
+     */
+    const after = words.slice(at + 1,);
+    if ((SHELLS.has(name,)) && (depth < INLINE_DEPTH)) {
+      /**
+       The command string the shell's `-c` word carries.
+       */
+      const inline = inlineCommandIn({ words: after, },);
+      if (inline !== NO_INLINE_COMMAND) {
+        executed.push(...executedWordsIn({
+          command: inline,
+          depth: depth + 1,
+        },),);
+        continue;
+      }
+    }
+    /**
      The script it runs, when it runs one.
      */
-    const script = scriptIn({ words: words.slice(at + 1,), },);
+    const script = scriptIn({ words: after, },);
     if (script !== NO_SCRIPT) {
       executed.push({
         word: script,
@@ -506,31 +369,45 @@ export function executedWordsIn({
 }
 
 /**
- Reads a word's own name, without the folders before it.
+ Reads the task a `mise run` asks for.
 
- @param word - a word as written
+ @param words - one segment's words
 
- @returns its last path segment
+ @returns the task's word, or empty text when the segment is no `mise run`
 
  @example
  ```ts
- const name = basenameOf('/usr/bin/node');
+ const task = miseRunTaskIn({ words: ['mise', 'run', '//package/a:build'] });
  ```
  */
-function basenameOf(word: string,): string {
+function miseRunTaskIn({ words, }: { readonly words: readonly string[] },): string {
   /**
-   Where the last separator stands.
+   The first word that is no assignment or wrapper before `mise`.
    */
-  const at = word.lastIndexOf('/',);
-  return (at === (-1)) ? word : word.slice(at + 1,);
+  const start = words.findIndex(function isMise(word,) {
+    return basenameOf(word,) === 'mise';
+  },);
+  if ((start === (-1)) || (words[start + 1] !== 'run')) {
+    return '';
+  }
+  /**
+   Where the task's word is read from.
+   */
+  const cursor = { at: start + 2, };
+  skipOptions({
+    words,
+    cursor,
+    stopAtDoubleDash: false,
+  },);
+  return words[cursor.at] ?? '';
 }
 
 /**
- Says whether a command runs a program that builds something.
+ Says whether a command runs a program or task that builds or runs something.
 
  @param command - the command as written
 
- @returns whether a build tool is a segment's program
+ @returns whether a build tool is a segment's program, and no wrapper hides it
 
  @example
  ```ts
@@ -538,10 +415,51 @@ function basenameOf(word: string,): string {
  ```
  */
 export function buildToolRanIn({ command, }: { readonly command: string },): boolean {
-  return executedWordsIn({ command, },)
-    .some(function isABuildTool(ran,) {
-      return (ran.role === 'program') && BUILD_TOOLS.has(basenameOf(ran.word,),);
-    },);
+  /**
+   The segments of the command.
+   */
+  const segments = segmentsIn({ command, },);
+  for (const segment of segments) {
+    /**
+     The segment's words.
+     */
+    const words = wordsIn({ segment, },);
+    /**
+     The program this segment runs.
+     */
+    const program = programIn({ words, },);
+    if (program === NO_PROGRAM) {
+      continue;
+    }
+    /**
+     The program's name.
+     */
+    const name = basenameOf(program,);
+    if (!BUILD_TOOLS.has(name,)) {
+      continue;
+    }
+    if (name !== 'mise') {
+      return true;
+    }
+    /**
+     The task a `mise run` asks for, or empty text for any other `mise` word.
+     */
+    const task = miseRunTaskIn({ words, },);
+    if (task === '') {
+      // `mise exec -- cargo` is unwrapped to cargo, so a bare mise here is not a build by itself.
+      continue;
+    }
+    /**
+     The task's own text, which says whether it builds or runs.
+     */
+    const lowered = task.toLowerCase();
+    if (BUILD_TASK_WORDS.some(function namesABuild(word,) {
+      return lowered.includes(word,);
+    },)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -561,6 +479,22 @@ export function scriptRunsABuildTool({ text, }: { readonly text: string },): boo
     .some(function lineBuilds(line,) {
       return buildToolRanIn({ command: line, },);
     },);
+}
+
+/**
+ The programs that build something, for a caller that reports which command ran one.
+
+ @param program - a program word a command runs
+
+ @returns whether the word names a build tool
+
+ @example
+ ```ts
+ const builds = isABuildTool('cargo');
+ ```
+ */
+export function isABuildTool(program: string,): boolean {
+  return BUILD_TOOLS.has(basenameOf(program,),);
 }
 
 /**

@@ -36,6 +36,7 @@ await describe({
             ],);
             expect(executedWordsIn({ command: 'bash -c "echo hi"', },),).toEqual([
               { word: 'bash', role: 'program', },
+              { word: 'echo', role: 'program', },
             ],);
             expect(executedWordsIn({ command: 'node --input-type=module -e "console.log(1)"', },),).toEqual([
               { word: 'node', role: 'program', },

@@ -122,16 +122,13 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a header git wrote with a quoted path, because the quoted text is not the path a reviewer copies',
+          name: 'reads a header git wrote with a quoted path, decoding it to the path a reviewer copies',
           fn: async () => {
-            try {
-              filesInDiff({ diff: 'diff --git "a/a b.rs" "b/a b.rs"\n', },);
-              expect('it read',).toBe('it refused',);
-            }
-            catch (error) {
-              expect(error,).toBeInstanceOf(ReviewDiffError,);
-              expect((error as Error).message,).toContain('cannot compare',);
-            }
+            /**
+             The diff whose only header is a quoted pair, with a hunk naming the decoded path.
+             */
+            const diff = 'diff --git "a/a b.rs" "b/a b.rs"\n--- "a/a b.rs"\n+++ "b/a b.rs"\n@@ -1 +1 @@\n-a\n+b\n';
+            expect(filesInDiff({ diff, },).files,).toEqual(['a b.rs',],);
           },
         },),
       ],

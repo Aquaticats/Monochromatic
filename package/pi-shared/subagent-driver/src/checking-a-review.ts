@@ -1,50 +1,42 @@
 /**
- The check of one ended review: is there a review file, does its statement section hold the shape it must, does the session show
- what the statement says it ran, did any command run a program built from the reviewed commit, and did the run end by itself or was
- it cut.
+ The check of one ended review: is there a review file, does its statement say what it read and ran, does the session show what the
+ statement says it ran, did any command run a program a build wrote or a build task, and did the run end by itself or was it cut.
 
  The check reads files only. It starts no Pi run, asks no model, and its verdict is the same every time it reads the same run:
- `complete`, `ran nothing`, `statement missing or not matching its session`, `no review file`, or `cut`.
+ `complete`, `ran nothing`, `still running`, `statement missing or not matching its session`, `no review file`, or `cut`.
 
  The verdict is bookkeeping of evidence and coverage, never a judgement of quality: a review that says it read part of a diff is
- `complete` and says which files it did not read whole.
+ `complete` and says which files it did not read whole. A review whose newest attempt has not finished is `still running`, and no
+ second review is written under it.
 
  @module
  */
 
-import { endedOnItsOwnTerms, } from './end-reasons.ts';
-import {
-  NO_FINISHED_RUN_OF_THAT_NAME,
-  isThere,
-  newestFinishedRunOf,
-} from './newest-finished-run-of-a-name.ts';
+import { join, } from 'node:path';
+import { isThere, } from './newest-finished-run-of-a-name.ts';
 import {
   type ReviewCheck,
   type ReviewVerdict,
   CHECK_LIMITS_LINE,
+  NO_REVIEWER,
 } from './review-check-types.ts';
 import {
   type ReadingAtAPath,
   type ReviewCoverage,
+  commitReadingIn,
   coverageIn,
   coverageReasonsOf,
   fileProblemsIn,
   readingAtAPath,
-  readingOfAStatement,
-  commitReadingIn
 } from './review-check-reading.ts';
+import { readingOfAStatement, } from './reading-a-review.ts';
+import { runTheCheckReads, } from './run-the-check-reads.ts';
 import type { ReviewStatement, } from './review-statement-shape.ts';
-import { commitIsTheSame, } from './review-statement.ts';
 import {
   readingFileOfAReview,
   reviewFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
-import {
-  type SessionOfARun,
-  sessionOfTheRun,
-  summaryOfTheRun,
-} from './session-of-a-finished-run.ts';
 
 /**
  Checks one ended review against the run and session it left.
@@ -81,69 +73,72 @@ export async function checkAReview({
     review,
   },);
   /**
-   The run whose folder holds the session, which is the newest attempt of this review that finished.
+   What the run left before the statement is read: whether it is still going, and the run, summary and session that answer.
    */
-  const newest = await newestFinishedRunOf({
+  const runReading = await runTheCheckReads({
+    review,
+    reviewsFolder,
     runsFolder,
-    runName: runNameOfAReview({ review, },),
+    reviewFile,
   },);
+  if (runReading.stillRunning !== undefined) {
+    return runReading.stillRunning;
+  }
+  /**
+   The run's name.
+   */
+  const {runName} = runReading;
   /**
    That run's folder, or nothing when no attempt finished.
    */
-  const run = (newest === NO_FINISHED_RUN_OF_THAT_NAME) ? undefined : newest;
+  const {run} = runReading;
   /**
-   What that run's summary says, read through one descriptor opened without waiting.
+   What that run's summary says.
    */
-  const summary = (run === undefined) ? undefined : await summaryOfTheRun({
-    runsFolder,
-    run,
-  },);
+  const {summary} = runReading;
+  /**
+   What that run's session records.
+   */
+  const {session} = runReading;
+  /**
+   The reviewer the run started on.
+   */
+  const {reviewer} = runReading;
   /**
    Why that run ended, when its summary could be read.
    */
-  const endReason = (summary?.kind === 'read') ? summary.endReason : undefined;
+  const {endReason} = runReading;
   /**
    Whether the run ended on its own terms.
    */
-  const endedByItself = endedOnItsOwnTerms(endReason,);
+  const {endedByItself} = runReading;
   if (!(await isThere(reviewFile,))) {
-    /**
-     What the run's ending says, when a run finished.
-     */
-    const ending = `${run} ended ${endReason ?? 'with no reason its summary names'}, `
-      + `${endedByItself ? 'so it ended by itself' : 'so it was cut'}, and it wrote no review.md`;
     return {
       review,
       verdict: 'no review file',
       reasons: (run === undefined)
-        ? [`no finished run of ${runNameOfAReview({ review, },)} is in ${runsFolder}`]
-        : [ending],
+        ? [`no finished run of ${runName} is in ${runsFolder}`]
+        : [`${run} ended ${endReason ?? 'with no reason its summary names'}, `
+          + `${endedByItself ? 'so it ended by itself' : 'so it was cut'}, and it wrote no review.md`],
       reviewFile,
       ...((run === undefined) ? {} : { run, }),
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
       builtPrograms: [],
       thin: false,
-      reviewer: {
-        provider: '',
-        model: '',
-      },
+      reviewer,
     };
   }
   if (run === undefined) {
     return {
       review,
       verdict: 'cut',
-      reasons: [`no finished run of ${runNameOfAReview({ review, },)} is in ${runsFolder}, so no summary or session says what `
-        + 'the review read or ran'],
+      reasons: [`no finished run of ${runName} is in ${runsFolder}, so no summary or session says what the review read or ran`],
       reviewFile,
       endedByItself,
       builtPrograms: [],
       thin: false,
-      reviewer: {
-        provider: '',
-        model: '',
-      },
+      reviewer,
     };
   }
   if (summary?.kind === 'unreadable') {
@@ -157,10 +152,7 @@ export async function checkAReview({
       endedByItself,
       builtPrograms: [],
       thin: false,
-      reviewer: {
-        provider: '',
-        model: '',
-      },
+      reviewer,
     };
   }
   if (!endedByItself) {
@@ -174,51 +166,15 @@ export async function checkAReview({
       endedByItself,
       builtPrograms: [],
       thin: false,
-      reviewer: {
-        provider: '',
-        model: '',
-      },
+      reviewer,
     };
   }
-  /**
-   What the run's session records, or why it cannot be read. The summary was read above, so it names the session file.
-   */
-  const session = await sessionOfTheRun({ sessionFile: (summary?.kind === 'read') ? summary.sessionFile : '', },);
-  if (session.kind === 'unreadable') {
+  if (session?.kind !== 'read') {
     return {
       review,
       verdict: 'cut',
       reasons: [`${run} ended ${endReason ?? 'by itself'}, and its session cannot be read, so what it read and ran cannot be `
-        + `compared: ${session.reason}`],
-      reviewFile,
-      run,
-      ...((endReason === undefined) ? {} : { endReason, }),
-      endedByItself,
-      builtPrograms: [],
-      thin: false,
-      reviewer: {
-        provider: '',
-        model: '',
-      },
-    };
-  }
-  /**
-   The reviewer the run started on, which a second start picks another of.
-   */
-  const {reviewer} = session.session;
-  /**
-   The statement, the diff and the comparison with the session.
-   */
-  const reading = await readingOfAStatement({
-    review,
-    reviewsFolder,
-    session: session.session,
-  },);
-  if (reading.kind === 'unreadable') {
-    return {
-      review,
-      verdict: 'statement missing or not matching its session',
-      reasons: [...reading.reasons,],
+        + `compared: ${session?.reason ?? 'no session file'}`],
       reviewFile,
       run,
       ...((endReason === undefined) ? {} : { endReason, }),
@@ -229,25 +185,57 @@ export async function checkAReview({
     };
   }
   /**
-   What the review says it read.
+   The record of what the review read, which the statement's commit is compared with and a prose statement's commit falls back to.
+   */
+  const reading = await readingAtAPath(readingFileOfAReview({
+    reviewsFolder,
+    review,
+  },),);
+  /**
+   The statement, the diff and the comparison with the session.
+   */
+  const statementReading = await readingOfAStatement({
+    review,
+    reviewsFolder,
+    session: session.session,
+    recordedCommit: (reading.kind === 'read') ? reading.reading
+      .commit : '',
+  },);
+  if (statementReading.kind === 'unreadable') {
+    return {
+      review,
+      verdict: 'statement missing or not matching its session',
+      reasons: [...statementReading.reasons,],
+      reviewFile,
+      run,
+      ...((endReason === undefined) ? {} : { endReason, }),
+      endedByItself,
+      builtPrograms: [],
+      thin: false,
+      reviewer,
+    };
+  }
+  /**
+   What the review says it read of the files its brief lists.
    */
   const coverage = coverageIn({
-    statement: reading.statement,
-    diff: reading.diff,
+    statement: statementReading.statement,
+    diff: statementReading.diff,
+    briefFiles: statementReading.briefFiles,
   },);
   /**
    The line the statement's own line count earns, when it does not name the diff's.
    */
-  const lineCountProblem = (reading.statement
+  const lineCountProblem = (statementReading.statement
     .diff
     .lines
-    === reading.diff
+    === statementReading.diff
       .lines)
     ? []
-    : [`the statement says the diff holds ${String(reading.statement
+    : [`the statement says the diff holds ${String(statementReading.statement
       .diff
       .lines,)} lines and it holds ${
-       String(reading.diff
+       String(statementReading.diff
          .lines,)}`];
   /**
    The record of what the review read, which the statement's commit is compared with.
@@ -260,8 +248,8 @@ export async function checkAReview({
    What the statement's commit and the review's record say together.
    */
   const commit = commitReadingIn({
-    recorded: await readingAtAPath(readingFile,),
-    stated: reading.statement
+    recorded: reading,
+    stated: statementReading.statement
       .commit,
     readingFile,
   },);
@@ -272,10 +260,10 @@ export async function checkAReview({
     ...lineCountProblem,
     ...((commit.kind === 'another commit') ? [commit.problem,] : []),
     ...fileProblemsIn({
-      statement: reading.statement,
-      diff: reading.diff,
+      statement: statementReading.statement,
+      briefFiles: statementReading.briefFiles,
     },),
-    ...reading.comparison
+    ...statementReading.comparison
       .problems,
   ];
   /**
@@ -283,7 +271,7 @@ export async function checkAReview({
    */
   const uncompared = [
     ...((commit.kind === 'cannot be compared') ? [commit.uncompared,] : []),
-    ...reading.comparison
+    ...statementReading.comparison
       .uncompared,
     ...((session.session
       .codemodeCalls
@@ -292,52 +280,63 @@ export async function checkAReview({
       : [`${String(session.session
         .codemodeCalls,)} codemode call(s) are not read, so a command they ran cannot be compared`]),
   ];
+  /**
+   Whether the review showed a run at all: a program a build wrote, or a build task.
+   */
+  const ranSomething = (statementReading.comparison
+    .builtPrograms
+    .length
+    > 0)
+    || statementReading.comparison
+      .buildCommandRan;
+  /**
+   Whether the review is thin: a brief file not read whole, unnamed files not read whole, or no run shown.
+   */
+  const thin = (coverage.filesNotReadWhole
+    .length
+    > 0) || coverage.unnamedNotWhole
+    || (!ranSomething);
+  /**
+   The reasons every verdict from here names.
+   */
+  const reasons = [
+    ...coverageReasonsOf(coverage,),
+    ...uncompared,
+  ];
   if (problems.length > 0) {
     return {
       review,
       verdict: 'statement missing or not matching its session',
       reasons: [
         ...problems,
-        ...coverageReasonsOf(coverage,),
-        ...uncompared
+        ...reasons,
       ],
       reviewFile,
       run,
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
-      statement: reading.statement,
+      statement: statementReading.statement,
       coverage,
-      builtPrograms: reading.comparison
+      builtPrograms: statementReading.comparison
         .builtPrograms,
-      thin: coverage.filesNotReadWhole
-        .length
-        > 0,
+      thin,
       reviewer,
     };
   }
-  if (reading.comparison
-    .builtPrograms
-    .length
-    === 0) {
+  if (!ranSomething) {
     return {
       review,
       verdict: 'ran nothing',
       reasons: [
-        `thin: no command it lists ran a program built from commit ${reading.statement
-          .commit}, and no command its session records `
-          + 'does',
-        ...((reading.comparison
-          .buildCommandRan)
-          ? ['the session records a build command, but no command ran a program it wrote']
-          : ['the session records no build command either']),
-        ...coverageReasonsOf(coverage,),
-        ...uncompared,
+        'thin: no command it lists ran a program a build wrote and no command ran a build task, and no command its session '
+          + 'records does',
+        ...reasons,
       ],
       reviewFile,
       run,
       ...((endReason === undefined) ? {} : { endReason, }),
       endedByItself,
-      statement: reading.statement,
+      statement: statementReading.statement,
       coverage,
       builtPrograms: [],
       thin: true,
@@ -348,60 +347,40 @@ export async function checkAReview({
     review,
     verdict: 'complete',
     reasons: [
-      ...coverageReasonsOf(coverage,),
-      `${String(reading.comparison
+      ...((statementReading.comparison
         .builtPrograms
-        .length,)} command(s) ran a program built from commit `
-        + `${reading.statement
-          .commit}: ${reading.comparison
-            .builtPrograms
-            .join(', ')}`,
-      `the run ended ${endReason ?? 'with no reason its summary names'}`,
-      ...((reading.comparison
-        .buildCommandRan)
-        ? ['the session records a build command, so a program from that build is what ran']
-        : ['the session records no build command, so the build itself is the statement\'s own claim']),
-      ...((coverage.filesNotReadWhole
         .length
-        === 0)
-        ? []
-        : ['thin: it did not read every file it was given whole, which a second review reads']),
-      ...uncompared,
+        > 0)
+        ? [`${String(statementReading.comparison
+          .builtPrograms
+          .length,)} command(s) ran a program a build wrote in this review's `
+          + `worktree or its own folder, which the statement names for commit ${statementReading.statement
+            .commit}: ${
+           statementReading.comparison
+             .builtPrograms
+             .join(', ')}`]
+        : [`${String(statementReading.comparison
+          .buildTaskCommands
+          .length,)} command(s) ran a build task: `
+          + `${statementReading.comparison
+            .buildTaskCommands
+            .join(', ')}; no program's path is named, so the build itself is the `
+          + 'statement\'s claim']),
+      ...reasons,
+      `the run ended ${endReason ?? 'with no reason its summary names'}`,
+      ...((thin)
+        ? ['thin: the brief files it did not read whole are read by a second review']
+        : []),
     ],
     reviewFile,
     run,
     ...((endReason === undefined) ? {} : { endReason, }),
     endedByItself,
-    statement: reading.statement,
+    statement: statementReading.statement,
     coverage,
-    builtPrograms: reading.comparison
+    builtPrograms: statementReading.comparison
       .builtPrograms,
-    thin: coverage.filesNotReadWhole
-      .length
-      > 0,
+    thin,
     reviewer,
   };
-}
-
-/**
- Reads the line one check prints: the run's name, its verdict, and its reasons.
-
- @param check - one review's check
-
- @returns the line
-
- @example
- ```ts
- const line = checkLineOf({ check });
- ```
- */
-export function checkLineOf({ check, }: { readonly check: ReviewCheck },): string {
-  /**
-   The reasons, with the separator the line reads them with.
-   */
-  const reasons = (check.reasons
-    .length
-    === 0) ? '' : `; ${check.reasons
-      .join('; ')}`;
-  return `${runNameOfAReview({ review: check.review, },)}: ${check.verdict}${reasons}`;
 }

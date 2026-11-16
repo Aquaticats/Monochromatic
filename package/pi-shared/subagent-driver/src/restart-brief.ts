@@ -16,7 +16,7 @@ import {
   BATCH_DEFAULT_TASK_COUNT,
   type BatchEntry,
 } from './batch-list.ts';
-import { checkLineOf, } from './checking-a-review.ts';
+import { checkLineOf, } from './review-check-line.ts';
 import type { ReviewCheck, } from './review-check-types.ts';
 import {
   readingAtAPath,

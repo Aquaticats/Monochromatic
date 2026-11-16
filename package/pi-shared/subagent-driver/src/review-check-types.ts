@@ -17,9 +17,26 @@ import type { ReviewStatement, } from './review-statement-shape.ts';
 export type ReviewVerdict =
   | 'complete'
     | 'ran nothing'
+    | 'still running'
     | 'statement missing or not matching its session'
     | 'no review file'
     | 'cut';
+
+/**
+ The reviewer a run names, which is empty text when no session could be read.
+ */
+export type ReviewerOfARun = {
+  readonly provider: string;
+  readonly model: string;
+};
+
+/**
+ No reviewer known, which is empty text so that a second start reads it as this package's own reviewer.
+ */
+export const NO_REVIEWER: ReviewerOfARun = {
+  provider: '',
+  model: '',
+};
 
 /**
  One review's verdict and the reasons for it.
@@ -76,19 +93,16 @@ export type ReviewCheck = {
   readonly builtPrograms: readonly string[];
 
   /**
-   Whether the review is thin: it did not read every file it was given whole, or no command ran a program built from the commit.
+   Whether the review is thin: it did not read every brief file whole, or no command ran a program a build wrote or a build task.
 
-   A thin review is the one a second start answers, once; a review whose statement cannot be read at all is a separate case.
+   A thin review is the one a second start answers, once; a review whose statement cannot be read at all is reported instead.
    */
   readonly thin: boolean;
 
   /**
    The provider and model the run started on, as its session records them; empty when no session could be read.
    */
-  readonly reviewer: {
-    readonly provider: string;
-    readonly model: string;
-  };
+  readonly reviewer: ReviewerOfARun;
 };
 
 /**
@@ -96,6 +110,7 @@ export type ReviewCheck = {
  */
 export const CHECK_LIMITS_LINE: string =
   'Compared: each statement command against the bash and process-start calls its session records, the exit code a bash result '
-    + 'holds, the statement\'s files and line count against the diff file, and the commit against what the review recorded it '
-    + 'read. Not visible: commands run inside a codemode call, a process start\'s exit code (its result records none), a script '
-    + 'that builds a built program\'s path from a variable rather than holding it, and anything written after the run ended.';
+    + 'holds, the statement\'s files and line count against the brief and the diff file, and the commit against what the review '
+    + 'recorded it read. Not visible: a build\'s provenance (a program\'s path must lie under the review\'s worktree or its own '
+    + 'folder), commands run inside a codemode call, a process start\'s exit code, a script that builds a program\'s path from a '
+    + 'variable, the files a reviewer can rewrite in its own folder, and anything written after the run ended.';

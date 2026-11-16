@@ -189,9 +189,10 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a review file whose first section is not the statement',
+          name: 'finds the statement section after another section, so a review that leads with findings is still read',
           fn: async () => {
-            expect(messageOf('# Review\n\n## Findings\n\nNothing.\n',),).toContain('as its first section, not');
+            expect(messageOf('# Review\n\n## Findings\n\nNothing.\n',),).toContain(REVIEW_STATEMENT_HEADING);
+            expect(messageOf('# Review\n\n## Findings\n\nNothing.\n',),).toContain('after its title');
           },
         },),
         it({

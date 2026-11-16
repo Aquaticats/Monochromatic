@@ -439,6 +439,50 @@ export function entryLineOf({
 }
 
 /**
+ Starts one entry through a start that may reject, and answers the rejection as the entry's own reason rather than letting it end
+ the command and leave a start marker behind.
+
+ @param start - one entry's start
+
+ @param name - the run's name
+
+ @param words - the words the start is given
+
+ @returns what the start answered, or the reason it gave
+
+ @example
+ ```ts
+ const started = await startedOrFailed({ start, name: 'a', words: ['--name=a'] });
+ ```
+ */
+export async function startedOrFailed({
+  start,
+  name,
+  words,
+}: {
+  readonly start: (request: {
+    readonly name: string;
+    readonly words: readonly string[];
+  }) => Promise<StartedEntry>;
+  readonly name: string;
+  readonly words: readonly string[];
+},): Promise<StartedEntry> {
+  try {
+    return await start({
+      name,
+      words,
+    },);
+  }
+  catch (error) {
+    // A start that rejects before it answers is one entry's failure, not the end of the batch and not the end of a later entry.
+    return {
+      output: String(error,),
+      startProblem: String(error,),
+    };
+  }
+}
+
+/**
  What starting a batch answered: the line each entry ended with, in the list's order, and the entries that did not start.
 
  The entries that failed travel beside the lines because the command that started the batch has to answer with a status, and a
@@ -507,7 +551,8 @@ export async function startBatch({
   /* oxlint-disable eslint/no-await-in-loop -- one entry after another, because the stagger is what keeps the batch's slots in the
      order its list gives them. See doc/lint/sequential-awaits.md. */
   for (const entry of entries) {
-    started.push(start({
+    started.push(startedOrFailed({
+      start,
       name: entry.name,
       words: retryWordsOf({
         entry,
