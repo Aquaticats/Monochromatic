@@ -281,6 +281,244 @@ const MESSAGE_SHAPES: readonly {
   },
 ];
 
+
+/**
+ One container CommonMark has that a statement may stand inside, as the markers that put a line in it.
+ */
+type AContainer = {
+  /**
+   Its name, for the table's row.
+   */
+  readonly name: string;
+
+  /**
+   The marker a line begins the container's content with.
+   */
+  readonly firstMarker: string;
+
+  /**
+   The marker that keeps a following line inside it.
+   */
+  readonly continuation: string;
+
+  /**
+   Whether a statement inside it is the review's own text, which only a quote does not show as its own paragraph.
+   */
+  readonly own: boolean;
+};
+
+/**
+ The containers the table puts a statement inside, one of each kind and with a tab as well as a space after the marker.
+ */
+const CONTAINERS: readonly AContainer[] = [
+  {
+    name: 'a bulleted list item',
+    firstMarker: '- ',
+    continuation: '  ',
+    own: true,
+  },
+  {
+    name: 'a bulleted list item padded with a tab',
+    firstMarker: '-\t',
+    continuation: '    ',
+    own: true,
+  },
+  {
+    name: 'an ordered list item',
+    firstMarker: '1. ',
+    continuation: '   ',
+    own: true,
+  },
+  {
+    name: 'an ordered list item padded with a tab',
+    firstMarker: '1.\t',
+    continuation: '   ',
+    own: true,
+  },
+  {
+    name: 'a block quote',
+    firstMarker: '> ',
+    continuation: '> ',
+    own: false,
+  },
+  {
+    name: 'a block quote padded with a tab',
+    firstMarker: '>\t',
+    continuation: '>\t',
+    own: false,
+  },
+];
+
+/**
+ Writes lines as the content of one container.
+ */
+function insideOneContainer({
+  container,
+  lines,
+}: {
+  readonly container: AContainer;
+  readonly lines: readonly string[];
+},): readonly string[] {
+  return lines.map(function marked(line, at,) {
+    return `${(at === 0) ? container.firstMarker : container.continuation}${line}`;
+  },);
+}
+
+/**
+ Writes lines inside every container of a nesting, the innermost first.
+ */
+function insideEveryContainer({
+  nesting,
+  lines,
+}: {
+  readonly nesting: readonly AContainer[];
+  readonly lines: readonly string[];
+},): readonly string[] {
+  return nesting.reduceRight(function inside(inside, container,) {
+    return insideOneContainer({
+      container,
+      lines: inside,
+    },);
+  }, lines,);
+}
+
+/**
+ One row of the container table: a message, and what a review holding it is answered as.
+ */
+type AContainerRow = {
+  /**
+   The row's name.
+   */
+  readonly name: string;
+
+  /**
+   The message.
+   */
+  readonly shown: string;
+
+  /**
+   Whether the review covers its change.
+   */
+  readonly covers: boolean;
+};
+
+/**
+ The statement's three lines, as the brief gives them.
+ */
+function theStatementLines(): readonly string[] {
+  return [
+    REVIEW_COMPLETE_LINE,
+    `Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\``,
+    `Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}`,
+  ];
+}
+
+/**
+ The same three lines as an indented code block, which is four spaces beyond where the container's content stands.
+ */
+function anIndentedCodeBlock(): readonly string[] {
+  return theStatementLines().map(function indented(line,) {
+    return `    ${line}`;
+  },);
+}
+
+/**
+ The same three lines inside a fenced code block.
+ */
+function aFencedCodeBlock(): readonly string[] {
+  return [
+    '```text',
+    ...theStatementLines(),
+    '```',
+  ];
+}
+
+/**
+ Every nesting of two of the containers, and each container alone.
+ */
+function everyNesting(): readonly (readonly AContainer[])[] {
+  /**
+   The nestings of one container, then of two, innermost last.
+   */
+  const nestings: (readonly AContainer[])[] = CONTAINERS.map(function alone(container,) {
+    return [container,];
+  },);
+  for (const outer of CONTAINERS) {
+    for (const inner of CONTAINERS) {
+      nestings.push([outer, inner,],);
+    }
+  }
+  return nestings;
+}
+
+/**
+ The rows of the container table: every nesting with a fenced code block, an indented code block and an ordinary paragraph
+ inside it.
+ */
+function theContainerRows(): readonly AContainerRow[] {
+  return everyNesting()
+    .flatMap(function rowsOfANesting(nesting,) {
+      /**
+       The nesting's own name, as the rows read it.
+       */
+      const where = nesting.map(function nameOf(container,) {
+        return container.name;
+      },)
+        .join(' inside ',);
+      /**
+       Whether a statement inside it is the review's own, which every container but a quote makes it.
+       */
+      const own = nesting.every(function isOwn(container,) {
+        return container.own;
+      },);
+      /**
+       The three contents that stand inside the nesting.
+       */
+      const contents: readonly {
+        readonly kind: string;
+        readonly lines: readonly string[];
+        readonly covers: boolean;
+      }[] = [
+        {
+          kind: 'in a fenced code block',
+          lines: aFencedCodeBlock(),
+          covers: false,
+        },
+        {
+          kind: 'in an indented code block',
+          lines: anIndentedCodeBlock(),
+          covers: false,
+        },
+        {
+          kind: 'in its ordinary paragraph',
+          lines: theStatementLines(),
+          covers: own,
+        },
+      ];
+      return contents.map(function rowOf(content,) {
+        return {
+          name: `reads the statement ${content.kind} ${where}, and answers it ${
+            content.covers ? 'as the review own' : 'as quoted'
+          }`,
+          shown: `${
+            insideEveryContainer({
+              nesting,
+              lines: content.lines,
+            },)
+              .join('\n',)
+          }\n`,
+          covers: content.covers,
+        };
+      },);
+    },);
+}
+
+/**
+ The container table: a row for every nesting and every kind of content, so the next container CommonMark adds is a row the
+ reader must answer.
+ */
+const CONTAINER_ROWS: readonly AContainerRow[] = theContainerRows();
+
 await describe({
   name: '',
   children: [
@@ -670,6 +908,24 @@ await describe({
           },
         },),
       ],
+    },),
+    describe({
+      name: 'a statement inside every container CommonMark has',
+      children: CONTAINER_ROWS.map(function oneRowOfTheTable(row,) {
+        return it({
+          name: row.name,
+          fn: async () => {
+            /**
+             What a review holding that message is answered as.
+             */
+            const answered = answerOf({
+              shown: row.shown,
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },);
+            expect(answered.covers,).toBe(row.covers,);
+          },
+        },);
+      },),
     },),
     describe({
       name: 'the messages a review\'s own file may be',

@@ -6,10 +6,13 @@
  */
 
 import {
+  appendFile,
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { spawnSync, } from 'node:child_process';
@@ -199,6 +202,140 @@ function reviewOfAChange({
 }
 
 
+
+/**
+ The bound within which one review is answered, whatever the path of its record is: a record is a few kilobytes on a local disk,
+ and a read that has not answered in this long is the wait the project forbids.
+ */
+const A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS = 5_000;
+
+/**
+ The largest record this package writes, beyond which the answer is that the record cannot be read: the largest of the 336
+ records under `$HOME/temp/agent/change-reviews`, measured 2026-11-16, is 802 bytes, and a record of 64 KiB is not one this
+ package wrote.
+ */
+const THE_LARGEST_RECORD_A_REVIEW_GETS_BYTES = 64 * 1024;
+
+/**
+ One kind of thing a record's path can be, and what a review whose record is that is answered as.
+ */
+type ARecordKind = {
+  /**
+   The kind's name.
+   */
+  readonly name: string;
+
+  /**
+   Puts that kind of thing at the record's path.
+   */
+  readonly replace: (request: {
+    readonly recordPath: string;
+    readonly recordText: string;
+    readonly folder: string;
+  }) => Promise<void>;
+
+  /**
+   What a review whose record is that is answered as: covering its change, not covering it, or either, which a file that grows
+   while it is read may be by the time the read has finished.
+   */
+  readonly expectation: 'covers' | 'does-not-cover' | 'either';
+};
+
+/**
+ Every kind of thing a record's path can be: missing; a regular file; a directory; a named pipe with no writer; a link to a
+ regular file, to a directory and to nothing at all; a file with no read permission; a file larger than any record this package
+ writes; and a file that grows while it is read.
+ */
+function recordKinds(): readonly ARecordKind[] {
+  return [
+    {
+      name: 'a path that is not there',
+      replace: async function missing({ recordPath, },) {
+        await rm(recordPath,);
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a regular file',
+      replace: async function regular() {},
+      expectation: 'covers',
+    },
+    {
+      name: 'a directory',
+      replace: async function directory({ recordPath, },) {
+        await rm(recordPath,);
+        await mkdir(recordPath,);
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a named pipe with no writer',
+      replace: async function pipe({ recordPath, },) {
+        await rm(recordPath,);
+        /**
+         What `mkfifo` answered.
+         */
+        const made = spawnSync('mkfifo', [recordPath,], { encoding: 'utf8', },);
+        if (made.status !== 0) {
+          throw new Error(`mkfifo failed: ${made.stderr}`,);
+        }
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a link to a regular file',
+      replace: async function linkToAFile({ folder, recordPath, recordText, },) {
+        await rm(recordPath,);
+        await writeFile(join(folder, 'a-record-beside-the-link.json',), recordText, 'utf8',);
+        await symlink('a-record-beside-the-link.json', recordPath,);
+      },
+      expectation: 'covers',
+    },
+    {
+      name: 'a link to a directory',
+      replace: async function linkToADirectory({ folder, recordPath, },) {
+        await rm(recordPath,);
+        await mkdir(join(folder, 'a-folder-beside-the-link',),);
+        await symlink('a-folder-beside-the-link', recordPath,);
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a link that points nowhere',
+      replace: async function danglingLink({ folder, recordPath, },) {
+        await rm(recordPath,);
+        await symlink(join(folder, 'nowhere.json',), recordPath,);
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a file with no read permission',
+      replace: async function noPermission({ recordPath, recordText, },) {
+        await rm(recordPath,);
+        await writeFile(recordPath, recordText, 'utf8',);
+        await chmod(recordPath, 0o000,);
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a file larger than any record this package writes',
+      replace: async function tooLong({ recordPath, recordText, },) {
+        await rm(recordPath,);
+        await writeFile(recordPath, `${recordText}${
+          ' '.repeat(THE_LARGEST_RECORD_A_REVIEW_GETS_BYTES,)
+        }`, 'utf8',);
+      },
+      expectation: 'does-not-cover',
+    },
+    {
+      name: 'a file that grows while it is read',
+      // The record stays a regular file of its own size; the test appends to it while the save reads it.
+      replace: async function grows() {},
+      expectation: 'either',
+    },
+  ];
+}
+
 /**
  Runs the command that saves a review over one review folder, as a coordinator runs it.
 
@@ -227,6 +364,41 @@ function runSaveReviewCommand({
   readonly status: number;
   readonly stdout: string;
 } {
+  return runSaveReviewCommandOver({
+    reviewFolder,
+    runsFolder,
+    reviews: [review,],
+  },);
+}
+
+/**
+ Runs the command that saves a review over several reviews of one folder, as a coordinator runs it.
+
+ @param reviewFolder - folder that holds one folder per review
+
+ @param runsFolder - folder the driver writes its runs into
+
+ @param reviews - the reviews' names, in the order the command is given them
+
+ @returns the status the command ended with, and its standard output
+
+ @example
+ ```ts
+ const ended = runSaveReviewCommandOver({ reviewFolder: '/reviews', runsFolder: '/runs', reviews: ['a', 'b'], },);
+ ```
+ */
+function runSaveReviewCommandOver({
+  reviewFolder,
+  runsFolder,
+  reviews,
+}: {
+  readonly reviewFolder: string;
+  readonly runsFolder: string;
+  readonly reviews: readonly string[];
+},): {
+  readonly status: number;
+  readonly stdout: string;
+} {
   /**
    How the command ended, which is its own status and not this test's.
    */
@@ -234,15 +406,25 @@ function runSaveReviewCommand({
     'node',
     [
       SAVE_REVIEW_COMMAND,
-      `--review=${review}`,
+      ...reviews.map(function named(review,) {
+        return `--review=${review}`;
+      },),
       `--review-folder=${reviewFolder}`,
       `--runs-folder=${runsFolder}`,
     ],
-    { encoding: 'utf8', },
+    {
+      encoding: 'utf8',
+      // The command is killed by this bound, which this test started it with: a save that has not answered by then is the wait
+      // the project forbids.
+      timeout: A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,
+    },
   );
   // A command ended by a signal, or one node could not start, is the failure of the test itself rather than an answer.
   if (ended.status === null) {
-    throw new Error(`the command that saves a review did not end with a status: ${ended.stderr}`,);
+    throw new Error(
+      `the command that saves a review did not end within ${String(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,)} ms: `
+        + `${String(ended.signal,)}; ${ended.stderr}`,
+    );
   }
   return {
     status: ended.status,
@@ -713,6 +895,159 @@ await describe({
           },
         },),
       ],
+    },),
+    describe({
+      name: 'a record of every kind of thing its path can be',
+      children: recordKinds()
+        .map(function oneKindAnswered(kind,) {
+          return it({
+            name: `answers a review whose record is ${kind.name} within ${String(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,)} milliseconds`,
+            fn: async () => {
+              await using folder = await makeFolder();
+              /**
+               The review's name.
+               */
+              const review = 'a-round-1';
+              /**
+               The folder that holds one folder per review, and the review's own.
+               */
+              const reviewFolder = join(folder.path, 'reviews',);
+              /**
+               The review's own folder, with its file and its record.
+               */
+              const folderOfReview = join(reviewFolder, review,);
+              await mkdir(folderOfReview, { recursive: true, },);
+              await writeFile(
+                join(folderOfReview, 'review.md',),
+                reviewOfAChange({
+                  ranges: theRangesGiven(),
+                  filesRead: theFilesGiven().length,
+                  filesListed: theFilesGiven().length,
+                },),
+                'utf8',
+              );
+              /**
+               The record's path and the record this package writes.
+               */
+              const recordPath = join(folderOfReview, 'what-the-review-read.json',);
+              /**
+               The record this package writes, before the kind replaces it.
+               */
+              const recordText = `${JSON.stringify({
+                review,
+                commit: 'abc123',
+                ranges: theRangesGiven(),
+                source: 'package/a/src',
+                files: theFilesGiven(),
+              }, undefined, 2)}\n`;
+              await writeFile(recordPath, recordText, 'utf8',);
+              await kind.replace({
+                recordPath,
+                recordText,
+                folder: folderOfReview,
+              },);
+              /**
+               When the answer was asked for.
+               */
+              const started = Date.now();
+              /**
+               What the command answered, which this test kills if it has not answered within its bound.
+               */
+              const ended = runSaveReviewCommand({
+                reviewFolder,
+                runsFolder: join(folder.path, 'runs',),
+                review,
+              },);
+              expect(Date.now() - started,).toBeLessThan(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,);
+              if (kind.expectation === 'does-not-cover') {
+                expect(ended.stdout,).toContain(`${review}: has its review.md, and whether it covers its change cannot be told`,);
+                expect(ended.status,).toBe(1,);
+              }
+              else {
+                expect(ended.stdout,).toContain(`${review}: has its review.md, which states the ranges it was given`,);
+                expect(ended.status,).toBe(0,);
+              }
+            },
+          },);
+        },)
+        .concat(recordKinds()
+          .map(function oneKindJudgedAfter(kind,) {
+            return it({
+              name: `judges the review after one whose record is ${kind.name}`,
+              fn: async () => {
+                await using folder = await makeFolder();
+                /**
+                 The two reviews, the first of which has a record of that kind.
+                 */
+                const reviews = ['a-round-1', 'b-round-1',];
+                /**
+                 The folder that holds one folder per review.
+                 */
+                const reviewFolder = join(folder.path, 'reviews',);
+                await mkdir(reviewFolder, { recursive: true, },);
+                for (const review of reviews) {
+                  /**
+                   That review's own folder.
+                   */
+                  const folderOfReview = join(reviewFolder, review,);
+                  await mkdir(folderOfReview, { recursive: true, },);
+                  await writeFile(
+                    join(folderOfReview, 'review.md',),
+                    reviewOfAChange({
+                      ranges: theRangesGiven(),
+                      filesRead: theFilesGiven().length,
+                      filesListed: theFilesGiven().length,
+                    },),
+                    'utf8',
+                  );
+                  await writeFile(
+                    join(folderOfReview, 'what-the-review-read.json',),
+                    `${JSON.stringify({
+                      review,
+                      commit: 'abc123',
+                      ranges: theRangesGiven(),
+                      source: 'package/a/src',
+                      files: theFilesGiven(),
+                    }, undefined, 2)}\n`,
+                    'utf8',
+                  );
+                }
+                /**
+                 The first review's own folder and record.
+                 */
+                const firstFolder = join(reviewFolder, reviews[0] ?? '',);
+                /**
+                 The record this package writes, before the kind replaces it.
+                 */
+                const recordText = await readFile(join(firstFolder, 'what-the-review-read.json',), 'utf8',);
+                await kind.replace({
+                  recordPath: join(firstFolder, 'what-the-review-read.json',),
+                  recordText,
+                  folder: firstFolder,
+                },);
+                /**
+                 What the command answered over both reviews.
+                 */
+                const ended = runSaveReviewCommandOver({
+                  reviewFolder,
+                  runsFolder: join(folder.path, 'runs',),
+                  reviews,
+                },);
+                const first = reviews[0] ?? '';
+                const second = reviews[1] ?? '';
+                // The second review is judged whatever the first review's record turned out to be.
+                expect(ended.stdout,).toContain(`${second}: has its review.md, which states the ranges it was given`,);
+                if ((kind.expectation === 'covers') || (kind.expectation === 'either')) {
+                  expect(ended.stdout,).toContain(`${first}: has its review.md, which states the ranges it was given`,);
+                  expect(ended.status,).toBe(0,);
+                }
+                else {
+                  expect(ended.stdout,).toContain(`${first}: has its review.md, and whether it covers its change cannot be told`,);
+                  expect(ended.status,).toBe(1,);
+                }
+              },
+            },);
+          },)),
     },),
     describe({
       name: 'the command that saves a review',
