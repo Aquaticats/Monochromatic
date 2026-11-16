@@ -39633,6 +39633,17 @@ Reviews and audits move from Kimi to Claude Sonnet (the owner's message of about
 - **A slip of this session's:** the pool-closing subagent was started while twenty Pi units were going, one agent over the cap, before the filling level was lowered. No run was stopped; the count falls back under the cap as Pi runs end.
 - Two queued reviews cannot be started by any route yet: the cargo-shadow control at `e6e6c21726` (the package's brief writer answers "nothing to review", its one changed code file being read as a test) joins the tests-only ranges that wait for the brief writer for tests.
 
+The session stood in a question dialog for ten hours and twenty minutes (written here at 2026-11-16T10:24-05:00):
+
+- **What happened.** At about 23:55 on 2026-11-15 this session's last message left two choices in prose for the owner, who had written "going back to sleep now". The stop hook required them to be put through the question tool, the session did so, and the dialog stood until the owner answered at about 10:17 on 2026-11-16.
+  While it stood the session read nothing and started nothing: 59 runs ended unread, pass 57 ended at 02:42 with nobody to merge it, the filling unit ran out at about 07:46 and from then nothing was started (9 Pi units were going at 10:18), the drive probe ended at 01:14 and the rotation watch died at about the same time on a `systemctl` that did not answer.
+- **The rule this session takes from it, open to veto:** while the owner is away or asleep, a final message leaves no choice in prose and offers nothing ("say if you …"); what needs the owner goes into the kept list, stated as a fact, and the question is asked when the owner is next at the keyboard. A question dialog is a wait with no bound.
+- **The owner's two answers (2026-11-16, about 10:17).** A thin Sonnet review: **"Kimi for these only"**: the Kimi pool is reopened for one command for each thin review (`PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` on that start alone); the pool stays closed for everything else, and the adoption recorded on 2026-11-15T23:42 (hold a thin review) is replaced by this.
+  The open LFS audit of `0.6.1-alpha.14`: **"Sonnet, current code (Recommended)"**: it is run as a Sonnet audit of the LFS path in today's `main`.
+- **The cap is 18 since 2026-11-16T10:18-05:00, by the recorded rule.** The probe at level 20 ended at 01:14:05 on two readings in a row over five seconds on the repository's drive, with sixteen agent units going; a new probe runs at 18. The filling unit runs at 15, leaving three places for Sonnet reviews.
+  Sixteen is fewer than either cap, so the count of agents did not make that stall; what did is not established (the daily update and the snapshot cleanup run at that hour, and were the cause the night before).
+- **The last run from before the masking merge has ended** (read at 10:19:41; five were left at 00:16 when the watch died). What follows from it is the owner's rotation, with the qualification recorded in round twenty.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
