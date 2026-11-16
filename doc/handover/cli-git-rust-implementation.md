@@ -1343,6 +1343,25 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   Copy owner and transaction owner (`b029539d9b`, 7 of 7 files): a tag in capitals keeps a lock from a boot that has ended; a stale record with a birth spelled another way is alive, silently, for as long as another process holds its number; the current namespace's number with a leading zero is refused as foreign after two minutes.
   Second run queued at 23:06:57; what becomes of a record whose holder can be shown neither alive nor gone is not decided, and the author is asked to build the state and its words and to put the rest as a question.
   Issue 6293 (`149568cbe6`): its five by-reading findings each produced by a control and answered, per its report; a narrow review of that delta is queued. It still waits for the no-manager branch.
+- **The gate on `0.6.1-alpha.44` failed 6 of 9,173** (`0f07c4f0ee`, ended about 23:17; the gate on `0.6.1-alpha.43` failed 3 of 9,148). The standing three are still there (`owed_push`, `repository_naming_commit`, `service_no_manager`).
+  Three are new to every kept list: two of `service_stop_ends_its_gits` (the service prints "stopped: 2 pieces of work were still unfinished after 24 seconds, so the service ends now" and then does not end until the test's alarm, signal 14 where 15 is expected)
+  and `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes` (the merge hands the removal to the service and returns; the control looks for the worktree to be gone at once).
+  Pass 56 ran the same suite once on this machine outside the container and all three passed there. The failing lines are kept in `~/temp/agent/gate/keep/panics-of-the-failing-tests-of-the-gate-on-0f07c4f0ee-2026-11-15T230531.txt`.
+  Two fresh runs, one per cause, started at 23:30: each measures both releases' builds in the gate's container first. Not established: that pass 56's writer thread for diagnostic lines is the cause of the first pair; it is the one change to released code in the range and is named to the run as a place to look, no more.
+  The no-manager author's thirteenth run reports a like sight on its own branch after merging `main`: a service stopped by a signal "writes nothing" where `main` writes its exit line.
+- **Six more runs read (23:14 to 23:30):**
+  service logs of a control under a limit (`b0f446fe7b`): the memory-limit control now counts a commit that landed while its command failed as working (by reading), which loosens a control, so the branch goes into no pass; one invalid byte empties the log (reproduced). Second run queued.
+  Review brief says what the change is (`cc2e91e8d8`, 23 of 23 files): a statement quoted in a list item's fence is taken for the review's own; a record that is a named pipe makes the save wait for ever; an unreadable record ends the save for every review. Seventh run queued.
+  The no-manager branch's thirteenth run (`6252178bd3`): the five claims answered; four controls still fail (two of its fixture's, two new after its merge of `main`). Fourteenth run queued, sixth in the queue.
+  Cargo-shadow's recycled namespace number (`e6e6c21726`), cargo-shadow's two tests (`ae2b9de5ea`) and the gate-script unit test (`a2ab26a324`): each reports its answer; the first two change tests alone by the package's reading and wait for the brief writer for tests, the third has its review queued for Sonnet.
+- **The last three reviews on Kimi ended (23:36 to 23:40) and their authors are queued again:**
+  held-push holder (`86d00f412d`, 3 of 3 files, three reproduced: a padded birth tag reads a live holder as gone and gives its item to a second claimant; another spelling of the boot hides the proof that the holder is dead; a birth of whitespace strands a dead service holder), third run;
+  the renamed subvolume handed over (`855f96cc71`, three reproduced and one by reading: the budget of attempts is passed by callers at once and gone round by two requeues), fifth run;
+  the discarding guard (`9b4ab2ed6b`; the five findings before it no longer happen; three new, each through the built executable: `checkout-index --prefix` without a trailing slash checked at the wrong destination, a revision that is not UTF-8 read lossily, a hidden change of the executable bit alone reset), fifth run.
+  No review is on Kimi any more. The queue as a folder (`3ddf381a25`): its second run says itself that it is not done (its walk still leaves an entry with no home in one round, lint and unit tests fail, three test files deleted, no measurements); third run queued.
+- **The first start through the closed pool table works:** the main-checkout author's seventh run started at 23:38:12, twenty-six seconds after the merge, and was at its seventh turn at 23:45.
+  This session's round check called it gone for a minute: it looked for a unit named `pi-pi-run-…`, and a run whose own name starts with `pi-` keeps that name for its unit. The check is corrected.
+  The scratch starter builds the same doubled name when it asks whether an entry's run is already going, so for such a name it would not see a going run; noted, not yet changed, since an entry of a going run is not in the queue.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
@@ -39570,6 +39589,44 @@ Round twenty (asked and answered at about 22:47, written here at 2026-11-15T22:5
   The driver reads the values once, when a run starts (`package/pi-shared/subagent-driver/README.md`, "The values are read once in the driver's own process."; `supervise-pi-run.ts` line 262 is the only call), so every run that is going at the moment a value is changed, masked or not,
   holds the old value armed and does not know the new one. A new value such a run reads from a file all runs share (`~/.pi/agent/auth.json`, `models.json`, `.bashrc`) or from a store its worktree merged goes through unmasked until that run ends.
   The owner's choice stands as made (wait for the last run from before the merge); what is added is in the kept list, first entry, and is said again when the watch ends. A second pass by the advisor found this, not the session.
+
+Reviews and audits move from Kimi to Claude Sonnet (the owner's message of about 23:27 on 2026-11-15, written here at 2026-11-15T23:36:02-05:00; not asked, the owner wrote it unprompted):
+
+- The owner: "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive. Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish. Anyway, I'll probably figure out something better in the next week. That's it, going back to sleep now."
+  And, a few minutes later: "Do the AGENTS.md edit too. Yes this decision is probably temporary, but AGENTS.md is expected to change often too."
+- **Done, in this order.** The scratch starter starts no review and no run naming a Kimi model while
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/no-run-starts-on-kimi-and-reviews-go-to-claude-sonnet-while-this-file-exists.md` exists (in force from about 23:29; each such entry keeps its place).
+  Four reviews were going on Kimi then (discarding guard, drawn shadow tree, held-push holder, renamed subvolume); they are left to end, and a review that ends thin is not started again on Kimi.
+  Rules `KRV`, `LHZ` and `PFW` in `AGENTS.md` now name Claude Sonnet, `CLAUDE.md` is regenerated, and `.agents/skills/pi-as-subagent/SKILL.md` says the same (commit `0f52021c6c`).
+  The package's own pool table is closed too, for every session: `NEURALWATT_KIMI_FLEX` carries a `closed` reason with the owner's words and keeps its limit of 20, the number it returns to
+  (branch `chore/pi-shared-subagent-driver-kimi-pool-closed-on-the-owners-word` at `3e0a21b622`, written by a Claude subagent, a new test shown failing before the table edit, the package's build, type check, lint and 205 unit tests green; merged as `c364731a2d` at 2026-11-15T23:37:46-05:00).
+  The launcher's own counts line from `main` afterwards: `neuralwatt-kimi-flex 3/0`, the runs still going counted and no room for another.
+  A run that names that model now gets no room and its launcher waits and gives up after two hours, so the scratch hold stays as well: it is what keeps a queued entry from being taken off the queue for a start that cannot happen.
+  It is reopened for one command with `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20`, and for good by taking the `closed` reason out.
+  Left as they are, said by that subagent: `src/reviewer-of-a-change.ts` and the README still name the qwen4 pool for the package's own review command, which starts nothing while the Qwen quota is dry.
+- **The first Sonnet review is going** since 2026-11-15T23:38-05:00 (the SPEC's removal rule at `323260fa9c`, two files to read by the package's brief), with the filling level at 19.
+- **The route to Sonnet, and what was measured for it.** Pi's own model listing (`pi --list-models` of the Pi the driver uses, first columns only, read at about 23:42) has ninety-nine lines, twenty-seven of them Neuralwatt's, and names one Claude model, `claude-haiku-5-5` on `opencode-go`; it names no Sonnet.
+  A first probe at about 23:29 read Pi's two files instead (providers `synthetic`, `qwen-token-plan-individual`, `opencode-go`) and did not show Neuralwatt, on which sixteen runs were going, so it could not have shown a missing provider either; the sentence built on it ("Pi has no provider that serves a Claude model") was wrong as written and is replaced by this one. A second pass by the advisor found that.
+  So a review is done by a Claude Code subagent on Sonnet that this session starts (the Agent tool), which is rule `LHZ`'s "by whatever route that harness offers".
+  That the subagent really answers on Sonnet is read from its own transcript's model field, identifiers only: for the first review, 46 answers on `claude-sonnet-5-5`. A review whose transcript names another model does not count as a Sonnet review, and when Sonnet is refused the review waits.
+  `prepare-one-queued-review-for-a-claude-sonnet-subagent.ts` in the same scratch folder has the package write the brief, makes a detached worktree `.claude/worktrees/sonnet-review-<name>` at the commit, links it, writes the subagent's prompt beside the brief, and only then takes the entry off the queue;
+  each handed-over review is one line in `keep/reviews-handed-to-claude-sonnet-subagents.jsonl`.
+- **What this route does not have, said plainly.** These reviews do not show in the Pi waiter (their end is the subagent's own notice, and each round also looks for the `review.md` of every line in that list);
+  the driver's masking of secret values does not cover a Claude Code subagent, so each prompt carries the credential ban and says nothing masks its tool results;
+  a subagent's commands share the session's command group, so each prompt puts every build and test in a scope of its own;
+  and they need this session awake, where a Pi review started from the queue by itself.
+  A Sonnet review of an author on another vendor's model (every Pi author today) is an independent review; of anything a Claude session wrote it is a second pass and is labelled so.
+- **Adopted without asking, each open to veto.** The Pi filling level is the cap less the Claude-side agents going (18 since 23:32:32, for the pool-closing agent and the first Sonnet review), since the starter counts Pi units alone.
+  Sonnet reviews start one at a time until the first is read and accepted (it states its range and its count of files read and shows what it ran), then up to three at once.
+  The owner's earlier answer for a thin review ("Restart once by itself ON A DIFFERENT MODEL", "The other of the pair; Sonnet while Qwen is dry") has no other model left to go to while Sonnet is the only reviewer:
+  a thin Sonnet review is not started again on Sonnet, which would be the opposite of that answer; it is held, and listed for the owner with which second model it should go to.
+  The hold in the starter was seen to work with a place free: at 23:38:12, eighteen units going, it started an author's run from behind a waiting review and no review unit has become active since 23:21:49.
+  When a Sonnet review has been read and routed, its `sonnet-review-<name>` worktree is removed with the wrapped Git and the build folder inside its review folder is deleted; the review, its scripts and their outputs are kept.
+  The pool change itself (`c364731a2d`) was read line by line by this session after the merge and its kept outputs counted (205 pass lines; the new test's failing output before the edit); a Sonnet pass of it is owed and will be labelled a second pass, since a Claude subagent wrote it.
+  The open Kimi audit of `0.6.1-alpha.14` (LFS) is not started again on Kimi.
+- **A slip of this session's:** the pool-closing subagent was started while twenty Pi units were going, one agent over the cap, before the filling level was lowered. No run was stopped; the count falls back under the cap as Pi runs end.
+- Two queued reviews cannot be started by any route yet: the cargo-shadow control at `e6e6c21726` (the package's brief writer answers "nothing to review", its one changed code file being read as a test) joins the tests-only ranges that wait for the brief writer for tests.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
