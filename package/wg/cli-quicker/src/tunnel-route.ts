@@ -13,8 +13,23 @@ import { addKillSwitch, } from './tunnel-firewall.ts';
 import { readFwmark, } from './tunnel-fwmark.ts';
 import {
   addRoutes,
-  ensureFwmark,
+  setFwmark,
 } from './tunnel-route-add.ts';
+import {
+  POLICY_CLAIM_ABSENT,
+  readPolicyClaim,
+  releasePolicyClaim,
+  writePolicyClaim,
+  type ClaimFamily,
+  type PolicyClaim,
+} from './tunnel-policy-claim.ts';
+import { policyResourcesTakenByOthers, } from './tunnel-policy-claims.ts';
+import {
+  findFreePolicyPair,
+  findFreeTable,
+} from './tunnel-table.ts';
+import { POLICY_RULE_PROTOCOL, } from './tunnel-rule-protocol.ts';
+import { removeSuppressRule, } from './tunnel-suppression-warning.ts';
 import type { UpMadeThing, } from './tunnel-up-made.ts';
 import {
   isV6,
@@ -89,20 +104,6 @@ async function readAllowedPrefixes(
 
 
 /**
- The protocol tag this program writes on the main-table suppression it installs.
-
- A `suppress_prefixlength 0` rule has no other identity:
- it names no interface and no table,
- so without a tag a teardown cannot tell the rule this program created from one
- another tunnel or an administrator installed,
- and it used to delete whatever it found.
-
- The tag is the one the bypass routes and rules already carry,
- so the rules this program created are the ones carrying it.
- */
-const POLICY_RULE_PROTOCOL = BYPASS_ROUTE_PROTOCOL;
-
-/**
  Adds one `not fwmark` and one `suppress_prefixlength` rule for a routed family.
  
  The main-table lookup preserves physical connected routes before the policy table,
@@ -111,21 +112,30 @@ const POLICY_RULE_PROTOCOL = BYPASS_ROUTE_PROTOCOL;
  `AllowedIPs` prefix from routing recursively into its own interface.
  
  @param proto - Address family receiving the rules.
- 
+
  @param table - Shared policy table carried in the interface fwmark.
- 
+
+ @param suppressionPreference - Preference this tunnel's suppression rule takes,
+ whose `not fwmark` rule takes the next one.
+ The two are written with explicit preferences so that a teardown deletes exactly
+ this interface's rules: the suppression names no interface and no table,
+ so a delete by shape takes whichever rule of that shape has the lowest preference,
+ which belongs to another tunnel as often as to this one.
+
  @example
  ```ts
- await addPolicyRules({ proto: '-4', table: 51820 });
+ await addPolicyRules({ proto: '-4', table: 51820, suppressionPreference: 32764 });
  ```
  */
 async function addPolicyRules(
   {
     proto,
     table,
+    suppressionPreference,
   }: {
     readonly proto: Proto;
     readonly table: number;
+    readonly suppressionPreference: number;
   },
 ): Promise<void> {
   await run({
@@ -134,6 +144,24 @@ async function addPolicyRules(
       proto,
       'rule',
       'add',
+      'pref',
+      String(suppressionPreference,),
+      'table',
+      'main',
+      'suppress_prefixlength',
+      '0',
+      'protocol',
+      String(POLICY_RULE_PROTOCOL,),
+    ],
+  },);
+  await run({
+    command: 'ip',
+    args: [
+      proto,
+      'rule',
+      'add',
+      'pref',
+      String(suppressionPreference + 1,),
       'not',
       'fwmark',
       String(table,),
@@ -141,200 +169,96 @@ async function addPolicyRules(
       String(table,),
     ],
   },);
-  await run({
-    command: 'ip',
-    args: [
-      proto,
-      'rule',
-      'add',
-      'table',
-      'main',
-      'suppress_prefixlength',
-      '0',
-      'protocol',
-      String(POLICY_RULE_PROTOCOL,),
-    ],
-  },);
 }
 
 /**
- Removes the main-table suppression of one family,
- and only the rule this program created.
+ Claims the policy table and the suppression preference of an interface,
+ writing the claim before anything is visible in the kernel.
 
- A rule without the tag is left in place,
- because it cannot be told apart from one an administrator or another tunnel installed:
- the shape names no interface and no table,
- and `ip rule delete table main suppress_prefixlength 0` removes the first rule of that shape,
- which is whichever one has the lowest preference,
- not necessarily this program's.
- A tunnel an earlier build set up therefore leaves its untagged suppression behind,
- and the warning names the exact command that removes it.
+ The claim is what closes the window between `wg set fwmark` and the first `ip rule add`:
+ a lifecycle killed there leaves a table the kernel shows as free,
+ and the claim is what tells the next allocator that the interface owns it.
 
- @param proto - Address family whose suppression is removed.
+ @param interfaceName - Interface whose resources are claimed.
 
- @param automaticRouting - Whether the interface carries the fwmark that automatic routing sets,
- which is what would make an untagged main-table suppression an earlier build's leftover.
+ @param families - Address families the tunnel installs rules for.
+
+ @returns The claim, whose families are the union of this start's and the record's.
 
  @example
  ```ts
- await removeSuppressRule({ proto: '-4', automaticRouting: true });
+ await claimPolicyTable({ interfaceName: 'wg0', families: ['-4'] });
  ```
  */
-async function removeSuppressRule(
+async function claimPolicyTable(
   {
-    proto,
-    automaticRouting,
+    interfaceName,
+    families,
   }: {
-    readonly proto: Proto;
-    readonly automaticRouting: boolean;
+    readonly interfaceName: string;
+    readonly families: readonly ClaimFamily[];
   },
-): Promise<void> {
+): Promise<PolicyClaim> {
   /**
-   What the exact, protocol-tagged delete ended with.
+   The claim this interface already holds, when a start of it was killed earlier.
    */
-  const deletion = await runAllowingFailure({
-    command: 'ip',
-    args: [
-      proto,
-      'rule',
-      'delete',
-      'table',
-      'main',
-      'suppress_prefixlength',
-      '0',
-      'protocol',
-      String(POLICY_RULE_PROTOCOL,),
-    ],
-  },);
-  if (deletion.exitCode === 0)
-    return;
-  if (!isAbsentDelete({ result: deletion, },)) {
+  const existing = await readPolicyClaim({ interfaceName, },);
+  if (existing !== POLICY_CLAIM_ABSENT) {
     /**
-     What the delete said when it failed.
+     Families this start and the record together install rules for.
      */
-    const refusal = deletion.stderr
-      .trim();
-    l.warn(`could not remove the ${proto} main-table suppression: ${refusal}`,);
-    return;
-  }
-  if (!automaticRouting)
-    return;
-  /**
-   What the probe of the family's rules ended with.
-   */
-  const shown = await runAllowingFailure({
-    command: 'ip',
-    args: [
-      proto,
-      'rule',
-      'show',
-    ],
-  },);
-  if (shown.exitCode !== 0) {
-    /**
-     What the rule listing said when it failed.
-     */
-    const refusal = shown.stderr
-      .trim();
-    l.debug(`could not list the ${proto} rules to look for a suppression without the tag: ${refusal}`,);
-    return;
+    const together = [...new Set([
+      ...existing.families,
+      ...families,
+    ],),];
+    if (together.length
+      !== existing.families
+        .length) {
+      /**
+       The record with this start's families added.
+       */
+      const widened: PolicyClaim = {
+        ...existing,
+        families: together,
+      };
+      await writePolicyClaim({ claim: widened, },);
+      return widened;
+    }
+    return existing;
   }
   /**
-   Every suppression of the family that carries no tag.
+   Tables and preferences other interfaces hold, which the kernel may not show yet.
    */
-  for (const rule of untaggedSuppressionRules({ listed: shown.stdout, },)) {
-    l.warn(untaggedSuppressionWarning({
-      proto,
-      rule,
-    },),);
-  }
+  const taken = await policyResourcesTakenByOthers({ interfaceName, },);
+  /**
+   Policy table carried in the interface fwmark.
+   */
+  const table = await findFreeTable({ taken: taken.tables, },);
+  /**
+   Preference of this tunnel's suppression rule, with its `not fwmark` rule one above it.
+   */
+  const suppressionPreference = await findFreePolicyPair({ taken: taken.preferences, },);
+  /**
+   The claim this start makes.
+   */
+  const claim: PolicyClaim = {
+    version: 1,
+    interfaceName,
+    table,
+    suppressionPreference,
+    families,
+  };
+  await writePolicyClaim({ claim, },);
+  return claim;
 }
-
-/**
- Finds the main-table suppressions of one family that carry no protocol tag,
- among the lines `ip -4 rule show` or `ip -6 rule show` printed.
-
- A tagged rule prints the tag,
- so a line that names the suppression and no tag is a rule this program never created.
- Nothing is deleted on this finding:
- the shape names no interface and no table,
- so the line is reported to the person who can tell whose rule it is.
-
- @param listed - Everything the rule listing printed.
-
- @returns Every untagged suppression line the listing printed, in its order.
-
- @example
- ```ts
- untaggedSuppressionRule({ listed: '32765: from all lookup main suppress_prefixlength 0\n' });
- ```
- */
-export function untaggedSuppressionRules(
-  { listed, }: { readonly listed: string; },
-): readonly string[] {
-  /**
-   Lines of untagged suppressions, in the order the listing printed them.
-   */
-  const found: string[] = [];
-  for (const line of listed.split('\n',)) {
-    /**
-     One rule line without the whitespace around it.
-     */
-    const trimmed = line.trim();
-    /**
-     Words of that rule line.
-     */
-    /* oxlint-disable-next-line no-restricted-syntax/no-regex -- One line of `ip rule show` output is bounded by a family's rule count, and its fields are separated by runs of whitespace a string split cannot express. */
-    const words = trimmed.split(/\s+/u,);
-    if (!words.includes('suppress_prefixlength',))
-      continue;
-    if (words.includes('proto',) || words.includes('protocol',))
-      continue;
-    found.push(trimmed,);
-  }
-  return found;
-}
-
-/**
- Explains an untagged main-table suppression that was left in place,
- and names every command that removes it.
-
- Deleted only by a person who knows whose rule it is:
- an earlier build of this program for an interface with automatic routing left one,
- and an administrator or another tunnel can leave the same shape,
- so removing it by shape could take routing another owner depends on.
-
- @param proto - Address family the rule belongs to.
-
- @param rule - The line the rule listing printed for it.
-
- @returns The warning text.
-
- @example
- ```ts
- untaggedSuppressionWarning({ proto: '-4', rule: '32765: from all lookup main suppress_prefixlength 0' });
- ```
- */
-export function untaggedSuppressionWarning(
-  {
-    proto,
-    rule,
-  }: {
-    readonly proto: Proto;
-    readonly rule: string;
-  },
-): string {
-  return `the ${proto} rule \`${rule}\` suppresses the main table without this program's protocol tag ${String(POLICY_RULE_PROTOCOL,)}, so this program did not create it and left it in place: an earlier build of this program for an interface with automatic routing left the same shape, and so can an administrator or another tunnel. If it is a leftover of an earlier build, remove it with \`sudo ip ${proto} rule delete table main suppress_prefixlength 0\`; if another owner depends on it, keep it.`;
-}
-
 
 /**
  Chooses the policy table of an interface and installs the rules that name it,
  inside the global allocation lock.
 
- The lock spans the choice of a table and the rules that make the table visibly
- this interface's, because a later allocator sees only the kernel:
- a table that is chosen but not yet named by a rule looks free to it,
+ The lock spans the claim, the fwmark and the rules that make the table visibly
+ this interface's, because a later allocator sees only the kernel and the claims:
+ a table that is claimed but not yet named by a rule looks free to it otherwise,
  and two starts would then share one table and route each other's traffic.
  The lock is released as soon as the rules name the table;
  the routes added afterwards do not decide who owns it.
@@ -345,7 +269,7 @@ export function untaggedSuppressionWarning(
 
  @param recordThing - Records one thing this start made.
 
- @returns The chosen table.
+ @returns The claim the interface holds.
 
  @example
  ```ts
@@ -362,26 +286,34 @@ async function choosePolicyTable(
     readonly protos: ReadonlySet<Proto>;
     readonly recordThing: (thing: UpMadeThing,) => void;
   },
-): Promise<number> {
+): Promise<PolicyClaim> {
   /**
-   The global allocation lock, held until the rules name the chosen table.
+   The global allocation lock, held until the rules name the claimed table.
    */
   await using allocation = await claimBypassAllocationOperation();
   /**
-   Shared policy table carried in the interface fwmark for both families.
+   What this interface owns, written before anything is visible in the kernel.
    */
-  const table = await ensureFwmark({ interfaceName, },);
-  // Recorded before the rules, so a failure after the first family still removes the rules of this table.
+  const claim = await claimPolicyTable({
+    interfaceName,
+    families: [...protos,],
+  },);
+  // Recorded before the rules, so a failure after the first family still removes the rules of this claim.
   recordThing('policyRules',);
+  await setFwmark({
+    interfaceName,
+    table: claim.table,
+  },);
   /* oxlint-disable eslint/no-await-in-loop -- Policy rules install per family in deterministic order. */
-  for (const proto of protos) {
+  for (const proto of claim.families) {
     await addPolicyRules({
       proto,
-      table,
+      table: claim.table,
+      suppressionPreference: claim.suppressionPreference,
     },);
   }
   /* oxlint-enable eslint/no-await-in-loop */
-  return table;
+  return claim;
 }
 
 /**
@@ -458,7 +390,7 @@ export async function setupRoutes(
    Shared policy table carried in the interface fwmark for both families,
    chosen under the allocation lock together with the rules that name it.
    */
-  const table = await choosePolicyTable({
+  const claim = await choosePolicyTable({
     interfaceName: iface,
     protos,
     recordThing,
@@ -474,7 +406,7 @@ export async function setupRoutes(
   await addRoutes({
     interfaceName: iface,
     prefixes,
-    table,
+    table: claim.table,
   },);
   /**
    Exempt rule added last so its fixed priority (below every auto-allocated
@@ -491,17 +423,93 @@ export async function setupRoutes(
   recordThing('killSwitch',);
   await addKillSwitch({
     config,
-    table,
+    table: claim.table,
   },);
 }
 
 
 /**
- Removes the policy rules for an interface using its live fwmark.
+ Removes one rule of one family at an exact preference, tolerating its absence.
  
- Rediscovering the fwmark ensures the exact allocated table is removed even
- when it differs from the 51820 base, matching wg-quick's down path.
+ @param proto - Address family.
+
+ @param preference - Preference of the rule.
+
+ @example
+ ```ts
+ await removeRuleAtPreference({ proto: '-4', preference: 32764 });
+ ```
+ */
+async function removeRuleAtPreference(
+  {
+    proto,
+    preference,
+  }: {
+    readonly proto: ClaimFamily;
+    readonly preference: number;
+  },
+): Promise<void> {
+  /**
+   What the delete ended with.
+   */
+  const deletion = await runAllowingFailure({
+    command: 'ip',
+    args: [
+      proto,
+      'rule',
+      'delete',
+      'pref',
+      String(preference,),
+    ],
+  },);
+  if ((deletion.exitCode === 0) || isAbsentDelete({ result: deletion, },))
+    return;
+  l.warn(
+    `could not remove the ${proto} rule at preference ${String(preference,)}: ${deletion.stderr
+      .trim()}`,
+  );
+}
+
+/**
+ Removes the policy rules an interface's claim names, and the claim itself.
+
+ The preferences are what makes this exact: the suppression rule names no interface
+ and no table, so a delete by shape takes whichever rule of that shape comes first,
+ which is how the `down` of one tunnel used to delete another tunnel's suppression.
+ The families are the ones the tunnel installed rules for, so a tunnel that never
+ had an IPv6 rule leaves its neighbour's IPv6 rule alone.
+
+ @param claim - What the interface owns.
+
+ @example
+ ```ts
+ await removeClaimedRules({ claim });
+ ```
+ */
+async function removeClaimedRules({ claim, }: { readonly claim: PolicyClaim; },): Promise<void> {
+  /* oxlint-disable eslint/no-await-in-loop -- Each preference is removed in turn so a failure names it. */
+  for (const proto of claim.families) {
+    await removeRuleAtPreference({
+      proto,
+      preference: claim.suppressionPreference,
+    },);
+    await removeRuleAtPreference({
+      proto,
+      preference: claim.suppressionPreference + 1,
+    },);
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  await releasePolicyClaim({ claim, },);
+}
+
+/**
+ Removes the policy rules for an interface using its claim, or its live fwmark.
  
+ The claim names the exact table and suppression preference, so a teardown removes
+ this interface's rules and no other tunnel's.
+ A tunnel an earlier build set up has no claim, and its rules are found the way that
+ build's teardown found them: from the live fwmark, with the untagged-suppression warning.
+
  @param interfaceName - Interface whose policy rules are removed.
  
  @example
@@ -512,6 +520,14 @@ export async function setupRoutes(
 export async function removePolicyRules(
   { interfaceName, }: { readonly interfaceName: string; },
 ): Promise<void> {
+  /**
+   What this interface owns, when its lifecycle recorded it.
+   */
+  const claim = await readPolicyClaim({ interfaceName, },);
+  if (claim !== POLICY_CLAIM_ABSENT) {
+    await removeClaimedRules({ claim, },);
+    return;
+  }
   /**
    Live policy table for the interface, absent when no default was routed.
    */

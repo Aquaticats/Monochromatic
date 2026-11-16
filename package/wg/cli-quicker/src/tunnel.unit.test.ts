@@ -3,11 +3,13 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
@@ -17,7 +19,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 
 import type { WireguardConfig, } from '../dist/final/node/config.mjs';
 import { OPENSNITCH_CONFIG_ENVIRONMENT, OPENSNITCH_DAEMON_CONFIG_ENVIRONMENT, } from '../dist/final/node/opensnitch.mjs';
-import { up, } from '../dist/final/node/tunnel.mjs';
+import { down, up, } from '../dist/final/node/tunnel.mjs';
 
 /**
  Interface name this file's fixtures use.
@@ -98,7 +100,14 @@ const SUCCEEDING_PROGRAM = `#!${process.execPath}\nprocess.exit(0,);\n`;
  and the listing must be the JSON nft itself prints for an empty rule set.
  */
 const STAND_IN_NFT = `#!${process.execPath}
+import { existsSync, writeFileSync } from 'node:fs';
 const words = process.argv.slice(2);
+if (process.env.WG_TEST_NFT_MODE === 'hold-f' && words.includes('-f')) {
+  writeFileSync(process.env.WG_TEST_NFT_WAITING_FILE, '1');
+  const deadline = Date.now() + 60000;
+  while ((!existsSync(process.env.WG_TEST_NFT_GO_FILE)) && (Date.now() < deadline))
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4,),), 0, 0, 25,);
+}
 if (words.includes('--json') || words.includes('-j')) {
   process.stdout.write(JSON.stringify({ nftables: [], },));
   process.exit(0);
@@ -125,6 +134,160 @@ function configOf(): WireguardConfig {
     preDown: [],
     postDown: [],
     wgConfig: '[Interface]\nPrivateKey = fixture\n',
+  };
+}
+
+/**
+ Waits, bounded, for a file to appear.
+
+ @param path - File to look for.
+
+ @returns Whether it appeared within the bound.
+ */
+async function fileAppears({ path, }: { readonly path: string; },): Promise<boolean> {
+  /**
+   When the wait gives up.
+   */
+  const deadline = performance.now() + 5_000;
+  while (performance.now() < deadline) {
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- The file is looked for again within one bound.
+      await readFile(path,);
+      return true;
+    }
+    catch (error: unknown) {
+      // Not written yet; the bound above decides when to stop looking.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+        throw error;
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- The pause is part of the same bounded wait.
+    await wait(25,);
+  }
+  return false;
+}
+
+/**
+ Runs the up and the down of one interface at the same time, with the up held at its kill switch.
+
+ The hold is where a `down` landing inside an `up` does its damage:
+ the link and the rules are there, the kill switch is not yet, and the `down`
+ removes all of it while the `up` goes on.
+
+ @returns What the down answered, whether the up returned, and whether the link is there at the end.
+ */
+async function upAndDownAtOnce(): Promise<{
+  readonly downRefusal: string;
+  readonly upReturned: boolean;
+  readonly linkPresent: boolean;
+}> {
+  /**
+   Scratch directory of this case.
+   */
+  const scratch = await mkdtemp(join(scratchRoot(), 'wg-quicker-lifecycle-lock-',),);
+  /**
+   Programs this case stands in for.
+   */
+  const bin = join(scratch, 'bin',);
+  /**
+   File the stand-in `ip` keeps the link in.
+   */
+  const linkState = join(scratch, 'link',);
+  /**
+   File the held stand-in `nft` writes when it reached the held call.
+   */
+  const nftWaiting = join(scratch, 'nft-waiting',);
+  /**
+   File that releases the held call.
+   */
+  const nftGo = join(scratch, 'nft-go',);
+  await mkdir(bin,);
+  await mkdir(join(scratch, 'run',),);
+  await Promise.all(
+    ([
+      ['ip', STAND_IN_IP,],
+      ['wg', STAND_IN_WG,],
+      ['nft', STAND_IN_NFT,],
+      ['resolvectl', SUCCEEDING_PROGRAM,],
+      ['sysctl', SUCCEEDING_PROGRAM,],
+      ['systemd-cat', SUCCEEDING_PROGRAM,],
+      ['busctl', SUCCEEDING_PROGRAM,],
+    ] as const).map(async ([name, text,],) => {
+      const path = join(bin, name,);
+      await writeFile(path, text,);
+      await chmod(path, 0o700,);
+    },),
+  );
+  /**
+   The settings this case had before it started.
+   */
+  const previous = { ...process.env, };
+  process.env.PATH = `${bin}:${previous.PATH ?? ''}`;
+  process.env.WG_QUICKER_RUNTIME_DIRECTORY = join(scratch, 'run',);
+  process.env[OPENSNITCH_CONFIG_ENVIRONMENT] = join(scratch, 'no-system-fw.json',);
+  process.env[OPENSNITCH_DAEMON_CONFIG_ENVIRONMENT] = join(scratch, 'no-daemon.json',);
+  process.env.WG_TEST_LINK_STATE = linkState;
+  process.env.WG_TEST_IP_MODE = 'none';
+  process.env.WG_TEST_NFT_MODE = 'hold-f';
+  process.env.WG_TEST_NFT_WAITING_FILE = nftWaiting;
+  process.env.WG_TEST_NFT_GO_FILE = nftGo;
+  await using restore = {
+    async [Symbol.asyncDispose](): Promise<void> {
+      for (const [name, value,] of Object.entries(previous,)) {
+        if (value === undefined)
+          Reflect.deleteProperty(process.env, name,);
+        else
+          process.env[name] = value;
+      }
+      for (const name of ['WG_TEST_LINK_STATE', 'WG_TEST_IP_MODE', 'WG_TEST_NFT_MODE', 'WG_TEST_NFT_WAITING_FILE', 'WG_TEST_NFT_GO_FILE',] as const) {
+        if (previous[name] === undefined)
+          Reflect.deleteProperty(process.env, name,);
+      }
+      await rm(scratch, { force: true, recursive: true, },);
+    },
+  };
+  /**
+   The up that is held at its kill switch, and what it ends with.
+   */
+  const upEnd = { outcome: 'still running', };
+  const started = (async function runTheHeldUp(): Promise<void> {
+    try {
+      await up({ config: configOf(), },);
+      upEnd.outcome = 'returned';
+    }
+    catch (error: unknown) {
+      upEnd.outcome = String(error,);
+    }
+  })();
+  if (!(await fileAppears({ path: nftWaiting, },))) {
+    await writeFile(nftGo, '1',);
+    await started;
+    return {
+      downRefusal: `the up never reached its kill switch: ${upEnd.outcome}`,
+      upReturned: false,
+      linkPresent: false,
+    };
+  }
+  /**
+   What the down of the same interface answered.
+   */
+  const downEnd = { outcome: 'still running', };
+  try {
+    await down({ config: configOf(), },);
+    downEnd.outcome = 'returned';
+  }
+  catch (error: unknown) {
+    downEnd.outcome = String(error,);
+  }
+  await writeFile(nftGo, '1',);
+  await started;
+  /**
+   What the scratch directory holds for the link file.
+   */
+  const left = await readdir(scratch,);
+  return {
+    downRefusal: downEnd.outcome,
+    upReturned: upEnd.outcome === 'returned',
+    linkPresent: left.includes('link',),
   };
 }
 
@@ -233,6 +396,15 @@ await describe({
         const { linkPresent, thrown, } = await upWithStandIns({ mode: 'make-and-fail', },);
         expect(thrown === undefined ? 'returned' : thrown.name,).toBe('CommandError',);
         expect(linkPresent,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'refuses a down while an up of the same interface is running, so a start cannot report success with its tunnel gone',
+      fn: async () => {
+        const { downRefusal, upReturned, linkPresent, } = await upAndDownAtOnce();
+        expect(downRefusal,).toContain('Another wg-quicker lifecycle is running for',);
+        expect(upReturned,).toBe(true,);
+        expect(linkPresent,).toBe(true,);
       },
     },),
     it({

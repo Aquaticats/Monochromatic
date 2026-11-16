@@ -250,9 +250,9 @@ await describe({
         const { thrown, } = await run({ failing: ['stopRouteWatcher',], earlierBlock: true, },);
         const message = messageOf({ thrown, },);
         expect(message,).toContain('an earlier down already removed part of the routing of wgtest, so the tunnel is NOT fully up, and traffic is BLOCKED',);
-        expect(message,).toContain('nft table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('nft table inet wg-quicker-block-wgtest',);
         expect(message,).toContain(BLOCK_EXCEPTIONS,);
-        expect(message,).toContain('sudo nft list table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('sudo nft list table inet wg-quicker-block-wgtest',);
         expect(message,).toContain('this attempt: nothing was removed',);
         expect(message,).not.toContain('is still fully up',);
         expect(message,).toContain('then run `wg-quicker down wgtest` again',);
@@ -364,12 +364,12 @@ await describe({
           expect((thrown as Error).name,).toBe('TeardownIncompleteError',);
           const message = messageOf({ thrown, },);
           expect(message,).toContain(`could not ${what} (Error: ${failing} failed)`,);
-          expect(message,).toContain('traffic is BLOCKED (nft table inet wg-quicker-wgtest-blocked',);
+          expect(message,).toContain('traffic is BLOCKED (nft table inet wg-quicker-block-wgtest',);
           expect(message,).toContain('installed before any routing was removed',);
           expect(message,).toContain(BLOCK_EXCEPTIONS,);
           expect(message,).toContain('except what the routing sends around it by design',);
           expect(message,).toContain('run `wg-quicker down wgtest` again, with this build or with the build that started the tunnel',);
-          expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
+          expect(message,).toContain('sudo nft delete table inet wg-quicker-block-wgtest',);
         }
       },
     },),
@@ -389,9 +389,9 @@ await describe({
         expect((thrown as Error).name,).toBe('TeardownIncompleteError',);
         const message = messageOf({ thrown, },);
         expect(message,).toContain('removed the tunnel but could not lift the traffic block (Error: removeTrafficBlock failed)',);
-        expect(message,).toContain('traffic is still BLOCKED (nft table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('traffic is still BLOCKED (nft table inet wg-quicker-block-wgtest',);
         expect(message,).toContain(BLOCK_EXCEPTIONS,);
-        expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('sudo nft delete table inet wg-quicker-block-wgtest',);
         expect(message,).not.toContain('nothing is blocked',);
       },
     },),
@@ -416,19 +416,19 @@ await describe({
     it({
       name: 'drops what leaves through any interface but loopback and what is forwarded, in a table of its own',
       fn: async () => {
-        expect(trafficBlockTable({ interfaceName: 'wgtest', },),).toBe('wg-quicker-wgtest-blocked',);
+        expect(trafficBlockTable({ interfaceName: 'wgtest', },),).toBe('wg-quicker-block-wgtest',);
         /**
          The script for the interface.
          */
         const script = trafficBlockScript({ interfaceName: 'wgtest', },);
-        expect(script,).toContain('add table inet wg-quicker-wgtest-blocked\nflush table inet wg-quicker-wgtest-blocked\n',);
+        expect(script,).toContain('add table inet wg-quicker-block-wgtest\nflush table inet wg-quicker-block-wgtest\n',);
         expect(script,).not.toContain('delete',);
         expect(script,).toContain('hook output priority -400; policy accept; }',);
         expect(script,).toContain('output oifname != "lo" counter drop\n',);
         expect(script,).toContain('hook forward priority -400; policy accept; }',);
         expect(script,).toContain('forward counter drop\n',);
         expect(script.endsWith('\n',),).toBe(true,);
-        expect(trafficBlockTable({ interfaceName: 'wgtest', },),).not.toBe('wg-quicker-wgtest',);
+        expect(trafficBlockTable({ interfaceName: 'wgtest', },),).not.toBe('wg-quicker-kill-wgtest',);
       },
     },),
   ],

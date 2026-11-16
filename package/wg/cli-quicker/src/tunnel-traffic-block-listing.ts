@@ -85,7 +85,7 @@ function isTable({
 
  @example
  ```ts
- tablePresence({ text: '{"nftables":[]}', family: 'inet', name: 'wg-quicker-wg0-blocked' }); // 'absent'
+ tablePresence({ text: '{"nftables":[]}', family: 'inet', name: 'wg-quicker-block-wg0' }); // 'absent'
  ```
  */
 export function tablePresence({

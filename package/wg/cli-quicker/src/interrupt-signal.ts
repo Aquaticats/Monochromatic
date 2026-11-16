@@ -8,14 +8,20 @@ import { UpInterruptedError, } from './errors.ts';
 const l = tagged({ tag: 'interrupt-signal', },);
 
 /**
- Signals that end an `up` before its last step.
- A terminal's interrupt and a shutdown request are the same thing here:
- either one stops an up that has changed something,
+ Signals that end an `up`.
+ A terminal's interrupt, a shutdown request and the hangup of a closed terminal
+ are the same thing here:
+ each one stops an up that has changed something,
  and the rollback of the up removes what it created.
+
+ `SIGHUP` belongs here because a terminal that closes sends it,
+ and without a handler its default action ends the process at once:
+ the up then left its link, and no kill switch and no rule, behind.
  */
 const INTERRUPT_SIGNALS: readonly NodeJS.Signals[] = [
   'SIGINT',
   'SIGTERM',
+  'SIGHUP',
 ];
 
 /**

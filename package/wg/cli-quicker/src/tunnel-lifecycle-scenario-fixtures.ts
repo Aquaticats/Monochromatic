@@ -101,6 +101,14 @@ async function held() {
 async function main() {
   if (mode === 'hold-link-add' && words[0] === 'link' && words[1] === 'add')
     await held();
+  // Held between the fwmark and the first rule of a tunnel: the window a kill lands in.
+  if (mode === 'hold-rule-add' && words.includes('rule') && words.includes('add'))
+    await held();
+  // Refused at the first rule, so a second tunnel's up fails after its own table is claimed.
+  if (mode === 'fail-rule-add' && words.includes('rule') && words.includes('add')) {
+    process.stderr.write('shim: refused the rule\\n');
+    process.exit(2);
+  }
   const child = spawn(${JSON.stringify(realIp,)}, words, { stdio: 'inherit' });
   child.on('close', (code) => process.exit(code ?? 1));
 }
@@ -247,6 +255,10 @@ export async function writeConfig(
  */
 export type RunningCli = {
   /**
+   Program number of the run, for a scenario that has to end it.
+   */
+  readonly pid: number;
+  /**
    Resolves with the exit code and everything the run printed.
    */
   readonly done: Promise<{
@@ -355,6 +367,7 @@ export function startCli(
     },
   );
   return {
+    pid: child.pid ?? 0,
     done: promise,
     printedSoFar: function printedSoFar(): string {
       return printed.text;

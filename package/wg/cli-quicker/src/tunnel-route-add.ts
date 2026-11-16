@@ -6,7 +6,6 @@ import {
   runAllowingFailure,
 } from './runner.ts';
 import { makeTempDir, } from './tempdir.ts';
-import { findFreeTable, } from './tunnel-table.ts';
 import {
   isV6,
   protoFlag,
@@ -18,51 +17,30 @@ import {
 type Proto = '-4' | '-6';
 
 /**
- Ensures the interface fwmark is set and returns its table number.
- 
- The interface fwmark is the policy table shared by both address families, so
- it is allocated and set exactly once per interface, matching wg-quick.
- 
- @param interfaceName - Interface whose fwmark is configured.
- 
- @returns The interface's policy table number.
- 
+ Sets the interface fwmark, which marks the packets the tunnel sends.
+
+ The table the mark names is chosen before this call and recorded in the interface's
+ claim, so the mark is set to a table this interface owns and never to a free one
+ another lifecycle may be about to use.
+
+ @param interfaceName - Interface whose fwmark is set.
+
+ @param table - Policy table the interface owns.
+
  @example
  ```ts
- await ensureFwmark({ interfaceName: 'wg0' });
+ await setFwmark({ interfaceName: 'wg0', table: 51820 });
  ```
  */
-export async function ensureFwmark(
-  { interfaceName, }: { readonly interfaceName: string; },
-): Promise<number> {
-  /**
-   Existing interface fwmark reported by `wg show fwmark`, `0`/off means unset.
-   */
-  const { stdout, } = await run({
-    command: 'wg',
-    args: [
-      'show',
-      interfaceName,
-      'fwmark',
-    ],
-  },);
-  /**
-   Parsed fwmark; `off` or `0` means no table is allocated yet.
-   */
-  const existing = stdout.trim();
-  if ((existing !== 'off') && (existing !== '0')
-    && (existing !== '')) {
-    /**
-     Already-allocated table number carried in the fwmark.
-     */
-    const parsed = Math.trunc(Number(existing,),);
-    if (Number.isSafeInteger(parsed,) && (parsed > 0))
-      return parsed;
-  }
-  /**
-   Freshly allocated policy table shared by both families.
-   */
-  const table = await findFreeTable();
+export async function setFwmark(
+  {
+    interfaceName,
+    table,
+  }: {
+    readonly interfaceName: string;
+    readonly table: number;
+  },
+): Promise<void> {
   await run({
     command: 'wg',
     args: [
@@ -72,7 +50,6 @@ export async function ensureFwmark(
       String(table,),
     ],
   },);
-  return table;
 }
 
 /**

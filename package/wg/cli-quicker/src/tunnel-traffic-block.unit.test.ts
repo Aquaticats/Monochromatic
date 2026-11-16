@@ -129,7 +129,7 @@ function listing({ tables, }: { readonly tables: readonly { readonly family: str
 /**
  Answer of `nft --json list tables` for a ruleset with the block in it.
  */
-const LISTED: Answer = listing({ tables: [{ family: 'inet', name: 'wg-quicker-wgtest-blocked', },], },);
+const LISTED: Answer = listing({ tables: [{ family: 'inet', name: 'wg-quicker-block-wgtest', },], },);
 
 /**
  Answer of `nft --json list tables` for a ruleset without the block,
@@ -196,8 +196,8 @@ await describe({
          Lines of the script.
          */
         const lines = (seen[0]?.script ?? '').split('\n',);
-        expect(lines[0],).toBe('add table inet wg-quicker-wgtest-blocked',);
-        expect(lines[1],).toBe('flush table inet wg-quicker-wgtest-blocked',);
+        expect(lines[0],).toBe('add table inet wg-quicker-block-wgtest',);
+        expect(lines[1],).toBe('flush table inet wg-quicker-block-wgtest',);
         expect(lines.some((line,) => line.startsWith('delete',) || line.includes('delete table',),),).toBe(false,);
         expect(seen[0]?.script,).toBe(trafficBlockScript({ interfaceName: 'wgtest', },),);
         /**
@@ -232,7 +232,7 @@ await describe({
         /**
          The calls made.
          */
-        const { runner, calls, } = scripted({ answers: [listing({ tables: [{ family: 'ip', name: 'wg-quicker-wgtest-blocked', },], },),], },);
+        const { runner, calls, } = scripted({ answers: [listing({ tables: [{ family: 'ip', name: 'wg-quicker-block-wgtest', },], },),], },);
         expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: runner, },),).toBe('absent',);
         expect(calls,).toEqual([['--json', 'list', 'tables',],],);
       },
@@ -272,7 +272,7 @@ await describe({
           const { runner, calls, } = scripted({ answers, },);
           // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own recording.
           await removeTrafficBlock({ interfaceName: 'wgtest', runCommand: runner, },);
-          expect(calls[0],).toEqual(['delete', 'table', 'inet', 'wg-quicker-wgtest-blocked',],);
+          expect(calls[0],).toEqual(['delete', 'table', 'inet', 'wg-quicker-block-wgtest',],);
           expect(calls[1],).toEqual(['--json', 'list', 'tables',],);
         }
       },
@@ -294,9 +294,9 @@ await describe({
          Its message.
          */
         const message = String(thrown,);
-        expect(message,).toContain('the traffic block (nft table inet wg-quicker-wgtest-blocked) is still in place',);
+        expect(message,).toContain('the traffic block (nft table inet wg-quicker-block-wgtest) is still in place',);
         expect(message,).toContain('nft delete table exited 1: Error: Operation not permitted',);
-        expect(message,).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
+        expect(message,).toContain('sudo nft delete table inet wg-quicker-block-wgtest',);
       },
     },),
     it({
@@ -312,9 +312,9 @@ await describe({
           },),
         },);
         expect((thrown as Error).name,).toBe('TrafficBlockError',);
-        expect(String(thrown,),).toContain('could not tell whether the traffic block (nft table inet wg-quicker-wgtest-blocked) was removed',);
-        expect(String(thrown,),).toContain('sudo nft list table inet wg-quicker-wgtest-blocked',);
-        expect(String(thrown,),).toContain('sudo nft delete table inet wg-quicker-wgtest-blocked',);
+        expect(String(thrown,),).toContain('could not tell whether the traffic block (nft table inet wg-quicker-block-wgtest) was removed',);
+        expect(String(thrown,),).toContain('sudo nft list table inet wg-quicker-block-wgtest',);
+        expect(String(thrown,),).toContain('sudo nft delete table inet wg-quicker-block-wgtest',);
       },
     },),
   ],
@@ -374,7 +374,7 @@ await describe({
         /**
          Table that holds the block.
          */
-        const table = 'wg-quicker-wgtest-blocked';
+        const table = 'wg-quicker-block-wgtest';
         /**
          Where each rule stands.
          */
@@ -435,7 +435,7 @@ await describe({
         expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('accept',) && (!line.includes('policy accept',)),),).toEqual([],);
         expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('meta mark',),),).toEqual([],);
         expect(lines.filter((line,) => line.includes(' saddr ',),),).toEqual([],);
-        expect(lines.includes('add rule inet wg-quicker-wgtest-blocked forward counter drop',),).toBe(true,);
+        expect(lines.includes('add rule inet wg-quicker-block-wgtest forward counter drop',),).toBe(true,);
         expect(lines.some((line,) => line.includes(' output ',) && line.includes('meta mark',),),).toBe(true,);
       },
     },),
@@ -475,17 +475,17 @@ await describe({
           clearnet: { ...CLEARNET, interfaces, },
         },).split('\n',).filter((line,) => line.includes(' saddr ',),);
         expect(sourceRules([{ family: '-4', name: 'eth0', },],),).toEqual([
-          'add rule inet wg-quicker-wgtest-blocked forward iifname { "eth0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept',
+          'add rule inet wg-quicker-block-wgtest forward iifname { "eth0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept',
         ],);
         expect(sourceRules([{ family: '-6', name: 'wlan0', },],),).toEqual([
-          'add rule inet wg-quicker-wgtest-blocked forward iifname { "wlan0" } ct direction reply ip6 saddr { 2001:db8::7 } counter accept',
+          'add rule inet wg-quicker-block-wgtest forward iifname { "wlan0" } ct direction reply ip6 saddr { 2001:db8::7 } counter accept',
         ],);
         // Without any physical default interface no forwarded packet counts as a reply, and the destination rules stay.
         expect(sourceRules([],),).toEqual([],);
         expect(trafficBlockScript({ interfaceName: 'wgtest', clearnet: { ...CLEARNET, interfaces: [], }, },),).toContain(' forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept',);
         // The same interface twice is written once.
         expect(sourceRules([{ family: '-4', name: 'eth0', }, { family: '-4', name: 'eth0', },],),).toEqual([
-          'add rule inet wg-quicker-wgtest-blocked forward iifname { "eth0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept',
+          'add rule inet wg-quicker-block-wgtest forward iifname { "eth0" } ct direction reply ip saddr { 203.0.113.7, 203.0.113.8 } counter accept',
         ],);
       },
     },),

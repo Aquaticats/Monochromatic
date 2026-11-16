@@ -10,6 +10,28 @@ import { makeTempDir, } from './tempdir.ts';
 import { isV6, } from './tunnel-util.ts';
 
 /**
+ Name of the kill-switch table of one interface.
+
+ The name carries `kill-` right after the program's prefix, and the traffic block's
+ carries `block-` in the same place, so no interface name can make one table's name
+ equal another's: `wgq` and `wgq-blocked` were enough to do that when the kill switch
+ was `wg-quicker-<interface>` and the block was `wg-quicker-<interface>-blocked`,
+ and the `down` of `wgq` then deleted the kill switch of the running `wgq-blocked`.
+
+ @param interfaceName - Tunnel interface.
+
+ @returns The table name.
+
+ @example
+ ```ts
+ killSwitchTable({ interfaceName: 'wg0' }); // 'wg-quicker-kill-wg0'
+ ```
+ */
+export function killSwitchTable({ interfaceName, }: { readonly interfaceName: string; },): string {
+  return `wg-quicker-kill-${interfaceName}`;
+}
+
+/**
  Installs the nft kill-switch so non-tunnel packets to interface addresses drop.
  
  @param config - Parsed config (addresses drive the drop rules).
@@ -37,7 +59,7 @@ export async function addKillSwitch(
   /**
    Name of the dedicated nft table for this interface.
    */
-  const nftable = `wg-quicker-${iface}`;
+  const nftable = killSwitchTable({ interfaceName: iface, },);
   /**
    nft statements built up and applied atomically via `nft -f`.
    */
@@ -111,6 +133,18 @@ export async function addKillSwitch(
 export async function removeKillSwitch(
   { interfaceName, }: { readonly interfaceName: string; },
 ): Promise<void> {
+  await runAllowingFailure({
+    command: 'nft',
+    args: [
+      'delete',
+      'table',
+      'inet',
+      killSwitchTable({ interfaceName, },),
+    ],
+  },);
+  // An earlier build named this table `wg-quicker-<interface>`, and a tunnel it left
+  // behind still has it; nothing else ever used that name, so deleting it here is
+  // this interface's own table and never another's.
   await runAllowingFailure({
     command: 'nft',
     args: [

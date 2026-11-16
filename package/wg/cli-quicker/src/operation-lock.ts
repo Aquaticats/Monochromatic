@@ -1,4 +1,5 @@
 import { spawn as spawnChild, } from 'node:child_process';
+import { once, } from 'node:events';
 import { createInterface, } from 'node:readline';
 import { text, } from 'node:stream/consumers';
 
@@ -57,6 +58,27 @@ export const OPERATION_LOCK_RELEASE_DEADLINE_MILLISECONDS = 2_000;
  Milliseconds between checks of whether the holder ended while the lock is released.
  */
 const RELEASE_POLL_MILLISECONDS = 10;
+
+/**
+ Sentinel standing for a holder that ended by a signal, which has no exit status.
+ */
+const ENDED_BY_SIGNAL: unique symbol = Symbol('the holder ended by a signal',);
+
+/**
+ Sentinel standing for a holder whose status the acknowledgement window missed.
+ */
+const STATUS_NOT_READ: unique symbol = Symbol('the holder status was not delivered in time',);
+
+/**
+ Milliseconds the claim waits for the holder's own exit status after its output closed.
+
+ A stream closes before the process's exit status is delivered, so a claim that
+ read the status immediately saw `null` and reported that instead of the conflict,
+ which is the one answer a caller has to tell "busy" from "broken".
+ Measured on this host, the status arrives within a few milliseconds of the close;
+ five hundred is the point where it is not coming.
+ */
+const HOLDER_EXIT_SETTLE_MILLISECONDS = 500;
 
 /**
  JavaScript run after `flock --no-fork` acquires lock.
@@ -187,6 +209,27 @@ export async function claimOperationLock(
     }
   }
   /**
+   The holder's own exit status, once it has ended.
+
+   @returns The status, or one of the two sentinels when a signal ended it or the status was not delivered.
+   */
+  async function holderExitCode(): Promise<number | typeof ENDED_BY_SIGNAL | typeof STATUS_NOT_READ> {
+    if ((holder.exitCode === null) && (holder.signalCode === null)) {
+      await Promise.race([
+        once(
+          holder,
+          'exit',
+        ),
+        wait(HOLDER_EXIT_SETTLE_MILLISECONDS,),
+      ],);
+    }
+    if (holder.exitCode !== null)
+      return holder.exitCode;
+    if (holder.signalCode !== null)
+      return ENDED_BY_SIGNAL;
+    return STATUS_NOT_READ;
+  }
+  /**
    Waits, bounded, for the holder to end.
 
    @param milliseconds - Longest time to wait.
@@ -279,6 +322,10 @@ export async function claimOperationLock(
     throw deadlineRefusal();
   }
   /**
+   The holder's exit status, waited for within a bound because its output closes first.
+   */
+  const exitCode = await holderExitCode();
+  /**
    Diagnostic after holder exits without readiness.
    */
   const diagnostic = await stderr;
@@ -288,9 +335,26 @@ export async function claimOperationLock(
   const [spawnFailureMessage,] = spawnFailureMessages;
   if (spawnFailureMessage !== undefined)
     throw errorFactory(`Cannot start operation-lock holder: ${spawnFailureMessage}`,);
-  if (holder.exitCode === LOCK_CONFLICT_EXIT_CODE)
+  if (exitCode === LOCK_CONFLICT_EXIT_CODE)
     throw errorFactory(conflictMessage,);
   throw errorFactory(
-    `Operation-lock holder exited ${String(holder.exitCode,)} before readiness: ${diagnostic}`,
+    `Operation-lock holder exited ${endedWords({ exitCode, },)} before readiness: ${diagnostic}`,
   );
+}
+
+/**
+ Says how the holder ended, for the refusal that reports it.
+
+ @param exitCode - Its status, or the sentinel that stands for a signal or an unread status.
+
+ @returns The words.
+ */
+function endedWords(
+  { exitCode, }: { readonly exitCode: number | typeof ENDED_BY_SIGNAL | typeof STATUS_NOT_READ; },
+): string {
+  if (exitCode === ENDED_BY_SIGNAL)
+    return 'by a signal';
+  if (exitCode === STATUS_NOT_READ)
+    return 'without a status this program could read';
+  return `with status ${String(exitCode,)}`;
 }

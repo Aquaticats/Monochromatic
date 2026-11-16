@@ -139,11 +139,25 @@ Automatic partial routes now use the same source-mark validation and nft ingress
 routes.
 
 Separate automatic tunnels use separate policy tables.
-The choice of a free table and the `ip rule` rules that name it happen together under the global allocation
-lock,
-so a table one start has chosen is already named in the kernel before another start looks for a free one.
+The choice of a free table and of the preference pair its two rules take is written down in a claim
+under `/run/wg-quicker` before the fwmark is set and before any rule exists,
+and the same global allocation lock covers the claim, the fwmark and the rules that name the table.
+A claim is what keeps a table out of another tunnel's reach in the window between `wg set fwmark` and
+the first `ip rule add`:
+a lifecycle killed there leaves a table the kernel shows as free, and without the claim the next tunnel
+took it, both tunnels then shared one table, and the `down` of the dead one deleted the live one's rules.
 A start that finds another lifecycle allocating fails its step with the conflict and rolls back,
 and the rollback removes only what that start made.
+
+The claim also names the exact preference of this tunnel's `table main suppress_prefixlength 0` rule,
+whose `not fwmark` rule sits at the next preference.
+`down` and a failed `up`'s rollback therefore delete this interface's own two rules by preference,
+for the address families the claim records, and never another tunnel's:
+the shape of a suppression rule names no interface and no table, so a delete by shape removes whichever
+rule of that shape has the lowest preference, which used to be another tunnel's, and its local-network
+traffic then went into the tunnel.
+A tunnel an earlier build set up has no claim, and its rules are found from the live fwmark as before,
+with the warning about an untagged suppression left in place.
 When their allowed prefixes overlap,
 policy-rule priority chooses the first table before longest-prefix matching can compare routes across tunnels.
 Use explicit routing ownership when simultaneous overlapping automatic tunnels must preserve cross-interface
@@ -572,9 +586,20 @@ It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
 
+`up` and `down` of one interface take one whole-lifecycle lock
+(`interface-<key>.lifecycle.lock` under `/run/wg-quicker`) for the whole of their run,
+and it is non-blocking like the others.
+Without it an `up` held just before its kill switch went on after a `down` of the same interface had run to its end,
+exited 0, and left no link, no rules and an orphan kill-switch table.
+A second command for the same interface now refuses with
+`Another wg-quicker lifecycle is running for <interface>: wait for it to end and run the command again.`,
+and the start that holds the lock finishes with everything it made.
+
 ## An interrupted run, and how long a command may take
 
-`up` installs handlers for `SIGINT` and `SIGTERM` before its first step and removes them when it ends.
+`up` installs handlers for `SIGINT`, `SIGTERM` and `SIGHUP` before its first step and removes them when it ends.
+`SIGHUP` is here because a terminal that closes sends it,
+and without a handler its default action ended the process at once, leaving the link without a kill switch or a rule.
 A signal therefore stops the up between two steps,
 runs the same rollback a failing step runs,
 and reports the signal and the step that did not run:
@@ -736,10 +761,12 @@ not when a step fails,
 and not when `down` is killed or crashes part way,
 because the block is an nft table in the kernel and stays until it is removed.
 It is an nft table of its own,
-`inet wg-quicker-<interface>-blocked`,
+`inet wg-quicker-block-<interface>`,
 that drops everything forwarded and everything leaving through an interface other than loopback,
 except the clearnet traffic described under the heading "Clearnet traffic still flows".
-The tunnel's kill switch (`inet wg-quicker-<interface>`) is a different table and only drops spoofed packets addressed to the tunnel's own addresses;
+The tunnel's kill switch (`inet wg-quicker-kill-<interface>`) is a different table and only drops spoofed packets addressed to the tunnel's own addresses;
+the two names carry `kill-` and `block-` in the same place, so no interface name can make one tunnel's kill switch the other's block:
+with `wg-quicker-<interface>` and `wg-quicker-<interface>-blocked`, a tunnel named `wgq-blocked` had exactly the table the `down` of `wgq` deleted;
 it blocks nothing outbound.
 The rest of the network does not work while the block is in place,
 which is a few moments in a `down` that succeeds.
@@ -884,20 +911,20 @@ then, if the state file is damaged, move it away and run `wg-quicker down fr-par
   sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
 or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file). The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing, so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:
   # no exceptions could be read, so this block lets nothing through except loopback, the updates slice included, until the last command of this list lifts it
-  sudo nft 'add table inet wg-quicker-fr-par-fr1-blocked; flush table inet wg-quicker-fr-par-fr1-blocked; add chain inet wg-quicker-fr-par-fr1-blocked output { type filter hook output priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked output oifname != "lo" counter drop; add chain inet wg-quicker-fr-par-fr1-blocked forward { type filter hook forward priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked forward counter drop'
+  sudo nft 'add table inet wg-quicker-block-fr-par-fr1; flush table inet wg-quicker-block-fr-par-fr1; add chain inet wg-quicker-block-fr-par-fr1 output { type filter hook output priority -400; policy accept; }; add rule inet wg-quicker-block-fr-par-fr1 output oifname != "lo" counter drop; add chain inet wg-quicker-block-fr-par-fr1 forward { type filter hook forward priority -400; policy accept; }; add rule inet wg-quicker-block-fr-par-fr1 forward counter drop'
   sudo <path of wg-quicker-exempt> watch-stop fr-par-fr1
   sudo ip -4 rule delete table <policy table>
   sudo ip -6 rule delete table <policy table>
   sudo ip -4 rule delete table main suppress_prefixlength 0
   sudo ip -6 rule delete table main suppress_prefixlength 0
-  sudo nft delete table inet wg-quicker-fr-par-fr1
+  sudo nft delete table inet wg-quicker-kill-fr-par-fr1
   sudo ip link delete dev fr-par-fr1
   # only when the config sets DNS
   sudo resolvectl revert fr-par-fr1
 ...the bypass rules and routes that carry protocol 201 (the message says how to find and remove them)
   sudo rm --force /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.watcher.json
   # lift the traffic block; the network works again
-  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
+  sudo nft delete table inet wg-quicker-block-fr-par-fr1
 ```
 
 The route watcher is stopped before anything else,
@@ -958,7 +985,7 @@ with the exceptions it was installed with,
 and not replaced by one that has none.
 Sockets that carry the mark keep passing during that window,
 because the kept block still lets them through.
-The kill switch (`inet wg-quicker-<interface>`) has chains only in the prerouting and postrouting hooks (`src/tunnel-firewall.ts`),
+The kill switch (`inet wg-quicker-kill-<interface>`) has chains only in the prerouting and postrouting hooks (`src/tunnel-firewall.ts`),
 so it has nothing that drops marked output packets and does not change this.
 
 An unprivileged process cannot give its packets the mark.
@@ -1012,9 +1039,9 @@ the error says the block is in place:
 
 ```text
 error: down fr-par-fr1 failed part way: could not delete the interface (<reason>)
-traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine except the clearnet traffic it was installed to let through (traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, including forwarded traffic to them, when the interface has an application bypass), and was installed before any routing was removed), so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished
+traffic is BLOCKED (nft table inet wg-quicker-block-fr-par-fr1 drops everything that leaves the machine except the clearnet traffic it was installed to let through (traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, including forwarded traffic to them, when the interface has an application bypass), and was installed before any routing was removed), so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished
 to finish: run `wg-quicker down fr-par-fr1` again, with this build or with the build that started the tunnel; a down that succeeds removes the block
-to lift the block by hand: sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
+to lift the block by hand: sudo nft delete table inet wg-quicker-block-fr-par-fr1
 ```
 
 A block that cannot be lifted after the interface is gone is the first problem the error names,
@@ -1030,7 +1057,7 @@ and each of them shows that it is gone:
 when the table is still there after the delete,
 or cannot be shown gone,
 they stop with an error that names the table and the command that removes it,
-`sudo nft delete table inet wg-quicker-<interface>-blocked`.
+`sudo nft delete table inet wg-quicker-block-<interface>`.
 The table counts as gone only when `nft --json list tables` exits with status zero and its listing has no `inet` table of that name;
 a failed listing,
 such as one run without privilege,

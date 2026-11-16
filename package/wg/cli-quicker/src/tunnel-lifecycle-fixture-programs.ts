@@ -429,7 +429,7 @@ export async function cleanInterfaces(
         'delete',
         'table',
         'inet',
-        `wg-quicker-${interfaceName}`,
+        `wg-quicker-kill-${interfaceName}`,
       ],
     },);
   }
@@ -520,7 +520,7 @@ export async function killSwitchTable(
       'list',
       'table',
       'inet',
-      `wg-quicker-${interfaceName}`,
+      `wg-quicker-kill-${interfaceName}`,
     ],
   },);
 }

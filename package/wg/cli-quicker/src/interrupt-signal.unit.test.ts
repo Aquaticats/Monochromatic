@@ -159,6 +159,27 @@ await describe({
       },
     },),
     it({
+      name: 'stops the up when the terminal that started it closes, which arrives as SIGHUP and used to end the process with a half-made tunnel',
+      fn: async () => {
+        using interruption = watchForInterruption();
+        process.emit('SIGHUP', 'SIGHUP',);
+        /**
+         The refusal the next step boundary must raise.
+         */
+        const refusal = ((): unknown => {
+          try {
+            interruption.beforeStep('install the kill switch',);
+          }
+          catch (error: unknown) {
+            return error;
+          }
+          throw new Error('an up that caught SIGHUP did not refuse its next step',);
+        })();
+        expect((refusal as Error).name,).toBe('UpInterruptedError',);
+        expect((refusal as Error).message,).toContain('SIGHUP',);
+      },
+    },),
+    it({
       name: 'removes its signal handlers when the up ends, so a later stop in the same process sees the signal again',
       fn: async () => {
         /**

@@ -28,6 +28,8 @@ import {
   type ProgramPaths,
   type ProgramResult,
 } from './tunnel-lifecycle-fixture-programs.ts';
+import { runLaterParts, } from './tunnel-lifecycle-scenario-later-parts.ts';
+import { runRacedParts, } from './tunnel-lifecycle-scenario-raced-parts.ts';
 import {
   createRunEnvironment,
   generateKeyPair,
@@ -52,6 +54,10 @@ const INTERFACES: readonly string[] = [
   'wglrace',
   'wgla',
   'wglb',
+  'wgls',
+  'wglt',
+  'wglk',
+  'wgld',
 ];
 
 /**
@@ -137,6 +143,34 @@ const secondConfig = join(
   scratch,
   'wglb.conf',
 );
+/**
+ Config path of the first tunnel of the suppression pair.
+ */
+const suppressionFirstConfig = join(
+  scratch,
+  'wgls.conf',
+);
+/**
+ Config path of the second tunnel of the suppression pair.
+ */
+const suppressionSecondConfig = join(
+  scratch,
+  'wglt.conf',
+);
+/**
+ Config path of the tunnel whose start is killed in the table window.
+ */
+const killedConfig = join(
+  scratch,
+  'wglk.conf',
+);
+/**
+ Config path of the tunnel that comes up while the killed one's fwmark is still there.
+ */
+const afterKillConfig = join(
+  scratch,
+  'wgld.conf',
+);
 await writeConfig({
   path: racedConfig,
   privateKey: (await generateKeyPair({ wgPath: programs.wg, },)).privateKey,
@@ -161,278 +195,122 @@ await writeConfig({
   allowedIps: '10.0.0.0/8',
   port: 51_812,
 },);
+await writeConfig({
+  path: suppressionFirstConfig,
+  privateKey: (await generateKeyPair({ wgPath: programs.wg, },)).privateKey,
+  peerPublicKey: peer.publicKey,
+  address: '10.99.21.1/24',
+  allowedIps: '0.0.0.0/0',
+  port: 51_821,
+},);
+await writeConfig({
+  path: suppressionSecondConfig,
+  privateKey: (await generateKeyPair({ wgPath: programs.wg, },)).privateKey,
+  peerPublicKey: peer.publicKey,
+  address: '10.99.22.1/24',
+  allowedIps: '0.0.0.0/0',
+  port: 51_822,
+},);
+await writeConfig({
+  path: killedConfig,
+  privateKey: (await generateKeyPair({ wgPath: programs.wg, },)).privateKey,
+  peerPublicKey: peer.publicKey,
+  address: '10.99.23.1/24',
+  allowedIps: '0.0.0.0/0',
+  port: 51_823,
+},);
+await writeConfig({
+  path: afterKillConfig,
+  privateKey: (await generateKeyPair({ wgPath: programs.wg, },)).privateKey,
+  peerPublicKey: peer.publicKey,
+  address: '10.99.24.1/24',
+  allowedIps: '0.0.0.0/0',
+  port: 51_824,
+},);
 await cleanInterfaces({
   programs,
   interfaceNames: INTERFACES,
 },);
+// A LAN-like connected route in the main table, which must keep its own interface.
+await ipCall({
+  programs,
+  args: [
+    'link',
+    'add',
+    'lan0',
+    'type',
+    'dummy',
+  ],
+},);
+await ipCall({
+  programs,
+  args: [
+    'addr',
+    'add',
+    '192.168.77.2/24',
+    'dev',
+    'lan0',
+  ],
+},);
+await ipCall({
+  programs,
+  args: [
+    'link',
+    'set',
+    'lan0',
+    'up',
+  ],
+},);
 
-// The raced link: one up is held between its probe and its `ip link add` while the other finishes.
 /**
- File the held stand-in writes when it reached the held call.
+ What the raced-link and concurrent-pair sections observed.
  */
-const waitingFile = join(
+const early = await runRacedParts({
+  programs,
+  environment,
+  bundle: CLI_BUNDLE,
   scratch,
-  'raced-waiting',
-);
+  configs: {
+    raced: racedConfig,
+    first: firstConfig,
+    second: secondConfig,
+  },
+},);
+
 /**
- File that releases the held call.
+ What the two later sections observed: the suppression pair and the killed start.
  */
-const goFile = join(
+const later = await runLaterParts({
+  programs,
+  environment,
+  bundle: CLI_BUNDLE,
   scratch,
-  'raced-go',
-);
-/**
- The held up, which loses the race for the link.
- */
-const held = startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'up',
-  configPath: racedConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_IP: 'hold-link-add',
-    WG_SHIM_WAITING_FILE: waitingFile,
-    WG_SHIM_GO_FILE: goFile,
+  configs: {
+    suppressionFirst: suppressionFirstConfig,
+    suppressionSecond: suppressionSecondConfig,
+    killed: killedConfig,
+    afterKill: afterKillConfig,
   },
 },);
-if (!(await waitForFile({ path: waitingFile, },))) {
-  /**
-   What the held up answered in the second after the wait gave up, when it had already ended.
-   */
-  const early = await Promise.race([
-    held.done,
-    afterOneSecond(),
-  ],);
-  throw new Error(
-    `The held up never reached its link add (${early === undefined ? 'still running' : `exit ${String(early.exitCode,)}`}): ${held.printedSoFar()}`,
-  );
-}
-/**
- The up that finishes first, while the held one waits.
- */
-const winner = startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'up',
-  configPath: racedConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_IP: 'none',
-  },
-},);
-/**
- What the winning up answered.
- */
-const winnerResult = await winner.done;
-/**
- Kernel state after the winning up.
- */
-const racedAfterWinner = await stateOf({
-  programs,
-  interfaceName: 'wglrace',
-},);
-/**
- Policy rules after the winning up.
- */
-const rulesAfterWinner = (await ruleListing({ programs, },)).stdout;
-/**
- The kill-switch table the winning up installed.
- */
-const killSwitchAfterWinner = (await killSwitchTable({
-  programs,
-  interfaceName: 'wglrace',
-},)).status === 0;
-await writeFile(
-  goFile,
-  '1',
-);
-/**
- What the losing up answered.
- */
-const heldResult = await held.done;
-/**
- Kernel state after the losing up rolled back.
- */
-const racedAfterLoser = await stateOf({
-  programs,
-  interfaceName: 'wglrace',
-},);
-/**
- Policy rules after the losing up rolled back.
- */
-const rulesAfterLoser = (await ruleListing({ programs, },)).stdout;
-/**
- The kill-switch table after the losing up rolled back.
- */
-const killSwitchAfterLoser = (await killSwitchTable({
-  programs,
-  interfaceName: 'wglrace',
-},)).status === 0;
-await startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'down',
-  configPath: racedConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_IP: 'none',
-  },
-},)
-  .done;
 
-// The concurrent pair: a solo up first, as the positive control that one tunnel gets a table of its own.
-/**
- What the solo up answered.
- */
-const soloResult = await startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'up',
-  configPath: firstConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_WG: 'none',
-  },
-},)
-  .done;
-/**
- Kernel state of the solo tunnel.
- */
-const soloState = await stateOf({
-  programs,
-  interfaceName: 'wgla',
-},);
-await startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'down',
-  configPath: firstConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_WG: 'none',
-  },
-},)
-  .done;
-
-// Both ups are held where the table is chosen, so both would choose the same free table.
-/**
- First concurrent up.
- */
-const firstRun = startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'up',
-  configPath: firstConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_WG: 'hold-fwmark',
-  },
-},);
-/**
- Second concurrent up.
- */
-const secondRun = startCli({
-  bundle: CLI_BUNDLE,
-  operation: 'up',
-  configPath: secondConfig,
-  environment: {
-    ...environment,
-    WG_SHIM_WG: 'hold-fwmark',
-  },
-},);
-/**
- What the concurrent pair answered.
- */
-const [firstResult, secondResult,] = await Promise.all([
-  firstRun.done,
-  secondRun.done,
-],);
-/**
- Runs one up again after it lost the choice of a table, as the person would.
- */
-async function retryUp({ configPath, }: { readonly configPath: string; },): Promise<void> {
-  await startCli({
-    bundle: CLI_BUNDLE,
-    operation: 'up',
-    configPath,
-    environment: {
-      ...environment,
-      WG_SHIM_WG: 'none',
-    },
-  },)
-    .done;
-}
-if (firstResult.exitCode !== 0)
-  await retryUp({ configPath: firstConfig, },);
-if (secondResult.exitCode !== 0)
-  await retryUp({ configPath: secondConfig, },);
-/**
- State of each interface after the concurrent pair and the retry of a start that lost.
- */
-const firstState = await stateOf({
-  programs,
-  interfaceName: 'wgla',
-},);
-/**
- State of the second interface of the concurrent pair.
- */
-const secondState = await stateOf({
-  programs,
-  interfaceName: 'wglb',
-},);
-/**
- What the kernel answers for one address of each tunnel's own prefixes.
- */
-const routeGets = {
-  ten: (await ipCall({
-    programs,
-    args: [
-      '-4',
-      'route',
-      'get',
-      '10.0.0.1',
-    ],
-  },)).stdout
-    .trim(),
-  eight: (await ipCall({
-    programs,
-    args: [
-      '-4',
-      'route',
-      'get',
-      '8.8.8.8',
-    ],
-  },)).stdout
-    .trim(),
-};
 await cleanInterfaces({
   programs,
   interfaceNames: INTERFACES,
+},);
+await ipCall({
+  programs,
+  args: [
+    'link',
+    'delete',
+    'dev',
+    'lan0',
+  ],
 },);
 
 console.log(JSON.stringify({
-  raced: {
-    winnerExit: winnerResult.exitCode,
-    loserExit: heldResult.exitCode,
-    loserOutput: heldResult.output
-      .slice(-REPORTED_OUTPUT_CHARACTERS,),
-    winnerOutput: winnerResult.output
-      .slice(-REPORTED_OUTPUT_CHARACTERS,),
-    afterWinner: racedAfterWinner,
-    afterLoser: racedAfterLoser,
-    killSwitchAfterWinner,
-    killSwitchAfterLoser,
-    rulesAfterWinner,
-    rulesAfterLoser,
-  },
-  solo: {
-    exit: soloResult.exitCode,
-    state: soloState,
-  },
-  concurrent: {
-    firstExit: firstResult.exitCode,
-    secondExit: secondResult.exitCode,
-    firstOutput: firstResult.output
-      .slice(-REPORTED_OUTPUT_CHARACTERS,),
-    secondOutput: secondResult.output
-      .slice(-REPORTED_OUTPUT_CHARACTERS,),
-    first: firstState,
-    second: secondState,
-    routeGets,
-  },
+  raced: early.raced,
+  solo: early.solo,
+  concurrent: early.concurrent,
+  suppression: later.suppression,
+  killed: later.killed,
 },),);

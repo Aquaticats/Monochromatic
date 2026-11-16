@@ -8,6 +8,7 @@ import {
   readClearnet,
   type Clearnet,
 } from './tunnel-clearnet.ts';
+import { killSwitchTable, } from './tunnel-firewall.ts';
 import { readFwmark, } from './tunnel-fwmark.ts';
 import {
   trafficBlockScript,
@@ -374,7 +375,7 @@ export function manualFinishSteps(
     ...policyRules,
     '  sudo ip -4 rule delete table main suppress_prefixlength 0',
     '  sudo ip -6 rule delete table main suppress_prefixlength 0',
-    `  sudo nft delete table inet ${shellQuote({ value: `wg-quicker-${interfaceName}`, },)}`,
+    `  sudo nft delete table inet ${shellQuote({ value: killSwitchTable({ interfaceName, },), },)}`,
     `  sudo ip link delete dev ${iface}`,
     '  # only when the config sets DNS',
     `  sudo resolvectl revert ${iface}`,

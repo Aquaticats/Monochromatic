@@ -256,7 +256,7 @@ await describe({
           `  sudo ip -6 rule delete table ${String(POLICY_TABLE,)}`,
           '  sudo ip -4 rule delete table main suppress_prefixlength 0',
           '  sudo ip -6 rule delete table main suppress_prefixlength 0',
-          `  sudo nft delete table inet wg-quicker-${INTERFACE_NAME}`,
+          `  sudo nft delete table inet wg-quicker-kill-${INTERFACE_NAME}`,
           `  sudo ip link delete dev ${INTERFACE_NAME}`,
           `  sudo resolvectl revert ${INTERFACE_NAME}`,
           `  sudo rm --force ${STATE_PATH} ${STATE_PATH}.watcher.json`,
@@ -372,7 +372,7 @@ await describe({
         const at = (text: string,): number => KNOWN.findIndex((line,) => line.startsWith(text,),);
         expect(at(`  sudo cat ${STATE_PATH}.watcher.json`,),).toBeLessThan(at('  sudo ip -4 rule delete table 5',),);
         expect(at('  sudo ip -6 rule delete table main',),).toBeLessThan(at(`  sudo ip link delete dev ${INTERFACE_NAME}`,),);
-        expect(at(`  sudo nft delete table inet wg-quicker-${INTERFACE_NAME}`,),).toBeLessThan(at(`  sudo ip link delete dev ${INTERFACE_NAME}`,),);
+        expect(at(`  sudo nft delete table inet wg-quicker-kill-${INTERFACE_NAME}`,),).toBeLessThan(at(`  sudo ip link delete dev ${INTERFACE_NAME}`,),);
       },
     },),
     it({

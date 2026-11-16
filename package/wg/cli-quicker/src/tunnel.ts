@@ -29,6 +29,7 @@ import {
   removeOpenSnitchEndpointAllowance,
 } from './opensnitch.ts';
 import { assertNoPolicyRoutingConflict, } from './policy-routing-conflict.ts';
+import { claimLifecycleOperation, } from './tunnel-bypass-operation-lock.ts';
 import { setupRoutes, } from './tunnel-route.ts';
 import {
   deviceChar,
@@ -410,6 +411,12 @@ export async function up({ config, }: { readonly config: WireguardConfig; },): P
    Interface being brought up.
    */
   const iface = config.interfaceName;
+  /**
+   The whole-lifecycle lock, which a `down` of this interface cannot pass:
+   the two change the same link, rules and tables, and without it a `down`
+   that ran inside an `up` left the `up` reporting success with its link gone.
+   */
+  await using lifecycle = await claimLifecycleOperation({ interfaceName: iface, },);
   fl.debug(`bringing ${iface} up`,);
   if (await linkExists({ interfaceName: iface, },)) {
     throw new CommandError({
@@ -521,6 +528,10 @@ export async function down({ config, }: { readonly config: WireguardConfig; },):
     tag: down.name,
     l,
   },);
+  /**
+   The same whole-lifecycle lock the up takes, so the two never run at once for one interface.
+   */
+  await using lifecycle = await claimLifecycleOperation({ interfaceName: config.interfaceName, },);
   fl.debug(`bringing ${config.interfaceName} down`,);
   await teardown({ config, },);
   fl.debug(`${config.interfaceName} is down`,);

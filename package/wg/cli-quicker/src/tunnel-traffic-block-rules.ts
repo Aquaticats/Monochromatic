@@ -66,7 +66,7 @@ export type BlockChain = 'output' | 'forward';
 
  @example
  ```ts
- markAcceptRules({ table: 'wg-quicker-wg0-blocked', clearnet: { mark: 100, hosts: [], interfaces: [] } });
+ markAcceptRules({ table: 'wg-quicker-block-wg0', clearnet: { mark: 100, hosts: [], interfaces: [] } });
  ```
  */
 export function markAcceptRules({
@@ -169,7 +169,7 @@ type HostDirection = 'daddr' | 'saddr';
 
  @example
  ```ts
- hostRules({ table: 'wg-quicker-wg0-blocked', chain: 'forward', direction: 'saddr', clearnet: { hosts: [], interfaces: [] } });
+ hostRules({ table: 'wg-quicker-block-wg0', chain: 'forward', direction: 'saddr', clearnet: { hosts: [], interfaces: [] } });
  ```
  */
 function hostRules(
@@ -248,7 +248,7 @@ function hostRules(
 
  @example
  ```ts
- hostAcceptRules({ table: 'wg-quicker-wg0-blocked', chain: 'forward', clearnet: { hosts: [], interfaces: [] } });
+ hostAcceptRules({ table: 'wg-quicker-block-wg0', chain: 'forward', clearnet: { hosts: [], interfaces: [] } });
  ```
  */
 export function hostAcceptRules(
@@ -307,7 +307,7 @@ export function hostAcceptRules(
 
  @example
  ```ts
- hostReplyRules({ table: 'wg-quicker-wg0-blocked', clearnet: { hosts: [], interfaces: [] } });
+ hostReplyRules({ table: 'wg-quicker-block-wg0', clearnet: { hosts: [], interfaces: [] } });
  ```
  */
 export function hostReplyRules({

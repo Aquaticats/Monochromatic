@@ -29,6 +29,15 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 const SCENARIO_BOUND_MILLISECONDS = 300_000;
 
 /**
+ Files a real `up` would edit when OpenSnitch is installed on the machine,
+ which this test must not find.
+ */
+const OSNITCH_FILES: readonly string[] = [
+  '/etc/opensnitchd/default-config.json',
+  '/etc/opensnitchd/system-fw.json',
+];
+
+/**
  Policy table and route state the scenario reported for one interface.
  */
 type InterfaceState = {
@@ -55,18 +64,16 @@ type InterfaceState = {
  */
 type Observed = {
   /**
-   The two `up`s of one interface that raced for its link.
+   One `up` of an interface held at its `ip link add`, and a second start of the same interface beside it.
    */
   readonly raced: {
-    readonly winnerExit: number;
-    readonly loserExit: number;
-    readonly loserOutput: string;
-    readonly afterWinner: InterfaceState;
-    readonly afterLoser: InterfaceState;
-    readonly killSwitchAfterWinner: boolean;
-    readonly killSwitchAfterLoser: boolean;
-    readonly rulesAfterWinner: string;
-    readonly rulesAfterLoser: string;
+    readonly secondExit: number;
+    readonly secondOutput: string;
+    readonly whileHeld: InterfaceState;
+    readonly heldExit: number;
+    readonly afterHeld: InterfaceState;
+    readonly killSwitchAfterHeld: boolean;
+    readonly rulesAfterHeld: string;
   };
   /**
    The positive control: one `up` on its own.
@@ -90,11 +97,45 @@ type Observed = {
       readonly eight: string;
     };
   };
+  /**
+   Two tunnels whose main-table suppressions must stay apart.
+   */
+  readonly suppression: {
+    readonly ups: readonly number[];
+    readonly rulesBothUp: string;
+    readonly lanRouteBothUp: string;
+    readonly down: number;
+    readonly rulesAfterDown: string;
+    readonly lanRouteAfterDown: string;
+    readonly internetRouteAfterDown: string;
+    readonly failedReclaim: number;
+    readonly rulesAfterFailedUp: string;
+    readonly lanRouteAfterFailedUp: string;
+  };
+  /**
+   A tunnel whose start is killed between its fwmark and its first rule.
+   */
+  readonly killed: {
+    readonly whileHeld: InterfaceState;
+    readonly afterKillExit: number;
+    readonly afterKillOutput: string;
+    readonly states: {
+      readonly killed: InterfaceState;
+      readonly after: InterfaceState;
+    };
+    readonly internetAfterKill: string;
+    readonly downExit: number;
+    readonly afterDownState: InterfaceState;
+    readonly rulesAfterDown: string;
+    readonly internetAfterDown: string;
+  };
 };
 
-if (existsSync('/etc/opensnitchd')) {
+if (OSNITCH_FILES.some(function present(path,): boolean {
+  return existsSync(path,);
+},)) {
   throw new Error(
-    'This test brings real interfaces up, whose start edits the OpenSnitch firewall when its configuration is present; run it in a container without /etc/opensnitchd.',
+    'This test brings real interfaces up, whose start edits the OpenSnitch firewall when its configuration is present; run it where neither /etc/opensnitchd/default-config.json nor /etc/opensnitchd/system-fw.json exists.',
   );
 }
 
@@ -134,39 +175,31 @@ const observed = JSON.parse(
     .at(-1,) ?? '{}',
 ) as Observed;
 
-assert.equal(
-  observed.raced.winnerExit,
-  0,
-  `the first up of the raced interface did not succeed: ${observed.raced.loserOutput}`,
-);
-assert.equal(observed.raced.afterWinner.link, true, 'the winning up left no link.');
-assert.equal(
-  observed.raced.killSwitchAfterWinner,
-  true,
-  'the winning up installed no kill switch.',
-);
+// The second start of the same interface must refuse at the whole-lifecycle lock,
+// and the first one, released afterwards, must finish with everything it made still there.
 assert.notEqual(
-  observed.raced.loserExit,
+  observed.raced.secondExit,
   0,
-  'the up that lost the race for the link reported success.',
-);
-assert.equal(
-  observed.raced.afterLoser.link,
-  true,
-  `the rollback of the up that lost the race removed the winning up's link: ${observed.raced.loserOutput}`,
-);
-assert.equal(
-  observed.raced.killSwitchAfterLoser,
-  true,
-  "the rollback of the up that lost the race removed the winning up's kill switch, so traffic leaves outside the tunnel",
+  'a second start of one interface ran beside the first instead of refusing',
 );
 assert.ok(
-  observed.raced.rulesAfterWinner.includes('not from all fwmark',),
-  `the winning up installed no policy rule to check: ${observed.raced.rulesAfterWinner}`,
+  observed.raced.secondOutput.includes('Another wg-quicker lifecycle is running for',),
+  `the second start of one interface refused for another reason: ${observed.raced.secondOutput}`,
+);
+assert.equal(
+  observed.raced.heldExit,
+  0,
+  `the held start did not finish: ${observed.raced.afterHeld.link}`,
+);
+assert.equal(observed.raced.afterHeld.link, true, 'the held start left no link.');
+assert.equal(
+  observed.raced.killSwitchAfterHeld,
+  true,
+  'the held start installed no kill switch.',
 );
 assert.ok(
-  observed.raced.rulesAfterLoser.includes('not from all fwmark',),
-  `the rollback of the up that lost the race removed the winning up's policy rules, so traffic leaves outside the tunnel: ${observed.raced.rulesAfterLoser}`,
+  observed.raced.rulesAfterHeld.includes('not from all fwmark',),
+  `the held start installed no policy rule to check: ${observed.raced.rulesAfterHeld}`,
 );
 
 assert.equal(
@@ -201,11 +234,83 @@ assert.ok(
   observed.concurrent.second.routes.some((line,) => line.startsWith('10.0.0.0/8 ',),),
   `the tunnel that allows 10/8 has no route for it in its own table: ${JSON.stringify(observed.concurrent.second.routes,)}`,
 );
+// Both tunnels allow 10.0.0.1, so which of the two carries it is decided by rule priority, as the page says;
+// what matters is that it leaves through one of their tables and not by the physical default.
 assert.ok(
-  observed.concurrent.routeGets.ten.includes('dev wglb',),
-  `10.0.0.1 does not leave through the tunnel that allows 10/8: ${observed.concurrent.routeGets.ten}`,
+  ['dev wgla', 'dev wglb',].some((name,) => observed.concurrent.routeGets.ten.includes(name,))
+    && observed.concurrent.routeGets.ten.includes('table 518',),
+  `10.0.0.1 does not leave through either tunnel of the pair: ${observed.concurrent.routeGets.ten}`,
 );
 assert.ok(
   observed.concurrent.routeGets.eight.includes('dev wgla',),
   `8.8.8.8 does not leave through the tunnel that allows everything: ${observed.concurrent.routeGets.eight}`,
+);
+
+assert.deepEqual(observed.suppression.ups, [0, 0,],);
+assert.ok(
+  observed.suppression.lanRouteBothUp.includes('dev lan0',),
+  `192.168.77.9 does not stay on its own interface with both tunnels up: ${observed.suppression.lanRouteBothUp}`,
+);
+assert.equal(observed.suppression.down, 0,);
+const suppressionsLeft = observed.suppression.rulesAfterDown
+  .split('\n',)
+  .filter((line,) => line.includes('suppress_prefixlength 0',));
+assert.equal(
+  suppressionsLeft.length,
+  1,
+  `the down of one tunnel left ${String(suppressionsLeft.length,)} main-table suppressions instead of the other tunnel's one: ${observed.suppression.rulesAfterDown}`,
+);
+assert.ok(
+  observed.suppression.lanRouteAfterDown.includes('dev lan0',),
+  `the down of one tunnel sent the other tunnel's local-network traffic into the tunnel: ${observed.suppression.lanRouteAfterDown}`,
+);
+assert.ok(
+  observed.suppression.internetRouteAfterDown.includes('dev wglt',),
+  `the surviving tunnel stopped carrying the internet: ${observed.suppression.internetRouteAfterDown}`,
+);
+assert.notEqual(observed.suppression.failedReclaim, 0,);
+const suppressionsAfterFailure = observed.suppression.rulesAfterFailedUp
+  .split('\n',)
+  .filter((line,) => line.includes('suppress_prefixlength 0',));
+assert.equal(
+  suppressionsAfterFailure.length,
+  1,
+  `a failed up's rollback left ${String(suppressionsAfterFailure.length,)} main-table suppressions instead of the other tunnel's one: ${observed.suppression.rulesAfterFailedUp}`,
+);
+assert.ok(
+  observed.suppression.lanRouteAfterFailedUp.includes('dev lan0',),
+  `a failed up's rollback sent the other tunnel's local-network traffic into the tunnel: ${observed.suppression.lanRouteAfterFailedUp}`,
+);
+
+// The killed start had already set its fwmark and named no rule yet: that is the window.
+assert.notEqual(observed.killed.whileHeld.table, undefined,);
+assert.deepEqual(observed.killed.whileHeld.routes, [],);
+assert.equal(observed.killed.afterKillExit, 0,);
+assert.notEqual(observed.killed.states.killed.table, observed.killed.states.after.table,);
+assert.equal(
+  observed.killed.states.after.link,
+  true,
+  `the tunnel started after the kill has no link: ${observed.killed.afterKillOutput}`,
+);
+assert.ok(
+  observed.killed.internetAfterKill.includes('dev wgld',),
+  `the tunnel started after the kill does not carry the internet: ${observed.killed.internetAfterKill}`,
+);
+assert.equal(observed.killed.downExit, 0,);
+assert.equal(
+  observed.killed.afterDownState.link,
+  true,
+  'the down of the killed tunnel removed the live tunnel\'s link',
+);
+const liveRulesAfterDown = observed.killed.rulesAfterDown
+  .split('\n',)
+  .filter((line,) => line.includes('not from all fwmark',));
+assert.equal(
+  liveRulesAfterDown.length,
+  1,
+  `the down of the killed tunnel removed the live tunnel's policy rules: ${observed.killed.rulesAfterDown}`,
+);
+assert.ok(
+  observed.killed.internetAfterDown.includes('dev wgld',),
+  `after the dead tunnel's down the live tunnel's traffic left outside it: ${observed.killed.internetAfterDown}`,
 );

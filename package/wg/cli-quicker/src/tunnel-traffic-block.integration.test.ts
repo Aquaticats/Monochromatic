@@ -99,7 +99,7 @@ const stdout = execFileSync(
  */
 const observed = JSON.parse(stdout.trim().split('\n',).at(-1,) ?? '{}',) as Observed;
 assert.ok(
-  observed.control.includes('delete table inet wg-quicker-wgscenario-blocked',),
+  observed.control.includes('delete table inet wg-quicker-block-wgscenario',),
   `the monitor did not show the old sequence deleting the table, so it cannot show its absence: ${observed.control}`,
 );
 assert.ok(

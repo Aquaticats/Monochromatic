@@ -15,11 +15,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
+import { removePolicyRules, } from '../dist/final/node/tunnel-route.mjs';
 import {
-  removePolicyRules,
   untaggedSuppressionRules,
   untaggedSuppressionWarning,
-} from '../dist/final/node/tunnel-route.mjs';
+} from '../dist/final/node/tunnel-suppression-warning.mjs';
 
 /**
  Protocol tag this program writes on the main-table suppression it installs.

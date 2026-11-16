@@ -43,8 +43,12 @@ export const BLOCK_EXCEPTIONS: string = 'except the clearnet traffic it was inst
 
 /**
  Name of the nft table that blocks traffic while a `down` is half done.
- It is a different table from the kill switch of the tunnel (`wg-quicker-<interface>`),
- so removing either never removes the other.
+
+ The name carries `block-` right after the program's prefix, and the kill switch's
+ carries `kill-` in the same place, so no interface name can make one table's name
+ equal another's: with the block named `wg-quicker-<interface>-blocked` and the kill
+ switch `wg-quicker-<interface>`, a tunnel named `wgq-blocked` had the kill switch
+ that the `down` of `wgq` deleted.
 
  @param interfaceName - Tunnel interface.
 
@@ -52,11 +56,11 @@ export const BLOCK_EXCEPTIONS: string = 'except the clearnet traffic it was inst
 
  @example
  ```ts
- trafficBlockTable({ interfaceName: 'wg0' }); // 'wg-quicker-wg0-blocked'
+ trafficBlockTable({ interfaceName: 'wg0' }); // 'wg-quicker-block-wg0'
  ```
  */
 export function trafficBlockTable({ interfaceName, }: { readonly interfaceName: string; },): string {
-  return `wg-quicker-${interfaceName}-blocked`;
+  return `wg-quicker-block-${interfaceName}`;
 }
 
 /**
