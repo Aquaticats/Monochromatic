@@ -98,8 +98,8 @@ async function record(
         events.push(`down ${call.config.interfaceName}`,);
         return Promise.resolve();
       },
-      warn: (notice,) => {
-        events.push(`warn ${notice}`,);
+      printNotice: (notice,) => {
+        events.push(`notice ${notice}`,);
       },
     },
   },);
@@ -114,7 +114,7 @@ await describe({
       fn: async () => {
         const events = await record({ subcommand: 'up', config: configWith({ dns: ['10.0.0.1',], }), },);
         expect(events,).toHaveLength(2,);
-        expect(events[0],).toContain('warn Config for wgtest has no ExemptMark',);
+        expect(events[0],).toContain('notice Config for wgtest has no ExemptMark',);
         expect(events[0],).toContain('POLICY NOT IN FORCE',);
         expect(events[0],).toContain('Add `ExemptMark = ',);
         expect(events[1],).toBe('up wgtest',);
@@ -125,7 +125,7 @@ await describe({
       fn: async () => {
         const events = await record({ subcommand: 'up', config: configWith({ exemptMark: 100, table: 'off', dns: ['10.0.0.1',], }), },);
         expect(events,).toHaveLength(2,);
-        expect(events[0],).toContain('warn ',);
+        expect(events[0],).toContain('notice ',);
         expect(events[0],).toContain('POLICY NOT IN FORCE',);
         expect(events[0],).toContain('Table = off',);
         expect(events[1],).toBe('up wgtest',);
@@ -141,7 +141,7 @@ await describe({
       fn: async () => {
         const events = await record({ subcommand: 'up', config: configWith({ exemptMark: 100, dns: ['10.0.0.1',], }), },);
         expect(events,).toHaveLength(2,);
-        expect(events[0],).toContain('warn ',);
+        expect(events[0],).toContain('notice ',);
         expect(events[0],).toContain('OUTSIDE the WireGuard tunnel',);
         expect(events.filter((event,) => event.startsWith('up ',),),).toEqual(['up wgtest',],);
       },

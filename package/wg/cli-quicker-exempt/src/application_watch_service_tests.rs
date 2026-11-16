@@ -56,3 +56,77 @@ fn a_relay_of_many_lines_is_bounded_and_says_how_many_are_in_the_log() {
     assert!(!relayed_text(&hostile, "/log")[0].contains('\u{1b}'));
     assert!(relayed_text(&[], "/log").is_empty());
 }
+
+/// A watcher leads its own session,
+/// and a child it started stays in the process group it left.
+fn a_watcher_that_left_a_child(name: &str) -> (std::process::Child, i32) {
+    use std::io::BufRead;
+    use std::os::unix::process::CommandExt;
+    let mut command = std::process::Command::new("/bin/sh");
+    command
+        .arg("-c")
+        .arg("/usr/bin/sleep 300 & printf '%s\\n' \"$!\"; exec /usr/bin/sleep 300")
+        .stdout(std::process::Stdio::piped());
+    // SAFETY: `setsid` is async-signal-safe and touches only the child's session state.
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        });
+    }
+    let mut child = command.spawn().expect("start a watcher that leads its own session");
+    let mut line = String::new();
+    std::io::BufReader::new(child.stdout.take().expect("the watcher prints")).read_line(&mut line).expect("read the child pid");
+    let pid = line.trim().parse::<i32>().expect("the child pid is a number");
+    let _named = name;
+    return (child, pid);
+}
+
+/// The process group a process belongs to,
+/// read from the `pgrp` field of its stat file,
+/// or `None` when the process is gone.
+fn process_group(pid: i32) -> Option<i32> {
+    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let end = text.rfind(')')?;
+    let tail = text.get(end + 1..)?;
+    return tail.split_whitespace().nth(2)?.parse::<i32>().ok();
+}
+
+/// A watcher that was killed on its own leaves the children it started in the group it led,
+/// and a stop ends that group before it forgets the watcher.
+///
+/// The watcher's child is an `ip` or manager client in production,
+/// and one left running can finish a manager change after the stop returned.
+#[test]
+fn a_stop_ends_the_group_a_killed_watcher_left() {
+    use crate::application_watch_state::{read_watch_state, watch_state_path, write_watch_state, WatchProcess};
+    use crate::application_watch_service::stop_application_watch;
+    use crate::keeper_process::process_start_time;
+    let root = crate::test_scratch::scratch_root().join(format!("wg-quicker-watch-stop-{}", std::process::id()));
+    let _removed = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("make the scratch state root");
+    // SAFETY: this test process sets one variable that nothing else in it reads at the same time.
+    unsafe { std::env::set_var("WG_QUICKER_EXEMPT_TEST_WATCH_STATE_ROOT", &root) };
+    let key = "watch-stop-group";
+    let (mut leader, child) = a_watcher_that_left_a_child(key);
+    let leader_pid = i32::try_from(leader.id()).expect("pid fits");
+    let start_time = process_start_time(leader_pid).expect("read the watcher start time");
+    assert_eq!(process_group(child), Some(leader_pid), "the child is in the group the watcher leads");
+    write_watch_state(key, WatchProcess { pid: leader_pid, start_time, mark: 1, uid: 0 }).expect("write the watcher state");
+    // The watcher leader is killed on its own, as an out-of-memory kill does:
+    // the child it started keeps running in the recorded group.
+    assert_eq!(unsafe { libc::kill(leader_pid, libc::SIGKILL) }, 0, "kill the watcher leader");
+    let _reaped = leader.wait();
+    assert_eq!(process_group(child), Some(leader_pid), "the child outlived the leader in the recorded group");
+    stop_application_watch(key).expect("the stop answers");
+    let left = process_group(child);
+    let _killed = unsafe { libc::kill(child, libc::SIGKILL) };
+    assert_eq!(left, None, "the child the killed watcher left was still running after the stop");
+    assert!(read_watch_state(key).expect("the state reads").is_none(), "the record of the watcher was kept");
+    assert!(!watch_state_path(key).expect("the path builds").exists());
+    // SAFETY: the variable is removed by the test that set it, and nothing else reads it.
+    unsafe { std::env::remove_var("WG_QUICKER_EXEMPT_TEST_WATCH_STATE_ROOT") };
+    let _cleaned = std::fs::remove_dir_all(&root);
+}
