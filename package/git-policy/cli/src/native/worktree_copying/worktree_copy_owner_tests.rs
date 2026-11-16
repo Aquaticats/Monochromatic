@@ -128,3 +128,105 @@ fn an_owner_of_another_namespace_is_judged_from_one_reading_of_its_item() {
     assert!(!dead, "a young item of another namespace is alive");
     assert_eq!(crate::pid_namespace::STANDING_LOOKUPS.with(std::cell::Cell::get), 1, "the age was read once for the decision");
 }
+
+/// What:
+///  A record of a live owner whose identity is spelled another way is never a dead owner's,
+///  and the item it names is kept.
+/// Why:
+///  The wrapper writes one spelling of its own identity,
+///  so a second spelling in a record was written by something that is not this release:
+///  an older release,
+///  another tool,
+///  or a damaged file.
+///  Read as another process,
+///  it takes what a running command holds:
+///  its journal,
+///  its stage claim,
+///  its owed copy,
+///  and the private index a prediction reads.
+///  A spelling a reader cannot compare is no proof of a dead owner,
+///  so the owner counts as one that may still run and the item stays.
+///  The arms cover the parts a record of an owner carries:
+///  its process number,
+///  its birth identity,
+///  and its PID namespace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const respelled of spellings(owner)) expect(tokenOwnerIsDead(respelled, item)).toBe(false);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_live_owners_record_in_another_spelling_is_never_a_dead_owner() {
+    let root: PathBuf = crate::test_support::fixture("copy-owner-spelled-another-way");
+    // The item a record is judged by: an owner of another namespace is judged by this file's own age, so it is written
+    // now.
+    let item: PathBuf = root.join("item");
+    std::fs::write(item.as_path(), b"x").expect("item");
+    let here: CopyOwner = current_copy_owner().expect("this process has an identity");
+    let namespace: &str = here.pid_namespace.as_deref().expect("this host reports the PID namespace of a process");
+    let spellings: [(&str, String); 5] = [
+        (
+            "a leading zero on the start tick",
+            CopyOwner {
+                birth_identity: crate::process_identity_spellings::birth_with_a_leading_zero(here.birth_identity.as_str()),
+                ..here.clone()
+            }
+            .token(),
+        ),
+        (
+            "the platform's tag in capitals",
+            CopyOwner {
+                birth_identity: crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(here.birth_identity.as_str()),
+                ..here.clone()
+            }
+            .token(),
+        ),
+        (
+            "a space before the birth",
+            CopyOwner {
+                birth_identity: crate::process_identity_spellings::birth_behind_a_space(here.birth_identity.as_str()),
+                ..here.clone()
+            }
+            .token(),
+        ),
+        // The process number is the first field of a token, so a padded one is the same token with a zero in front.
+        ("a leading zero on the process number", format!("0{}", here.token())),
+        (
+            "a leading zero on the PID namespace",
+            CopyOwner {
+                pid_namespace: Some(crate::process_identity_spellings::namespace_with_a_leading_zero(namespace)),
+                ..here.clone()
+            }
+            .token(),
+        ),
+    ];
+    // Every arm is asked and every wrong answer is kept, so one run names each spelling that was read as another process
+    // instead of stopping at the first.
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, token) in spellings {
+        let Some(read) = CopyOwner::from_token(token.as_str()) else {
+            wrong.push(format!("{what}: the record {token} is not a token any reader parses"));
+            continue;
+        };
+        if read.pid != here.pid {
+            wrong.push(format!("{what}: the record {token} names process {} and one process's record is one process", read.pid));
+        }
+        if token_owner_is_dead(Some(token.as_str()), item.as_path()).expect("a young item of this namespace is no refusal") {
+            wrong.push(format!("{what}: the reader took the record {token} for a dead owner's, and process {} runs", here.pid));
+        }
+        if !read.is_alive(item.as_path()).expect("a young item of this namespace is no refusal") {
+            wrong.push(format!("{what}: `is_alive` answered that {token} does not run, and process {} does", here.pid));
+        }
+    }
+    // The other answer of the same reader, so an arm that passes above is not a reader that never answers "dead": a
+    // process that ended is a dead owner of the same shape of record.
+    let ended: CopyOwner = crate::test_support::dead_copy_owner();
+    assert!(
+        token_owner_is_dead(Some(ended.token().as_str()), item.as_path()).expect("a young item"),
+        "a process that ended is a dead owner"
+    );
+    assert!(!ended.is_alive(item.as_path()).expect("a young item"), "and it does not run");
+    crate::test_support::remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

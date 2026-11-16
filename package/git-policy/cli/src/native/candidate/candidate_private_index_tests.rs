@@ -369,3 +369,89 @@ fn an_owner_record_that_is_a_fifo_does_not_hold_up_a_new_copy() {
     assert_eq!(entries(root.as_path()), vec!["index"]);
     remove(root.as_path());
 }
+
+/// What:
+///  A copy whose owner runs,
+///  and whose record spells one part of its identity another way,
+///  is kept by the sweep a later copy makes.
+/// Why:
+///  The copy holds the repository's index,
+///  which is what the later copy's sweep is told not to take from a command that runs:
+///  a prediction whose copy disappeared under it fails with the person's `git add` waiting on it.
+///  The record is written in one spelling,
+///  so a second one came from a writer that is not this release (an older release,
+///  another tool,
+///  a damaged file),
+///  and a spelling the reader cannot compare is no proof that the owner is gone.
+///  The last copy of the same run is a dead owner's,
+///  and it must be removed,
+///  so an arm that passes is not a sweep that keeps everything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeCopy(prefix + 1, respelledTokenOfThisProcess()); createPrivateIndex(real); expect(exists(copy)).toBe(true);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_copy_whose_live_owner_is_named_in_another_spelling_is_kept() {
+    let root: PathBuf = fixture("private-index-reap-spelling");
+    let real: PathBuf = root.join("index");
+    std::fs::write(&real, b"DIRC").expect("real index");
+    let here: crate::worktree_copy_owner::CopyOwner = crate::worktree_copy_owner::current_copy_owner().expect("this process has an identity");
+    let spellings: [(&str, String); 3] = [
+        (
+            "a leading zero on the start tick",
+            crate::worktree_copy_owner::CopyOwner {
+                birth_identity: crate::process_identity_spellings::birth_with_a_leading_zero(here.birth_identity.as_str()),
+                ..here.clone()
+            }
+            .token(),
+        ),
+        (
+            "the platform's tag in capitals",
+            crate::worktree_copy_owner::CopyOwner {
+                birth_identity: crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(here.birth_identity.as_str()),
+                ..here.clone()
+            }
+            .token(),
+        ),
+        (
+            "a space before the birth",
+            crate::worktree_copy_owner::CopyOwner {
+                birth_identity: crate::process_identity_spellings::birth_behind_a_space(here.birth_identity.as_str()),
+                ..here.clone()
+            }
+            .token(),
+        ),
+    ];
+    let mut held: Vec<(String, PathBuf)> = Vec::new();
+    for (index, (what, token)) in spellings.into_iter().enumerate() {
+        let directory: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{}-{index}-0", here.pid));
+        std::fs::create_dir(&directory).expect("a copy a running command holds");
+        std::fs::write(directory.join("index"), b"copy").expect("copy");
+        std::fs::write(directory.join("owner"), token).expect("the owner record, one part respelled");
+        held.push((String::from(what), directory));
+    }
+    // The other answer of the same sweep: a copy of a command that ended is the litter this sweep exists for.
+    let ended: crate::worktree_copy_owner::CopyOwner = crate::test_support::dead_copy_owner();
+    let abandoned: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{}-ended-0", ended.pid));
+    std::fs::create_dir(&abandoned).expect("an abandoned copy");
+    std::fs::write(abandoned.join("index"), b"copy").expect("copy");
+    std::fs::write(abandoned.join("owner"), ended.token()).expect("the owner record of a command that ended");
+    let mine: PrivateIndex = PrivateIndex::create(real.as_path()).expect("a copy");
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, directory) in &held {
+        if !directory.exists() {
+            wrong.push(format!("{what}: the copy {} was removed while its owner runs", directory.display()));
+        }
+    }
+    assert!(!abandoned.exists(), "a copy whose owner ended is removed, so this sweep does remove a copy");
+    drop(mine);
+    for (_, directory) in &held {
+        // A copy this sweep took for a dead owner's is not there any more, and that is what the arms above report.
+        let _ = std::fs::remove_dir_all(directory.as_path());
+    }
+    assert_eq!(entries(root.as_path()), vec!["index"]);
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

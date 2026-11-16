@@ -549,3 +549,58 @@ fn a_file_that_vanished_before_it_was_copied_is_not_a_failure() {
     assert_eq!(std::fs::read_to_string(target.join("present")).expect("copy"), "kept");
     remove(repo.root.as_path());
 }
+
+/// What:
+///  An attempt file of a command that runs,
+///  whose identity is spelled another way,
+///  is an attempt that may still be running.
+/// Why:
+///  A snapshot whose attempts are all taken for ended commands is a removal that Git refused,
+///  and its snapshot is discarded with the records it keeps:
+///  the notices and unfinished work of the worktree that is being removed under that command.
+///  The attempt file holds one spelling of this process's identity,
+///  so a second one came from a writer that is not this release (an older release,
+///  another tool,
+///  a damaged file),
+///  and a spelling a reader cannot compare is no proof that its command ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeAttempt(thisPid, respelledBirth()); expect(attemptMayBeRunning(snapshot)).toBe(true);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn an_attempt_of_a_live_owner_named_in_another_spelling_may_still_be_running() {
+    let root: PathBuf = fixture("rescue-attempt-spelling");
+    let attempts: PathBuf = root.join(ATTEMPTS);
+    std::fs::create_dir_all(attempts.as_path()).expect("the attempts directory");
+    let birth: String = crate::process_identity::current_birth_identity().expect("this process has an identity");
+    let mine: PathBuf = attempts.join(std::process::id().to_string());
+    let spellings: [(&str, String); 3] = [
+        ("a leading zero on the start tick", crate::process_identity_spellings::birth_with_a_leading_zero(birth.as_str())),
+        ("the platform's tag in capitals", crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(birth.as_str())),
+        ("a space before the birth", crate::process_identity_spellings::birth_behind_a_space(birth.as_str())),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, respelled) in spellings {
+        std::fs::write(mine.as_path(), respelled.as_str()).expect("an attempt file of a command that runs");
+        if !removal_state::attempt_may_be_running(root.as_path()) {
+            wrong.push(format!("{what}: the attempt {respelled} was taken for a command that ended, and it runs"));
+        }
+        std::fs::remove_file(mine.as_path()).expect("the attempt this arm wrote");
+    }
+    // The other answer of the same reader, so an arm that passes is not a reader that never answers "ended": the attempt
+    // of a command that ended is not one that may still run.
+    let ended: crate::worktree_copy_owner::CopyOwner = crate::test_support::dead_copy_owner();
+    let ended_attempt: PathBuf = attempts.join(ended.pid.to_string());
+    std::fs::write(ended_attempt.as_path(), ended.birth_identity.as_str()).expect("an attempt of a command that ended");
+    assert!(!removal_state::attempt_may_be_running(root.as_path()), "the attempt of a process that ended is no running command");
+    std::fs::remove_file(ended_attempt.as_path()).expect("the attempt of a command that ended");
+    std::fs::write(mine.as_path(), ENDED_IDENTITY).expect("this command's number with another birth");
+    assert!(
+        !removal_state::attempt_may_be_running(root.as_path()),
+        "an attempt whose birth is another process's is no running command"
+    );
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

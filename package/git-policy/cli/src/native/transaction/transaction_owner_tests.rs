@@ -257,3 +257,79 @@ fn an_owner_of_this_namespace_or_none_is_judged_by_its_pid() {
         OwnerLiveness::Alive
     );
 }
+
+/// What:
+///  A record of a live owner whose birth identity is spelled another way is never a dead owner.
+/// Why:
+///  The wrapper writes one spelling of its own birth,
+///  so a second spelling in a record was written by something that is not this release:
+///  an older release,
+///  another tool,
+///  or a damaged file.
+///  Read as another process,
+///  it settles what a running command holds:
+///  recovery discards a merge's record and drops the refs that keep its commit,
+///  its kept copies are put back or removed beside its paths,
+///  and its branch is read as one nobody is working on.
+///  A spelling a reader cannot compare is no proof of a dead owner,
+///  so the owner counts as one that may still run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const respelled of spellings(owner)) expect(classifyTransactionOwner(pid, respelled)).not.toBe('dead');
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_live_owners_record_in_another_spelling_is_never_dead() {
+    let own: TransactionOwner = current_transaction_owner("a-live-owner", "2026-10-29T00:00:00.000Z").expect("this process has an identity");
+    let spellings: [(&str, String); 3] = [
+        ("a leading zero on the start tick", crate::process_identity_spellings::birth_with_a_leading_zero(own.owner_identity.as_str())),
+        ("the platform's tag in capitals", crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(own.owner_identity.as_str())),
+        ("a space before the birth", crate::process_identity_spellings::birth_behind_a_space(own.owner_identity.as_str())),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, respelled) in spellings {
+        if classify_transaction_owner(own.owner_pid, respelled.as_str()).expect("a record of this namespace") == OwnerLiveness::Dead {
+            wrong.push(format!("{what}: the reader called process {} a dead owner of {respelled}, and it runs", own.owner_pid));
+        }
+    }
+    // The other answer of the same reader, so an arm that passes is not a reader that never answers "dead": a birth no
+    // process has is a dead owner's.
+    assert_eq!(
+        classify_transaction_owner(own.owner_pid, "linux:1").expect("a number that runs"),
+        OwnerLiveness::Dead,
+        "a process with another birth is a dead owner"
+    );
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// What:
+///  A record of a live owner whose PID namespace is spelled another way is never a dead owner either.
+/// Why:
+///  The namespace is a number,
+///  and one number has one value however many zeros lead it;
+///  read as another namespace,
+///  the record is judged by its own age,
+///  which keeps it or refuses the command and never takes it.
+///  The arm is here so the report says what each part of the record does with a second spelling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(classifyTransactionOwnerRecord(paddedScope(owner), fresh)).not.toBe('dead');
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_live_owners_record_with_its_namespace_spelled_another_way_is_never_dead() {
+    let directory: std::path::PathBuf = crate::test_support::fixture("owner-namespace-spelled-another-way");
+    let mut owner: TransactionOwner = current_transaction_owner("a-live-owner", "2026-10-29T00:00:00.000Z").expect("this process has an identity");
+    let namespace: String = owner.owner_pid_namespace.clone().expect("this host reports the PID namespace of a process");
+    owner.owner_pid_namespace = Some(crate::process_identity_spellings::namespace_with_a_leading_zero(namespace.as_str()));
+    let fresh: std::path::PathBuf = owner_file(directory.as_path(), std::time::Duration::from_secs(30));
+    let verdict: Result<OwnerLiveness, OwnerLivenessError> = classify_transaction_owner_record(&owner, fresh.as_path());
+    crate::test_support::remove(directory.as_path());
+    assert_ne!(
+        verdict.expect("a young record of another namespace is no refusal"),
+        OwnerLiveness::Dead,
+        "a namespace with a leading zero is the same namespace, so nothing proves the owner gone"
+    );
+}

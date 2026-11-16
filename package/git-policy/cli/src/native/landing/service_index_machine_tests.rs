@@ -140,12 +140,9 @@ fn marker_naming(pid_field: &str, identity: &str) -> String {
 /// which is the same tick written the way a program that pads numbers writes it.
 /// Why:
 ///   A start tick is a number, and one number has one value however many zeros lead it.
+///   The spelling is made once for every control of a reader of a record of a process (`process_identity_spellings.rs`).
 fn birth_with_a_leading_zero(birth: &str) -> String {
-    let Some((prefix, tick)) = birth.split_once(':') else {
-        panic!("the birth {birth} is no start tick this control can pad");
-    };
-    assert!(!tick.starts_with('0'), "the birth {birth} already leads its tick with a zero");
-    return format!("{prefix}:0{tick}");
+    return crate::process_identity_spellings::birth_with_a_leading_zero(birth);
 }
 
 /// What:
@@ -177,9 +174,10 @@ fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
 /// a live holder whose marker spells one part of its identity another way is never judged gone,
 /// and its lock stays.
 /// Why:
-///   Five spellings a person or another program can produce without changing the value:
+///   Six spellings a person or another program can produce without changing the value:
 ///  hexadecimal letters in the boot in capitals,
 ///  a leading zero on the start tick of the birth,
+///  the platform's tag in capitals,
 ///  a space before the birth,
 ///  a leading zero on the process number,
 ///  and a leading zero on the PID namespace.
@@ -195,6 +193,10 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let uppercase_boot: String = boot.to_uppercase();
     assert_ne!(uppercase_boot, boot, "this host's boot ID {boot} has no letter whose case can change");
     let padded_tick: String = birth_with_a_leading_zero(birth);
+    // The platform's tag in capitals names the same platform and the same start tick, so a reader that has no grammar for
+    //  the tick behind it cannot compare it either.
+    let capitals_tag: String = crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(birth);
+    let respelled_tag: String = format!("{capitals_tag}#{boot}#{scope}{tail}");
     let pid: i64 = i64::from(std::process::id());
     let pid_field: String = pid.to_string();
     let padded_pid: String = format!("0{pid_field}");
@@ -205,9 +207,10 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     // A double space after the process number leaves the space in the birth field, which is how a person or a program
     //  that padded the fields writes the same birth.
     let respelled_space: String = format!(" {identity}");
-    let arms: [(&str, &str, &str, &str, HolderState); 5] = [
+    let arms: [(&str, &str, &str, &str, HolderState); 6] = [
         ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
         ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
+        ("the platform's tag in capitals", "capitals-tag", pid_field.as_str(), respelled_tag.as_str(), HolderState::Unknown),
         ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
         ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
         ("a space before the birth", "space-before-birth", pid_field.as_str(), respelled_space.as_str(), HolderState::Unknown),

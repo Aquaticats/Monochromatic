@@ -316,3 +316,61 @@ fn btrfs_a_removal_killed_after_the_mark_is_finished_by_the_next_command() {
     assert!(!record_path(common_dir.as_path(), std::ffi::OsStr::new("wt")).exists(), "and its record with it");
     remove(root.as_path());
 }
+
+/// What:
+///  A record of a removal whose owner runs,
+///  and whose owner's identity is spelled another way,
+///  is the record of a removal that may still be running.
+/// Why:
+///  Another command's recovery finishes and forgets a record whose owner it takes for gone:
+///  the record is the only place the removal that runs can mark its success,
+///  and the registration it names is emptied and forgotten under that command.
+///  The record is written in one spelling of this process's identity,
+///  so a second one came from a writer that is not this release (an older release,
+///  another tool,
+///  a damaged file),
+///  and a spelling a reader cannot compare is no proof that its owner ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(ownerMayBeRunning(respelledOwnerOfThisProcess())).toBe(true);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_record_whose_live_owner_is_named_in_another_spelling_is_a_running_removal() {
+    let birth: String = crate::process_identity::current_birth_identity().expect("this process has an identity");
+    let pid: i64 = i64::from(std::process::id());
+    let owners: [(&str, String); 4] = [
+        (
+            "a leading zero on the start tick",
+            format!("{pid}:{}", crate::process_identity_spellings::birth_with_a_leading_zero(birth.as_str())),
+        ),
+        (
+            "the platform's tag in capitals",
+            format!("{pid}:{}", crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(birth.as_str())),
+        ),
+        (
+            "a space before the birth",
+            format!("{pid}:{}", crate::process_identity_spellings::birth_behind_a_space(birth.as_str())),
+        ),
+        (
+            "a leading zero on the process number",
+            format!("{}:{birth}", crate::process_identity_spellings::process_number_with_a_leading_zero(pid)),
+        ),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, owner) in owners {
+        if !crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running(Some(&owner)) {
+            wrong.push(format!("{what}: the owner {owner} was taken for a command that ended, and it runs"));
+        }
+    }
+    // The other answer of the same reader, so an arm that passes is not a reader that never answers "ended": the same
+    // record of a process that ended is no running command.
+    let ended: crate::worktree_copy_owner::CopyOwner = crate::test_support::dead_copy_owner();
+    let ended_owner: String = format!("{}:{}", ended.pid, ended.birth_identity);
+    assert!(
+        !crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running(Some(&ended_owner)),
+        "the record {ended_owner} of a process that ended is no running removal"
+    );
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

@@ -4674,3 +4674,72 @@ fn a_capture_ref_a_lock_blocked_is_deleted_by_the_next_call() {
     assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), "", "no name is left");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A merge whose owner runs,
+///  and whose record spells one part of its identity another way,
+///  is left alone by the scan and by recovery.
+/// Why:
+///  Recovery settles a record it takes for a dead owner's:
+///  it puts the record's paths back,
+///  removes the record,
+///  drops the refs that keep the merge's commit,
+///  and moves the branch.
+///  A record whose identity a reader cannot compare is no proof that its owner ended,
+///  so it is not settled;
+///  the branch stays where it is,
+///  no other command's keep or ref goes,
+///  and the owner settles it when it finishes.
+///  The last record of the same run is a dead owner's,
+///  and recovery settles it,
+///  so an arm that passes is not a recovery that settles nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const respelled of spellings(owner)) expect(recoverInterruptedMerges(world)).toEqual([{ action: 'OwnerActive' }]);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_merge_whose_live_owner_is_named_in_another_spelling_is_left_alone() {
+    let world: World = world("merge-recovery-live-spelling");
+    let own: TransactionOwner = current_transaction_owner("22222222-0000-4000-8000-00000000002a", "2026-10-29T00:00:00.000Z").expect("this process has an identity");
+    let spellings: [(&str, String); 3] = [
+        ("a leading zero on the start tick", crate::process_identity_spellings::birth_with_a_leading_zero(own.owner_identity.as_str())),
+        ("the platform's tag in capitals", crate::process_identity_spellings::birth_with_its_platform_tag_in_capitals(own.owner_identity.as_str())),
+        ("a space before the birth", crate::process_identity_spellings::birth_behind_a_space(own.owner_identity.as_str())),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (index, (what, respelled)) in spellings.into_iter().enumerate() {
+        let mut live: TransactionOwner = current_transaction_owner(
+            format!("22222222-0000-4000-8000-00000000003{index}").as_str(),
+            "2026-10-29T00:00:00.000Z",
+        )
+        .expect("this process has an identity");
+        live.owner_identity = respelled;
+        let record: PathBuf = record_of(&world, live, Some("refs/heads/main"));
+        if merge_intents_to_recover(world.git_dir.as_path()).expect("the scan") {
+            wrong.push(format!("{what}: the scan wants to recover {}, and its owner runs", record.display()));
+        }
+        let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+        if outcomes.len() != 1 || outcomes[0].action != MergeRecoveryAction::OwnerActive {
+            wrong.push(format!("{what}: recovery answered {outcomes:?} for {}, and its owner runs", record.display()));
+        }
+        if !record.exists() {
+            wrong.push(format!("{what}: the record {} of a merge whose owner runs was removed", record.display()));
+        }
+        if git_text(world.repo.as_path(), &["rev-parse", "main"]) != world.old_oid {
+            wrong.push(format!("{what}: the branch of a merge whose owner runs was moved"));
+        }
+        // A record recovery took for a dead owner's is not there any more, and that is what the arms above report.
+        let _ = std::fs::remove_file(record.as_path());
+    }
+    // The other answer of the same recovery, so an arm that passes is not a recovery that never settles anything: a record
+    // whose owner ended is settled, and its record goes.
+    let ended: PathBuf = record_of(&world, dead_owner("33333333-0000-4000-8000-000000000033"), Some("refs/heads/main"));
+    let settled = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    assert_eq!(settled.len(), 1, "the record whose owner ended is the one recovery settles: {settled:?}");
+    assert_eq!(settled[0].action, MergeRecoveryAction::Discarded, "nothing of it was installed, so it is discarded");
+    assert!(!ended.exists(), "and its record goes");
+    remove(world.parent.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

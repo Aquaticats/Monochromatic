@@ -43,6 +43,12 @@ pub(crate) mod argument_limit;
 #[cfg(test)]
 pub(crate) mod test_support_dead_copy_owner;
 
+/// The same process identity written the ways a writer that is not this release writes it,
+/// for controls of what a reader makes of another spelling;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod process_identity_spellings;
+
 /// The configuration and attribute locations a content decision reads in a fixture;
 /// never part of the release executable.
 #[cfg(all(test, target_os = "linux"))]

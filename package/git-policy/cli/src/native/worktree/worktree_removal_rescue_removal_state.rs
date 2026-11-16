@@ -50,12 +50,13 @@ pub(super) enum Removal {
 ///  process that cannot be inspected,
 /// is an owner that may be alive:
 /// discarding the snapshot on a guess would lose the records.
+///  `pub(super)` lets the controls of this file's parent ask it about a snapshot they build.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await attemptsMayBeRunning(snapshot)
 /// ```
-fn attempt_may_be_running(snapshot: &Path) -> bool {
+pub(super) fn attempt_may_be_running(snapshot: &Path) -> bool {
     // The loop stops at the first attempt that may be running, as `any` did.
     for path in files_of(snapshot.join(ATTEMPTS).as_path()) {
         if attempt_file_may_be_running(path.as_path()) {
