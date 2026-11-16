@@ -752,7 +752,8 @@ pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
 ///  the wait a state step of the service is granted,
 ///  because a location read that outlasts it is one the answer Git gives serves better.
 ///  It costs a working system nothing:
-/// the ceiling is what the caller waits for an answer, never a pause it takes first.
+/// the ceiling is what the caller waits for an answer,
+/// never a pause it takes first.
 pub const LOCATION_READ_CEILING: Duration = ROUTE_STATE_CEILING;
 
 /// The longest a preparation's own file read waits:

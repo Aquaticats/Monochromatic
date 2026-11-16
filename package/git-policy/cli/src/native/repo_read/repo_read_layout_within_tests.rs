@@ -123,8 +123,8 @@ fn every_entry_point_reads_under_the_ceiling() {
     drop(refused);
     let answered_anyway: Vec<&str> = refused_answers
         .iter()
-        .filter(|(_, answer)| answer.is_some())
-        .map(|(name, _)| *name)
+        .filter(|(_, answer)| return answer.is_some())
+        .map(|(name, _)| return *name)
         .collect();
     assert!(answered_anyway.is_empty(), "these entry points read the file system without the ceiling's thread: {answered_anyway:?}");
 }

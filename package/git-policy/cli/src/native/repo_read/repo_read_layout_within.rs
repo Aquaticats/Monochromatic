@@ -18,12 +18,14 @@
 //!  so one thread starts where the read begins and no storage call starts one of its own.
 //!  A command asks the same read through several callers,
 //!  and storage that stopped answering would cost one ceiling per caller
-//!  (measured: about ten asks of one `git add`),
+//!  (measured:
+//! about ten asks of one `git add`),
 //!  so a read that gave no answer makes the rest of this process's reads answer nothing at once:
 //!  the answer they would give is the one the first gave,
 //!  and declining hands the question to Git,
 //!  which is correct and only slower.
-//!  The job is abandoned, never cancelled:
+//!  The job is abandoned,
+//! never cancelled:
 //!  a call the kernel never returns is released only when the kernel lets go,
 //!  and the process's own end waits for it (`work_awaited_within_a_ceiling.rs`).
 //!  A read that gives no answer is `None`,
@@ -74,7 +76,8 @@ pub(crate) fn from_a_directory(start: PathBuf, scope: ScopeEnvironment, typed: b
 ///  found within `LOCATION_READ_CEILING`.
 /// Why:
 ///  A command's location starts where its leading `-C` options leave it,
-/// and reading that directory, its device and its entries is storage work of the same job.
+/// and reading that directory,
+/// its device and its entries is storage work of the same job.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,9 +94,11 @@ pub(crate) fn from_the_global_prefix(global_prefix: Vec<OsString>, scope: ScopeE
 /// What:
 ///  Whether `path` is a symbolic link,
 ///  read within `LOCATION_READ_CEILING`;
-///  `None` when the read gave no answer, which is the caller's own "ask Git".
+///  `None` when the read gave no answer,
+/// which is the caller's own "ask Git".
 /// Why:
-///   `git_path` refuses a name that is a link, because `--path-format=absolute` prints a link's target,
+///   `git_path` refuses a name that is a link,
+/// because `--path-format=absolute` prints a link's target,
 ///  and that one lookup waits in the kernel on a mount that stopped answering like every other read here.
 /// One job per asked name is the price of bounding it.
 /// A name that is not there is not a link,
@@ -106,7 +111,26 @@ pub(crate) fn from_the_global_prefix(global_prefix: Vec<OsString>, scope: ScopeE
 /// ```
 pub(crate) fn is_a_link(path: &Path) -> Option<bool> {
     let owned: PathBuf = path.to_path_buf();
-    return within(move || std::fs::symlink_metadata(owned.as_path()).is_ok_and(|metadata| metadata.file_type().is_symlink()));
+    return within(move || return is_a_link_at(owned));
+}
+
+/// What:
+///  Whether the name at `path` is a symbolic link,
+///  and `false` for a name that is not there or cannot be read.
+/// Why:
+///   The ceiling's job names one function,
+/// so the work it runs is readable on its own
+///  (`rust/avoidable-closure`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const linked = lstatSync(path).isSymbolicLink(); // a name that cannot be read is not a link
+/// ```
+fn is_a_link_at(path: PathBuf) -> bool {
+    let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
+        return false;
+    };
+    return metadata.file_type().is_symlink();
 }
 
 /// What:
@@ -114,7 +138,9 @@ pub(crate) fn is_a_link(path: &Path) -> Option<bool> {
 /// Why:
 ///  This is the one place the location read names its ceiling,
 ///  so a storage call added anywhere in the read is covered by it without a ceiling of its own,
-///  and a read that gives no answer, or a system that refuses the thread, answers `None`.
+///  and a read that gives no answer,
+/// or a system that refuses the thread,
+/// answers `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,7 +168,8 @@ where
 ///  a thread the system refused leaves the read as it was,
 ///  because nothing was learned about the storage.
 ///  A process that once saw this keeps asking Git for its reads until it ends,
-///  which is the slower correct answer, and a commit service that saw it ends the sooner for being idle.
+///  which is the slower correct answer,
+/// and a commit service that saw it ends the sooner for being idle.
 static A_READ_GAVE_NO_ANSWER: AtomicBool = AtomicBool::new(false);
 
 /// What:

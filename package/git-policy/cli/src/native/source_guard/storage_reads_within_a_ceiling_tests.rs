@@ -9,7 +9,8 @@
 //!  The owner's rule is "nothing should ever wait forever or indefinitely".
 //!  The package's other scan of this kind (`blocking_code_off_the_runtime_tests.rs`) reads storage calls on
 //!  tasks the runtime polls,
-//!  so it sees none of them here: every function of this read is synchronous,
+//!  so it sees none of them here:
+//! every function of this read is synchronous,
 //!  and its calls are held by a thread the caller waits for under a ceiling rather than by a worker.
 //!  This scan covers that place:
 //!  every storage call in the files the read is written in must be inside a function the ceiling job runs,
@@ -19,7 +20,8 @@
 //! The scan is textual and says where it is coarse:
 //!  it follows no call,
 //!  so a storage call added in a callee of another file is not a finding here
-//!  (it is still inside the job, because the job is the whole read);
+//!  (it is still inside the job,
+//! because the job is the whole read);
 //!  it cannot see that a listed function is only called from the job,
 //!  which is what the dynamic controls of `repo_read/repo_read_layout_within_tests.rs` prove for the entry
 //!  points,
@@ -104,7 +106,7 @@ pub(super) const THE_JOB: &[Carry] = &[
     },
     Carry {
         file: "repo_read/repo_read_layout_within.rs",
-        function: "is_a_link",
+        function: "is_a_link_at",
         why: "the ceiling's own job for the one lookup `git_path` makes",
     },
     Carry {
@@ -280,10 +282,10 @@ fn the_read_is_part_of_this_crate() {
     let files: Vec<String> = crate::source_scan_tests::classified_sources(&source_root(), &real_roots())
         .expect("the crate's sources")
         .into_iter()
-        .map(|source| source.path)
+        .map(|source| return source.path)
         .collect();
     for file in THE_READ {
-        assert!(files.iter().any(|path| path == file), "{file} is not a source of this crate");
+        assert!(files.iter().any(|path| return path == file), "{file} is not a source of this crate");
     }
 }
 
@@ -300,8 +302,8 @@ fn judged(text: &str, file: &str, function: &str) -> Judgement {
     crate::test_support::remove(root.as_path());
     let judged: Vec<Judgement> = found
         .iter()
-        .filter(|(_, name, _, _)| name == function)
-        .map(|(_, _, _, judgement)| *judgement)
+        .filter(|(_, name, _, _)| return name == function)
+        .map(|(_, _, _, judgement)| return *judgement)
         .collect();
     assert_eq!(judged.len(), 1, "the scan judged {function} {} times: {found:?}", judged.len());
     let Some(one) = judged.first() else {
