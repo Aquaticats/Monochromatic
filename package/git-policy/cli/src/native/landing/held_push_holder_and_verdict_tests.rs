@@ -17,7 +17,7 @@
 
 use super::{Holding, Verdict, holding_in, pid_of, proven_gone, this_command, with_holding};
 use crate::claim_time::current_boot_id;
-use crate::process_identity::current_birth_identity;
+use crate::process_identity::{LINUX_IDENTITY_PREFIX, current_birth_identity};
 use crate::test_support::spawn_owned;
 use crate::work_item::{WorkItem, WorkKind};
 use std::path::PathBuf;
@@ -297,6 +297,97 @@ fn a_live_holders_text_spelled_another_way_is_never_proven_gone() {
     for (what, text) in arms {
         if proven_gone(text.as_str()) {
             wrong.push(format!("{what}: the reader proved the holder of {text} gone, and that command runs"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// The birth of a process that never ran:
+/// the largest start tick a 64-bit number holds,
+/// written as this program writes one,
+/// which no process is born at.
+/// Why:
+///   The table below pairs it with the number of a process that runs to say what a record of an earlier process reads as,
+/// and it is a birth a live process can never have.
+const NO_SUCH_BIRTH: &str = "linux:18446744073709551615";
+
+/// The answer one row of the identity table requires.
+/// Why:
+///   `proven_gone` answers yes or no,
+/// and this table states the three states of the world that answer must not confuse:
+/// a holder that is gone,
+/// a holder that runs,
+/// and a reader that cannot tell.
+/// `Alive` and `Unknown` are both "no" to this reader,
+/// which is why the claim's own table (`lock/single_owner_claim_tests.rs`) is the one that tells them apart.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Required {
+    /// Nothing of the holder runs: the record may be settled.
+    Gone,
+    /// The holder is the process that has the number now: the record waits for it.
+    Alive,
+    /// The reader cannot tell: the record stays as it is.
+    Unknown,
+}
+
+/// Refused:
+///  no pairing of what the process table says about a record's number with what the record says about its birth
+///  gives "gone" for a holder that runs,
+///  and no pairing keeps a holder that cannot run.
+/// Why:
+///  The two rules pull against each other.
+/// Nothing may prove a live holder gone,
+/// so a birth that is not one value in the spelling this program writes it answers unknown.
+/// And a holder that cannot run must be clearable by the next command,
+/// so the birth decides only where there is a process to compare it with:
+/// a number no process has ends the record whatever its birth says,
+/// and only a live process with that number is asked about the birth.
+///  The birth texts are the value as the writer writes it,
+/// that value in another spelling (a leading zero on its start tick),
+/// nothing but a space,
+/// the empty text,
+/// and a text that claims this platform's tag and names no tick.
+/// The number states are a number no process has,
+/// the number of the process that wrote the record,
+/// and the number of a later process,
+/// which is a live number with a birth the record says belongs to an earlier process.
+#[test]
+fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_requires() {
+    let boot: &str = current_boot_id();
+    let own: i64 = i64::from(std::process::id());
+    let live_birth: String = current_birth_identity().expect("this process has an identity");
+    let live_birth_respelled: String = birth_with_a_leading_zero(live_birth.as_str());
+    let earlier_birth: String = String::from(NO_SUCH_BIRTH);
+    let earlier_birth_respelled: String = birth_with_a_leading_zero(NO_SUCH_BIRTH);
+    let blank: &str = " ";
+    let empty: &str = "";
+    let unparseable: String = format!("{LINUX_IDENTITY_PREFIX}not-a-tick");
+    let free: i64 = crate::single_owner_claim::unused_pid_for_tests();
+    let rows: [(&str, i64, &str, Required); 15] = [
+        ("a free number and the birth as the writer writes it", free, live_birth.as_str(), Required::Gone),
+        ("a free number and the birth in another spelling", free, live_birth_respelled.as_str(), Required::Gone),
+        ("a free number and a blank birth", free, blank, Required::Gone),
+        ("a free number and an empty birth", free, empty, Required::Gone),
+        ("a free number and an unparseable birth", free, unparseable.as_str(), Required::Gone),
+        ("the writer's own number and the birth as the writer writes it", own, live_birth.as_str(), Required::Alive),
+        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown),
+        ("the writer's own number and a blank birth", own, blank, Required::Unknown),
+        ("the writer's own number and an empty birth", own, empty, Required::Unknown),
+        ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+        ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
+        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Gone),
+        ("a later process's number and a blank birth", own, blank, Required::Unknown),
+        ("a later process's number and an empty birth", own, empty, Required::Unknown),
+        ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+    ];
+    // Every row is asked and every wrong answer is kept, so one run of this table names each pairing that broke a rule.
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, number, birth, required) in rows {
+        let holder: String = format!("{boot}/{number}/{birth}");
+        let gone: bool = proven_gone(holder.as_str());
+        let expected_gone: bool = required == Required::Gone;
+        if gone != expected_gone {
+            wrong.push(format!("{what}: the reader answered {} for {holder}, and the rule requires {required:?}", match gone { true => "gone", false => "not gone" }));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

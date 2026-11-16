@@ -402,3 +402,122 @@ fn a_claim_on_a_flushing_thread_flushes_its_record_and_its_directory() {
     assert_eq!(counts.skipped, 0, "nothing was skipped where the thread flushes: {counts:?}");
     remove(directory.as_path());
 }
+
+/// The answer one row of the identity table requires.
+/// Why:
+///   This caller answers in three values
+///  (`Ok(Some(pid))` for a live owner,
+/// `Ok(None)` for a gone one,
+/// and an error for a question it cannot answer),
+/// so the table can state all three states of the world,
+/// unlike the held push's two-valued reader (`landing/held_push_holder_and_verdict_tests.rs`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Required {
+    /// Nothing of the owner runs: the claimant takes the item.
+    Gone,
+    /// The owner is the process that has the number now: the claimant is told who it is.
+    Alive,
+    /// The reader cannot tell: the claimant stops and names the file without taking anything.
+    Unknown,
+}
+
+/// The birth `birth` with a leading zero on its start tick,
+/// which is the same tick written the way a program that pads numbers writes it.
+/// Why:
+///   A start tick is a number, and one number has one value however many zeros lead it.
+fn birth_with_a_leading_zero(birth: &str) -> String {
+    let Some((prefix, tick)) = birth.split_once(':') else {
+        panic!("the birth {birth} is no start tick this control can pad");
+    };
+    return format!("{prefix}:0{tick}");
+}
+
+/// Refused:
+///  no pairing of what the process table says about a claim's number with what the claim says about its birth
+///  takes an item from an owner that runs,
+///  and no pairing keeps an item whose owner cannot run.
+/// Why:
+///  The two rules pull against each other.
+/// Nothing may take an item from a live owner,
+/// so a birth that is not one value in the spelling this program writes it answers unknown,
+/// which refuses the claimant and names the file.
+/// And an owner that cannot run must not be able to refuse every later claimant,
+/// so the birth decides only where there is a process to compare it with:
+/// a number no process has ends the claim whatever its birth says,
+/// and only a live process with that number is asked about the birth.
+///  The birth texts are the value as the writer writes it,
+/// that value in another spelling (a leading zero on its start tick),
+/// nothing but a space,
+/// the empty text,
+/// and a text that claims this platform's tag and names no tick.
+/// The number states are a number no process has,
+/// the number of the process that wrote the claim,
+/// and the number of a later process,
+/// which is a live number with a birth the claim says belongs to an earlier owner.
+#[test]
+fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_requires() {
+    let own: i64 = i64::from(std::process::id());
+    let live_birth: String = current_birth_identity().expect("this process has an identity");
+    let live_birth_respelled: String = birth_with_a_leading_zero(live_birth.as_str());
+    let earlier_birth: String = String::from(NO_SUCH_BIRTH);
+    let earlier_birth_respelled: String = birth_with_a_leading_zero(NO_SUCH_BIRTH);
+    let blank: &str = " ";
+    let empty: &str = "";
+    let unparseable: String = format!("{}not-a-tick", crate::process_identity::LINUX_IDENTITY_PREFIX);
+    let free: i64 = unused_pid_for_tests();
+    let rows: [(&str, i64, &str, Required); 15] = [
+        ("a free number and the birth as the writer writes it", free, live_birth.as_str(), Required::Gone),
+        ("a free number and the birth in another spelling", free, live_birth_respelled.as_str(), Required::Gone),
+        ("a free number and a blank birth", free, blank, Required::Gone),
+        ("a free number and an empty birth", free, empty, Required::Gone),
+        ("a free number and an unparseable birth", free, unparseable.as_str(), Required::Gone),
+        ("the writer's own number and the birth as the writer writes it", own, live_birth.as_str(), Required::Alive),
+        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown),
+        ("the writer's own number and a blank birth", own, blank, Required::Unknown),
+        ("the writer's own number and an empty birth", own, empty, Required::Unknown),
+        ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+        ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
+        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Gone),
+        ("a later process's number and a blank birth", own, blank, Required::Unknown),
+        ("a later process's number and an empty birth", own, empty, Required::Unknown),
+        ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+    ];
+    // Every row is asked in a fixture of its own, and every wrong answer is kept, so one run of this table names each
+    //  pairing that broke a rule.
+    let mut wrong: Vec<String> = Vec::new();
+    for (index, (what, number, birth, required)) in rows.into_iter().enumerate() {
+        let directory: PathBuf = fixture(format!("claim-identity-table-{index}").as_str());
+        plant_claim_for_tests(directory.as_path(), prefix(), FIRST, number, birth);
+        let outcome: Result<ClaimOutcome, MigrateError> = take_claim(directory.as_path(), prefix());
+        let generations_after: Vec<u64> = present(directory.as_path());
+        remove(directory.as_path());
+        let expected_generations: Vec<u64> = match required {
+            Required::Gone => vec![FIRST + 1],
+            Required::Alive | Required::Unknown => vec![FIRST],
+        };
+        match (outcome, required) {
+            (Ok(ClaimOutcome::Held(_claim)), Required::Gone) => {}
+            (Ok(ClaimOutcome::Held(_claim)), _) => {
+                wrong.push(format!("{what}: the claimant took the item, and the rule requires {required:?}"));
+            }
+            (Ok(ClaimOutcome::Busy(owner)), Required::Alive) if owner.pid == number => {}
+            (Ok(ClaimOutcome::Busy(owner)), Required::Alive) => {
+                wrong.push(format!("{what}: the claimant named process {} instead of {number}", owner.pid));
+            }
+            (Ok(ClaimOutcome::Busy(_owner)), _) => {
+                wrong.push(format!("{what}: the claimant answered with a live owner, and the rule requires {required:?}"));
+            }
+            (Err(refusal), Required::Unknown) if format!("{refusal:?}").contains(birth) => {}
+            (Err(refusal), Required::Unknown) => {
+                wrong.push(format!("{what}: the refusal does not name the birth {birth:?}: {refusal:?}"));
+            }
+            (Err(_refusal), _) => {
+                wrong.push(format!("{what}: the claimant refused, and the rule requires {required:?}"));
+            }
+        }
+        if generations_after != expected_generations {
+            wrong.push(format!("{what}: the item holds generations {generations_after:?} afterwards, and {expected_generations:?} is what this row leaves"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
