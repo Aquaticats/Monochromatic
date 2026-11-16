@@ -304,7 +304,10 @@ fn a_manager_that_answers_the_probe_and_then_never_makes_the_scope_falls_back() 
     // The probe answers; the real start hangs and makes no service at all.
     std::fs::write(
         manager_program.as_path(),
-        "#!/bin/sh\ncase \"$*\" in *'-- /bin/true'*) exec /bin/true ;; esac\nexec /bin/sleep 300\n",
+        format!(
+            "#!/bin/sh\ncase \"$*\" in *'-- /bin/true'*) exec /bin/true ;; esac\nprintf '%s' \"$$\" > '{hung}'\nexec /bin/sleep 300\n",
+            hung = root.join("hung-manager").display()
+        ),
     )
     .expect("the stand-in manager that hangs");
     {
@@ -324,6 +327,10 @@ fn a_manager_that_answers_the_probe_and_then_never_makes_the_scope_falls_back() 
     let ran: Vec<i32> = services_that_ran(runs.as_path());
     for pid in ran.iter() {
         let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
+    }
+    // The hung manager is this control's own child, and it ends with the control.
+    if let Ok(said) = std::fs::read_to_string(root.join("hung-manager")) {
+        let _killed = std::process::Command::new("/bin/kill").args(["-9", said.trim()]).status();
     }
     // What: The base start ran, which only its own spawn does, and it opens the service's log before it forks.
     // Why:  The tip answered "preparing" for the manager's hung client and never reached the base start at all
