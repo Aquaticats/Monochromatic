@@ -11,8 +11,9 @@
 
 /// Import the diagnostic and severity types that broken-link findings are reported with.
 use crate::diagnostic::{Diagnostic, Severity};
-/// Import the edit type that a link repair is written as.
-use crate::edits::Edit;
+/// Import the edit,
+/// fix and class types that a link repair is written with.
+use crate::edits::{Edit, Fix, FixClass};
 /// Import the finding constructor that wraps a link problem as a located diagnostic.
 use crate::markdown_finding::finding;
 /// Import the parsed Markdown source whose links are inspected.
@@ -85,13 +86,18 @@ pub fn no_bare_urls(context: &MarkdownSource, severity: Severity) -> Vec<Diagnos
         // A backtick inside the link text is a code span delimiter the autolink swallowed,
         //  so the author wrote code that an earlier unpaired backtick displaced;
         //  wrapping would move the delimiter into the link and the finding stays for a hand fix.
-        let edit: Option<Edit> = if written.contains('`') {
+        //  `<url>` is an autolink with the same text and the same destination,
+        //  so the fix leaves what a reader reads and follows unchanged.
+        let fix: Option<Fix> = if written.contains('`') {
             None
         } else {
-            Some(Edit {
-                start,
-                end,
-                replacement,
+            Some(Fix {
+                class: FixClass::Fix,
+                edits: vec![Edit {
+                    start,
+                    end,
+                    replacement,
+                }],
             })
         };
         findings.push(finding(
@@ -100,7 +106,7 @@ pub fn no_bare_urls(context: &MarkdownSource, severity: Severity) -> Vec<Diagnos
             "markdown/no-bare-urls",
             severity,
             String::from(message),
-            edit,
+            fix,
         ));
     }
     return findings;
@@ -126,10 +132,15 @@ pub fn link_image_style(context: &MarkdownSource, severity: Severity) -> Vec<Dia
             "markdown/link-image-style",
             severity,
             String::from("Shortcut reference style; use the collapsed `[label][]` style."),
-            Some(Edit {
-                start: end,
-                end,
-                replacement: String::from("[]"),
+            // `[label][]` resolves to the same definition and renders the same link,
+            //  so the fix is safe.
+            Some(Fix {
+                class: FixClass::Fix,
+                edits: vec![Edit {
+                    start: end,
+                    end,
+                    replacement: String::from("[]"),
+                }],
             }),
         ));
     }

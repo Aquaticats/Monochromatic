@@ -95,7 +95,7 @@ impl SourceChecker for Checker {
             source.len()
         };
         finding.fix = Some(Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![Edit {
                 start: 0,
                 end,

@@ -1372,6 +1372,17 @@ saying nothing keeps it.
   and content-changing fixes need `--fix-content`
   (0.5.2-alpha.5);
   the repository's `format:monochromatic-lint` task therefore changes no word.
+  Update,
+  2026-11-15:
+  the owner reversed this split ("No,
+  we need to follow oxlint's --fix.
+  Oxlint isn't whitespace-only by default."),
+  so `--fix-content` is gone,
+  `--fix`,
+  `--fix-suggestions` and `--fix-dangerously` are Oxlint's three flags,
+  and plain `--fix` applies the class whose fix a reader cannot tell apart
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "Owner decisions in force").
 - When the fixer breaks a line inside a blockquote,
   the new line carries no `>`
   (a lazy continuation that renders the same under CommonMark 0.31.2,

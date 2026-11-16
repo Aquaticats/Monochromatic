@@ -30,11 +30,14 @@ use serde::Serialize;
 pub struct RuleInfo {
     /// Rule identifier as written in configuration and in a finding's `code`.
     pub id: &'static str,
-    /// Whether the rule can attach a fix that `--fix-content` applies.
+    /// Whether the rule can attach a fix,
+    ///  and the class of change that fix makes.
     pub fixable: bool,
-    /// What the rule's fix does to the reader's text:
-    ///  `whitespace` applies under plain `--fix`,
-    ///  `content` only under `--fix-content`,
+    /// The class of the rule's fix,
+    ///  named as Oxlint names it:
+    ///  `fix` applies under `--fix`,
+    ///  `suggestion` under `--fix-suggestions`,
+    ///  `dangerous_fix` and `dangerous_suggestion` under `--fix-dangerously`,
     ///  and a rule without a fix has none.
     #[serde(rename = "fixClass")]
     pub fix_class: Option<FixClass>,
@@ -143,7 +146,7 @@ pub const RULES: &[RuleInfo] = &[
     RuleInfo {
         id: "markdown/commands-show-output",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::Suggestion),
         options: &[],
         suppressible: true,
     },
@@ -164,14 +167,14 @@ pub const RULES: &[RuleInfo] = &[
     RuleInfo {
         id: "markdown/no-trailing-punctuation",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::Suggestion),
         options: &[],
         suppressible: true,
     },
     RuleInfo {
         id: "markdown/no-bare-urls",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::Fix),
         options: &[],
         suppressible: true,
     },
@@ -185,21 +188,21 @@ pub const RULES: &[RuleInfo] = &[
     RuleInfo {
         id: "markdown/fenced-code-language",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::Suggestion),
         options: &[],
         suppressible: true,
     },
     RuleInfo {
         id: "markdown/link-image-reference-definitions",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::DangerousFix),
         options: &[],
         suppressible: true,
     },
     RuleInfo {
         id: "markdown/link-image-style",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::Fix),
         options: &[],
         suppressible: true,
     },
@@ -213,14 +216,14 @@ pub const RULES: &[RuleInfo] = &[
     RuleInfo {
         id: "markdown/semantic-line-breaks",
         fixable: true,
-        fix_class: Some(FixClass::Whitespace),
+        fix_class: Some(FixClass::Fix),
         options: &[],
         suppressible: true,
     },
     RuleInfo {
         id: "markdown/lfs-image-url",
         fixable: true,
-        fix_class: Some(FixClass::Content),
+        fix_class: Some(FixClass::Suggestion),
         options: &["exclude"],
         suppressible: true,
     },

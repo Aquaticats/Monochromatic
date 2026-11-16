@@ -22,7 +22,7 @@
 /// Import the shared ECMAScript trim predicate for whitespace after a destination marker.
 use crate::{
     diagnostic::{Diagnostic, Severity},
-    edits::Edit,
+    edits::{Edit, Fix, FixClass},
     markdown_finding::finding,
     markdown_lfs_context::{LfsImageContext, LfsImageTarget},
     markdown_lfs_target::{
@@ -130,10 +130,14 @@ fn rewrite_finding(
         ID,
         severity,
         message,
-        Some(Edit {
-            start,
-            end,
-            replacement,
+        // The destination a reader's browser loads changes, so the fix is a suggestion.
+        Some(Fix {
+            class: FixClass::Suggestion,
+            edits: vec![Edit {
+                start,
+                end,
+                replacement,
+            }],
         }),
     );
 }

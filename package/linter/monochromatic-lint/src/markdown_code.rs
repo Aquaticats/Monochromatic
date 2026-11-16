@@ -11,8 +11,9 @@
 
 /// Import the diagnostic and severity types that code-fence checks report through.
 use crate::diagnostic::{Diagnostic, Severity};
-/// Import the edit type that a code-fence repair is written as.
-use crate::edits::Edit;
+/// Import the edit,
+/// fix and class types that a code-fence repair is written with.
+use crate::edits::{Edit, Fix, FixClass};
 /// Import the finding constructor that turns a located problem into a diagnostic.
 use crate::markdown_finding::finding;
 /// Import the parsed Markdown source that fence positions are read from.
@@ -77,10 +78,15 @@ pub fn fenced_code_language(
             "markdown/fenced-code-language",
             severity,
             String::from("Fenced code block has no language label."),
-            Some(Edit {
-                start: offset,
-                end: offset,
-                replacement: String::from(label),
+            // A highlighter acts on the label, and the label is guessed,
+            //  so the fix is a suggestion.
+            Some(Fix {
+                class: FixClass::Suggestion,
+                edits: vec![Edit {
+                    start: offset,
+                    end: offset,
+                    replacement: String::from(label),
+                }],
             }),
         ));
     }

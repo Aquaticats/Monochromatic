@@ -66,7 +66,7 @@ fn fix_rewrites_files_and_reports_the_remainder() {
         "# Title:\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n",
     );
     write(&fixture.path, "c.rs", "fn main() {}\n");
-    let output: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let output: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!(output.exit_code, 1);
     assert_eq!(output.stderr, "");
     assert_eq!(
@@ -88,7 +88,7 @@ fn fix_rewrites_files_and_reports_the_remainder() {
         ]
     );
     // A second fixing run changes nothing and reports the same remainder.
-    let again: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let again: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!(again, output);
 }
 
@@ -104,7 +104,7 @@ fn fixed_files_keep_their_mode() {
     let clean = write(&fixture.path, "b.md", "# Title\n");
     std::fs::set_permissions(&fixable, std::fs::Permissions::from_mode(0o640)).expect("chmod");
     std::fs::set_permissions(&clean, std::fs::Permissions::from_mode(0o444)).expect("chmod");
-    let output: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let output: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!((output.exit_code, output.stdout.as_str()), (0, ""));
     assert_eq!(read(&fixture.path, "a.md"), "# Title\n");
     assert_eq!(
@@ -202,7 +202,7 @@ fn processor_findings_and_fixes_use_the_host_file() {
         .as_u64()
         .expect("offset") as usize;
     assert_eq!(&rust[rust_offset..rust_offset + 14], "fn helper() {}");
-    let fixed: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let fixed: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!(fixed.exit_code, 0);
     assert_eq!(
         read(&fixture.path, "src/a.rs"),
@@ -242,7 +242,7 @@ fn standard_input_routes_source_and_findings() {
             "--stdin",
             "--stdin-filename",
             "doc/never-written.md",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         source,
     );
@@ -254,7 +254,7 @@ fn standard_input_routes_source_and_findings() {
     let clean: &str = "\u{feff}# Title\r\n\r\nOne sentence.\r\n";
     let echoed: RunOutput = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.md", "--fix-content"],
+        &["--stdin", "--stdin-filename", "a.md", "--fix-dangerously"],
         clean,
     );
     assert_eq!(
@@ -279,7 +279,7 @@ fn standard_input_routes_source_and_findings() {
             "--stdin",
             "--stdin-filename",
             "a.md",
-            "--fix-content",
+            "--fix-dangerously",
             "--silent",
         ],
         source,
@@ -300,7 +300,7 @@ fn standard_input_setup_failures_exit_two() {
     let fixture: Fixture = Fixture::new();
     let unconfigured: RunOutput = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.md", "--fix-content"],
+        &["--stdin", "--stdin-filename", "a.md", "--fix-dangerously"],
         "# Title.\n",
     );
     assert_eq!(
@@ -331,8 +331,12 @@ fn standard_input_setup_failures_exit_two() {
         "{}",
         unsupported.stderr
     );
-    let parsed =
-        crate::run_test_support::options(&["--stdin", "--stdin-filename", "a.md", "--fix-content"]);
+    let parsed = crate::run_test_support::options(&[
+        "--stdin",
+        "--stdin-filename",
+        "a.md",
+        "--fix-dangerously",
+    ]);
     let invalid: RunOutput =
         crate::run_command::run_command(&parsed, &fixture.path, &mut [b'#', 0xff].as_slice());
     assert_eq!((invalid.exit_code, invalid.stdout.as_str()), (2, ""));
@@ -346,7 +350,12 @@ fn standard_input_setup_failures_exit_two() {
     // An ignored logical filename is not linted; fixing echoes its source unchanged.
     let ignored: RunOutput = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "skip/a.md", "--fix-content"],
+        &[
+            "--stdin",
+            "--stdin-filename",
+            "skip/a.md",
+            "--fix-dangerously",
+        ],
         "# Title.\n",
     );
     assert_eq!(
@@ -365,7 +374,7 @@ fn standard_input_setup_failures_exit_two() {
     );
     let refused: RunOutput = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.md", "--fix-content"],
+        &["--stdin", "--stdin-filename", "a.md", "--fix-dangerously"],
         "[unused]: https://example.com\n",
     );
     assert_eq!(refused.exit_code, 2);
@@ -404,7 +413,7 @@ fn an_explicit_configuration_outside_the_tree_matches_tree_paths() {
             "--stdin",
             "--stdin-filename",
             "doc/new.md",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         "# Title.\n",
     );
@@ -424,7 +433,7 @@ fn an_explicit_configuration_outside_the_tree_matches_tree_paths() {
             "--stdin",
             "--stdin-filename",
             "other/new.md",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         "# Title.\n",
     );
@@ -451,7 +460,7 @@ fn standard_input_lfs_rewrites_follow_the_incumbent_cases() {
             "--stdin",
             "--stdin-filename",
             "pkg/README.md",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         "![shot](asset/shot.png)\n",
     );
@@ -475,7 +484,7 @@ fn standard_input_lfs_rewrites_follow_the_incumbent_cases() {
             "--stdin",
             "--stdin-filename",
             "pkg/README.md",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         "![shot](asset/shot.png)\n\n| A | B |\n| - | - |\n| 1 | 2 |\n",
     );
@@ -492,7 +501,7 @@ fn standard_input_lfs_rewrites_follow_the_incumbent_cases() {
             "--stdin",
             "--stdin-filename",
             "pkg/page.mdx",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         "import X from \"./x\";\n\n![shot](asset/shot.png)\n",
     );
@@ -509,7 +518,7 @@ fn standard_input_lfs_rewrites_follow_the_incumbent_cases() {
             "--stdin",
             "--stdin-filename",
             "pkg/README.md",
-            "--fix-content",
+            "--fix-dangerously",
         ],
         "![shot](asset/shot.png)\n",
     );
@@ -533,7 +542,7 @@ fn lfs_rewrites_files_and_unusable_endpoints_are_processing_failures() {
         "pkg/README.md",
         "![shot](asset/shot.png)\n\n![plain](asset/plain.svg)\n",
     );
-    let fixed: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let fixed: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!((fixed.exit_code, fixed.stdout.as_str()), (0, ""));
     assert_eq!(
         read(&fixture.path, "pkg/README.md"),

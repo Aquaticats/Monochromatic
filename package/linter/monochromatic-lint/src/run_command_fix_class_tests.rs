@@ -4,7 +4,8 @@
 //!  a safe fix,
 //!  a suggestion,
 //!  and the dangerous forms of both,
-//!  applied by `--fix`, `--fix-suggestions` and `--fix-dangerously`.
+//!  applied by `--fix`,
+//! `--fix-suggestions` and `--fix-dangerously`.
 //! Why:
 //!  The owner settled on 2026-11-15 that this command follows Oxlint's `--fix`
 //!  (`doc/handover/cli-git-rust-implementation.md`,
@@ -12,7 +13,8 @@
 //!  and Oxlint's classes are the ones the command must offer:
 //!  its `--help` names the three flags,
 //!  and `crates/oxc_linter/src/fixer/fix.rs` at tag `oxlint_v1.93.0`
-//!  defines `Fix`, `Suggestion` and `Dangerous`
+//!  defines `Fix`,
+//! `Suggestion` and `Dangerous`
 //!  with `can_apply` a set containment.
 //!  Measured with Oxlint 1.93.0:
 //!  `--fix` applies a `Fix` and withholds a suggestion and a dangerous fix,
@@ -122,10 +124,7 @@ fn only(rule: &str) -> String {
 }
 
 /// Fix one file of a disposable tree under one rule's configuration and report the result.
-fn fix_one(
-    case: &ClassCase,
-    arguments: &[&str],
-) -> (String, Vec<String>, RunOutput) {
+fn fix_one(case: &ClassCase, arguments: &[&str]) -> (String, Vec<String>, RunOutput) {
     let fixture: Fixture = Fixture::new();
     write(&fixture.path, CONFIG, only(case.rule).as_str());
     write(&fixture.path, "a.md", case.source);
@@ -138,7 +137,8 @@ fn fix_one(
 }
 
 /// What:
-///  Every link, image and definition a reader's browser resolves,
+///  Every link,
+/// image and definition a reader's browser resolves,
 ///  as one comparable line each.
 /// Why:
 ///  A safe fix may rewrite the source of a link,
@@ -150,8 +150,9 @@ fn fix_one(
 /// ```
 fn link_facts(filename: &str, text: &str) -> Vec<String> {
     let mdx: bool = filename.ends_with(".mdx");
-    let source: MarkdownSource = MarkdownSource::new(String::from(filename), String::from(text), mdx)
-        .expect("the fixture parses");
+    let source: MarkdownSource =
+        MarkdownSource::new(String::from(filename), String::from(text), mdx)
+            .expect("the fixture parses");
     let mut facts: Vec<String> = Vec::<String>::new();
     for id in source.visible_nodes() {
         match source.kind(*id) {
@@ -237,13 +238,19 @@ fn plain_fix_applies_the_safe_class_alone() {
         } else {
             assert_eq!(text, case.source, "{} is not safe", case.rule);
             assert_eq!(output.exit_code, 1, "{}", case.rule);
-            assert_eq!(reported, [format!("markdown/{}", case.rule)], "{}", case.rule);
+            assert_eq!(
+                reported,
+                [format!("markdown/{}", case.rule)],
+                "{}",
+                case.rule
+            );
         }
     }
 }
 
 /// `--fix-suggestions` applies the suggestion class alone,
-///  as Oxlint 1.93.0 does: a safe fix waits for `--fix`.
+///  as Oxlint 1.93.0 does:
+/// a safe fix waits for `--fix`.
 #[test]
 fn fix_suggestions_applies_the_suggestion_class_alone() {
     for case in &CLASSES {
@@ -254,7 +261,12 @@ fn fix_suggestions_applies_the_suggestion_class_alone() {
         } else {
             assert_eq!(text, case.source, "{} is not a suggestion", case.rule);
             assert_eq!(output.exit_code, 1, "{}", case.rule);
-            assert_eq!(reported, [format!("markdown/{}", case.rule)], "{}", case.rule);
+            assert_eq!(
+                reported,
+                [format!("markdown/{}", case.rule)],
+                "{}",
+                case.rule
+            );
         }
     }
 }
@@ -267,7 +279,12 @@ fn fix_and_suggestions_together_apply_both_classes() {
         if case.class == "dangerous_fix" {
             assert_eq!(text, case.source, "{} is dangerous", case.rule);
             assert_eq!(output.exit_code, 1, "{}", case.rule);
-            assert_eq!(reported, [format!("markdown/{}", case.rule)], "{}", case.rule);
+            assert_eq!(
+                reported,
+                [format!("markdown/{}", case.rule)],
+                "{}",
+                case.rule
+            );
         } else {
             assert_eq!(text, case.fixed, "{}", case.rule);
             assert_eq!((output.exit_code, reported.len()), (0, 0), "{}", case.rule);
@@ -276,7 +293,8 @@ fn fix_and_suggestions_together_apply_both_classes() {
 }
 
 /// `--fix-dangerously` alone applies every class,
-///  as Oxlint 1.93.0 does: it carries the fixes and the suggestions too.
+///  as Oxlint 1.93.0 does:
+/// it carries the fixes and the suggestions too.
 #[test]
 fn fix_dangerously_alone_applies_every_class() {
     for case in &CLASSES {
@@ -299,12 +317,7 @@ fn standard_input_follows_the_same_grouping() {
         );
         let everything: RunOutput = run(
             &fixture.path,
-            &[
-                "--stdin",
-                "--stdin-filename",
-                "a.md",
-                "--fix-dangerously",
-            ],
+            &["--stdin", "--stdin-filename", "a.md", "--fix-dangerously"],
             case.source,
         );
         assert_eq!(everything.stdout, case.fixed, "{}", case.rule);
@@ -330,10 +343,7 @@ fn the_lfs_rewrite_is_a_suggestion() {
     let url: String = format!("https://lfs.example/{IMAGE_OID}/pkg/asset/shot.png");
     for (arguments, expected) in [
         (vec!["--fix"], String::from(source)),
-        (
-            vec!["--fix-suggestions"],
-            format!("![shot]({url})\n"),
-        ),
+        (vec!["--fix-suggestions"], format!("![shot]({url})\n")),
         (vec!["--fix-dangerously"], format!("![shot]({url})\n")),
     ] {
         let fixture: Fixture = Fixture::new();
@@ -349,11 +359,7 @@ fn the_lfs_rewrite_is_a_suggestion() {
         );
         write(&fixture.path, "pkg/asset/shot.png", "image bytes");
         write(&fixture.path, CONFIG, only("lfs-image-url").as_str());
-        let mut command: Vec<&str> = vec![
-            "--stdin",
-            "--stdin-filename",
-            "pkg/README.md",
-        ];
+        let mut command: Vec<&str> = vec!["--stdin", "--stdin-filename", "pkg/README.md"];
         command.extend(arguments.iter().copied());
         let output: RunOutput = run(&fixture.path, command.as_slice(), source);
         assert_eq!(output.stdout, expected, "{arguments:?}");
@@ -365,7 +371,10 @@ fn the_lfs_rewrite_is_a_suggestion() {
 ///  while a later run changes nothing.
 #[test]
 fn the_safe_class_keeps_every_link_and_destination() {
-    for case in CLASSES.iter().filter(|case| case.class == "fix") {
+    for case in &CLASSES {
+        if case.class != "fix" {
+            continue;
+        }
         for (filename, source, fixed) in [
             ("a.md", case.source, case.fixed),
             // MDX spells a bare URL as an inline link, so the same rule has a second edit.

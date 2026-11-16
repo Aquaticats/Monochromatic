@@ -11,8 +11,9 @@
 
 /// Import the existing diagnostic and localized edit boundaries.
 use crate::diagnostic::{Diagnostic, Severity};
-/// Import the edit type that a punctuation repair is written as.
-use crate::edits::Edit;
+/// Import the edit,
+/// fix and class types that a punctuation repair is written with.
+use crate::edits::{Edit, Fix, FixClass};
 /// Import the finding constructors for punctuation problems and unreadable documents.
 use crate::markdown_finding::{finding, structure_failure};
 /// Import the parsed Markdown source whose punctuation is inspected.
@@ -166,14 +167,21 @@ pub fn no_trailing_punctuation(context: &MarkdownSource, severity: Severity) -> 
         }
         let (start, end): (usize, usize) = context.offsets(*last);
         let written: &str = context.slice(*last);
-        let edit: Option<Edit> = punctuation_edit(written, count, start, end);
+        // The heading a reader sees loses a character, so the fix is a suggestion.
+        let mut fix: Option<Fix> = None;
+        if let Some(edit) = punctuation_edit(written, count, start, end) {
+            fix = Some(Fix {
+                class: FixClass::Suggestion,
+                edits: vec![edit],
+            });
+        }
         findings.push(finding(
             context,
             *id,
             "markdown/no-trailing-punctuation",
             severity,
             String::from("Heading ends with punctuation; remove the trailing punctuation."),
-            edit,
+            fix,
         ));
     }
     return findings;

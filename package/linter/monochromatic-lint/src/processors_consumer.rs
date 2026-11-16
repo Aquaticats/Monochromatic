@@ -36,7 +36,7 @@ fn verify_original_failure_anchor() {
     let at: usize = rust.source().find("let value").expect("authored insertion");
     let error = rust
         .project_fix(&Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![Edit {
                 start: at,
                 end: at,
@@ -70,7 +70,7 @@ fn main() {
     let at: usize = rust.source().find("= 1").expect("authored literal") + 2;
     let projected: Fix = rust
         .project_fix(&Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![Edit {
                 start: at,
                 end: at + 1,

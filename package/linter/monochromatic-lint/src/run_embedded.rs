@@ -1,6 +1,6 @@
 //! What:
 //!  The in-process entry for a caller that would otherwise start
-//!  `monochromatic-lint --config=<file> --stdin --stdin-filename=<name> --fix-content`:
+//!  `monochromatic-lint --config=<file> --stdin --stdin-filename=<name> --fix-dangerously`:
 //!  one function that takes the configuration text,
 //!  the filename and the source bytes,
 //!  and returns the fixed source and the findings the fixes left.
@@ -169,7 +169,7 @@ fn config_failure(error: ConfigError) -> EmbeddedFailure {
 }
 
 /// What:
-///  Fix `request.source` as the executable's `--stdin --fix` mode would,
+///  Fix `request.source` as the executable's `--stdin --fix-dangerously` mode would,
 ///  under `request.configuration`,
 ///  from `request.top_level`.
 ///  `Result<EmbeddedRun, EmbeddedFailure>` is a status 0 run,
@@ -178,6 +178,7 @@ fn config_failure(error: ConfigError) -> EmbeddedFailure {
 ///  This is the whole contract:
 ///  same configuration parsing,
 ///  same fix loop,
+///  every class of fix the named rules attach,
 ///  same rule behavior including byte-order marks and astral characters,
 ///  same classification of the run.
 ///  A panic inside a rule is contained by the same code the executable uses and returns as status 2;
@@ -200,10 +201,10 @@ pub fn fix_source(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, Embedded
     .map_err(config_failure)?;
     // The embedded caller names the rules it wants in its own configuration,
     //  so every class of fix those rules attach applies:
-    //  the commit path's `markdown/autofix` exists to rewrite LFS image URLs, which is a content fix.
+    //  the commit path's `markdown/autofix` exists to rewrite LFS image URLs, which is a suggestion.
     let mut store: ConfigStore = ConfigStore::from_source(request.top_level, described)
         .map_err(config_failure)?
-        .with_fix_scope(FixScope::WhitespaceAndContent);
+        .with_fix_scope(FixScope::ALL);
     require_supported_name(request.name).map_err(setup_failure)?;
     let run: SourceRun = lint_source_bytes(
         &mut store,

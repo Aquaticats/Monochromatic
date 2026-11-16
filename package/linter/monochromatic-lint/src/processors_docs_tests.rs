@@ -42,7 +42,7 @@ fn processors_strip_only_the_common_margin_from_line_doc_runs() {
             host,
             &virtuals[0],
             Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![Edit {
                     start: split,
                     end: split,
@@ -58,7 +58,7 @@ fn processors_strip_only_the_common_margin_from_line_doc_runs() {
             host,
             &virtuals[0],
             Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![Edit {
                     start: word,
                     end: word + "Beta".len(),
@@ -128,7 +128,7 @@ fn processors_strip_only_the_common_margin_from_undecorated_block_docs() {
             host,
             &virtuals[0],
             Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![Edit {
                     start: split,
                     end: split,

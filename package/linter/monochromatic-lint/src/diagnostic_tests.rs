@@ -35,7 +35,7 @@ fn fixture() -> Diagnostic {
 fn stable_shape_omits_absent_hints_and_internal_fix() {
     let mut finding = fixture();
     finding.fix = Some(Fix {
-        class: FixClass::Content,
+        class: FixClass::Fix,
         edits: vec![Edit {
             start: 0,
             end: 1,

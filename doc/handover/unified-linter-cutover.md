@@ -421,6 +421,16 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
   the split of whitespace fixes from content fixes is built as described in
   `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`:
   plain `--fix` applies only whitespace fixes and `--fix-content` also applies the content fixes.
+  Update,
+  2026-11-15:
+  the owner reversed that split,
+  so `--fix-content` is gone and the three flags are Oxlint's
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "Owner decisions in force");
+  plain `--fix` now applies `markdown/semantic-line-breaks`,
+  `markdown/no-bare-urls` and `markdown/link-image-style`,
+  whose fixes leave every word,
+  link and destination a reader sees unchanged.
 - Every other per-file,
    per-rule Markdown count is identical between the two linters.
 

@@ -105,8 +105,9 @@ pub fn semantic_line_breaks(context: &MarkdownSource, severity: Severity) -> Vec
                 context.span(at, 0),
             );
             // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.
+            // A line break renders the same paragraph, so the fix is safe in Oxlint's terms.
             diagnostic.fix = Some(Fix {
-                class: FixClass::Whitespace,
+                class: FixClass::Fix,
                 edits: vec![Edit {
                     start: at,
                     end: at + separator,

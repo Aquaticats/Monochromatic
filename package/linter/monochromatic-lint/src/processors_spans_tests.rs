@@ -147,7 +147,7 @@ fn processors_anchor_refusals_at_authored_containers_and_render_them() {
     let virtuals: Vec<VirtualSource> = inputs(DOC_HOST, ProcessorLanguage::Rust);
     let overlap: ProcessorError = virtuals[0]
         .project_fix(&Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![
                 Edit {
                     start: 0,
@@ -173,7 +173,7 @@ fn processors_anchor_refusals_at_authored_containers_and_render_them() {
     let body: usize = rust.source().find("value;").expect("visible line");
     let closer: ProcessorError = rust
         .project_fix(&Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![Edit {
                 start: body,
                 end: body,

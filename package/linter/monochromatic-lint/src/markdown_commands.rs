@@ -94,8 +94,9 @@ pub fn commands_show_output(context: &MarkdownSource, severity: Severity) -> Vec
             None,
         );
         if !edits.is_empty() {
+            // The reader's listing loses the prompts it showed, so the fix is a suggestion.
             diagnostic.fix = Some(Fix {
-                class: FixClass::Content,
+                class: FixClass::Suggestion,
                 edits,
             });
         }

@@ -61,16 +61,21 @@ pub struct CliOptions {
     /// Use exactly this JSONC configuration instead of searching ancestors.
     #[arg(long, value_name = "FILE")]
     pub config: Option<PathBuf>,
-    /// Apply the fixes that change only whitespace and recheck the resulting input;
-    ///  a fix that rewrites content waits for `--fix-content`.
+    /// Fix as many issues as possible;
+    ///  the safe fixes apply and every other class waits for its own flag.
+    ///  Only unfixed issues are reported.
     #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
     pub fix: bool,
-    /// Apply every compatible fix,
-    ///  the ones that rewrite content as well as the whitespace ones,
-    ///  and recheck the resulting input;
-    ///  it fixes without `--fix`.
+    /// Apply the fixes that may change what a reader sees or may not match intent;
+    ///  it applies no safe fix,
+    /// so it is combined with `--fix` for both.
     #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
-    pub fix_content: bool,
+    pub fix_suggestions: bool,
+    /// Apply dangerous fixes and suggestions too,
+    ///  the ones that delete authored source;
+    ///  it applies every class on its own.
+    #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
+    pub fix_dangerously: bool,
     /// Read one source from stdin instead of the filesystem.
     #[arg(long, requires = "stdin_filename", conflicts_with_all = ["print_config", "init", "rules"])]
     pub stdin: bool,
@@ -141,18 +146,18 @@ pub struct CliOptions {
 /// ```
 impl CliOptions {
     /// Whether this run rewrites sources at all:
-    ///  either fix flag turns fixing on.
+    ///  any fix flag turns fixing on.
     pub fn fixing(&self) -> bool {
-        return self.fix || self.fix_content;
+        return self.fix || self.fix_suggestions || self.fix_dangerously;
     }
 
-    /// The classes of fix this run may apply:
-    ///  content fixes only under `--fix-content`.
+    /// The classes of fix this run may apply,
+    ///  selected exactly as Oxlint's three flags select them:
+    ///  `--fix` a safe fix,
+    ///  `--fix-suggestions` a suggestion alone,
+    ///  and `--fix-dangerously` every class.
     pub fn fix_scope(&self) -> FixScope {
-        if self.fix_content {
-            return FixScope::WhitespaceAndContent;
-        }
-        return FixScope::WhitespaceOnly;
+        return FixScope::from_flags(self.fix, self.fix_suggestions, self.fix_dangerously);
     }
 
     /// Combine the plain flag and the severity option.

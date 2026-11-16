@@ -1,15 +1,18 @@
 //! What:
 //!  Reproductions of the fixer rewriting content,
-//!  and the property check that a whitespace-only fix leaves every whitespace-separated token in order.
+//!  and the property check that the line-break rule leaves every whitespace-separated token in order.
 //! Why:
 //!  `--fix` runs in the commit path and in agents' hands;
 //!  a fix that moves a token into or out of code,
 //!  a table or a quotation changes what a reader sees,
 //!  so each defect has a whole-invocation fixture and the property is checked over fixtures and a real tree.
+//!  Plain `--fix` now applies the whole safe class,
+//! whose promise is that a reader sees the same document,
+//!  and that promise is checked in `run_command_fix_class_tests.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! describe('fix changes only whitespace', () => { /* one fixture per defect, then the token property */ });
+//! describe('the line-break rule changes only whitespace', () => { /* one fixture per defect, then the token property */ });
 //! ```
 
 /// Import the shared invocation fixtures.
@@ -28,8 +31,8 @@ const CONFIG_FILE: &str = "monochromatic-lint.config.jsonc";
 
 /// Every fixable Markdown rule,
 ///  for Markdown files and for the Markdown inside rustdoc comments:
-///  plain `--fix` must still change no token with all of them enabled,
-///  because only the rule that breaks lines may fix without a content flag.
+///  plain `--fix` applies the safe class alone,
+///  so the defect reproductions see exactly what an agent or the commit path would apply.
 const EVERY_FIXABLE_RULE: &str = r#"[
   { "files": ["**/*.md", "**/*.mdx", "**/*.rs/*.md", "**/*.md/*.rs/*.md"], "rules": {
     "markdown/semantic-line-breaks": { "severity": "error" },
@@ -40,6 +43,20 @@ const EVERY_FIXABLE_RULE: &str = r#"[
     "markdown/link-image-reference-definitions": { "severity": "error" },
     "markdown/link-image-style": { "severity": "error" },
     "markdown/no-pipe-tables": { "severity": "error" }
+  } }
+]"#;
+
+/// The rule whose fix changes whitespace alone,
+///  for Markdown files and for the Markdown inside rustdoc comments.
+///  The token property holds for this rule and not for the whole safe class:
+///  `markdown/no-bare-urls` and `markdown/link-image-style` are safe too,
+///  and they do rewrite a token (`<url>`,
+/// `[label][]`)
+///  while keeping every link a reader follows and every destination.
+///  `run_command_fix_class_tests.rs` checks that promise.
+const TOKEN_KEEPING_RULE: &str = r#"[
+  { "files": ["**/*.md", "**/*.mdx", "**/*.rs/*.md", "**/*.md/*.rs/*.md"], "rules": {
+    "markdown/semantic-line-breaks": { "severity": "error" }
   } }
 ]"#;
 
@@ -217,10 +234,10 @@ fn a_blockquote_break_keeps_the_marker_at_the_same_depth() {
     assert_eq!(root_children, [MdastNodeType::Blockquote]);
 }
 
-/// Every fixture keeps its token sequence under plain `--fix` with every fixable Markdown rule enabled,
+/// Every fixture keeps its token sequence under plain `--fix` with the line-break rule enabled,
 ///  and a second run changes nothing.
 #[test]
-fn whitespace_fix_keeps_every_token_of_every_fixture() {
+fn the_line_break_rule_keeps_every_token_of_every_fixture() {
     let cases: Vec<Case> =
         serde_json::from_str(include_str!("../fixtures/whitespace-fix-cases.json"))
             .expect("fixture file is a list of cases");
@@ -231,7 +248,7 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
             &fixture.path,
             case.filename.as_str(),
             case.source.as_str(),
-            EVERY_FIXABLE_RULE,
+            TOKEN_KEEPING_RULE,
         );
         assert_eq!(
             comparable_tokens(case.filename.as_str(), fixed.as_str()),
@@ -262,7 +279,7 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
             &fixture.path,
             case.filename.as_str(),
             fixed.as_str(),
-            EVERY_FIXABLE_RULE,
+            TOKEN_KEEPING_RULE,
         );
         assert_eq!(again, fixed, "{} is not stable", case.name);
     }
@@ -325,7 +342,7 @@ fn the_property_comparisons_detect_a_moved_word_a_split_quotation_and_a_changed_
 ///  so the measurement cannot pass by measuring less.
 #[test]
 #[ignore = "measurement over a real tree named by MONOCHROMATIC_LINT_PROPERTY_ROOT, not a unit control"]
-fn real_tree_keeps_every_token_and_block_structure_under_the_whitespace_rule() {
+fn real_tree_keeps_every_token_and_block_structure_under_the_line_break_rule() {
     let root: String = std::env::var("MONOCHROMATIC_LINT_PROPERTY_ROOT")
         .expect("MONOCHROMATIC_LINT_PROPERTY_ROOT names the tree to measure");
     let step: usize = match std::env::var("MONOCHROMATIC_LINT_PROPERTY_STEP") {
@@ -357,7 +374,7 @@ fn real_tree_keeps_every_token_and_block_structure_under_the_whitespace_rule() {
         .collect::<Vec<String>>();
     assert!(!names.is_empty(), "{root} lists no Markdown or Rust file");
     let fixture: Fixture = Fixture::new();
-    write(&fixture.path, CONFIG_FILE, EVERY_FIXABLE_RULE);
+    write(&fixture.path, CONFIG_FILE, TOKEN_KEEPING_RULE);
     let mut measured: usize = 0;
     let mut changed: usize = 0;
     let mut tokens: usize = 0;

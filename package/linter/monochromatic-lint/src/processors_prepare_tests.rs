@@ -55,7 +55,7 @@ fn processors_strip_bare_hidden_markers_to_empty_lines() {
             host,
             &virtuals[0],
             Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![Edit {
                     start: literal,
                     end: literal + 1,
@@ -69,7 +69,7 @@ fn processors_strip_bare_hidden_markers_to_empty_lines() {
     let emptied: usize = virtuals[0].source().find("\n\nlet x").expect("bare marker") + 1;
     let unhidden: ProcessorError = virtuals[0]
         .project_fix(&Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![Edit {
                 start: emptied,
                 end: emptied,

@@ -12,7 +12,7 @@
 /// Import the shared finding model so this rule uses the same output and fix contracts.
 use crate::diagnostic::{Diagnostic, Severity};
 /// Import a byte-addressed deletion rather than rebuilding surrounding Markdown.
-use crate::edits::Edit;
+use crate::edits::{Edit, Fix, FixClass};
 /// Import the common diagnostic builder and original-source view.
 use crate::markdown_finding::finding;
 /// Import the parsed Markdown source in which link definitions are located.
@@ -143,13 +143,18 @@ pub fn reference_definitions(context: &MarkdownSource, severity: Severity) -> Ve
         // A short conditional selects a borrowed static str, not a newly allocated String.
         let reason: &str = if is_used { "Duplicate" } else { "Unused" };
         // Some carries a verified edit; the shared builder groups it atomically with this finding.
+        // The fix deletes the definition lines the parser judged unused or repeated,
+        //  so it removes authored source and is dangerous in Oxlint's terms.
         findings.push(finding(
             context,
             id,
             "markdown/link-image-reference-definitions",
             severity,
             format!("{reason} reference definition \"{identifier}\"."),
-            Some(removal_edit(context, id)),
+            Some(Fix {
+                class: FixClass::DangerousFix,
+                edits: vec![removal_edit(context, id)],
+            }),
         ));
     }
     // Transfer the owned result list to the caller without borrowing the parser.

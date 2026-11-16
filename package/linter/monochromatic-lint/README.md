@@ -72,16 +72,24 @@ Options:
 
 - `--config <FILE>` uses exactly that configuration for every file,
   with patterns relative to the working directory.
-- `--fix` applies the fixes that change only whitespace,
+- `--fix` applies the safe fixes,
+  the ones that change no word a reader reads and no link or image a reader follows,
   in at most ten passes per file,
   and rechecks the result.
-  A fix that rewrites content waits for `--fix-content`;
+  A suggestion waits for `--fix-suggestions`
+  and a fix that deletes authored source for `--fix-dangerously`;
   see "Fix classes".
-- `--fix-content` also applies the fixes that rewrite content,
-  and fixes without `--fix`.
-  A file is replaced atomically and keeps its mode.
+- `--fix-suggestions` applies the suggestions,
+  the fixes that may change what a reader sees,
+  and applies no safe fix,
+  so it is given with `--fix` to apply both.
+- `--fix-dangerously` applies every class,
+  the ones that delete authored source included,
+  and applies them on its own.
+  Every fixing run replaces a file atomically,
+  and the file keeps its mode.
 - `--stdin` with `--stdin-filename <FILE>` lints standard input as that file.
-  With `--fix` the fixed source goes to standard output and findings go to standard error.
+  With any fix flag the fixed source goes to standard output and findings go to standard error.
 - `--max-warnings <COUNT>`,
   `--quiet`,
   and `--silent` change reporting and the warning threshold,
@@ -148,7 +156,8 @@ and the finding stays reported:
 - A line break inside a blockquote carries no `>`,
   also when the quote sits in a list item or holds a list.
   A `>` is a token,
-  and a fix that only changes whitespace never adds one.
+  and this fix changes whitespace alone,
+  so it adds none.
   The new line is a lazy continuation:
   CommonMark 0.31.2,
   section 5.1 "Block quotes",
@@ -165,35 +174,52 @@ and the finding stays reported:
 ## Fix classes
 
 Every fix carries a class,
-and `--rules` prints each rule's class in `fixClass`:
-`whitespace`,
-`content`,
+named and grouped as Oxlint's are,
+and `--rules` prints it in `fixClass`:
+`fix`,
+`suggestion`,
+`dangerous_fix`,
+`dangerous_suggestion`,
 or `null` for a rule that has no fix.
+The three flags select the classes as Oxlint's own do:
+`--fix` applies `fix`,
+`--fix-suggestions` applies `suggestion`,
+and `--fix-dangerously` applies every class.
+Measured with Oxlint 1.93.0:
+`--fix` withholds a suggestion and a dangerous fix,
+and `--fix-suggestions` applies a suggestion alone.
 
-- A `whitespace` fix changes line breaks and the spaces around them,
-  and no token of the text.
-  `markdown/semantic-line-breaks` is the only rule of this class.
+- A `fix` changes no word a reader reads and no link or image a reader follows.
+  `markdown/semantic-line-breaks` breaks a paragraph's line,
+  `markdown/no-bare-urls` wraps a URL in angle brackets,
+  which is an autolink with the same text and the same destination,
+  and `markdown/link-image-style` writes `[label][]` for a shortcut reference,
+  which resolves to the same definition.
   In a Rust file the continuation line of a broken doc comment also gains the comment marker,
   which is comment syntax and not part of the text.
-- A `content` fix adds,
-  removes or rewrites a token.
-  These are `markdown/commands-show-output`,
-  `markdown/no-trailing-punctuation`,
-  `markdown/no-bare-urls`,
-  `markdown/fenced-code-language`,
-  `markdown/link-image-reference-definitions`,
-  `markdown/link-image-style`
-  and `markdown/lfs-image-url`.
+- A `suggestion` keeps the document valid and changes what a reader sees.
+  `markdown/commands-show-output` removes `$ ` prompts from a listing,
+  `markdown/no-trailing-punctuation` removes a heading's trailing punctuation,
+  `markdown/fenced-code-language` adds a guessed language label,
+  and `markdown/lfs-image-url` rewrites an image destination.
+- A `dangerous_fix` deletes authored source,
+  so it may break the document when the analysis behind it is wrong:
+  `markdown/link-image-reference-definitions` deletes the definition lines it judges unused or repeated.
+- No rule of this build offers a `dangerous_suggestion`.
 
-Plain `--fix` applies only `whitespace` fixes:
-it is the command of the repository's `format:monochromatic-lint` task and of agents before a commit,
-and it changes no token.
-A `content` fix is withheld without `--fix-content`,
-and its finding stays reported.
-The in-process entry `monochromatic_lint::run_embedded::fix_source` applies both classes,
+Plain `--fix` is the command of the repository's `format:monochromatic-lint` task and of agents before a commit,
+so the class it applies is the one whose fix a reader cannot tell apart.
+A suggestion and a dangerous fix are withheld without their own flag,
+and the finding stays reported.
+The in-process entry `monochromatic_lint::run_embedded::fix_source` applies every class,
 because its caller names the rules it wants in its own configuration:
 the commit path's `markdown/autofix` runs only `markdown/lfs-image-url`,
-which is a content fix.
+which is a suggestion.
+`--fix-content`,
+the whitespace/content split this command carried since version 0.5.2-alpha.5,
+is gone:
+Oxlint has no such flag,
+and `--fix-dangerously` is what applies every class here.
 The reasons and the options that were ranked are in
 `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
 
@@ -464,7 +490,7 @@ a missing library directory,
 and an invalid
 prerequisite manifest are `core/processing-failure` findings (status `2`),
 because the result would be incomplete.
-The step does not run under `--fix` or `--stdin`.
+The step does not run under any fix flag or under `--stdin`.
 Closures in generated code (for example `slint::include_modules!` output below the build directory) are skipped by
 the lint itself.
 

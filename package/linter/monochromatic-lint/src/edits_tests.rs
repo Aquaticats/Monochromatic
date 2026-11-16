@@ -9,7 +9,7 @@
 //! ```
 
 /// Import the production edit planner and owned input types.
-use super::{Edit, Fix, FixClass, apply_fixes};
+use super::{Edit, Fix, FixClass, FixScope, apply_fixes};
 
 /// Build a fixture replacement while keeping byte ranges explicit at every call.
 fn edit(start: usize, end: usize, replacement: &str) -> Edit {
@@ -28,7 +28,7 @@ fn empty_and_reversed_edit_plans_preserve_source_order() {
     assert_eq!(original.source, "abc");
     assert!(original.applied.is_empty());
     let fixes = [Fix {
-        class: FixClass::Content,
+        class: FixClass::Fix,
         edits: vec![edit(3, 3, "]"), edit(0, 0, "[")],
     }];
     let snapshot = fixes.clone();
@@ -44,15 +44,15 @@ fn empty_and_reversed_edit_plans_preserve_source_order() {
 fn conflicting_multi_edit_fix_is_never_applied_partly() {
     let fixes = [
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(2, 4, "X")],
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(0, 1, "A"), edit(3, 5, "Y")],
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(0, 1, "Z")],
         },
     ];
@@ -67,11 +67,11 @@ fn conflicting_multi_edit_fix_is_never_applied_partly() {
 fn later_interval_conflict_rejects_the_new_fix() {
     let fixes = [
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(4, 5, "E")],
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(1, 6, "whole")],
         },
     ];
@@ -86,15 +86,15 @@ fn later_interval_conflict_rejects_the_new_fix() {
 fn insertion_boundaries_have_explicit_ordering() {
     let fixes = [
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(0, 1, "A")],
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(1, 1, "X")],
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(1, 1, "Y")],
         },
     ];
@@ -108,7 +108,7 @@ fn insertion_boundaries_have_explicit_ordering() {
 #[test]
 fn adjacency_is_not_overlap_in_either_selection_order() {
     let adjacent = [Fix {
-        class: FixClass::Content,
+        class: FixClass::Fix,
         edits: vec![edit(0, 1, "A"), edit(1, 2, "B")],
     }];
     assert_eq!(
@@ -117,11 +117,11 @@ fn adjacency_is_not_overlap_in_either_selection_order() {
     );
     let reverse = [
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(1, 1, "X")],
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(0, 1, "A")],
         },
     ];
@@ -141,7 +141,7 @@ fn internal_overlap_and_duplicate_insertions_are_rejected() {
         let error = apply_fixes(
             "abc",
             &[Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits,
             }],
         )
@@ -161,7 +161,7 @@ fn invalid_ranges_are_errors_not_panics() {
         let error = apply_fixes(
             "abc",
             &[Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![invalid],
             }],
         )
@@ -172,7 +172,7 @@ fn invalid_ranges_are_errors_not_panics() {
         let error = apply_fixes(
             "é",
             &[Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![invalid],
             }],
         )
@@ -183,7 +183,7 @@ fn invalid_ranges_are_errors_not_panics() {
         apply_fixes(
             "éx",
             &[Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![edit(0, 2, "a")]
             }]
         )
@@ -200,7 +200,7 @@ fn nonempty_sources_cannot_be_erased() {
     let error = apply_fixes(
         source.as_str(),
         &[Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(0, 3, "")],
         }],
     )
@@ -213,7 +213,7 @@ fn nonempty_sources_cannot_be_erased() {
         apply_fixes(
             "",
             &[Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![edit(0, 0, "new")]
             }]
         )
@@ -228,15 +228,69 @@ fn nonempty_sources_cannot_be_erased() {
 fn empty_groups_and_identical_replacements_are_stable() {
     let fixes = [
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: Vec::new(),
         },
         Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![edit(0, 1, "a")],
         },
     ];
     let applied = apply_fixes("abc", &fixes).expect("no-op groups");
     assert_eq!(applied.source, "abc");
     assert!(applied.rejected.is_empty());
+}
+
+/// The three flags select classes exactly as Oxlint 1.93.0 does,
+///  measured with it and read in `FixOptions::fix_kind` and `FixKind::can_apply`:
+///  `--fix` allows the safe fix alone,
+///  `--fix-suggestions` the suggestion alone,
+///  and `--fix-dangerously` every class.
+#[test]
+fn the_three_flags_select_oxlints_classes() {
+    let none = FixScope::NONE;
+    for class in [
+        FixClass::Fix,
+        FixClass::Suggestion,
+        FixClass::DangerousFix,
+        FixClass::DangerousSuggestion,
+    ] {
+        assert!(!none.allows(class), "{class:?} without a flag");
+    }
+    let plain = FixScope::from_flags(true, false, false);
+    assert!(plain.allows(FixClass::Fix));
+    assert!(!plain.allows(FixClass::Suggestion));
+    assert!(!plain.allows(FixClass::DangerousFix));
+    assert!(!plain.allows(FixClass::DangerousSuggestion));
+    let suggestions = FixScope::from_flags(false, true, false);
+    assert!(!suggestions.allows(FixClass::Fix));
+    assert!(suggestions.allows(FixClass::Suggestion));
+    assert!(!suggestions.allows(FixClass::DangerousFix));
+    let both = FixScope::from_flags(true, true, false);
+    assert!(both.allows(FixClass::Fix));
+    assert!(both.allows(FixClass::Suggestion));
+    assert!(!both.allows(FixClass::DangerousFix));
+    let dangerous = FixScope::from_flags(false, false, true);
+    for class in [
+        FixClass::Fix,
+        FixClass::Suggestion,
+        FixClass::DangerousFix,
+        FixClass::DangerousSuggestion,
+    ] {
+        assert!(dangerous.allows(class), "{class:?} under --fix-dangerously");
+    }
+    assert_eq!(dangerous, FixScope::ALL);
+    // The default is the scope of a run with no fix flag.
+    assert_eq!(FixScope::default(), FixScope::NONE);
+}
+
+/// A dangerous class needs the dangerous flag and its own qualifier,
+///  so a scope that allows only `Fix` withholds `DangerousFix`.
+#[test]
+fn a_dangerous_class_needs_the_dangerous_bit() {
+    for class in [FixClass::DangerousFix, FixClass::DangerousSuggestion] {
+        assert_ne!(class.bits() & 4, 0, "{class:?} carries the dangerous bit");
+        assert!(!FixScope::from_flags(true, true, false).allows(class));
+        assert!(FixScope::from_flags(true, true, true).allows(class));
+    }
 }

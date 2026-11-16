@@ -304,7 +304,8 @@ impl ConfigStore {
     }
 
     /// Choose the classes of fix every plan of this store may apply;
-    ///  a store starts at whitespace only.
+    ///  a store starts with no class allowed,
+    /// so a caller that forgets this fixes nothing.
     pub fn with_fix_scope(mut self, fix_scope: FixScope) -> ConfigStore {
         self.fix_scope = fix_scope;
         return self;

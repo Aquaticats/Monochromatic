@@ -82,22 +82,38 @@ fn the_listing_describes_every_registered_rule_in_order() {
             r#"{"id":"shell/no-ampersand","fixable":false,"fixClass":null,"options":["max"],"suppressible":false}"#
         )
     );
-    // Fixability is exactly the Markdown rules whose remedy is a grouped edit.
+    // Fixability is exactly the Markdown rules whose remedy is a grouped edit,
+    //  and each fixable rule names the Oxlint class of change its fix makes.
+    let classes: [(&str, FixClass); 8] = [
+        ("markdown/commands-show-output", FixClass::Suggestion),
+        ("markdown/no-trailing-punctuation", FixClass::Suggestion),
+        ("markdown/no-bare-urls", FixClass::Fix),
+        ("markdown/fenced-code-language", FixClass::Suggestion),
+        (
+            "markdown/link-image-reference-definitions",
+            FixClass::DangerousFix,
+        ),
+        ("markdown/link-image-style", FixClass::Fix),
+        ("markdown/semantic-line-breaks", FixClass::Fix),
+        ("markdown/lfs-image-url", FixClass::Suggestion),
+    ];
     for id in RULE_IDS {
         let rule = rule_info(*id).expect("registered rule is described");
         let fixable: bool = id.starts_with("markdown/") && !UNFIXABLE_MARKDOWN.contains(id);
         assert_eq!(rule.fixable, fixable, "{id}");
-        // A fix class exactly when there is a fix,
-        //  and the line-break rule alone is the whitespace class.
+        // A fix class exactly when there is a fix.
         assert_eq!(rule.fix_class.is_some(), fixable, "{id}");
-        if fixable {
-            let expected: FixClass = if *id == "markdown/semantic-line-breaks" {
-                FixClass::Whitespace
-            } else {
-                FixClass::Content
-            };
-            assert_eq!(rule.fix_class, Some(expected), "{id}");
+        let mut expected: Option<FixClass> = None;
+        for (rule_id, class) in classes {
+            if rule_id == *id {
+                expected = Some(class);
+            }
         }
+        assert_eq!(rule.fix_class, expected, "{id}");
+    }
+    // Every declared class names a registered rule, so this table cannot drift.
+    for (rule_id, _) in classes {
+        assert!(RULE_IDS.contains(&rule_id), "{rule_id} is registered");
     }
     assert!(listing.ends_with('\n'));
 }

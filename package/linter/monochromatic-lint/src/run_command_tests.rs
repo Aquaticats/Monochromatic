@@ -48,7 +48,7 @@ fn a_clean_run_prints_nothing() {
     write(&fixture.path, "notes.txt", "# Not. Linted.\n");
     for arguments in [
         vec![],
-        vec!["--fix-content"],
+        vec!["--fix-dangerously"],
         vec!["."],
         vec!["doc", "src/a.rs"],
     ] {
@@ -143,7 +143,7 @@ fn warnings_limits_quiet_and_silent_are_independent_of_linting() {
 fn setup_failures_exit_two_with_a_prefixed_explanation() {
     let fixture: Fixture = Fixture::new();
     write(&fixture.path, "a.md", "# Title.\n");
-    let unconfigured: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let unconfigured: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!(unconfigured.exit_code, 2);
     assert_eq!(unconfigured.stdout, "");
     assert!(
@@ -155,7 +155,7 @@ fn setup_failures_exit_two_with_a_prefixed_explanation() {
     // Nothing was rewritten before the setup error.
     assert_eq!(read(&fixture.path, "a.md"), "# Title.\n");
     write(&fixture.path, CONFIG, "[{");
-    let malformed: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let malformed: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!(malformed.exit_code, 2);
     assert!(malformed.stderr.contains(CONFIG), "{}", malformed.stderr);
     assert_eq!(read(&fixture.path, "a.md"), "# Title.\n");
@@ -400,7 +400,7 @@ fn debug_notes_stay_on_standard_error() {
         "{}",
         debug.stderr
     );
-    let fixed: RunOutput = run(&fixture.path, &["--fix-content", "--debug"], "");
+    let fixed: RunOutput = run(&fixture.path, &["--fix-dangerously", "--debug"], "");
     assert!(
         fixed.stderr.contains("rewrote 1 file(s)"),
         "{}",
@@ -433,7 +433,7 @@ fn processing_failures_exit_two_and_do_not_hide_other_findings() {
     let silent: RunOutput = run(&fixture.path, &["--silent"], "");
     assert_eq!((silent.exit_code, silent.stdout.as_str()), (2, ""));
     // Fixing still fixes the files that can be processed.
-    let fixed: RunOutput = run(&fixture.path, &["--fix-content"], "");
+    let fixed: RunOutput = run(&fixture.path, &["--fix-dangerously"], "");
     assert_eq!(fixed.exit_code, 2);
     assert_eq!(read(&fixture.path, "a.md"), "# Title\n");
     assert_eq!(read(&fixture.path, "broken.mdx"), "<A>\ntext\n</B>\n");

@@ -1,6 +1,24 @@
 # Splitting `monochromatic-lint --fix` into whitespace fixes and content fixes
 
 Status:
+superseded on 2026-11-15.
+The owner answered the question this document records
+("No,
+we need to follow oxlint's --fix.
+Oxlint isn't whitespace-only by default.",
+`doc/handover/cli-git-rust-implementation.md`,
+"Owner decisions in force"),
+so the split below was removed:
+`--fix-content` is gone,
+`--fix`,
+`--fix-suggestions` and `--fix-dangerously` are Oxlint's three flags,
+and every fix carries one of Oxlint's classes instead of `whitespace` or `content`.
+The text after this note is the record of what the split was and why it was built;
+read it as history.
+The current behaviour is in `package/linter/monochromatic-lint/README.md`,
+section "Fix classes".
+
+Status at the time of writing:
 written 2026-11-07 by the agent that fixed the whitespace defects of `--fix`.
 The coordinator picked option A on 2026-11-07 (a coordinator pick,
 the owner's veto open),

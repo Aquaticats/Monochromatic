@@ -83,7 +83,7 @@ fn processors_seeded_fuzz_exercises_delimiters_unicode_prefixes_and_atomic_group
         mapped += 1;
         let safe: Fix = rust
             .project_fix(&Fix {
-                class: FixClass::Content,
+                class: FixClass::Fix,
                 edits: vec![Edit {
                     start: at,
                     end: at + 1,
@@ -98,7 +98,7 @@ fn processors_seeded_fuzz_exercises_delimiters_unicode_prefixes_and_atomic_group
         let adversarial: &str =
             ["~~~~\n", "*/", "\n# let injected: u32 = 2;", "\n", "😀"][random(&mut seed) % 5];
         let candidate: Fix = Fix {
-            class: FixClass::Content,
+            class: FixClass::Fix,
             edits: vec![
                 Edit {
                     start: at,

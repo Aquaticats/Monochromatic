@@ -35,69 +35,143 @@ pub struct Edit {
 }
 
 /// What:
-///  What a fix does to the reader's text:
-///  only whitespace between the same tokens,
-///  or content.
+///  The class of one fix,
+///  in the terms Oxlint's `--help` and its `FixKind` use.
 /// Why:
-///  Plain `--fix` runs in the commit path and in agents' hands,
-///  so a fix that adds,
-///  removes or rewrites a token must be named as content and wait for `--fix-content`.
-///  A rule declares the class beside the edit it builds.
+///  The owner settled on 2026-11-15 that this command follows Oxlint's `--fix`,
+///  and Oxlint's own source at tag `oxlint_v1.93.0`
+///  (`crates/oxc_linter/src/fixer/fix.rs`)
+///  defines `Fix`,
+///  `Suggestion` and `Dangerous`,
+///  with `can_apply` asking whether the run's allowed set contains the rule's class.
+///  A rule declares the class beside the edit it builds,
+///  so what a fix may change is read where the fix is written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixClass = 'whitespace' | 'content';
+/// type FixClass = 'fix' | 'suggestion' | 'dangerous_fix' | 'dangerous_suggestion';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum FixClass {
-    /// The edit changes only line breaks and the spaces around them;
-    ///  every whitespace-separated token stays,
-    /// in order.
-    ///  A Rust host's comment marker on a continuation line is comment syntax,
-    /// not a token of the text.
-    Whitespace,
-    /// The edit adds,
-    ///  removes or rewrites a token.
-    Content,
+    /// A safe fix:
+    ///  it changes no word a reader reads and no link or image a reader follows.
+    ///  Plain `--fix` applies it.
+    Fix,
+    /// A suggestion:
+    ///  it changes what a reader sees (a heading's words,
+    ///  a listing's lines,
+    ///  a fence's label,
+    ///  an image's destination)
+    ///  while keeping the document valid.
+    ///  `--fix-suggestions` applies it.
+    Suggestion,
+    /// A dangerous fix:
+    ///  it deletes authored source,
+    ///  so it may break the document if the analysis behind it is wrong.
+    ///  `--fix-dangerously` applies it.
+    DangerousFix,
+    /// A dangerous suggestion:
+    ///  it deletes authored source and changes what a reader sees.
+    ///  `--fix-dangerously` applies it.
+    DangerousSuggestion,
 }
 
+/// The `Fix` bit of Oxlint's `FixKind`.
+const FIX: u8 = 1;
+/// The `Suggestion` bit of Oxlint's `FixKind`.
+const SUGGESTION: u8 = 2;
+/// The `Dangerous` bit of Oxlint's `FixKind`,
+///  which always qualifies a fix or a suggestion.
+const DANGEROUS: u8 = 4;
+
 /// What:
-///  The classes a run may apply.
+///  The bits this class sets,
+///  spelled as Oxlint's `FixKind` composites spell them.
 /// Why:
-///  Plain `--fix` is `WhitespaceOnly`,
-///  and `--fix-content` is `WhitespaceAndContent`;
-///  a finding whose fix is outside the scope is still reported.
+///  A scope's `allows` is a set containment,
+///  so the bits are what decides,
+///  not a list of names kept in two places.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixScope = 'whitespace-only' | 'whitespace-and-content';
+/// const bits = { fix: 1, suggestion: 2, dangerousFix: 5, dangerousSuggestion: 6 };
 /// ```
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum FixScope {
-    /// Only whitespace fixes apply.
-    #[default]
-    WhitespaceOnly,
-    /// Whitespace fixes and content fixes apply.
-    WhitespaceAndContent,
+impl FixClass {
+    /// The bit set of this class.
+    pub const fn bits(self) -> u8 {
+        return match self {
+            Self::Fix => FIX,
+            Self::Suggestion => SUGGESTION,
+            Self::DangerousFix => DANGEROUS | FIX,
+            Self::DangerousSuggestion => DANGEROUS | SUGGESTION,
+        };
+    }
 }
 
 /// What:
-///  The scope's question about one fix.
+///  The classes a run may apply,
+///  built from the three fix flags as Oxlint builds them.
 /// Why:
-///  Plain `--fix` and `--fix-content` differ only in which classes this answers yes for.
+///  `--fix` allows a safe fix,
+///  `--fix-suggestions` allows a suggestion alone,
+///  and `--fix-dangerously` allows every class,
+///  so a flag combination means here what it means in Oxlint 1.93.0.
+///  A finding whose fix is outside the scope is still reported.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class FixScope { allows(fixClass: FixClass): boolean }
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct FixScope {
+    /// The union of the classes the fix flags selected,
+    ///  with the dangerous bit only when `--fix-dangerously` was given.
+    bits: u8,
+}
+
+/// What:
+///  The scope's question about one fix,
+///  and the two scopes that do not come from a flag.
+/// Why:
+///  A checker consults the scope and nothing else,
+///  so the flags are read once per run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// scope.allows(fix.class);
 /// ```
 impl FixScope {
+    /// No fix flag was given:
+    ///  every finding is reported and nothing is applied.
+    pub const NONE: Self = Self { bits: 0 };
+
+    /// Every class,
+    ///  which `--fix-dangerously` selects on its own and which the in-process entry always uses.
+    pub const ALL: Self = Self {
+        bits: DANGEROUS | FIX | SUGGESTION,
+    };
+
+    /// Build the scope the three fix flags select,
+    ///  as `FixOptions::fix_kind` does at tag `oxlint_v1.93.0`
+    ///  (`apps/oxlint/src/command/lint.rs`).
+    pub const fn from_flags(fix: bool, fix_suggestions: bool, fix_dangerously: bool) -> Self {
+        let mut bits: u8 = 0;
+        if fix {
+            bits |= FIX;
+        }
+        if fix_suggestions {
+            bits |= SUGGESTION;
+        }
+        if fix_dangerously {
+            bits |= DANGEROUS | FIX | SUGGESTION;
+        }
+        return Self { bits };
+    }
+
     /// Whether a fix of this class may be applied in this scope.
-    pub fn allows(self, class: FixClass) -> bool {
-        return match class {
-            FixClass::Whitespace => true,
-            FixClass::Content => self == FixScope::WhitespaceAndContent,
-        };
+    pub const fn allows(self, class: FixClass) -> bool {
+        return self.bits & class.bits() == class.bits();
     }
 }
 
@@ -114,7 +188,8 @@ impl FixScope {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Fix {
-    /// Whether the edits change only whitespace or change content.
+    /// The class of change the edits make,
+    ///  which decides whether a run may apply them.
     pub class: FixClass,
     /// Related replacements that must apply together.
     pub edits: Vec<Edit>,
