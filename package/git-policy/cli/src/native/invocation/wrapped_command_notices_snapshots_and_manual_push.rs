@@ -182,13 +182,26 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names(common_dir.as_path());
     if leavings.queued {
         // The wake is the hand-over's own: a record this command queued must not wait for a command nobody runs.
-        let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
-    }
-    // What: Every ask this command made a slot for is marked made, now that the wake it is part of has been made.
-    // Why:  A command killed between a slot and its wake leaves that slot to the next command, which takes it over,
-    //       so a leaving cannot ask for ever and no ask is counted that was never made.
-    for (asked_of, asked_for, number) in &leavings.asks {
-        crate::worktree_removal_leaving_attempts::mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
+        match crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path()) {
+            // What: Every ask this command made a slot for is marked made, now that the wake it is part of reached the
+            //       service.
+            // Why:  A wake that reached nobody is not an attempt: a slot spent by it would end in the words that say the
+            //       delete was given up, while no service ever tried it.
+            Ok(()) => {
+                for (asked_of, asked_for, number) in &leavings.asks {
+                    crate::worktree_removal_leaving_attempts::mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
+                }
+            }
+            // What: A wake that reached no service gives its slots back, so the attempt is still the person's to have.
+            // Why:  The delete stays queued, and the next command asks again rather than reading that it was given up.
+            Err(why) => {
+                for (asked_of, asked_for, number) in &leavings.asks {
+                    crate::worktree_removal_leaving_attempts::release_the_attempt(asked_of.as_path(), asked_for.as_str(), *number);
+                }
+                // A closed terminal is not a reason to stop the command the person asked for.
+                let _written = writeln!(std::io::stderr(), "monochromatic-git-policy-cli: the delete of a removed worktree's subvolume is queued, and the commit service was not reached ({why}), so it stays for the next command of this repository to ask for; nothing here counts that as an attempt.");
+            }
+        }
     }
     for line in leavings.said {
         // A closed terminal is not a reason to stop the command the person asked for.
