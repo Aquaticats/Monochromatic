@@ -38,9 +38,11 @@ fn a_snapshot_made_after_the_record_is_proved() {
 /// A snapshot a person made before the record is not proved,
 /// because the filesystem says it was made in or before the transaction the record names.
 /// Why this control commits the filesystem before the snapshot:
-///  a transaction that still runs is written into the subvolume's `generation` by the commit that ends it,
-/// so a snapshot made while the source holds the fixture's own uncommitted writes would carry the transaction
-///  the record names and the control would pass without the property holding.
+///  the generation of a subvolume is written only by a commit that copied that subvolume's tree,
+/// so a snapshot made while the source still holds the fixture's own uncommitted writes takes the commit its own
+///  creation makes,
+/// and then it carries exactly the transaction the record names and the control passes without the property
+///  holding.
 /// A repository outside a control has been committed many times by other writers of the filesystem,
 /// and this is the state that leaves:
 /// the person's snapshot in a transaction of its own,
