@@ -311,7 +311,8 @@ export async function compareCommands({
   /**
    The session calls to read for an unstated built program, which is none once the statement confirms one.
    */
-  const sessionsToLookAt = (builtPrograms.length === 0) ? [...session.commands.entries(),] : [];
+  const sessionsToLookAt = (builtPrograms.length === 0) ? [...session.commands
+    .entries(),] : [];
   for (const [at, recorded,] of sessionsToLookAt) {
     /**
      Each word this session call runs, with the build program it names.
