@@ -36,8 +36,19 @@ fn the_instance_is_claimed_before_the_address_exists_and_the_files_are_removed_a
     files.keep_the_address_to_this_account().expect("the address's mode is set once it exists");
     assert!(socket.exists(), "the address is there");
     files.remove();
-    assert!(!note.exists(), "the note goes with the service");
+    // What: The note outlives the process, and a sweep removes it once the process is gone.
+    // Why:  A task of the service can still write while it ends, so a note removed here would tell a sweep that no writer was left
+    //       (the sixth review of issue 6293, finding 3).
+    assert!(note.exists(), "the note stays for the sweep that follows this process's end");
     assert!(!socket.exists(), "the address goes with the service");
+    assert_eq!(
+        crate::service_server_pid_note_of_an_instance::read(note.as_path()).expect("the note still names this process").pid,
+        our_pid(),
+        "and it still names the process that ended"
+    );
+    // A sweep reads it as a stopped instance once the process it names is gone, and takes it away then.
+    std::fs::write(note.as_path(), "1 linux:000000\n").expect("a note that names no process");
+    assert!(crate::service_is_gone_after_a_stop::service_is_gone(note.parent().expect("the note's folder"), "3f9a"), "a note that names no process is a stopped instance");
 }
 
 /// What:

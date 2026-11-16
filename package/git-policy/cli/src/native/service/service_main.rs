@@ -399,7 +399,8 @@ pub fn run(arguments: &[String]) -> i32 {
     //  filled before the first commit that would compile it.
     crate::service_rules_precompile::warm_remembered(context.journal.as_path());
     serve(listener, &context, &settings);
-    // The end of the service: the address and the note go with it, so nothing looks for a service that exited.
+    // The end of the service: the address goes with it, and the note stays until a sweep proves this process gone, because a task
+    //  of this process can still write after `serve` returned (the sixth review of issue 6293, finding 3).
     if let Some(files) = own_files {
         files.remove();
     }

@@ -33,7 +33,7 @@
 //! files.remove(); // unlink socket and note only while the note still names this process
 //! ```
 
-use crate::service_server_pid_note_of_an_instance::{claim as claim_the_note, path as pid_note_path, read as read_note, remove as remove_pid_note};
+use crate::service_server_pid_note_of_an_instance::{claim as claim_the_note, path as pid_note_path, read as read_note};
 use crate::service_socket_directory_only_this_account_may_open::{ensure_private, keep_only_its_owner};
 use std::path::{Path, PathBuf};
 
@@ -100,9 +100,12 @@ impl OwnFiles {
         if let Some(socket) = self.socket.as_ref() {
             let _removed = std::fs::remove_file(socket);
         }
-        if let Some(note) = self.pid_note.as_ref() {
-            remove_pid_note(note.as_path());
-        }
+        // What: The note is left for the sweep that removes a stopped instance's remains.
+        // Why:  It is the one fact a sweep reads to know that no writer is left, and this process can still write while it ends
+        //       (its after-commit task may publish a watch, a retry plan or a record). Removing it here told the sweep the writer
+        //       was gone before it was, and a journal could be removed under a live task (the sixth review of issue 6293,
+        //       finding 3). A note that stays names a process that has ended, which is the answer the sweep acts on.
+        crate::service_log!("leaving the note of this instance at {} for the sweep that follows this process's end", self.pid_note.as_ref().map_or_else(String::new, |note| { return note.display().to_string(); }));
     }
 
     /// Whether the note still names this process.
