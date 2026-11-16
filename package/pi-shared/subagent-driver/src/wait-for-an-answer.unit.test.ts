@@ -296,8 +296,11 @@ await describe({
         expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
         clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
         expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
-        // The whole bound again: the last of it, and not a millisecond before.
+        // The whole bound again: the last of it, and not a millisecond before. The wait must have settled on this tick itself,
+        // and not later on some scheduler the held clock does not drive: a settle that arrives after this look would otherwise be
+        // read as settled by the answer below, which is how a resume that never armed the bound again got through.
         clock.tick(LOOK_MILLISECONDS,);
+        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(true,);
         await watched.done;
         expect(watched.answer().ending,).toBe('silence',);
       },
