@@ -381,6 +381,28 @@ Status words:
     Bounded by the harness.
 
 Built on this branch (2026-11-03):
+36. Writes to the caller's own standard error and standard output:
+    every diagnostic level,
+    the command's own words,
+    an error's text,
+    a child's forwarded bytes,
+    and the service's journal lines.
+    Held at the moment of the write:
+    whatever the code that says the line holds,
+    which the survey below names for each path.
+    Bound:
+    `WARNING_WRITE_CEILING` (250 ms) on the caller's thread,
+    paid once per process,
+    and never again after a reader that took no line by then.
+    At the bound:
+    the line waits in a queue of `QUEUED_LINES` (256) for a reader that comes back,
+    the command goes on holding nothing of the reader's,
+    and a line the queue cannot hold is dropped and counted,
+    and the next line that gets through says the count.
+    Built,
+    and the survey with its evidence is in
+    "Writes to the caller's own streams, 2026-11-15T18:21:02-05:00".
+
 entries 1 to 5,
 9,
 10,
@@ -2462,3 +2484,357 @@ later by one
 measured bound.
 `only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling` pins
 the three backstops.
+
+## Writes to the caller's own streams, 2026-11-15T18:21:02-05:00
+
+What this round answers:
+a wrapper process, or the commit service,
+that is writing to a pipe its caller does not drain
+never holds up another command.
+
+The harm is not the wait itself.
+A process that blocks writing to a full pipe is ordinary,
+real Git does the same,
+and a person whose terminal is stopped expects it.
+The harm is what the blocked process holds while it waits:
+a lock,
+a claim,
+a place in a queue,
+a lease,
+the service's landing thread,
+the connection the service is serving.
+Another command waiting for that thing waits for as long as the reader stays away,
+which is no bound at all.
+
+The record that named the door is a review's reproduction of 2026-11-15:
+a stopped push that could not sweep its locks said so through `warn`,
+the caller's standard error was a full pipe,
+the write waited with no bound,
+the stop never returned,
+and later pushes of that repository stayed behind it.
+The branch that owns that path
+(`fix/git-policy-cli-push-stopped-at-its-window-ends-within-its-bound`)
+moved the words out of the stop,
+and its review then reproduced callers that wait for good in `warn` instead,
+which is why the answer had to be at the door.
+
+### The write paths and what each holds
+
+The sources are every release file of the crate,
+read by `rg` and by hand.
+The counts were measured on 2026-11-15 with:
+
+```sh
+# run in the repository root
+rg --files-with-matches '\bwarn\(' package/git-policy/cli/src \
+  | grep -v '_tests.rs' | grep -v 'word_merge' | wc -l
+rg --no-heading --line-number '\bwarn\(' package/git-policy/cli/src \
+  | grep -v '_tests.rs' | grep -v 'word_merge' | grep -v '^[^:]*:[0-9]*: *//' | wc -l
+```
+
+`warn` stands in 69 release files in 134 code lines,
+and `debug` in 142 files in 428 code lines,
+so the door is reached from everywhere a command can be.
+
+1.  `diagnostic_log::warn` and `diagnostic_log::debug`,
+    the door.
+    Held at the moment of the write:
+    whatever the caller holds,
+    and the callers that hold something are the ones this round reproduced:
+    the commit service's landing, which holds the marked `index.lock`
+    (`SERVICE_HOLD_CEILING`, 600 s, is what an `git add` of the same worktree then waits),
+    and the landing turn itself
+    (`ANSWER_CEILING`, 1,200 s, is what a commit queued behind it then waits).
+    The same door is reached under the push claim
+    (`push/bounded_push.rs:325`, `lock/push_lock_clearing.rs:68`, `lock/stopped_git_locks.rs:170`),
+    under a worktree's stage claim
+    (`worktree/worktree_ladder_finish.rs`),
+    and after a landing while its work is recorded
+    (`landing/service_landed_aftermath.rs`).
+    State:
+    built, by this round.
+2.  The command's own words before real Git runs,
+    through `write_stream`
+    (`invocation/entry_run_forwarded_actions.rs:283`,
+    called 20 times in `invocation/`).
+    Held: nothing.
+    These are chosen before any work starts,
+    and the process holds no lock of the repository at that point.
+    Waits: nothing else waits,
+    but the command itself cannot return,
+    so its caller's next command waits for the command.
+    State: listed, unchanged.
+3.  A panic's line (`invocation/panic_notice.rs:112`).
+    Held: nothing, because the command is over.
+    State: listed, unchanged.
+4.  The final words of a command and an error's own text,
+    through `write_stream` and `exit_report_written::*`
+    (`invocation/exit_report_written.rs:39`).
+    Held: nothing that another command waits for,
+    because the process is ending and every claim is given back before the exit.
+    State: listed, unchanged.
+5.  A child's forwarded bytes
+    (`lock/index_writer_forward.rs:253` and `:261`,
+    `push/push_stacking.rs:348`,
+    `merge/merge_isolation.rs:130`,
+    `pull/pull_isolation.rs:580`).
+    Held: nothing.
+    The child's own lock went with the child,
+    and the service's hold that a forwarded `add` waits for is given back before its words are written.
+    State: listed, unchanged.
+6.  The commit's own reports while a landing runs,
+    written through `MeasuredStandardError`,
+    which wraps `std::io::stderr()`
+    (`foundation/time_spent_outside_the_phases.rs:170`),
+    for example the open-operation line and the conflict-marker warning
+    (`landing/service_commit_requests_and_landing_report.rs:194` and `:201`).
+    Held: the landing's index lock is given back before these run,
+    so nothing of the landing is held.
+    But this stream is the process's shared handle,
+    so a write that waited here would hold the process's one standard-error lock,
+    and every later line of the same process would wait behind it.
+    State: open, under the question below.
+7.  The lines that already had a ceiling:
+    `write_within(WARNING_WRITE_CEILING, StandardErrorDescriptor, ..)`
+    at `landing/preparation_notice.rs:53`,
+    `health/traditional_hook_warning.rs:217`,
+    `health/external_hooks.rs:306`,
+    and `repair/package_repair_command.rs:594` with `REPAIR_NOTICE_WRITE_CEILING`,
+    and the notice streams of `NoticeStreamThatDoesNotHoldItsWriter`
+    (`landing/service_commit_waiting_notices.rs:43`,
+    `commit/commit_preparation.rs:257`,
+    `worktree/add_standing_notice.rs:295`).
+    Held: a place in the blocking pool, or the commit step's own thread.
+    Waits: at most the ceiling, 250 ms, once per line or once per stream.
+    State: bounded before this round.
+8.  The service's lines that the service manager's journal takes,
+    through `service_timing::log` and `service_log_lines_off_the_calling_thread::hand`.
+    Held: nothing, because the caller hands the line over and goes on.
+    Waits: a line handed over when the queue is full is dropped and counted,
+    and the next line that gets through says how many went.
+    State: bounded before this round;
+    this round moved the last two hand-written lines of
+    `landing/service_work_settling_with_words.rs` into it,
+    which were `eprintln!` beside their own siblings' `service_log!`.
+9.  Standard output:
+    `invocation/exit_report_written.rs:39`,
+    `lock/index_writer_forward.rs:260`,
+    `push/stacked_merge_push.rs:126` and `:132`,
+    `invocation/entry_run_forwarded_actions.rs:68`,
+    `worktree_copying/worktree_copy.rs:406`,
+    `landing/service_commit_input_notes_and_embedded_commit.rs:136`.
+    Held: nothing that another command waits for.
+    The wrapper holds no lock of the repository while it writes a command's own output,
+    and the service's standard output is its unit's,
+    which nothing serializes on.
+    State: listed, unchanged.
+
+### What the two reproductions showed
+
+Both were run against the real commit service of a copy-on-write copy of one repository,
+with the service's standard error a FIFO filled to the kernel's capacity and read by nothing,
+and the harness starting that service itself on the copy's own socket,
+with `DBUS_SESSION_BUS_ADDRESS` pointed at a path nothing answers,
+so no manager could start a second one.
+The binary before the door and the one after it are the same build,
+except for the door's one line,
+and the arms alternate in every round.
+Three rounds of each arm are in `keep/reproduction-rounds-final.log`.
+
+The first printed record below is the arm with the door as it was,
+the second the arm with the door of this round:
+
+```text
+before-hold-add          first=['X', 'X', 'X']  second=['X', 'X', 'X']  lock_left=[True, True, True]
+after-hold-add           first=[448, 363, 353]  second=[16, 20, 18]  lock_left=[False, False, False]
+before-hold-commit       first=['X', 'X', 'X']  second=['X', 'X', 'X']  lock_left=[True, True, True]
+after-hold-commit        first=[311, 315, 365]  second=[52, 59, 57]  lock_left=[False, False, False]
+before-drain-add         first=[58, 62, 58]  second=[19, 19, 17]  lock_left=[False, False, False]
+after-drain-add          first=[66, 63, 64]  second=[17, 17, 15]  lock_left=[False, False, False]
+before-drain-commit      first=[63, 63, 60]  second=[55, 59, 55]  lock_left=[False, False, False]
+after-drain-commit       first=[64, 63, 51]  second=[51, 72, 50]  lock_left=[False, False, False]
+```
+
+`X` is a command still running at its bound of ten seconds,
+which the harness ended;
+the first figure of each arm is the commit and the second the command started beside it.
+`lock_left` is whether the copy's `.git/index.lock` was still there after the service ended.
+
+1.  The first arm:
+    `git commit` through the service,
+    and a `git add` of the same worktree started while the commit still ran.
+    With the door as it was,
+    the commit never returned in any of the three rounds,
+    the `git add` never returned either,
+    and the service's marked index lock was still there after it ended.
+    The service's own standard output log of those rounds holds no `answered` line at all,
+    so the landing never finished the request it had already done the work for,
+    and the lock it holds is what every later write command of that worktree waits for:
+    a `git add` waits `SERVICE_HOLD_CEILING`, 600 s, and then runs.
+    With the door of this round,
+    the commit ended in 353 to 448 ms,
+    the `git add` in 16 to 20 ms,
+    and no lock was left.
+2.  The second arm:
+    the same commit,
+    and a second `git commit`, with its own change, started beside it.
+    With the door as it was,
+    neither returned in any round,
+    and the index lock was left as before.
+    A queued commit waits `ANSWER_CEILING`, 1,200 s, for the landing turn.
+    With the door of this round,
+    the first commit ended in 311 to 365 ms and the second in 52 to 59 ms.
+3.  The positive control:
+    the same FIFO with a reader on it,
+    `stdbuf --output=0 cat` writing what it takes to a file.
+    Nothing waited in either arm:
+    51 to 66 ms and 15 to 72 ms,
+    and the words arrived,
+    for example 4,343 bytes in one round,
+    holding the `[debug] [..] [shadowPool] filled the shadow pool with ...` line
+    that is the one the full pipe stopped the landing at.
+
+### The shape, and where a line can be lost
+
+The door is one function,
+`diagnostic_log::write_line`,
+and the shape is there and nowhere else:
+a line is rendered as before,
+handed to a queue of `QUEUED_LINES` (256),
+and written by one thread of its own
+through this process's standard error descriptor
+(`foundation/diagnostic_lines_off_the_calling_thread.rs`).
+
+The caller waits for its line only while the reader is still taking lines,
+and only up to `WARNING_WRITE_CEILING` (250 ms),
+which keeps the diagnostics in order among the lines a command writes by hand beside them.
+The first line a reader did not take by the bound ends that wait for the rest of the process,
+so a command that says twenty lines under a held lock pays one bound and not twenty.
+The thread writes the descriptor rather than `std::io::stderr()`,
+because that handle is one lock for the whole process
+(`foundation/standard_error_descriptor.rs`),
+and a thread blocked in it would hold every later line of the process.
+
+What happens at the bound is said,
+and where a line can be lost is these two places and no other:
+
+- The queue is full (256 lines waiting).
+  The line is not taken, the count of dropped lines rises,
+  and the next line that gets through writes,
+  before itself,
+  `monochromatic-git-policy-cli: diagnostic lines were dropped because the reader of standard error
+  was not taking them: <n>`.
+  What the person sees is the count and the gap it names.
+- The process ends while a line is still in the queue.
+  `main` waits once,
+  `WAIT_BEFORE_AN_EXIT` (250 ms),
+  for what was handed over;
+  a reader that is keeping up is always served inside that,
+  and a reader that is not has already shown it is not reading.
+  What the person sees is everything up to that line and nothing after it,
+  and the command's result and exit status are unchanged,
+  because a diagnostic never fails the command it describes.
+
+Two things do not come out of this:
+no diagnostic turns into a failure,
+and no thread outlives the command.
+The thread is started by the first line and ends with the process,
+which is the same bargain `service_log_lines_off_the_calling_thread.rs` makes for the service's own lines,
+and a process that says no line starts no thread and waits for nothing.
+
+A caller that holds a returned `WhatAStopWouldSay` of
+`fix/git-policy-cli-push-stopped-at-its-window-ends-within-its-bound`
+should say it after the stop has given its things back,
+as that branch does,
+and needs nothing else:
+with this door the saying cannot wait for the reader,
+so it may be said wherever the words are clearest,
+and a second thread, a second queue or a later place for the words buys nothing.
+
+### The guard
+
+A source guard cannot see a lock:
+holding one is not a shape of the text,
+so no guard can say "this `warn` stands under a lock".
+What a guard can hold is the shape that makes the question go away,
+and that is what `source_guard::diagnostic_door` holds,
+in four checks:
+
+- `foundation/diagnostic_log.rs` writes no stream itself:
+  no `stderr(`, no `write_all(`,
+  and it says every line through `diagnostic_lines_off_the_calling_thread::write`.
+- `foundation/diagnostic_lines_off_the_calling_thread.rs` names
+  `StandardErrorDescriptor` and never takes the process's shared standard error.
+- No release file of the crate, as its own module tree classifies them,
+  says a line with `eprintln!(`.
+  A comment is not code, so the checks drop comment lines first.
+- Three planted controls show each check failing:
+  a door that writes `std::io::stderr().write_all`,
+  a writer that takes the shared handle,
+  and a release file that says a line with `eprintln!(`.
+
+Shown failing on a planted line in this crate:
+with `std::io::stderr().write_all(line.as_bytes())` put back in `write_line`,
+`mise run //package/git-policy/cli:native:test:host -- source_guard::diagnostic_door` fails with
+
+```text
+left: ["the door writes a stream itself: it carries `stderr(`",
+       "the door writes a stream itself: it carries `write_all(`",
+       "the door says no line through `diagnostic_lines_off_the_calling_thread::write`"]
+right: []
+```
+
+and the file was put back as it was.
+
+The lock of the queue stands on the inventory of
+`source_guard::service_lock_inventory`,
+with its reason beside it,
+and the thread stands on the exceptions of
+`source_guard::blocking_code_off_the_runtime`,
+with what removes it:
+a bounded write that needs no thread.
+
+### The cost
+
+Every figure is milliseconds, of one command,
+with the binary from before the door and the one after it alternating in every round.
+The spread of one unchanged arm was measured first:
+`git status --short` with the before binary in both arms,
+twelve rounds,
+23 samples between 8.7 and 14.0,
+median 10.1.
+
+```text
+git status --short       before  9.7 to 15.7, median 10.4, 11 samples
+                         after   9.5 to 14.0, median 10.2, 11 samples
+an ordinary commit       before 41.7 to 49.4, median 43.6,  7 samples
+                         after  43.3 to 49.6, median 45.6,  7 samples
+                         the same arm twice: 42.2 to 66.4, median 46.2, 15 samples
+git worktree add, 12 diagnostics
+                         before 35.8 to 46.9, median 37.5,  7 samples
+                         after  35.2 to 38.7, median 36.5,  7 samples
+```
+
+An ordinary read-only command and an ordinary commit say no diagnostic line,
+so the door is not reached at all,
+and the differences measured there, 0.2 ms and 2.0 ms,
+are inside the spread of one unchanged arm, 8.7 to 14.0 and 42.2 to 66.4.
+The one case that does reach the door twelve times,
+`git worktree add` with `MONOCHROMATIC_VERBOSE=true`,
+shows no difference either at this resolution:
+one hand-over per line, a queue lock and a wake,
+is below the millisecond this command is measured in.
+The end of a process pays nothing when it handed over no line:
+`write_what_waits` answers at once from a `OnceLock` that was never filled.
+
+### Open, and left alone
+
+- What `write_stream` and the direct `std::io::stderr()` writes of row 6 may hold
+  is not answered here.
+  Each is a candidate for the same door,
+  and the survey names them so that the next round can take them one at a time.
+- The service's landing thread wrote the line that stopped it
+  from a landing that had already done the commit's work,
+  so the person's commit landed and the answer never came.
+  A door that never waits makes the answer arrive,
+  and the record of a landing that is standing in a write is not kept anywhere today.

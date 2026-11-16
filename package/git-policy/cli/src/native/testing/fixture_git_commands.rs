@@ -2,7 +2,8 @@
 //!  The ways the controls start real Git in a fixture:
 //! one that answers its output,
 //! one that requires it to have succeeded,
-//! and one that keeps a bound on the query and answers whether that bound ran out and which status the wait returned.
+//! and one that keeps a bound on the query and answers, for the last status the wait returned,
+//! whether that status was the signal this helper sends at the bound.
 //! Why:
 //!  Every control that needs a repository,
 //!  a commit or an answer from Git starts it the same way,
@@ -137,8 +138,10 @@ pub(crate) fn disarm_the_ending_seam() -> bool {
 /// What ended one bounded query, as the last status the wait returned showed it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QueryEnding {
-    /// A wait saw the query's ending before the bound ran out, and its status and output are the query's own,
-    /// whatever status that was: a code of 124 or 137 or a signal's death included.
+    /// The last status the wait returned was not the signal this helper sends at its bound:
+    /// the query ended before that bound ran out, or in the instant after it, and this answer does not say which.
+    ///  Its status and output are the query's own, whatever status that was:
+    /// a code of 124 or 137 or a signal's death included.
     ///  A signal another process sent reads the same here:
     /// a wait says which signal ended a child and nothing about who sent it.
     Itself,
@@ -152,7 +155,8 @@ pub(crate) enum QueryEnding {
 /// What one bounded query of real Git answered.
 #[derive(Debug)]
 pub(crate) struct QueryAnswer {
-    /// The query's own ending and what its pipes gave before it went.
+    /// The status the wait returned, and the bytes the two pipes had given by the end of the grace after the ending.
+    ///  A descendant that holds a pipe can add bytes in that window, and `held_open` says when one did.
     pub output: Output,
     /// What ended the query, as the last status the wait returned showed it.
     pub ending: QueryEnding,
@@ -196,8 +200,8 @@ fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::syn
 }
 
 /// What:
-///  Run one real-Git query under `bound` and answer what it printed, how the query ended,
-///  and what a descendant of it still holds.
+///  Run one real-Git query under `bound` and answer the status the wait returned, how the query ended,
+///  the bytes its pipes had given by the grace after that ending, and what a descendant of it still holds.
 /// Why:
 ///  A control that ran Git directly would hold the suite for ever against a Git that never answers,
 /// and report nothing at all;
@@ -303,7 +307,7 @@ pub(crate) fn real_git_within(
     };
     // One grace for the three pipes, and never a wait past it.
     let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
-    // The write ends with the query, and the ending is what judges it:
+    // The write is judged with the query's ending:
     // a write the query's death broke is part of that ending and no failure,
     // any other failure of it is said,
     // and a write a descendant of the query still holds is said in the answer, as a held pipe is.
