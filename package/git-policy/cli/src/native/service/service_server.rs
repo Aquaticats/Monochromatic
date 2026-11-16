@@ -404,10 +404,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             Received::Timeout if own_worktree_gone_now(settings, until_idle) => {
                 let instance: &str = settings.instance.as_deref().unwrap_or_default();
                 let _asked = (settings.own_units_stop)(instance, context.journal.as_path());
-                // Leaving as the idle exit does, so the syncs of the landings that were answered are made first, within
-                // `THE_EXITS_SYNCS_ARE_MADE_WITHIN` and whatever the lane of slow work holds.
-                say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
-                log(exit_line(ExitReason::WorktreeGone, serving_since.elapsed()).as_str());
+                // The units are asked for first, so a service that is leaving does not lose the request to the wait below.
+                leave(ExitReason::WorktreeGone, serving_since);
                 return;
             }
             // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
@@ -418,17 +416,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             // The interval of a service whose worktree is known, and that worktree is still there: serve on.
             Received::Timeout if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check => continue,
             Received::Timeout => {
-                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for
-                // them), within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`.
-                say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
-                log(exit_line(ExitReason::Idle, serving_since.elapsed()).as_str());
+                leave(ExitReason::Idle, serving_since);
                 return;
             }
             Received::Closed => {
-                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for
-                // them), within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`.
-                say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
-                log(exit_line(ExitReason::Error, serving_since.elapsed()).as_str());
+                leave(ExitReason::Error, serving_since);
                 return;
             }
         };
@@ -574,10 +566,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     {
         let _stopped: bool = crate::service_own_socket_of_a_retire_that_served_nothing::stop_own_socket_before_serving_anything(instance);
     }
-    // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them),
-    // within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`.
-    say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
-    log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
+    // What: The retire is the one way out that answers a client, and it leaves by the same step as the other three.
+    // Why:  Nothing is landed after it, so the syncs of the landings it answered are the last thing it owes, and
+    //       a push it cut off is taken up again when that push's claim lease runs out, about 120 s later.
+    leave(ExitReason::Retire, serving_since);
 }
 
 /// What:
@@ -648,6 +640,38 @@ fn released_trees<'a>(
         released.push(tree);
     }
     return released;
+}
+
+/// What:
+///  What every way out of the loop does last:
+///  the service says it is leaving,
+///  a batch waiting for a place of the lane of slow work is let past it,
+///  the syncs of the landings it answered are waited for within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`,
+///  the log says when that bound ended the wait,
+///  and the exit line names `reason`.
+/// Why:
+///   The four arms end the same way, so they call one step,
+/// and what that step is has one explanation rather than four.
+///   The wait is bounded because a batch of the landings' records waits for a place of the lane of slow work,
+/// and that lane may be inside a removal the kernel does not interrupt;
+/// the bound is the service's decision to leave and not the end of the process,
+/// because an `fsync` already in the kernel is not ended by an exit,
+/// so a stalled device holds the process past the bound and what the bound promises is that the service stops waiting.
+///   What it gives up is what a signal leaves:
+/// the commit is in the repository and on its branch,
+/// and the records still waiting reach the disk with the operating system's own write-back
+/// (`landing/service_durable.rs` says, record by record, what the next service makes of each).
+/// A signal is the one end that waits for nothing, on this release as on `main`.
+///   A push the exit cut off is taken up again when its claim's lease runs out, about 120 s later
+/// (`landing/service_work.rs`, `CLAIM_LEASE`), and the commit is on its branch throughout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leave(reason, since) { log(whatTheSyncsCameTo(drainAtTheExitWithin(CEILING))); log(exitLine(reason, since)) }
+/// ```
+fn leave(reason: ExitReason, serving_since: Instant) {
+    say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
+    log(exit_line(reason, serving_since.elapsed()).as_str());
 }
 
 /// What:

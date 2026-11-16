@@ -1090,30 +1090,70 @@ pub const A_FINISHED_RECORD_IS_READ: Duration =
 /// Open to the owner's veto.
 pub const SERVICE_GONE_AFTER_A_STOP: Duration = Duration::from_secs(2);
 
-/// How long the commit service goes on making the syncs of the landings it answered,
-/// once it has begun to leave:
-/// two seconds.
+/// What:
+///  How long a service that has begun to leave goes on making the syncs of the landings it answered:
+///  two seconds, one wait for everything the service had queued when it decided to leave.
 /// Why it is a bound at all:
 ///  the exit waits for the background syncs of the landings it answered,
 ///  and a batch of those waits for a place of the lane of slow work,
 ///  so a service asked to retire while slow work held that lane ended as late as the slow work,
 ///  and had no end where a slow job of that lane was stopped in the kernel.
-///  Nothing is lost at the bound that a kill at that instruction does not lose:
-///  the commit is in the repository and on its branch,
-///  and the records still waiting reach the disk with the operating system's own write-back
-///  (`landing/service_durable.rs`, `drain_at_the_exit_within`).
+///  The bound is the decision to leave and not the end of the process:
+///  an `fsync` already inside the kernel is not ended by the process's exit,
+///  so a device that truly stalls holds the exiting process past this bound,
+///  and what the bound promises is that the service stops *waiting*, not that the process is gone.
+///  A push cut off by a retire is taken up again when its claim's lease runs out, about 120 s later
+///  (`landing/service_work.rs`, `CLAIM_LEASE`), and the commit is on its branch throughout.
+///  What the code compares the bound with, said plainly:
+///  `drain_at_the_exit_within` sends one barrier behind every batch queued before it and waits once,
+///  so this is one wait for the whole queue and not one for each batch.
+///  That is deliberate: a wait repeated per batch would be multiplied by how many landings were answered,
+///  which is the queue's length and not a property of the exit,
+///  and the first thing the exit does is let a waiting batch past the lane of slow work
+///  (`run_a_slow_job_within_the_budget_or_at_once_when_leaving`),
+///  so an ordinary exit finds the queue empty and does not spend this ceiling at all.
+///  Why giving up at the bound leaves nothing a signal does not leave already, record by record:
+///  each of these records is written into the page cache before the client's answer,
+///  and only its forced write is queued (`landing/service_durable.rs`),
+///  so a record given up here reaches the disk with the operating system's own write-back,
+///  and a `SIGTERM` leaves exactly that, on this release and on `main` both, waiting for no sync at all.
+///  So the test of each line below is: is this a state `main` reaches when a stop ends its service instead?
+///  - the intent file and its folder: a lost intent leaves an open record the next service cannot read,
+///    which it keeps named and settles nothing of
+///    (it is the only record of a landed commit's owed index update), and the commit stays on its branch.
+///  - the record that the index update was installed, and its folder: a lost one makes the next service read the update
+///    as not recorded, and it replays that update only over the very index file the landing saw,
+///    leaving any other index as it is, with the commit's paths against it.
+///  - the journal folder (the rename that marks a batch done): a lost one leaves the batch open, and the next service
+///    settles it as finished, which names the commit once and replays no index update.
+///  - the index folder: a lost rename leaves either the installed index or the one before it, whole either way,
+///    because the file's own bytes were forced before the rename on the landing's path (`built-index`);
+///    the commit's paths then show against the index until the next commit.
+///  - the lock marker: its flush is of a file the landing removes when it releases the lock,
+///    so by an exit the marker is gone or going,
+///    and what a power cut may leave of it is an empty lock (removed by the next command at once),
+///    or one that names no holder: that one is waited for to the lock's ceiling and then reported as held,
+///    which is the one line here that costs a commit a wait and a message rather than nothing,
+///    and it is a state a `SIGTERM` leaves the same day. No record here is kept for the exit's sake alone.
 ///  Measured:
-///  the control `binary/binary_a_service_asked_to_retire_leaves_within_a_bound_tests.rs` had the service still there
-///  ten seconds after the ask, with both places of the lane held by the removals of two landings' scratch trees,
-///  and it ended only when the control killed it (2026-11-15).
-///  A batch of a landing's records took 2 to 70 ms on this host (`the background sync of N records of a landing took X ms`
-///  in that control's log, 2026-11-15), one batch of six records took 646 ms, and one took 24,062 ms while other sessions
-///  of this machine ran,
-///  so the bound is hundreds of a usual batch and still well under the one a busy device makes:
-///  a sync that slow delays no exit of this service either.
+///  a service asked to retire with both places of the lane of slow work held was still there ten seconds later,
+///  and ended only when the control killed it (2026-11-15,
+///  `binary/binary_a_service_asked_to_retire_leaves_within_a_bound_tests.rs`);
+///  with the release of a waiting batch in place it ends 100 to 140 ms after the ask.
+///  A batch of a landing's records, from the service's own
+///  `the background sync of N records of a landing took X ms` lines:
+///  on the fixture volume on 2026-11-16, twelve batches of six records took 60 to 322 ms eleven times,
+///  and 2,214 ms once, and twenty batches of one record took 6 to 13 ms
+///  (the measurement of the branch that bounded the same wait at 5 s);
+///  on this host on 2026-11-15, batches took 2 to 70 ms, one took 646 ms,
+///  and one took 24,062 ms while other sessions of this machine ran.
+///  So two seconds is above a usual batch and below the slowest one measured, and that is intended:
+///  the figure is not a promise that every batch is waited for,
+///  it is the point at which the exit stops waiting and leaves the rest to the write-back,
+///  which the lines above show is safe, record by record.
 ///  Chosen against the wait that gives it its room:
-///  a newer release gives the service it asked `RETIREMENT_WAIT` (ten seconds) to leave before it stops the unit and fails
-///  the commit (`service_provision_earlier_service_retirement.rs`),
+///  a newer release gives the service it asked `RETIREMENT_WAIT` (ten seconds) to leave before it stops the unit
+///  and fails the commit (`service_provision_earlier_service_retirement.rs`),
 ///  so this bound is a fifth of it and leaves the rest to the manager's stop and the next instance's start.
 ///  Open to the owner's veto.
 pub const THE_EXITS_SYNCS_ARE_MADE_WITHIN: Duration = Duration::from_secs(2);
