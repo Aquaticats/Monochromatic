@@ -3219,6 +3219,24 @@ A worktree whose branch a merge landed is removed by those same routes,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
  the worktree's own Git directory goes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
+ A process whose working folder or open file cannot be read is judged by its start
+ (`src/native/worktree/worktree_process_inside.rs`):
+ one that started after the worktree was made,
+ one whose start cannot be read and one whose worktree age cannot be read
+ are taken to be working inside it and keep it,
+ while one that started before the worktree was made is taken to hold nothing there.
+ That is a guess and not a proof,
+ so a process older than the worktree that changes into it afterwards is not seen,
+ and the owner accepted that miss on 2026-11-15
+ ("Accept the gap (Recommended)",
+ `doc/handover/cli-git-rust-implementation.md`,
+ "Answers of the evening").
+ A line about a removal names the worktree by the absolute path the guard judged,
+ and each such path is kept as it is
+ (owner,
+ 2026-11-15,
+ "Keep the absolute path (Recommended)",
+ the same entry).
  The registration the record names must still be the one standing beside that path,
  which is what the next paragraph says the record carries.
  A worktree the service keeps is named in a record under the common Git directory,
@@ -8377,8 +8395,13 @@ now inside these bounds:
   classed as a poll in the audit).
 - A hold of the service that cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
   from the longest
-  of 715 measured holds);
-  this number awaits the owner's approval.
+  of 715 measured holds,
+  approved by the owner on 2026-11-15 in the words "Approve 150 seconds",
+  against the session's recommendation of ten minutes
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "Answers of the evening,
+  the long sitting",
+  rounds fifteen to seventeen).
 - Every step of a commit's exchange with its service is bounded,
   and each ends at a constant of `service/wait_ceilings.rs` named above:
   the connect at `CONNECT_CEILING`,
@@ -12722,6 +12745,17 @@ The notices a preparation prints (an obligation of the worktree that cannot be r
 and the entries a landing left out of this commit)
 are given to the same descriptor under the same ceiling,
 and one that cannot be said in time is left unsaid rather than holding the commit.
+Which lines take that route is the owner's rule of 2026-11-15:
+a line whose writer holds something another command needs,
+which is the resident service and any command while it holds a lock,
+is handed over and never waited for,
+while a one-shot command's own last words,
+said with nothing held,
+keep a blocking write
+("Only where another command can be held (Recommended)",
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers of the evening,
+the long sitting").
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
@@ -13222,11 +13256,22 @@ and recovery holds them for a batch it finds landed;
 every path on which a batch does not land forgets them.
 Nothing drains a held item,
 so no round can publish a commit whose post-commit gate has not decided.
-Nothing releases a held record by judging a process:
-a push whose command died before its checks ran stays
+A held record is settled from what the record and Git say,
+and never from a guess about a process:
+a commit Git holds in the branch's remote settles the record where a finished push goes,
+and a record whose named holder is proven gone is settled by the verdict that holder wrote,
+a pass releasing it,
+a refusal keeping it and naming it,
+and no verdict leaving it held.
+A push whose command died before its checks ran stays
 held,
 and the question of whether it should ever be pushed is open with the owner
-(`doc/handover/questions-for-the-owner.md`).
+(`doc/handover/questions-for-the-owner.md`;
+the sentence "Nothing releases a held record by judging a process" stood here until the owner corrected it on 2026-11-15,
+"Correct the sentence (Recommended)",
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers of the evening,
+the long sitting").
 A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
@@ -13357,6 +13402,23 @@ which only a development run is,
 knows no repository until a landing or a wake names one,
 so a record left for a repository it never heard of waits for the next wake that names it or for a start that reads the
 notes again.
+A note names a directory of this instance's own repository and nothing else:
+the write of a note and the keeping of one that may be missing both refuse a Git directory of another instance,
+so a journal never begins to watch a repository its service does not land for,
+which the module's own words state as "A note is written only for this instance's repository"
+(`src/native/landing/service_claim_watch.rs`;
+the owner's session recorded the refusal as staying on 2026-11-15,
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers of the evening,
+the long sitting",
+the adoptions from the same prepared batch).
+A note whose work directory is gone is removed at a start,
+so a journal of a worktree that no longer stands holds no note that names it,
+and the next wake writes a note again
+("Sweep notes whose checkout is gone (Recommended)",
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers of the evening,
+the long sitting").
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
@@ -15903,6 +15965,14 @@ so every question a claim asks is asked of the tree that is handed out.
   which takes the trees of its own folder that nothing renewed and leaves a fresh one:
   a tree a live commit holds is fresh,
   and its Git is reading it while the removal runs.
+- A commit whose private tree or one of its files is gone after Git made the commit is made again rather than failed,
+  and the person sees the summary of each build
+  (owner,
+  2026-11-15,
+  "Run it again (Recommended)",
+  `doc/handover/cli-git-rust-implementation.md`,
+  "Answers of the evening,
+  the long sitting").
 - The request that lands a commit names the drawn tree it was built in,
   in its `shadow` field,
   and the service removes that tree with the scratch tree once that landing is over.
@@ -18788,6 +18858,14 @@ The binary tests of the package start the built wrapper against a service of the
 (its runtime directory under the agent scratch directory,
 never the person's `XDG_RUNTIME_DIR`)
 and compare each commit line with native Git field by field.
+Each test process makes its fixture root private to this account before anything is created in it,
+so a root on a shared filesystem is not readable by another account
+(owner,
+2026-11-15,
+"Make the fixture root private (Recommended)",
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers of the evening,
+the long sitting").
 Phases that have no hook are reached through a test-only phase marker:
 `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill[:<directory>]` makes the wrapper `SIGKILL` itself at the phase,
 and `<phase>:pause:<directory>` writes `<directory>/<phase>.reached` and waits for `<directory>/<phase>.release`.
