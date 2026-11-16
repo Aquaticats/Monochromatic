@@ -194,6 +194,13 @@ pub(crate) fn kernel_decimal(text: &str) -> Option<String> {
     return Some(String::from(if digits.is_empty() { "0" } else { digits }));
 }
 
+/// The platform tags a writer of this crate leaves before the identity it read:
+/// Linux, macOS and Windows.
+/// Why:
+///   A tag names the platform the identity was read on,
+/// and only a tag some writer of this crate leaves names a value a reader of this one can compare.
+const KNOWN_PLATFORM_TAGS: [&str; 3] = ["linux", "darwin", "win32"];
+
 /// What:
 ///  The value a birth identity names, in the one spelling a reader compares with,
 ///  or nothing when the text is no spelling of a value this reader can read.
@@ -203,31 +210,33 @@ pub(crate) fn kernel_decimal(text: &str) -> Option<String> {
 ///  which is proof that the holder is gone and loses a live holder's lock.
 ///  So every part is read as the value the platform means it:
 ///  this platform's tag in either case, and its start tick with any number of leading zeros;
-///  another platform's tag in either case, and the words its inspector prints after it;
-///  and a text with no tag at all as the text it is,
-///  which is what macOS and Windows need.
-///  A text that names this platform's start tick and carries no number a reader can read
-///  (a tick behind the whitespace of a padded field, a text that names the tag with no tick at all)
-///  is no spelling of a value,
-///  and its caller answers that the holder cannot be told.
+///  another known platform's tag in either case, and the words its inspector prints after it.
+///  A text whose tag is not one a writer of this crate leaves,
+///  or that carries no tag at all,
+///  names no value this reader can read:
+///  compared as text it read as another process,
+///  which is a proved-dead owner,
+///  and a live holder's lock or item went with it.
+///  So its caller answers that the holder cannot be told,
+///  which keeps what it holds and, past the stated patience, names it to a person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// birthIdentityValue('linux:8423337') // 'linux:8423337'
 /// birthIdentityValue('LINUX:08423337') // 'linux:8423337', the same process in another spelling
-/// birthIdentityValue(' linux:8423337') // undefined, a padded field names no value
-/// birthIdentityValue('linux:not-a-birth') // undefined, a tag with no number
-/// birthIdentityValue('gone') // 'gone', a text this reader has no grammar for
+/// birthIdentityValue('darwin:Mon Nov  3 02:00:00 2026') // 'darwin:Mon Nov  3 02:00:00 2026'
+/// birthIdentityValue('8423337') // undefined, a number with no tag names no identity
+/// birthIdentityValue('linux :8423337') // undefined, a tag no writer leaves
+/// birthIdentityValue('gone') // undefined, a text with no tag
 /// ```
 pub(crate) fn birth_identity_value(birth: &str) -> Option<String> {
-    // Whitespace is no part of a value: the wrapper writes none, and a field padder's space leaves a text this reader
-    //  cannot read as the value it names.
-    if birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); }) != birth {
+    // What: the tag is the whole of the platform part, so a text without one, or with a tag no writer of this crate
+    //       leaves, is no value.
+    // Why:  The tick alone names a number, not a process: every boot and every machine has a process at that tick.
+    let (tag, rest) = birth.split_once(':')?;
+    if !KNOWN_PLATFORM_TAGS.iter().any(|known| { return tag.eq_ignore_ascii_case(known); }) {
         return None;
     }
-    let Some((tag, rest)) = birth.split_once(':') else {
-        return Some(String::from(birth));
-    };
     if tag.eq_ignore_ascii_case(LINUX_PLATFORM_TAG) {
         let tick: String = kernel_decimal(rest)?;
         return Some(format!("{LINUX_IDENTITY_PREFIX}{tick}"));

@@ -105,8 +105,17 @@ pub(crate) fn reap_interrupted_installs(git_dir: &Path, notices: &mut Vec<String
             ));
             continue;
         };
-        let proven_gone: bool =
-            token_owner_is_dead(Some(owner), journal.as_path()).unwrap_or(false);
+        // What: only a proof that the writer is gone allows looking at the journal's bytes.
+        // Why:  A holder that can be told neither way is not that proof, and the silence was its own answer: the decision of
+        //       2026-11-16 says the person is told, past the patience, in words that name the journal, the writer, its age and
+        //       the command that removes it (`RefusedUntellableRecord`, and the words of another namespace's record).
+        let proven_gone: bool = match token_owner_is_dead(Some(owner), journal.as_path()) {
+            Ok(dead) => dead,
+            Err(refusal) => {
+                notices.push(refusal.0);
+                continue;
+            }
+        };
         if !proven_gone {
             continue;
         }

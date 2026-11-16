@@ -518,7 +518,8 @@ fn a_copy_whose_owner_cannot_be_told_is_named_past_the_patience() {
     let _cleared: Vec<String> = crate::diagnostic_log::take_lines_written();
     let mine: PrivateIndex = PrivateIndex::create(real.as_path()).expect("a copy");
     let said: Vec<String> = crate::diagnostic_log::take_lines_written();
-    let untellable: PathBuf = made[0].1.join("owner");
+    // The words name the copy, which is what the command that removes it takes: its record is the `owner` file inside it.
+    let untellable: PathBuf = made[0].1.clone();
     let mut wrong: Vec<String> = Vec::new();
     let named: bool = said.iter().any(|line| {
         return line.contains(untellable.to_string_lossy().as_ref())

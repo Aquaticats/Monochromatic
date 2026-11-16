@@ -17,7 +17,7 @@
 
 use super::{ATTEMPTS, GITDIR_HEX_PREFIX, TAG, files_of, name_of, path_bytes};
 use crate::diagnostic_log::warn;
-use crate::pid_namespace::{UnreadableOwnerStanding, unreadable_owner_standing};
+use crate::pid_namespace::{UnreadableOwnerStanding, UnreadablePart, unreadable_owner_standing};
 use crate::process_identity::{birth_identity_value, process_birth_identity};
 use std::path::{Path, PathBuf};
 /// What a Git directory,
@@ -130,7 +130,7 @@ fn attempt_file_may_be_running(path: &Path) -> Attempts {
                 }
             }
             // A birth that names no value is neither a running command's nor an ended one's.
-            _ => match unreadable_owner_standing(path, recorded.as_str(), pid) {
+            _ => match unreadable_owner_standing(path, UnreadablePart::Birth(recorded.clone()), pid) {
                 UnreadableOwnerStanding::MayRun => Attempts::Runs,
                 UnreadableOwnerStanding::Ended => Attempts::Ended,
                 UnreadableOwnerStanding::Refused(words) => Attempts::CannotBeTold(words),

@@ -27,9 +27,9 @@
 //! if (!CopyOwner.fromToken(token).isAlive(path)) { /* the item may be taken over */ }
 //! ```
 
-use crate::pid_namespace::{ForeignStanding, UnreadableOwnerStanding, current_pid_namespace, foreign_owner_standing, unreadable_owner_standing};
+use crate::pid_namespace::{ForeignStanding, UnreadableOwnerStanding, UnreadablePart, current_pid_namespace, foreign_owner_standing, unreadable_owner_standing};
 use crate::process_identity::{birth_identity_value, current_birth_identity, process_birth_identity};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use std::path::Path;
 
 /// What:
@@ -222,10 +222,10 @@ impl CopyOwner {
     /// ```
     ///
     /// # Errors
-    ///  When the platform refuses to report the process,
-    ///  or when the owner is in another namespace and its item is older than the
-    ///  patience,
-    ///  or when its birth is no value this reader can read and the item is older than the patience.
+    ///  When the owner is in another namespace and its item is older than the patience,
+    ///  or when a part of its record is no value this reader can read and the item is older than the patience.
+    ///  A process the platform will not report on is not an error: it is a holder that cannot be told, and the item
+    ///  stays (`Ok(true)` inside the patience, the words past it).
     pub fn is_alive(&self, item: &Path) -> Result<bool, WorktreeCopyError> {
         // What: the answer that keeps the item is "may run", and the one that takes it is "ended"; neither is a proof of
         //       the other, so the third answer carries the words a command stops with.
@@ -254,8 +254,8 @@ impl CopyOwner {
             None => {}
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
-        return match process_birth_identity(self.pid).map_err(raw_failure_of)? {
-            Some(current) => match (birth_identity_value(self.birth_identity.as_str()), birth_identity_value(current.as_str())) {
+        return match process_birth_identity(self.pid) {
+            Ok(Some(current)) => match (birth_identity_value(self.birth_identity.as_str()), birth_identity_value(current.as_str())) {
                 // What: the two births name one value or two, and a value is what names one process.
                 // Why:  The wrapper writes one spelling of its birth, so a record in another one came from a writer that is
                 //       not this release (an older release, another tool, a damaged file). Compared as text, that spelling
@@ -266,19 +266,26 @@ impl CopyOwner {
                 //       the only bound there is.
                 // Why:  Inside the patience the record stands for an owner that may run, past it the command stops with the
                 //       item named, and neither answer takes an item of a command that runs nor keeps one for ever.
-                _ => Ok(self.cannot_be_told_by(item)),
+                _ => Ok(self.cannot_be_told_by(item, UnreadablePart::Birth(self.birth_identity.clone()))),
             },
-            None => Ok(OwnerStanding::Ended),
+            Ok(None) => Ok(OwnerStanding::Ended),
+            // What: a process the platform will not report on is a holder that cannot be told, like a birth that names no
+            //       value: the item stays and nothing fails.
+            // Why:  Every `git worktree` command runs this recovery first, so an error here failed commands that were never
+            //       asked about the record: a `git worktree add` stopped and made no worktree where the item proves
+            //       nothing, and the error named no record and no command a person could run. The item's own age is the
+            //       bound, so inside the patience nothing is said and past it the words name the item.
+            Err(unreadable) => Ok(self.cannot_be_told_by(item, UnreadablePart::Process(unreadable.to_string()))),
         };
     }
 
     /// What:
-    ///  What the item says when the record's birth is no value this reader can read.
+    ///  What the item says when a part of the record is no value this reader can read.
     /// Why:
     ///   The reading of the item's age and the words are the ones every reader of such a record gives
     ///  (`unreadable_owner_standing`), so a copy cannot answer one way and a transaction another.
-    fn cannot_be_told_by(&self, item: &Path) -> OwnerStanding {
-        return match unreadable_owner_standing(item, self.birth_identity.as_str(), self.pid) {
+    fn cannot_be_told_by(&self, item: &Path, part: UnreadablePart) -> OwnerStanding {
+        return match unreadable_owner_standing(item, part, self.pid) {
             UnreadableOwnerStanding::MayRun => OwnerStanding::MayRun,
             UnreadableOwnerStanding::Ended => OwnerStanding::Ended,
             UnreadableOwnerStanding::Refused(words) => OwnerStanding::CannotBeTold(WorktreeCopyError(words)),

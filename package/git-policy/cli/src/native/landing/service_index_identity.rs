@@ -396,10 +396,6 @@ pub fn holder_state_in(
     {
         return HolderState::Gone;
     }
-    // From here the marker is of this boot (or names none), so the holder's own parts decide, by the value each names.
-    let Some(identity_value) = birth_identity_value(identity) else {
-        return HolderState::Unknown;
-    };
     if let Some(recorded) = scope
         && pid_namespace_value(recorded).is_none()
     {
@@ -417,12 +413,20 @@ pub fn holder_state_in(
             return HolderState::Unknown;
         }
     }
+    // From here the marker is of this boot and this PID namespace, so its process number names a process here or none at
+    //  all, and that answer stands apart from the birth part as the boot does.
     return match ask(*pid) {
+        // What: no process has the number the marker names, so the holder is gone whatever its birth part says.
+        // Why:  A number is free only when the process that had it ended, and a birth in no spelling of a value says
+        //       nothing against that: kept, such a marker would stay for ever and block every command of the worktree.
         Ok(None) => HolderState::Gone,
-        Ok(Some(now)) => match birth_identity_value(now.as_str()) {
-            Some(live) if live == identity_value => HolderState::Running,
-            Some(_) => HolderState::Gone,
-            None => HolderState::Unknown,
+        // What: the number names a process, so only a birth that names a value can tell the holder from it.
+        // Why:  A text that names no value leaves the question open: read as another process it takes the lock of a
+        //       holder that runs, and the reader keeps it instead (`Unknown`).
+        Ok(Some(now)) => match (birth_identity_value(identity), birth_identity_value(now.as_str())) {
+            (Some(recorded), Some(live)) if recorded == live => HolderState::Running,
+            (Some(_), Some(_)) => HolderState::Gone,
+            _ => HolderState::Unknown,
         },
         Err(_) => HolderState::Unknown,
     };

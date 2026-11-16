@@ -490,71 +490,107 @@ fn aged(record_path: &Path) -> Aged {
 }
 
 /// What:
-///  A record whose birth identity is no value this command can read, and which has stood past the patience:
+///  The part of a record whose holder this command could not read.
+/// Why:
+///  A record says who holds it in two parts, and either can be no value this command can read:
+///  the birth identity it names,
+///  or the process record the platform keeps for the number it names.
+///  The words a person reads say which of the two it was,
+///  because what they check before removing the record differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnreadablePart = { birth: string } | { process: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum UnreadablePart {
+    /// The birth identity the record names, as it is written: no spelling of a value this command can read.
+    Birth(String),
+    /// The process the record names: the platform would not report it, with the reason it gave.
+    Process(String),
+}
+
+/// What:
+///  A record whose holder this command could not read, and which has stood past the patience:
 ///  neither a live owner's nor a gone one's.
 /// Why:
 ///   The wrapper writes one spelling of a birth,
 ///  so a text that is no spelling of a value was written by something that is not this release (an older release,
 ///  another tool,
-///  a damaged file).
-///  It may be a live owner's record, written another way, or a dead one's,
-///  and a process that has the number says nothing either,
-///  because the birth that would tell the two apart cannot be read.
+///  a damaged file),
+///  and a process the platform will not report on can be a live owner's as easily as a reused number's.
+///  Either way the record may be a live owner's, and a process that has the number says nothing,
+///  because the part that would tell the two apart cannot be read.
 ///  Owner,
 ///  2026-11-04,
 ///  "Refuse and name it (Recommended)" is the rule for the same state of a record of another PID namespace,
-///  and this is that rule applied to a birth:
+///  and this is that rule applied to either part:
 ///  inside the patience the record stands for an owner that may run,
 ///  and past it the command stops,
 ///  changes nothing,
 ///  and says which record it found,
-///  why it cannot read it,
+///  which part it cannot read,
 ///  and what a person does about it.
+///  Owner,
+///  2026-11-16,
+///  "A: stays, command says how (Recommended)" is that decision made,
+///  and it holds for every reader of such a record on this branch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RefusedUnreadableBirth = { record: string; birth: string; because: ForeignRefusal };
+/// type RefusedUntellableRecord = { record: string; part: UnreadablePart; because: ForeignRefusal };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RefusedUnreadableBirth {
-    /// The record file.
+pub struct RefusedUntellableRecord {
+    /// The record file, or the directory a record of a copy stands in.
     pub record: std::path::PathBuf,
-    /// The birth identity the record names, as it is written.
-    pub birth: String,
+    /// The part of the record this command could not read.
+    pub part: UnreadablePart,
     /// Why the record's age cannot decide it either.
     pub because: ForeignRefusal,
 }
 
-impl RefusedUnreadableBirth {
+impl RefusedUntellableRecord {
     /// What:
     ///  The sentence a command stops with, or says:
     ///  the record file,
     ///  the owner's PID,
-    ///  the birth the record names,
+    ///  the part that cannot be read,
     ///  how long it has stood,
-    ///  and the exact `rm`.
+    ///  and the exact command that removes it.
     /// Why:
     ///   The person must be able to decide.
     ///  Nothing in the record says whether its owner still runs,
     ///  so the words say that the record may be a live owner's and that a command of this repository may be working;
     ///  the condition for removing it covers the Git processes the wrapper leaves running,
     ///  not only a running monochromatic-git-policy-cli command.
+    ///  A copy keeps its record in a directory of its own,
+    ///  so the removal the words give is `rm --recursive` for a directory and `rm` for a file:
+    ///  the one the person runs from the words must remove what the words name.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid}, and the birth identity it names (${birth}) ... rm -- ${quoted(record)}`
+    /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid}, ${part}, ... rm ${recursive}-- ${quoted(record)}`
     /// ```
     pub fn describe(&self, owner_pid: i64) -> String {
+        let part: String = match &self.part {
+            UnreadablePart::Birth(birth) => format!(
+                "and the birth identity it names ({birth}) is no spelling of a value this command can read"
+            ),
+            UnreadablePart::Process(reason) => format!("and the process record of that process cannot be read ({reason})"),
+        };
+        let removal: String = match self.record.is_dir() {
+            true => format!("remove the copy with `rm --recursive -- {}`", crate::stale_ref_lock_message::shell_quote(self.record.as_path())),
+            false => format!("remove the record with `rm -- {}`", crate::stale_ref_lock_message::shell_quote(self.record.as_path())),
+        };
         return format!(
-            "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid}, and the birth identity it names ({birth}) is no spelling of a value this \
-             command can read, so whether that process still runs cannot be told from the record, {state}. Nothing was changed. A record like that was written by a release \
-             or a program that is not this one, so its owner may still be running and a Git process monochromatic-git-policy-cli left running (a write it could not safely \
-             end, such as a merge, a reset or a branch update) may still be working for it; `ps` shows them. When no monochromatic-git-policy-cli command and no such Git \
-             process runs for this repository, remove the record with `rm -- {path}` and run the command again.",
+            "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid}, {part}, so whether that process still runs cannot be told from the \
+             record, {state}. Nothing was changed. A record like that was written by a release or a program that is not this one, or names a process this host does \
+             not report; its owner may still be running and a Git process monochromatic-git-policy-cli left running (a write it could not safely end, such as a merge, a \
+             reset or a branch update) may still be working for it; `ps` shows them. When no monochromatic-git-policy-cli command and no such Git process runs for this \
+             repository, {removal} and run the command again.",
             record = self.record.display(),
-            birth = self.birth,
             state = refusal_state(&self.because),
-            path = crate::stale_ref_lock_message::shell_quote(self.record.as_path())
         );
     }
 }
@@ -608,24 +644,31 @@ pub enum UnreadableOwnerStanding {
 }
 
 /// What:
-///  What a record whose birth identity `birth` is no value this command can read says about the owner `owner_pid`,
+///  What a record whose part `part` could not be read says about the owner `owner_pid`,
 ///  from one reading of the record's own age.
 /// Why:
 ///   This is the one answer every reader of such a record gives,
 ///  so the bound and the words cannot differ between the mark of a lock,
 ///  the record of a worktree copy,
 ///  the record of a commit transaction and the records of a worktree removal.
+///  Owner,
+///  2026-11-16,
+///  "A: stays, command says how (Recommended)": the record stays,
+///  nothing is said inside the patience,
+///  and past it the words name the record,
+///  the owner,
+///  its age and the exact command that removes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// unreadableOwnerStanding(recordPath, birth, pid) // 'may-run' | 'ended' | words
+/// unreadableOwnerStanding(recordPath, part, pid) // 'may-run' | 'ended' | words
 /// ```
-pub fn unreadable_owner_standing(record_path: &Path, birth: &str, owner_pid: i64) -> UnreadableOwnerStanding {
+pub fn unreadable_owner_standing(record_path: &Path, part: UnreadablePart, owner_pid: i64) -> UnreadableOwnerStanding {
     return match aged(record_path) {
         Aged::Standing => UnreadableOwnerStanding::MayRun,
         Aged::Finished => UnreadableOwnerStanding::Ended,
         Aged::Refused(because) => UnreadableOwnerStanding::Refused(
-            RefusedUnreadableBirth { record: record_path.to_path_buf(), birth: String::from(birth), because }.describe(owner_pid),
+            RefusedUntellableRecord { record: record_path.to_path_buf(), part, because }.describe(owner_pid),
         ),
     };
 }

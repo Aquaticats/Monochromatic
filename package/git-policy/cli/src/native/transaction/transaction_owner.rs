@@ -26,7 +26,8 @@ use crate::process_identity::{
 };
 /// The namespace an owner record names, the rule for an owner of another one, and the bound on a birth that names no value.
 use crate::pid_namespace::{
-    ForeignStanding, UnreadableOwnerStanding, current_pid_namespace, foreign_owner_standing, unreadable_owner_standing,
+    ForeignStanding, UnreadableOwnerStanding, UnreadablePart, current_pid_namespace, foreign_owner_standing,
+    unreadable_owner_standing,
 };
 
 /// Owner record schema;
@@ -108,7 +109,7 @@ pub enum OwnerLivenessError {
     /// `RefusedForeignRecord`),
     /// or its birth identity is no value this command can read and its age is past the patience
     /// (`pid_namespace.rs`,
-    /// `RefusedUnreadableBirth`).
+    /// `RefusedUntellableRecord`).
     RecordRefused(String),
 }
 
@@ -303,13 +304,27 @@ pub fn classify_transaction_owner_record(
         Some(ForeignStanding::Refused(refused)) => return Err(OwnerLivenessError::RecordRefused(refused.describe(owner.owner_pid))),
         None => {}
     }
-    let liveness: OwnerLiveness = classify_transaction_owner(owner.owner_pid, owner.owner_identity.as_str())?;
+    let liveness: OwnerLiveness = match classify_transaction_owner(owner.owner_pid, owner.owner_identity.as_str()) {
+        Ok(found) => found,
+        // What: a process the platform will not report on is a holder that cannot be told, like a birth that names no
+        //       value: the record's own age is the bound, and past it the words name the record.
+        // Why:  A command of a person's must not stop for a record it was not asked about while nothing proves that
+        //       record's owner ended; read as dead, the record would settle a merge that runs.
+        Err(OwnerLivenessError::Identity(unreadable)) => {
+            return match unreadable_owner_standing(owner_path, UnreadablePart::Process(unreadable.to_string()), owner.owner_pid) {
+                UnreadableOwnerStanding::MayRun => Ok(OwnerLiveness::Alive),
+                UnreadableOwnerStanding::Ended => Ok(OwnerLiveness::Dead),
+                UnreadableOwnerStanding::Refused(words) => Err(OwnerLivenessError::RecordRefused(words)),
+            };
+        }
+        Err(other) => return Err(other),
+    };
     // What: a birth that names no value is neither a live owner's nor a gone one's, and the record's own age is the bound.
     // Why:  Read as alive the record stays settled as an owner's for as long as any process holds its number, which is for
     //       ever; read as dead it settles a merge that runs. Past the patience the person is told which record it is and
     //       the command that removes it.
     if liveness == OwnerLiveness::Alive && birth_identity_value(owner.owner_identity.as_str()).is_none() {
-        return match unreadable_owner_standing(owner_path, owner.owner_identity.as_str(), owner.owner_pid) {
+        return match unreadable_owner_standing(owner_path, UnreadablePart::Birth(owner.owner_identity.clone()), owner.owner_pid) {
             UnreadableOwnerStanding::MayRun => Ok(OwnerLiveness::Alive),
             UnreadableOwnerStanding::Ended => Ok(OwnerLiveness::Dead),
             UnreadableOwnerStanding::Refused(words) => Err(OwnerLivenessError::RecordRefused(words)),

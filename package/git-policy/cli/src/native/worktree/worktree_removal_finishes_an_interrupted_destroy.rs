@@ -36,7 +36,7 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
 use crate::plain_file::read_plain_file;
-use crate::pid_namespace::{UnreadableOwnerStanding, unreadable_owner_standing};
+use crate::pid_namespace::{UnreadableOwnerStanding, UnreadablePart, unreadable_owner_standing};
 use crate::process_identity::{birth_identity_value, process_birth_identity};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
@@ -111,7 +111,7 @@ pub(crate) fn owner_standing(owner: Option<&String>, record: &Path) -> OwnerOfTh
 ///   The bound and the words are the ones `pid_namespace.rs` writes,
 ///  so no reader of these records can answer differently.
 fn cannot_be_told(record: &Path, birth: &str, pid: i64) -> OwnerOfTheRecord {
-    return match unreadable_owner_standing(record, birth, pid) {
+    return match unreadable_owner_standing(record, UnreadablePart::Birth(String::from(birth)), pid) {
         UnreadableOwnerStanding::MayRun => OwnerOfTheRecord::Runs,
         UnreadableOwnerStanding::Ended => OwnerOfTheRecord::Ended,
         UnreadableOwnerStanding::Refused(words) => OwnerOfTheRecord::CannotBeTold(words),

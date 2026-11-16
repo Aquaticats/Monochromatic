@@ -55,6 +55,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///  the installed wrapper uses the same one.
 pub const PRIVATE_INDEX_PREFIX: &str = "cli-git-add-policy-";
 
+/// The tag of this module's own diagnostic lines,
+///  which name a copy whose owner can be told neither alive nor gone.
+const TAG: &str = "candidatePrivateIndex";
+
 /// The file inside a private index directory that names the process which made it:
 ///  its process id,
 ///  the platform's identity of its birth,
@@ -224,7 +228,7 @@ fn record_text(record: &Path) -> Option<String> {
 /// ```ts
 /// const ownerIsGone = (path) => { const text = recordText(join(path, OWNER_RECORD)); return text?.trim() ? tokenOwnerIsDead(text.trim(), path) : false; };
 /// ```
-fn owner_is_proven_gone(directory: &Path) -> bool {
+fn owner_of_the_copy(directory: &Path) -> CopyOwnerStanding {
     let record: PathBuf = directory.join(OWNER_RECORD);
     // What: A record that exists is the only evidence there is, so one that cannot be read proves nothing.
     // Why:  A corrupt record is not a dead owner; the copy stays and the person can look at it.
@@ -234,13 +238,19 @@ fn owner_is_proven_gone(directory: &Path) -> bool {
     // const text = recordText(record); if (!text || !text.trim()) return false; return tokenOwnerIsDead(text.trim(), directory);
     // ```
     let Some(text) = record_text(record.as_path()) else {
-        return false;
+        return CopyOwnerStanding::Kept;
     };
     if text.trim().is_empty() {
-        return false;
+        return CopyOwnerStanding::Kept;
     }
-    // `unwrap_or(false)`: a refusal of another namespace's expired record keeps the copy.
-    return token_owner_is_dead(Some(text.trim()), directory).unwrap_or(false);
+    // What: a holder that can be told neither alive nor gone is kept and named, never silently dropped.
+    // Why:  The refusal already carries the words the person acts on; swallowing it would keep the copy for ever with nothing
+    //       said, which is what the decision of 2026-11-16 rules out.
+    return match token_owner_is_dead(Some(text.trim()), directory) {
+        Ok(true) => CopyOwnerStanding::Gone,
+        Ok(false) => CopyOwnerStanding::Kept,
+        Err(refusal) => CopyOwnerStanding::CannotBeTold(refusal.0),
+    };
 }
 
 /// What:
@@ -261,10 +271,11 @@ fn owner_is_proven_gone(directory: &Path) -> bool {
 /// ```ts
 /// for (const entry of await readdir(parent)) if (isCopy(entry) && ownerIsGone(entry)) await rm(entry, { recursive: true, force: true });
 /// ```
-fn reap_copies_of_gone_owners(parent: &Path) {
+fn reap_copies_of_gone_owners(parent: &Path) -> Vec<String> {
+    let mut said: Vec<String> = Vec::new();
     let Ok(listed) = std::fs::read_dir(parent) else {
         // A directory that cannot be listed proves nothing about any copy in it.
-        return;
+        return said;
     };
     for entry in listed.flatten() {
         let path: PathBuf = entry.path();
@@ -275,13 +286,40 @@ fn reap_copies_of_gone_owners(parent: &Path) {
         if !path.is_dir() {
             continue;
         }
-        if !owner_is_proven_gone(path.as_path()) {
-            continue;
+        match owner_of_the_copy(path.as_path()) {
+            CopyOwnerStanding::Kept => continue,
+            // The copy stays, and the person reads which one it is and the command that removes it.
+            CopyOwnerStanding::CannotBeTold(words) => {
+                said.push(words);
+                continue;
+            }
+            CopyOwnerStanding::Gone => {}
         }
         // `.remove_dir_all` takes the copy and whatever Git wrote beside it; a failure leaves it for the next
         // sweep, and is not a failure of this command.
         let _ = std::fs::remove_dir_all(path.as_path());
     }
+    return said;
+}
+
+/// What:
+///  What the sweep makes of one copy's owner record.
+/// Why:
+///  A sweep may remove a copy only on proof that the owner is gone,
+///  and a record whose holder can be told neither way is the third answer,
+///  which carries the words a person acts on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CopyOwnerStanding = 'gone' | 'kept' | { cannotBeTold: string };
+/// ```
+enum CopyOwnerStanding {
+    /// The owner ended, so the copy may be removed.
+    Gone,
+    /// The owner runs, or the record proves nothing.
+    Kept,
+    /// Neither, past the patience: the copy is named in the words a person reads.
+    CannotBeTold(String),
 }
 
 /// What:
@@ -403,8 +441,12 @@ impl PrivateIndex {
                 "monochromatic-git-policy-cli could not prepare a private copy of the index: Git named an index path without a directory.",
             ));
         };
-        // Before a new copy exists, the copies of commands that will never finish leave.
-        reap_copies_of_gone_owners(parent);
+        // Before a new copy exists, the copies of commands that will never finish leave, and the ones whose owner can be
+        // told neither way are named on the command the person ran: a sweep inside `git add` must not fail the command, and
+        // must not keep a copy for ever in silence either (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+        for words in reap_copies_of_gone_owners(parent) {
+            crate::diagnostic_log::warn(TAG, words.as_str());
+        }
         let suffix: String = unique_suffix();
         let staging: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{suffix}{STAGING_SUFFIX}"));
         if let Err(error) = create_private_directory(staging.as_path()) {

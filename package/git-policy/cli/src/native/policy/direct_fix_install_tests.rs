@@ -1790,26 +1790,34 @@ fn a_journal_whose_writer_cannot_be_told_is_named_past_the_patience() {
         notices[0].contains(journal.to_string_lossy().as_ref())
             && notices[0].contains(std::process::id().to_string().as_str())
             && notices[0].contains("minutes old")
-            && notices[0].contains("rm -- "),
+            // A journal is a directory of its own, so the command the words give is the one that removes a directory.
+            && notices[0].contains("rm --recursive -- "),
         "the line names the journal, the process, its age and the command that removes it: {notices:?}"
     );
     assert_eq!(journals(&fixture_tree.root), vec![journal.clone()], "the journal stays");
-    // The same journal rewritten inside the patience says nothing, and one whose writer ended is removed.
-    let young: Vec<Prepared> =
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A journal whose writer's birth names no value says nothing while its record is inside the patience.
+/// Why:
+///  The record may be a live writer's, and a command of a person's must not be told about a record that may still be
+///  written: the decision of 2026-11-16 keeps the silence inside the patience and asks for the words past it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markWriterUntellable(journal, 30s); reap(notices); expect(notices).toEqual([]); expect(journal).exists();
+/// ```
+#[test]
+fn a_journal_whose_writer_cannot_be_told_says_nothing_inside_the_patience() {
+    let fixture_tree: Tree = tree("install-untellable-writer-young");
+    let prepared: Vec<Prepared> =
         super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice()).expect("prepared");
-    mark_writer_untellable(young[0].journal.as_path(), std::time::Duration::from_secs(30));
-    let mut quiet: Vec<String> = Vec::new();
-    reap_interrupted_installs(fixture_tree.root.as_path(), &mut quiet);
-    assert!(quiet.is_empty(), "a journal inside the patience says nothing: {quiet:?}");
-    for prepared in &young {
-        mark_writer_dead(prepared.journal.as_path());
-    }
-    let mut settled: Vec<String> = Vec::new();
-    reap_interrupted_installs(fixture_tree.root.as_path(), &mut settled);
-    assert!(
-        settled.iter().all(|line| { return !line.contains("minutes old"); }),
-        "the journals of writers that ended are settled, not named as untellable: {settled:?}"
-    );
+    mark_writer_untellable(prepared[0].journal.as_path(), std::time::Duration::from_secs(30));
+    let mut notices: Vec<String> = Vec::new();
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    assert!(notices.is_empty(), "a journal inside the patience says nothing: {notices:?}");
+    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays");
     remove(fixture_tree.root.as_path());
 }
 
@@ -1832,11 +1840,7 @@ fn mark_writer_untellable(journal: &Path, age: std::time::Duration) {
     }
     let record: PathBuf = journal.join(RECORD_FILE);
     std::fs::write(record.as_path(), rewritten.as_bytes()).expect("a writer that cannot be told");
-    std::fs::File::options()
-        .write(true)
-        .open(record.as_path())
-        .expect("open the record")
-        .set_modified(std::time::SystemTime::now() - age)
-        .expect("age the record");
+    // The age the sweep reads is the journal's own, which is the item the owner is judged by.
+    std::fs::File::open(journal).expect("open the journal").set_modified(std::time::SystemTime::now() - age).expect("age the journal");
     assert!(read_record(journal).is_some(), "the record still decodes");
 }
