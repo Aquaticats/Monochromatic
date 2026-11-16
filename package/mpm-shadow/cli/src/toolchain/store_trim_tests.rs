@@ -42,6 +42,11 @@ use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
 
+/// The recheck a removal asks just before it moves a version, for tests where no lock was written after the plan.
+fn nothing_new_is_named(_candidate: &TrimCandidate) -> Option<String> {
+    return None;
+}
+
 /// The lock reading a recovery pass takes, naming `tools` and nothing else wrong.
 fn named_of(tools: &BTreeSet<String>) -> crate::toolchain::store_trim::NamedVersions {
     let mut named = crate::toolchain::store_trim::NamedVersions::default();
@@ -352,7 +357,7 @@ fn removes_the_oldest_unpinned_version_and_keeps_the_installed_one() {
         return None;
     });
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 3, "{:?}", outcome.lines);
     assert!(!fixture.root.join("node/26.11.0").exists());
@@ -375,7 +380,7 @@ fn removes_nothing_and_says_nothing_under_the_bound() {
         &|_found| return None,
     );
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 0);
     assert!(outcome.lines.is_empty(), "{:?}", outcome.lines);
@@ -399,7 +404,7 @@ fn keeps_a_version_a_running_process_holds_open() {
             .map(|held| return format!("it is in use: {held}"));
     });
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert!(held_version.join("program").exists(), "the held version was removed");
     assert!(outcome.lines.iter().any(|line| return line.contains("node/26.11.0") && line.contains("it is in use")));
@@ -686,7 +691,7 @@ fn keeps_a_version_another_run_wrote_after_the_scan() {
     fs::write(fixture.root.join("node/26.11.0/extra"), vec![b'b'; 10]).expect("add a file to the version");
     let plan: TrimPlan = TrimPlan { total_bytes: judged.bytes, over_bound: true, steps: vec![TrimStep::Remove(judged)] };
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 0);
     assert!(fixture.root.join("node/26.11.0/program").exists());
@@ -712,7 +717,7 @@ fn removes_the_downloads_of_the_version_it_removes() {
     assert!(judged.downloads.is_some(), "the scan did not find the downloads");
     let plan: TrimPlan = TrimPlan { total_bytes: judged.bytes, over_bound: true, steps: vec![TrimStep::Remove(judged)] };
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 1);
     assert!(!downloads.exists());
@@ -883,7 +888,7 @@ fn replays_a_real_store_listing() {
         }
     }
     lines.push(format!("planned removal: {} MiB", planned_removal / MIB));
-    let outcome: TrimOutcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now() });
+    let outcome: TrimOutcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now() }, &nothing_new_is_named);
     lines.push(format!(
         "removed from the replayed store: {} version(s), {} MiB",
         outcome.removed,
@@ -919,7 +924,7 @@ fn keeps_a_version_whose_downloads_an_install_is_unpacking() {
         .clone();
     let plan: TrimPlan = TrimPlan { total_bytes: judged.bytes, over_bound: true, steps: vec![TrimStep::Remove(judged)] };
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 0, "{:?}", outcome.lines);
     assert!(fixture.root.join("node/26.11.0").join("program").is_file(), "the version was removed under an install");
@@ -1176,7 +1181,7 @@ fn a_flat_download_replaced_after_the_plan_is_not_deleted() {
     fs::write(&replacement, b"new archive waiting for unpack").expect("write the new download");
     fs::rename(&replacement, &archive).expect("publish the new archive over the old name");
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 0, "the cleanup deleted a file it did not judge: {:?}", outcome.lines);
     assert_eq!(fs::read(&archive).expect("read the replacement"), b"new archive waiting for unpack");
@@ -1237,7 +1242,7 @@ fn a_marker_that_cannot_be_written_stops_the_removal() {
     let plan: TrimPlan = TrimPlan { total_bytes: 1_000, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
     fs::set_permissions(&fixture.root, fs::Permissions::from_mode(0o555)).expect("make the marker unwritable");
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     fs::set_permissions(&fixture.root, fs::Permissions::from_mode(0o755)).expect("give the fixture its access back");
     assert_eq!(outcome.removed, 0, "the removal ran without a recovery marker: {:?}", outcome.lines);
@@ -1375,7 +1380,7 @@ fn a_removal_refuses_a_directory_outside_its_root() {
     };
     let plan: TrimPlan = TrimPlan { total_bytes: 9, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
 
-    let outcome = apply_trim(&plan, &fixture.run());
+    let outcome = apply_trim(&plan, &fixture.run(), &nothing_new_is_named);
 
     assert_eq!(outcome.removed, 0, "the removal acted on a path outside its root: {:?}", outcome.lines);
     assert!(directory.join("payload").is_file(), "the removal deleted a directory outside its root");
@@ -1644,7 +1649,7 @@ fn a_recovery_marker_that_is_a_link_is_refused() {
     };
     let plan: TrimPlan = TrimPlan { total_bytes: 11, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
 
-    let outcome = apply_trim(&plan, &fixture_run());
+    let outcome = apply_trim(&plan, &fixture_run(), &nothing_new_is_named);
 
     assert_eq!(
         fs::read(&victim).expect("read the outside file"),
@@ -1869,4 +1874,37 @@ fn a_claim_a_kill_left_beside_a_version_that_is_gone_is_cleared() {
     trim_after_install(&rig.context(), &[]);
 
     assert!(fs::symlink_metadata(&claim).is_err(), "the claim a kill left beside a version that is gone stayed for ever");
+}
+
+/// What:
+/// A version the plan would remove stays when the recheck, taken just before the move, names a lock for it.
+/// Why:
+/// The plan is made from a reading of the locks taken before the store was walked, and an install that starts in
+/// between writes its lock before it writes anything else; the review of 82531265a7 watched this pass remove the
+/// version that lock had just named.
+#[test]
+fn a_version_a_lock_names_after_the_plan_is_not_moved() {
+    let fixture = Fixture::new();
+    let candidate: TrimCandidate = fixture.candidates().into_iter().next().expect("a version to remove");
+    let plan: TrimPlan = TrimPlan {
+        total_bytes: 10,
+        over_bound: true,
+        steps: vec![TrimStep::Remove(candidate.clone())],
+    };
+    let named_later = |asked: &TrimCandidate| -> Option<String> {
+        return Some(format!(
+            "the lock /elsewhere/toolchain.lock.json names {} {}, written after the pass read the locks",
+            asked.tool, asked.version
+        ));
+    };
+
+    let outcome: TrimOutcome = apply_trim(&plan, &fixture.run(), &named_later);
+
+    assert!(candidate.directory.is_dir(), "a version a lock named after the plan was moved anyway");
+    assert_eq!(outcome.removed, 0, "{:?}", outcome.lines);
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("written after the pass read the locks")),
+        "the line says why it stayed: {:?}",
+        outcome.lines
+    );
 }

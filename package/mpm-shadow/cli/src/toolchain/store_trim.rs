@@ -688,7 +688,7 @@ pub fn has_unfinished_removal(root: &Path) -> bool {
 /// ```ts
 /// export function applyTrim(plan: TrimPlan, run: TrimRun): TrimOutcome
 /// ```
-pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
+pub fn apply_trim(plan: &TrimPlan, run: &TrimRun, recheck: &dyn Fn(&TrimCandidate) -> Option<String>) -> TrimOutcome {
     let mut outcome: TrimOutcome = TrimOutcome::default();
     let mut deferred: usize = 0;
     for step in &plan.steps {
@@ -700,7 +700,7 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     outcome.unfinished.insert(candidate.root.clone());
                     continue;
                 }
-                match remove_one(candidate, run) {
+                match remove_one(candidate, run, recheck) {
                     Removal::Removed(bytes) => {
                         outcome.removed += 1;
                         outcome.removed_bytes = outcome.removed_bytes.saturating_add(bytes);
@@ -821,7 +821,7 @@ enum Removal {
 /// ```ts
 /// function removeOne(candidate: TrimCandidate): number | undefined  // throws on a refusal
 /// ```
-fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
+fn remove_one(candidate: &TrimCandidate, run: &TrimRun, recheck: &dyn Fn(&TrimCandidate) -> Option<String>) -> Removal {
     // What: the deadline is looked at before each step that moves something, and never between the last rename and
     // the delete.
     // Why: the steps before that can be undone where they are, and a recursive delete cannot be cut in the middle
@@ -930,6 +930,16 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
     if out_of_time() {
         restore_downloads(&candidate.root, &moved_downloads, &candidate.downloads);
         return Removal::Deferred;
+    }
+    // What: the locks are read once more here, after everything that can take time and before the version leaves its
+    // name.
+    // Why: the plan was made from a reading taken before the store was walked, and the downloads above can wait on a
+    // claim; an install that starts in between writes its lock before it writes anything else, and the review of
+    // 82531265a7 watched this pass remove the version that lock had just named. From this point on the version is in
+    // hand by a name no reader uses, so nothing can name it any more.
+    if let Some(reason) = recheck(candidate) {
+        restore_downloads(&candidate.root, &moved_downloads, &candidate.downloads);
+        return Removal::Kept(reason);
     }
     // What: the version is taken out of its name before anything is compared or deleted,
     // to a hidden name no scan judges and no recovery deletes.
@@ -1612,6 +1622,21 @@ pub(super) fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
     return (files, unreadable);
 }
 
+/// What:
+/// The lock files a running command rewrites while it works: this scope's own lock and the machine scope's.
+/// Why:
+/// These are the two an install writes when it starts or finishes, so they are what is read again for each version the
+/// cleanup is about to move; every worktree's lock is read in the pass's own reading and changes far less often.
+fn volatile_locks(ctx: &Context) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = vec![ctx.scope.lock_file.clone()];
+    if let Ok(global) = global_scope(ctx.env)
+        && global.lock_file != ctx.scope.lock_file
+    {
+        files.push(global.lock_file);
+    }
+    return files;
+}
+
 /// The roots one scope may remove versions from:
 /// both of this machine's stores from a repository scope,
 /// which reads every worktree's lock,
@@ -1770,7 +1795,22 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
             return protection_of(candidate, &named, &holders, &installed_set, &links);
         };
         let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &protection);
-        let outcome: TrimOutcome = apply_trim(&plan, &run);
+        // What: the locks a running command rewrites most often, this scope's and the machine's, are read again for
+        // each version at the moment before it is moved.
+        // Why: the plan was made from a reading taken before the store was walked, and an install that starts in
+        // between writes its lock before it writes anything else; the review of 82531265a7 watched this pass remove the
+        // version such a lock had just named.
+        let volatile: Vec<PathBuf> = volatile_locks(ctx);
+        let recheck = |candidate: &TrimCandidate| -> Option<String> {
+            let now: NamedVersions = read_named_versions(&volatile);
+            if let Some(reason) = &now.unreadable {
+                return Some(format!("the locks could not be read again just now: {reason}"));
+            }
+            return now
+                .naming_lock(&candidate.tool, &candidate.version)
+                .map(|lock| return format!("the lock {lock} names it, and was written after this pass read the locks"));
+        };
+        let outcome: TrimOutcome = apply_trim(&plan, &run, &recheck);
         lines.extend(outcome.lines);
         unfinished.extend(outcome.unfinished);
     }
