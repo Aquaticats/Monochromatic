@@ -454,11 +454,14 @@ pub fn stop_units(folders: &UnitFolders<'_>, instance: &str) -> Result<(), Strin
     //       stopped the removed worktree's service while the service kept running
     //       (the review of `b896c60d97`, finding 1).
     if crate::service_server_start_by_the_wrapper::accepts(&address) {
-        let ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(
+        // What: Only a service this command proved and ended answers `Sent`; a note that names no living process proves nothing
+        //       about the process holding the address, and the sweep says so instead of reporting a stop it did not make.
+        let ended: crate::service_ended_through_a_pinned_handle::Ended = crate::service_ended_through_a_pinned_handle::end_the_service(
             crate::service_instance::socket_path(folders.runtime_dir, instance).parent().unwrap_or(folders.runtime_dir),
             instance,
+            None,
         );
-        if !ended {
+        if !matches!(ended, crate::service_ended_through_a_pinned_handle::Ended::Sent) {
             return Err(format!(
                 "a service of the removed worktree takes connections at {} and greets nothing, and the note beside its address names no process that is still running, so this sweep cannot end it",
                 crate::service_server::address_text(&address)

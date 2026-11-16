@@ -48,10 +48,12 @@ fn a_service_removes_only_the_note_that_names_it() {
     stop_own_socket(&folders, instance);
     assert!(socket.exists(), "the address stays while the note names another process");
     assert!(pid_note(directory.as_path(), instance).exists(), "and so does that note");
-    // This process's own note: both go.
+    // This process's own note: the address goes, and the note stays while this process can still write (the review of
+    //  `567ae37198`, finding 1: a note removed here let a sweep read a live writer as gone and remove its journal).
     write_note(pid_note(directory.as_path(), instance).as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("our note");
     stop_own_socket(&folders, instance);
-    assert!(!socket.exists() && !pid_note(directory.as_path(), instance).exists(), "this service's own files go");
+    assert!(!socket.exists(), "this service's own address goes");
+    assert!(pid_note(directory.as_path(), instance).exists(), "and its note stays until this process ends, which is what a sweep reads as a live writer");
     drop(listening);
 }
 

@@ -356,7 +356,9 @@ fn a_scope_that_made_nothing_answer_ends_its_own_service_and_no_other() {
         named_runtime_dir: None,
         bus_address: None,
     };
-    let mut asked: Box<dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>> = Box::new(move |_manager, _server| { return Ok(Some(stranger_pid)); });
+    // What the scope reports is the service it started, which is the process this worktree's note names; a number that names
+    //  anything else is the harm the assertions below look for.
+    let mut asked: Box<dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>> = Box::new(move |_manager, _server| { return Ok(Some(service_pid)); });
     let began: std::time::Instant = std::time::Instant::now();
     let attempt: StartAttempt = start_seamed(&server, START_WAIT, asked.as_mut());
     let took: std::time::Duration = began.elapsed();
