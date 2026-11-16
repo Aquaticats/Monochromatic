@@ -739,6 +739,14 @@ mod stale_ref_lock;
 #[path = "binary_killed_holder_lock_tests.rs"]
 mod killed_holder_lock;
 
+/// The repository proof at the two ends that are not about a `HEAD`'s bytes:
+/// a name in the object store that is a pipe,
+/// which must never hold a command,
+/// and the repository shapes real Git works in,
+/// which must keep their lock clearing.
+#[path = "binary_lock_holder_proof_tests.rs"]
+mod lock_holder_proof;
+
 /// The message and identity options through the service,
 /// compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
