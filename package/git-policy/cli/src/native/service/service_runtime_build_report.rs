@@ -1,6 +1,6 @@
 //! What:
 //!  The one place that says how the service's own runtime was built,
-//! the words a task that cannot get a worker ends the service with,
+//! the status and the words a task that cannot get a worker ends the service with,
 //! and the way a task the service cannot serve without waits for that build and says so.
 //! Why:
 //!  Three tasks of a service cannot be left out:
@@ -18,11 +18,25 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const task = startWhatTheServiceCannotServeWithout('the acceptor of connections', accept(listener, shared));
-//! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(4); }
+//! if (task === undefined) { console.error(noWorkerWords('the acceptor of connections')); process.exit(EXIT_NO_WORKER); }
 //! ```
 
 use crate::lazy_runtime::{BUILD_DEADLINE, BuiltFlavor, RuntimeBuild, flavor_words, runtime_build, spawn_on_runtime_within, the_worker_answers};
 use crate::wait_ceilings::RUNTIME_BUILD_PATIENCE;
+
+/// The exit status of a service that has no worker thread to run a task it cannot serve without:
+/// its acceptor of connections,
+/// its after-commit work,
+/// or its shutdown after a stop.
+/// It stands beside the words such a task ends the service with,
+/// because one end says both,
+/// and in the module the three tasks share,
+/// so the setup that only the dispatch reaches is not what they take their status from.
+/// It ends there instead of holding a socket it never answers on,
+/// and the manager starts it again.
+/// A control whose subject is that end reads this status from the process itself,
+/// never the line the service writes about it.
+pub const EXIT_NO_WORKER: i32 = 4;
 
 /// What:
 ///  The line that says the runtime this process serves from is a stand-in rather than the multi-thread one,

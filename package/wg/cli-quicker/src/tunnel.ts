@@ -4,6 +4,7 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { startExemptionsOrAbort, } from './application-exemption.ts';
+import { watchForInterruption, } from './interrupt-signal.ts';
 import type { WireguardConfig, } from './config.ts';
 import { CommandError, } from './errors.ts';
 import {
@@ -301,7 +302,15 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
    Interface brought up by this sequence.
    */
   const iface = config.interfaceName;
+  /**
+   Ends this up at the next step boundary when a signal arrives,
+   so the rollback below runs and no half-configured tunnel is left behind.
+   Disposed when the up ends, whichever way it ended,
+   so a later `down` in the same process sees the default action of a signal again.
+   */
+  using interruption = watchForInterruption();
   await bringUp({
+    interruption,
     ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
     steps: {
       addLink: function addLinkStep(): Promise<void> {
@@ -344,8 +353,15 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
         },);
       },
     },
-    rollback: function rollbackStep(): Promise<void> {
-      return cleanup({ config, },);
+    rollback: async function rollbackStep(): Promise<void> {
+      /**
+       What the cleanup led to.
+       A failed-up rollback has already failed,
+       so the application watcher's report goes to the log and not over the failure that caused the rollback.
+       */
+      const exemptions = await cleanup({ config, },);
+      if (!exemptions.ok)
+        l.error(`rollback of ${iface}: ${exemptions.report}`,);
     },
   },);
 }
@@ -433,11 +449,21 @@ async function teardown(
    */
   const iface = config.interfaceName;
   if (!(await linkExists({ interfaceName: iface, },))) {
-    await removeOpenSnitchEndpointAllowance({ interfaceName: iface, },);
+    // The link is gone, so nothing protects anything and the block no longer guards a removal.
+    // The bypass routes, rules, state, the route watcher and the kill switch all outlive the link,
+    // and another tool can delete a link while the application bypass is active,
+    // so they are removed here and not left selecting the physical bypass table.
+    /**
+     What the cleanup led to,
+     including whether the application watcher could be stopped.
+     */
+    const exemptions = await cleanup({ config, },);
     // A block left by a half-finished down must not outlive the interface it was protecting.
     // A block that cannot be removed throws, and down stops with the error that names the command,
     // where a silent failure reported success while the network stayed blocked.
     await removeTrafficBlock({ interfaceName: iface, },);
+    if (!exemptions.ok)
+      throw new Error(`${exemptions.report}\nThe interface ${iface} is not present either: its routing, application-bypass state and kill switch were removed by this down, and the application watcher is the one thing left to stop.`,);
     if (tolerateMissing)
       return;
     throw new CommandError({

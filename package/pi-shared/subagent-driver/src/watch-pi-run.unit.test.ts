@@ -39,6 +39,7 @@ import {
   START_PAUSE_MILLISECONDS,
   type WatchRequest,
   watchUntilEnded,
+  MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -201,7 +202,10 @@ async function startRun(): Promise<RunUnderTest> {
   const runFolder = folder.path;
   const inbox = join(runFolder, 'inbox',);
   await mkdir(inbox,);
-  const record = startRecordOfPiRun({ feedFile: join(runFolder, 'feed.jsonl',), },);
+  const record = startRecordOfPiRun({
+    feedFile: join(runFolder, 'feed.jsonl',),
+    mask: MASKING_NOTHING,
+  },);
   return {
     runFolder,
     inbox,

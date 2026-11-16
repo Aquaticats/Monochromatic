@@ -36,6 +36,12 @@ import {
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
 import {
+  armTheStandInMasking,
+  answerCommands,
+  sessionHoldsAValue,
+  type StandInMasking,
+} from './stand-in-pi-masking-fixture.ts';
+import {
   CRASH_STATUS,
   playPrompt,
 } from './stand-in-pi-prompt-plays-fixture.ts';
@@ -88,6 +94,16 @@ const log = env.STAND_IN_PI_LOG ?? '/dev/null';
 const closeDescriptor = promisify(close,);
 
 /**
+ The session Pi was told to resume, which is the word after `--session` in its own arguments.
+ */
+const sessionArgumentAt = argv.indexOf('--session',);
+
+/**
+ That session, when the run named one, or the file this stand-in reports for a session of its own.
+ */
+const sessionFile = (sessionArgumentAt === (-1)) ? env.STAND_IN_PI_SESSION_FILE : argv[sessionArgumentAt + 1];
+
+/**
  What Pi answers each ordinary command with, so a run's state, its command names and its statistics all have shapes to read.
  */
 const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord>([
@@ -96,6 +112,8 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
     {
       model: { id: 'stand-in-model', },
       thinkingLevel: 'xhigh',
+      // Pi's own `get_state` answer names the session file it keeps, which is where this run's masking finds it at rest.
+      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
     },
   ],
   [
@@ -108,7 +126,7 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
   [
     'get_session_stats',
     {
-      sessionFile: 'stand-in-session.jsonl',
+      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
       cost: 0.5,
     },
   ],
@@ -241,8 +259,16 @@ async function startToolHoldingOutput(id: unknown,): Promise<void> {
  Acts on one command.
 
  @param line - command as written
+
+ @param masking - what this stand-in's Pi armed, which its command list answers with
  */
-async function actOnCommand(line: string,): Promise<void> {
+async function actOnCommand({
+  line,
+  masking,
+}: {
+  readonly line: string;
+  readonly masking: StandInMasking;
+},): Promise<void> {
   /**
    The command, of any shape.
    */
@@ -275,6 +301,13 @@ async function actOnCommand(line: string,): Promise<void> {
     await closeDescriptor(0,);
     await writeLogLine('marker input-closed',);
     await wait(STAY_MILLISECONDS,);
+    return;
+  }
+  if (parsed.type === 'get_commands') {
+    answerCommands({
+      id: parsed.id,
+      masking,
+    },);
     return;
   }
   if (parsed.type === 'extension_ui_response') {
@@ -318,6 +351,21 @@ async function actOnCommand(line: string,): Promise<void> {
       return;
     }
   }
+  // A Pi whose own answers name no session file at all, which is what makes a run fall back to a path of its own choice.
+  if ((scenario === 'sessionless') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
+    /**
+     Everything that answer holds, less the session file.
+     */
+    const {
+      sessionFile: _unreported,
+      ...rest
+    } = ORDINARY_ANSWERS.get(parsed.type,) ?? {};
+    answer({
+      id: parsed.id,
+      data: rest,
+    },);
+    return;
+  }
   if ((parsed.type === 'get_session_stats') && (scenario === 'statless')) {
     emit({
       type: 'response',
@@ -346,6 +394,31 @@ await appendFile(
   `environment-names ${JSON.stringify(Object.keys(env,)
     .toSorted(),)}\n`,
 );
+/**
+ What this stand-in's Pi armed, read before any scenario runs so the descriptor is closed before a tool could inherit it.
+ */
+const masking: StandInMasking = armTheStandInMasking({ scenario, },);
+// Names only, and how many: a test learns that the driver handed values over without a value reaching a log or a model provider.
+await appendFile(
+  log,
+  `secret-value-names ${JSON.stringify(masking.values
+    .map(function nameOf(value,) {
+    return value.name;
+  },),)}\n`,
+);
+/**
+ Whether the session Pi was handed holds an armed value as Pi starts, which is a yes or a no and never a value.
+ */
+const sessionValue = await sessionHoldsAValue({
+  masking,
+  ...(sessionFile === undefined ? {} : { sessionFile, }),
+},);
+if ((typeof sessionValue) === 'string') {
+  await appendFile(
+    log,
+    `marker ${sessionValue}\n`,
+  );
+}
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);
 }
@@ -367,7 +440,10 @@ if (scenario === 'ignores-sigterm') {
   );
 }
 for await (const line of createInterface({ input: stdin, },)) {
-  await actOnCommand(line,);
+  await actOnCommand({
+    line,
+    masking,
+  },);
 }
 if ((scenario === 'ignores-input-close') || (scenario === 'ignores-sigterm')) {
   await wait(STAY_MILLISECONDS,);

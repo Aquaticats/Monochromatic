@@ -35,6 +35,7 @@ import {
   startRecordOfPiRun,
   START_PAUSE_MILLISECONDS,
   START_UP_ANSWER_MILLISECONDS,
+  MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -275,7 +276,10 @@ async function firstPromptOf({
   /**
    The record of the run.
    */
-  const record = startRecordOfPiRun({ feedFile, },);
+  const record = startRecordOfPiRun({
+    feedFile,
+    mask: MASKING_NOTHING,
+  },);
   /**
    What Pi answers.
    */
@@ -438,7 +442,10 @@ await describe({
         /**
          The record of the run.
          */
-        const record = startRecordOfPiRun({ feedFile, },);
+        const record = startRecordOfPiRun({
+          feedFile,
+          mask: MASKING_NOTHING,
+        },);
         /**
          Why the run ended.
          */
