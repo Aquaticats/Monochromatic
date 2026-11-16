@@ -249,10 +249,11 @@ fn a_marked_edit_above_the_caller_is_read_from_a_subdirectory() {
     // The entry the comparison reads is the one at the root.
     let entry: MarkedEntry = MarkedEntry {
         object: String::from("1111111111111111111111111111111111111111"),
+        executable: false,
         path: Vec::from(b"tracked.txt".as_slice()),
     };
     assert!(
-        matches!(what_the_worktree_holds(repository.as_path(), &entry), Ok(super::Held::AFile)),
+        matches!(what_the_worktree_holds(repository.as_path(), &entry), Ok(super::Held::AFile { .. })),
         "the root file is the one the index names"
     );
     remove(root.as_path());
@@ -280,10 +281,11 @@ fn a_lookup_that_fails_for_another_reason_is_a_failure_and_not_an_unchanged_path
     std::fs::write(locked.join("a.txt"), b"the person's edit\n").expect("the edit");
     let entry: MarkedEntry = MarkedEntry {
         object: String::from("1111111111111111111111111111111111111111"),
+        executable: false,
         path: Vec::from(b"locked/a.txt".as_slice()),
     };
     // The same entry with the directory readable is read: the failure below is the refusal, not the shape.
-    assert!(matches!(what_the_worktree_holds(repository.as_path(), &entry), Ok(super::Held::AFile)));
+    assert!(matches!(what_the_worktree_holds(repository.as_path(), &entry), Ok(super::Held::AFile { .. })));
     let mut refused_permissions = std::fs::Permissions::from_mode(0o000);
     std::fs::set_permissions(locked.as_path(), refused_permissions.clone()).expect("the directory is made unsearchable");
     let answer: Result<super::Held, String> = what_the_worktree_holds(repository.as_path(), &entry);

@@ -94,7 +94,21 @@ pub(super) fn edits_the_status_hides(
         match what_the_worktree_holds(worktree_root, &entry)? {
             Held::NotThere => {}
             Held::NotAFile => edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned()),
-            Held::AFile => to_compare.push(entry),
+            Held::AFile { executable } => {
+                // A change of mode is the person's data like a change of bytes, so a worktree bit that
+                //  differs from the index's is an edit the form would take
+                //  (`chmod 0755 script.sh` with an `assume-unchanged` mark left Git's status empty and
+                //  `git restore --source=HEAD` removed the bit, the tenth review's third finding).
+                //  A repository that records no file mode keeps the worktree's own bits, so the
+                //  question is asked only where a bit differs and only of a repository that reads them
+                //  (measured on this host with native Git 2.56.0: with `core.fileMode=false` the bit
+                //  survived both a restore and a hard reset).
+                if executable != entry.executable && file_mode_is_recorded(facts)? {
+                    edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned());
+                    continue;
+                }
+                to_compare.push(entry);
+            }
         }
     }
     if to_compare.is_empty() {
@@ -132,8 +146,11 @@ enum Held {
     NotThere,
     /// A link, a directory or another entry no comparison reads.
     NotAFile,
-    /// A regular file whose bytes are compared with the index's object.
-    AFile,
+    /// A regular file whose bytes and executable bit are compared with the index's entry.
+    AFile {
+        /// Whether the worktree file carries an executable bit, as Git records it.
+        executable: bool,
+    },
 }
 
 /// What:
@@ -151,8 +168,9 @@ enum Held {
 /// ```
 fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, String> {
     let Some(relative) = relative_path(entry.path.as_slice()) else {
-        // A name this process cannot spell is no name to read bytes from, so it is compared and fails.
-        return Ok(Held::AFile);
+        // A name this process cannot spell is no name to read bytes from, so it is compared and fails;
+        //  its mode is the index's own, so the mode question finds nothing there.
+        return Ok(Held::AFile { executable: entry.executable });
     };
     let location: PathBuf = root.join(relative.as_path());
     let Some(read) = crate::metadata_of_a_path_within_a_ceiling::symlink_metadata_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, location.as_path()) else {
@@ -175,7 +193,63 @@ fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, Str
     if !metadata.file_type().is_file() {
         return Ok(Held::NotAFile);
     }
-    return Ok(Held::AFile);
+    return Ok(Held::AFile { executable: carries_an_executable_bit(&metadata) });
+}
+
+/// What:
+///  Whether the worktree entry carries an executable bit, the way Git records one.
+///  `&std::fs::Metadata` borrows the entry's own metadata.
+/// Why:
+///  Git records a mode of `100755` for an executable file and `100644` for one that is not,
+///  and the comparison against the index's mode is what tells an edit of the bit from an unchanged file.
+///  A platform without the bit answers that nothing carries it, which matches what Git records there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // carriesAnExecutableBit(metadata) === (metadata.mode & 0o111) !== 0
+/// ```
+fn carries_an_executable_bit(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        return metadata.permissions().mode() & 0o111 != 0;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        return false;
+    }
+}
+
+/// What:
+///  Whether this repository records the executable bit of a file,
+///  which is `core.fileMode` and true unless the configuration says otherwise.
+///  `Result<bool, String>` is "the answer, or why Git could not give one".
+/// Why:
+///  With `core.fileMode=false` Git keeps the worktree's own bits,
+///  so a bit that differs from the index's is no loss there and refusing it would refuse a command
+///  Git runs safely
+///  (measured on this host with native Git 2.56.0, 2026-11-16: the bit survived a `restore` and a
+///  hard reset with the setting false, and was removed with it true).
+///  The question is asked only where a bit already differs, so a worktree with no mode edit pays no
+///  process for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // fileModeIsRecorded() === (await git(['config', '--type=bool', '--get', 'core.fileMode'])).stdout.trim() !== 'false'
+/// ```
+fn file_mode_is_recorded(facts: &mut GitFacts) -> Result<bool, String> {
+    let mut arguments: Vec<OsString> = crate::global_arguments::without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "config", "--type=bool", "--get", "core.filemode"] {
+        arguments.push(OsString::from(token));
+    }
+    let output: MetadataOutput = facts.query(arguments, "whether this repository records the executable bit")?;
+    // A setting that is not there is Git's own default, which records the bit.
+    if !output.success {
+        return Ok(true);
+    }
+    let answer: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    return Ok(answer != "false");
 }
 
 /// What:
@@ -231,6 +305,9 @@ fn marked_paths(facts: &mut GitFacts, skip_worktree_too: bool) -> Result<Vec<Vec
 struct MarkedEntry {
     /// The object the index holds for the path.
     object: String,
+    /// Whether the index records the path as an executable file,
+    ///  which a worktree file without that bit, or with it, is an edit of.
+    executable: bool,
     /// The path,
     ///  as the index holds it.
     path: Vec<u8>,
@@ -351,9 +428,10 @@ fn entry_of(chunk: &[u8]) -> Option<MarkedEntry> {
     if *stage != b"0" {
         return None;
     }
-    let _mode: &[u8] = mode;
     return Some(MarkedEntry {
         object: String::from_utf8_lossy(object).into_owned(),
+        // Git writes the mode Git keeps: `100755` is an executable file and `100644` is not.
+        executable: *mode == b"100755",
         path: chunk[tab + 1..].to_vec(),
     });
 }
