@@ -407,6 +407,11 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             Some(false) => {
                 let _queued = shared.work.send((git_dir, review_key));
                 let _touched = shared.queue.send(Job::Activity);
+                // What: The line the client needs is written only here, after the work is queued.
+                // Why:  A client that stopped at the close of the connection took a service that died before its read for one
+                //       that took the work, and reported a hand-over made while the record it named stayed owed
+                //       (the review of `c9bde6d446`, finding 2). The close cannot say this; a line written after the queueing can.
+                send(write_half, &ServiceMessage::Taken).await;
             }
             None => tell_unavailable(write_half).await,
         },

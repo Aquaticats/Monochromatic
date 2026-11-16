@@ -245,6 +245,21 @@ fn remove_the_leftovers_of_makers_that_are_gone(usual: &Path) {
     let Ok(entries) = std::fs::read_dir(parent) else { return };
     for entry in entries.flatten() {
         let name: OsString = entry.file_name();
+        // What: A mark whose staged name is not there is a move that never happened, and it is cleared by the same rule.
+        // Why:  The mark is written before the state moves, so a kill between the two leaves it beside nothing, and nothing
+        //       else reads a mark whose state is gone.
+        if let Some(state) = name.to_str().and_then(|text: &str| return text.strip_suffix(STAGED_MARKER_SUFFIX)) {
+            let Some(maker) = the_maker_of_this_workspaces_name(std::ffi::OsStr::new(state), usual_name) else { continue };
+            let path: PathBuf = entry.path();
+            let dead: bool = matches!(crate::worktree_copy_owner::token_owner_is_dead(Some(maker.token().as_str()), path.as_path()), Ok(true));
+            if !dead {
+                continue;
+            }
+            if let Err(reason) = remove_if_any(path.as_path()) {
+                debug(TAG, format!("{reason}; the mark of a move that never happened stays for the next filling").as_str());
+            }
+            continue;
+        }
         let Some(maker) = the_maker_of_this_workspaces_name(name.as_ref(), usual_name) else { continue };
         let path: PathBuf = entry.path();
         // Only a name a filling marked is the wrapper's to remove; a name that merely looks right is somebody's.
@@ -260,6 +275,9 @@ fn remove_the_leftovers_of_makers_that_are_gone(usual: &Path) {
         }
         if let Err(reason) = remove_if_any(target_of(path.as_path()).as_path()) {
             debug(TAG, format!("{reason}; the clean's target of a filling that is gone stays for the next filling").as_str());
+        }
+        if let Err(reason) = remove_if_any(marker_of_the_staging(path.as_path()).as_path()) {
+            debug(TAG, format!("{reason}; the mark of a filling that is gone stays for the next filling").as_str());
         }
     }
 }
@@ -347,6 +365,9 @@ fn give_back_the_staged_state(staging: &Path) {
     if let Err(reason) = remove_if_any(target_of(staging).as_path()) {
         debug(TAG, format!("{reason}; the clean's target of the staged state stays for the next filling").as_str());
     }
+    if let Err(reason) = remove_if_any(marker_of_the_staging(staging).as_path()) {
+        debug(TAG, format!("{reason}; the mark of the staged state stays for the next filling").as_str());
+    }
 }
 
 /// The file a filling writes beside a staged name it made:
@@ -372,20 +393,27 @@ const STAGED_MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli staged the dire
 
 /// What:
 ///  Write the marker beside a staged name this filling made,
-///  and never over one that is there.
-fn note_that_a_filling_made(staged: &Path) {
+///  and say why when it cannot be written.
+/// Why:
+///   The mark is what proves the state is the wrapper's, so a caller that moves something must know whether it was written:
+/// a mark that could not be written and a state that was moved anyway is a state every filling then refuses.
+///
+/// # Errors
+///
+/// The storage refused the write.
+fn note_that_a_filling_made(staged: &Path) -> Result<(), String> {
     let marker: PathBuf = marker_of_the_staging(staged);
     // What: A control's own refusal of the marker write, taken out when it is read so it happens once.
     // Why:  The state this leaves behind is what a storage that denies the write leaves behind, and no host this test may
     //       use can be made to deny it on demand.
     #[cfg(test)]
     if A_MARKER_WRITE_THE_STORAGE_REFUSED.with(|asked: &std::cell::Cell<bool>| return asked.replace(false)) {
-        debug(TAG, format!("{} was refused by a control, as storage denying the write refuses it", marker.display()).as_str());
-        return;
+        return Err(String::from("a control refused the mark, as storage denying the write refuses it"));
     }
     if let Err(reason) = crate::private_storage::write_private_file_unsynced(marker.as_path(), STAGED_MARKER_TEXT) {
-        debug(TAG, format!("{} could not be written, so {} is left for a later filling ({reason})", marker.display(), staged.display()).as_str());
+        return Err(format!("{} could not be written ({reason})", marker.display()));
     }
+    return Ok(());
 }
 
 /// What:
@@ -614,13 +642,34 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     //  Nothing may be removed or published on the strength of a name a record asserts:
     //  the path must be the one this wrapper computed for this destination (the review of `7a6504e5b6`, finding 1).
     if let Some(staged) = entry.staged_in.as_ref()
-        && (!staged_state_is_ours(entry.to.as_path(), staged.as_path()) || !a_filling_made_this(staged.as_path()))
+        && !staged_state_is_ours(entry.to.as_path(), staged.as_path())
     {
         return Err(format!(
             "the prewarm record names {} as the state the add staged, and this wrapper stages nothing there for {}; nothing was read, published or removed",
             staged.display(),
             entry.to.display()
         ));
+    }
+    // What:
+    //  A state at the name this wrapper stages under, with no mark to prove this wrapper made it,
+    //  is left exactly as it is found and its record is finished.
+    // Why:
+    //  A release before the mark moved the copied state aside without one, and a storage that refused the mark did the
+    //  same; refusing that record for ever leaves the destination absent and the state stranded, and every retry repeats
+    //  the refusal. The state is somebody's until proved otherwise, so it is not read, published or removed; the
+    //  worktree's next build compiles afresh, and the person is told which directory to remove if it is the prewarm's
+    //  (the review of `c9bde6d446`, finding 4).
+    if let Some(staged) = entry.staged_in.as_ref()
+        && !a_filling_made_this(staged.as_path())
+    {
+        if staged.exists() {
+            crate::service_error!(
+                "monochromatic-git-policy-cli: {} holds the copied build state a prewarm moved aside, and this wrapper cannot prove it staged it, so it was left there and the record is finished; the worktree's next build compiles afresh. If it is the prewarm's, remove it: rm -rf -- {}",
+                staged.display(),
+                crate::shell_quote::shell_quote(staged.as_os_str().as_encoded_bytes())
+            );
+        }
+        return Ok(Filled::Kept);
     }
     // A destination that exists is a build that got there first: the worktree keeps everything it made. A filling of this
     //  workspace that was killed after it published left its own name and an empty staging copy beside that directory, and
@@ -719,17 +768,26 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     {
         return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
     }
-    return match std::fs::rename(destination, staging.as_path()) {
-        Ok(()) => {
-            // What: The name this add staged under is marked as the wrapper's own.
-            // Why:  The filling and a later look remove what stands there only on this mark (the review of `da9c767270`).
-            note_that_a_filling_made(staging.as_path());
-            Ok(Staged::Staged(staging))
-        }
-        Err(error) => Err(format!(
-            "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
+    // What: The mark is written before the state moves, and a mark the storage refuses means nothing is moved at all.
+    // Why:  A state moved aside with no mark to prove it is the wrapper's is one every filling refuses, for ever: the
+    //       destination stays absent and the state stranded. The mark precedes the move, so the two cannot part
+    //       (the review of `c9bde6d446`, finding 4).
+    if let Err(reason) = note_that_a_filling_made(staging.as_path()) {
+        return Err(format!(
+            "the copied build state at {} could not be marked as this wrapper's ({reason}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
             destination.display()
-        )),
+        ));
+    }
+    return match std::fs::rename(destination, staging.as_path()) {
+        Ok(()) => Ok(Staged::Staged(staging)),
+        Err(error) => {
+            // The mark was this add's own, and the state it stood for never moved.
+            let _removed = std::fs::remove_file(marker_of_the_staging(staging.as_path()).as_path());
+            Err(format!(
+                "the copied build state at {} could not be moved aside ({error}), so it stays where it is; run `cargo clean --offline --package <member>` in that worktree instead",
+                destination.display()
+            ))
+        }
     };
 }
 

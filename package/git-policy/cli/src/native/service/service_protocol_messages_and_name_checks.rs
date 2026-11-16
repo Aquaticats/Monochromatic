@@ -515,6 +515,10 @@ pub enum ServiceMessage {
     /// The service holds no drawn shadow for the asking commit,
     /// which takes the pool's member or makes its own creation.
     NoShadow,
+    /// The service took the wake's work line and queued what it named.
+    /// A connection that ends before this line reaches the client is a hand-over the client could not tell about,
+    /// which is never the same as one that was made.
+    Taken,
     /// The request is queued behind others.
     Position { number: usize, of: usize },
     /// The commit is on the branch;

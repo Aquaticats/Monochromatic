@@ -293,6 +293,7 @@ pub fn encode_service(message: &ServiceMessage) -> String {
             Value::Object(fields).to_string()
         }
         ServiceMessage::NoShadow => object(vec![("type", Value::from("no-shadow"))]),
+        ServiceMessage::Taken => object(vec![("type", Value::from("taken"))]),
         ServiceMessage::Position { number, of } => {
             object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
         }

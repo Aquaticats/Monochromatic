@@ -363,6 +363,7 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
         }),
         "drawn" => Ok(ServiceMessage::Drawn { tree: path_bytes::read_field(&value, "tree")? }),
         "no-shadow" => Ok(ServiceMessage::NoShadow),
+        "taken" => Ok(ServiceMessage::Taken),
         "position" => Ok(ServiceMessage::Position { number: number_field(&value, "number")?, of: number_field(&value, "of")? }),
         "landed" => Ok(ServiceMessage::Landed {
             id: field(&value, "id")?.to_string(),

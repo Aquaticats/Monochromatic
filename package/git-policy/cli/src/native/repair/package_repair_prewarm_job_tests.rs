@@ -60,7 +60,7 @@ fn a_leftover_of_a_filling_that_is_gone(usual: &Path) -> PathBuf {
     std::fs::write(leftover.join("left-by-a-filling-that-is-gone/a-file"), b"what it cloned").expect("a file it cloned");
     std::fs::create_dir_all(super::target_of(leftover.as_path()).as_path()).expect("the clean's target");
     // A filling that made the name wrote the mark beside it, which is what a later filling's removal rests on.
-    super::note_that_a_filling_made(leftover.as_path());
+    super::note_that_a_filling_made(leftover.as_path()).expect("the mark a filling writes");
     return leftover;
 }
 

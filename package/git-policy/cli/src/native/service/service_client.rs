@@ -419,7 +419,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
                 // A drawn shadow and the answer that there is none are the other question's answers (`service_client_shadow_hand_out.rs`),
                 // which a commit never sees on the connection of its request.
-                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. } | ServiceMessage::Drawn { .. } | ServiceMessage::NoShadow) => {}
+                // A wake's confirmation never comes on a commit's connection, and a service that sent it here said
+                //  nothing about the request, so the wait goes on at the same bound.
+                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. } | ServiceMessage::Drawn { .. } | ServiceMessage::NoShadow | ServiceMessage::Taken) => {}
                 Heard::Silent => {
                     last_break_was_silence = true;
                     break None;
@@ -547,10 +549,12 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
 ///   The wrapper never starts the service or runs the work itself;
 /// the message is the only thing the service needs to
 ///  look at the repository's work directory.
-/// The connection closes when the service has read the line,
-/// which is the usual
-///  confirmation that it will act,
-/// and the wait for that close ends at the silence bound whatever the service sends:
+/// The service writes one line once it has queued the work the wake names,
+/// and that line is the confirmation that it will act;
+///  the close of the connection is not, because a service that dies before its read closes its end the same way.
+/// A wake whose confirmation does not come, or whose line the connection did not take whole,
+/// is a hand-over the caller could not tell about and is reported as one.
+/// The wait for the confirmation ends at the silence bound whatever the service sends:
 ///  a service that keeps answering resets the silence of every single read,
 /// so a loop that only reads waits for it
 ///  without end,
@@ -558,10 +562,8 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
 /// 2026-11-03:
 /// "nothing should ever wait forever or
 ///  indefinitely").
-/// What is lost by reaching the bound is only the confirmation:
-/// the line was written,
-/// and the record
-///  it names is already durable.
+/// What is lost by reaching the bound is the confirmation, and the record the line names stays owed and durable:
+/// the caller is told the hand-over was not made, in the words the package uses for a service it could not reach.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -575,22 +577,37 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     // The one line the wake carries is written under the bounds of any other, so a service that stopped reading costs the
     //  confirmation and never the command.
     let written: Wrote = write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
-    if written == Wrote::Ended {
+    // What: A line the connection did not take whole is a hand-over this client could not tell about.
+    // Why:  `Ended`, `NothingTaken` and `TooSlow` all leave the question open, and an answer that cannot be told is never
+    //       the answer that the work was handed over (the review of `c9bde6d446`, finding 2).
+    if written != Wrote::All {
+        debug(TAG, format!("the wake's line was not taken whole by the service ({written:?}), so the hand-over was not made").as_str());
         return Err(ClientFailure::Unavailable);
     }
-    // The service closes the connection after it has read the line, and that close is the confirmation.
-    let closed_by: Instant = Instant::now() + config.heartbeat_silence;
+    // The service writes that it took the line once the work is queued, and that line is the confirmation; the close alone
+    //  is not, because a service that dies before its read closes its end the same way.
+    let heard_by: Instant = Instant::now() + config.heartbeat_silence;
+    let mut taken: bool = false;
     loop {
-        let left: Duration = closed_by.saturating_duration_since(Instant::now());
+        let left: Duration = heard_by.saturating_duration_since(Instant::now());
         if left.is_zero() {
-            debug(TAG, format!("the service did not close the connection within {:?} of the line being written", config.heartbeat_silence).as_str());
+            debug(TAG, format!("the service did not say it took the line within {:?} of it being written", config.heartbeat_silence).as_str());
             break;
         }
         // No read waits past the bound, whatever the service sends.
         let _timeout = reader.get_ref().set_read_timeout(Some(left));
-        if read_message(&mut reader).is_none() {
-            break;
+        match read_message(&mut reader) {
+            None => break,
+            Some(ServiceMessage::Taken) => {
+                taken = true;
+                break;
+            }
+            // A line that is not the confirmation says nothing about the line: the wait goes on at the same bound.
+            Some(_other) => {}
         }
+    }
+    if !taken {
+        return Err(ClientFailure::Unavailable);
     }
     return Ok(());
 }

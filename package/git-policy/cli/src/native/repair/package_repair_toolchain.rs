@@ -403,12 +403,102 @@ fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlier
 }
 
 /// What:
+///  A birth, as a name beside its number spells it:
+///  every byte of it in hex.
+/// Why:
+///   A name is what a pass that is gone leaves behind for the next one to read,
+/// and the next one must be able to tell the writer itself from any process that took its number since.
+///   Hex keeps the name to letters and digits whatever the platform's birth text holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const birthInAName = (birth: string) => Buffer.from(birth, 'utf8').toString('hex');
+/// ```
+fn birth_written_in_a_name(birth: &str) -> String {
+    let mut written: String = String::with_capacity(birth.len().saturating_mul(2));
+    for byte in birth.bytes() {
+        written.push_str(format!("{byte:02x}").as_str());
+    }
+    return written;
+}
+
+/// What:
+///  The birth the name `written` spells,
+///  or nothing when it spells none this reader can read.
+/// Why:
+///   A name written by another command is a string:
+/// a birth that does not decode is not a birth this reader compares,
+/// and the record it names is left where it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const birthFromAName = (written: string) => /^([0-9a-f]{2})+$/.test(written) ? Buffer.from(written, 'hex').toString('utf8') : undefined;
+/// ```
+fn birth_read_from_a_name(written: &str) -> Option<String> {
+    if written.is_empty() || written.len() % 2 != 0 || !written.bytes().all(|byte: u8| return byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(written.len() / 2);
+    for pair in written.as_bytes().chunks_exact(2) {
+        let text: &str = std::str::from_utf8(pair).ok()?;
+        bytes.push(u8::from_str_radix(text, 16).ok()?);
+    }
+    return String::from_utf8(bytes).ok();
+}
+
+/// How many names one take may try before it leaves the record for the next pass.
+/// A name taken by another pass or left by a killed one is skipped rather than replaced, and eight skips
+/// are past any number of passes that can be handling one record at the same moment.
+const NAMES_A_TAKE_MAY_TRY: u32 = 8;
+
+/// What:
+///  A name for this pass's take,
+///  made by creating the file there and nothing else,
+///  so a name another pass reserved or a killed pass left is never replaced,
+///  or nothing when every name it tried is taken.
+/// Why:
+///   A rename replaces the file at its destination,
+/// and the counter is this process's own:
+/// a pass that runs later with a reused number computes a name an earlier kill left,
+/// and replacing that name discards the record it kept.
+///   A name made by an exclusive create is this pass's alone,
+/// so the rename that follows writes onto its own file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reserve = (record, pid, birth, from) => { for (let token = from; token < from + 8; token++) { const name = `${record.name}.removing-${pid}-born-${hex(birth)}-${token}`; try { openSync(name, 'wx').close(); return name; } catch (e) { if (e.code !== 'EEXIST') return undefined; } } return undefined; };
+/// ```
+fn a_name_only_this_pass_writes(record: &Path, birth: &str) -> Option<PathBuf> {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let from: u32 = NEXT.fetch_add(NAMES_A_TAKE_MAY_TRY, std::sync::atomic::Ordering::SeqCst);
+    let name: String = record.file_name()?.to_string_lossy().into_owned();
+    for token in from..from.saturating_add(NAMES_A_TAKE_MAY_TRY) {
+        let aside: PathBuf = record.with_file_name(format!("{name}.removing-{}-born-{birth}-{token}", std::process::id()));
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(aside.as_path()) {
+            Ok(file) => {
+                drop(file);
+                return Some(aside);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                debug(TAG, format!("{} could not be reserved ({error}), so the record is left for the next pass", aside.display()).as_str());
+                return None;
+            }
+        }
+    }
+    debug(TAG, format!("every name this pass tried beside {} is taken, so the record is left for the next pass", record.display()).as_str());
+    return None;
+}
+
+/// What:
 ///  Take one record out of the way of anything else writing it,
 ///  under a name only this pass writes,
+///  made by an exclusive create and carrying this pass's birth beside its number,
 ///  or nothing when the record at that name is not the one this pass judged.
 /// Why:
-///  The name is ours alone (this process's number and a count),
+///  The name is ours alone (this process's birth and number, and a file only this pass could create),
 ///  so no other command can write what is read there,
+///  and a name a killed pass left is never replaced by a later one,
 ///  which is what makes the deletion provable:
 ///  whatever is at the record's own name afterwards was written by that other command and is left.
 ///  A record another command wrote at that name since the classification is another object,
@@ -422,7 +512,6 @@ fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlier
 /// const takeAside = (copy) => { if (identityOf(copy.record) !== copy.recordIdentity) return undefined; const aside = renameAside(copy.record); if (identityOf(aside) !== copy.recordIdentity) { restore(aside, copy.record); return undefined; } return aside; };
 /// ```
 fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
-    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let record: &Path = copy.record.as_path();
     let Some(judged) = copy.record_identity else {
         debug(TAG, format!("{} was not the same object even when this pass judged it, so it is left", record.display()).as_str());
@@ -432,9 +521,14 @@ fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
         debug(TAG, format!("{} is another record than the one this pass judged, so it is left", record.display()).as_str());
         return None;
     }
-    let token: u32 = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let name: String = format!("{}.removing-{}-{token}", record.file_name()?.to_string_lossy(), std::process::id());
-    let aside: PathBuf = record.with_file_name(name);
+    // What: The name carries this pass's birth beside its number, and is made by an exclusive create.
+    // Why:  A number is reused, so the number alone does not say which pass is at work, and a rename onto a name
+    //       another pass reserved or a killed one left replaces the record kept there (the review of `c9bde6d446`, finding 1).
+    let Ok(birth) = crate::process_identity::current_birth_identity() else {
+        debug(TAG, format!("this pass's own birth could not be read, so {} is left for the next pass", record.display()).as_str());
+        return None;
+    };
+    let Some(aside) = a_name_only_this_pass_writes(record, birth_written_in_a_name(birth.as_str()).as_str()) else { return None };
     match std::fs::rename(record, aside.as_path()) {
         Ok(()) => {}
         Err(error) => {
@@ -520,7 +614,8 @@ fn still_a_copy_of_an_earlier_layout(aside: &Path, name: Option<&str>, own: &Thi
 ///   or the record a concurrent install had just written, which nothing else would recreate.
 ///   So it is read and put back by a name taken only when it is free,
 ///   and one whose name is taken by then is kept rather than replaced or discarded, and named for the person.
-///   A name whose process still runs is a pass in flight and is left to it.
+///   A name whose process still runs is a pass in flight and is left to it,
+///  which the birth in the name decides: a process that merely took that number since is not the writer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -533,10 +628,33 @@ fn restore_what_a_kill_left_aside(destination: &Path) {
         let name: std::ffi::OsString = item.file_name();
         let Some(text) = name.to_str() else { continue };
         let Some((record_name, owner)) = text.rsplit_once(".removing-") else { continue };
-        let Some((written_pid, _token)) = owner.split_once('-') else { continue };
+        let Some((written_pid, after_the_number)) = owner.split_once('-') else { continue };
         let Ok(pid) = written_pid.parse::<u32>() else { continue };
-        if std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
-            continue;
+        // What: A name of this release carries its writer's birth beside its number, and that birth decides whether the
+        //       writer is still at work.
+        // Why:  A number is reused: a live process at that number may be another command entirely, and reading it as the
+        //       writer keeps a killed pass's record aside for as long as that command runs
+        //       (the review of `c9bde6d446`, finding 1). A name of an earlier release carries no birth, and for it the
+        //       number is all there is to ask.
+        match after_the_number.strip_prefix("born-") {
+            Some(written) => {
+                let Some((born, _token)) = written.rsplit_once('-') else { continue };
+                let Some(birth) = birth_read_from_a_name(born) else { continue };
+                let writer_is_there: bool = match crate::process_identity::process_birth_identity(i64::from(pid)) {
+                    Ok(Some(now)) => now == birth,
+                    Ok(None) => false,
+                    // A birth this reader cannot compare is no evidence that the writer is gone, so the record is left.
+                    Err(_) => continue,
+                };
+                if writer_is_there {
+                    continue;
+                }
+            }
+            None => {
+                if std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
+                    continue;
+                }
+            }
         }
         let aside: PathBuf = item.path();
         // Nothing is put back from a file this release cannot read as a record, and nothing is discarded unseen either.

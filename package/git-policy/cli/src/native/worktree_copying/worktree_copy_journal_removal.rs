@@ -272,7 +272,7 @@ async fn remove_subtrees_awaiting(
 /// abandoned stages),
 ///  so it enters the process's runtime once and waits there;
 /// where no runtime can be built the removal reports it,
-/// and `remove_tree_if_present` falls back to one plain recursive removal.
+/// and the tree is left for the command that reads the journal next.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -484,9 +484,9 @@ fn remove_shallow_directories(shallow: &[PathBuf]) -> std::io::Result<()> {
 /// sharing its subtrees among workers of the blocking pool.
 /// Why:
 ///   An absent tree is the normal answer for a retried removal;
-/// a failed split removal falls back to the plain recursive
-///  removal,
-/// which reports what remains.
+/// a split removal that ran and failed leaves the tree and says what failed,
+/// so the call returns and the next command that reads the journal removes the rest.
+///  Nothing here waits on storage without a bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -494,15 +494,15 @@ fn remove_shallow_directories(shallow: &[PathBuf]) -> std::io::Result<()> {
 /// ```
 pub fn remove_tree_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
     // `match` accepts absence and reports every other removal failure.
-    // What: a walk that found no place leaves the tree where it is, and a split removal that ran and failed is tried
-    //       again as one plain removal.
-    // Why:  the plain deletion runs on the calling task and waits on storage with no bound, so it must never stand in
-    //       for work that never began: a stage that was not removed is looked at again by the command that reads its
-    //       journal, and nothing of it changed (the review of `a7a6958f9d`, third finding).
+    // What: a walk that found no place, and a split removal whose step failed, both leave the tree where it is and say so.
+    // Why:  the only stand-in was one plain recursive removal, and that call runs on the calling task and waits on storage
+    //       with no bound at all, so a stage on storage that stopped answering kept the thread for ever
+    //       (the review of `c9bde6d446`, third finding). A stage that was not removed is looked at again by the command
+    //       that reads its journal, and a split removal removes whatever is still there, so the retry finishes it.
     let removed: std::io::Result<()> = match remove_tree_split_saying_why(path) {
         Ok(()) => Ok(()),
         Err(TheRemovalThatCouldNotRun::NoPlace) => return Err(left_for_a_later_look(path)),
-        Err(TheRemovalThatCouldNotRun::Failed(_)) => std::fs::remove_dir_all(path),
+        Err(TheRemovalThatCouldNotRun::Failed(error)) => return Err(left_after_a_step_failed(path, &error)),
     };
     match removed {
         Ok(()) => return Ok(()),
@@ -522,6 +522,24 @@ pub fn remove_tree_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
 /// ```ts
 /// const leftForALaterLook = (path) => new WorktreeCopyError(`... ${path} was not removed because no place came ...; nothing of it changed, and the record that names it is looked at again.`)
 /// ```
+/// What:
+///  The words for a split removal whose step failed:
+///  what failed, and that the rest is left for the command that reads the journal next.
+/// Why:
+///   Nothing here may stand in for the part that failed with a call that cannot return,
+/// and the retry is the same split removal, which removes whatever is still there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftAfterAStepFailed = (path, error) => new WorktreeCopyError(`${path} was left: a step of its split removal failed (${error}); the next command that reads the journal removes it`);
+/// ```
+fn left_after_a_step_failed(path: &Path, error: &std::io::Error) -> WorktreeCopyError {
+    return WorktreeCopyError(format!(
+        "monochromatic-git-policy-cli: a step of the removal of {} failed ({error}), so the rest of it was left; it is looked at again by the next command that reads the record that names it.",
+        path.display()
+    ));
+}
+
 fn left_for_a_later_look(path: &Path) -> WorktreeCopyError {
     return WorktreeCopyError(format!(
         "monochromatic-git-policy-cli: no place came within {:?} for the walk that removes {}, so it was not removed; nothing of it changed, and the record that names it is looked at again by the next command.",
