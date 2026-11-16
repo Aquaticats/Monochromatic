@@ -13,6 +13,7 @@
  */
 
 import {
+  access,
   chmod,
   mkdir,
   mkdtemp,
@@ -350,6 +351,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -384,7 +389,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemctl',
-          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
         },);
         /**
          The git the session would find, which answers as the system git does.
@@ -486,6 +491,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -520,7 +529,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemctl',
-          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
         },);
         /**
          The git the session would find, which answers the policy namespace help as the wrapper does.
@@ -602,6 +611,10 @@ await describe({
         );
         await mkdir(
           checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          join(checkout, '.git',),
           { recursive: true, },
         );
         await mkdir(
@@ -754,6 +767,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -789,7 +806,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemctl',
-          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
         },);
         /**
          The git the session would find, which answers the policy namespace help as the wrapper does.
@@ -890,6 +907,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -924,7 +945,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemctl',
-          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
         },);
         /**
          The git the session would find, which answers the policy namespace help as the wrapper does.
@@ -1022,6 +1043,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -1062,7 +1087,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemctl',
-          body: `printf '%s\\n' 'not-found'\nexit 0\n`,
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
         },);
         /**
          The git the session would find, which answers the policy namespace help as the wrapper does.
@@ -1169,6 +1194,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -1204,7 +1233,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemctl',
-          body: `case "$*" in\n  *LoadState*)\n    printf '%s\\n' 'not-found' ;;\nesac\nexit 0\n`,
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\n  *LoadState*)\n    printf '%s\\n' 'not-found' ;;\nesac\nexit 0\n`,
         },);
         /**
          The git the session would find, which answers the policy namespace help as the wrapper does.
@@ -1242,6 +1271,227 @@ await describe({
         expect(ended.stderr,).toContain('probe-branch',);
         expect(ended.stderr,).not.toContain('no run happened',);
         expect(ended.stderr,).not.toContain('the unit did not start',);
+      },
+    },),
+    it({
+      name: 'refuses to start the driver when the dependencies were not linked, saying the status and keeping the worktree, rather than spending a run on a half-installed tree',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(folder.path, 'launcher-bin',);
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(folder.path, 'session-bin',);
+        /**
+         The checkout the run would work in.
+         */
+        const checkout = join(folder.path, 'checkout',);
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(folder.path, 'runs',);
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(folder.path, 'prompt.md',);
+        /**
+         The worktree Git would make.
+         */
+        const worktree = join(checkout, '.claude', 'worktrees', 'pi-refused',);
+        /**
+         Where the stand-in manager records every unit it is asked for.
+         */
+        const unitLog = join(folder.path, 'units-started',);
+        await mkdir(checkout, { recursive: true, },);
+        await mkdir(join(checkout, '.git',), { recursive: true, },);
+        await mkdir(runs, { recursive: true, },);
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses, which answers everything a start asks before its units.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\n  *'command -v mise')\n    printf '%s\\n' '${launcherBin}/mise'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The unit manager: the dependencies' unit fails, and the driver's unit is recorded.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `printf '%s\\n' "$*" >> '${unitLog}'\ncase "$*" in\n  *'--unit=refused-dependencies'*)\n    printf '%s\\n' 'pnpm: ELIFECYCLE a package failed' >&2\n    exit 42 ;;\nesac\nexit 0\n`,
+        },);
+        /**
+         The manager this test reads a unit's name from, which is free because no unit holds it and which answers that it exists.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `case "$*" in\n  *'--property=Version'*)\n    printf '%s\\n' '255'\n    exit 0 ;;\nesac\nprintf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          branch: 'probe-branch',
+          base: 'a-commit',
+        },);
+        expect(ended.code,).not.toBe(0,);
+        expect(ended.stderr,).toContain('was not started: its dependencies were not linked (status 42)',);
+        expect(ended.stderr,).toContain('pnpm: ELIFECYCLE a package failed',);
+        /**
+         Every unit the launcher asked the manager for.
+         */
+        const askedUnits = (await readFile(unitLog, 'utf8',)).trim()
+          .split('\n',);
+        // The driver's unit is never asked for: a run whose dependencies were not linked would build against a half-installed tree.
+        expect(askedUnits,).toHaveLength(1,);
+        expect(askedUnits[0],).toContain('--unit=refused-dependencies');
+        await expect(access(worktree,),).resolves.toBeUndefined();
+      },
+    },),
+    it({
+      name: 'links the dependencies with the launcher own access and says what the run then lacks where no user manager answers, and still starts the run',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(folder.path, 'launcher-bin',);
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(folder.path, 'session-bin',);
+        /**
+         The checkout the run would work in.
+         */
+        const checkout = join(folder.path, 'checkout',);
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(folder.path, 'runs',);
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(folder.path, 'prompt.md',);
+        /**
+         The worktree Git would make.
+         */
+        const worktree = join(checkout, '.claude', 'worktrees', 'pi-refused',);
+        /**
+         Where the stand-in manager records every unit it is asked for, and the mise stand-in records the install it runs.
+         */
+        const unitLog = join(folder.path, 'units-started',);
+        const programLog = join(folder.path, 'programs-asked',);
+        await mkdir(checkout, { recursive: true, },);
+        await mkdir(join(checkout, '.git',), { recursive: true, },);
+        await mkdir(runs, { recursive: true, },);
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses, which answers everything a start asks before its units.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH, the node, and the install itself.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `printf '%s\\n' "$*" >> '${programLog}'\ncase "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\n  *'command -v mise')\n    printf '%s\\n' '${launcherBin}/mise'\n    exit 0 ;;\n  'exec -- pnpm install --offline --frozen-lockfile')\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The unit manager: it records the units it is asked for, and starts them.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `printf '%s\\n' "$*" >> '${unitLog}'\nexit 0\n`,
+        },);
+        /**
+         The manager that does not answer whether it is there, which is a machine with no user manager.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `printf '%s\\n' 'Failed to connect to bus: No such file or directory' >&2\nexit 1\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          branch: 'probe-branch',
+          base: 'a-commit',
+        },);
+        expect(ended.code,).toBe(0,);
+        // The install ran, and the line says it ran with the launcher's access, which is the protection the run then lacks.
+        expect(await logIn(programLog,),).toContain('exec -- pnpm install --offline --frozen-lockfile',);
+        expect(ended.stdout,).toContain(`dependencies: status 0; linked with this launcher's access, because no user manager answered, so an install script could write ${checkout}`,);
+        /**
+         Every unit the launcher asked the manager for.
+         */
+        const askedUnits = (await readFile(unitLog, 'utf8',)).trim()
+          .split('\n',);
+        // No dependencies unit is asked for where none can run, and the run still starts in its own unit.
+        expect(askedUnits,).toHaveLength(1,);
+        expect(askedUnits[0],).toContain('--unit=pi-refused.service');
       },
     },),
   ],

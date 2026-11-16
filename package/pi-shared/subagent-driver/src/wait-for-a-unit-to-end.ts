@@ -9,6 +9,7 @@
  @module
  */
 
+import { setTimeout as waitMilliseconds, } from 'node:timers/promises';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import type { RunCommand, } from './run-command.ts';
 
@@ -198,4 +199,18 @@ export async function waitForUnitToEnd({
     ),);
   }
   /* oxlint-enable eslint/no-await-in-loop */
+}
+
+/**
+ Waits between two looks at a unit's state, which is the seam `waitForUnitToEnd` is given in a launcher.
+
+ @param milliseconds - how long to wait
+
+ @example
+ ```ts
+ await waitBetweenLooks(60_000);
+ ```
+ */
+export async function waitBetweenLooks(milliseconds: number,): Promise<void> {
+  await waitMilliseconds(milliseconds,);
 }

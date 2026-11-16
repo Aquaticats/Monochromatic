@@ -370,6 +370,13 @@ never rebuilt from the files Git writes there:
 a checkout whose Git directory is kept elsewhere and a submodule both carry no `commondir`,
 and a walk that guesses names the folder above the checkout,
 which would grant the checkout writable with it.
+The folders Git names as its own are writable wherever they lie,
+the checkout's files being what is read-only:
+a bare repository's Git directory is the checkout itself,
+and a commit there fails if that folder stays read-only.
+The checkout and those folders are compared as the file system names them,
+with symbolic links resolved,
+so a path reached through a link and the same path written as its target are one folder.
 A Git folder that holds the checkout is refused,
 and so is a checkout Git cannot describe,
 because a start that cannot say which folders a run writes does not start.
@@ -389,6 +396,17 @@ this install,
 the driver in the run's own unit,
 and a resumed run,
 which is a start of its own and gets the same.
+The launcher waits for the install as long as that unit itself may run,
+never for a shorter default:
+a waiter ended before its unit leaves the install running while the run starts.
+An install that failed stops the start,
+naming its status and what it printed,
+because an agent that began against a half-installed tree would build,
+test and commit on it.
+Where no user manager answers,
+the install still happens with the launcher's access,
+and the line the launcher prints says so,
+so a reader knows the run has no read-only checkout around its install scripts.
 What runs outside those units runs no branch code:
 the git questions,
 the mise environment questions,
@@ -424,7 +442,9 @@ and the run's summary and feed after it has ended.
 so a named pipe is refused rather than waited on,
 and the bound is made before anything is opened,
 so it covers the open and the metadata read as well as the read itself,
-and a read that has not finished inside it says so instead of holding the launcher;
+and stopped when the reading answers,
+so nothing of it keeps the process alive after the answer is in hand;
+a read that has not finished inside the bound says so instead of holding the launcher;
 the unit's `RuntimeMaxSec` covers none of those reads,
 since the unit exists for none of them.
 What the bound cannot reach is work the kernel has already been asked for:

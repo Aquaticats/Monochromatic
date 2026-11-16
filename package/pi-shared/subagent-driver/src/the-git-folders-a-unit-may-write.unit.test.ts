@@ -29,8 +29,10 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   GitFolderAboveTheCheckoutError,
   fileSystemOfARun,
+  fileSystemPropertiesOf,
   foldersAToolMakesIn,
   gitRunnerOf,
+  makeTheFoldersAToolMakesIn,
   runCommandWithChildProcess,
 } from '../dist/final/node/index.mjs';
 
@@ -92,7 +94,14 @@ async function makeFolder(): Promise<AThrowawayFolder> {
   return {
     path,
     async [Symbol.asyncDispose]() {
-      await rm(path, { recursive: true, force: true, },);
+      // A notice the wrapper's commit service writes into a fixture's Git directory can land while the folder is removed, so
+      // the removal is retried, as Node does for ENOTEMPTY when it is asked to.
+      await rm(path, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 200,
+      },);
     },
   };
 }
@@ -275,12 +284,16 @@ async function expectWhatTheUnitMayWrite({
     runFolder,
     worksInTheCheckoutItself: false,
   },);
-  expect(fileSystem.foldersAUnitCannotWrite,).toEqual([checkoutFolder,],);
+  // The Git folders Git names are writable wherever they lie, the bare repository's own directory included: a run's commits go
+  // there, and a read-only view of it would only block them.
   for (const answered of [answers.gitDirectory, answers.commonDirectory,]) {
-    if (answered === checkoutFolder) {
-      continue;
-    }
     expect(fileSystem.foldersAUnitMustWrite,).toContain(answered,);
+  }
+  // The checkout's files are what is read-only, and a checkout that is itself a Git directory of the run cannot be: its
+  // read-only view would stop the commit that keeps the run's work.
+  for (const readOnly of fileSystem.foldersAUnitCannotWrite) {
+    expect(readOnly,).toBe(checkoutFolder,);
+    expect([answers.gitDirectory, answers.commonDirectory,],).not.toContain(readOnly,);
   }
   for (const named of fileSystem.foldersAUnitMustWrite) {
     expect(isAncestor({
@@ -293,6 +306,119 @@ async function expectWhatTheUnitMayWrite({
   }
   expect(fileSystem.foldersAUnitMustWrite,).toContain(runFolder,);
 }
+
+/**
+ Asks this machine's manager whether it answers at all.
+
+ @returns what it said when it does not answer, or nothing when it does
+
+ @example
+ ```ts
+ const { reason, } = await noManagerReason();
+ ```
+ */
+async function noManagerReason(): Promise<{ readonly reason?: string }> {
+  try {
+    await execFileAsync('systemd-run', [
+      '--user',
+      '--wait',
+      '--collect',
+      '--quiet',
+      `--unit=probe-git-folders-manager-${String(process.pid,)}`,
+      '--property=RuntimeMaxSec=30',
+      '--property=CPUQuota=100%',
+      '--property=MemoryMax=256M',
+      '--property=TasksMax=64',
+      '/bin/true',
+    ], {
+      encoding: 'utf8',
+      timeout: 60_000,
+      killSignal: 'SIGKILL',
+    },);
+    return {};
+  }
+  catch (error) {
+    return { reason: `no user manager answered ${String(error,)}`, };
+  }
+}
+
+/**
+ Runs one command in a real capped unit with the folders this package names for a run, and answers its status.
+
+ @param request - the unit's name, the process's folders, and the command
+
+ @param request.unit - the unit's name
+
+ @param request.fileSystem - what the run's unit may and may not write
+
+ @param request.words - the command
+
+ @returns the unit's status and what it printed
+
+ @example
+ ```ts
+ const ended = await inAUnitOfTheRun({ unit: 'probe-commit', fileSystem, words: ['git', 'commit', '--allow-empty', '--message', 'x'], });
+ ```
+ */
+async function inAUnitOfTheRun({
+  unit,
+  fileSystem,
+  words,
+}: {
+  readonly unit: string;
+  readonly fileSystem: Awaited<ReturnType<typeof fileSystemOfARun>>;
+  readonly words: readonly string[];
+},): Promise<{ readonly status: number; readonly output: string }> {
+  try {
+    /**
+     What the unit printed.
+     */
+    const answered = await execFileAsync('systemd-run', [
+      '--user',
+      '--wait',
+      '--collect',
+      '--quiet',
+      '--pipe',
+      `--unit=${unit}`,
+      '--property=RuntimeMaxSec=30',
+      '--property=CPUQuota=100%',
+      '--property=MemoryMax=512M',
+      '--property=TasksMax=64',
+      ...fileSystemPropertiesOf(fileSystem,),
+      '--setenv=PATH=/usr/bin:/bin',
+      '--setenv=GIT_ASKPASS=',
+      '--setenv=GIT_TERMINAL_PROMPT=0',
+      ...words,
+    ], {
+      encoding: 'utf8',
+      timeout: 60_000,
+      killSignal: 'SIGKILL',
+    },);
+    return {
+      status: 0,
+      output: `${answered.stdout}${answered.stderr}`,
+    };
+  }
+  catch (error) {
+    /**
+     What a unit that ended with a status reported, read field by field because the status is the answer.
+     */
+    const failure = error as {
+      readonly code?: unknown;
+      readonly stdout?: unknown;
+      readonly stderr?: unknown;
+    };
+    return {
+      status: ((typeof failure.code) === 'number') ? failure.code : (-1),
+      output: `${((typeof failure.stdout) === 'string') ? failure.stdout : ''}${((typeof failure.stderr) === 'string') ? failure.stderr : ''}`,
+    };
+  }
+}
+
+/**
+ Why every manager test is skipped when this machine's manager does not answer, asked once for the whole file.
+ */
+const { reason: NO_MANAGER_REASON, } = await noManagerReason();
 
 await describe({
   name: '',
@@ -495,6 +621,78 @@ await describe({
               return;
             }
             throw new Error('a Git directory holding the checkout was granted writable',);
+          },
+        },),
+        it({
+          name: 'lets a run commit in a worktree of a bare repository, whose Git directory is the checkout and so cannot be read-only',
+          fn: async () => {
+            if (NO_MANAGER_REASON !== undefined) {
+              console.log(`[fileSystemOfARun] a commit in a bare repository: skipped: ${NO_MANAGER_REASON}`,);
+              return;
+            }
+            await using folder = await makeFolder();
+            /**
+             A repository with one commit, cloned bare, so a worktree of it can be made.
+             */
+            const source = join(folder.path, 'source',);
+            await makeRepository({ folder: source, },);
+            const bare = join(folder.path, 'bare.git',);
+            await gitIn({ folder: folder.path, words: ['clone', '--bare', source, bare,], });
+            /**
+             The worktree the run works in.
+             */
+            const worktree = join(bare, '.claude', 'worktrees', 'pi-a',);
+            await mkdir(join(bare, '.claude', 'worktrees',), { recursive: true, },);
+            await gitIn({ folder: folder.path, words: ['--git-dir', bare, 'worktree', 'add', '-b', 'agent-branch', worktree, 'main',], });
+            /**
+             The run's own folder.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            await mkdir(runFolder, { recursive: true, },);
+            await makeTheFoldersAToolMakesIn({ checkoutFolder: bare, },);
+            /**
+             What the run's unit may and may not write, whose Git folders Git names as the bare repository itself.
+             */
+            const fileSystem = await fileSystemOfARun({
+              git,
+              checkoutFolder: bare,
+              worktree,
+              runFolder,
+              worksInTheCheckoutItself: false,
+            },);
+            // A positive control first: the same commit outside the unit lands, so the unit's answer is the namespace's.
+            await gitIn({
+              folder: worktree,
+              words: ['-c', 'user.name=Disposable', '-c', 'user.email=disposable@example.invalid', '-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '--message', 'control',],
+            },);
+            /**
+             What the same commit answered inside the unit this package's folders build.
+             */
+            const ended = await inAUnitOfTheRun({
+              unit: `probe-bare-commit-${String(process.pid,)}`,
+              fileSystem,
+              words: [
+                'git',
+                '-C',
+                worktree,
+                '-c',
+                'user.name=Disposable',
+                '-c',
+                'user.email=disposable@example.invalid',
+                '-c',
+                'commit.gpgSign=false',
+                'commit',
+                '--allow-empty',
+                '--message',
+                'a commit the run keeps',
+              ],
+            },);
+            expect(ended.status,).toBe(0,);
+            // The commit is on the branch, which is what says the run's work is kept.
+            expect(await gitIn({
+              folder: bare,
+              words: ['log', '--format=%s', '-1', 'agent-branch',],
+            },),).toBe('a commit the run keeps',);
           },
         },),
       ],

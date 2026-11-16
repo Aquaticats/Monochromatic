@@ -28,6 +28,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  DEPENDENCIES_CLIENT_SECONDS,
+  DEPENDENCIES_UNIT_SECONDS,
+  type CommandOutput,
   fileSystemOfARun,
   gitRunnerOf,
   linkDependenciesInAUnit,
@@ -298,6 +301,75 @@ await describe({
             expect(await readFile(protectedFile, 'utf8',),).toBe('original user data\n',);
             // A lifecycle script that cannot do what it was written to do fails the install, and the step answers that status.
             expect(linked.status,).not.toBe(0,);
+          },
+        },),
+        it({
+          name: 'waits for the dependency unit as long as that unit may run, never for a default shorter than the install',
+          fn: async () => {
+            /**
+             Every request the step made of its command runner.
+             */
+            const asked: {
+              readonly command: string;
+              readonly words: readonly string[];
+              readonly timeoutMilliseconds?: number;
+            }[] = [];
+            /**
+             What the step answered, with a runner that records every request and answers as the machine would.
+             */
+            const linked = await linkDependenciesInAUnit({
+              runName: 'probe-bounds',
+              checkoutFolder: '/repo',
+              worktree: '/repo/.claude/worktrees/pi-a',
+              runFolder: '/runs/a-1',
+              fileSystem: {
+                foldersAUnitCannotWrite: ['/repo',],
+                foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-a',],
+              },
+              cpuPercent: 100,
+              memory: '1G',
+              taskCount: 100,
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              run: async function recorder(request,): Promise<CommandOutput> {
+                asked.push({
+                  command: request.command,
+                  words: request.words,
+                  ...((request.timeoutMilliseconds === undefined) ? {} : { timeoutMilliseconds: request.timeoutMilliseconds, }),
+                },);
+                if (request.command === 'bash') {
+                  return {
+                    status: 0,
+                    stdout: '/bin/mise\n',
+                    stderr: '',
+                  };
+                }
+                if (request.command === 'systemctl') {
+                  return {
+                    status: 0,
+                    stdout: '255\n',
+                    stderr: '',
+                  };
+                }
+                return {
+                  status: 0,
+                  stdout: '',
+                  stderr: '',
+                };
+              },
+            },);
+            expect(linked.confined,).toBe(true,);
+            /**
+             The request that started the unit.
+             */
+            const unitRequest = asked.find(function startsTheUnit(request,) {
+              return request.command === 'systemd-run';
+            },);
+            expect(unitRequest,).toBeDefined();
+            // The unit may run for its own bound, so the client that waits for it must outlive that bound: a shorter default
+            // would leave the install running while the run starts.
+            expect(unitRequest?.timeoutMilliseconds,).toBeGreaterThanOrEqual(DEPENDENCIES_UNIT_SECONDS * 1_000,);
+            expect(unitRequest?.timeoutMilliseconds,).toBe(DEPENDENCIES_CLIENT_SECONDS * 1_000,);
           },
         },),
       ],

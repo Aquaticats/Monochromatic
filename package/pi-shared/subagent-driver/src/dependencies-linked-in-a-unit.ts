@@ -10,14 +10,19 @@
  The unit is named `<run name>-dependencies`, never `pi-*`: the slot count reads every `pi-*` unit as a run. It ends by itself, and
  the manager collects it.
 
+ Where no service manager answers, the install still happens: it runs with the launcher's own access, and the answer says so, so
+ the launcher tells its reader what protection it lacked. No step here depends on a manager being there.
+
  @module
  */
 
+import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import type { RunCommand, } from './run-command.ts';
 import {
   type FileSystemOfARun,
   fileSystemPropertiesOf,
 } from './file-system-of-a-run.ts';
+import { StartRefusedError, } from './checks-before-a-start.ts';
 import { requiredOutputOf, } from './required-output-of-a-command.ts';
 import {
   UNIT_IO_WEIGHT,
@@ -32,6 +37,23 @@ import {
  gets, which copies the same ignored state.
  */
 export const DEPENDENCIES_UNIT_SECONDS: number = 900;
+
+/**
+ How long the client that waits for the dependency unit may take, in seconds: the unit's own bound plus its grace, plus a minute
+ for the manager to collect it and the client to read the status.
+
+ Why it must be this and not a default: a wait's bound is the one its caller chose, and the client must outlive the unit it waits
+ for. The default a command gets is half a minute, shorter than any install worth waiting for; a client killed before its unit
+ ends leaves the install running while the run starts.
+ */
+const DEPENDENCIES_CLIENT_SLACK_SECONDS: number = 60;
+
+/**
+ How much longer than its own unit the client that waits for it may take, in seconds: the unit's own bound plus its grace, plus
+ room for the manager to collect the unit and for the client to read its status after the unit has ended.
+ */
+export const DEPENDENCIES_CLIENT_SECONDS: number = DEPENDENCIES_UNIT_SECONDS + UNIT_GRACE_SECONDS
+  + DEPENDENCIES_CLIENT_SLACK_SECONDS;
 
 /**
  What starting one run's dependency linking needs.
@@ -176,6 +198,12 @@ export function dependenciesUnitCommandOf(request: DependenciesUnitRequest & {
 export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,): Promise<{
   readonly status: number;
   readonly output: string;
+
+  /**
+   Whether a unit confined the install. When this machine's manager does not answer, the install runs with the launcher's access
+   and this is false, so a caller can say what protection the run lacked.
+   */
+  readonly confined: boolean;
 }> {
   /**
    The mise the unit runs, found in the launcher's own search path because a unit does not inherit it.
@@ -192,6 +220,36 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
     folder: request.checkoutFolder,
   },);
   /**
+   The install, as this machine's mise runs it in the worktree, which is what the unit runs too.
+   */
+  const install = {
+    command: mise,
+    words: [
+      'exec',
+      '--',
+      'pnpm',
+      'install',
+      '--offline',
+      '--frozen-lockfile',
+    ],
+    folder: request.worktree,
+  };
+  if (!(await managerAnswers({
+    run: request.run,
+    folder: request.worktree,
+  },))) {
+    // No manager: the install still happens, and this is the step that says so rather than refusing the run.
+    /**
+     What the unconfined install answered.
+     */
+    const unconfined = await request.run(install,);
+    return {
+      status: unconfined.status,
+      output: `${unconfined.stdout}${unconfined.stderr}${unconfined.problem ?? ''}`.trim(),
+      confined: false,
+    };
+  }
+  /**
    The command that starts the unit.
    */
   const command = dependenciesUnitCommandOf({
@@ -199,15 +257,122 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
     mise,
   },);
   /**
-   What the unit answered.
+   What the unit answered, waited for as long as the unit itself may run.
    */
   const answered = await request.run({
     command: command.command,
     words: command.words,
     folder: request.worktree,
+    timeoutMilliseconds: DEPENDENCIES_CLIENT_SECONDS * MILLISECONDS_PER_SECOND,
   },);
   return {
     status: answered.status,
     output: `${answered.stdout}${answered.stderr}${answered.problem ?? ''}`.trim(),
+    confined: true,
+  };
+}
+
+/**
+ Says whether this machine's user manager answers, which decides whether the install can be confined.
+
+ @param run - how one command is run
+
+ @param folder - the folder the question is asked in, which exists whether a manager does or not
+
+ @returns whether a manager answered with its version
+
+ @example
+ ```ts
+ const answers = await managerAnswers({ run: runCommandWithChildProcess, folder: '/repo', });
+ ```
+ */
+async function managerAnswers({
+  run,
+  folder,
+}: {
+  readonly run: RunCommand;
+  readonly folder: string;
+},): Promise<boolean> {
+  /**
+   What the manager said about itself.
+   */
+  const answered = await run({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'show',
+      '--property=Version',
+      '--value',
+    ],
+    folder,
+    timeoutMilliseconds: MANAGER_ANSWER_MILLISECONDS,
+  },);
+  return (answered.status === 0) && (answered.stdout
+    .trim()
+    !== '');
+}
+
+/**
+ How long this machine's manager has to answer whether it is there, in milliseconds.
+
+ A bound rather than a measurement: a manager on this machine answers in milliseconds, and one that has not answered in ten
+ seconds is not answering.
+ */
+const MANAGER_ANSWER_MILLISECONDS: number = 10 * MILLISECONDS_PER_SECOND;
+
+/**
+ What linking one run's dependencies answered for the launcher to print.
+
+ @example
+ ```ts
+ const outcome = await linkDependenciesOrRefuse(request,);
+ ```
+ */
+export type DependenciesOutcome = {
+  /**
+   The status the install ended with, which is zero whenever this answers at all.
+   */
+  readonly status: number;
+
+  /**
+   What the run lacked where no manager answered, which the launcher prints after the status, and nothing when a unit confined
+   the install.
+   */
+  readonly note?: string;
+};
+
+/**
+ Links a run's dependencies, says what protection the run lacks where no manager answered, and refuses the start when they were
+ not linked.
+
+ A failed install is acted on, never printed and passed over: a run whose dependencies were not linked would build, test and
+ commit against a half-installed tree, and spend a provider slot doing it.
+
+ @param request - the run, its folders, the caps and the environment
+
+ @returns the status the install ended with, and the notes the launcher prints
+
+ @throws StartRefusedError when the install failed, naming its status and what it printed
+
+ @example
+ ```ts
+ const outcome = await linkDependenciesOrRefuse({ runName: 'a', checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', runFolder: '/runs/a-1', fileSystem, cpuPercent: 100, memory: '1G', taskCount: 100, pathOfMiseEnvironment: '/bin', home: '/home/a', run: runCommandWithChildProcess, });
+ ```
+ */
+export async function linkDependenciesOrRefuse(request: DependenciesUnitRequest,): Promise<DependenciesOutcome> {
+  /**
+   What linking the dependencies answered.
+   */
+  const linked = await linkDependenciesInAUnit(request,);
+  if (linked.status !== 0) {
+    throw new StartRefusedError(
+      `${request.runName} was not started: its dependencies were not linked (status ${String(linked.status,)}), so the worktree ${request.worktree} holds a half-installed tree and is kept: ${linked.output}`,
+    );
+  }
+  return {
+    status: linked.status,
+    ...(linked.confined
+      ? {}
+      : { note: `linked with this launcher's access, because no user manager answered, so an install script could write ${request.checkoutFolder}`, }),
   };
 }

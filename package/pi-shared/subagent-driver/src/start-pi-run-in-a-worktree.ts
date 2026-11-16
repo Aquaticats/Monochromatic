@@ -20,9 +20,8 @@ import {
   argv,
   env,
 } from 'node:process';
-import { setTimeout as wait, } from 'node:timers/promises';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
-import { linkDependenciesInAUnit, } from './dependencies-linked-in-a-unit.ts';
+import { linkDependenciesOrRefuse, } from './dependencies-linked-in-a-unit.ts';
 import {
   StartRefusedError,
   startRefusalsIn,
@@ -52,6 +51,7 @@ import { runCommandWithChildProcess, } from './run-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 import {
   UNIT_WAIT_GRACE_SECONDS,
+  waitBetweenLooks,
   waitForUnitToEnd,
 } from './wait-for-a-unit-to-end.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
@@ -128,20 +128,6 @@ const runFolder = join(
   options.runsFolder,
   `${options.name}-${String(runNumber,)}`,
 );
-
-/**
- Waits between two looks at the unit's state, which is what keeps this command up while the run works.
-
- @param milliseconds - how long to wait
-
- @example
- ```ts
- await waitBetweenLooks(60_000);
- ```
- */
-async function waitBetweenLooks(milliseconds: number,): Promise<void> {
-  await wait(milliseconds,);
-}
 
 /**
  Reads the turn cap from the finished runs of this kind, or stops the run when no finished run says how long this work takes.
@@ -290,11 +276,13 @@ const fileSystem = await fileSystemOfARun({
 
 if (!readOnlyInMain) {
   // The branch's own install scripts run here, so they run inside a unit with this same read-only checkout: a `postinstall` that
-  // writes the checkout is refused by the operating system rather than done with the launcher's access.
+  // writes the checkout is refused by the operating system rather than done with the launcher's access. Where no manager answers
+  // the install still happens with the launcher's access, the note says what protection it lacked, and an install that failed
+  // refuses the start rather than spending a run on a half-installed tree.
   /**
-   What linking the worktree's dependencies answered, inside a unit of its own.
+   What linking the worktree's dependencies answered, and what to say about it.
    */
-  const linked = await linkDependenciesInAUnit({
+  const linked = await linkDependenciesOrRefuse({
     runName: options.name,
     checkoutFolder: options.checkoutFolder,
     worktree,
@@ -307,7 +295,7 @@ if (!readOnlyInMain) {
     home: env.HOME ?? '',
     run: runCommandWithChildProcess,
   },);
-  console.log(`dependencies: status ${String(linked.status,)}`,);
+  console.log(`dependencies: status ${String(linked.status,)}${((linked.note === undefined) ? '' : `; ${linked.note}`)}`,);
 }
 
 /**

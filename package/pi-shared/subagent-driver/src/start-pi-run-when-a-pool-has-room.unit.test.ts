@@ -211,6 +211,9 @@ async function makeBareFolder({
    The process folder, holding no process at all.
    */
   const processes = join(path, 'proc',);
+  // The stand-in git names the folder's own `.git`, which is where a real checkout keeps its Git directory, so the launcher's
+  // canonical reading of these folders finds it.
+  await mkdir(join(path, '.git',),);
   await mkdir(bins,);
   await mkdir(runs,);
   await mkdir(processes,);
@@ -288,6 +291,7 @@ async function writeStandIns({
     name: 'systemctl',
     body: [
       'case "$*" in',
+      `  *--property=Version*) printf '%s\\n' '255' ;;`,
       `  *--property=ExecStart*) ${execStartFails ? String.raw`printf '%s\n' 'No such unit' >&2; exit 1` : `printf '%s\\n' "${execStart}"`} ;;`,
       `  *list-units*) printf '%s' "${units}" ;;`,
       '  *) exit 0 ;;',

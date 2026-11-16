@@ -32,6 +32,7 @@
 import {
   access,
   mkdir,
+  realpath,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { gitFoldersOf, } from './checkout-of-a-command.ts';
@@ -227,49 +228,103 @@ export async function fileSystemOfARun({
     folder: checkoutFolder,
   },);
   /**
+   The checkout and its Git folders as the file system names them, so that a path reached through a symbolic link and the same
+   path written as its target compare equal.
+   */
+  const canonical = {
+    checkout: await canonicalPathOf({ path: checkoutFolder, },),
+    gitDirectory: await canonicalPathOf({ path: gitFolders.gitDirectory, },),
+    commonDirectory: await canonicalPathOf({ path: gitFolders.commonDirectory, },),
+  };
+  /**
    The folders this run must write, in the order a reader needs them: where it works, where its Git data is, where this
    repository's tools install themselves, and where the driver writes it.
    */
   const wanted: readonly string[] = [
     ...(worksInTheCheckoutItself ? [] : [worktree,]),
-    gitFolders.gitDirectory,
-    gitFolders.commonDirectory,
-    ...foldersAToolMakesIn({ checkoutFolder, },),
+    canonical.gitDirectory,
+    canonical.commonDirectory,
+    ...foldersAToolMakesIn({ checkoutFolder: canonical.checkout, },),
     runFolder,
   ];
+  /**
+   The Git folders, which the unit must write wherever they lie: a bare repository's Git directory is the checkout itself, and a
+   commit there fails if that folder stays read-only.
+   */
+  const gitFoldersTheRunWrites = new Set([
+    canonical.gitDirectory,
+    canonical.commonDirectory,
+  ],);
   return {
-    foldersAUnitCannotWrite: [checkoutFolder,],
-    foldersAUnitMustWrite: namedOnce({
-      folders: wanted,
-      butNot: [checkoutFolder,],
+    // A folder that is a Git directory of the run is not read-only, even when it is the checkout: a bare repository holds the
+    // run's commits and nothing a run could edit, so its read-only view would only block them.
+    foldersAUnitCannotWrite: [canonical.checkout,].filter(function isNoGitFolder(path,) {
+      return !gitFoldersTheRunWrites.has(path,);
     },),
+    foldersAUnitMustWrite: namedOnce(wanted,),
   };
 }
 
 /**
- Reads the folders a unit may write, each named once and never the folder the unit cannot write at all.
+ Reads a folder as the file system names it, with every symbolic link resolved.
+
+ @param path - the folder to read
+
+ @returns the canonical path
+
+ @throws the error the read gives, such as a folder that is not there
+
+ @example
+ ```ts
+ const canonical = await canonicalPathOf({ path: '/repo/.git', });
+ ```
+ */
+async function canonicalPathOf({ path }: { readonly path: string },): Promise<string> {
+  try {
+    return await realpath(path,);
+  }
+  catch (error) {
+    // A folder Git named that is not there is a checkout this start cannot describe: it is refused, never taken as written, and
+    // a unit told to write a folder nobody can make is not started on a manager's bare status.
+    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
+      throw error;
+    }
+    throw new AGitFolderThatIsNotThereError(
+      `${path} is one of the folders Git named for this checkout, and it is not there, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder. ${String(error,)}`,
+      { cause: error, },
+    );
+  }
+}
+
+/**
+ A folder Git named that is not there, so a start cannot say which folders its run writes.
+
+ @example
+ ```ts
+ throw new AGitFolderThatIsNotThereError('/repo/.git is not there',);
+ ```
+ */
+export class AGitFolderThatIsNotThereError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'AGitFolderThatIsNotThereError';
+}
+
+/**
+ Reads the folders a unit may write, each named once.
 
  @param folders - the folders a unit may write
-
- @param butNot - the folders to leave out, which is the read-only one
 
  @returns the folders, each once, in the order they were given
 
  @example
  ```ts
- const folders = namedOnce({ folders: ['/repo/.git', '/repo/.git', '/repo'], butNot: ['/repo'], });
+ const folders = namedOnce(['/repo/.git', '/repo/.git', '/repo/.cache'],);
  ```
  */
-function namedOnce({
-  folders,
-  butNot,
-}: {
-  readonly folders: readonly string[];
-  readonly butNot: readonly string[];
-},): readonly string[] {
-  return [...new Set(folders,),].filter(function isNotLeftOut(folder,) {
-    return !butNot.includes(folder,);
-  },);
+function namedOnce(folders: readonly string[],): readonly string[] {
+  return [...new Set(folders,),];
 }
 
 /**

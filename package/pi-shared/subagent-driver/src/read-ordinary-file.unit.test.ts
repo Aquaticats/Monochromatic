@@ -5,7 +5,8 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
+import { execFile, spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
   mkdtemp,
   rm,
@@ -189,6 +190,64 @@ await describe({
             expect(answer,).toHaveProperty('error',);
             expect(answer.error,).toBeInstanceOf(NotAnOrdinaryFileError,);
             expect(String(answer.error,),).toContain(pipe,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'a read that answers inside its bound',
+      children: [
+        it({
+          name: 'stops its timer with it, so a process that read its last file exits at once and not at the bound',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A file a run may leave.
+             */
+            const file = join(folder.path, 'summary.json',);
+            await writeFile(file, '{"endReason":"idle"}\n',);
+            /**
+             How long the bound is, which is longer than any read of one small file takes.
+             */
+            const boundMilliseconds = 1_200;
+            /**
+             How long the test waits before it calls the child stuck.
+             */
+            const patienceMilliseconds = 900;
+            /**
+             The reading, in a process of its own, so that what keeps that process alive is the read's own timer.
+             */
+            const child = spawn(process.execPath, [
+              '--input-type=module-typescript',
+              '--eval',
+              `import { readOrdinaryFileWithin, } from ${JSON.stringify(new URL('../dist/final/node/index.mjs', import.meta.url,).href,)};
+const started = Date.now();
+const text = await readOrdinaryFileWithin({ path: ${JSON.stringify(file,)}, milliseconds: ${String(boundMilliseconds,)} });
+console.log(JSON.stringify({ text, milliseconds: Date.now() - started }));`,
+            ], {
+              cwd: folder.path,
+              stdio: ['ignore', 'pipe', 'pipe',],
+            },);
+            let stdout = '';
+            child.stdout.setEncoding('utf8');
+            child.stdout.on('data', function hold(chunk: string,) {
+              stdout += chunk;
+            },);
+            /**
+             How long the child took to end, from the moment it was asked to read.
+             */
+            const startedAt = Date.now();
+            const closed: readonly unknown[] = await once(child, 'close',);
+            const endedMilliseconds = Date.now() - startedAt;
+            expect(closed[0],).toBe(0,);
+            /**
+             What the child's own record says it read, and how long that took.
+             */
+            const read = JSON.parse(stdout,) as { readonly text?: unknown; readonly milliseconds?: unknown };
+            expect(read.text,).toBe('{"endReason":"idle"}\n',);
+            expect(typeof read.milliseconds,).toBe('number',);
+            // With the timer left alive the child would live until the bound; the read answers in a millisecond.
+            expect(endedMilliseconds,).toBeLessThan(patienceMilliseconds,);
           },
         },),
       ],

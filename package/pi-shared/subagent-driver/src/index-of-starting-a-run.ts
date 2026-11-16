@@ -128,6 +128,7 @@ export {
 } from './checkout-of-a-command.ts';
 export * from './index-of-a-runs-file-system.ts';
 export {
+  DEPENDENCIES_CLIENT_SECONDS,
   DEPENDENCIES_UNIT_SECONDS,
   type DependenciesUnitRequest,
   dependenciesUnitCommandOf,
