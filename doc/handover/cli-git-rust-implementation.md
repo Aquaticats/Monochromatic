@@ -1670,6 +1670,46 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two follow-up reviews end, one with no defect and one with the miss already kept for the owner; three branches wait for pass 56 (2026-11-15T19:08:31-05:00)
+
+Not final and not approved:
+what two reviews (Kimi K3.1 Pro) report and how the coordinating session weighed them.
+
+**The runtime a build finished with is kept when the caller gave up, tip `e031918c33`: no defect found.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-runtime-a-build-finished-with-is-kept-when-the-caller-gave-up-the-control-and-its-seam/review.md`
+(the one listed file and the test file read in full; the changed control run alone and inside its module of fifteen, all passed).
+The change to `foundation/lazy_runtime.rs` is under `#[cfg(test)]`; the two commits beyond `main` are test code.
+Fit for the next pass.
+
+**A process holding a file open in a worktree, tip `12942c99dd`: one thing, and it is the question kept at 03:06:17.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-process-holding-a-file-open-the-two-wordings-after-pass-54/review.md`
+(one of one listed file; reproduced with a stand-in process table).
+A process of this account older than the worktree, whose table of open files cannot be read, is taken to hold nothing there,
+though it can have opened a file there after the worktree was made.
+The review of 09:20:57 found the same, and it was weighed then:
+`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`, lines 440 to 460, states the age rule and its cost,
+the other answer refuses every removal on a desktop whose login services hide their tables,
+and which of the two holds is the owner's (kept in "Questions kept for the owner's return", 2026-11-15T03:06:17).
+`main` has the rule since pass 54.
+What this tip adds to `main` is one commit of comments in `worktree_process_inside.rs`
+(no changed line of that file is code, by a count of changed lines that do not begin a comment)
+and six lines of its tests.
+Fit for the next pass; the finding changes nothing until the owner answers.
+
+**Pass 56 waits for pass 55, with its reason.**
+Three tips are fit and none changes code the released wrapper runs:
+`aee5c756a2` (address-space controls), `e031918c33` (kept runtime) and `12942c99dd` (file holder's comments).
+Pass 55 is going and changes the same test target (the binary controls' support).
+A pass assembled now would be checked against a `main` that lacks pass 55,
+which is the failure recorded on 2026-11-13 (two breaks with no textual conflict, both in a test target alone),
+and it would run both whole suites a second time after the merge.
+So pass 56 is briefed when pass 55 is in `main`, and takes whichever further follow-ups have a review by then
+(`ac8e10f27a` and `b8ad219841` are with their reviewers).
+It makes no release unless something in it changes code the wrapper runs.
+
+Round checks at 19:08:31: twenty Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree.
+
 ##### Four reviews end with findings; two of them found what the coordinating session's own briefs had told the authors to build (2026-11-15T19:03:49-05:00)
 
 Not final and not approved:
