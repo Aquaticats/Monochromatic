@@ -69,6 +69,46 @@ fn a_repeated_handoff_adds_no_second_record() {
     remove(root.as_path());
 }
 
+/// What:
+///  A service that greets and reads none of the wake is work that could not be handed over,
+///  and the records stay pending for the next wake.
+/// Why:
+///   The commit is saved whatever the wake comes to,
+///  so the words may not be the wake's own, which speak about a commit that was not made.
+///  What the person is told is what became of the wake and what ends it:
+///  a wake no service read leaves the push and upkeep records in the queue,
+///  and the next command of the repository wakes the service that runs them.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_wake_no_service_read_is_work_that_was_not_handed_over_and_stays_queued() {
+    use std::os::linux::net::SocketAddrExt;
+    let root: std::path::PathBuf = fixture("handoff-wake-unread");
+    // An abstract name: a fixture root is too deep to hold a socket path.
+    let name: String = format!("handoff-wake-unread-{}", std::process::id());
+    let bound = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract name");
+    let service: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&bound).expect("the stand-in service binds");
+    let serving = std::thread::spawn(move || {
+        use std::io::Write;
+        let (stream, _address) = service.accept().expect("the commit's hand-off connects");
+        let mut greeting: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from(crate::service_protocol::RELEASE)) });
+        greeting.push('\n');
+        (&stream).write_all(greeting.as_bytes()).expect("greet the commit");
+        // Held open and never read: what a service inside a stopped read leaves the hand-off to find.
+        std::thread::sleep(Duration::from_secs(2));
+    });
+    let mut handoff: ServiceHandoff = handoff(root.as_path(), Activation::Managed);
+    handoff.config.address = Bind::Abstract(name);
+    handoff.config.heartbeat_silence = Duration::from_millis(200);
+    let mut sink: Vec<u8> = Vec::new();
+    let failure = hand_over(&handoff, OID, &mut sink).expect_err("no service read the wake, so the work was not handed over");
+    drop(serving);
+    let ClientFailure::WorkNotHandedOver(reason) = &failure else { panic!("the words of a handed-over failure are the ones that are true after a commit landed: {failure:?}") };
+    assert!(reason.contains("has not read the line"), "the reason names what became of the wake: {reason}");
+    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
+    assert_eq!(std::fs::read_dir(pending).expect("pending").count(), HANDED_OVER.len(), "every record stays queued for the next wake");
+    remove(root.as_path());
+}
+
 /// A review record is left only where the worktree keeps a shadow log;
 /// elsewhere the handed-over kinds are all there is.
 #[test]

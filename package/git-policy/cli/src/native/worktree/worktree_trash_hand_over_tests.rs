@@ -172,6 +172,70 @@ fn a_routine_hand_over_wakes_the_service_and_says_nothing() {
 }
 
 /// What:
+///  A service that greets and reads none of the wake is a trash that was not handed over,
+///  and the person is told the record names it and what empties it.
+/// Why:
+///   The record is durable either way,
+///  so the words may be a report and never a failure of the add;
+///  what they may not be is the sentence of a routine hand-over, which says the service empties the trash.
+///  The line names the record for the same reason it does after a wake that could not be made:
+///  a person who reads it needs the place where the emptying waits
+///  (`worktree_trash_hand_over.rs`,
+///  `stays_words`).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_service_that_reads_no_byte_of_the_wake_leaves_the_trash_named_and_says_so() {
+    let name: String = "9".repeat(40);
+    let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-unread", name.as_str(), 1);
+    let address: String = format!("trash-hand-over-unread-{}", std::process::id());
+    let service: FixtureService = greet_and_read_nothing(address.as_str());
+    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
+    let router = |_git: &Path, _directory: &Path| return Some(route.clone());
+    let mut notices: Vec<u8> = Vec::new();
+    let said: Result<(), String> = hand_over_with(&git_context(), &pending, &mut notices, &reach(&router, &nothing_to_set_up));
+    let _held = service.finish();
+    let why: String = said.expect_err("a trash no service was told about was not handed over");
+    assert!(why.contains("has not read the line"), "the reason says what became of the wake: {why}");
+    assert!(why.contains("names them, so the commit service empties them"), "and the line says the record stays for the service: {why}");
+    assert!(worktree.join(TRASH_PARENT).join(&name).join("d0").is_dir(), "the add returns without emptying anything");
+    remove(root.as_path());
+}
+
+/// What:
+///  A service that greets every connection and reads none of it,
+/// held open for the control's own patience.
+/// Why:
+///  A service that stopped reading inside its own process is the state the answer for a wake rests on,
+///  and no control here may make it by loading the host.
+#[cfg(target_os = "linux")]
+fn greet_and_read_nothing(name: &str) -> FixtureService {
+    use std::os::linux::net::SocketAddrExt;
+    let socket = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("a name");
+    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket).expect("bind");
+    listener.set_nonblocking(true).expect("non-blocking");
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+    let thread = std::thread::spawn(move || {
+        let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+        greeting.push('\n');
+        // The connections are kept for the whole loop: a dropped one is a close, and a close after the greeting is
+        //  exactly what this control must not look like.
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+            let Ok((stream, _)) = listener.accept() else {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                continue;
+            };
+            let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
+            held.push(stream);
+        }
+        return Vec::new();
+    });
+    return FixtureService { finished, thread };
+}
+
+/// What:
 ///  A hand-over that took over trash an earlier add left says so once,
 /// in the singular when it hands one directory over.
 /// Why:
