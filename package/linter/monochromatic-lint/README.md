@@ -145,22 +145,42 @@ and the finding stays reported:
   `markdown/no-pipe-tables` has no fix.
 - A bare URL whose link text contains a backtick is reported without a fix,
   because the parser read a code span delimiter into the URL.
-- A line break inside a blockquote carries no `>`,
-  also when the quote sits in a list item or holds a list.
-  A `>` is a token,
-  and a fix that only changes whitespace never adds one.
-  The new line is a lazy continuation:
-  CommonMark 0.31.2,
+
+## What a line break carries
+
+`markdown/semantic-line-breaks` replaces one space with a line ending.
+The line it inserts opens with the container prefix of the paragraph's opening line,
+so the raw text keeps the block structure the rendered page already has:
+
+- Every quote marker of that prefix is copied byte for byte.
+  A break inside a quotation therefore keeps the depth the paragraph sits at:
+  one level,
+  two or more nested levels such as `> >`,
+  a quotation inside a list item,
+  a list inside a quotation,
+  and a marker written without a space after it.
+  A line without `>` is only a lazy paragraph continuation
+  (CommonMark 0.31.2,
   section 5.1 "Block quotes",
-  rule 2 "Laziness",
-  keeps a line without `>` in the paragraph of the
-  quote it continues,
-  at any depth,
-  and the rule never breaks where the next line would start another block,
-  the one case laziness excludes.
-  A quote whose lines all carry `>` therefore gets a line without it where a break is added;
-  it renders the same,
-  and an author who wants `>` on every line adds it by hand.
+  rule 2 "Laziness"),
+  so a reader of the raw text would see the quotation end mid-sentence
+  and a later edit would decide where it resumes.
+- A list marker becomes a space,
+  because writing `-`,
+  `1.` or `[ ]` again would open a new item.
+  The inserted line starts at the item's content column instead,
+  which continues the current item.
+- A tab in the prefix stays a tab.
+- In a Rust file the continuation line of a broken doc comment gains the comment marker;
+  see "Fix classes".
+
+The fix never rewrites a line the author wrote.
+A line that is already a lazy continuation keeps the bytes it was written with,
+and a break inserted into it still takes the paragraph's depth,
+so the new line carries its marker while the author's line stays as it was.
+Only the line breaks change:
+no token of the text changes,
+and the page a reader sees stays the same.
 
 ## Fix classes
 
@@ -173,8 +193,12 @@ or `null` for a rule that has no fix.
 - A `whitespace` fix changes line breaks and the spaces around them,
   and no token of the text.
   `markdown/semantic-line-breaks` is the only rule of this class.
-  In a Rust file the continuation line of a broken doc comment also gains the comment marker,
-  which is comment syntax and not part of the text.
+  The continuation line it inserts also opens with the container prefix of the paragraph's opening line:
+  quote markers at that depth in Markdown,
+  see "What a line break carries",
+  and the comment marker of a broken doc comment in Rust.
+  Both are syntax of the container or the comment,
+  and not part of the text.
 - A `content` fix adds,
   removes or rewrites a token.
   These are `markdown/commands-show-output`,
