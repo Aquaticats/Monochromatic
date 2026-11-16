@@ -23,7 +23,7 @@ use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::lazy_runtime::run_on_runtime;
 use crate::line_sink::LineSink;
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_budget::{BudgetRequest, HostResources, fan_out_workers, worker_budget};
 use crate::parallel_runner::{Event, OrderedEvents};
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
@@ -396,7 +396,11 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
         Err(refused) => return Err(MigrateError::Runtime(refused.to_string())),
     };
     let PreparedRun { targets, hash_length, largest } = prepared;
-    let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
+    // What: The rewrite starts every target at once, so its workers are the fan-out's, never more than the places it can have.
+    // Why:  A job answered "no place" is a target that is not rewritten, and a fan-out one wider than the places meets that
+    //       answer on a host of four to nine CPUs (the review of `04b80a66cb`, half two, finding 2).
+    let asked: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
+    let workers: usize = fan_out_workers(asked, targets.len().max(1), host);
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     for index in 0..targets.len() {
         lanes.push(vec![index]);

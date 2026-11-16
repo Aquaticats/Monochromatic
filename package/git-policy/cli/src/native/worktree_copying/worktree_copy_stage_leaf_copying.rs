@@ -13,7 +13,7 @@
 //! const stamps = await copyManifestEntries(sourceRoot, stageRoot, entries); // one stamp per cloned file
 //! ```
 
-use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::parallel_budget::{HostResources, fan_out_workers};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
@@ -388,7 +388,7 @@ pub fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
     if entries < PARALLEL_COPY_MIN_ENTRIES {
         return 1;
     }
-    return sliced_workers(entries, PARALLEL_COPY_MAX_WORKERS, host);
+    return fan_out_workers(entries, PARALLEL_COPY_MAX_WORKERS, host);
 }
 
 /// What:

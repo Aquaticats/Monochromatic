@@ -560,16 +560,29 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
     remove(root.as_path());
 }
 
+/// The process's room in this control: more places than the widest copy asks for,
+/// so what the two hosts below state is what decides.
+const A_ROOM_WIDER_THAN_THE_CEILING: usize = 32;
+
 /// A copy of few entries uses one thread;
 /// a large one takes the host's budget up to the ceiling,
 /// with the margin left free.
 #[test]
 fn the_copy_workers_follow_the_hosts_budget_up_to_the_ceiling() {
+    // A copy is a fan-out, so its workers are bounded by the places this process has as well as by the host it is told
+    //  about: the room is stated here so the control measures the host's budget and not the machine it runs on.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(A_ROOM_WIDER_THAN_THE_CEILING);
     let small_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS, memory_available: None };
     let large_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS * 8, memory_available: None };
+    // A copy starts every slice at once, so what it may use is the lesser of the host's budget and the places this process
+    //  has for its own work: a slice answered "no place" fails the copy of a large tree.
+    let places: usize = crate::blocking_jobs_within_the_budget::places_for_the_services_own_work();
     assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES - 1), 1);
-    assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS);
-    assert_eq!(copy_worker_count_on(&small_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS - crate::parallel_budget::cpu_margin(PARALLEL_COPY_MAX_WORKERS));
+    assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS.min(places));
+    assert_eq!(
+        copy_worker_count_on(&small_host, PARALLEL_COPY_MIN_ENTRIES),
+        (PARALLEL_COPY_MAX_WORKERS - crate::parallel_budget::cpu_margin(PARALLEL_COPY_MAX_WORKERS)).min(places)
+    );
 }
 
 /// A copy goes parallel from the measured break-even number of entries and not before.

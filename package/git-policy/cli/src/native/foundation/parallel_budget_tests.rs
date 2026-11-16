@@ -4,6 +4,7 @@
 //! and how the host's facts are read.
 
 use super::*;
+use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 
 /// The bytes one item holds in these controls.
 const ITEM_BYTES: u64 = 1 << 28;
@@ -128,3 +129,36 @@ fn the_read_memory_is_a_figure_below_the_system_total() {
     let available: u64 = host.memory_available.expect("this host reports its available memory");
     assert!(available > 0 && available <= total, "{available} of {total}");
 }
+
+/// What:
+///  A fan-out is never wider than the places this process has for its own work, on every CPU count.
+/// Why:
+///  Each item of a fan-out is a job that waits `PLACE_WAIT_CEILING` for a place, and one place is kept for the answers a
+///  client waits for: a fan-out sized from the CPUs alone asks for one item more than there are places on a host of four to
+///  nine CPUs, and its last item is answered "no place" whenever the others run longer than five seconds
+///  (the review of `04b80a66cb`, half two, finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const cpus of [4, 5, 6, 7, 8, 9, 10, 16]) expect(slicedWorkers(MAX, 8, host(cpus))).toBeLessThanOrEqual(placesForTheServicesOwnWork())
+/// ```
+#[test]
+fn a_fan_out_is_never_wider_than_the_places_the_process_has() {
+    // Three places, of which one is kept for the answers a client waits for: the state a four-CPU host gives.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(A_PLACES_OF_A_SMALL_HOST);
+    let places: usize = crate::blocking_jobs_within_the_budget::places_for_the_services_own_work();
+    assert_eq!(places, A_PLACES_OF_A_SMALL_HOST - 1, "the figure this control stands on is the places less the one kept for clients");
+    let mut stated: Vec<usize> = Vec::new();
+    for cpus in [2_usize, 3, 4, 5, 6, 7, 8, 9, 10, 16, 64] {
+        let slices: usize = fan_out_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &host(cpus, None));
+        stated.push(slices);
+        assert!(
+            slices <= places,
+            "a host of {cpus} CPUs asks for {slices} slices and offers {places} places, so the last slice is answered \"no place\" when the others run longer than the wait: {stated:?}"
+        );
+    }
+}
+
+/// The places a control states for a small host,
+/// which is the release gate's own container of four CPUs.
+const A_PLACES_OF_A_SMALL_HOST: usize = 3;

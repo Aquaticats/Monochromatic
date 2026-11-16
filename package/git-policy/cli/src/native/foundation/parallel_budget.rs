@@ -261,6 +261,25 @@ pub fn sliced_workers(items: usize, ceiling: usize, host: &HostResources) -> usi
     return worker_budget(&BudgetRequest { items, per_item_memory: SLICE_MEMORY, ceiling: Some(ceiling), cap: None, host });
 }
 
+/// What:
+///  The workers of a fan-out that starts every item at once,
+///  never more than the places this process has for its own work.
+/// Why:
+///  `run_all_side_by_side_on_the_runtime` starts every item at once and each job waits `PLACE_WAIT_CEILING` for a place,
+///  and one place is kept for the answers a client waits for: a fan-out sized from the CPUs alone asks for one item more
+///  than there are places on a host of four to nine CPUs, and its last item is answered "no place" whenever the others run
+///  longer than that, so a copy of a large ignored tree failed
+///  (the review of `04b80a66cb`, half two, finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fanOutWorkers = (items, ceiling, host) => Math.min(slicedWorkers(items, ceiling, host), placesForTheServicesOwnWork());
+/// ```
+pub fn fan_out_workers(items: usize, ceiling: usize, host: &HostResources) -> usize {
+    let places: usize = crate::blocking_jobs_within_the_budget::places_for_the_services_own_work();
+    return sliced_workers(items, ceiling, host).min(places).max(1);
+}
+
 /// Budget controls stay out of the release executable.
 #[cfg(test)]
 #[path = "parallel_budget_tests.rs"]

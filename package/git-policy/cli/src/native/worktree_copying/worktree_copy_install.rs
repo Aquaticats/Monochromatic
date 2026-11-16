@@ -17,7 +17,7 @@
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
-use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::parallel_budget::{HostResources, fan_out_workers};
 use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use crate::worktree_copy_install_entry::{
     InstalledPath, capture_installed_path, create_selected_entry, ensure_parents_remembering,
@@ -398,7 +398,7 @@ async fn install_leaves_awaiting(
     let workers: usize = if leaves.len() < PARALLEL_INSTALL_MIN_LEAVES {
         1
     } else {
-        sliced_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
+        fan_out_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
     let shared: Arc<[WorktreeCopyEntry]> = Arc::from(entries);

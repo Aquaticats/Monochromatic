@@ -12,7 +12,7 @@
 //! ```
 
 use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
-use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::parallel_budget::{HostResources, fan_out_workers};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::write_journal;
@@ -330,7 +330,7 @@ fn remove_tree_split_saying_why(path: &Path) -> Result<(), TheRemovalThatCouldNo
 /// ```
 async fn remove_tree_split_awaiting(path: &Path) -> Result<(), TheRemovalThatCouldNotRun> {
     let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) = walk_to_the_split_depth_on_the_pool(path).await?;
-    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
+    let workers: usize = fan_out_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
         outcome?;
