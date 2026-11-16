@@ -4,14 +4,22 @@
 //! and a path that now holds something a person put there.
 //! Each runs against the fake runner inside a disposable scope.
 
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
-use super::cargo_installs::current_link;
+/// Imports `version_directory` from `super::cargo_installs`.
+use super::cargo_installs::{current_link, version_directory};
+/// Imports what this module uses from `super::fakes`.
 use super::fakes::{Rig, write_executable};
+/// Imports `LockedTool` from `super::model`.
 use super::model::{LockedTool, Postinstall, PostinstallLink};
-use super::postinstall_links::{LinkNotices, sync_postinstall_links};
+/// Imports what this module uses from `super::postinstall_links`.
+use super::postinstall_links::{LinkNotices, LinkPass, sync_postinstall_links};
+/// Imports `SyncReport` from `super::sync`.
 use super::sync::SyncReport;
+/// Imports `format_sync_report` from `super::sync_report_text`.
 use super::sync_report_text::format_sync_report;
 
 /// The sample lock's tool that declares a postinstall link.
@@ -19,6 +27,12 @@ const LINKED: &str = "cargo:monochromatic-mpm-shadow";
 
 /// The program the link points at.
 const PROGRAM: &str = "mpm-shadow";
+
+/// The id of the second linked tool the subset tests use.
+const OTHER_LINKED: &str = "cargo:fixture-second-cli";
+
+/// The program of the second linked tool.
+const OTHER_PROGRAM: &str = "fixture-second-cli";
 
 /// A rig whose linked tool has its program installed.
 fn rig_with_program() -> Rig {
@@ -53,7 +67,55 @@ fn declare(rig: &mut Rig, link: Option<PostinstallLink>) {
 /// One postinstall pass over every tool of the rig's lock.
 fn sync(rig: &Rig) -> LinkNotices {
     let tools: Vec<&LockedTool> = rig.lock.tools.iter().collect();
-    return sync_postinstall_links(&rig.context(), &tools).expect("the pass succeeds");
+    return sync_postinstall_links(&rig.context(), &tools, LinkPass::WholePlan).expect("the pass succeeds");
+}
+
+/// One postinstall pass over the tools this command named,
+/// the way `update`'s partial sync runs it.
+fn sync_subset(rig: &Rig, tools: &[&LockedTool]) -> LinkNotices {
+    return sync_postinstall_links(&rig.context(), tools, LinkPass::Subset).expect("the pass succeeds");
+}
+
+/// What:
+/// Adds a second tool that declares a postinstall link of its own,
+/// with its program installed,
+/// and answers the link it declares.
+/// Why:
+/// The subset tests need two links and a pass that covers only one of them;
+/// a tool of another crate keeps the repository-published rules out of the way.
+fn with_second_linked_tool(rig: &mut Rig) -> PostinstallLink {
+    let mut second: LockedTool = linked_tool(rig).clone();
+    second.declaration.id = OTHER_LINKED.to_string();
+    second.declaration.package_id = Some(OTHER_PROGRAM.to_string());
+    second.declaration.bins = vec![OTHER_PROGRAM.to_string()];
+    let link: PostinstallLink = PostinstallLink {
+        source_bin: OTHER_PROGRAM.to_string(),
+        link_name: "second".to_string(),
+        link_dir: Some(".cache/fixture-second-cli-bin".to_string()),
+    };
+    second.declaration.options.postinstall = Some(Postinstall::Link(link.clone()));
+    write_executable(&version_directory(&rig.scope.toolchain_root, OTHER_PROGRAM, &second.version).join("bin").join(OTHER_PROGRAM));
+    rig.lock.tools.push(second);
+    return link;
+}
+
+/// Declares no postinstall link on the second linked tool.
+fn drop_second_link(rig: &mut Rig) {
+    for tool in &mut rig.lock.tools {
+        if tool.declaration.id == OTHER_LINKED {
+            tool.declaration.options.postinstall = None;
+        }
+    }
+}
+
+/// The second linked tool on its own, as the tools a subset pass covers.
+fn second_linked_tool(rig: &Rig) -> Vec<&LockedTool> {
+    return rig.lock.tools.iter().filter(|tool| return tool.declaration.id == OTHER_LINKED).collect();
+}
+
+/// The record of the postinstall links as text.
+fn record_text(rig: &Rig) -> String {
+    return fs::read_to_string(rig.scope.launcher_dir.join(".postinstall-links.json")).expect("the pass wrote the record");
 }
 
 /// Whether anything (even a dangling link) exists at `path`.
@@ -157,11 +219,67 @@ fn a_pass_over_a_subset_of_tools_keeps_the_links_of_the_others() {
     sync(&rig);
 
     let none: Vec<&LockedTool> = Vec::new();
-    let notices = sync_postinstall_links(&rig.context(), &none).expect("the pass succeeds");
+    let notices = sync_subset(&rig, &none);
     assert_eq!(notices, LinkNotices::default());
     assert!(exists_at(&path), "the lock still declares the link");
     declare(&mut rig, None);
     assert_eq!(sync(&rig).retired.len(), 1, "the record still held it, so the later full pass retires it");
+}
+
+#[test]
+fn a_pass_over_a_subset_retires_only_the_links_of_the_tools_it_covers() {
+    let mut rig = rig_with_program();
+    let first: PostinstallLink = declared_link(&mut rig);
+    let second: PostinstallLink = with_second_linked_tool(&mut rig);
+    let first_path: PathBuf = link_path(&rig, &first);
+    let second_path: PathBuf = link_path(&rig, &second);
+    assert!(sync(&rig).retired.is_empty(), "the first pass makes both links");
+    assert!(exists_at(&first_path) && exists_at(&second_path));
+
+    // Neither tool declares a link any more; this pass covers the second one alone.
+    declare(&mut rig, None);
+    drop_second_link(&mut rig);
+    let notices: LinkNotices = sync_subset(&rig, &second_linked_tool(&rig));
+    assert!(!exists_at(&second_path), "its own link dropped from the lock is retired");
+    assert!(exists_at(&first_path), "a link of a tool this pass never looked at stays where it is");
+    assert_eq!(notices.retired.len(), 1, "{notices:?}");
+    assert!(notices.retired[0].contains(&second_path.display().to_string()), "{notices:?}");
+    assert!(record_text(&rig).contains(&first_path.display().to_string()), "the record still remembers the link of the other tool");
+
+    let whole_plan: LinkNotices = sync(&rig);
+    assert!(!exists_at(&first_path), "the pass over the whole plan retires what is left");
+    assert_eq!(whole_plan.retired.len(), 1, "{whole_plan:?}");
+}
+
+#[test]
+fn a_record_that_names_no_tool_is_left_to_the_pass_over_the_whole_plan() {
+    let mut rig = rig_with_program();
+    let link: PostinstallLink = declared_link(&mut rig);
+    let path: PathBuf = link_path(&rig, &link);
+    sync(&rig);
+    let target: PathBuf = fs::read_link(&path).expect("the first pass made the link");
+    let older: String = format!("{{\"links\": {{\"{}\": \"{}\"}}}}", path.display(), target.display());
+    fs::write(rig.scope.launcher_dir.join(".postinstall-links.json"), older).expect("write the older record");
+    declare(&mut rig, None);
+
+    let none: Vec<&LockedTool> = Vec::new();
+    assert_eq!(sync_subset(&rig, &none), LinkNotices::default());
+    assert!(exists_at(&path), "an entry that names no tool cannot prove it belongs to this pass");
+
+    assert_eq!(sync(&rig).retired.len(), 1, "the pass over the whole plan retires it");
+    assert!(!exists_at(&path));
+}
+
+#[test]
+fn the_record_names_the_tool_that_made_each_link() {
+    let mut rig: Rig = rig_with_program();
+    let link: PostinstallLink = declared_link(&mut rig);
+    let path: String = link_path(&rig, &link).display().to_string();
+    sync(&rig);
+
+    let record: serde_json::Value = serde_json::from_str(&record_text(&rig)).expect("the record is JSON");
+    assert_eq!(record["links"][&path]["tool"], LINKED, "{record}");
+    assert!(record["links"][&path]["target"].is_string(), "{record}");
 }
 
 #[test]
@@ -269,12 +387,12 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
     tool.declaration.options.postinstall = Some(Postinstall::Link(PostinstallLink { link_dir: None, ..link.clone() }));
     let path = global.link_dir.join(&link.link_name);
     let linked: Vec<&LockedTool> = tools.iter().collect();
-    sync_postinstall_links(&global_context(&rig, &global, &tools), &linked).expect("the first pass succeeds");
+    sync_postinstall_links(&global_context(&rig, &global, &tools), &linked, LinkPass::WholePlan).expect("the first pass succeeds");
     assert!(exists_at(&path), "the global pass links into the user's bin directory");
 
     tools.iter_mut().find(|candidate| return candidate.declaration.id == LINKED).expect("the tool").declaration.options.postinstall = None;
     let dropped: Vec<&LockedTool> = tools.iter().collect();
-    let notices = sync_postinstall_links(&global_context(&rig, &global, &tools), &dropped).expect("the second pass succeeds");
+    let notices = sync_postinstall_links(&global_context(&rig, &global, &tools), &dropped, LinkPass::WholePlan).expect("the second pass succeeds");
     assert!(!exists_at(&path), "the dropped global link is gone");
     assert_eq!(notices.retired.len(), 1, "{notices:?}");
 }

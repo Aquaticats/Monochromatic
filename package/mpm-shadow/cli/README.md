@@ -1616,6 +1616,19 @@ and a directory early on `PATH` kept running a tool the plan had stopped linking
 `install` now keeps a record of the links it makes,
 `.postinstall-links.json` in the scope's launcher directory,
 and removes a recorded link the lock no longer declares.
+The record holds one entry per link,
+naming what the link pointed at and the tool that declared it:
+
+```json
+{
+  "links": {
+    "/var/home/user/Monochromatic/.cache/mpm-shadow-bin/mpm": {
+      "target": "/var/home/user/Monochromatic/.cache/toolchain-launchers/mpm-shadow",
+      "tool": "mpm-shadow"
+    }
+  }
+}
+```
 
 - A recorded link is removed only while it is still the symlink the record names.
   A regular file,
@@ -1642,8 +1655,19 @@ and removes a recorded link the lock no longer declares.
 - A repository scope no longer retires a link whose plan `linkDir` is an absolute path outside the checkout;
   the plan uses only relative ones,
   and such a link is left where it is.
-- A partial `install` (named tools,
-  or the `update` that installs a few) keeps the recorded links of the other tools.
+- A command that converges the whole plan (`install`,
+  with or without tool names,
+  since a named `install` converges every tool of the plan) removes a recorded link of any tool,
+  including one that left the plan altogether.
+  The partial sync `update` runs for the tools its lookup needs retires only the links of the tools it covers,
+  and leaves a link of any other tool where it is,
+  even when that tool stopped declaring it:
+  the link has its target and its modification time unchanged,
+  the record keeps naming it,
+  and the next command that converges the whole plan retires it.
+- A record written before the record named its tools holds the link target alone;
+  such an entry names no tool,
+  so a command that converges a subset leaves it to the one that converges the whole plan.
 - An unreadable record retires nothing and says so.
 - Each removal is one line of the install report (`retired the postinstall link ...`).
 - Where the link is a hard link instead of a symlink (a platform without symlinks),

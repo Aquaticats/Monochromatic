@@ -200,6 +200,9 @@ pub fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
 /// One postinstall link that was just made.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MadeLink {
+    /// The id of the tool that declares the link,
+    /// so the record can tell later which tool a link belongs to.
+    pub tool: String,
     /// The file name of the link.
     pub name: String,
     /// The full path of the link.
@@ -247,7 +250,7 @@ pub fn make_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> MadeLinks
             outcome.error = Some(error);
             return outcome;
         }
-        outcome.made.push(MadeLink { name: link.link_name.clone(), path, target });
+        outcome.made.push(MadeLink { tool: tool.declaration.id.clone(), name: link.link_name.clone(), path, target });
     }
     return outcome;
 }

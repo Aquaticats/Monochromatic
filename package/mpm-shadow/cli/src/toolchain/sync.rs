@@ -39,8 +39,8 @@ use super::context::{Context, Host};
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::exposure`.
 use super::exposure::{rebuild_exposure, run_postinstall_commands, unresolvable_bins};
-/// Imports `sync_postinstall_links` from `super::postinstall_links`.
-use super::postinstall_links::sync_postinstall_links;
+/// Imports what this module uses from `super::postinstall_links`.
+use super::postinstall_links::{LinkPass, sync_postinstall_links};
 /// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
 /// Imports `install_tool` from `super::install`.
@@ -259,7 +259,11 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
         }
     }
-    match sync_postinstall_links(ctx, &entries) {
+    let pass: LinkPass = match only {
+        Some(_) => LinkPass::Subset,
+        None => LinkPass::WholePlan,
+    };
+    match sync_postinstall_links(ctx, &entries, pass) {
         Ok(notices) => {
             report.retired_links = notices.retired;
             report.warnings.extend(notices.warnings);

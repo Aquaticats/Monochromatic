@@ -14,11 +14,14 @@
 //! so its record can name the links of that other checkout;
 //! a repository scope retires only links inside its own checkout,
 //! and drops every other recorded path from its record without touching what is there.
+//! The record names the tool that made each link,
+//! because a command that converges a subset of the plan retires nothing but its own:
+//! the retirement of a stale link waits for the command that converges the whole plan.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // postinstall-links.ts
-//! export function syncPostinstallLinks(ctx: Context, tools: LockedTool[]): LinkNotices  // throws
+//! export function syncPostinstallLinks(ctx: Context, tools: LockedTool[], pass: LinkPass): LinkNotices  // throws
 //! ```
 
 /// Imports `BTreeMap` from `std::collections`.
@@ -49,8 +52,41 @@ use super::publish::write_atomically;
 const RECORD_FILE_NAME: &str = ".postinstall-links.json";
 
 /// The JSON key holding the links,
-/// as an object of link path to link target.
+/// as an object of link path to that link's entry.
 const LINKS_KEY: &str = "links";
+
+/// The key of a link's target inside its record entry.
+const TARGET_KEY: &str = "target";
+
+/// The key of the tool that made a link inside its record entry.
+const TOOL_KEY: &str = "tool";
+
+/// What:
+/// Which tools one pass of the postinstall links covers.
+/// Why:
+/// Making a link is always narrowed to the tools the pass was given;
+/// retiring one must be narrowed the same way,
+/// or a command that converges a subset retires the stale link of a tool it never looked at.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LinkPass {
+    /// Every tool of the lock (`install` converges the whole plan):
+    /// a recorded link the lock no longer declares is retired whoever declared it.
+    WholePlan,
+    /// Only the tools this pass was given (`update` installs a few before looking them up again):
+    /// a recorded link another tool made stays where it is and stays in the record,
+    /// for the next pass over the whole plan to retire.
+    Subset,
+}
+
+/// One link as the record holds it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RecordedLink {
+    /// What the link pointed at when this tool made it.
+    target: PathBuf,
+    /// The id of the tool that declared and made the link,
+    /// or `None` for a record written before the record named its tools.
+    tool: Option<String>,
+}
 
 /// What a pass of the cleanup did:
 /// one line per link retired,
@@ -68,16 +104,32 @@ fn record_file(ctx: &Context) -> PathBuf {
     return ctx.scope.launcher_dir.join(RECORD_FILE_NAME);
 }
 
-/// The recorded links (path to target),
+/// What:
+/// One record entry as the record holds it:
+/// the link target it names and the tool that made the link.
+/// Why:
+/// A record written before the record named its tools holds the target alone;
+/// such an entry names no tool, so a pass over a subset leaves it alone.
+fn recorded_link(value: &Value) -> Option<RecordedLink> {
+    if let Some(target) = value.as_str() {
+        return Some(RecordedLink { target: PathBuf::from(target), tool: None });
+    }
+    let entry: &Map<String, Value> = value.as_object()?;
+    let target: &str = entry.get(TARGET_KEY)?.as_str()?;
+    let tool: Option<String> = entry.get(TOOL_KEY).and_then(Value::as_str).map(str::to_string);
+    return Some(RecordedLink { target: PathBuf::from(target), tool });
+}
+
+/// The recorded links (path to its entry),
 /// and a warning when the record exists but cannot be read,
 /// in which case nothing is retired this run.
-fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
+fn read_record(file: &Path) -> (BTreeMap<PathBuf, RecordedLink>, Option<String>) {
     let text: String = match fs::read_to_string(file) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (BTreeMap::new(), None),
         Err(error) => return (BTreeMap::new(), Some(format!("cannot read {}, so no stale postinstall link is retired: {error}", file.display()))),
     };
-    let mut links: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
+    let mut links: BTreeMap<PathBuf, RecordedLink> = BTreeMap::new();
     let parsed: Option<Value> = serde_json::from_str(&text).ok();
     let links_value: Option<&Value> = match &parsed {
         Some(value) => value.get(LINKS_KEY),
@@ -86,19 +138,24 @@ fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
     let Some(entries) = links_value.and_then(Value::as_object) else {
         return (links, Some(format!("{} is not a record of postinstall links, so no stale postinstall link is retired", file.display())));
     };
-    for (path, target) in entries {
-        if let Some(target_text) = target.as_str() {
-            links.insert(PathBuf::from(path), PathBuf::from(target_text));
+    for (path, value) in entries {
+        if let Some(recorded) = recorded_link(value) {
+            links.insert(PathBuf::from(path), recorded);
         }
     }
     return (links, None);
 }
 
 /// The record as JSON text.
-fn render_record(links: &BTreeMap<PathBuf, PathBuf>) -> Result<String, ToolchainError> {
+fn render_record(links: &BTreeMap<PathBuf, RecordedLink>) -> Result<String, ToolchainError> {
     let mut entries: Map<String, Value> = Map::new();
-    for (path, target) in links {
-        entries.insert(path.to_string_lossy().to_string(), Value::String(target.to_string_lossy().to_string()));
+    for (path, recorded) in links {
+        let mut entry: Map<String, Value> = Map::new();
+        entry.insert(TARGET_KEY.to_string(), Value::String(recorded.target.to_string_lossy().to_string()));
+        if let Some(tool) = &recorded.tool {
+            entry.insert(TOOL_KEY.to_string(), Value::String(tool.clone()));
+        }
+        entries.insert(path.to_string_lossy().to_string(), Value::Object(entry));
     }
     let mut root: Map<String, Value> = Map::new();
     root.insert(LINKS_KEY.to_string(), Value::Object(entries));
@@ -208,6 +265,23 @@ fn inspect(path: &Path, recorded_target: &Path) -> Held {
 }
 
 /// What:
+/// Whether this pass may retire the link this record entry names,
+/// given the tools a pass over a subset covers (`None` for a pass over the whole plan).
+/// Why:
+/// A pass over a subset may retire only what its own tools declared.
+/// An entry written before the record named its tools cannot prove that it belongs to the pass,
+/// so it waits for the pass over the whole plan.
+fn may_retire(recorded: &RecordedLink, subset: Option<&BTreeSet<&str>>) -> bool {
+    let Some(covered) = subset else {
+        return true;
+    };
+    return match recorded.tool.as_deref() {
+        Some(tool) => covered.contains(tool),
+        None => false,
+    };
+}
+
+/// What:
 /// Retires every recorded link the lock no longer declares,
 /// then writes the record of the links that remain.
 /// Why:
@@ -219,7 +293,10 @@ fn inspect(path: &Path, recorded_target: &Path) -> Held {
 /// A recorded path outside this scope's own checkout is neither inspected nor removed,
 /// and leaves the record:
 /// the record was copied from the checkout that made it.
-fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainError> {
+/// A pass over a subset (`covered` names its tools) retires only links those tools made;
+/// a link another tool made stays where it is and stays fully in the record,
+/// so the pass that converges the whole plan is the one that retires it.
+fn reconcile(ctx: &Context, made: &[MadeLink], covered: Option<&BTreeSet<&str>>) -> Result<LinkNotices, ToolchainError> {
     let file: PathBuf = record_file(ctx);
     let (recorded, unreadable) = read_record(&file);
     let mut notices: LinkNotices = LinkNotices::default();
@@ -228,26 +305,30 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
         return Ok(notices);
     }
     let declared: BTreeSet<PathBuf> = declared_link_paths(ctx);
-    let mut kept: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
-    for (path, target) in &recorded {
+    let mut kept: BTreeMap<PathBuf, RecordedLink> = BTreeMap::new();
+    for (path, recorded_link) in &recorded {
         if declared.contains(path) {
-            kept.insert(path.clone(), target.clone());
+            kept.insert(path.clone(), recorded_link.clone());
             continue;
         }
         if !is_own_link(ctx, path) {
             continue;
         }
-        match inspect(path, target) {
+        if !may_retire(recorded_link, covered) {
+            kept.insert(path.clone(), recorded_link.clone());
+            continue;
+        }
+        match inspect(path, &recorded_link.target) {
             Held::Nothing => {}
             Held::OwnLink => match fs::remove_file(path) {
                 Ok(()) => notices.retired.push(format!(
                     "retired the postinstall link {} (it pointed at {}) because the lock no longer declares it",
                     path.display(),
-                    target.display()
+                    recorded_link.target.display()
                 )),
                 Err(error) => {
                     notices.warnings.push(format!("cannot remove the stale postinstall link {}: {error}", path.display()));
-                    kept.insert(path.clone(), target.clone());
+                    kept.insert(path.clone(), recorded_link.clone());
                 }
             },
             Held::Foreign(why) => notices.warnings.push(format!(
@@ -258,7 +339,7 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
         }
     }
     for link in made {
-        kept.insert(link.path.clone(), link.target.clone());
+        kept.insert(link.path.clone(), RecordedLink { target: link.target.clone(), tool: Some(link.tool.clone()) });
     }
     if kept == recorded {
         return Ok(notices);
@@ -279,15 +360,20 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
 /// Why:
 /// This is the one place `install` handles postinstall links,
 /// so a link made by an earlier run and dropped from the lock since is removed by the next run.
-/// A partial run (`tools` is a subset) keeps the recorded links of the others.
+/// A pass over a subset keeps the recorded links of the others,
+/// including the stale ones: only a tool of the pass loses a link it stopped declaring.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function syncPostinstallLinks(ctx: Context, tools: LockedTool[]): LinkNotices  // throws
+/// export function syncPostinstallLinks(ctx: Context, tools: LockedTool[], pass: LinkPass): LinkNotices  // throws
 /// ```
-pub fn sync_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<LinkNotices, ToolchainError> {
+pub fn sync_postinstall_links(ctx: &Context, tools: &[&LockedTool], pass: LinkPass) -> Result<LinkNotices, ToolchainError> {
     let outcome = make_postinstall_links(ctx, tools);
-    let notices: Result<LinkNotices, ToolchainError> = reconcile(ctx, &outcome.made);
+    let mut covered: Option<BTreeSet<&str>> = None;
+    if pass == LinkPass::Subset {
+        covered = Some(tools.iter().map(|tool| return tool.declaration.id.as_str()).collect());
+    }
+    let notices: Result<LinkNotices, ToolchainError> = reconcile(ctx, &outcome.made, covered.as_ref());
     if let Some(error) = outcome.error {
         return Err(error);
     }
