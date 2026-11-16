@@ -19,6 +19,12 @@ fn look_with(ceiling: Duration) -> ServiceLook {
     return ServiceLook { instance: String::from("abc"), journals: Vec::new(), own_pid: 1, own_user: effective_user(), ceiling };
 }
 
+/// A look of the instance `abc` whose earlier journals are `journals`,
+/// under the ceiling a control gives it.
+fn look_of_journals(journals: &[PathBuf]) -> ServiceLook {
+    return ServiceLook { instance: String::from("abc"), journals: journals.to_vec(), own_pid: 1, own_user: effective_user(), ceiling: PROCESS_LOOK_CEILING };
+}
+
 /// Why a long command line is as long as it is:
 /// a word is at most 32 pages (`MAX_ARG_STRLEN`,
 /// Linux `include/uapi/linux/binfmts.h`),
@@ -65,6 +71,21 @@ fn proc_root_with(words: &[String]) -> PathBuf {
     }
     std::fs::write(process.join("cmdline"), bytes).expect("a command line");
     return root;
+}
+
+/// What:
+///  Gives the one process of a fake table the working folder it was started in:
+/// `<proc root>/<pid>/cwd`, the link the kernel keeps for it and follows for a relative word.
+/// Why:
+///   A relative `--journal` word names a folder in the working folder of the program that carries it,
+/// and a control states that folder instead of depending on one the machine happens to have.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlinkSync(folder, `${procRoot}/${pid}/cwd`)
+/// ```
+fn with_working_folder(root: &Path, folder: &Path) {
+    std::os::unix::fs::symlink(folder, root.join(FAKE_PID.to_string()).join("cwd")).expect("the process's working folder");
 }
 
 /// The words of a long command line that is no service of any worktree.
@@ -267,4 +288,125 @@ fn a_look_that_outlasts_its_ceiling_counts_as_may_be_running_at_the_ceiling() {
     halt.let_go();
     assert!(began.elapsed() >= CEILING_OF_A_HELD_LOOK, "the wait ran to its ceiling: {:?}", began.elapsed());
     assert!(began.elapsed() < RELEASE_BOUND, "the wait ended at the ceiling and not when the scan did: {:?}", began.elapsed());
+}
+
+/// The tail every earlier journal of the instance `abc` carries below the folder a control puts it in:
+/// `cli-git/service/abc`,
+/// which is what an earlier release's unit passed.
+const EARLIER_JOURNAL_TAIL: &str = "state/cli-git/service/abc";
+
+/// What:
+///  The earlier journal of the instance `abc` below `root`,
+///  made,
+///  at the tail a control spells a relative word with.
+/// Why:
+///   A relative word is only meaningful against the working folder of the program that carries it,
+/// so a control
+///  states that folder and the journal below it,
+/// and never depends on a folder the machine happens to hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const journal = mkdirp(join(root, 'state/cli-git/service/abc'))
+/// ```
+fn earlier_journal_below(root: &Path) -> PathBuf {
+    let journal: PathBuf = root.join(EARLIER_JOURNAL_TAIL);
+    std::fs::create_dir_all(journal.as_path()).expect("the earlier journal");
+    return journal;
+}
+
+/// What:
+///  A program whose `--journal` word is relative is judged by the folder that word names in the working folder of
+///  that program,
+///  not in the folder this command runs in.
+/// Why:
+///   A review of another worktree ran the wrapper as a service with `--journal home/.local/state/...` from its own
+///   folder (2026-11-14),
+/// and every settle command on the machine then held, because the word was read in the wrong
+///  folder and could not be found.
+/// A word that names this worktree's earlier journal through the program's own folder still holds:
+///  a
+///  program that writes there may be that journal's helper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = procRootWith(['/p/monochromatic-git-policy-cli', 'service', 'run', '--journal', 'state/cli-git/service/abc'])
+/// ```
+#[test]
+#[cfg(unix)]
+fn a_relative_journal_word_is_read_in_the_working_folder_of_the_program() {
+    let fixture: PathBuf = fixture("look-relative-word");
+    let journal: PathBuf = earlier_journal_below(fixture.as_path());
+    let look: ServiceLook = look_of_journals(&[journal]);
+    // The program's own folder holds a journal of its own worktree at the same relative path:
+    // it writes there, so it is not this worktree's helper whatever the word spells.
+    let another_working_folder: PathBuf = fixture.join("another-worktree");
+    std::fs::create_dir_all(another_working_folder.join(EARLIER_JOURNAL_TAIL)).expect("another worktree's journal");
+    let elsewhere: PathBuf = proc_root_with(&[String::from("/p/monochromatic-git-policy-cli"), String::from("service"), String::from("run"), String::from("--journal"), String::from(EARLIER_JOURNAL_TAIL)]);
+    with_working_folder(elsewhere.as_path(), another_working_folder.as_path());
+    let held: Option<Holding> = earlier_service_process_hold(look.clone(), elsewhere.as_path());
+    assert!(held.is_none(), "the word names another worktree's journal, so nothing of this one holds: {held:?}");
+    // The same word, the same command line, and a working folder this worktree's journal is in: it may be the helper.
+    let here: PathBuf = proc_root_with(&[String::from("/p/monochromatic-git-policy-cli"), String::from("service"), String::from("run"), String::from("--journal"), String::from(EARLIER_JOURNAL_TAIL)]);
+    with_working_folder(here.as_path(), fixture.as_path());
+    let held: Option<Holding> = earlier_service_process_hold(look, here.as_path());
+    assert_eq!(held.map(|holding| { return holding.because; }), Some(Hold::InstanceHelperRuns), "the word names this worktree's earlier journal in the program's own folder");
+    remove(fixture.as_path());
+}
+
+/// What:
+///  A relative word that names this worktree's earlier journal before the folder is there holds the settling back:
+///  a
+///  starting earlier helper of the worktree is in exactly that state.
+/// Why:
+///   A folder that is not there holds no batch by itself,
+/// so the word alone would settle;
+/// the path it
+///  names, resolved as far as the file system knows it,
+/// is this worktree's earlier journal's,
+/// and an
+///  earlier helper of the worktree shows its journal word before it makes the folder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = earlierServiceProcessHold(look([join(root, 'not-yet/cli-git/service/abc')]), procRootWith(['--journal', 'not-yet/cli-git/service/abc'], root))
+/// ```
+#[test]
+#[cfg(unix)]
+fn a_relative_journal_word_that_names_this_worktrees_journal_before_it_is_made_holds() {
+    let fixture: PathBuf = fixture("look-relative-absent");
+    let journal: PathBuf = fixture.join("not-yet/cli-git/service/abc");
+    assert!(!journal.exists(), "the journal is not made yet, as it is not for a starting helper");
+    let root: PathBuf = proc_root_with(&[String::from("/p/monochromatic-git-policy-cli"), String::from("--journal"), String::from("not-yet/cli-git/service/abc")]);
+    with_working_folder(root.as_path(), fixture.as_path());
+    let held: Option<Holding> = earlier_service_process_hold(look_of_journals(&[journal]), root.as_path());
+    assert_eq!(held.map(|holding| { return holding.because; }), Some(Hold::InstanceHelperRuns), "the word names this worktree's journal, whose folder is not made yet");
+    remove(fixture.as_path());
+}
+
+/// What:
+///  A relative word whose program's working folder cannot be read leaves the question open,
+///  and the program and what stopped the look-up are named.
+/// Why:
+///   Nothing then says which folder the word names,
+/// so the program may be the earlier helper;
+/// a hold that
+///  names no program and no cause is one a person cannot act on.
+/// The table has no `cwd` entry,
+/// which is what
+///  the kernel shows of a process that hid its working folder or ended while it was looked at.
+#[test]
+#[cfg(unix)]
+fn a_relative_journal_word_whose_working_folder_cannot_be_read_holds_and_names_what_stopped_it() {
+    let fixture: PathBuf = fixture("look-relative-unreadable");
+    let journal: PathBuf = earlier_journal_below(fixture.as_path());
+    let root: PathBuf = proc_root_with(&[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("home/.local/state/cli-git/service/abc")]);
+    let held: Option<Holding> = earlier_service_process_hold(look_of_journals(&[journal]), root.as_path());
+    let Some(holding) = held else { panic!("a working folder that cannot be read leaves the question open") };
+    assert_eq!(holding.because, Hold::HelperUnsure);
+    let Some(program) = holding.program else { panic!("the program that cannot be ruled out is named: {holding:?}") };
+    assert_eq!((program.pid, program.journal_word_is_relative), (FAKE_PID, true));
+    assert!(program.reason.contains("working folder could not be read"), "the cause is said in plain words: {}", program.reason);
+    assert!(program.reason.contains("No such file or directory"), "and with what the kernel answered: {}", program.reason);
+    remove(fixture.as_path());
 }

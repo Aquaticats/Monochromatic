@@ -291,6 +291,31 @@ fn an_unrelated_program_whose_journal_folder_is_not_there_holds_nothing_back() {
     remove(world.root.as_path());
 }
 
+/// A program whose `--journal` word is a relative path that names no folder of this worktree holds nothing back:
+/// the word is read in the working folder of the program itself,
+/// so it names a folder there, and that folder holds no batch of this worktree.
+/// The release gate of 2026-11-14 failed only on a machine where another session's review ran the wrapper as a
+/// service with such a word (`home/.local/state/...` from its own folder),
+/// and read in this command's folder the word was not there,
+/// so every settle control waited for that program until its patience ran out.
+#[test]
+fn an_unrelated_program_whose_relative_journal_folder_is_not_there_holds_nothing_back() {
+    let (world, state) = world_with_earlier_journal("settle-relative-journal", "state");
+    let landed: CommitRequest = request(&world, "relative", "relative.txt", "relative\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 62, &["/usr/bin/unrelated-tool", "--journal", "home/.local/state/cli-git/service/journal", "--token", "s3cret-token"]);
+    // The program runs in a folder of its own, and the word names a state folder below it that nothing has made.
+    let working_folder: PathBuf = world.root.join("the-folder-the-program-runs-in");
+    std::fs::create_dir_all(working_folder.as_path()).expect("the program's working folder");
+    std::os::unix::fs::symlink(working_folder.as_path(), proc_root.join("62").join("cwd")).expect("the program's working folder as the kernel shows it");
+    let RequestedSettlement::Settled { batches, .. } = settle(&world, state.as_path(), proc_root.as_path()) else {
+        panic!("a relative word that names no folder of this worktree holds no batch, so the settling goes on")
+    };
+    assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}
+
 /// What:
 ///  A program that named this worktree's earlier journal through a link which another command removed after the program
 ///  started still holds the settling back.

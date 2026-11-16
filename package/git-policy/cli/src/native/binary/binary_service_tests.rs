@@ -757,6 +757,96 @@ fn the_settle_command_is_not_held_by_an_unrelated_program_whose_journal_folder_i
     remove_settled(&fixture);
 }
 
+/// The folder below the folder a service runs in that its `--journal` word names,
+/// spelled as the wrapper's own journal is:
+/// a home folder,
+/// the state folder and the data folder.
+const RELATIVE_JOURNAL_FOLDER: &str = "home/.local/state/monochromatic-git-policy-cli/service";
+
+/// What:
+///  Starts the wrapper of this build as the commit service of another worktree,
+///  alive,
+///  with a `--journal` word relative to a working folder of its own,
+///  and then removes the folder tree that word names,
+///  so that the word can no longer be looked up.
+///  Gives the service and the folder it runs in.
+/// Why:
+///   A review of another worktree ran exactly such a program on 2026-11-14
+///   (`--journal home/.local/state/monochromatic-git-policy-cli/service/<instance>`, started from that worktree's
+///   folder),
+///   and every settle command on the machine then waited for it until its patience ran out,
+///   because the word was looked up in the command's folder and not in the program's.
+/// A control that waited for such a program on the machine would depend on what else runs here,
+/// so it starts its own, from the build under test.
+fn a_service_of_another_worktree_with_a_relative_journal(other: &Fixture, other_repo: &Path) -> Service {
+    let instance: String = instance_of(other_repo.join(".git").as_path());
+    let word: String = format!("{RELATIVE_JOURNAL_FOLDER}/{instance}");
+    let mut command: Command = super::support::service_command();
+    command
+        .args(["--journal", word.as_str(), "--abstract", address(other, "relative").as_str(), "--instance", instance.as_str()])
+        .env("HOME", other.root.join("home"))
+        .current_dir(other.root.as_path())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    let mut service: Service = Service { child: command.spawn().expect("the other worktree's service starts") };
+    let named: PathBuf = other.root.join(word.as_str());
+    let begun: Instant = Instant::now();
+    while !named.exists() {
+        assert!(begun.elapsed() < PATIENCE, "the other worktree's service never made the folder its journal word names");
+        assert!(
+            service.child.try_wait().expect("the other worktree's service state").is_none(),
+            "the other worktree's service ended before it made the folder its journal word names"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // The kernel keeps the folder the program runs in, and a relative word is read there:
+    // the control states that fact instead of trusting the word's spelling.
+    let working: Option<PathBuf> = std::fs::read_link(format!("/proc/{}/cwd", service.child.id())).ok();
+    assert_eq!(working.as_deref(), Some(other.root.as_path()), "the program runs in its own folder");
+    std::fs::remove_dir_all(other.root.join("home")).expect("the folder tree the journal word names");
+    assert!(!named.exists(), "the folder the word names is gone while the program runs");
+    assert!(
+        service.child.try_wait().expect("the other worktree's service state").is_none(),
+        "the other worktree's service runs while the settle command looks at the processes"
+    );
+    return service;
+}
+
+/// Review of the integration pass of 2026-11-14 ("passes alone, fails beside another session's program"):
+/// the look that the settle command makes reads the `--journal` word of every process of the user,
+/// and a word that is a relative path names a folder in the working folder of the program that carries it.
+/// Reading it in the command's own folder found nothing,
+/// so the command counted another worktree's service as one that may be the earlier helper of this worktree,
+/// named it and changed nothing.
+/// The program here is a wrapper of this build,
+/// as the one that failed the gate: its word is relative,
+/// it was started from a folder of its own,
+/// and the folder its word names is gone under it.
+/// A program it can prove is another worktree's holds nothing back,
+/// so the batch is finished while such a program runs,
+/// and nothing depends on what else the machine runs.
+#[test]
+fn the_settle_command_is_not_held_by_a_program_of_another_worktree_whose_relative_journal_folder_is_gone() {
+    let fixture: Fixture = fixture("service-settle-beside-a-relative-journal");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "relative");
+    let other: Fixture = super::support::fixture("service-settle-a-relative-journal");
+    let other_repo: PathBuf = repository(&other, OsStr::new("repo"));
+    let unrelated: Service = a_service_of_another_worktree_with_a_relative_journal(&other, other_repo.as_path());
+    let settled = run_settle_past_a_refusal(&fixture, &repo);
+    let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
+    let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+    drop(unrelated);
+    assert_eq!(settled.code, Some(0), "{stdout}{stderr}");
+    assert!(stdout.contains("finished batch 1"), "{stdout} (standard error: {stderr})");
+    assert!(!open.exists() && finished.exists(), "the open batch of the earlier journal was finished");
+    remove_settled(&other);
+    remove_settled(&fixture);
+}
+
 /// When the safety condition cannot be delivered (standard error is closed),
 /// the command settles nothing:
 /// the batch is still
