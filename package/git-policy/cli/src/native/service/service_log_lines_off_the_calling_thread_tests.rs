@@ -78,12 +78,16 @@ fn a_stream_nobody_drains_holds_no_caller() {
 ///  counted,
 ///  and never written from the caller's own thread.
 /// Why:
-///  The queue's only caller (`service_timing::log_entry`) wrote such a line straight to standard error with a blocking
-///  writer, which waits for the reader for as long as the reader does not read: the queue's bound was thrown away on the
-///  line that found no room in it (the review of 2026-11-14,
+///  The queue's only caller (`service_timing::log_entry`) wrote such a line straight to standard error
+///  with a blocking writer,
+///  which waits for the reader for as long as the reader does not read:
+///  the queue's bound was thrown away on the line that found no room in it
+///  (the review of 2026-11-14,
 ///  `change-reviews/git-policy-cli-five-library-controls-after-merging-main-the-guards-are-true-again`).
-///  This control fills the queue behind a stream nobody drains and then asks the caller for one more line: the answer is
-///  `Dropped` and the count names it, so a command's own thread has nothing to wait in.
+///  This control fills the queue behind a stream nobody drains and then asks the caller for one more line:
+///  the answer is `Dropped`,
+///  and the count names it,
+///  so a command's own thread has nothing to wait in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
