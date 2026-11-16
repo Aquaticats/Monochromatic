@@ -1,11 +1,10 @@
 //! What:
 //!  The wait that reads what the commit service did after a command,
-//!  and what one empty reading of a repository's queue is worth.
+//!  and what one look that finds nothing in a repository's queue is worth.
 //! Why:
 //!  The wait lists three state directories,
 //!  and three listings are three different moments:
-//!  the states are listed in the order an item moves through them,
-//!  so a record a claim carries is seen,
+//!  a record a claim carries is seen,
 //!  but a record an expired claim returns from `claimed` to `pending` through `recovering`
 //!  runs the other way,
 //!  and one of its two renames can fall between two of the listings,
@@ -16,61 +15,62 @@
 //!  `/home/user/temp/agent/integration-pass-45-scratch/keep/logs/binary-package-repair-tests-tip.log`).
 //!  No control can make a rename straddle a listing on a real filesystem,
 //!  because the renames of a claim sit microseconds apart,
-//!  so this control gives the reading the wait asks
-//!  and proves that one reading of nothing does not end the wait.
+//!  so this control gives the wait the listing it asks for
+//!  and proves that one look of nothing does not end the wait.
+//!  A record moved between two of a look's listings is another control's question
+//!  (`settle_the_after_commit_work::a_recovery_moved_at_every_gap_is_never_read_as_settled`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! settleServiceWorkReadWith(repo, (work) => [0, 1, 0, 0][readings++]); // the wait must not stop at the first 0
+//! settleServiceWorkListWith(repo, (work, state) => listings++ === LISTINGS_IN_A_LOOK ? 1 : 0); // the wait must not stop at the first empty look
 //! ```
 
 /// Import the fixture,
 /// the repository maker and the wait under test.
-use super::support::{Fixture, fixture, remove, repository, settle_service_work_read_with};
+use super::support::{Fixture, LISTINGS_IN_A_LOOK, fixture, remove, repository, settle_service_work_list_with};
 use git_policy_cli::work_item::WORK_DIRECTORY;
 use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The wait for the after-commit work reads a queue that answers no work at its first reading and work at its second,
-///  and it does not answer settled before it has read the queue twice with nothing in it.
+///  The wait for the after-commit work reads a queue that answers no work for its first look and work for the look after it,
+///  and it does not answer settled before two looks in a row have found nothing in it.
 /// Why:
 ///   The record the add hands the service is in the queue before the add returns
 /// (`repair::package_repair_relink::hand_over_with` writes it and wakes the service),
 /// and a claim moves it between the states the wait counts,
-/// so a reading can miss it although the work is queued.
+/// so a look can miss it although the work is queued.
 /// What this control proves:
-/// the wait asks again after a reading that found nothing,
-/// and it answers only two readings with nothing in the queue,
+/// the wait looks again after a look that found nothing,
+/// and it answers only two looks with nothing in the queue,
 /// a pause apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readings = [0, 1, 0, 0]; settleServiceWorkReadWith(repo, () => readings.shift()); expect(asked).toBeGreaterThan(2);
+/// settleServiceWorkListWith(repo, () => listings++ === LISTINGS_IN_A_LOOK ? 1 : 0); expect(listings).toBeGreaterThan(2 * LISTINGS_IN_A_LOOK);
 /// ```
 #[test]
 fn a_queue_that_reads_empty_once_is_not_work_that_settled() {
-    let fixture: Fixture = fixture("settle-two-readings");
+    let fixture: Fixture = fixture("settle-two-looks");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let asked: Cell<usize> = Cell::new(0);
     let read: RefCell<PathBuf> = RefCell::new(PathBuf::new());
-    // The first reading finds nothing, the second finds the work a claim moved between the wait's listings, and the queue
-    //  is empty from the third on: a wait that stops at its first empty reading answers settled while work is queued.
-    let reading = |work: &Path| -> usize {
+    // The first look finds nothing,
+    // the look after it finds the work a claim moved between the wait's listings,
+    // and the queue is empty from the third look on:
+    // a wait that stops at its first empty look answers settled while work is queued.
+    let records_in = |work: &Path, _state: &str| -> Result<usize, String> {
         *read.borrow_mut() = work.to_path_buf();
         let taken: usize = asked.get() + 1;
         asked.set(taken);
-        return match taken {
-            1 => 0,
-            2 => 1,
-            _ => 0,
-        };
+        // The listing the look after the first one asks for is the work the wait must not have called settled.
+        return Ok(if taken == LISTINGS_IN_A_LOOK + 1 { 1 } else { 0 });
     };
-    settle_service_work_read_with(repo.as_path(), &reading);
+    settle_service_work_list_with(repo.as_path(), &records_in);
     assert_eq!(*read.borrow(), repo.join(".git").join(WORK_DIRECTORY), "the wait read a queue that is not this repository's");
     assert!(
-        asked.get() > 2,
+        asked.get() > 2 * LISTINGS_IN_A_LOOK,
         "the wait answered settled after {} reading(s) of the queue: a first reading that finds nothing is not work that settled, because a record is in the queue at every moment while a claim moves it between two of the states the wait lists",
         asked.get()
     );

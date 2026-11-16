@@ -387,15 +387,14 @@ pub fn work_listing(work: &Path) -> String {
         .collect::<Vec<String>>()
         .join(" ");
 }
-
-/// How long a wait for the after-commit work pauses before it reads the queue again:
-///  the pause between its two readings,
+/// How long a wait for the after-commit work pauses before it looks again:
+///  the pause between its two looks,
 /// and the pause between one look and the next while work is still queued.
 /// Why this value:
 ///  it is the pause this wait already took between its looks,
-/// so the two readings are a poll apart,
+/// so the two looks are a poll apart,
 /// and a record the service puts back into `pending` (or a record that arrives)
-/// after the first reading is there for the second.
+/// after the first look is there for the second.
 const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 
 /// The states a work directory holds a record in until the work it names is settled,
@@ -408,30 +407,21 @@ const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 /// a record that left `pending` before it was listed is in `recovering` when that is listed,
 /// and it cannot have reached `claimed` unseen,
 /// because that listing comes last.
-/// A record that leaves `claimed` for `done` or `failed` has settled,
-/// so a pass over these three states does not miss work the service holds for a claim.
 const OPEN_STATES: [&str; 3] = [PENDING, RECOVERING, CLAIMED];
 
+/// How many state listings one look takes,
+/// for a control that moves a record at a gap between two of them.
+pub const LISTINGS_IN_A_LOOK: usize = OPEN_STATES.len();
+
 /// What:
-///  The number of records a work directory holds in the states a settling wait means,
-///  and the state directory a listing could not read.
+///  How many records one state directory of a work directory holds,
+///  and why a directory that could not be listed is not a directory that holds none.
 /// Why:
-///   A record is in exactly one of those states until its work is settled,
-/// and a claim moves it between two of them between two listings,
+///   A record is in exactly one of the states a look reads until its work is settled,
+/// and a claim moves it between two of them,
 /// so one listing is one instant and three listings are three:
-/// the states are read in the order an item moves through them (`OPEN_STATES`),
-/// so a record the wait is asked about while a claim carries it is seen in one pass,
-/// whichever gap between two listings the claim's two renames fall in.
-/// A settled answer can therefore not turn on how fast the machine carried a claim,
-/// which is what the failing sighting did:
-/// one control read the queue as settled and the service ran the relink it held three milliseconds later
-/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
-/// 2026-11-14).
-/// A record an expired claim is returning to `pending` runs the other way (`requeue_with`),
-/// and a pass misses it only where one of its two renames falls between two of the listings,
-///  which the second reading of `settle_service_work_read_with` makes a coincidence twice over.
-///  A listing the wait could not make is its answer to report and never a record's absence:
-/// a wait that read one as "no record there" answered "settled" without evidence,
+/// a listing the wait could not make is its answer to report and never a record's absence.
+/// A wait that read one as "no record there" answered "settled" without evidence,
 /// while the commit service kept the record and ran the tool after the control had already read its result
 ///  (`doc/troubleshooting/native-binary-settle-wait-reads-an-unread-state-as-settled.md`).
 ///  A state directory that is absent holds nothing (`recovering` is made by the first claim),
@@ -439,44 +429,60 @@ const OPEN_STATES: [&str; 3] = [PENDING, RECOVERING, CLAIMED];
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const openRecords = (workDir) => OPEN_STATES.reduce((total, state) => total + countOrThrow(join(workDir, state)), 0);
+/// const recordsIn = (work, state) => { try { return readdir(join(work, state)).length } catch (error) { return error.code === 'ENOENT' ? 0 : raise(error) } };
 /// ```
-fn open_records(work: &Path) -> Result<usize, String> {
-    let mut total: usize = 0;
-    for state in OPEN_STATES {
-        let directory: PathBuf = work.join(state);
-        match std::fs::read_dir(directory.as_path()) {
-            Ok(listing) => total += listing.count(),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(format!(
-                    "{} could not be listed ({error}), so whether this repository's after-commit work settled is not known",
-                    directory.display()
-                ));
-            }
-        }
-    }
-    return Ok(total);
+pub fn records_in(work: &Path, state: &str) -> Result<usize, String> {
+    let directory: PathBuf = work.join(state);
+    return match std::fs::read_dir(directory.as_path()) {
+        Ok(listing) => Ok(listing.count()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(error) => Err(format!(
+            "{} could not be listed ({error}), so whether this repository's after-commit work settled is not known",
+            directory.display()
+        )),
+    };
 }
 
 /// What:
-///  How many records of a work directory mean work that has not settled,
-/// in the states the wait lists and by the wrapper's own reading of them,
-/// and a listing it could not make named in a failure.
+///  The records one look finds in a work directory,
+///  a listing it could not make named in a failure.
 /// Why:
-///   This is the reading `settle_service_work` asks for every look,
-/// so a queue nothing can list is reported with the work it would have held
+///   The states are listed in the order an item moves through them (`OPEN_STATES`),
+/// so a record the wait is asked about while a claim carries it is seen in one pass,
+/// whichever gap between two listings the claim's two renames fall in.
+/// A settled answer can therefore not turn on how fast the machine carried a claim,
+/// which is what the failing sighting did:
+/// one control read the queue as settled and the service ran the relink it held three milliseconds later
+/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
+/// 2026-11-14).
+///  A queue nothing can list is reported with the work it would have held
 ///  (`work_listing`) instead of ending the wait as settled work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const outstanding = (work) => openRecords(work) ?? panic(`${unread}: ${listing(work)}`);
+/// const betweenTheStates = (work, recordsIn) => OPEN_STATES.reduce((total, state) => total + recordsIn(work, state), 0);
 /// ```
-fn work_outstanding(work: &Path) -> usize {
-    return match open_records(work) {
-        Ok(total) => total,
-        Err(unread) => panic!("{unread}: {}", work_listing(work)),
-    };
+fn records_between_the_states(work: &Path, records_in: &dyn Fn(&Path, &str) -> Result<usize, String>) -> usize {
+    let mut total: usize = 0;
+    for state in OPEN_STATES {
+        match records_in(work, state) {
+            Ok(count) => total += count,
+            Err(unread) => panic!("{unread}: {}", work_listing(work)),
+        }
+    }
+    return total;
+}
+
+/// What:
+///  The queue folders of the repository around `directory`,
+/// and nothing when no Git directory above it holds one.
+/// Why:
+///   The queue is read under the data folder the wrapper's own reading of a Git directory names
+/// (`path_for_reading`),
+/// because a repository whose folder keeps the earlier release's name holds its queue there.
+fn work_directories(directory: &Path) -> Option<Vec<PathBuf>> {
+    let git_dir: PathBuf = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); })?;
+    return Some(vec![git_policy_cli::kept_names_in_the_git_directories::path_for_reading(git_dir.as_path(), git_policy_cli::work_item::WORK_DIRECTORY)]);
 }
 
 /// What:
@@ -498,46 +504,57 @@ fn work_outstanding(work: &Path) -> usize {
 /// and a control that means to read what one step of the work did waits for that step's own record
 /// (`wait_for_pnpm_runs`),
 /// because no reading of a queue says what a service has not reached yet.
-///  The queue is read under the data folder the wrapper's own reading of a Git directory names
-/// (`path_for_reading`),
-/// because a repository whose folder keeps the earlier release's name holds its queue there.
 pub fn settle_service_work(directory: &Path) {
-    return settle_service_work_read_with(directory, &work_outstanding);
+    return settle_service_work_list_with(directory, &records_in);
 }
 
 /// What:
-///  `settle_service_work` with the reading of the queue given,
-/// so a control proves what one empty reading is worth.
+///  `settle_service_work` with one state directory's listing given,
+/// so a control moves a record between two of a look's listings
+/// and proves what a look that found nothing is worth.
 /// Why:
-///   The reading is where the answer comes from,
+///   A listing is where the answer comes from,
 /// and no control can make a claim straddle a listing on a real filesystem:
 /// the two renames of `pending` to `recovering` to `claimed` sit microseconds apart.
-/// Work is settled only when two readings in a row find none,
+/// `LISTINGS_IN_A_LOOK` says how many listings one look takes.
+///  Work is settled only when two looks in a row find none,
 /// `SETTLE_PAUSE` apart,
-/// because a record an expired claim returns to `pending` can pass between two of a pass's listings,
-/// and because the second reading is taken at a different moment:
-/// a record the service put back into `pending` after the first reading is there for the second.
+/// because a record an expired claim returns to `pending` can pass between two of the listings of one look,
+/// and because the second look is taken at a different moment:
+/// a record the service put back into `pending` after the first look is there for the second.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// settleServiceWorkReadWith(dir, (work) => outstanding(work)); // empty twice, a pause apart, is settled
+/// settleServiceWorkListWith(dir, recordsIn); // a look that finds nothing twice, a pause apart, is settled work
 /// ```
-pub fn settle_service_work_read_with(directory: &Path, outstanding: &dyn Fn(&Path) -> usize) {
-    let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
+pub fn settle_service_work_list_with(directory: &Path, records_in: &dyn Fn(&Path, &str) -> Result<usize, String>) {
+    let Some(work_paths) = work_directories(directory) else {
         return;
     };
-    let work: PathBuf = git_policy_cli::kept_names_in_the_git_directories::path_for_reading(git_dir.as_path(), git_policy_cli::work_item::WORK_DIRECTORY);
+    return settle_while_records_are_open(work_paths.as_slice(), &|work: &Path| { return records_between_the_states(work, records_in); });
+}
+
+/// What:
+///  The look loop of the wait:
+///  one look at every queue of the repository,
+///  and the wait over when two looks in a row found nothing.
+/// Why:
+///  The two faces above differ only in what one look reads,
+/// so the pause,
+/// the patience and the ending live once.
+fn settle_while_records_are_open(work_paths: &[PathBuf], one_look: &dyn Fn(&Path) -> usize) {
     let began: std::time::Instant = std::time::Instant::now();
-    let mut a_reading_found_nothing: bool = false;
+    let mut a_look_found_nothing: bool = false;
     loop {
-        if outstanding(work.as_path()) > 0 {
-            a_reading_found_nothing = false;
-        } else if a_reading_found_nothing {
+        let open: bool = work_paths.iter().any(|work: &PathBuf| { return one_look(work.as_path()) > 0; });
+        if open {
+            a_look_found_nothing = false;
+        } else if a_look_found_nothing {
             return;
         } else {
-            a_reading_found_nothing = true;
+            a_look_found_nothing = true;
         }
-        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
+        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work_paths.iter().map(|work: &PathBuf| { return work.display().to_string(); }).collect::<Vec<String>>().join(", "), work_paths.iter().map(|work: &PathBuf| { return work_listing(work.as_path()); }).collect::<Vec<String>>().join(" "));
         std::thread::sleep(SETTLE_PAUSE);
     }
 }
