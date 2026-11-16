@@ -505,7 +505,8 @@ fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
 /// about 549 processes start a second on this machine,
 /// so the folder standing at a path a thread made can be another run's,
 ///  and a cleanup that removed by the path alone would delete another run's folder,
-/// and the files, sockets and links in it,
+/// and the files,
+/// sockets and links in it,
 ///  in the middle of that run.
 /// The whole risk was open by reading before this control:
 /// the thread's list held a path,

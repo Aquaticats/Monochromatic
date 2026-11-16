@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// How long a control waits for a thread that only names a folder and reports it.
-/// The thread does two file-operations and a channel send, so this is far past it and still bounded.
+/// The thread does two file-operations and a channel send,
+/// so this is far past it and still bounded.
 const THREAD_PATIENCE: Duration = Duration::from_secs(60);
 
 /// A socket folder of the shape a service keeps under its runtime directory.

@@ -15,9 +15,13 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// The device and inode an entry had when a control made it,
-/// and what stands at that path now.
-use crate::testing::folder_identity::{self, FolderIdentity, FolderStanding};
+/// What stands at the path of one entry a test thread made,
+/// read against the identity it had then.
+use crate::testing::folder_identity::FolderStanding;
+
+/// One entry a test thread made,
+/// and the identity it was made with.
+use crate::testing::paths_a_test_thread_made::{PathThisThreadMade, made_by_this_thread};
 
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
@@ -128,124 +132,12 @@ pub(crate) fn fixture_root() -> PathBuf {
     return root;
 }
 
-/// What:
-///  Give this user back the read,
-/// write and search permission on every directory of a tree that has lost it,
-///  without following a symbolic link.
-/// Why:
-///   A control that writes a directory its owner may not write (`0500`,
-/// `0555`,
-/// `0000`) proves what the product does with one,
-/// and removing that directory afterwards needs read to list it and write and search to unlink what it holds,
-/// so a fixture left in that state outlived the test that made it
-/// (issue 6282:
-/// fixtures named `rollback-read-only`,
-/// `remove-old-read-only`,
-/// `migrate-unreadable-dir` and `sync-unreadable-dir`),
-/// and a build-tree sweeper could not delete the tree they sat in.
-/// Only directories are changed,
-/// only ones this user owns,
-/// and only the owner's three bits:
-/// a file with no permissions of its own is unlinked from a writable directory,
-/// and a group or other-user bit a control set stays as it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function restoreOwnerAccess(root: string): void // lstat each entry, chmod OWNER_RWX on the directories this user owns
-/// ```
-#[cfg(unix)]
-pub(crate) fn restore_owner_access(root: &Path) {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
-    // SAFETY: `geteuid` takes no arguments and cannot fail.
-    let own: u32 = unsafe { libc::geteuid() };
-    let owner_bits: u32 = 0o700;
-    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
-    while let Some(directory) = stack.pop() {
-        let Ok(metadata) = std::fs::symlink_metadata(&directory) else {
-            continue;
-        };
-        if !metadata.is_dir() {
-            continue;
-        }
-        let mode: u32 = metadata.mode() & 0o7777;
-        if metadata.uid() == own && mode & owner_bits != owner_bits {
-            let _widened = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(mode | owner_bits));
-        }
-        // The directory may have been closed to this user until a moment ago, so it is listed after the mode is restored.
-        let Ok(entries) = std::fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path: PathBuf = entry.path();
-            let Ok(found) = std::fs::symlink_metadata(&path) else {
-                continue;
-            };
-            if found.is_dir() {
-                stack.push(path);
-            }
-        }
-    }
-}
-
-/// What:
-///  On a platform without Unix permissions there is nothing to give back.
-/// Why:
-///   The teardown calls this on every platform.
-#[cfg(not(unix))]
-pub(crate) fn restore_owner_access(_root: &Path) {}
-
-/// What:
-///  Remove a fixture tree unless the person asked to keep it,
-/// trying again for up to five seconds.
-/// Why:
-///   A landed commit may leave a maintenance child finishing for a moment;
-/// a tree already gone is the explicit
-///  `remove` having run first,
-/// not a failure.
-/// A control that made a directory read-only inside its fixture is answered here,
-/// so the fixture goes however the control ended,
-/// panic included.
-pub(crate) fn settle_fixture(root: &Path, keep: bool) {
-    if keep {
-        return;
-    }
-    restore_owner_access(root);
-    for _ in 0..50 {
-        match std::fs::remove_dir_all(root) {
-            Ok(()) => return,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
-            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
-        }
-    }
-}
-
-/// What:
-///  One entry a test thread made:
-/// the path,
-/// and the identity that path had when the thread took it.
-/// Why:
-///   A fixture root and a runtime directory are both named for a process number,
-/// and a process number comes round:
-///  about 549 processes start a second on this machine,
-/// so a folder this thread made and a folder another run made can carry one name.
-///  The identity is what tells the two apart, so the cleanup removes its own folder and never the other run's.
-/// The identity is nothing where nothing stood at the path when it was taken,
-///  which no caller here does:
-/// every one of them makes its entry first.
-struct TrackedRoot {
-    /// The path this thread made.
-    path: PathBuf,
-    /// The device and the inode it had then,
-    /// or nothing where nothing stood there.
-    identity: Option<FolderIdentity>,
-}
-
 /// The fixtures one test thread created,
 /// removed when the thread ends however the test ended.
 struct ThreadFixtures {
     /// Roots to remove,
     /// each with the identity it had when this thread made it.
-    roots: std::cell::RefCell<Vec<TrackedRoot>>,
+    roots: std::cell::RefCell<Vec<PathThisThreadMade>>,
     /// Process groups of the helper processes the thread started with `spawn_owned`,
     /// killed when the thread ends.
     groups: std::cell::RefCell<Vec<libc::pid_t>>,
@@ -263,25 +155,16 @@ impl Drop for ThreadFixtures {
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for tracked in self.roots.borrow().iter() {
             let rooted: &Path = tracked.path.as_path();
-            let standing: Option<FolderStanding> = tracked.identity.map(|identity| { return identity.standing(rooted); });
-            match standing {
-                // The folder another run made at this name is that run's, so nothing here touches it.
+            match tracked.standing() {
+                // The entry another run made at this name is that run's, so nothing here touches it.
                 Some(FolderStanding::AnotherEntryNow) => {
-                    eprintln!(
-                        "test support: {} is another run's folder now, so it is left as it is; this thread made a folder of that name and it is gone",
-                        rooted.display()
-                    );
+                    eprintln!("test support: {} is another run's entry now, so it is left as it is", rooted.display());
                 }
                 // Nothing stood there when this thread took it, so nothing at that path is provably this thread's.
-                None => {
-                    eprintln!("test support: nothing stood at {} when this thread took it, so it is left as it is", rooted.display());
-                }
+                None => eprintln!("test support: nothing stood at {} when this thread took it, so it is left as it is", rooted.display()),
                 Some(FolderStanding::StillTheOne | FolderStanding::Gone) => {
                     if keep {
-                        eprintln!(
-                            "test support: {KEEP_FIXTURES_VARIABLE} is set, so {} is kept where it is until a person removes it",
-                            rooted.display()
-                        );
+                        eprintln!("test support: {KEEP_FIXTURES_VARIABLE} is set, so {} is kept where it is until a person removes it", rooted.display());
                     }
                     end_processes_working_in(rooted);
                     settle_fixture(rooted, keep);
@@ -384,11 +267,11 @@ pub(crate) fn track_for_this_thread(root: &Path) {
 /// What:
 ///  Put `root` in this thread's cleanup together with the identity it has now.
 /// Why:
-///   The identity is read once, when the thread makes the entry,
+///   The identity is read once,
+/// when the thread makes the entry,
 /// so a cleanup at the thread's end can ask whether the entry at that path is still its own.
 fn take_for_this_thread(root: &Path) {
-    let identity: Option<FolderIdentity> = folder_identity::identity_of(root);
-    let tracked: TrackedRoot = TrackedRoot { path: root.to_path_buf(), identity };
+    let tracked: PathThisThreadMade = made_by_this_thread(root);
     THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(tracked); });
 }
 
@@ -415,6 +298,11 @@ pub(crate) fn age(path: &Path) {
     let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) };
     assert_eq!(result, 0, "age {}", path.display());
 }
+
+/// The two steps of a fixture tree's teardown:
+/// the permission given back and the tree removed,
+/// named here so every `crate::test_support::name` path stays the same.
+pub(crate) use crate::testing::fixture_teardown::{restore_owner_access, settle_fixture};
 
 /// Remove only the fixture directory a test created,
 /// giving this user back the permission on any directory of it that a test closed.

@@ -44,14 +44,17 @@ use std::path::{Path, PathBuf};
 /// so a folder that is still gaining an entry is tried again rather than left.
 use crate::support_fixture_directories::{REMOVAL_PAUSE, REMOVAL_TRIES, remove_patiently};
 
-/// The variable that keeps a control's folders, and the ending of a process still working in one.
+/// The variable that keeps a control's folders,
+/// and the ending of a process still working in one.
 use crate::support_fixture_service::{KEEP_FIXTURES_VARIABLE, end_processes_working_in};
 
-/// The device and inode an entry had when a control made it, and what stands at that path now.
+/// The device and inode an entry had when a control made it,
+/// and what stands at that path now.
 #[path = "../testing/folder_identity.rs"]
 mod folder_identity;
 
-/// The identity a folder is made and removed by, and the answer to what stands at its path now.
+/// The identity a folder is made and removed by,
+/// and the answer to what stands at its path now.
 use folder_identity::{FolderIdentity, FolderStanding};
 
 /// What:
@@ -85,7 +88,8 @@ struct Given {
 /// a folder that is gone or that another run took is replaced by a fresh number,
 /// so a folder is never shared with another run.
 struct Names {
-    /// The names given so far, in the order they were first given.
+    /// The names given so far,
+    /// in the order they were first given.
     given: Vec<Given>,
     /// The number the next folder of this process carries.
     next: usize,

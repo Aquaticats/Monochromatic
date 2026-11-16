@@ -28,6 +28,19 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod folder_identity;
 
+/// One path a test thread made,
+/// with the identity the entry at it had when the thread made it,
+/// so a cleanup at the thread's end takes its own entry and never another run's;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod paths_a_test_thread_made;
+
+/// The permission given back and the tree removed,
+/// the two steps of a fixture tree's teardown;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod fixture_teardown;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]

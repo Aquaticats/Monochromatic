@@ -45,7 +45,8 @@ pub(crate) enum FolderStanding {
     StillTheOne,
     /// Nothing stands there any more.
     Gone,
-    /// Another entry, which took the name after the one this identity was taken from went.
+    /// Another entry,
+    /// which took the name after the one this identity was taken from went.
     AnotherEntryNow,
 }
 

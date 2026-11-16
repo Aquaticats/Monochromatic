@@ -54,7 +54,9 @@ mod support_fixture_service;
 mod support_socket_folders;
 
 /// The runtime directories the commit-service controls listen in:
-/// who makes one, who names it, and who removes it.
+/// who makes one,
+/// who names it,
+/// and who removes it.
 #[path = "binary_support_runtime_folders.rs"]
 mod support_runtime_folders;
 
