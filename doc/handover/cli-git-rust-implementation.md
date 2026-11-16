@@ -738,6 +738,13 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T19:19:21-05:00,
+  from the author of the door for diagnostics (tip `093e5d4aab`, in review):
+  `warn` and `debug` lines now wait at most 250 ms for a reader of standard error and can be dropped, counted.
+  Should the wrapper's hand-written lines to standard error (about sixty files:
+  an error's own text, a command's last words, the commit's reports) go through the same door,
+  so that no line ever waits for its reader,
+  at the price that an error's text can be dropped when the reader is slow or gone?
 - Added 2026-11-15T17:06:41-05:00,
   from the author of the driver's two starts of one run name
   (tip `16166773fb`,
@@ -1624,6 +1631,58 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Two fresh runs end: a diagnostic written to a pipe nobody reads held a commit and a `git add` for good on `main`'s code, and the guess in a settlement's line is gone (2026-11-15T19:19:21-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+**A write to a pipe its caller does not drain, tip `093e5d4aab`.**
+Report: `~/temp/agent/wrapper-write-to-a-pipe-its-caller-does-not-drain-2026-11-15/keep/report.md`.
+Reproduced by the author with the binary built before its change, a real commit service whose standard error is a named pipe filled to the kernel's capacity and read by nothing, three rounds, each bounded at ten seconds:
+`git commit` never returned (three of three), a `git add` beside it never returned (three of three), `.git/index.lock` was left,
+and the commit had already landed.
+The line it stood in was a `[debug]` line of the shadow pool, printed with `index.lock` present.
+With a reader on the same pipe nothing waited.
+After the change: the commit took 353 to 448 ms and the `git add` 16 to 20 ms, no lock left.
+
+What it built: every `warn` and `debug` line goes through one door, a queue of 256 written by one thread;
+a caller waits for its own line at most 250 ms and only while the reader still takes lines;
+a line can be lost when the queue is full (counted and said on the stream when the reader returns) or when the process ends with lines queued.
+A source guard, `source_guard::diagnostic_door`, shown failing on a planted line.
+Cost inside the spread of one unchanged arm.
+Its whole suite run once: 7,940 run, 7,940 passed. Two binary controls fail, both on a `cli-git-lock-holders` folder, the same on a worktree at `main` without the change (two of the gate's three).
+
+The review is queued third (19:19:21): `git-policy-cli-write-to-a-pipe-the-caller-does-not-drain-the-door-and-its-guard`, six code files that are not tests.
+
+Its four questions, as it put them, and what the session does with each:
+
+- A dropped line also written to the timing log; the 250 ms ceiling; a durable line when a process stopped waiting for its reader.
+  The author's own defaults stand (no; keep; no), adopted by the session and open to veto: each only adds a record, and none changes what is lost.
+- Whether the hand-written writes to standard error and the commit's reports (about sixty files, its row six) go through the door next.
+  **Kept for the owner**:
+  that would make an error's own text and a command's last words lines that can be dropped after 250 ms,
+  which is a different trade from a `debug` line, and no record settles it.
+
+**The stop of a stopped push (`944eacedc7`) no longer waits for a door to exist; it waits for this one to be in `main`.**
+The author of the door says of that branch: a caller that says what a stop returned after the stop has given its things back needs nothing else, since the saying can no longer wait for a reader.
+When the door's review finds no defect and a pass has carried it, the stop's author merges `main` and shows its review's case.
+
+**The work record a service settles, tip `7e4d5fa34f`.**
+Report: `~/temp/agent/work-record-service-settles-single-owner-scratch/keep/report.md`.
+The gate log's 106 lines ending "its lease probably ran out and another instance took the work over" were counted:
+105 in passing tests; in all 100 written by the built service the writing instance was younger than the lease it blamed
+(64 ms to 38 s of uptime against 120 s), so none could have been a takeover.
+One hundred were a repository or work directory removed under the service at a test's teardown.
+No occurrence shows a record with two owners the code should not allow.
+The change is the line: it now says what is read from the record's own directories and what became of the work.
+Eight controls committed first and all failing; 233 of 233 in the changed modules; the container gate not run.
+The review is queued twelfth (19:19:21), five code files that are not tests.
+
+Two runs measured the whole scratch root against their briefs and said so: 290 GiB by one at about 18:30, 235 GiB by this one.
+
+Round checks at 19:19:25: twenty Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree.
 
 ##### The owner answers three questions; the fix for the commit with the empty tree answers its six claims and has a review under the new merge rule (2026-11-15T19:16:58-05:00)
 
