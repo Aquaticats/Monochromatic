@@ -52,7 +52,7 @@ use std::path::Path;
 /// The forbidden work and the justified exceptions.
 #[path = "blocking_code_off_the_runtime_rules_tests.rs"]
 mod rules;
-use rules::{ALLOWED, Allowed, BLOCKING_WAITS, Place, RULES, Rule, STORAGE_CALLS, holds_any};
+use rules::{ALLOWED, Allowed, BLOCKING_WAITS, Place, REACHED_FROM_A_TASK_KNOWN, RULES, Rule, STORAGE_CALLS, holds_any};
 
 use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
 
@@ -853,55 +853,6 @@ fn names_called(text: &str) -> Vec<&str> {
     }
     return names;
 }
-
-/// What:
-///  The files whose tasks reach a wait on a file through this crate's own plain functions,
-///  and that this scan therefore reports for their owners.
-/// Why:
-///  The rule that looks through a call finds the class across the crate, and this branch answers it for the files it
-/// changes only:
-///  the rest are tasks of other modules that their owners convert, module by module, as this branch's own service
-///  start, watch note and prune were converted (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
-///  The list is a record and not an excuse: a file the rule newly names fails the guard, and a file listed here whose
-///  tasks no longer reach a wait fails it too, so the list can only shrink
-///  (the third review of this branch, finding 4).
-const REACHED_FROM_A_TASK_KNOWN: &[&str] = &[
-    "landing/landed_summary.rs",
-    "landing/landing_state_carried_by_its_task.rs",
-    "landing/maintenance_run.rs",
-    "landing/service_amend.rs",
-    "landing/service_branch_shows.rs",
-    "landing/service_claim_renewal_running.rs",
-    "landing/service_head.rs",
-    "landing/service_land_finish_branch_questions.rs",
-    "landing/service_land_follow_index_reset.rs",
-    "landing/service_land_git_steps_and_import_stream.rs",
-    "landing/service_land_side_reference_write.rs",
-    "landing/service_message.rs",
-    "landing/service_prepare_own_git_steps.rs",
-    "landing/service_replay_capture_order.rs",
-    "landing/service_round.rs",
-    "landing/service_route.rs",
-    "landing/service_scratch_ref_of_a_dropped_batch.rs",
-    "landing/service_work.rs",
-    "landing/service_work_branch_is_gone.rs",
-    "landing/service_work_drain_pending_claims.rs",
-    "landing/service_work_drains_a_snapshot_ahead.rs",
-    "landing/service_work_drains_awaiting.rs",
-    "landing/service_work_handlers_replanning_and_acceptance.rs",
-    "landing/service_work_items_side_by_side.rs",
-    "landing/service_work_run_round.rs",
-    "landing/service_work_settling_a_verdict.rs",
-    "landing/service_work_slow_lane.rs",
-    "landing/service_work_storage_awaited.rs",
-    "service/service_reply.rs",
-    "service/service_review.rs",
-    "service/service_scratch_release_removal.rs",
-    "service/service_server_accept_connections_as_tasks.rs",
-    "service/service_server_connection_handling.rs",
-    "service/service_server_shutdown_after_a_stop.rs",
-    "service/service_server_work_loop_awaiting.rs",
-];
 
 /// The findings no `allowed` entry excuses,
 /// each as a `file:line [rule] reason` text.
