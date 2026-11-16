@@ -14,7 +14,7 @@
 //! A release archive of this repository unpacks into a folder whose name carries the version
 //! (`monochromatic-cargo-shadow-0.1.4-x86_64-unknown-linux-gnu`),
 //! so a record written when `current` named 0.1.4 holds a path through that folder.
-//! Installing 0.1.5 in any tree deletes the 0.1.4 folder (older repository tools are never kept),
+//! Installing 0.1.5 in any tree deletes the 0.1.4 folder (older repository tools are only kept while a lock names them),
 //! and every other tree's launcher then pointed at a file that no longer exists and exited 127,
 //! although `current` named a working program all along.
 //! Following `current` at run time makes a launcher outlive any number of version moves

@@ -311,7 +311,7 @@ pub(super) fn named_by_all(
 /// lists) the versions of repository-published release-archive tools that are older than the newest finished one,
 /// and points each tool's `current` link at that version.
 /// Why:
-/// Older repository-published tools are never kept,
+/// Older repository-published tools are kept only while a lock names them or a process runs them,
 /// whichever route installed them.
 /// Only tools some known lock names are judged:
 /// an archive directory nothing names cannot be told from a third-party tool's.

@@ -29,7 +29,7 @@ const REAL_PROGRAM: &str = "#!/bin/sh\nprintf 'out:'\nfor argument in \"$@\"; do
 fn expected_warning(locked: &str, used: &str, lock_file: &Path, started: &Path) -> String {
     return format!(
         "mpm-shadow: warning: {TOOL_ID} is locked at {locked} in this tree's lock, {}, but {used} runs, because older repository tools are \
-         never kept once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main; starting {}\n",
+         only kept while a lock names them or a process runs them; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main; starting {}\n",
         lock_file.display(),
         started.display()
     );
@@ -263,7 +263,7 @@ impl VerbTree {
 fn verb_warning(verb: &str, locked: &str, used: &str, lock_file: &Path) -> String {
     return format!(
         "toolchain {verb}: warning: {TOOL_ID} is locked at {locked} in this tree's lock, {}, but {used} runs, because older repository tools \
-         are never kept once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n",
+         are only kept while a lock names them or a process runs them; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n",
         lock_file.display()
     );
 }
@@ -321,7 +321,7 @@ fn a_release_archive_tool_warns_on_every_run_when_the_lock_pins_an_older_version
     assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
     let warning = format!(
         "mpm-shadow: warning: demo-release is locked at 0.2.0 in this tree's lock, {}, but 0.2.1 runs, because older repository tools are \
-         never kept once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ",
+         only kept while a lock names them or a process runs them; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ",
         _directory.path().join("toolchain.lock.json").display()
     );
     assert_eq!(
@@ -415,7 +415,7 @@ fn a_launcher_whose_recorded_version_was_deleted_runs_the_version_current_names(
     assert_eq!(launched.stdout, direct.stdout, "standard output is the new version's program, byte for byte");
     let warning = format!(
         "mpm-shadow: warning: demo-release is locked at 0.1.4 in this tree's lock, {}, but 0.1.5 runs, because older repository tools are \
-         never kept once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ",
+         only kept while a lock names them or a process runs them; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ",
         moved.lock_file.display()
     );
     let started = moved.program_of("0.1.5");
@@ -516,7 +516,7 @@ fn a_global_launcher_whose_recorded_version_was_deleted_names_the_path_it_starts
     assert_eq!(launched.stdout, direct.stdout);
     let warning = format!(
         "mpm-shadow: warning: demo-release is locked at 0.1.4 in this machine's global lock, {}, but 0.1.5 runs, because older repository \
-         tools are never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g demo-release`; starting ",
+         tools are only kept while a lock names them or a process runs them; upgrade the global lock with `mpm-shadow update -g demo-release`; starting ",
         moved.lock_file.display()
     );
     let started = moved.program_of("0.1.5");

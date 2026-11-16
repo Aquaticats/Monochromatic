@@ -399,7 +399,7 @@ fn a_tree_pinning_an_older_release_keeps_the_newer_install_runs_it_and_is_warned
     assert_eq!(tar_lines(&rig).len(), 1, "0.2.0 was not even downloaded unpacked");
     assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists());
     assert_eq!(report_old.warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1", &scope_old.lock_file)], "{report_old:?}");
-    assert!(report_old.warnings[0].contains("older repository tools are never kept"));
+    assert!(report_old.warnings[0].contains("only kept while a lock names them"));
     assert!(report_old.warnings[0].contains(&format!("`mpm update {ID}`")));
 
     // The old tree's link goes through its own launcher, so every run of the tool warns there.

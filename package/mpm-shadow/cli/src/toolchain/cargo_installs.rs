@@ -581,12 +581,12 @@ pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used
     let lock: String = lock_file.display().to_string();
     return match kind {
         ScopeKind::Repo => format!(
-            "{tool_id} is locked at {locked} in this tree's lock, {lock}, but {used} runs, because older repository tools are never kept \
-             once a newer one is installed; upgrade this tree's lock with `mpm update {word}` or merge main"
+            "{tool_id} is locked at {locked} in this tree's lock, {lock}, but {used} runs, because older repository tools are \
+             only kept while a lock names them or a process runs them; upgrade this tree's lock with `mpm update {word}` or merge main"
         ),
         ScopeKind::Global => format!(
             "{tool_id} is locked at {locked} in this machine's global lock, {lock}, but {used} runs, because older repository tools are \
-             only kept while a lock names it or a process runs it; upgrade the global lock with `mpm-shadow update -g {word}`"
+             only kept while a lock names them or a process runs them; upgrade the global lock with `mpm-shadow update -g {word}`"
         ),
     };
 }

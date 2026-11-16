@@ -381,7 +381,7 @@ pub fn compared_with_lock(tool: &LockedTool) -> &str {
 /// equal for most tools,
 /// equal or newer for a repository-published tool.
 /// Why:
-/// Older repository-published tools are never kept,
+/// Older repository-published tools are kept only while a lock names them or a process runs them,
 /// so a tree whose lock pins an older one runs the newer install and that is not drift.
 ///
 /// In TS you'd write (pseudocode):

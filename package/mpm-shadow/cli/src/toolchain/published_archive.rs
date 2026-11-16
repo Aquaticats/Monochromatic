@@ -382,7 +382,7 @@ pub fn remove_orphan_downloads(toolchain_root: &Path, tools: &BTreeSet<String>, 
 /// except the ones `keeps` protects,
 /// and returns the version directories deleted.
 /// Why:
-/// A repository-published tool is never kept in an older version once a newer one is installed,
+/// A repository-published tool is kept in an older version only while a lock names it or a process runs it,
 /// but the newest-only rule does not outrank a version that is in use:
 /// a worktree's lock may pin it,
 /// a service may be running it,

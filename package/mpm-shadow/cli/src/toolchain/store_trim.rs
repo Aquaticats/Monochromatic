@@ -938,6 +938,23 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun, recheck: &dyn Fn(&TrimCa
         restore_downloads(&candidate.root, &moved_downloads, &candidate.downloads);
         return Removal::Deferred;
     }
+    // What: the directory the version stands in is resolved once more, immediately before the move, and must be inside
+    // this store.
+    // Why: a link planted where the tool's or the crate's directory was sends this rename outside the store, and the
+    // review of 82531265a7 watched a person's `1.0.0` displaced by exactly that link. Asking the kernel to resolve the
+    // parent here leaves only the instants between this call and the rename.
+    let inside: bool = candidate
+        .directory
+        .parent()
+        .is_some_and(|parent| return resolves_under(&candidate.root, parent));
+    if !inside {
+        restore_downloads(&candidate.root, &moved_downloads, &candidate.downloads);
+        return Removal::Kept(format!(
+            "the directory {} no longer resolves inside {}, so nothing of it is moved",
+            candidate.directory.display(),
+            candidate.root.display()
+        ));
+    }
     // What: the locks are read once more here, after everything that can take time and before the version leaves its
     // name.
     // Why: the plan was made from a reading taken before the store was walked, and the downloads above can wait on a
@@ -1183,6 +1200,23 @@ fn put_back(
     let restored: Result<(), super::store_versions::StoreActFailure> =
         rename_proved(root, claimed, version_directory, "a version that stays");
     restore_downloads(root, moved_downloads, downloads);
+    if restored.is_err() {
+        // What: when the proof refuses the put back because a link now stands where the version's directory was, what
+        // was moved goes back to its own name inside the directory it was moved into.
+        // Why: the review of 82531265a7 planted that link while a rename was held, and the tree the removal had moved
+        // was left under a hidden name inside the person's own folder, with `1.0.0` missing from its place: this puts
+        // the entry back where it came from, in the directory it is already in, which is a rename within one directory
+        // and never crosses the store's boundary.
+        let back_at_its_name: Option<PathBuf> = version_directory.file_name().map(|name| return claimed.with_file_name(name));
+        if let Some(at_its_own_name) = back_at_its_name
+            && fs::rename(claimed, &at_its_own_name).is_ok()
+        {
+            return format!(
+                "another run wrote it while the cleanup ran, and the entry that was moved went back to {} by its own name",
+                at_its_own_name.display()
+            );
+        }
+    }
     return match restored {
         Ok(()) => "another run wrote it while the cleanup ran".to_string(),
         Err(error) => format!(
