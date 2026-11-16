@@ -21,7 +21,7 @@
 //! ```
 
 use crate::source_scan_tests::{real_roots, source_root};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The modules of the discarding guard's own pass,
 /// as `/`-separated paths relative to `src/native`.
@@ -100,7 +100,7 @@ fn lossy_argument(line: &str) -> bool {
 /// ```ts
 /// const lines = (root) => GUARD_READERS.flatMap((file) => read(file).split('\n'));
 /// ```
-fn lines_of_the_guard_readers(root: &PathBuf) -> Vec<(&'static str, String)> {
+fn lines_of_the_guard_readers(root: &Path) -> Vec<(&'static str, String)> {
     let mut found: Vec<(&'static str, String)> = Vec::<(&'static str, String)>::new();
     for file in GUARD_READERS {
         let text: String = std::fs::read_to_string(root.join(file)).expect("a guard reader the scan names");

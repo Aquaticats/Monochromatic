@@ -539,11 +539,11 @@ fn every_row_names_the_place_of_a_file_git_writes() {
         let row: Row = row_specs(&places).into_iter().nth(number).unwrap_or_else(|| panic!("row {number} is missing"));
         assert_eq!(&row.label, label, "the rows shift between fixtures");
         let guarded: Result<Vec<String>, String> = guard_names(row.directory.as_path(), row.command, row.words.as_slice());
-        let mut before: BTreeMap<PathBuf, Held> = snapshot(places.root.as_path());
+        let before: BTreeMap<PathBuf, Held> = snapshot(places.root.as_path());
         let mut arguments: Vec<&str> = vec![row.word];
         arguments.extend(row.words.iter().map(String::as_str));
         let observed: std::process::Output = git_status(row.directory.as_path(), arguments.as_slice());
-        let mut after: BTreeMap<PathBuf, Held> = snapshot(places.root.as_path());
+        let after: BTreeMap<PathBuf, Held> = snapshot(places.root.as_path());
         let lost: Vec<PathBuf> = files_a_person_lost(&before, &after);
         match guarded {
             // A word the guard cannot place stops the command in production, so the file Git alone would have
