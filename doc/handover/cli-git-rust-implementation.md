@@ -738,25 +738,13 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
-- Added 2026-11-15T17:06:41-05:00,
-  the one that holds the most:
-  `main` and the installed release land a commit with the empty tree,
-  exit 0,
-  when the commit's private index goes from its scratch at a pause
-  (shown on `main` by the fix's author;
-  none seen among the commits of any ref).
-  The branch that closes it for an ordinary commit has had eight reviews,
-  and each found further ways it can still happen or fail
-  (the eighth:
-  `--fixup=amend:`,
-  a damaged reftable store,
-  removals that outlive their claim;
-  read from the code,
-  not run).
-  By the rule in force a wrapper branch goes into a pass only when a review finds no defect in its code that is not a test.
-  Does that hold here,
-  or may a branch go in when it is shown to narrow a way of losing data that `main` has,
-  with what its reviews still find recorded and following?
+- Added 2026-11-15T19:19:21-05:00,
+  from the author of the door for diagnostics (tip `093e5d4aab`, in review):
+  `warn` and `debug` lines now wait at most 250 ms for a reader of standard error and can be dropped, counted.
+  Should the wrapper's hand-written lines to standard error (about sixty files:
+  an error's own text, a command's last words, the commit's reports) go through the same door,
+  so that no line ever waits for its reader,
+  at the price that an error's text can be dropped when the reader is slow or gone?
 - Added 2026-11-15T17:06:41-05:00,
   from the author of the driver's two starts of one run name
   (tip `16166773fb`,
@@ -902,32 +890,6 @@ Questions kept for the owner's return:
   The other reading:
   no word of a fixture service may reach the journal by any road,
   so the panic carries only a summary and the words stay in a file of the fixture.
-
-- Added 2026-11-15T03:06:17-05:00,
-  from the author of the removal guard
-  (branch tip `f8509847f6`,
-  in review),
-  not blocking work:
-  the guard cannot read the working folder of some of this account's own processes
-  (eleven on this machine when it counted:
-  two `ssh-agent`,
-  `kwin_wayland`,
-  `steam`,
-  `ksystemstats`,
-  `polkit-kde-auth`,
-  `zypak-sandbox`,
-  `systemd`,
-  `(sd-pam)`,
-  and two of this repository's programs).
-  The rule it built:
-  a hidden process in the command's own control group or below,
-  or one younger than the worktree,
-  keeps the worktree.
-  That leaves one named miss,
-  a hidden process older than the worktree in another control group.
-  Accept that miss,
-  or refuse every removal while any hidden process exists,
-  which on a desktop with hidden login services refuses every removal?
 
 - Added 2026-11-15T02:49:35-05:00,
   from the author of the push of a branch that is not checked out
@@ -1669,6 +1631,230 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Two fresh runs end: a diagnostic written to a pipe nobody reads held a commit and a `git add` for good on `main`'s code, and the guess in a settlement's line is gone (2026-11-15T19:19:21-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+**A write to a pipe its caller does not drain, tip `093e5d4aab`.**
+Report: `~/temp/agent/wrapper-write-to-a-pipe-its-caller-does-not-drain-2026-11-15/keep/report.md`.
+Reproduced by the author with the binary built before its change, a real commit service whose standard error is a named pipe filled to the kernel's capacity and read by nothing, three rounds, each bounded at ten seconds:
+`git commit` never returned (three of three), a `git add` beside it never returned (three of three), `.git/index.lock` was left,
+and the commit had already landed.
+The line it stood in was a `[debug]` line of the shadow pool, printed with `index.lock` present.
+With a reader on the same pipe nothing waited.
+After the change: the commit took 353 to 448 ms and the `git add` 16 to 20 ms, no lock left.
+
+What it built: every `warn` and `debug` line goes through one door, a queue of 256 written by one thread;
+a caller waits for its own line at most 250 ms and only while the reader still takes lines;
+a line can be lost when the queue is full (counted and said on the stream when the reader returns) or when the process ends with lines queued.
+A source guard, `source_guard::diagnostic_door`, shown failing on a planted line.
+Cost inside the spread of one unchanged arm.
+Its whole suite run once: 7,940 run, 7,940 passed. Two binary controls fail, both on a `cli-git-lock-holders` folder, the same on a worktree at `main` without the change (two of the gate's three).
+
+The review is queued third (19:19:21): `git-policy-cli-write-to-a-pipe-the-caller-does-not-drain-the-door-and-its-guard`, six code files that are not tests.
+
+Its four questions, as it put them, and what the session does with each:
+
+- A dropped line also written to the timing log; the 250 ms ceiling; a durable line when a process stopped waiting for its reader.
+  The author's own defaults stand (no; keep; no), adopted by the session and open to veto: each only adds a record, and none changes what is lost.
+- Whether the hand-written writes to standard error and the commit's reports (about sixty files, its row six) go through the door next.
+  **Kept for the owner**:
+  that would make an error's own text and a command's last words lines that can be dropped after 250 ms,
+  which is a different trade from a `debug` line, and no record settles it.
+
+**The stop of a stopped push (`944eacedc7`) no longer waits for a door to exist; it waits for this one to be in `main`.**
+The author of the door says of that branch: a caller that says what a stop returned after the stop has given its things back needs nothing else, since the saying can no longer wait for a reader.
+When the door's review finds no defect and a pass has carried it, the stop's author merges `main` and shows its review's case.
+
+**The work record a service settles, tip `7e4d5fa34f`.**
+Report: `~/temp/agent/work-record-service-settles-single-owner-scratch/keep/report.md`.
+The gate log's 106 lines ending "its lease probably ran out and another instance took the work over" were counted:
+105 in passing tests; in all 100 written by the built service the writing instance was younger than the lease it blamed
+(64 ms to 38 s of uptime against 120 s), so none could have been a takeover.
+One hundred were a repository or work directory removed under the service at a test's teardown.
+No occurrence shows a record with two owners the code should not allow.
+The change is the line: it now says what is read from the record's own directories and what became of the work.
+Eight controls committed first and all failing; 233 of 233 in the changed modules; the container gate not run.
+The review is queued twelfth (19:19:21), five code files that are not tests.
+
+Two runs measured the whole scratch root against their briefs and said so: 290 GiB by one at about 18:30, 235 GiB by this one.
+
+Round checks at 19:19:25: twenty Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree.
+
+##### The owner answers three questions; the fix for the commit with the empty tree answers its six claims and has a review under the new merge rule (2026-11-15T19:16:58-05:00)
+
+Not final and not approved:
+what the owner decided, what one author reports, and what the coordinating session queued.
+
+**The owner's three answers** are quoted in "Owner decisions in force", "Answers of the evening":
+a fix that narrows a data-loss window `main` has goes in once it is shown to narrow and its newest built-and-run review reproduced nothing new with the branch;
+the automatic removal's gap for a hidden process older than the worktree is accepted;
+the rule `DQK` is in `AGENTS.md` (`03a7878535`).
+The two questions they answer are gone from "Questions kept for the owner's return".
+
+**The drawn shadow tree, tip `3882e11ddf` (the fix for the commit that lands with the empty tree).**
+The author's ninth run ended at 19:09:40.
+Its report: `keep/report-the-form-table-and-the-removal-that-keeps.md` in the run's scratch folder.
+It committed six controls first (`69277e4ebf`), then six fixes (`22fd58ed87`), merged `main` with `0.6.1-alpha.43` (`a55680a249`), and reports for each claim of the eighth review that its control failed at the tip and that `main` does not have it, the code being this branch's:
+
+- `--fixup=amend:` with a path landed no files; answered by a table of commit forms, each with its own branch.
+  The pathless line the review named is refused by the wrapper's own policy before it reaches the guard.
+- A reftable store whose list names a missing table was called whole; whole is now the list and every table it names.
+- A sweep's claim was released while its removal ran; the claim now travels into the removal's thread.
+- A second attempt used a path whose removal was unfinished; the old tree is renamed aside in one step and the path answered only when free.
+- The two waits on a file system that does not answer: **not produced on this machine**, by the author's word; answered by shape (the question goes through a helper with a ceiling of 50 ms, and a tree nobody could ask about is kept).
+
+Each fix taken out and put back with its failing output; cost against its own earlier tip inside the spread (ratio medians 1.010 and 1.019).
+One binary control fails at its tip, `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`,
+and the author ran it on merged `main` too, where it fails the same way (it is one of the gate's three).
+
+Under the owner's rule this tip needs a review that builds and runs.
+Queued second (19:16:58): `review-git-policy-cli-drawn-shadow-tree-a-table-of-commit-forms-and-a-removal-that-keeps-its-claim`, nineteen files,
+with paragraphs asking for the branch's control run against a wrapper built from `main` and from the tip,
+and for each thing reproduced at the tip whether `main` has it too.
+When that review reproduces nothing new with the branch: a pass for this branch, a release, the gate.
+
+**The accepted gap gets its words.**
+`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md` has the amendment.
+A fresh run to state the rule and the gap in `SPEC.md` and in the comments and messages is queued behind it
+(`~/temp/agent/pi-runs/spec-states-how-the-automatic-worktree-removal-reads-processes-and-the-gap-it-accepts-prompt.md`).
+
+##### Two follow-up reviews end, one with no defect and one with the miss already kept for the owner; three branches wait for pass 56 (2026-11-15T19:08:31-05:00)
+
+Not final and not approved:
+what two reviews (Kimi K3.1 Pro) report and how the coordinating session weighed them.
+
+**The runtime a build finished with is kept when the caller gave up, tip `e031918c33`: no defect found.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-runtime-a-build-finished-with-is-kept-when-the-caller-gave-up-the-control-and-its-seam/review.md`
+(the one listed file and the test file read in full; the changed control run alone and inside its module of fifteen, all passed).
+The change to `foundation/lazy_runtime.rs` is under `#[cfg(test)]`; the two commits beyond `main` are test code.
+Fit for the next pass.
+
+**A process holding a file open in a worktree, tip `12942c99dd`: one thing, and it is the question kept at 03:06:17.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-process-holding-a-file-open-the-two-wordings-after-pass-54/review.md`
+(one of one listed file; reproduced with a stand-in process table).
+A process of this account older than the worktree, whose table of open files cannot be read, is taken to hold nothing there,
+though it can have opened a file there after the worktree was made.
+The review of 09:20:57 found the same, and it was weighed then:
+`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`, lines 440 to 460, states the age rule and its cost,
+the other answer refuses every removal on a desktop whose login services hide their tables,
+and which of the two holds is the owner's (kept in "Questions kept for the owner's return", 2026-11-15T03:06:17).
+`main` has the rule since pass 54.
+What this tip adds to `main` is one commit of comments in `worktree_process_inside.rs`
+(no changed line of that file is code, by a count of changed lines that do not begin a comment)
+and six lines of its tests.
+Fit for the next pass; the finding changes nothing until the owner answers.
+
+**Pass 56 waits for pass 55, with its reason.**
+Three tips are fit and none changes code the released wrapper runs:
+`aee5c756a2` (address-space controls), `e031918c33` (kept runtime) and `12942c99dd` (file holder's comments).
+Pass 55 is going and changes the same test target (the binary controls' support).
+A pass assembled now would be checked against a `main` that lacks pass 55,
+which is the failure recorded on 2026-11-13 (two breaks with no textual conflict, both in a test target alone),
+and it would run both whole suites a second time after the merge.
+So pass 56 is briefed when pass 55 is in `main`, and takes whichever further follow-ups have a review by then
+(`ac8e10f27a` and `b8ad219841` are with their reviewers).
+It makes no release unless something in it changes code the wrapper runs.
+
+Round checks at 19:08:31: twenty Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree.
+
+##### Four reviews end with findings; two of them found what the coordinating session's own briefs had told the authors to build (2026-11-15T19:03:49-05:00)
+
+Not final and not approved:
+what four reviews (Kimi K3.1 Pro) report and what the coordinating session queued.
+The four reviews ended between 18:50:25 and 18:56:33.
+
+**The session's doing, twice.**
+Two of the briefs it wrote for the round before stated an idea of its own as the shape to build,
+and each review found that idea built as written.
+Both sentences are withdrawn in the new briefs, each named as the session's and not the project's.
+
+- The killed-Git lock's brief of the round before said the PID file "is never required" for a binding.
+  `package/git-policy/cli/SPEC.md` in `main`, under "The rule: a lock is removed only on a proof about its holder",
+  had settled the opposite at lines 11081 to 11085 and 11148 to 11152:
+  a lock with no PID file is unproven, "a live foreign writer's lock cannot be told from it",
+  and such a lock "is left and reported".
+  The session had not read that section before it wrote the brief.
+- The add-never-skips brief of the round before offered "the descriptor of the directory it was made in" as proof of having made an entry.
+  A descriptor of the parent says nothing about which entry stands under a name inside it.
+
+**The lock a killed Git left, tip `412fb03192`: five things, three reproduced, two by reading.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-lock-a-killed-git-left-what-the-wrapper-saw-is-the-evidence/review.md`
+(14 of 14 files; three tests through the production binder and `clear_one` in a disposable copy).
+
+- A live foreign writer's lock, made while a watched child lives and with no PID file,
+  is bound to the child and unlinked once the child has gone. Reproduced. This is the withdrawn sentence built.
+- A kill before the binder's asynchronous write leaves a lock with equal birth times unprovable. Reproduced.
+- A clearance on the PID file's proof alone, killed after it unlinked the PID file, leaves a lock nothing can prove. Reproduced.
+- The resident service never switches the watch on. By reading.
+- Opening the watch walks the roots with no deadline before Git starts, on a runtime worker. By reading.
+
+Read in `main` at 19:04 and not run:
+`main` holds `lock/abandoned_lock_proving.rs` and neither `lock_watch.rs` nor `lock_bindings.rs`,
+and its `clear_one` unlinks the lock first (line 262) and the PID file after (line 270),
+the other order from the branch's.
+So by that reading none of the five is in the installed release.
+The author's sixth run is queued fifth (19:02:07):
+the record's sentences quoted, a second arm for its walk (a live stranger's lock at every step still stands),
+a control first for the two read claims, and the blocking guard left to the run that already owns widening it.
+
+**Add never skips the Cargo repair, tip `e0064f633d`: four things, each reproduced.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-add-never-skips-the-cargo-repair-a-name-is-no-proof-of-having-made/review.md`
+(13 of 13 files and the whole diff; four tests that plant another command's entry at the seam between two real functions; each failed on the assertion that the entry still stands).
+
+- A failed clone removes a staging directory another command made after the marker was written.
+- A marker a killed filling left lets the next filling remove a replacement staging directory.
+- An old filling clones into a replacement worktree through absolute paths; the Cargo half of this is by reading.
+- Marker cleanup unlinks a file renamed over the marker after it was read.
+
+This is the fourth review in a row to find an entry removed on the strength of a name, each at a seam the one before had not looked at.
+The author's twelfth run is queued sixth (19:02:07) with one generated control over every seam of a filling
+(another command's entry planted between every two steps and at every kill point, asserted to stand) before any fix.
+
+Read in `main`'s `repair/package_repair_prewarm_job.rs` between 18:55 and 19:01 and not run:
+`names_for` writes the marker and makes no directory (line 266);
+`fill_the_staging` clones to the absolute `names.staging` (line 810) and on a refusal calls `remove_dir_all` on that path (line 812);
+a marker a killed filling left makes the next one `remove_dir_all` both usual names (lines 258 and 259).
+So the first three shapes are, by reading, in `0.6.1-alpha.43` as installed here.
+What it takes: another command putting a directory at a worktree's staging name inside a window of one filling.
+The author is asked to show per finding whether `main` has it by its control, not by reading.
+
+**The discarding guard, tip `f2b308d075`: six things, each reproduced against the built executable; one is a decision, five stand.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-discarding-guard-a-path-it-cannot-place-is-never-no-path/review.md` (45 of 45 files).
+
+- Shell aliases pass the guard: settled by the owner's "Forward them unguarded". Not a defect; the author is asked only to read the sentence that documents it as a person who lost an edit would.
+- `--ignore-skip-worktree-bits` lets `checkout-index`, `checkout` and `restore` overwrite an edit a `skip-worktree` mark hides.
+- The caller's global `--literal-pathspecs` empties two of the guard's own reads (`ls-files` for hidden edits; the index paths of `checkout-index --prefix`).
+- A forced `mv` onto a destination that is itself a link is checked at the link's target, where Git replaces the link.
+- `checkout -f --recurse-submodules` discards an edit inside a submodule the outer status hides.
+
+The author's walk of 60 rows held each form's options fixed and treated every link as the file it reaches.
+Its fourth run is queued seventh (19:02:07) with three axes for the walk
+(options that widen what a form writes, the caller's global options reaching the guard's own reads, what a submodule holds)
+and the link row corrected, and is asked per finding whether `main` has it.
+
+Deferred, with its reason:
+the owner's "Sweep on another trigger" for the `discarded/` folder goes to a fresh run of its own once this branch has settled,
+not into this resume (one agent, one thing)
+and not beside it (two runs in one helper at once is the failure recorded at 18:31:31).
+
+**Controls of a service under an address-space limit, tip `aee5c756a2`: two things, both in test support.**
+Review: `~/temp/agent/change-reviews/git-policy-cli-controls-of-a-service-under-an-address-space-limit-the-two-facts-kept-apart/review.md`
+(six of six listed files; four of the branch's controls run, all passed).
+
+- The limited log and the recovery log are read while the copier thread may still hold bytes, so text can come out under the wrong label. Reproduced (4,096 bytes read at once, 8,192 once settled).
+- `settle_the_service_log(bound)` takes its bound once per caller ahead of it. By reading. A count shows the function in `main` too.
+
+What the branch holds beyond `main` is two commits to `binary_fault_limits_tests.rs` and a merge.
+By the owner's "Yes, tests too" the tip is fit for the next pass as it stands.
+A fresh run for the two findings is queued thirteenth (19:03:49), starting at that tip.
+
+Round checks at 18:55:05: nineteen Pi units going, none silent for twenty minutes,
+no launcher that outlived a run, no process inside an ended run's worktree.
 
 ##### The driver's scan for work a run left running answers its review: recorded work is told from a later process at its number (2026-11-15T18:45:24-05:00)
 
@@ -39331,6 +39517,113 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Answers of the evening, the long sitting (2026-11-15, asked from about 19:22 after the owner's "Ask me all the questions now.", written here at 19:44:14-05:00)
+
+Eleven rounds through the question tool.
+Each answer is quoted as chosen or as typed; what follows a quotation is the session's reading, to be vetoed.
+Not yet acted on unless a line says so.
+
+Credentials and masking:
+
+- The string after `PNPR_SECRET=` in a transcript of 2026-09-15: **"Bad question. You can check the repo for it."**
+  A measurable fact was asked as a preference. The session checks it itself, in process, printing no value.
+- Runs started without the values in reach: **"Masking only, and keep the masking work narrow. There are gotta be more and more ways through always, and we shouldn't fight that. We'll accept the risk and rotate. And Neuralwatt is ZDR."**
+- Where narrow ends: **"Plain case and no damage (Recommended)"**:
+  masking is merged when a review that builds and runs shows that every declared value printed as it is gets masked,
+  and that masking never damages a session file or another run.
+  Every other way through becomes a stated limit and is not fixed.
+- When to rotate: **"After narrow masking is merged (Recommended)"**. This replaces "Keep waiting for masking" as the bar.
+- Encoded containers, wrapped base64, values under eight characters: **"Accept all three as stated (Recommended)"**.
+
+The wrapper:
+
+- Hand-written lines to standard error and the non-blocking door: **"Only where another command can be held (Recommended)"**:
+  writes by the resident service, or by a command while it holds a lock, go through the door; a one-shot command's own last words keep a blocking write.
+- The discarding guard's window between its last look and Git's start: **"State the limit (Recommended)"**.
+- A commit run a second time when its private files vanish after Git made the commit: **"Run it again (Recommended)"**.
+- The rule that clears the record of a moved branch: **"No path holds the old tip (Recommended)"**.
+- A killable process for storage that never answers: **"Bounds on stuck threads stand (Recommended)"**.
+- A branch never pushed: **"Push and set the upstream (Recommended)"**.
+- A retried push whose report cannot be written: **"Journal is enough (Recommended)"**.
+- The wrapper's line for a live lock in the command's own worktree: **"Keep the line (Recommended)"**.
+- Drawn trees: **"A lifetime"** (against the session's recommendation), and for its span **"Author measures and proposes"**.
+- Git's messages quoting the absolute path the removal guard judged: **"Keep the absolute path (Recommended)"**.
+- A log fragment left when a line is given up: **"Close the fragment (Recommended)"**.
+- The sentence "Nothing releases a held record by judging a process": **"Correct the sentence (Recommended)"**.
+- Notes naming a checkout that no longer exists: **"Sweep notes whose checkout is gone (Recommended)"**.
+- Three adoptions confirmed, each ticked: **"Inherited ignore stays ignored"**, **"Test failures may quote the service"**, **"FETCH_HEAD protects a worktree"**.
+- Compilers: **"Everything nightly. This doesn't break "pacman for everything it has" if you're implying pacman doesn't have nightly. And the lock's nightly is always the latest nightly anyway."**
+  Host tasks, the container gate and the release workflow all build with the lock's nightly.
+- A binary test's fixture root: **"Make the fixture root private (Recommended)"**.
+- The three files of the old name `cli-git-native` in the main checkout's `.cache`: **"Move them to scratch (Recommended)"**.
+
+mpm-shadow and cargo-shadow:
+
+- Processes that hide what they run: **"Age rule, gap accepted (Recommended)"**.
+- The removal's three limits (24 GiB, one hour, two seconds): **"Approve as proposed (Recommended)"**.
+- llama.cpp builds: **"Limits: Only keep the newest 2 of any tool."**, and asked whether a pinned version goes too: **"Newest two plus pinned (Recommended)"**.
+- A damaged row in a lock file: **"Whole file, and name it (Recommended)"**.
+- A control group around a launched program: first **"I said to not hard depend on systemd, and graceful enhancement and graceful degration."**,
+  then, asked for the reading: **"Where available, with a named exception list"**.
+  The session's first wording of that question misstated the owner's rule as "stop depending on systemd"; the rule is no hard dependency.
+- A `current` link that names an unfinished version: **"Launcher refuses with words (Recommended)"**.
+- Lock files read again before each deletion: **"Read again before each deletion (Recommended)"**.
+- An install that meets a removal of its archives: **"Wait up to ten seconds, then refuse (Recommended)"**.
+- Flat downloads: **"Delete flat downloads (Recommended)"**.
+- A good copy held aside while an install never finishes: **"Put it back when the install is proven dead (Recommended)"**.
+- cargo-shadow's cleanup limits (296 GiB free, six hours, thirty minutes, pinned toolchains included when old): **"Approve as proposed (Recommended)"**.
+- cargo-shadow's test task on a machine with no user service manager: **"Its own non-zero status (Recommended)"**.
+
+The Pi driver and reviews:
+
+- A review that does not cover its change: **"Restart once by itself ON A DIFFERENT MODEL"**, and which model: **"The other of the pair; Sonnet while Qwen is dry (Recommended)"**.
+- A review's unit and a read-only worktree: **"Authors only"** (against the session's recommendation).
+- A worktree at a run's name with no proof of who made it: **"Remove after a bound"** (against the session's recommendation).
+- A wrapper process in a run's worktree: **"Do not count the commit service (Recommended)"**.
+- A run kept because its scan cannot be read: **"A shorter limit, then end as failed (Recommended)"**.
+
+The machine:
+
+- OpenSnitch's reject rules for freshly built programs: **"You remove the piled-up rules and you add regex allow rules so we'd never have to worry about it again."**
+  The session reads the rule files first and asks the scope of the allow rules before changing the firewall.
+
+Settled by a recorded rule and therefore not asked, each open to veto:
+the two constants of the push stop and the 5 ms retry of a refused log line are decided by a measurement, since a shipped limit cites one;
+the durable record before a branch moves keeps its flushed write;
+a session bus address nothing answers on gets words of its own, since a diagnostic names its cause;
+`index_lock_holders.rs`'s module text is changed to match the answer of 2026-11-07;
+a pinned run number that is taken is refused where it is and also when the batch list is read;
+`libc` and `rustix` are already in `rust-catalog.toml`, so ending a process group needs no new dependency;
+a wrapper that ends on a signal when its address space runs out is a defect and gets a run.
+
+### Answers of the evening (2026-11-15, answered between 19:09 and 19:14, written here at 19:16:23-05:00)
+
+Three answers through the question tool,
+each quoted as chosen.
+
+- **"Merge when shown to narrow (Recommended)"**:
+  a fix that narrows a data-loss window `main` already has goes into a pass once
+  a test fails on `main` and passes on the branch,
+  and the newest review that built and ran it reproduced nothing `main` does not also have.
+  What that review still finds stays with the branch's author and follows in later passes.
+  Asked about the commit that lands with the empty tree; the option's words cover any such fix.
+  The session's reading, narrow:
+  a thing a review reproduces at the tip that `main` does not have is new with the branch and holds the merge;
+  a review that built and ran nothing satisfies neither half;
+  the masking of credentials is not under this rule, because "Keep waiting for masking" is the newer answer on that branch alone.
+- **"Accept the gap (Recommended)"**:
+  the automatic removal of a finished worktree keeps the rule it has.
+  A hidden process younger than the worktree keeps it;
+  a hidden process older than the worktree is taken to hold nothing there,
+  and the gap (such a process opening a file in the worktree later) is accepted and said plainly.
+  Recorded in `doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md` beside the rule.
+  Open: `package/git-policy/cli/SPEC.md` does not state the rule or the gap
+  (a search of it for the process reading found no line), which a run of its own adds.
+- **"Add the rule (Recommended)"**:
+  `AGENTS.md` has the rule `DQK` since `03a7878535`:
+  before briefing work on a package, its own `SPEC.md` and `doc/` are searched for the behaviour the task touches,
+  and a brief never contradicts them and quotes the lines that decide.
 
 ### Answers of the afternoon (2026-11-15, asked 14:01, answered about 16:15, written here at 16:22:30-05:00)
 

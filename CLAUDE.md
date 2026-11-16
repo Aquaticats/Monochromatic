@@ -677,6 +677,12 @@ DQB:
  state each decision and amendment bearing on the task as the project's own,
  with path and lines.
 
+DQK:
+ Before briefing work on a package,
+ grep that package's own `SPEC.md` and `doc/` for the behaviour the task touches;
+ a brief never contradicts them,
+ and quotes the lines that decide.
+
 FBN:
  A user saying a cost is fine or acceptable sets a bound,
  never a stop:
