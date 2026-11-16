@@ -437,6 +437,12 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
     return answer.recv().expect("the spawner thread answers");
 }
 
+/// How often a wait looks again at the list of copies while another caller holds it:
+/// the holder is waiting on a copy under its own bound, so this only has to be short against a bound of hundreds of
+/// milliseconds,
+/// and it is the most a caller's own answer is late.
+const COPY_LIST_POLL: std::time::Duration = std::time::Duration::from_millis(5);
+
 impl FixtureService {
     /// What:
     ///  Starts the service of the worktree whose own Git directory is `git_dir`,
@@ -608,7 +614,11 @@ impl FixtureService {
     /// because "nothing left to wait for" is not "everything ended";
     /// only a copy whose end was received is forgotten.
     ///  One wait runs at a time,
-    /// so a second caller cannot find the copies taken out and answer for them.
+    /// so a second caller cannot find the copies taken out and answer for them;
+    /// and the bound is the caller's own from the moment it calls,
+    /// the wait for that list included,
+    /// so a caller behind another caller's whole wait answers that not every copy ended rather than spending a second
+    /// bound of its own.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -631,10 +641,25 @@ impl FixtureService {
     }
 
     pub fn settle_the_service_log(&self, bound: std::time::Duration) -> bool {
-        // The lock is held for the whole wait: a caller that found the copies taken out would answer that every copy
-        // ended while this one is still waiting for it.
-        let mut copies = self.log_copies.lock().expect("the fixture's log copies");
+        // The deadline is taken before the list is asked for, and it covers that wait too: a caller that waited its own
+        //  bound for the list has nothing left to wait with. The lock is held for the whole receive, so a caller that
+        //  found the copies taken out would answer that every copy ended while this one is still waiting for it.
         let began: std::time::Instant = std::time::Instant::now();
+        let mut copies = loop {
+            match self.log_copies.try_lock() {
+                Ok(taken) => break taken,
+                Err(std::sync::TryLockError::Poisoned(poisoned)) => break poisoned.into_inner(),
+                Err(std::sync::TryLockError::WouldBlock) => {
+                    // The caller that has the list is waiting on a copy under its own bound, so one look more is never
+                    //  long, and this caller's own bound is what ends its wait for the list.
+                    let left: std::time::Duration = bound.saturating_sub(began.elapsed());
+                    if left.is_zero() {
+                        return false;
+                    }
+                    std::thread::sleep(left.min(COPY_LIST_POLL));
+                }
+            }
+        };
         loop {
             let reached: Result<(), std::sync::mpsc::RecvTimeoutError> = {
                 let Some(ended) = copies.first() else { return true };
