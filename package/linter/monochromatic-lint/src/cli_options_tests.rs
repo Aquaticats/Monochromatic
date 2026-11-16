@@ -117,6 +117,26 @@ fn inconsistent_modes_and_invalid_values_are_rejected() {
     );
 }
 
+/// The fix flags are Oxlint's three,
+///  they exclude the report-only modes,
+///  and the split's own `--fix-content` is gone.
+#[test]
+fn fix_flags_are_oxlints_three_and_fix_content_is_gone() {
+    for flag in ["--fix", "--fix-suggestions", "--fix-dangerously"] {
+        assert!(parse(&[flag]).is_ok(), "{flag} is accepted");
+        assert!(parse(&[flag, "--rules"]).is_err(), "{flag} with --rules");
+        assert!(parse(&[flag, "--init"]).is_err(), "{flag} with --init");
+        assert!(
+            parse(&[flag, "--print-config", "input.rs"]).is_err(),
+            "{flag} with --print-config"
+        );
+    }
+    assert!(
+        parse(&["--fix-content"]).is_err(),
+        "--fix-content is removed; --fix-dangerously replaces it"
+    );
+}
+
 /// Help and version are parser-controlled terminal outcomes,
 ///  not lint runs.
 #[test]
