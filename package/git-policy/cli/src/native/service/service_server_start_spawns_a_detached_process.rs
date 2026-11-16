@@ -264,16 +264,14 @@ fn become_the_server(program: usize, pointers: *const *const libc::c_char, nothi
         //  The working directory it kept pinned the first caller's worktree, a deleted directory after a removal
         //  (`worktree_remove_hand_over.rs`). Both are closed here, and `close_range` is a call `signal-safety(7)` lists.
         let _no_directory: libc::c_int = libc::chdir(c"/".as_ptr());
-        close_every_descriptor_above_the_standard_three();
+        // What: The service's own three descriptors are put in place first, and only then is everything above them closed.
+        // Why:  The descriptors this start opened are above the standard three, and closing them first left the child with the
+        //       caller's standard output and error, which the binary controls read as a process that outlived its command
+        //       (`a_commit_whose_service_stopped_names_the_wait_and_leaves_the_staged_work`, 2026-11-16).
         libc::dup2(nothing_fd, libc::STDIN_FILENO);
         libc::dup2(log_fd, libc::STDOUT_FILENO);
         libc::dup2(log_fd, libc::STDERR_FILENO);
-        if nothing_fd > libc::STDERR_FILENO {
-            libc::close(nothing_fd);
-        }
-        if log_fd > libc::STDERR_FILENO {
-            libc::close(log_fd);
-        }
+        close_every_descriptor_above_the_standard_three();
         libc::execv(program as *const libc::c_char, pointers);
         libc::_exit(127);
     }

@@ -312,21 +312,25 @@ fn service_process(fixture: &Fixture) -> u32 {
 }
 
 /// What:
-///  A commit whose service stopped before it greeted fails at the wait the greeting is given,
-/// says the commit was not made and that the staged work is untouched,
-/// and leaves nothing that stops the next command.
+///  A commit whose service stopped before it greeted is served by a fresh service, in seconds, and the staged work it carried
+///  is committed.
 /// Why:
-///  The audit of release 0.6.1-alpha.12 stopped the service during a commit and read the failure this control reads;
-/// the person is owed the step that ends it,
-/// which is what this checks the words for.
+///  The review of `e347be3115` (part one, finding 2): a service frozen between its bind and its greeting (a debugger, a kernel
+///  stall) made every commit fail after the recovering ceiling, 122,308 ms, where `main` restarted the unit in about two
+///  seconds. `SPEC.md` says a service that went silent is the service that stopped and that the command starts a fresh one; a
+///  commit must not fail because the service it met was frozen.
+///  The three assertions this control made before read: `assert_eq!(ran.code, Some(1), "a commit whose service stopped
+///  fails")`, `assert!(words.contains("was not made"))` and `assert_eq!(head_of(..), before, "no commit was made")`, with the
+///  message of a retry that "lands once the service answers again". They held while the only answer to a frozen service was a
+///  failure, which is the defect this round answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// process.kill(service.pid, 'SIGSTOP'); const ran = await observe(wrappedCommit(...));
-/// expect(ran.code).toBe(1); expect(ran.stderr).toMatch(/was not made/);
+/// expect(ran.code).toBe(0); expect(head).not.toBe(before);
 /// ```
 #[test]
-fn a_commit_whose_service_stopped_names_the_wait_and_leaves_the_staged_work() {
+fn a_commit_whose_service_stopped_is_served_by_a_fresh_one() {
     let fixture: Fixture = fixture("service-stopped-before-the-greeting");
     let repo: PathBuf = staged_repository(&fixture, "repo", 1);
     let before: String = head_of(&fixture, repo.as_path());
@@ -340,28 +344,13 @@ fn a_commit_whose_service_stopped_names_the_wait_and_leaves_the_staged_work() {
     let began: Instant = Instant::now();
     let ran: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
     let took: Duration = began.elapsed();
-    // SAFETY: as above, with the signal that lets the fixture's service run again.
-    assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) }, 0, "the fixture's service runs again");
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
-    assert_eq!(ran.code, Some(1), "a commit whose service stopped fails: {words}");
-    // A look waits for the greeting for `GREETING_READ` and no longer, so a commit that meets a service which answers
-    //  nothing costs a few looks inside the start wait rather than the whole start wait (measured: this commit failed in
-    //  5.15 s at a container run of 2026-11-15, where the same control on `main` waited the start wait).
-    assert!(took >= git_policy_cli::service_server_start_by_the_wrapper::GREETING_READ, "the greeting is waited for at least one look: {took:?}");
-    assert!(took < PATIENCE, "and the wait ends: {took:?}");
-    assert!(words.contains("was not made"), "the commit says it was not made: {words}");
-    assert!(words.contains("staged changes and your working files are as they were"), "it says the staged work is untouched: {words}");
-    assert!(words.contains("service status"), "it names the step that shows the service's state: {words}");
-    // A service that is running and answers nothing is ended rather than restarted: nothing of this branch replaces
-    //  or ends one that is still there, so the remedy names the command that ends it and the folder its log is in.
-    assert!(words.contains("service stop"), "it names the command that ends a service that answers nothing: {words}");
-    assert!(!words.contains("systemctl"), "no remedy names a service manager: {words}");
-    assert!(words.contains("Run the same commit again"), "it says running it again is safe: {words}");
+    // SAFETY: as above, with the signal that lets the fixture's service run again if it is still there at all.
+    let _resumed: libc::c_int = unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) };
+    assert_eq!(ran.code, Some(0), "the commit lands through the service this command started: {words}");
+    assert_ne!(head_of(&fixture, repo.as_path()), before, "and the commit is on the branch");
+    assert!(took < Duration::from_secs(30), "in seconds, not after the recovering ceiling: {took:?}");
     assert!(!index_locked(repo.as_path()), "no index lock is left: {}", index_locked(repo.as_path()));
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
-    // The same command lands once the service answers again, so nothing of the failure outlives it.
-    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(again.code, Some(0), "the retry lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
     remove_settled(&fixture);
 }
 
@@ -540,25 +529,16 @@ fn a_commit_that_waits_longer_than_the_silence_still_lands() {
 }
 
 /// What:
-///  A service that wakes after the commit failed makes no commit,
-///  and the staged work is where it was,
-///  so the next commit is the one that makes it.
+///  A commit whose service is stopped is served by a fresh one, and the service that wakes afterwards makes no second commit:
+///  the request the first command sent is never landed twice.
 /// Why:
-///  A commit a person was told had failed must not appear afterwards.
-/// Nothing of the request is left for a service that wakes:
-/// the whole line never reached it,
-/// or the request was dropped because the command on its connection is gone
-///  (`service_land_requests_whose_client_is_gone.rs`).
-/// This control stops the service of the worktree before the commit asks it anything,
-/// watches the commit fail,
-/// and lets the service run again before looking at the branch.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(service.pid, 'SIGSTOP'); await fails(); process.kill(service.pid, 'SIGCONT'); await settled; expect(head).toBe(before);
-/// ```
+///  The review of `e347be3115` (part one, finding 2): a service frozen before it greeted failed every commit, and the command
+///  waited the recovering ceiling. `SPEC.md` says the command starts a fresh one and sends its request again, which the
+///  journal's record of the request makes safe to repeat. The assertion this control made before read
+///  `assert_eq!(failed.code, Some(1), "the commit whose service is stopped fails")`, and then that the waking service made no
+///  commit; the second half stands, and the first held while nothing replaced a frozen service.
 #[test]
-fn a_service_that_wakes_after_the_failure_makes_no_commit() {
+fn a_service_that_wakes_after_the_commit_lands_makes_no_second_commit() {
     let fixture: Fixture = fixture("service-wakes-after-the-failure");
     let repo: PathBuf = staged_repository(&fixture, "repo", 1);
     let before: String = head_of(&fixture, repo.as_path());
@@ -569,20 +549,20 @@ fn a_service_that_wakes_after_the_failure_makes_no_commit() {
     assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGSTOP) }, 0, "the fixture's service is stopped");
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let failed: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(failed.code, Some(1), "the commit whose service is stopped fails: {}", String::from_utf8_lossy(failed.stderr.as_slice()));
-    // SAFETY: as above, with the signal that lets the fixture's service run again.
-    assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) }, 0, "the fixture's service runs again");
-    // What a service that woke with a request to land would do within a second of running again.
+    let ran: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
+    let said: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
+    // SAFETY: as above, with the signal that lets the frozen service run again if it is still there at all.
+    let _resumed: libc::c_int = unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) };
+    assert_eq!(ran.code, Some(0), "the commit is served by the service this command started: {said}");
+    let once: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).stdout.as_slice()).trim().to_string();
+    // What a service that woke with the request in its journal would do within a second of running again.
     std::thread::sleep(Duration::from_secs(6));
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "the waking service made no commit");
+    let later: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).stdout.as_slice()).trim().to_string();
+    assert_eq!(later, once, "the count is the same after the frozen service woke, so nothing landed twice");
     let staged: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["status", "--porcelain=v1"]).stdout.as_slice()).into_owned();
-    assert!(staged.contains(long_name(0).as_str()), "the staged edit is still staged: {staged}");
+    assert!(staged.is_empty(), "and nothing is left staged: {staged}");
     assert!(!index_locked(repo.as_path()), "no index lock is left behind");
-    // The next command of the worktree is not stopped by anything the failure left.
-    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(again.code, Some(0), "the retry lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
-    assert_ne!(head_of(&fixture, repo.as_path()), before, "and it is the commit the person asked for once");
+    let _ = before;
     remove_settled(&fixture);
 }
 
