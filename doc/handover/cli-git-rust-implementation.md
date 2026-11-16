@@ -1704,7 +1704,16 @@ the review of the branch that keeps a Pi run out of the main checkout (`0aaf6a11
   a run based at a bare repository cannot commit; every successful file read leaves its timer alive)
   and cargo-shadow's two tests (`f0c4ca0150`, second run, fifteenth).
 
-**Owed from the owner's answers and not started** (each a run or an act of its own):
+**Started from the owner's answers at 20:09:44** (fresh runs queued, positions counted from zero):
+the automatic push of a branch never pushed (10; `SPEC.md` lines 9204 and 9205 already say "pushed to `origin` with `--set-upstream`", so the question had been settled by the record and pass 53's sighting is a defect to find);
+every build of the wrapper on the lock's dated nightly (12);
+`monochromatic-lint --fix` following oxlint's (20);
+`hall-monitor` to `package-paused` (22).
+The four retired rule codes are in the owner's `forbidden-strings.append.local.txt` as section `local-047`.
+Waiting for pass 56 to be in `main`, because they change the files it carries (`testing/runtime_directory_folders.rs`, `testing/test_support.rs`):
+the tests removing their own `rn-*-0` and `rt-*-0` folders, and the binary tests' private fixture root.
+
+**Owed from the owner's answers and not started** (each a run or an act of its own; the four named as started are no longer owed):
 the `rn-*-0` and `rt-*-0` folders older than a day deleted and the tests made to clean up;
 `hall-monitor` moved to `package-paused`;
 `monochromatic-lint --fix` following oxlint's;
