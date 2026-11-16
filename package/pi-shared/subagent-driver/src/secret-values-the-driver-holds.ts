@@ -131,8 +131,12 @@ export function valuesInTheEnvironment({
     if ((!carriesCredentialName({ name, },)) && (!alsoTheseNames.has(name,))) {
       continue;
     }
-    if ((isKeptDespiteItsName(name,)) || (nameSaysTheValueIsNotASecret(name,))
-      || (!isMaskableValue(value,))) {
+    if (!isMaskableValue(value,)) {
+      continue;
+    }
+    // A name the store itself declares is a name whose value is a secret wherever it stands: the store says so, which is a stronger
+    // statement than anything the name is spelled like. Only a name this code guesses at by its spelling is skipped by its spelling.
+    if ((!alsoTheseNames.has(name,)) && ((isKeptDespiteItsName(name,)) || (nameSaysTheValueIsNotASecret(name,)))) {
       continue;
     }
     values.push({

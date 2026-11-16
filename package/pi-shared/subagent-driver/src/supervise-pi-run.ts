@@ -191,6 +191,10 @@ export async function supervisePiRun(
    */
   const deadline = Date.now() + wallMilliseconds;
   /**
+   The moment this run began, before which no session file of it can have been made: a file that existed then belongs to someone else.
+   */
+  const runStartedAt = new Date(deadline - wallMilliseconds,);
+  /**
    Where messages for Pi arrive.
    */
   const inbox = join(
@@ -374,13 +378,14 @@ export async function supervisePiRun(
    own file: the copy it made, or the one its Pi created. The session the run was given to resume belongs to another run and is refused
    by name, so nothing here can rewrite it.
    */
-  const sessionFile = sessionFileToMaskAtRest({
+  const sessionFile = await sessionFileToMaskAtRest({
     ...(reportedSessionFile({
       sessionStats: putAway.sessionStats,
       ...(starts.sessionFile === undefined ? {} : { state: starts.sessionFile, }),
     })),
     ...(('path' in copyOfResumedSession) ? { copyThisRunMade: copyOfResumedSession.path, } : {}),
     ...(options.session === undefined ? {} : { sessionTheCallerNamed: options.session, }),
+    runStartedAt,
   },);
   /**
    What masking that file found: Pi's own hooks should have kept every value out of it, and this closes what no hook reaches.

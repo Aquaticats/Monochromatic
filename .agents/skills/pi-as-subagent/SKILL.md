@@ -187,9 +187,26 @@ after free slots had been filled with other packages' issues
 A tool that slows down with dozens of agents running has a defect to fix;
 the number of agents is never the explanation and never a reason to start fewer.
 Audits and reviews sit outside that limit and use other models.
-Reviews of a change run on Kimi K3.1 Pro alone,
-and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
+Reviews of a change and long audits run on Claude Sonnet alone,
+by whatever route the harness offers:
 rules `KRV` and `LHZ` in `AGENTS.md`,
+from the owner's words of 2026-11-15 at about 23:27 -05:00:
+"I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+Please use Sonnet for reviews and audits from now on.
+Close the Kimi pool for now, but let the already running runs finish."
+Pi on this machine lists no Claude Sonnet model
+(`pi --list-models`,
+read at about 23:42 -05:00 that day:
+ninety-nine lines,
+Neuralwatt's models among them,
+and one Claude model,
+`claude-haiku-5-5` on `opencode-go`),
+so a review is handed to a harness that has Sonnet,
+and no Pi run reviews or audits until Pi lists one.
+The rest of this paragraph is what held until then,
+kept because the Kimi pool's numbers return with it when the owner reopens it.
+Reviews of a change ran on Kimi K3.1 Pro alone,
+and long audits on Claude Sonnet and Kimi K3.1 Pro side by side,
 from the owner's "Kimi alone" and "Both side by side (Recommended)"
 after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 Kimi runs through Pi on Synthetic,
