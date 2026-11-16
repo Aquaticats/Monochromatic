@@ -1682,6 +1682,8 @@ fn a_file_git_does_not_read_as_a_name_authorizes_no_removal() {
         ("a directory where a ref file was expected", Plant::Directory("refs/heads/topic", "planted.lock", Holds::AName)),
         ("a lock where a ref file was expected", Plant::File("refs/heads/topic.lock", Holds::TheObjectName)),
     ];
+    // Every row runs, so one run names every place a reading takes for a name rather than the first only.
+    let mut broken: Vec<String> = Vec::new();
     for (index, (row, shape)) in rows.iter().enumerate() {
         let scene: Scene = a_repository_with_a_recorded_worktree(&format!("removal-no-name-{index}"));
         let task: String = scene.task.display().to_string();
@@ -1694,14 +1696,26 @@ fn a_file_git_does_not_read_as_a_name_authorizes_no_removal() {
         let planted: std::path::PathBuf = plant(scene.repo.join(".git").as_path(), shape, base.as_str(), commit.as_str());
         assert!(planted.exists(), "{row}: the row planted its file");
         let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
-        let said: String = stderr_of(&refused);
-        assert_eq!(refused.code, Some(1), "{row}: a file Git does not read as a name authorizes nothing: {said}");
-        assert!(scene.task.exists(), "{row}: and the worktree stays");
+        if refused.code != Some(1) {
+            broken.push(format!("{row}: the removal exited {:?}: {}", refused.code, stderr_of(&refused)));
+        }
+        if !scene.task.exists() {
+            broken.push(format!("{row}: and the worktree is gone"));
+        }
         run_direct(&scene.fixture, scene.repo.as_path(), &["gc", "--prune=now"]);
         let readable: Observed = run_direct(&scene.fixture, scene.repo.as_path(), &["cat-file", "-e", commit.as_str()]);
-        assert_eq!(readable.code, Some(0), "{row}: and the commit is still there after a collection: {}", stderr_of(&readable));
+        if readable.code != Some(0) {
+            broken.push(format!("{row}: the commit is gone after a collection: {}", stderr_of(&readable)));
+        }
         remove(&scene.fixture);
     }
+    assert!(
+        broken.is_empty(),
+        "a file Git does not read as a name authorized a removal, in {} of the {} rows:\n{}",
+        broken.iter().filter(|one| return one.contains("the removal exited")).count(),
+        rows.len(),
+        broken.join("\n")
+    );
 }
 
 //endregion
