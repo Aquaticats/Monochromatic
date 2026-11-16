@@ -32,6 +32,7 @@ import {
   wakeMessageOf,
   workOutlivingTheTurnIn,
   workTheToolReportedIn,
+  MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -173,7 +174,10 @@ async function aFeedTheDriverWrote({
   /**
    The record of that run.
    */
-  const record = startRecordOfPiRun({ feedFile, },);
+  const record = startRecordOfPiRun({
+    feedFile,
+    mask: MASKING_NOTHING,
+  },);
   for (const result of answers) {
     record.observe({
       event: {
