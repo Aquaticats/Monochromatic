@@ -9,11 +9,19 @@ use crate::systemd_dbus_wire_format::*;
 use crate::test_support::remove;
 
 /// A directory whose path is short enough for a socket,
-/// in the agent scratch directory.
+/// in the agent scratch directory,
+/// owned by the test thread that asks for it.
+/// A socket name must fit one socket address (107 bytes),
+/// which a fixture root under the build directory does not leave,
+///  so the folder is made at the top of the agent scratch directory,
+/// which every run of every session shares:
+///  the thread's cleanup removes it when the thread ends,
+/// however its test ended (`crate::test_support::track_for_this_thread`).
 fn short_directory(name: &str) -> std::path::PathBuf {
     let scratch = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     let directory = scratch.join(format!("dbus-{}-{name}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("scratch directory");
+    crate::test_support::track_for_this_thread(directory.as_path());
     return directory;
 }
 use std::io::{Read, Write};
