@@ -39650,9 +39650,9 @@ The session stood in a question dialog for ten hours and twenty minutes (written
   The rest held (the branch's 42 own controls, the guards, the library suite 7,966 of 7,966, the review's narrowing pair). The pass's branch stands at `fe26edc9cb` for whoever fixes it. `main` and the installed `0.6.1-alpha.44` still carry the empty-tree window.
   The author's later tip `b92347ebd3` had its review on Kimi at 23:46 (20 of 20 files, two reproduced); the author gets both.
 
-Recovery after the hold (written here at 2026-11-16T10:27:00-05:00):
+Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier wording of this line and of two times in this list ran ahead of the clock and is corrected here from the commits' own times):
 
-- The filling unit runs again (level 15, since 10:18:43; thirteen Pi units going at 10:26), a drive probe runs at 18, and a waiter reads from 10:22:32. The queue holds 36 entries.
+- The filling unit runs again (level 15, since 10:18:43; thirteen Pi units going a minute or two before 10:25), a drive probe runs at 18, and a waiter reads from 10:22:32. The queue holds 36 entries.
 - The 59 runs that ended unread are being digested by three read-only Sonnet agents into `~/temp/agent/runs-that-ended-while-the-session-was-held-2026-11-16/keep/digest-part-<n>.md`; each run is routed from its digest, and each round is recorded here.
 - **Two more Sonnet reviews are read and accepted** (each transcript names `claude-sonnet-5-5`; both built and ran what they reviewed), and both authors are queued again:
   two starts of one run name (`16166773fb`, 24 of 24 files, ten findings; the first six can stop a live run, remove a worktree that holds uncommitted work, or halve what the machine may run: the pool gate counts one live run twice,
@@ -39660,7 +39660,7 @@ Recovery after the hold (written here at 2026-11-16T10:27:00-05:00):
   issue 6293's five answers (`149568cbe6`, the delta alone, 12 of 59 of its files; seven findings: its merge dropped every change `main` made to one test file, one control does not fail for its own fix, a start no longer falls back to the base when a manager's scope never runs the service,
   the sweep of `.writing` files never matches the writers' names and removes on a process number alone), ninth run. Its fifth point, where a private runtime directory's durable state goes when one resolution is slower than 250 ms, is put to its report as a question and not built.
   Both reviews call themselves a same-vendor pass; by the rule in `AGENTS.md` they are independent, since both authors are Pi runs on another vendor's model. The mistake is the prompt's, which did not say who wrote the change; later prompts say it.
-- **The 59 reports are digested (10:33 to 10:39) and a review is queued for 50 branch tips.** Almost every run was an author answering its review, so what each needs next is a review of its new tip by Claude Sonnet; those go three at a time, most harmful first:
+- **The 59 reports are digested and a review is queued for 50 branch tips (both done before the commit of 2026-11-16T10:30:48-05:00); the first three Sonnet reviews of them started at about 10:31.** Almost every run was an author answering its review, so what each needs next is a review of its new tip by Claude Sonnet; those go three at a time, most harmful first:
   the masking's answer (`20fba72918`), the discarding guard (`2ecc7486ed`; its author says `main` loses the person's entry in each of the review's four scripts), checkout migration (`6fbbed8e84`; its author says all three defects are in `main`, with which this repository's own checkout was migrated, and that `--remove-old` lost a newer file),
   then the unreadable process table (`8b50662351`), the main-checkout branch (`78c415032b`), the two gate failures' runs, landing never waits, the resumed wake and the tunnel tooling's six findings.
   Six tips cannot be briefed yet because the package's writer reads them as tests or documents alone.
