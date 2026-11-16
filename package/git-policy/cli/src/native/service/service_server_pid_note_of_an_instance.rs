@@ -70,42 +70,23 @@ fn write_private(note: &Path, pid: i32) -> std::io::Result<PathBuf> {
         // A platform without an identity source cannot make a note a later command may trust, so none is made.
         Err(unsupported) => return Err(std::io::Error::other(format!("{unsupported:?}"))),
     };
-    let private: PathBuf = note.with_extension(format!("{pid}.pid.writing"));
-    std::fs::write(&private, format!("{pid} {identity}\n"))?;
+    // The sweep of the claimer's own file is the shared one, so a kill between the write and the link leaves nothing that a later
+    //  claim would not collect (`writings_of_dead_writers.rs`, and the eighth review of issue 6293, findings 3 and 7).
+    crate::writings_of_dead_writers::remove_writings_of_dead_writers(note);
+    let private: PathBuf = crate::writings_of_dead_writers::temporary_file(note, next_temporary_number())?;
+    if let Err(refused) = std::fs::write(&private, format!("{pid} {identity}\n")) {
+        let _left = std::fs::remove_file(&private);
+        return Err(refused);
+    }
     return Ok(private);
 }
 
-/// What:
-///  Claims one instance for this process:
-/// publishes the note that names it with one exclusive link,
-/// unless another process that is still that process holds the instance.
-/// Why:
-///   The note is what a starter,
-/// a second service and the sweep all read to learn whose an address is,
-/// so it is published before the address is bound,
-/// and a service that is alive keeps its instance from the moment it claims it,
-/// whether or not it has greeted yet.
-/// The claim is one atomic step with one owner,
-/// as this project's lock-free rule asks:
-/// the complete text is written in a private file,
-/// and `link` gives the note's own name to exactly one process,
-/// which the kernel decides.
-/// A look followed by a write and a read back was not one step:
-/// two services could both read a note that named nobody,
-/// each write its own name after the other's,
-/// and both read their own writing back,
-/// so both believed they held one instance and one took the other's address
-/// (the fifth review of issue 6293,
-/// finding 2).
-/// A note that names a process which is gone is the leftovers of a killed service,
-/// and the birth identity is what tells the two apart,
-/// so the claim is taken over then and never otherwise;
-/// a loser of the link looks once more and refuses when the note now names a live process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const round of [1, 2]) { if (heldByAnotherLiveProcess(note)) throw ...; const private = writePrivate(note, pid); const made = link(private, note); unlink(private); if (made) return; if (!heldByAnotherLiveProcess(note)) unlink(note); }
-/// ```
+/// A number no other write of this process has taken.
+fn next_temporary_number() -> u64 {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    return COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
     for _round in 0..2 {
         if let Some(held) = held_by_another_live_process(note) {

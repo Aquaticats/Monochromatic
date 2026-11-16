@@ -224,14 +224,14 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
         //       ending the scope's group then kills a live process at an arbitrary instruction and a second service recovers the same
         //       batch again (the sixth review of issue 6293, finding 3). The wait the person sees is the caller's own ceiling, which
         //       says a service is preparing.
-        // What: What became of the scope is decided by the same fact read at the moment of deciding, and nothing alive is ended.
-        // Why:  A service can claim its note in the instant between the look and the act, so the act must be safe when the look was
-        //       wrong: the leader this command was given is a process of this command's own, and while it is that process the scope
-        //       holds a service that may be preparing, whatever its note says. Ending a group that is empty is pointless too, so no
-        //       group is signalled here at all (the sixth review of issue 6293, findings 1 and 2).
-        let started_a_service: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> =
-            live_service_that_is_preparing(server.pid_note().as_path()).or_else(|| { return leader.and_then(the_process_still_running); });
-        if let Some(preparing) = started_a_service {
+        // What: A service the scope created and that has claimed the instance is waited for; a scope that produced no service is
+        //       not waited for, and no group is ended.
+        // Why:  The note is the only fact that says a service of this worktree exists: a leader that hangs is the manager's client and
+        //       holds nothing a claim could name, so waiting on it would leave the commit unserved (the eighth review of issue 6293,
+        //       finding 4). Ending the group is what a start may never do safely, because a service can claim in the instant between
+        //       the look and the act (the sixth review, finding 1); falling back to the base start is safe instead, since the claim
+        //       grants the instance to exactly one of the two services and the other exits.
+        if let Some(preparing) = live_service_that_is_preparing(server.pid_note().as_path()) {
             return StartAttempt::ServiceIsPreparing { service: preparing };
         }
         if answered(&server.address) {

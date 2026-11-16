@@ -167,7 +167,11 @@ fn same_place_within(left: &Path, right: &Path, ceiling: std::time::Duration) ->
     });
     return match resolved {
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran((Ok(at_the_first), Ok(at_the_second))) => Some(at_the_first == at_the_second),
-        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(_) => Some(false),
+        // What: A path the file system refuses to resolve (a link that loops, a folder that is gone) is no answer at all.
+        // Why:  The doc says a path that cannot be resolved is not proven to be the other;
+        // saying "another place" instead moved a real session's durable records into storage a logout clears
+        // (the eighth review of issue 6293, finding 6).
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(_) => None,
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart
         | crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => None,
     };

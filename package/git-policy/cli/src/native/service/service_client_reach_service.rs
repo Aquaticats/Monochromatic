@@ -96,7 +96,15 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         // What: Nothing answered, so the server is started here, once per pass of this loop.
         // Why:  The wrapper is what makes a service exist on a machine with no service manager, and a service that died under a
         //       waiting command is brought back by the same code. A start another command is making is waited for instead.
-        if let Some(server) = config.starter.as_ref() {
+        // What: A service this command knows is preparing is waited for, and no further start is made for it.
+        // Why:  A start that answered "preparing" says a service is there; starting again on the next pass would leave another
+        //       process per pass and end the command at its ceiling anyway (the eighth review of issue 6293, finding 4).
+        let preparing_now: bool = preparing.as_ref().is_some_and(|service| {
+            return crate::service_server_pid_note_of_an_instance::is_still_the_process(service);
+        });
+        if let Some(server) = config.starter.as_ref()
+            && !preparing_now
+        {
             match start(server) {
                 StartAttempt::Greeted => continue,
                 StartAttempt::AnotherCommandStartsIt => {}

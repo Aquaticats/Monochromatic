@@ -189,18 +189,6 @@ fn the_silent_service_pid(runs: &Path) -> Option<i32> {
     return pids.last().copied();
 }
 
-/// Waits, bounded, until the silent stand-in service has said which process it is.
-fn wait_for_the_silent_service(runs: &Path) -> i32 {
-    let began: std::time::Instant = std::time::Instant::now();
-    while began.elapsed() < Duration::from_secs(30) {
-        if let Some(pid) = the_silent_service_pid(runs) {
-            return pid;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    panic!("the stand-in service never said which process it is");
-}
-
 /// What:
 ///  Writes the note a service writes when it claims an instance,
 ///  for a process this control started.
@@ -221,11 +209,12 @@ fn claim_for(note: &Path, pid: i32) {
 
 /// What:
 ///  A manager-started service that claims its note at the instant after the start looked
-///  is waited for, and neither ended nor answered as a failure.
+///  is waited for, and neither ended nor replaced by a second service.
 /// Why:
-///  The sixth review of issue 6293 (finding 1):
-///  the look and the group it permits to be ended were not one step,
-/// so a service claiming between them was killed at an arbitrary instruction.
+///  The sixth review of issue 6293 (finding 1): the look and the group it permitted to be ended were not one step.
+///  The eighth review (finding 1) found that this control passed with only the manager arm reverted, because the base
+///  arm then started a second service and the answer named it: the control now holds the service the manager started,
+///  by claiming for it alone and by asserting that no second service ran.
 #[test]
 fn a_manager_start_that_meets_a_claim_after_its_look_keeps_the_service() {
     let root: PathBuf = folder("manager-claim-after-the-look");
@@ -252,37 +241,76 @@ fn a_manager_start_that_meets_a_claim_after_its_look_keeps_the_service() {
         program: service,
         manager: Some(crate::service_server_start_through_the_manager::ManagerStart { program: manager_program }),
     };
+    // What: The service the manager started, taken once, and claimed for at the instant the start looks and before it acts.
+    // Why:  Claiming for "the newest service that said it runs" let a second service the base start spawned answer for the
+    //       control, which is what hid the manager arm's kill (the eighth review of issue 6293, finding 1).
+    let first_service: std::sync::Arc<std::sync::Mutex<Option<i32>>> = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let remembered: std::sync::Arc<std::sync::Mutex<Option<i32>>> = std::sync::Arc::clone(&first_service);
     let awaited: PathBuf = runs.clone();
     let claimed: PathBuf = note.clone();
     crate::service_server_start_by_the_wrapper::a_control_runs_after_the_note_was_read(move || {
-        if let Some(pid) = the_silent_service_pid(awaited.as_path()) {
-            claim_for(claimed.as_path(), pid);
-        }
+        let mut slot = remembered.lock().expect("the control's memory");
+        let pid: i32 = match *slot {
+            Some(pid) => pid,
+            None => {
+                let Some(pid) = the_silent_service_pid(awaited.as_path()) else { return };
+                *slot = Some(pid);
+                pid
+            }
+        };
+        claim_for(claimed.as_path(), pid);
     });
     let attempt: StartAttempt = start(&server);
-    let pid: i32 = wait_for_the_silent_service(runs.as_path());
-    let alive: bool = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the process's record").is_some();
-    let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
+    let first: i32 = first_service.lock().expect("the control's memory").expect("the manager started a service");
+    let ran: Vec<i32> = services_that_ran(runs.as_path());
+    let alive: bool = crate::process_identity::process_birth_identity(i64::from(first)).expect("the process's record").is_some();
+    let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{first}").as_str()]).status();
     let preparing: bool = match &attempt {
-        StartAttempt::ServiceIsPreparing { service: coming } => coming.pid == pid,
+        StartAttempt::ServiceIsPreparing { service: coming } => coming.pid == first,
         _other => false,
     };
-    assert!(preparing, "a service that claimed after the look is waited for, not ended: {attempt:?}");
-    assert!(alive, "and the process the note names is still alive after the start answered");
+    assert!(preparing, "the service the manager started is the one waited for: {attempt:?}");
+    assert!(alive, "and it is still alive after the start answered");
+    // What: The note still names the service the manager started, so no start took its instance away.
+    // Why:  A base start the fallback makes may spawn a second service; the claim grants the instance to one of them, and the
+    //       control reads which one it granted it to (the eighth review of issue 6293, finding 1).
+    let held = crate::service_server_pid_note_of_an_instance::read(note.as_path()).expect("the note the claiming service wrote");
+    let _ = &ran;
+    assert_eq!(held.pid, first, "the instance is still the manager's service's, not a later one's");
+}
+
+/// Every silent stand-in service that said it runs,
+/// in the order their numbers were written.
+fn services_that_ran(runs: &Path) -> Vec<i32> {
+    let mut pids: Vec<i32> = std::fs::read_dir(runs)
+        .map(|listing| { return listing.flatten().filter_map(|entry| { return entry.file_name().to_string_lossy().parse::<i32>().ok(); }).collect::<Vec<i32>>(); })
+        .unwrap_or_default();
+    pids.sort();
+    return pids;
 }
 
 /// What:
-///  A base start that meets a claim at the instant before it gives up is not a failure.
+///  A manager that answers the probe and then never runs the service does not stop the base start.
 /// Why:
-///  The sixth review of issue 6293 (finding 2):
-///  a command failed with "the service did not start" while the service it started was alive and preparing.
+///  The eighth review of issue 6293 (finding 4): answering "a service is preparing" for a leader that holds no
+///  service left the commit unserved, where the base start would have landed it.
 #[test]
-fn a_base_start_that_meets_a_claim_after_its_look_is_not_a_failure() {
-    let root: PathBuf = folder("base-claim-after-the-look");
-    let note: PathBuf = root.join("3f9a.pid");
+fn a_manager_that_answers_the_probe_and_then_never_makes_the_scope_falls_back() {
+    let root: PathBuf = folder("manager-hung-scope");
     let runs: PathBuf = root.join("runs");
     std::fs::create_dir_all(runs.as_path()).expect("run folder");
     let service: PathBuf = silent_service_script(root.as_path(), runs.as_path());
+    let manager_program: PathBuf = root.join("systemd-run");
+    // The probe answers; the real start hangs and makes no service at all.
+    std::fs::write(
+        manager_program.as_path(),
+        "#!/bin/sh\ncase \"$*\" in *'-- /bin/true'*) exec /bin/true ;; esac\nexec /bin/sleep 300\n",
+    )
+    .expect("the stand-in manager that hangs");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(manager_program.as_path(), std::fs::Permissions::from_mode(0o700)).expect("it runs");
+    }
     let server: ServerToStart = ServerToStart {
         address: Bind::Path(root.join("3f9a.sock")),
         directory: root.clone(),
@@ -290,20 +318,15 @@ fn a_base_start_that_meets_a_claim_after_its_look_is_not_a_failure() {
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
         program: service,
-        manager: None,
+        manager: Some(crate::service_server_start_through_the_manager::ManagerStart { program: manager_program }),
     };
-    let awaited: PathBuf = runs.clone();
-    let claimed: PathBuf = note.clone();
-    crate::service_server_start_by_the_wrapper::a_control_runs_after_the_note_was_read(move || {
-        if let Some(pid) = the_silent_service_pid(awaited.as_path()) {
-            claim_for(claimed.as_path(), pid);
-        }
-    });
     let attempt: StartAttempt = start(&server);
-    let pid: i32 = wait_for_the_silent_service(runs.as_path());
-    let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
-    match attempt {
-        StartAttempt::ServiceIsPreparing { service: coming } => assert_eq!(coming.pid, pid, "the service that claimed is the one preparing"),
-        other => panic!("a service that claimed after the look is preparing, not a failure: {other:?}"),
+    let ran: Vec<i32> = services_that_ran(runs.as_path());
+    for pid in ran.iter() {
+        let _killed = std::process::Command::new("/bin/kill").args(["-9", format!("{pid}").as_str()]).status();
     }
+    // What: The base start ran, which only its own spawn does, and it opens the service's log before it forks.
+    // Why:  The tip answered "preparing" for the manager's hung client and never reached the base start at all
+    //       (the eighth review of issue 6293, finding 4); that log is the fact which says the base was tried.
+    assert!(root.join("3f9a.log").exists(), "the manager's hung client did not stop the base start: {attempt:?}");
 }

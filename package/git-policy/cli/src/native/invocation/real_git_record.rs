@@ -130,38 +130,9 @@ pub fn remember(runtime_dir: &Path, git: &Path) -> std::io::Result<()> {
     let directory: PathBuf = runtime_dir.join(SOCKET_DIRECTORY);
     std::fs::create_dir_all(&directory)?;
     let record: PathBuf = directory.join(RECORD_NAME);
-    // What: The temporary files earlier writes left when their writer was killed or their write failed are collected here.
-    // Why:  No later write takes up a name another write owns, so nothing else would ever remove them.
-    crate::writings_of_dead_writers::remove_writings_of_dead_writers(directory.as_path(), RECORD_NAME);
-    let temporary: PathBuf = directory.join(format!("{RECORD_NAME}.{}.{}.writing", std::process::id(), next_temporary_number()));
-    if let Err(refused) = std::fs::write(&temporary, format!("{}\n", git.display())) {
-        // A write that failed after creating its file leaves it to no one: this writer takes it back.
-        let _left = std::fs::remove_file(&temporary);
-        return Err(refused);
-    }
-    let published: std::io::Result<()> = std::fs::rename(&temporary, record);
-    // A rename that did not happen leaves this writer's file behind, and no record of a Git is the person's to read.
-    if published.is_err() {
-        let _left = std::fs::remove_file(&temporary);
-    }
-    return published;
-}
-
-/// What:
-///  A number no other write of this process has taken,
-///  so two writes at once never share a temporary file.
-/// Why:
-///   The process's own number tells two processes apart and does not tell two writes of one process apart,
-/// and a start in a command and an after-commit write in a service can meet in one runtime directory
-/// (the sixth review of issue 6293, finding 4).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// nextTemporaryNumber() // a counter this process increments
-/// ```
-fn next_temporary_number() -> u64 {
-    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    return COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // The shared writer sweeps the files earlier writes of this record left and returns its own file when its write fails
+    // (`writings_of_dead_writers.rs`).
+    return crate::writings_of_dead_writers::write_atomically(record.as_path(), format!("{}\n", git.display()).as_str());
 }
 
 /// Controls of the record stay out of the release executable.

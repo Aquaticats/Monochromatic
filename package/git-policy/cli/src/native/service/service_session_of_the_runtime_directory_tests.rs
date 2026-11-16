@@ -193,3 +193,24 @@ fn a_resolution_that_gives_no_answer_in_time_is_not_proven_and_keeps_the_durable
     );
     crate::test_support::remove(root.as_path());
 }
+
+/// What:
+///  A bus directory the file system cannot resolve is not proven to be another session's.
+/// Why:
+///  The eighth review of issue 6293 (finding 6): a resolution that failed answered "another place",
+///  which moved a real session's durable records into storage a logout clears, against the function's own doc.
+#[test]
+fn a_bus_directory_that_cannot_be_resolved_is_not_another_session() {
+    let root: PathBuf = crate::test_support::fixture("session-unresolvable");
+    let runtime: PathBuf = root.join("run/user/1000");
+    std::fs::create_dir_all(runtime.as_path()).expect("the runtime directory");
+    std::os::unix::fs::symlink(runtime.join("loop"), runtime.join("loop")).expect("a link that points at itself");
+    let looping: String = format!("unix:path={}/loop/bus", runtime.display());
+    assert_eq!(session_of(Some(runtime.as_path()), runtime.as_path(), Some(looping.as_str())), Session::Unproven, "a resolution that failed is no proof of another session");
+    assert_eq!(
+        state_dir_of_the_command(Some(runtime.as_path()), runtime.as_path(), Some(looping.as_str()), Some(Path::new("/account/state")), Some(Path::new("/home/user"))),
+        Some(PathBuf::from("/account/state")),
+        "and the durable records stay in the account's state directory"
+    );
+    crate::test_support::remove(root.as_path());
+}

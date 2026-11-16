@@ -155,3 +155,22 @@ fn two_claimers_at_once_leave_one_owner() {
     assert_eq!(held.pid, i32::try_from(std::process::id()).expect("a process number"), "the note still names the first claimer");
     assert!(is_still_the_process(&held), "and that process is this one");
 }
+
+/// What:
+///  The private file a claimer left when it was killed is collected by a later claim.
+/// Why:
+///  The eighth review of issue 6293 (finding 3b): the claim's own writer had no sweep at all,
+/// so every start interrupted between the write and the link left a file nothing ever took up.
+#[test]
+fn the_private_file_a_killed_claimer_left_is_collected_by_a_later_claim() {
+    let root = folder("claimer-writings");
+    let note = path(root.as_path(), "3f9a");
+    let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a claimer that ends");
+    let ended_pid: u32 = ended.id();
+    let _waited = ended.wait().expect("the claimer ends");
+    let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.pid.{ended_pid}.linux:000000.1.writing"));
+    std::fs::write(&dead, b"1234 linux:000000\n").expect("the file a killed claimer left");
+    claim(note.as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("a later claim");
+    assert!(!dead.exists(), "the claim's sweep collected the dead claimer's file");
+    assert!(note.exists(), "and the note the claim made is there");
+}

@@ -98,43 +98,6 @@ pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 /// ```ts
 /// writeFileSync(`${path}.${process.pid}.writing`, text); renameSync(`${path}.${process.pid}.writing`, path);
 /// ```
-fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
-    // The temporary files earlier writes of this note left when their writer was killed or their write failed go first:
-    //  no later write takes up a name another write owns, so nothing else would ever remove them (the sixth review,
-    //  finding 4).
-    if let (Some(folder), Some(stem)) = (path.parent(), path.file_name().and_then(std::ffi::OsStr::to_str)) {
-        crate::writings_of_dead_writers::remove_writings_of_dead_writers(folder, stem);
-    }
-    let temporary: PathBuf = path.with_extension(format!("{}.{}.writing", std::process::id(), next_temporary_number()));
-    if let Err(refused) = std::fs::write(&temporary, text) {
-        // A write that failed after creating its file leaves it to no one: this writer takes it back.
-        let _left = std::fs::remove_file(&temporary);
-        return Err(refused);
-    }
-    let published: std::io::Result<()> = std::fs::rename(&temporary, path);
-    if published.is_err() {
-        let _left = std::fs::remove_file(&temporary);
-    }
-    return published;
-}
-
-/// What:
-///  A number no other write of this process has taken,
-///  so two writes at once never share a temporary file.
-/// Why:
-///   A process's number tells two processes apart and not two writes of one process,
-/// and the notes this file writes are written by a command and, at the same time, by the service it started
-/// (the sixth review of issue 6293, finding 4).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// nextTemporaryNumber() // a counter this process increments
-/// ```
-fn next_temporary_number() -> u64 {
-    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    return COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-}
-
 /// What:
 /// Writes the note that names the worktree of an instance,
 /// unless it already says so.
@@ -158,7 +121,7 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
     }
     let folder: PathBuf = runtime_dir.join(NOTES_FOLDER);
     create_private_directory_all(folder.as_path())?;
-    return write_atomically(path.as_path(), text.as_str());
+    return crate::writings_of_dead_writers::write_atomically(path.as_path(), text.as_str());
 }
 
 /// What:
@@ -528,5 +491,33 @@ pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
         {
             warn(TAG, format!("{} could not be removed after the units of {instance} were stopped ({error})", path.display()).as_str());
         }
+    }
+}
+
+/// Controls of the notes stay out of the release executable.
+#[cfg(test)]
+mod notes_written_atomically_tests {
+    use super::*;
+
+    /// What:
+    ///  The file a killed writer of a worktree note left, named by the writers' own function, is collected by the next note.
+    /// Why:
+    ///  The eighth review of issue 6293 (finding 3a): the sweep was given `<instance>.git-dir` while the writer's file was
+    ///  `<instance>.<pid>.<n>.writing`, so a file of this writer was never collected.
+    #[test]
+    fn the_file_a_killed_writer_of_a_worktree_note_left_is_collected() {
+        let root: std::path::PathBuf = crate::test_support::fixture_root().join("note-writings");
+        let _stale = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.as_path()).expect("fixture folder");
+        let note: std::path::PathBuf = note_path(root.as_path(), "3f9a");
+        let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a writer that ends");
+        let ended_pid: u32 = ended.id();
+        let _waited = ended.wait().expect("the writer ends");
+        let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.git-dir.{ended_pid}.linux:000000.1.writing"));
+        std::fs::create_dir_all(root.join(NOTES_FOLDER)).expect("the notes folder");
+        std::fs::write(&dead, b"half").expect("the file a killed writer left");
+        record_worktree(root.as_path(), "3f9a", root.join("repo/.git").as_path()).expect("the next note write");
+        assert!(!dead.exists(), "the note writer's own sweep collected the dead writer's file");
+        assert!(note.exists(), "and the note itself is written");
     }
 }
