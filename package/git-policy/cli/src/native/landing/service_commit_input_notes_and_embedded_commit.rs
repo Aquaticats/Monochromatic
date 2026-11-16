@@ -20,7 +20,7 @@
 use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
 use crate::service_instance::try_instance_of;
 use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::ClientFailure;
 use crate::service_provision::platform_without_manager;
 use std::path::{Path, PathBuf};
 use crate::service_server::Bind;
@@ -288,7 +288,6 @@ pub(crate) fn managed_client_config(address: Bind, provisioning: Option<&Provisi
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: provisioning.map(manager_watch_for),
         keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
-        units_record_dir: provisioning.map(crate::service_provision_host_and_manager::units_record_dir_of),
     };
 }
 
@@ -308,7 +307,7 @@ pub(crate) fn refusal_without_route(git_dir: &Path) -> TransactionStop {
             "{unreachable}, so this commit was not made and nothing was written. If the repository is on a drive that is not mounted, mount it and run the commit again."
         ));
     }
-    return TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager())));
+    return crate::commit_transaction::client_stop(ClientFailure::NoActivation(platform_without_manager()));
 }
 
 /// Controls of the stop for a worktree without a route.

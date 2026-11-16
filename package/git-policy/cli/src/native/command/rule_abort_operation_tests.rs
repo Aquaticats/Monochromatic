@@ -16,8 +16,8 @@
 //! ```
 
 use super::{
-    AbortOperation, OperationState, RESTORED_REVISION_NAMES, RestoredRevision, aborted_operation, abort_is_live,
-    in_progress_operation, operation_name, restored_revision,
+    AbortOperation, OperationEnd, OperationState, RESTORED_REVISION_NAMES, RestoredRevision, SKIP_RESTORES, aborted_operation, abort_is_live,
+    ended_operation, in_progress_operation, operation_name, restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsStr;
@@ -106,6 +106,36 @@ fn only_the_abort_forms_name_an_operation() {
         };
         assert_eq!(named, expected, "{command:?}");
     }
+}
+
+/// The skip forms end the same operations their aborts do,
+///  and say that they go on instead of restoring the state before.
+#[test]
+fn the_skip_forms_end_the_operation_their_abort_does() {
+    for (command, expected) in [
+        (GuardedCommand::SkipRebase, (AbortOperation::Rebase, OperationEnd::Skip)),
+        (GuardedCommand::SkipPick, (AbortOperation::Pick, OperationEnd::Skip)),
+        (GuardedCommand::SkipAm, (AbortOperation::Am, OperationEnd::Skip)),
+    ] {
+        assert_eq!(ended_operation(command), Some(expected), "{command:?}");
+        // A skip is not an abort, so the abort reading names no operation for it.
+        assert_eq!(aborted_operation(command), None, "{command:?}");
+    }
+    // A form that ends no operation ends nothing, whatever it is.
+    assert_eq!(ended_operation(GuardedCommand::Clean), None);
+    assert_eq!(ended_operation(GuardedCommand::CheckoutPaths), None);
+}
+
+/// A skip writes back the tree it stopped at, which is `HEAD`,
+///  measured against the operation's recorded original head.
+#[test]
+fn a_skip_restores_head() {
+    assert_eq!(SKIP_RESTORES, "HEAD");
+    // The abort of the same operation reads its own record, so the two are not the same question.
+    assert_eq!(
+        restored_revision(AbortOperation::Rebase, rebase_merge_stop()),
+        RestoredRevision::StateFile(OsStr::new("rebase-merge/orig-head"))
+    );
 }
 
 /// Every operation has a name for a sentence,

@@ -300,6 +300,12 @@ fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_a
     );
 }
 
+/// How long a control that holds one of the build's own moments waits for that moment to be reached:
+/// a bound on a signal between two of the control's threads,
+/// never on the ordering it stands for,
+/// so a moment that never comes fails the control instead of holding it.
+const A_MOMENT_REACHED: Duration = Duration::from_secs(30);
+
 /// What:
 ///  A build that finishes while the caller is between its last read of the channel and its closing of it is kept.
 /// Why:
@@ -307,25 +313,35 @@ fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_a
 /// the process then believed for the rest of its life that a build was still coming,
 ///  spent the whole patience on every later task,
 /// and ended the service with status 4.
-/// The control releases the build from that moment itself,
-/// which is the only way to order it;
-/// the build's send either waits for the moment to close and is then kept by the build,
-/// or lands in the channel before the caller closes it and is taken there,
-///  so the runtime is kept either way.
+/// The control releases the build from the caller's own moment and holds the build at its own moment,
+/// which are the two seams of the hand-over,
+/// so the build's send finds the channel closed at every run and the keep is the build's to do;
+/// nothing here is ordered by how long a step takes.
+/// A keep is never ordered with the caller's answer:
+/// the runtime is in the build's hand after the caller has already returned,
+/// so the control waits for the keep instead of looking once,
+/// and it proves the runtime that was kept is the one the build finished with by running a task the build started on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// atTheCallersMoment(() => releaseTheBuild()); const built = buildWithDeadlineAnd(plan, 50ms, buildThread, currentThread); expect(lateArrived).toBe(true)
+/// atTheCallersMoment(() => releaseTheBuild()); atTheBuildsMomentBeforeKeeping(() => hold()); const built = buildWithDeadlineAnd(plan, 50ms, buildThread, currentThread); expect(awaitKept()).toBe(true); expect(taskOfThatRuntimeRan()).toBe(true)
 /// ```
 #[test]
 fn a_build_that_finishes_while_the_caller_gives_up_is_kept() {
     let (release_sender, release) = std::sync::mpsc::channel::<()>();
     let (built_sender, built) = std::sync::mpsc::channel::<()>();
+    // A task of the very runtime the build finishes with, so the control can tell that runtime from any other.
+    let (ran_sender, ran) = std::sync::mpsc::channel::<u8>();
+    // The build's own moment: the runtime it finished with is in its hand, the caller has closed the channel on it, and it is not kept yet.
+    let (holding_sender, holding) = std::sync::mpsc::channel::<()>();
+    let (may_keep_sender, may_keep) = std::sync::mpsc::channel::<()>();
     *THE_CALLER_STOPS_WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Box::new(move || {
         release_sender.send(()).expect("the build is released into the caller's last moment of waiting");
-        built.recv().expect("the build finished");
-        // The time a send needs to land in the channel, which the moment has to outlast for the control to mean anything.
-        std::thread::sleep(THE_STAND_IN_IS_HELD);
+        built.recv().expect("the build finished inside the caller's last moment of waiting");
+    }));
+    *THE_BUILD_STOPS_BEFORE_KEEPING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Box::new(move || {
+        holding_sender.send(()).expect("the build says it holds the runtime it finished with");
+        may_keep.recv().expect("the control lets the build keep the runtime");
     }));
     let built_runtime: BuiltRuntime = build_with_deadline(
         RuntimePlan::MultiThread { workers: ONE_WORKER, blocking_threads: ONE_WORKER },
@@ -333,15 +349,29 @@ fn a_build_that_finishes_while_the_caller_gives_up_is_kept() {
         move |workers: usize, blocking: usize| -> std::io::Result<Runtime> {
             release.recv().expect("the control releases the build from the caller's moment");
             let runtime: Runtime = real_multi_thread(workers, blocking)?;
+            runtime.spawn(async move { let _sent = ran_sender.send(7); });
             built_sender.send(()).expect("the build says it finished");
             return Ok(runtime);
         },
     )
     .expect("a runtime stands in");
     assert_eq!(built_runtime.flavor, BuiltFlavor::CurrentThreadAfterDeadline, "the deadline passed before the build was released");
+    // The hand-over failed before this answer, so the runtime is in the build's hand and the build is the only one that can keep it.
+    holding.recv_timeout(A_MOMENT_REACHED).expect("the build reached the moment before it keeps the runtime it finished with");
     assert!(
-        late_build_arrived(),
+        !late_build_arrived(),
+        "the build kept the runtime before the control let it, so the caller's answer here cannot be taken for the keep of a build it was too late for"
+    );
+    may_keep_sender.send(()).expect("the control lets the build keep the runtime");
+    let arrived: bool = crate::test_support::wait_until(&|| { return late_build_arrived(); });
+    assert!(
+        arrived,
         "the runtime the build finished with was dropped with the channel the caller closed after its last read"
+    );
+    assert_eq!(
+        ran.recv_timeout(A_MOMENT_REACHED).expect("a task the build started on the runtime it finished with runs"),
+        7,
+        "the runtime that was kept is the one the build finished with, and its worker runs the task the build started on it"
     );
 }
 

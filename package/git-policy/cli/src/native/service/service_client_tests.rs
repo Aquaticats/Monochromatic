@@ -93,7 +93,6 @@ fn reach_settings(address: &str) -> ClientConfig {
         waiting_notice_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
         extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: crate::wait_ceilings::START_CEILING,
-        units_record_dir: None,
     };
 }
 
@@ -239,7 +238,11 @@ fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_answered() {
     let name: String = an_address("never-sent");
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("never-sent"), &mut std::io::sink())
         .expect_err("nothing listens at this address");
-    assert_eq!(failure, ClientFailure::DidNotStart, "nothing was sent, so nothing landed");
+    assert_eq!(
+        failure,
+        ClientFailure::DidNotStart { unit: None, answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent, asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing },
+        "nothing was sent, so nothing landed"
+    );
 }
 
 /// What:
@@ -294,12 +297,12 @@ fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
     let (seen, serving) = a_service_that_withdraws(name.as_str(), "the commit waits for another program's index lock", ServiceMessage::Withdrawn { id: String::from("interrupted") });
     let interrupting = std::thread::spawn(move || {
         seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT);
+        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, Some(std::process::id() as i32));
     });
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("interrupted"), &mut std::io::sink()).expect_err("the service gave the request up");
     interrupting.join().expect("the interrupt is sent");
     drop(serving);
-    let expected: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("the commit waits for another program's index lock")) };
+    let expected: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(std::process::id() as i32), blocker: Some(String::from("the commit waits for another program's index lock")) };
     assert_eq!(failure, expected, "the person is told the commit was not made");
     let words: String = crate::service_messages::render(&failure);
     assert!(words.contains("interrupted") && words.contains("was not made"), "{words}");
@@ -329,10 +332,79 @@ fn a_commit_that_landed_before_the_signal_came_stays_landed() {
     );
     let interrupting = std::thread::spawn(move || {
         seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT);
+        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, None);
     });
     let submitted: Submitted = submit(&reach_settings(name.as_str()), &a_request("interrupted-after-landing"), &mut std::io::sink()).expect("the commit landed");
     interrupting.join().expect("the interrupt is sent");
     drop(serving);
     assert_eq!(submitted, Submitted::Landed { commit, already: true }, "a commit on the branch is reported as landed");
 }
+
+/// What:
+///  A give-up on the write of a request after an earlier attempt had delivered it whole is "not known",
+///  not "the service never took it".
+/// Why:
+///  The review of the bounded write found that the two ends disagreed:
+/// a first attempt that put the whole line on the wire may be the service's already,
+/// so a later attempt that gives up cannot say the commit was not made — that verdict removes the scratch tree a
+///  landing still reads and invites the person to make the commit twice.
+///  The control has the stand-in read the first request whole and answer nothing, then take the second connection and read
+///  nothing at all, so the client's second write fills the connection's buffers and ends at its silence bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failure = submit(config, aBigRequest); expect(failure.kind).toBe('may-not-have-landed')
+/// ```
+#[test]
+fn a_give_up_after_a_whole_delivery_says_the_result_is_not_known() {
+    let name: String = an_address("give-up-after-whole");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let serving = std::thread::spawn(move || {
+        // The first connection: the request arrives whole, and nothing is answered.
+        let (first, _first_address) = service.accept().expect("the client connects");
+        greet_and_read(&first);
+        drop(first);
+        // The second connection: greeted, and not one byte of the request read.
+        let (second, _second_address) = service.accept().expect("the client sends again");
+        (&second).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+        std::thread::sleep(STAND_IN_PATIENCE);
+        drop(second);
+    });
+    let request: CommitRequest = a_request_of_many_changes("give-up-after-whole");
+    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &request, &mut std::io::sink())
+        .expect_err("a request whose second write stalls cannot be answered");
+    drop(serving);
+    assert_eq!(
+        failure,
+        ClientFailure::MayNotHaveLanded,
+        "an earlier attempt delivered the whole line, so nothing may say the service never took it"
+    );
+    assert!(!crate::service_commit_tree_ownership::the_service_never_took(&Err(failure.clone())), "and the scratch tree stays with the service's claim on it");
+}
+
+/// A request whose line is larger than one connection's buffers,
+/// so a service that reads nothing makes its write stall.
+fn a_request_of_many_changes(id: &str) -> CommitRequest {
+    let mut request: CommitRequest = a_request(id);
+    for index in 0..A_CHANGE_SET_OF_MANY_PATHS {
+        let mut path: String = format!("directory-{index}/");
+        while path.len() < A_PATH_THIS_LONG {
+            path.push('p');
+        }
+        request.changes.push(crate::service_protocol::Change {
+            path: std::path::PathBuf::from(path),
+            mode: 33_188,
+            blob: Some(String::from("0123456789abcdef0123456789abcdef01234567")),
+        });
+    }
+    return request;
+}
+
+/// How many changes a control puts in a request so that its line cannot fit one connection's buffers.
+/// Measured on this host: both buffers of a local socket hold about 233,152 bytes,
+/// and a change of `A_PATH_THIS_LONG` characters is about 200 bytes of line.
+const A_CHANGE_SET_OF_MANY_PATHS: usize = 2_000;
+
+/// The length of a changed path in that request,
+/// near the 99th percentile of this repository's own (118 characters).
+const A_PATH_THIS_LONG: usize = 150;

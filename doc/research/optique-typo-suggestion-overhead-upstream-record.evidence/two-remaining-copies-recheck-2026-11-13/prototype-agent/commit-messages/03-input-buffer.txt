@@ -1,0 +1,30 @@
+Drop consumed tokens from the input buffer without copying
+
+`argument()` returned `context.buffer.slice(i + 1)`, so every consumed token
+copied the tokens after it: a parse of N positional arguments copied
+1 + 2 + ... + N tokens.  The buffer is a public type (`ParserContext.buffer`
+is `readonly string[]`) that every primitive indexes and that parsers library
+users write also read, so the type and its readers stay and the copy goes:
+above a threshold the buffer is an array view that remembers the array it was
+cut from and how far, and cutting a view again moves the offset.  The trace
+entry and the consumed list take their tokens through `leadingOf()`, which
+reads the shared array directly, because `Array.prototype.slice()` on a view
+walks a proxy trap per element.
+
+The threshold is far above any ordinary command line, and that is the
+measurement speaking: a cut costs about three microseconds per token whatever
+the buffer's length, while a copied token costs about a third of a nanosecond.
+With the threshold at 4,096 a parse of 8,000 tokens measured 22% slower than
+the copy it replaced, and with it at 8,192 one of 16,000 tokens measured 28%
+slower.  At 16,384 the win is proven where the copy dominates and no smaller
+parse changes its code path at all.  On top of the `multiple()` change, a
+parse of 32,000 tokens goes from 773 ms to 619 ms; 8,000 and 16,000 tokens are
+unchanged, and a thousand-path commit-shaped parse is unchanged within noise.
+
+A view obtained earlier keeps the tokens it had, so a context discarded by
+backtracking cannot show a cursor another context moved.  The tests check that
+property for the sync and async parse paths, that dropping the prefix of a
+view continues from the same array, and that a copied prefix is a plain array
+the caller owns.
+
+Assisted-by: Pi:deepseek-v4.1-flash

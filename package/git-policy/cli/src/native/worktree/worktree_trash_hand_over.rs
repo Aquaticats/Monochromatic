@@ -47,7 +47,6 @@ use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_messages::{ClientFailure, render};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::{ProvisionHost, provision};
-use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
@@ -280,7 +279,6 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
                     // A wake reads the record once and returns: with a manager to ask, the commit's start ceiling would hold the add
                     //  for a start this command does not need, so the wait ends at the hand-over's own bound.
                     start_ceiling: reach.start_wait,
-                    units_record_dir: host.as_ref().map(units_record_dir_of),
                 };
                 // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
                 //  second report of it.

@@ -64,10 +64,13 @@ const READ_BUFFER_BYTES: usize = 8192;
 /// which holds the `Uid:` and `Gid:` lines within its first 300 bytes.
 const STATUS_HEAD_BYTES: usize = 1024;
 
-/// Reports an error that means the process exited while it was being read.
+/// Reports an error that means the process exited while it was being read:
+/// its entry is gone,
+/// or it was reaped while the file it left open was read,
+/// which the kernel answers with `ESRCH` (`No such process`).
 /// A permission error is not one of them:
 /// the process is alive and this reader may not inspect it.
-fn means_vanished(error: &io::Error) -> bool {
+pub fn means_vanished(error: &io::Error) -> bool {
     return error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
 }
 

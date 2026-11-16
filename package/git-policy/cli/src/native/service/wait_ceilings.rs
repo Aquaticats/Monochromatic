@@ -57,6 +57,24 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// the slowest of 52 cold starts took 1,041 ms (`startWaitMs`,
 /// `reachMs`).
 /// One minute is 58 times that.
+///  Why this and no shorter bound for a greeting that has not come:
+/// a greeting that is late is
+///  never by itself read as a service stopped inside its own process.
+/// On 2026-11-12T01:21:10-05:00 a commit waited three
+///  seconds for the greeting of a service that was starting on a machine with dozens of agents,
+/// read the silence as a
+///  service stopped inside its own process,
+/// asked the manager to restart it,
+/// and then asked the manager for a reload that held
+///  it for 139,770 ms and ended the desktop session
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`);
+/// the service greeted the next time it was
+///  asked,
+/// five seconds later.
+/// The start ceiling is what separates a start that is merely slow from a service that is
+///  stopped inside its own process,
+/// and it is where the one restart of such a service happens
+///  (`service_client_reach_service.rs`).
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
 /// The longest a service waits for the build of its own multi-thread runtime,
@@ -94,28 +112,6 @@ pub const RUNTIME_BUILD_PATIENCE: Duration = START_CEILING;
 /// and a service that is already running greets in well under a millisecond,
 /// so two seconds is twice the slowest start this repository has recorded.
 pub const HAND_OVER_GREETING_WAIT: Duration = Duration::from_secs(2);
-
-/// How long a commit lets a service the manager reports as running stay silent before it asks the manager to restart
-/// it.
-///  Why:
-///  A service greets a connection before it restores anything
-/// (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-/// so a unit the manager calls `active` that has greeted nothing is not starting:
-/// it is stopped inside its own process (a frozen control group,
-/// a debugger,
-/// a suspended machine,
-/// a kernel wait
-/// nothing ends),
-/// and no start brings it back while the manager believes it runs.
-/// Restarting is the one repair of that state,
-/// and the commit is what needs the answer.
-///  Measured:
-/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
-/// so three seconds is nearly three times the slowest start,
-/// and it is under the owner's 5,000 ms bound on what a commit may add to native Git
-/// (`native:perf`,
-/// "commits vs native git should not take 5s longer").
-pub const SERVICE_GREETING_SILENCE: Duration = Duration::from_secs(3);
 
 /// The longest the look at the running processes (`landing/earlier_service_process_look.rs`) takes before the adoption of an
 ///  earlier helper's journal counts the answer as "a service may be running".
@@ -478,6 +474,120 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 
+/// The longest a command waits for a connection to a service it only has to tell about work it does itself either way:
+/// the `warm` request that asks a running service to compile this repository's forbidden-strings rules.
+///  Why:
+///   The request is a help and never a part of the command:
+/// the command that needs the rules compiles them itself when the request cannot be made
+/// (`policy_forbidden_strings.rs`,
+/// `cache_access`).
+///  A connect is a kernel step that returns at once until the listening socket's queue of unaccepted connections is full,
+/// and a queue is full because the service accepts nothing
+/// (it is stopped inside its own process,
+/// a debugger holds it,
+/// a kernel wait nothing ends),
+/// so the wait can only end when that service resumes.
+/// The owner's rule is "nothing should ever wait forever or indefinitely".
+///  Measured on this host,
+/// 2026-11-13,
+/// 2,000 connections to a socket whose listener accepts,
+/// asked plain and with the bound in one alternating loop,
+/// three runs:
+/// the plain connect took 9 to 10 us at the median,
+/// 15 to 17 us at the 99th percentile and 1,089 to 1,359 us at the slowest;
+/// the bounded connect 10 to 11 us at the median,
+/// 16 to 19 us at the 99th percentile and 3,217 to 4,190 us at the slowest,
+/// so bounding the wait costs about one microsecond of three extra calls.
+/// 250 ms is 60 times the slowest of those and the bound the other courtesy ask to a service has
+/// (`service_client_shadow_hand_out.rs`,
+/// `DRAWN_ANSWER_DEADLINE`),
+/// because both ask a service for something the command does without when it does not answer.
+/// The connection itself is made through the same helper as every other connection to a service
+/// (`service_client_connect_within_a_bound.rs`),
+/// with its `connect_within_for`,
+/// so one connect into a service queue is bounded one way and this ceiling is its one difference.
+pub const WARM_REQUEST_CONNECT_CEILING: Duration = Duration::from_millis(250);
+
+/// The longest the warm request waits for the look at the processes that tells whether the service of the worktree
+/// runs,
+/// which is the step before its connection.
+///  Why:
+///   Reading another process's command line takes that process's address-space lock,
+/// which a process stuck in the kernel holds without end
+/// (`PROCESS_LOOK_CEILING`,
+/// `landing/earlier_service_process_look.rs`),
+/// and this look is made for a request the command does without anyway,
+/// so it is no reason for a command to keep waiting:
+/// the owner's rule is "nothing should ever wait forever or indefinitely".
+///  Ten seconds is what a look whose answer a command needs is granted
+/// (`PROCESS_LOOK_CEILING`),
+/// and it is far more than a courtesy request may cost: a commit that finds its rules cold
+/// would wait it before the connect's own ceiling even starts.
+///  Measured on this host,
+/// 2026-11-13,
+/// 25 whole looks at the processes of this user
+/// (`/proc` with about 1,300 processes, no service of the looked-for instance running):
+/// 12.3 ms at the median,
+/// 18.7 ms at the 99th percentile and 18.7 ms at the slowest.
+/// The package's own record of the same look under a load average of 56 of 8 threads read 23.0 ms at the median,
+/// 43.0 ms at the 90th percentile and 54.1 ms at the slowest
+/// (`PROCESS_LOOK_CEILING`).
+/// 250 ms is 13 times the slowest look measured here and 4.6 times the slowest of that record,
+/// and it is `WARM_REQUEST_CONNECT_CEILING`,
+/// so the two steps of one courtesy request share one budget of half a second
+/// when the request cannot be made.
+pub const WARM_SCAN_CEILING: Duration = WARM_REQUEST_CONNECT_CEILING;
+
+/// The longest one connection to the commit service is waited for before the client gives it up.
+///  Why:
+///   A connect to a local socket is a kernel step that returns at once,
+/// so the only thing it waits for is room in the socket's queue
+/// of connections nothing has accepted yet.
+/// A queue that is full is a service that has accepted nothing for a long time,
+/// and a blocking connect into it
+///  waits until the service accepts, which for a stopped service is never:
+/// measured on this host on 2026-11-12,
+/// a blocking connect into a listening socket whose queue of one was full
+///  was still waiting after 2,000 ms,
+/// though the two connections before it went in at once.
+///  Measured on this host,
+/// 2026-11-12,
+/// 2,000 connects to a socket whose listener accepts:
+/// 15 us at the median,
+/// 156 us at the 99th percentile and 62.6 ms at the slowest.
+/// Five seconds is 80 times the slowest of those,
+/// and it is `HEARTBEAT_SILENCE`,
+/// the time a service that is working may say nothing:
+/// a socket that has taken no connection for that long is one nothing accepts on.
+pub const CONNECT_CEILING: Duration = Duration::from_secs(5);
+
+/// How long the write of a request may take no byte at all before the service is taken for one that stopped reading.
+///  Why:
+///   A request line is at most `MAX_LINE_BYTES`, one mebibyte,
+/// and it can only be written by a service that reads:
+/// measured on this host on 2026-11-12,
+/// the send buffer of a local stream socket holds 212,992 bytes and one socket's two buffers took
+///  233,152 bytes with nothing reading,
+/// so a request of one mebibyte waits in the kernel for the other end to read it.
+/// A service that reads takes bytes in a few microseconds,
+/// so a write that puts no byte anywhere for this
+///  long is a service that stopped reading,
+/// and it is five beats of a service that is working.
+pub const REQUEST_WRITE_SILENCE: Duration = crate::service_protocol::HEARTBEAT_SILENCE;
+
+/// The longest the whole request of a commit is written into its connection.
+///  Measured on this host,
+/// 2026-11-12:
+/// one mebibyte written into a socket whose reader drains it took 0.4 ms at the median,
+/// 16.6 ms at the 99th
+///  percentile and 18.2 ms at the slowest of 50 runs.
+/// Ten seconds is 550 times the slowest of them,
+/// and it is the wait a command already grants a service's own
+///  start (`START_WAIT`):
+/// a request that is not in by then is one the person should not wait for any longer,
+/// however steadily the service takes it.
+pub const REQUEST_WRITE_CEILING: Duration = Duration::from_secs(10);
+
 /// The longest a connected push may show no progress before it is ended and left to the service's retry plan.
 ///  Unmeasured,
 /// labelled as the other quiet windows are:
@@ -571,6 +681,45 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 /// because both are the same kind of read and a step that outlasts either is one the answer Git
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
+
+/// The longest a landing waits for the note that names its repository to the service that starts next,
+/// once the write has been handed to a thread of its own
+/// (`landing/service_claim_watch.rs`,
+/// `note_for_the_next_service_within`).
+///  Why:
+///   That note is written between a commit landing and the answer its client waits for,
+/// and the write is a directory creation,
+/// an exclusive file and a rename,
+/// any of which waits in the kernel with no end on a filesystem that stopped answering.
+/// By then the commit has landed and its push is held,
+/// so a store that does not answer costs the note and never the commit:
+/// the work loop writes the same note when the wake of the answer sends it to look at the repository,
+/// a landing writes it again once no earlier write is outstanding,
+/// and a service that starts looks at every note already there
+/// (`service_server_work_loop_awaiting.rs`,
+/// `remember_awaiting`).
+/// One write at a time is outstanding for the whole process,
+/// so a store that stopped for good costs one thread and never one per commit.
+/// The owner's rule is "nothing should ever wait forever or indefinitely".
+///  Measured:
+/// a write of this note on this machine,
+/// 2,000 per arm with the two ways of writing it interleaved in every round
+/// (`landing/service_claim_watch_cost_measurement_tests.rs`,
+/// 2026-11-14,
+/// six runs:
+/// four on the build volume and two on the file system this user's journals are on):
+/// 162 to 180 us at the middle,
+/// 271 to 297 us at the 99th percentile,
+/// and 246 ms at the slowest of the 12,000,
+/// which is one of the stalls other sessions' load causes here.
+/// One second is about 5,700 times that middle,
+/// 3,400 times that 99th percentile,
+/// and four times the slowest write these runs saw.
+/// It is also a fifth of the five seconds `SPEC.md` lets a commit take over native Git,
+/// so a write that answers as these did is always waited for,
+/// and a write that outlasts a second is given up and said,
+/// which costs a commit a fifth of that slack and never the commit.
+pub const LANDING_WATCH_NOTE_CEILING: Duration = Duration::from_secs(1);
 
 /// The longest the route decision reads the file system for:
 ///  the walk up from the start directory and the files it reads,
@@ -904,11 +1053,25 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// so the record must outlive every client that can still be inside those two steps.
 /// A client's whole wait for an answer ends at `ANSWER_CEILING`,
 /// counted from its first send and longer than any batch takes to land,
-/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that;
-/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it.
+/// and every resend of that wait happens inside it,
+/// because a reconnect restarts neither bound;
+/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it;
+/// a request the ceiling withdrew is then answered from the same record,
+/// which names whether it landed,
+/// and that answer may take `WITHDRAW_CEILING`;
+/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that.
 /// A record older than the sum cannot be read by any client of it,
-/// and the cleanup that removes a removed worktree's journal may then take it.
-pub const A_FINISHED_RECORD_IS_READ: Duration = ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
+/// so the cleanup that removes a removed worktree's journal may take it,
+/// and a running service may forget the identity it names (`prune_done`,
+/// `service_journal.rs`).
+/// Each of the four is a bound of its own with its measurement beside it above;
+/// this is their sum because one command reaches them one after another.
+/// The age is counted from the reading the record carries,
+/// which is taken when the batch's intent is written,
+/// after the client sent its request and before its record is published,
+/// so the age a record has is never longer than the wait its client has been inside.
+pub const A_FINISHED_RECORD_IS_READ: Duration =
+    ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(WITHDRAW_CEILING).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
 
 /// How long a command that stopped an instance's service waits for the manager to report its processes gone
 /// before it leaves the instance's journal to a later sweep.

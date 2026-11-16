@@ -1,0 +1,3 @@
+{"page":"readme","result":"\"{\\\"holdsFigureKinds\\\":true,\\\"holdsDenoNote\\\":true,\\\"linkText\\\":\\\"will maintain it until October 2027\\\",\\\"linkTarget\\\":\\\"https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027\\\",\\\"literalBrackets\\\":false,\\\"headings\\\":[\\\"Reproducers for the cost of parsing many positional arguments with Optique\\\",\\\"What each script shows\\\",\\\"Running them\\\",\\\"What the workflow asserts\\\",\\\"Measured on three runtimes\\\",\\\"About these scripts\\\"]}\""}
+{"page":"deno issue","result":"\"{\\\"title\\\":\\\"The state of Deno after the Cloudflare announcement · Issue #37030 · denoland/deno\\\",\\\"holdsQuote\\\":true}\""}
+{"closed":"✓ Browser closed"}

@@ -185,7 +185,9 @@ current documented allocation yields 444 allocated vCPU-seconds.
 These are development usage and rejection evidence,
 with no source-consumer execution or common-bound credit.
 
-The [original provider log archive](depot-native-common-before-negative-2026-10-17.evidence.zip)
+The original provider log archive (`depot-native-common-before-negative-2026-10-17.evidence.zip`)
 is retained byte-for-byte with every member digest and full step metadata in the machine evidence.
 No fake canonical manifest was published.
 Final coherent dispatch remains held.
+`depot-native-common-before-negative-2026-10-17.evidence.zip` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.

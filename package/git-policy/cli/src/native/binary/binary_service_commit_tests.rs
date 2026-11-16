@@ -90,6 +90,21 @@ impl Running {
         return last.unwrap_or_else(|| { return Ok(std::os::unix::process::ExitStatusExt::from_raw(0)); });
     }
 
+    /// What:
+    ///  Ends the service's processes and waits for them,
+    /// leaving the runtime directory to its owner.
+    /// Why:
+    ///   The stand-in manager's stop ends the unit's processes before the next start of the same instance,
+    /// and a start must not
+    ///  race a process that still holds the socket.
+    pub(super) fn stop(&mut self) {
+        for child in &mut self.children {
+            let _killed = child.kill();
+            let _waited = child.wait();
+        }
+        self.children.clear();
+    }
+
     /// Waits for the first service to exit by itself for at most `limit`;
     /// nothing when it is still running then.
     pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {

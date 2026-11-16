@@ -6,8 +6,10 @@
 use crate::service_protocol::Cleanup;
 use super::*;
 use crate::claim_time::ClaimTime;
+use crate::service_journal_record_age::stamp_line;
 use crate::test_support::{fixture, remove};
-use std::time::Duration;
+use crate::wait_ceilings::A_FINISHED_RECORD_IS_READ;
+use std::time::{Duration, SystemTime};
 
 fn intent(seq: u64) -> Intent {
     return Intent {
@@ -263,29 +265,64 @@ fn written_intents_are_listed_and_finished_ones_are_remembered() {
     remove(root.as_path());
 }
 
-/// Pruning keeps the newest finished batches and nothing else is touched:
+/// The boot a control writes a record of when it needs one no client of this boot may read:
+/// 32 hexadecimal digits that are not this boot's.
+const AN_EARLIER_BOOT: &str = "0000000000000000000000000000000b";
+
+/// A time longer than the whole life of any client of a record,
+/// by a minute,
+/// so nothing is judged at the edge.
+fn longer_than_a_client_s_life() -> Duration {
+    return A_FINISHED_RECORD_IS_READ + Duration::from_secs(60);
+}
+
+/// What:
+///  A finished record of batch `seq` that is `older` than now,
+///  in the reading of the clocks it carries and in its modification time,
+///  written the way a landing leaves one.
+/// Why:
+///   `write_intent` stamps a record with the clocks of now,
+/// and a fresh modification time alone keeps a record whatever its reading says,
+/// so both are what a control says when it needs a record no client may still read.
+/// A record of an earlier boot,
+/// and a wall clock as far back,
+/// make the reading past on a host with no boot ID too.
+fn finished_record(root: &Path, seq: u64, older: Duration) {
+    // A record of this boot a moment old, or one of an earlier boot that far back, which are the two ways time passes.
+    let written: ClaimTime = match older.is_zero() {
+        true => ClaimTime::read(),
+        false => ClaimTime::read().in_boot(AN_EARLIER_BOOT).rewound(older),
+    };
+    std::fs::write(batch_path(root, seq, OPEN_EXTENSION), format!("{}{}", intent_text(&intent(seq)), stamp_line(&written))).expect("an intent");
+    mark_done(root, seq).expect("the batch finishes");
+    let when: SystemTime = SystemTime::now().checked_sub(older).expect("a fixture time after the epoch");
+    std::fs::File::open(batch_path(root, seq, DONE_EXTENSION)).expect("a fixture record to age").set_modified(when).expect("a fixture time to age");
+}
+
+/// Pruning keeps the newest finished batches whatever their age,
+/// and nothing else is touched:
 /// open batches,
 /// files that are not named as a batch
 ///  number,
 /// and directories stay.
 #[test]
-fn pruning_keeps_the_newest_finished_batches_and_touches_nothing_else() {
+fn pruning_keeps_the_newest_finished_batches_whatever_their_age() {
     let root: PathBuf = fixture("service-journal-prune");
     let retained: usize = 3;
     let total: u64 = 7;
+    let older: Duration = longer_than_a_client_s_life();
     for seq in 1..=total {
-        write_intent(root.as_path(), &intent(seq)).expect("write");
-        mark_done(root.as_path(), seq).expect("mark");
+        finished_record(root.as_path(), seq, older);
     }
     let open: u64 = total + 1;
     write_intent(root.as_path(), &intent(open)).expect("an open batch");
     std::fs::write(root.join("notes.done"), "kept").expect("a file that is no batch");
     std::fs::create_dir(batch_path(root.as_path(), 0, DONE_EXTENSION)).expect("a directory named like a batch");
-    let removed: usize = prune_done(root.as_path(), retained);
+    let removed: usize = prune_done(root.as_path(), retained, &ClaimTime::read());
     assert_eq!(removed, usize::try_from(total).expect("a count") - retained);
     let oldest_kept: u64 = total - u64::try_from(retained).expect("a count") + 1;
     for seq in 1..oldest_kept {
-        assert!(!batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is among the oldest");
+        assert!(!batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is among the oldest and past every client of it");
     }
     for seq in oldest_kept..=total {
         assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is among the newest");
@@ -293,8 +330,80 @@ fn pruning_keeps_the_newest_finished_batches_and_touches_nothing_else() {
     assert!(batch_path(root.as_path(), open, OPEN_EXTENSION).exists());
     assert!(root.join("notes.done").exists());
     assert!(batch_path(root.as_path(), 0, DONE_EXTENSION).is_dir());
-    assert_eq!(prune_done(root.as_path(), retained), 0, "a second pruning has nothing to remove");
-    assert_eq!(prune_done(root.join("absent").as_path(), retained), 0, "a journal that is not there has nothing to remove");
+    assert_eq!(prune_done(root.as_path(), retained, &ClaimTime::read()), 0, "a second pruning has nothing to remove");
+    assert_eq!(prune_done(root.join("absent").as_path(), retained, &ClaimTime::read()), 0, "a journal that is not there has nothing to remove");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record older than the age but within the count stays.
+/// Why:
+///   The count is what a repository that lands rarely keeps:
+/// a client that was stalled for hours,
+/// and whose record no age covers,
+/// is still answered as already landed while fewer batches have landed since.
+#[test]
+fn a_record_older_than_the_age_but_within_the_count_stays() {
+    let root: PathBuf = fixture("service-journal-prune-old-within");
+    let retained: usize = 3;
+    let older: Duration = longer_than_a_client_s_life();
+    for seq in 1..=u64::try_from(retained).expect("a count") {
+        finished_record(root.as_path(), seq, older);
+    }
+    assert_eq!(prune_done(root.as_path(), retained, &ClaimTime::read()), 0, "nothing is beyond the count");
+    for seq in 1..=u64::try_from(retained).expect("a count") {
+        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is within the count and stays");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A record beyond the count but younger than the age stays.
+/// Why:
+///   A burst of landings pushes a request's own record past the count while its client is still inside its wait,
+/// and forgetting it there lands the request a second time.
+#[test]
+fn a_record_beyond_the_count_but_younger_than_the_age_stays() {
+    let root: PathBuf = fixture("service-journal-prune-young-beyond");
+    let retained: usize = 3;
+    let total: u64 = 5;
+    let now: ClaimTime = ClaimTime::read();
+    for seq in 1..=total {
+        finished_record(root.as_path(), seq, Duration::ZERO);
+    }
+    assert_eq!(prune_done(root.as_path(), retained, &now), 0, "a client of every one of them may still read it");
+    for seq in 1..=total {
+        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is younger than the age and stays");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A record both older than the age and beyond the count goes,
+///  so the journal stops growing.
+/// Why:
+///   No client can read it and no count keeps it,
+/// which is the only case where the memory of a landed request is spent.
+#[test]
+fn a_record_older_than_the_age_and_beyond_the_count_goes() {
+    let root: PathBuf = fixture("service-journal-prune-past-beyond");
+    let retained: usize = 3;
+    let total: u64 = 5;
+    let now: ClaimTime = ClaimTime::read();
+    for seq in 1..=total {
+        let older: Duration = match seq {
+            1..=2 => longer_than_a_client_s_life(),
+            _ => Duration::ZERO,
+        };
+        finished_record(root.as_path(), seq, older);
+    }
+    assert_eq!(prune_done(root.as_path(), retained, &now), 2, "the two past records beyond the count go");
+    for seq in 1..=2 {
+        assert!(!batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is past every client of it and beyond the count");
+    }
+    for seq in 3..=total {
+        assert!(batch_path(root.as_path(), seq, DONE_EXTENSION).exists(), "batch {seq} is younger than the age and stays");
+    }
     remove(root.as_path());
 }
 

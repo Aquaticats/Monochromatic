@@ -53,13 +53,26 @@ pub(crate) enum IndexWrite {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string } | { kind: 'remove' };
+/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string; thePersonsBits?: number } | { kind: 'remove' };
 /// ```
 pub(crate) enum FileWrite {
     /// The layer already holds it.
     Leave,
-    /// The file form and the mode to write.
-    Bytes(Vec<u8>, String),
+    /// One entry's file form,
+    /// the mode Git records for it,
+    /// and the permission bits it is given when the mode is not the one a checkout of Git decides.
+    Bytes {
+        /// The bytes of the entry:
+        /// a file's content or a link's target text.
+        bytes: Vec<u8>,
+        /// The mode Git records,
+        /// which says the kind of the entry and whether its owner may run it.
+        mode: String,
+        /// Every permission bit the person's own entry carried,
+        /// when the bytes are theirs and the merge wrote nothing at the path;
+        /// nothing when Git's own checkout decides the mode of the file.
+        the_persons_bits: Option<u32>,
+    },
     /// Nothing stands at the path.
     Remove,
 }
@@ -296,9 +309,18 @@ fn commands_that_end_the_copy(aside: &Path, path: &[u8]) -> String {
 /// after a bounded wait for `index.lock`.
 /// Why:
 ///   The index is the one thing two commands cannot write at once,
-/// so the wait is named and bounded,
-/// and a lock
+/// so the wait is named and bounded
+///  (`MERGE_LOCK_CEILING`,
+/// one minute,
+/// `wait_ceilings.rs`,
+/// which states the measurement it is five times and why a lock held longer is left to the next command),
+///  and a lock
 ///  that outlasts it leaves everything as it was.
+///  A lock a process that no longer runs left is cleared first on the commit service's proof of disuse,
+/// exactly as the steps that write a merge from its record clear one,
+/// so the line this path prints about such a lock is one it keeps
+///  (`may_install`,
+/// `merge_isolation_recovery_index_lock.rs`).
 ///  Both Git starts are awaited,
 ///  because a start enters the runtime and is refused from inside it.
 ///  A clear checks every worktree path before its index records go,
@@ -327,10 +349,7 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         LockWait::BeforeTheApply => crate::index_holder_wait::look_at_the_index_before_a_merge(git_dir.join("index").as_path(), out),
         LockWait::WhileFinishing => crate::index_holder_wait::wait_for_index_release_while_finishing_a_merge(git_dir.join("index").as_path(), out),
     };
-    if !matches!(
-        waited,
-        crate::index_holder_wait::IndexWait::NotHeld | crate::index_holder_wait::IndexWait::Released(_)
-    ) {
+    if !crate::merge_isolation_recovery_index_lock::may_install(git_dir, waited) {
         return Err(CarryFailure::IndexHeld(git_dir.join("index.lock").display().to_string()));
     }
     if batch.stops_when_a_path_moved() {

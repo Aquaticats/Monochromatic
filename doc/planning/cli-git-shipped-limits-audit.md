@@ -1821,6 +1821,24 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   those two belong to the pick on service
   waits.
 
+- After the owner's answer of 2026-11-12T12:11:18-05:00,
+  "Age and count together (Recommended)"
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "How long the commit service remembers a finished request"):
+  a finished record now goes only when it is both past `A_FINISHED_RECORD_IS_READ`
+  and beyond `DONE_RETAINED`.
+  The age is the whole life of a client of the record,
+  `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus `LOOKING_FOR_A_LANDED_COMMIT`,
+  30 minutes 17 seconds,
+  and it is what decides whether a request sent again is recognised,
+  so the count above is no longer the width of that window.
+  The count is what a repository that lands rarely keeps for ever,
+  and so what bounds the journal of one that lands rarely;
+  the measurement above is what shows a burst past 1024 batches is ordinary for a busy unit,
+  which is why the count alone took a record a client of it still had.
+  A journal a service is still writing is bounded by the age only,
+  because the removal runs at a start.
+
 ### Stale temporary and scratch ages
 
 - Where:

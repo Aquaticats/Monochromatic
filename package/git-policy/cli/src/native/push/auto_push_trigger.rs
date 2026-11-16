@@ -426,7 +426,6 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
             heartbeat_silence: HEARTBEAT_SILENCE,
             start_watch: provision.as_ref().map(manager_watch_for),
             keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: HAND_OVER_GREETING_WAIT, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
-            units_record_dir: provision.as_ref().map(crate::service_provision_host_and_manager::units_record_dir_of),
         },
         repository: watch.layout.worktree_root.clone(),
         git_dir: watch.layout.git_dir.clone(),

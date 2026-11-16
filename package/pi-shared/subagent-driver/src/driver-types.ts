@@ -33,6 +33,10 @@ export type PiExit = {
  message that ended in an error nothing recovered from, `pi-not-stopped`
  means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
  it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
+
+ `pi-exited` is Pi leaving a run that had taken its prompt, so work may have been done. `pi-exited-before-prompt` is Pi leaving
+ every start the driver made before any of them took the prompt: nothing of the run's work happened, and the summary names what Pi
+ printed instead.
  */
 export type EndReason =
   | 'idle'
@@ -40,11 +44,14 @@ export type EndReason =
     | 'prompt-rejected'
     | 'compaction-failed'
     | 'pi-exited'
+    | 'pi-exited-before-prompt'
     | 'turn-cap'
     | 'wall-clock'
     | 'driver-failed'
     | 'model-error'
-    | 'pi-not-stopped';
+    | 'pi-not-stopped'
+    | 'masking-not-armed'
+    | 'session-unmasked';
 
 /**
  Every reason a run can end with, so a reader of summaries can ask about all of them without naming any twice.
@@ -55,11 +62,14 @@ export const END_REASONS: readonly EndReason[] = [
   'prompt-rejected',
   'compaction-failed',
   'pi-exited',
+  'pi-exited-before-prompt',
   'turn-cap',
   'wall-clock',
   'driver-failed',
   'model-error',
   'pi-not-stopped',
+  'masking-not-armed',
+  'session-unmasked',
 ];
 
 /**
@@ -163,6 +173,47 @@ export type PiRetryGaveUp =
     };
 
 /**
+ Why a run started Pi no more times: the starts it allows were spent, the sequence of them reached the time one start-up may take,
+ or the run's own wall clock was too near to start another Pi inside it.
+ */
+export type NoFurtherStart =
+  | 'tries-spent'
+    | 'start-sequence-spent'
+    | 'wall-clock-too-near';
+
+/**
+ One start that ended before its Pi took the prompt, as the summary carries it, so a reader counts the starts a run needed and
+ reads what Pi printed on the one that ran out.
+ */
+export type PiStartFailure = {
+  /**
+   Which start this was, counting from one.
+   */
+  readonly attempt: number;
+
+  /**
+   How Pi ended, which is an exit rather than a refusal to start: a Pi the operating system would not start is never started
+   again, because nothing about the machine changes between two such tries.
+   */
+  readonly exit: PiExit;
+
+  /**
+   Milliseconds the driver waited after this start before it started Pi again, and zero when this start was the run's last.
+   */
+  readonly pauseMilliseconds: number;
+
+  /**
+   The last lines Pi wrote to its standard error on this start, so the cause is in the summary and no reader needs the log.
+   */
+  readonly standardErrorLines: readonly string[];
+
+  /**
+   Why Pi would not go on, in its own words, taken from those lines; absent when they name no reason.
+   */
+  readonly reason?: string;
+};
+
+/**
  What `summary.json` holds.
  */
 export type RunSummary = {
@@ -220,6 +271,12 @@ export type RunSummary = {
   };
 
   /**
+   Why the session the run leaves behind still holds a value, when it does: the run did not finish clean, and this says where the
+   value is.
+   */
+  readonly sessionAtRest?: string;
+
+  /**
    Why the feed is incomplete, when writing it failed.
    */
   readonly feedProblem?: string;
@@ -230,10 +287,36 @@ export type RunSummary = {
   readonly driverError?: string;
 
   /**
+   What the driver failed to read when it asked what the run left running, which is why it cannot say whether anything of the
+   run's still runs. It sits beside the end reason rather than in its place: the agent had ended its turn and Pi had exited by the
+   time it was asked, so the run did its work whether or not the answer could be read.
+   */
+  readonly workProblem?: string;
+
+  /**
    What Pi reported of the compaction it could not finish while the run waited for its prompt: the failure, or the compaction
    still running when the run's own bound ended it. Absent when the run never waited on a compaction.
    */
   readonly compactionProblem?: string;
+
+  /**
+   How many times the driver started Pi in this run: one for a run Pi went on with, and more when a start ended before the prompt
+   was taken and the driver started Pi again. Every run says, so a reader counts over a runs folder how often this happens.
+   */
+  readonly piStartAttempts: number;
+
+  /**
+   Every start that ended before its Pi took the prompt, in the order they happened. A run that ended as
+   `pi-exited-before-prompt` has one per start; a run that went on after a later start has the ones it rode out, and its own
+   `endReason` is the one it earned.
+   */
+  readonly piStartFailures?: readonly PiStartFailure[];
+
+  /**
+   Why no further start followed the last of those, which is present only when the run ended as `pi-exited-before-prompt`. It
+   tells a caller whether every start the driver allows failed or whether the time one start-up may take was already spent.
+   */
+  readonly piStartStoppedBy?: NoFurtherStart;
 };
 
 /**
@@ -269,6 +352,11 @@ export type DriverOptions = {
    Seconds before the first attempt after a model error, doubling with each attempt.
    */
   readonly retryBaseSeconds: number;
+
+  /**
+   Seconds the driver waits before it starts Pi again after a start ended before it took the prompt.
+   */
+  readonly startPauseSeconds: number;
 };
 
 /**
@@ -287,6 +375,27 @@ export type RunEnding = {
   readonly piExit: PiExit;
   readonly piHasExited: boolean;
   readonly sessionStats: unknown;
+
+  /**
+   How many times the driver started Pi, which is one unless a start ended before its Pi took the prompt.
+   */
+  readonly piStartAttempts?: number;
+
+  /**
+   The starts that ended before their Pi took the prompt.
+   */
+  readonly piStartFailures?: readonly PiStartFailure[];
+
+  /**
+   Why no further start followed the last of them, when that is why the run ended as it did.
+   */
+  readonly piStartStoppedBy?: NoFurtherStart;
+
+  /**
+   Why the session the run leaves behind still holds a value, when it does: the run did not finish clean, and this says where the
+   value is.
+   */
+  readonly sessionAtRest?: string;
 };
 
 /**
@@ -353,9 +462,26 @@ export type RecordOfPiRun = {
   readonly countHandledPrompt: () => void;
 
   /**
+   Counts that Pi took the run's first prompt, which is the point after which work may have begun: a Pi that leaves after it is
+   never started again.
+   */
+  readonly countPromptTaken: () => void;
+
+  /**
+   Whether Pi took the run's first prompt.
+   */
+  readonly promptTaken: () => boolean;
+
+  /**
    Keeps what went wrong in the driver itself, for the summary.
    */
   readonly noteDriverFailure: (failure: string,) => void;
+
+  /**
+   Keeps what the driver failed to read when it asked what the run left running, which the feed notes under its own name and the
+   summary carries beside the end reason.
+   */
+  readonly noteWorkProblem: (failure: string,) => void;
 
   /**
    Why the feed is incomplete, when writing it failed. A run whose feed failed did not end clean.

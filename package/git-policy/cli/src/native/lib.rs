@@ -150,6 +150,13 @@ pub mod service;
 /// The same re-export for `service`.
 pub use service::*;
 
+/// The references the wrapper keeps commits on,
+///  and the pruning that bounds them by age and by size.
+pub mod kept_references;
+
+/// The same re-export for `kept_references`.
+pub use kept_references::*;
+
 //endregion
 
 //region Pushes, merges and conflicts

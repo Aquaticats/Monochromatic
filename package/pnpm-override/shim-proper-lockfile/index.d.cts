@@ -1,5 +1,7 @@
 type LockSyncOptions = {
   readonly realpath?: boolean;
+  readonly stale?: number;
+  readonly onCompromised?: (err: Error,) => void;
 };
 
 type RetriesObject = {
@@ -18,8 +20,9 @@ type LockOptions = {
 };
 
 /**
- Release callback. Removes the lock directory; tolerates that directory already being gone, rethrows any other
- removal failure, and remains retryable after such a failure.
+ Release callback.
+ Removes the lock only while the record in it names this process, tolerates the lock already being gone, and
+ rethrows any other removal failure so a later call retries.
  */
 type Release = () => void;
 

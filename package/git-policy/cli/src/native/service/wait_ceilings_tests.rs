@@ -200,21 +200,23 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
 }
 
 /// What:
-///  A unit the manager reports as running is given less than the start ceiling before it is asked to restart.
+///  A unit the manager reports as running is restarted only once the whole start ceiling has passed,
+/// and the client asks the
+///  manager for nothing but this worktree's own unit while it waits.
 /// Why:
-///   A service greets a connection before it restores anything,
-/// so a running unit that greets nothing is one that stopped
-///  inside its own process;
-/// the wait for it is bounded by the greeting silence and never by the whole start ceiling,
-/// which
-///  would hold the commit for a minute.
+///   A greeting three seconds late was read as a service stopped inside its own process on 2026-11-12,
+/// and the
+///  restart and reload that followed ended a desktop session that had nothing to do with the commit
+///  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+/// The silence
+///  that is not evidence of a stopped service is no bound at all.
 #[test]
-fn a_running_unit_that_greets_nothing_is_restarted_within_the_start_ceiling() {
-    assert!(SERVICE_GREETING_SILENCE < START_CEILING, "{SERVICE_GREETING_SILENCE:?} must end before {START_CEILING:?}");
-    assert_eq!(SERVICE_GREETING_SILENCE, Duration::from_secs(3), "nearly three times the slowest of 52 measured cold starts, and under 5 s");
+fn a_running_unit_that_greets_nothing_is_restarted_only_at_the_start_ceiling() {
     let reach: &str = include_str!("service_client_reach_service.rs");
-    assert!(reach.contains("SERVICE_GREETING_SILENCE"), "the client is what asks for the restart");
-    assert!(reach.contains("(watch.restart)("), "and the restart is a call of the service manager");
+    assert!(reach.contains("(watch.restart)("), "the client is what asks for the restart");
+    assert!(reach.contains("started.elapsed() >= config.start_ceiling"), "and the start ceiling is what ends the wait for a greeting");
+    assert!(!reach.contains("SERVICE_GREETING_SILENCE"), "nothing shorter than the start ceiling may stand in for it");
+    assert!(!reach.contains("Reload") && !reach.contains("reload"), "and nothing here asks the manager to read every unit it holds");
 }
 
 /// What:

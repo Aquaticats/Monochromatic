@@ -226,5 +226,18 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
     for line in landed_sweep_lines(&sweep) {
         let _written = writeln!(stderr, "{line}");
     }
+    // What a removal left stands where it was and the path is still taken, while a merge's own output is easily missed: the
+    // same words are recorded in the common Git directory, and the next wrapper command of any worktree of the repository
+    // shows them once. A record that cannot be written costs the person that second telling and never the merge.
+    for removed in &sweep.removed_around {
+        if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(
+            common_dir.as_path(),
+            removed.worktree.as_path(),
+            removed.branch.as_str(),
+            removed.left.as_slice(),
+        ) {
+            crate::diagnostic_log::warn("worktreeLandedAfterAMerge", reason.as_str());
+        }
+    }
     return Some(sweep);
 }

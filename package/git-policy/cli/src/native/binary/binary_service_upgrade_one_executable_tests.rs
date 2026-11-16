@@ -214,10 +214,10 @@ fn upgrade_with(name: &str, old_words: impl FnOnce(&Fixture, &Path, &str) -> Vec
     wait_serving(socket.as_path());
     // The bus stand-in checks, when the wrapper asks it to start the socket, that the unit on disk is already the new one.
     let checked: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::new(std::sync::Mutex::new(None));
-    let at_start: Box<dyn FnOnce() + Send> = Box::new({
+    let at_start: Box<dyn Fn() + Send> = Box::new({
         let unit_path: PathBuf = units.join(SERVICE_UNIT_NAME);
         let slot = std::sync::Arc::clone(&checked);
-        move || { *slot.lock().expect("lock") = std::fs::read_to_string(unit_path).ok(); }
+        move || { *slot.lock().expect("lock") = std::fs::read_to_string(unit_path.as_path()).ok(); }
     });
     let bus = fake_bus_many(runtime.as_path(), false, 2, at_start);
     let mut first_command: Command = commit_command(&fixture, &repo, "subject", "a.txt", runtime.as_path());
@@ -244,9 +244,12 @@ fn upgrade_with(name: &str, old_words: impl FnOnce(&Fixture, &Path, &str) -> Vec
     let at_start_text: String = checked.lock().expect("lock").clone().expect("the socket was started");
     assert!(!at_start_text.contains(REMOVED_PROGRAM) && !at_start_text.contains("cli-git-service "), "{at_start_text}");
     assert!(at_start_text.contains("monochromatic-git-policy-cli service run --journal"), "{at_start_text}");
-    assert_eq!(words[0], fixture.root.join("wrapper/monochromatic-git-policy-cli").display().to_string(), "the unit starts the wrapper's own executable");
+    // What: The unit runs the per-user link, and the link names the release that wrote it.
+    // Why:  The link is what keeps an upgrade from changing the text the manager holds, so the program is checked through it.
+    assert_eq!(words[0], git_policy_cli::service_instance::program_link(runtime.as_path()).display().to_string(), "the unit starts the per-user link");
+    assert_eq!(std::fs::read_link(words[0].as_str()).expect("the link"), fixture.root.join("wrapper/monochromatic-git-policy-cli"), "and the link names the wrapper's own executable");
     assert_eq!(&words[1..4], &["monochromatic-git-policy-cli", "service", "run"], "in service mode");
-    assert!(calls.iter().flatten().any(|call| { return call == "Reload"; }), "the manager was asked to reload: {calls:?}");
+    assert!(!calls.iter().flatten().any(|call| { return call == "Reload"; }), "no command makes the manager read every unit it holds: {calls:?}");
     assert!(calls.iter().flatten().any(|call| { return call == "StartUnit"; }), "{calls:?}");
     // Both commits landed, none was lost, and the service that landed them is the one started from the rewritten unit.
     let log: String = super::commit::git_text(&fixture, &repo, &["log", "--format=%s"]);

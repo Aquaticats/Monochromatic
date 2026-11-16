@@ -320,7 +320,7 @@ All three receipt ZIP digests,
 the GitHub mirror's outer ZIP and its original inner ZIP hash were verified.
 Across the combined campaign,
 21 artifact ZIPs and all 774 members have retained hash/CRC evidence.
-The [complete matched receipts](../audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz)
+The complete matched receipts (`../audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz`)
 are stored once as compressed JSON,
 with compressed/uncompressed hashes bound in the main evidence.
 Both collision-checked temporary object-URL secrets were deleted and their absence verified.
@@ -329,6 +329,8 @@ The two GitHub windows each begin at their common workflow request and end at th
 this conservatively overlaps predecessor and queue intervals.
 The native windows begin at their respective requests.
 These are declared accounting windows rather than measured allocated CPU time or an invoice.
+`depot-reuse-lock-portability-2026-10-18.receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ### Repeated Gradle task-output comparison
 

@@ -58,7 +58,7 @@ export const FOCUS_OF_A_CHANGE_REVIEW: string =
  ```
  */
 export function subjectOfAReview({ source, }: { readonly source: string },): string {
-  return `a change to the code under \`${source}\``;
+  return `a change under \`${source}\``;
 }
 
 /**

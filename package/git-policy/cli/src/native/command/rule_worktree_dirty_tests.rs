@@ -14,7 +14,7 @@
 /// the reader and the scopes.
 use super::{
     DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries, index_file_is_absent, replaced_answers, with_ancestors,
+    ignored_paths_queries, index_file_is_absent, replaced_answers, untracked_paths_queries, with_ancestors,
 };
 use crate::command_test_support::{byte_argument, fixture, git, os_arguments, remove, repository};
 use crate::git_metadata::MetadataOutput;
@@ -194,6 +194,29 @@ fn the_ignored_paths_query_names_each_path_exactly() {
     assert_eq!(asked.len(), many.len());
     assert_eq!(asked.first(), Some(&String::from(":(top,literal)dir with a fairly long name/0.bin")));
     assert_eq!(asked.last(), Some(&String::from(":(top,literal)dir with a fairly long name/3999.bin")));
+}
+
+/// The untracked query is the ignored one without the flag that would narrow it,
+///  so Git names every untracked file at the asked paths.
+#[test]
+fn the_untracked_paths_query_names_each_path_exactly_without_the_ignored_flag() {
+    let prefix: Vec<OsString> = os_arguments(&["-C", "dir"]);
+    let paths: Vec<Vec<u8>> = vec![b"victim.txt".to_vec()];
+    let expected: Vec<OsString> = vec![
+        OsString::from("-C"),
+        OsString::from("dir"),
+        OsString::from("--no-optional-locks"),
+        OsString::from("--no-literal-pathspecs"),
+        OsString::from("ls-files"),
+        OsString::from("--others"),
+        OsString::from("--exclude-standard"),
+        OsString::from("-z"),
+        OsString::from("--full-name"),
+        OsString::from("--"),
+        OsString::from(":(top,literal)victim.txt"),
+    ];
+    assert_eq!(untracked_paths_queries(prefix.as_slice(), paths.as_slice()), vec![expected]);
+    assert!(untracked_paths_queries(&[], &[]).is_empty());
 }
 
 /// The ignored answer lists exactly the paths Git printed,

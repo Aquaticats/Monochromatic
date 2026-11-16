@@ -21,6 +21,7 @@ import {
   latestRunFolderOf,
 } from './run-folder-of-a-unit.ts';
 import type { RunningPiUnit, } from './running-pi-units.ts';
+import { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
 
 /**
  The kind of feed record the driver writes once per turn, whose count is the run's own count.
@@ -50,6 +51,9 @@ export type FeedOfARunningRun = {
 /**
  Counts the turns a feed records.
 
+ The feed is read while its driver still writes it, so the line it ends with may be one the writer has not finished, which is no
+ record yet and is left out.
+
  @param feedShown - the feed, one JSON record per line
 
  @returns how many turn starts it holds
@@ -64,7 +68,7 @@ export function turnsInFeed({ feedShown, }: { readonly feedShown: string },): nu
    The turns counted so far.
    */
   let turns = 0;
-  for (const line of feedShown.split('\n',)) {
+  for (const line of wholeLinesOf({ shown: feedShown, },)) {
     if (line === '') {
       continue;
     }

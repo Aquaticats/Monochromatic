@@ -56,12 +56,14 @@ The dominant classes are:
 - `markdown/single-h1`: 1.
 
 Exact per-finding identities are in
-[the compressed static log](../audit/depot-current-baseline-static-2026-10-18.log.gz).
+the compressed static log (`../audit/depot-current-baseline-static-2026-10-18.log.gz`).
 Disposition:
 the fast static subset is changed-path scoped.
 The whole-tree result is an advisory baseline,
 not a gate.
 The selector and the exact lint configuration are work item 2.
+`depot-current-baseline-static-2026-10-18.log.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Unit profile
 
@@ -89,7 +91,7 @@ Distribution by package family:
 `package/music-player` 2,
 `package/rolldown-plugin` 1.
 The raw log is in
-[the compressed unit log](../audit/depot-current-baseline-unit-2026-10-18.log.gz).
+the compressed unit log (`../audit/depot-current-baseline-unit-2026-10-18.log.gz`).
 Observed failure classes:
 1,979 `ERR_MODULE_NOT_FOUND`,
 987 `Cannot find`,
@@ -105,6 +107,8 @@ where `JSON.parse(stdout)` receives a `Failed to ...` child-output string.
 That is a harness or child-command boundary,
 not a product assertion.
 No unit case is converted to a pass by this register.
+`depot-current-baseline-unit-2026-10-18.log.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Disposition:
 this run is invalid as a product baseline.
@@ -176,7 +180,7 @@ The build failure classes were:
 - an unresolved `canvg` import in `jspdf`.
 
 The full log is in
-[the CI baseline log](../audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz).
+the CI baseline log (`../audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz`).
 These are environment,
 toolchain,
 build-order and dependency failures,
@@ -185,6 +189,8 @@ A generic Depot GitHub runner is insufficient for this build profile.
 The baseline needs the prepared environment described by the evaluation or a documented
 prerequisite image.
 The unit baseline remains invalid until that build succeeds.
+`depot-current-baseline-ci-39197594870-2026-10-18.log.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The prepared native complete baseline is run `2ls35xfpds`.
 It installed glib,
@@ -232,7 +238,9 @@ The only annotation is the tolerated `Install repository tools` exit 1 on `pipx:
 This makes the five-owner fast subset the first known-good build and unit baseline.
 It is not a whole-repository baseline and it is not a gate.
 The log is in
-[the fast-subset CI log](../audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz).
+the fast-subset CI log (`../audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz`).
+`depot-fast-subset-baseline-39199930641-2026-10-18.log.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Advisory profile
 
@@ -285,7 +293,9 @@ Observed errors include `rolldown exited with non-zero status: killed by SIGABRT
 `node exited with non-zero status: killed by SIGABRT` and
 `Assertion failed: (0) == (uv_thread_create(t.get(), start_thread, this))`.
 The raw log is in
-[the compressed build log](../audit/depot-current-baseline-build-2026-10-18.log.gz).
+the compressed build log (`../audit/depot-current-baseline-build-2026-10-18.log.gz`).
+`depot-current-baseline-build-2026-10-18.log.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Disposition:
 the SIGABRT and thread-creation results are consistent with host-resource or

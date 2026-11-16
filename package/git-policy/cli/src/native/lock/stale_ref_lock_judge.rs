@@ -98,7 +98,7 @@ pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_milli
 /// A network or user-space file system can be
 ///  written by a Git on another machine,
 /// whose process numbers mean nothing here.
-const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
+pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -166,6 +166,37 @@ pub struct Examined {
     /// When the lock was born,
     /// where known.
     pub born: Option<SystemTime>,
+}
+
+/// What:
+///  What one PID file says about the lock beside it,
+///  from the two births alone.
+/// Why:
+///   Git creates the PID file after it takes the lock,
+///  so a PID file born strictly later is this lock's,
+///  and one born strictly earlier is an earlier holder's.
+///  A file system may record the two in one tick of its clock,
+///  or record no birth time at all,
+///  and then the order is not proven:
+///  an equal time is never read as "later",
+/// and a missing one is never read as "earlier"
+///  (`AGENTS.md`,
+/// rule `NHP`;
+///  a review of `d189162e3e` found the equal case removing a live Git's editor-phase lock,
+///  which this file measured at one tick of this volume's clock).
+///  Everything else is that unproven state,
+///  which a caller that would remove a lock reads as "keep it".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pidFileStanding(lockBorn, pidBorn, pid) // later ? Names : earlier ? Older : Unproven
+/// ```
+pub(crate) fn pid_file_standing(lock_born: Option<SystemTime>, pid_born: Option<SystemTime>, pid: i64) -> PidFile {
+    return match (lock_born, pid_born) {
+        (Some(lock_at), Some(pid_at)) if pid_at > lock_at => PidFile::Names(pid),
+        (Some(lock_at), Some(pid_at)) if pid_at < lock_at => PidFile::Older(pid),
+        _ => PidFile::Unproven(pid),
+    };
 }
 
 impl Judge {
@@ -250,15 +281,7 @@ impl Judge {
         let Some(pid) = pid_named_by(pid_path.as_path()) else {
             return PidFile::Absent;
         };
-        let pid_born: Option<SystemTime> = match std::fs::symlink_metadata(pid_path.as_path()) {
-            Ok(metadata) => metadata.created().ok(),
-            Err(_) => None,
-        };
-        return match (lock_born, pid_born) {
-            // Git creates the pid file after the lock, so a pid file born earlier belongs to an earlier holder.
-            (Some(lock_at), Some(pid_at)) if pid_at >= lock_at => PidFile::Names(i64::from(pid)),
-            _ => PidFile::Older(i64::from(pid)),
-        };
+        return pid_file_standing(lock_born, crate::lock_birth_times::birth_time_of(pid_path.as_path()), i64::from(pid));
     }
 
     /// What the pid file's number is now,
@@ -352,7 +375,7 @@ impl Judge {
     pub fn examine(&self, lock: &Path) -> Option<Examined> {
         let identity: Identity = identity_of(lock)?;
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(lock).ok()?;
-        let born: Option<SystemTime> = metadata.created().ok();
+        let born: Option<SystemTime> = crate::lock_birth_times::birth_time_of(lock);
         let pid_file: PidFile = Self::pid_file_state(lock, born);
 
         if !metadata.is_file() {
@@ -395,6 +418,10 @@ impl Judge {
             ),
             PidFile::Older(pid) => format!(
                 "the pid file beside it names process {pid}, which {}, and its times are earlier than the lock's, which fits an earlier holder as well as a correction of the clock, so it proves nothing",
+                self.process_state_words(pid)
+            ),
+            PidFile::Unproven(pid) => format!(
+                "a pid file beside it names process {pid}, which {}, and nothing proves it was written for this lock: its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them",
                 self.process_state_words(pid)
             ),
             PidFile::Absent => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),

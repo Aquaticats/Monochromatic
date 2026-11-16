@@ -21,8 +21,6 @@ use crate::iso_time::now_iso;
 /// Replaces the userinfo of every URL in a message,
 /// as the relays of Git's and `git-lfs` words do.
 use crate::lfs_output_mask::mask_url_secrets_text;
-/// The trait that gives output streams `.write_all(..)`.
-use std::io::Write;
 
 /// What:
 ///  Whether debug diagnostics are on:
@@ -119,17 +117,68 @@ pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> Str
 
 /// What:
 ///  Write one complete line to standard error,
-///  ignoring a closed stream.
+///  ignoring a closed stream,
+///  and never waiting for a reader that has stopped draining.
 /// Why:
-///   A diagnostic must never turn into a failure of the command it describes.
+///   A diagnostic must never turn into a failure of the command it describes,
+///  and it must never hold what the command holds:
+///  a line is said at whatever moment the code reaches it,
+///  inside a landing that holds the index lock or a push that holds its claim included,
+///  so the wait for the person's reader is the writer thread's and not the caller's
+///  (`diagnostic_lines_off_the_calling_thread.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// process.stderr.write(line);
 /// ```
 fn write_line(line: &str) {
-    // `let _ =` discards the write result: there is nowhere left to report it.
-    let _ = std::io::stderr().write_all(line.as_bytes());
+    #[cfg(test)]
+    remember_the_line(line);
+    // The line is handed over and the caller goes on: a reader that stopped taking lines must not be able to hold whatever
+    //  this command holds at this moment.
+    crate::diagnostic_lines_off_the_calling_thread::write(line);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The lines this thread wrote, for a control whose subject is the words a command says.
+    static LINES_WRITTEN: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  Remember one diagnostic line this thread wrote.
+/// Why:
+///   A control of a command's words has no other way to read them:
+/// the line goes to standard error,
+/// which a test process does not own.
+///  Keeping it per thread means two controls running beside each other cannot read each other's words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// linesWritten.push(line);
+/// ```
+#[cfg(test)]
+fn remember_the_line(line: &str) {
+    LINES_WRITTEN.with(|lines| {
+        lines.borrow_mut().push(line.to_owned());
+    });
+}
+
+/// What:
+///  Take and clear the diagnostic lines this thread has written so far.
+/// Why:
+///   A control clears them before the step under test and reads exactly that step's words after it.
+///  A release build carries none of this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = linesWritten.splice(0);
+/// ```
+#[cfg(test)]
+pub(crate) fn take_lines_written() -> Vec<String> {
+    return LINES_WRITTEN.with(|lines| {
+        return std::mem::take(&mut *lines.borrow_mut());
+    });
 }
 
 /// What:

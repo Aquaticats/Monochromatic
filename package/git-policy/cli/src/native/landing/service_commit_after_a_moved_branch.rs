@@ -23,7 +23,7 @@ use crate::service_amend_replayed::{AmendedCommit, amended_fields};
 use crate::service_branch_shows::branch_moved;
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
 use crate::service_commit_rebuild_ceiling::may_rebuild;
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::ClientFailure;
 use crate::service_prepare::{NativeInputs, Ready};
 use crate::service_protocol::CommitRequest;
 use crate::service_replay::{Captured, retry_of};
@@ -126,7 +126,7 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
     let branch: String = ready.reference.short().spoken();
     if amended.is_some() {
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-            return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+            return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 }));
         }
         // The replay merges the amended tree onto the new tip by the same rule an ordinary commit's replay uses.
         return retry_of(invocation.context, invocation.cwd, ready, Vec::new());
@@ -139,7 +139,7 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
     if rewords {
         let Some(commit) = sent.commit.as_deref() else { return Err(branch_moved(ready)) };
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-            return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+            return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 }));
         }
         // The change this commit stands for is the tree Git wrote into it, not the private index Git ignored.
         let captured: String = crate::service_replay::tree_of_commit(invocation.context, invocation.cwd, commit)?;
@@ -159,7 +159,7 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
     let parents_are_fixed: bool = ready.fixed_parents && !matches!(native_inputs.capture.base, Base::Unborn);
     if native && !sent.amend && !editor_possible && !ready.interactive && (!parents_are_fixed || conclusion_may_move) {
         if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-            return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+            return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 }));
         }
         // Git builds it again from the tree this build captured, not from the worktree.
         let again: Captured = retry_of(invocation.context, invocation.cwd, ready, Vec::new())?;
@@ -196,7 +196,7 @@ pub(crate) fn after_a_moved_branch(input: MovedBranch<'_>) -> Result<Captured, T
                         return Ok(again);
                     }
                     let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
-                    return Err(TransactionStop::Message(render(&failure)));
+                    return Err(crate::commit_transaction::client_stop(failure));
                 }
                 Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
             }

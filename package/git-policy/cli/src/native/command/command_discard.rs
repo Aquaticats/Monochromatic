@@ -433,6 +433,29 @@ pub fn abort_discard(region: &[OsString]) -> Discard {
     return Discard::Harmless;
 }
 
+/// What:
+///  Read a region of `rebase`,
+///  `cherry-pick`,
+///  `revert` or `am` for `--skip`.
+/// Why:
+///   `--skip` drops the commit or patch the operation stopped at and goes on,
+///  and the reset it makes over the worktree throws away the hand resolution of that conflict
+///  (measured with Git 2.56.0 for every form).
+///  `--sk` is the shortest prefix no sibling option shares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function skipDiscard(region: string[]): Discard;
+/// ```
+pub fn skip_discard(region: &[OsString]) -> Discard {
+    for token in options_of(region) {
+        if spells_long(token, "--skip", 4) {
+            return Discard::Overwrites;
+        }
+    }
+    return Discard::Harmless;
+}
+
 /// Each reading with Git's own refusals,
 /// abbreviations,
 /// clusters and values that look like flags.

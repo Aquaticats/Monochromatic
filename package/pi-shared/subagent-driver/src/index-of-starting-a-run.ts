@@ -113,6 +113,7 @@ export {
 } from './the-line-a-launcher-ends-with.ts';
 export {
   askAboutItsWork,
+  askAboutItsWorkOrReportAFailure,
   type WorkAsked,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';

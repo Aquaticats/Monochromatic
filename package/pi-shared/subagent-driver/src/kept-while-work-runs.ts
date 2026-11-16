@@ -182,6 +182,45 @@ export async function askAboutItsWork({
 }
 
 /**
+ Asks what the run left running, and keeps a read that fails beside the end reason rather than in its place.
+
+ By the time this is asked the agent has ended its turn and the run is only waiting out its own idle time, so a read that fails
+ says nothing about whether the run did its work. The failure goes to the feed and the summary under its own name, and the run
+ ends as the run it was. Ending it `driver-failed` instead is what reported eleven runs of this machine as failures on
+ 2026-11-13 whose reviews were whole and whose Pi had exited 0.
+
+ @param watch - watch request
+
+ @param waited - where the driver stands with the work, which this fills and clears
+
+ @returns what stands between the run and its end, which is nothing when the work could not be read
+
+ @example
+ ```ts
+ const asked = await askAboutItsWorkOrReportAFailure({ watch, waited, },);
+ ```
+ */
+export async function askAboutItsWorkOrReportAFailure({
+  watch,
+  waited,
+}: {
+  readonly watch: WatchRequest;
+  readonly waited: WorkWaitedFor;
+},): Promise<WorkAsked> {
+  try {
+    return await askAboutItsWork({
+      watch,
+      waited,
+    },);
+  }
+  catch (error) {
+    watch.record
+      .noteWorkProblem(String(error,),);
+    return 'nothing';
+  }
+}
+
+/**
  Tells whether Pi refused the message itself, which is no answer and no run started.
 
  @param answer - how waiting for Pi's answer ended

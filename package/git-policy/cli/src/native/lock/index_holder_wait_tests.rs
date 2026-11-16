@@ -6,7 +6,9 @@
 //! and waits for a holder proven alive,
 //! and for an owner nothing proves
 //! alive,
-//! until the ceiling (`MERGE_LOCK_CEILING`).
+//! until the ceiling (`MERGE_LOCK_CEILING`);
+//! a merge's own look before its apply waits for neither,
+//! and the controls here pin that too.
 //! Why:
 //!  Merges must wait for a transient holder and never remove a lock,
 //! so each ending is pinned with a stand-in holder,
@@ -20,6 +22,7 @@
 //! ```
 
 use super::*;
+use crate::stale_ref_lock_killed_git::Helper;
 use crate::test_support::{SharedSink, fixture, remove};
 use std::time::Duration;
 
@@ -125,7 +128,7 @@ const LONG_HOLD: Duration = Duration::from_millis(2500);
 const NO_CEILING: Duration = Duration::ZERO;
 
 /// A PID file that holds a number this process table does not have ends the wait at once,
-/// because no process here will release that lock;
+/// because no process of this boot will release that lock;
 /// the
 ///  diagnostic names the number,
 /// says that a Git of another PID namespace writes one this table has never had,
@@ -151,7 +154,8 @@ fn a_number_this_table_does_not_have_ends_the_wait_at_once_with_the_number_named
     assert!(matches!(outcome, IndexWait::OwnerGone(_)), "{outcome:?}");
     let text: String = sink.text();
     assert!(text.contains(format!("PID number {gone}").as_str()), "the number the PID file holds is said: {text}");
-    assert!(text.contains("which this process table does not have"), "the number is said for what it is: {text}");
+    assert!(text.contains("which no process in this process table has"), "the number is said for what it is: {text}");
+    assert!(text.contains("no record of the processes this repository's own commands started names"), "the diagnostic says no record of the wrapper's commands explains it: {text}");
     assert!(text.contains("another PID namespace"), "why this table does not have it is said: {text}");
     assert!(!text.contains("still held after"), "such an owner is not waited for: {text}");
     assert!(lock.exists(), "the wait removes no lock");
@@ -268,29 +272,50 @@ fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
 }
 
 /// What:
-///  The wait a merge makes before its own apply says the merge is saved for a later command,
-///  not that Git refuses it.
+///  A merge's look at a lock nothing proves the owner of ends at once,
+///  names what is known about it and what was looked at,
+///  writes no notice,
+///  and leaves the lock where it is.
 /// Why:
-///  A held lock is not the merge's failure (`SPEC.md`,
-///  "Merges and commits never fail"):
-/// the merge is saved on a side ref and exits 0,
-///  so a line promising another command's refusal sends the person to a command that does not fail and leaves the
-///  saved merge unnamed.
+///  The owner forbids waiting on another agent's command,
+///  and this lock is as likely to be one as a killed Git's:
+///  a person's own `git commit` keeps the whole index in `index.lock` through its editor
+///  with no descriptor open and no PID file (`service_index_unheld_removal.rs`),
+///  so nothing tells that owner from another program's live command.
+///  A merge has an answer that needs no wait:
+///  its commit is made before the lock is needed,
+///  so the lock ends the apply there and the merge is saved on a side ref,
+///  and a notice would promise a wait the merge does not make.
+///  The clock is read around the look,
+///  so a look that waited would be the control's failure rather than a slow host's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(lock, '')
+/// const began = performance.now()
+/// // { heldBy: 'an owner nothing proves alive (…)' }, well inside the ten seconds this control allows
+/// expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command')
+/// expect(performance.now() - began).toBeLessThan(10000)
+/// ```
 #[test]
-fn the_merge_wait_says_the_merge_is_saved_not_that_git_refuses() {
-    let root: std::path::PathBuf = fixture("holder-wait-merge-saved");
+fn a_merge_does_not_wait_for_a_lock_nothing_proves_the_owner_of() {
+    let root: std::path::PathBuf = fixture("holder-look-merge-unproven");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
-    std::fs::write(&lock, b"").expect("the other program holds the lock");
+    std::fs::write(&lock, b"").expect("a lock nothing proves the owner of");
     let sink: SharedSink = SharedSink::default();
-    let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
-    let mut writer = crate::test_support::ActionSink::new(&sink, 1, move || { remover.remove(); });
-    let outcome: IndexWait = wait_for_index_release_before_a_merge_that_clears_a_dead_lock(index.as_path(), &mut writer);
-    assert!(matches!(outcome, IndexWait::Released(_)), "{outcome:?}");
-    let text: String = sink.text();
-    assert!(text.contains("the merge is saved"), "the saved merge is named: {text}");
-    assert!(!text.contains("reports what Git says"), "the line promises no report the merge does not make: {text}");
-    assert!(!text.contains("Git's own refusal"), "the line promises no refusal the merge does not make: {text}");
+    let began: std::time::Instant = std::time::Instant::now();
+    let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
+    assert!(began.elapsed() < Duration::from_secs(10), "the look does not wait for a lock nothing proves: {:?}", began.elapsed());
+    match looked {
+        IndexWait::HeldByAnotherCommand(named) => {
+            assert!(named.contains("an owner nothing proves alive"), "what is known is named: {named}");
+            assert!(named.contains("has the lock open"), "what was looked at is named: {named}");
+        }
+        other => panic!("a lock nothing proves ends the look at once: {other:?}"),
+    }
+    assert_eq!(sink.text(), "", "the look writes no notice for a wait it does not make");
+    assert!(lock.exists(), "the look removes no lock");
     remove(root.as_path());
 }
 
@@ -323,23 +348,34 @@ mod lock_remover {
 }
 
 /// What:
-///  A merge's one look at the index names the program that holds it and gives up at once,
+///  A merge's look at the index names the process that holds it open and ends at once,
 ///  and names a dead owner whose lock the merge may clear.
 /// Why:
-///   A merge has an answer that needs no wait,
-/// so sixty seconds of waiting on another agent's command bought
+///   A merge has an answer that needs no wait for another program's command,
+/// so sixty seconds of waiting on one bought
 ///  nothing (a cross-vendor audit of alpha.12,
 /// "A merge waits for another agent's live index holder").
 ///  The clock is read
 ///  around the look,
 /// so a look that waited would be the control's failure rather than a slow host's.
+///  The holder is a process of this account holding the file open,
+///  which is the proof the scan makes;
+///  a PID file naming this process,
+///  which holds no descriptor on the lock,
+///  proves nothing
+///  (`a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start`),
+///  so it cannot stand for the holder here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePidFile({ pid: process.pid }); const began = performance.now(); expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command'); expect(performance.now() - began).toBeLessThan(2000);
+/// const holder = holdOpen(lock)
+/// const began = performance.now()
+/// // 'held-by-another-command', well inside the ten seconds this control allows
+/// expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command')
+/// expect(performance.now() - began).toBeLessThan(10000)
 /// ```
 #[test]
-fn a_merge_looks_once_at_the_index_and_never_waits_for_a_holder() {
+fn a_merge_does_not_wait_for_a_holder_proven_alive() {
     let root: std::path::PathBuf = fixture("holder-look-merge");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
@@ -347,18 +383,60 @@ fn a_merge_looks_once_at_the_index_and_never_waits_for_a_holder() {
     assert_eq!(look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone()), IndexWait::NotHeld, "a free index ends the look");
     assert_eq!(sink.text(), "", "a free index prints nothing");
     std::fs::write(&lock, b"").expect("the other program's lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let holder: Helper = hold_open_until_the_scan_sees_it(lock.as_path());
     let began: std::time::Instant = std::time::Instant::now();
     let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
-    assert!(began.elapsed() < Duration::from_secs(2), "the look does not wait: {:?}", began.elapsed());
+    assert!(began.elapsed() < Duration::from_secs(10), "the look does not wait for a proven holder: {:?}", began.elapsed());
     match looked {
-        IndexWait::HeldByAnotherCommand(holder) => {
-            assert!(holder.contains(format!("PID {}", std::process::id()).as_str()), "the holder is named: {holder}");
+        IndexWait::HeldByAnotherCommand(named) => {
+            assert!(named.contains(format!("PID {}", holder.pid()).as_str()), "the holder is named: {named}");
+            assert!(named.contains("proven by an open descriptor"), "the proof is named: {named}");
         }
-        other => panic!("a holder ends the look at once: {other:?}"),
+        other => panic!("a holder proven alive ends the look at once: {other:?}"),
     }
     assert!(lock.exists(), "the look removes no lock");
     remove(root.as_path());
+}
+
+/// How long a holder this control starts may take to appear in the scan,
+/// so a broken start fails the control instead of holding it.
+const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: Duration = Duration::from_secs(20);
+
+/// What:
+///  Start a process of this account that holds `lock` open on descriptor 3,
+///  and wait for the scan the wrapper makes to see it,
+///  bounded,
+///  so the look it tests meets a holder that is there.
+/// Why:
+///   A control about a holder proven alive needs the proof in place before the look it tests,
+/// and a shell that has not reached its redirect yet is a process holding nothing.
+///  The control waits on the same scan the wrapper reads,
+/// so it waits on the fact the wrapper will find.
+fn hold_open_until_the_scan_sees_it(lock: &std::path::Path) -> Helper {
+    let holder: Helper = Helper(
+        std::process::Command::new("sh")
+            .args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("a holder starts"),
+    );
+    let began: std::time::Instant = std::time::Instant::now();
+    while !the_scan_sees(lock, holder.pid()) {
+        assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.pid());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return holder;
+}
+
+/// Whether the host's bounded scan for open holders sees `pid` holding `lock` open.
+fn the_scan_sees(lock: &std::path::Path, pid: i64) -> bool {
+    let Ok(Some(metadata)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
+        return false;
+    };
+    let seen = scan_platform_holders_bounded(lock, metadata.device, metadata.inode);
+    return seen.holders.iter().any(|holder| { return holder.pid == pid; });
 }
 
 /// A lock a gone process left is named by the same look,

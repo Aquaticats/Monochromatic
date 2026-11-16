@@ -28,12 +28,20 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  PROCESS_TOOL_NAME,
+  PROCESSES_RECORD_KIND,
+  type WorkOfARun,
+  processesInToolAnswer,
+  processesNamedIn,
+} from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import {
   type RunCommand,
   runCommandWithChildProcess,
 } from './run-command.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
+import { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -55,45 +63,15 @@ const LIVE_STATUSES: ReadonlySet<string> = new Set<string>([
 const COMMAND_CHARACTERS = 160;
 
 /**
- One process a run started, as the run's own `process` tool recorded it.
- */
-export type WorkOfARun = {
-  /**
-   The tool's name for the process, such as `proc_7adb`.
-   */
-  readonly id: string;
-
-  /**
-   The name the agent gave it, which is the tool's own name when it gave none.
-   */
-  readonly name: string;
-
-  /**
-   The process number the tool holds, which is no number when the tool recorded none.
-   */
-  readonly pid?: number;
-
-  /**
-   The command the tool started.
-   */
-  readonly command: string;
-
-  /**
-   The folder the tool started it in.
-   */
-  readonly cwd: string;
-
-  /**
-   The status the tool last reported, when a record named one.
-   */
-  readonly status?: string;
-};
-
-/**
  Reads the processes a run's own `process` tool last reported as running.
 
- The records are the feed's own: every start, update and list the tool answered is a `tool_end` whose result carries the process
- or the processes it answered with, so what the tool holds is read without asking Pi, whose session may already be over.
+ The records are the feed's own: every start, update and list the tool answered is a `processes` record holding that answer whole,
+ so what the tool holds is read without asking Pi, whose session may already be over. A feed written before those records existed
+ is read from its `tool_end` lines instead, where the answer is kept only as a preview: text the feed cut is no record and says
+ nothing about the call either way.
+
+ A feed being written ends in a line the writer has not finished, which is no record yet and is skipped. A whole line that is not
+ JSON is damage, and the caller learns of it rather than reading the run's work as none.
 
  @param feedShown - the run's feed, one JSON record per line
 
@@ -109,7 +87,22 @@ export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: stri
    The last status the tool reported for each process, by the tool's name for it.
    */
   const reported = new Map<string, WorkOfARun>();
-  for (const line of feedShown.split('\n',)) {
+
+  /**
+   Keeps what one answer said about every process it named, a later answer replacing an earlier one by the same name.
+
+   @param processes - the processes one answer named
+   */
+  function keep(processes: readonly WorkOfARun[],): void {
+    for (const process of processes) {
+      reported.set(
+        process.id,
+        process,
+      );
+    }
+  }
+
+  for (const line of wholeLinesOf({ shown: feedShown, },)) {
     if (line === '') {
       continue;
     }
@@ -117,58 +110,33 @@ export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: stri
      One record of the feed, of any shape.
      */
     const record: unknown = JSON.parse(line,);
-    if ((!isRecord(record,)) || (record.kind !== 'tool_end')
-      || (record.tool !== 'process')
+    if (!isRecord(record,)) {
+      continue;
+    }
+    if (record.kind === PROCESSES_RECORD_KIND) {
+      keep(processesNamedIn({ value: record, },),);
+      continue;
+    }
+    if ((record.kind !== 'tool_end') || (record.tool !== PROCESS_TOOL_NAME)
       || (record.isError === true)) {
       continue;
     }
     if ((typeof record.result) !== 'string') {
       continue;
     }
-    /**
-     What the tool answered, of any shape.
-     */
-    const result: unknown = JSON.parse(record.result,);
-    /**
-     What that answer says about processes, if anything.
-     */
-    const { details, } = isRecord(result,) ? result : { details: undefined, };
-    if (!isRecord(details,)) {
-      continue;
-    }
-    /**
-     Every process this answer names, one or many, as the answer holds them.
-     */
-    const listed: readonly unknown[] = Array.isArray(details.processes) ? details.processes : [];
-    /**
-     What this answer says about the processes, one of them or a list.
-     */
-    const named: readonly unknown[] = [
-      ...(isRecord(details.process,) ? [details.process,] : []),
-      ...listed,
-    ];
-    for (const process of named) {
-      if (!isRecord(process,)) {
-        continue;
-      }
+    try {
       /**
-       The tool's name for it, which is what a later record repeats.
+       What the tool answered, of any shape.
        */
-      const { id, } = process;
-      if ((typeof id) !== 'string') {
-        continue;
+      const result: unknown = JSON.parse(record.result,);
+      keep(processesInToolAnswer({ answer: result, },),);
+    }
+    catch (error) {
+      // A feed line holds only the preview of an answer, cut at the length the feed allows, so an answer longer than that is no
+      // JSON document at all. Such a line says nothing about the processes, and the `processes` record beside it says it whole.
+      if (!(error instanceof SyntaxError)) {
+        throw error;
       }
-      reported.set(
-        id,
-        {
-          id,
-          name: ((typeof process.name) === 'string') ? process.name : id,
-          ...((typeof process.pid) === 'number' ? { pid: process.pid, } : {}),
-          command: ((typeof process.command) === 'string') ? process.command : '',
-          cwd: ((typeof process.cwd) === 'string') ? process.cwd : '',
-          ...((typeof process.status) === 'string' ? { status: process.status, } : {}),
-        },
-      );
     }
   }
   return [...reported.values()].filter(function stillRuns(work,) {

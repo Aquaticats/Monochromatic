@@ -150,8 +150,18 @@ In the order a run that names no model of its own takes them:
   2026-11-11:
   "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
-  20 runs of Kimi K3.1 Pro flex,
-  taken only by a run that names that model.
+  Kimi K3.1 Pro flex,
+  taken only by a run that names that model,
+  closed to new runs since 2026-11-15 while it keeps its limit of 20 (the room it returns to).
+  The owner,
+  2026-11-15:
+  "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+  Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish.
+  Anyway, I'll probably figure out something better in the next week."
+  The runs already on it are still counted there and left to end,
+  and a run that names its model gets no room while it is closed.
+  `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens it for one command.
 - `qwen-token-plan`:
   5 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
@@ -181,8 +191,10 @@ and any number above zero is the room it takes again.
 ```sh
 # reopen OpenCode Go once the owner says the week has reset
 PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
-# close Neuralwatt's Kimi flex pool for the day
-PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --counts-only
+# reopen Neuralwatt's Kimi flex pool, which the owner closed on 2026-11-15, for one command
+PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20 start-pi-run-when-a-pool-has-room --counts-only
+# close the qwen plan's `qwen4-max-preview` pool for the day
+PI_RUNS_POOL_LIMITS=qwen-token-plan=0 start-pi-run-when-a-pool-has-room --counts-only
 ```
 
 A pair naming no pool,
@@ -561,9 +573,20 @@ review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/b
 ```
 
 The files are the `.rs` and `.ts` code the ranges touched,
+and the manifests and tool configurations that decide how that code is built,
+checked or run,
+such as `Cargo.toml`,
+`mise.toml`,
+`package.json`,
+`tsconfig.json` and its variants,
+`nextest.toml`,
+and `Containerfile`,
 without their tests and test stand-ins,
+without a lockfile or another file a tool writes and nobody reads whole,
 and without a file the reviewed commit does not hold.
-A change that leaves no such file under the source folder writes nothing,
+A change that leaves none of those under the source folder,
+which is a change of notes and tests alone,
+writes nothing,
 prints `nothing to review under <source> in <ranges>`,
 and exits `1`:
 a reviewer given no file reports nothing,
@@ -943,6 +966,12 @@ each written as `--name=value`:
   which is the `retry.baseDelayMs` default Pi's own automatic retry uses.
   The wait doubles with each attempt and never passes a minute.
   It shapes only the errors the driver owns, which a 429 is not.
+- `--start-pause-seconds`:
+  the wait before Pi is started again after a start ended before its Pi took the prompt,
+  ten seconds by default.
+  It bounds only that pause:
+  how many starts a run makes, and the time they share, are the driver's own constants,
+  and the section "A Pi that exits before it takes the prompt" names both with their reasons.
 - `--pi-argument`:
   one more word for Pi's command line.
   Repeat it for more words.
@@ -968,19 +997,31 @@ the launcher that builds the session's environment asks it, once, before it make
 - `feed.jsonl`:
   one line per event worth watching,
   as it happens.
+  A `tool_end` line keeps only a preview of what the tool answered,
+  and an answer of the run's own `process` tool that names processes also gets a `processes` line holding it whole,
+  because the driver reads those answers to tell whether work of the run's still runs,
+  and text cut inside a JSON string cannot be read back.
 - `summary.json`:
   appears whole and last,
   so its presence means the driver has finished.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
+  `workProblem` says what the driver could not read when it asked what the run left running,
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
+  `piStartAttempts` says how many times Pi was started,
+  `piStartFailures` holds every start that ended before its Pi took the prompt,
+  each with its exit, the pause that followed it and the last lines Pi printed,
+  `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
 - `stderr.log`:
   Pi's standard error.
+  A run whose Pi is started more than once adds each start's output to this one file,
+  in the order the starts were made,
+  and the summary's `piStartFailures` reads the lines of the start each one is about.
 - `inbox/`:
   drop a message here to steer the run.
   Write it under a name starting with a dot,
@@ -1056,6 +1097,135 @@ in the environment that carried 38 credential-shaped variables,
 neither carrier held any of those values,
 compared rather than printed.
 
+## What is masked before it reaches the model
+
+The environment rule above bounds what a command inherits.
+It does not bound what a command can print,
+and a tool result is sent to the model whole:
+on 2026-11-14 at 09:11:15 a run ran `mise env 2>&1 | head -3`
+and the answer held a credential of `.env.local.json`.
+So every value of this machine's secret environment is masked before it reaches the model,
+and the run's own files are read back for a value a tool printed.
+
+Four sources,
+and why these:
+the checkout's `.env.local.json`,
+read through `@monochromatic-dev/env-local-json-core`,
+because the rules file bans printing it and it declares the repository's secret environment;
+Pi's own `~/.pi/agent/auth.json` and
+`~/.pi/agent/models.json`,
+because they hold provider keys in clear and the rules file names both;
+the shell start-up files
+(`~/.bashrc`,
+`~/.bash_profile`,
+`~/.profile`),
+because a token exported for a terminal lives there and `sed -n '40,70p' ~/.bashrc` was one leak;
+and the driver's own environment's credential-named variables,
+because `environment-without-credentials.ts` takes them out of Pi's environment
+while an ancestor process still holds them,
+which is what `tr '\0' '\n' < /proc/$pid/environ` reads.
+The age identity that decrypts the store is read too,
+because it is the one key that opens every other value.
+
+The values are read once in the driver's own process.
+Nothing writes them to disk,
+logs them,
+summarises them,
+or puts them in an error message,
+and they are never in Pi's environment (a command would inherit it)
+nor on Pi's command line (every process could read it).
+They travel on a descriptor the driver opens for Pi and names in
+`MONOCHROMATIC_SECRET_VALUE_DESCRIPTOR`,
+and the extension reads it once while it loads and closes it
+(`src/secret-value-masking-extension.ts`).
+
+The extension the driver loads with `--extension` masks them in three places:
+`tool_result`,
+which fires after a tool ran and before Pi ends the call and keeps the tool result message
+(`dist/core/agent-session.js:403` in Pi 1.5.2),
+so a value never reaches the model,
+Pi's session file,
+or the run's feed;
+and `context_with_system`,
+which fires before every model request with the whole transcript,
+so a value an earlier session already held is masked on its way out when a run resumes one;
+and `message_end`,
+which fires before Pi keeps a message in its session,
+so the first prompt, a steer, an inbox note, an assistant message with its tool calls and every other message are masked
+before the session file holds them.
+That last hook is also what keeps Pi's compaction and branch-summary requests free of values:
+both build their own text from the session and run no context hook.
+
+The driver masks what it writes as well:
+one boundary for every line of `feed.jsonl`,
+one for `summary.json`,
+and one on the way into `stderr.log`.
+The session file Pi wrote is masked once the run is over,
+which is the one boundary the entry kinds no hook reaches pass,
+an entry an extension wrote among them.
+`doc/troubleshooting/secret-values-reaching-a-model.md` lists every place a value could be written or sent
+and the point before it that masks.
+
+What the mask is applied to is the data Pi serialises,
+not the object it came in:
+the value goes through Pi's own serialisation once,
+the text is masked,
+and Pi gets plain data back.
+That is one answer for a key,
+a `toJSON` method,
+a getter and a cycle,
+and a value that cannot be serialised,
+whose masking throws,
+or whose masked form is not the same shape of data is not handed on at all:
+the result is withheld whole,
+says it has no details,
+and the reader is told why.
+
+An agent reads a marker that names where the value came from,
+`[masked secret value of MISE_GITHUB_TOKEN]`,
+and goes on without it.
+The masking covers the value itself,
+the value as JSON escapes it,
+as a URL percent-encodes it,
+and as base64 encodes it (both alphabets, padded and unpadded).
+It does not cover a container the value was encoded inside
+(base64 of a whole file, hex, gzip, base64 wrapped at column 76)
+nor a value shorter than eight characters,
+and Pi's compaction and branch summarization build their request from the session without running
+`context_with_system`
+(`dist/core/compaction/compaction.js:524`),
+so a value that an old session already held could travel inside one.
+
+A file a run replaces is replaced only when the caller can say the file's writer is gone:
+a session a run resumes is never replaced at all, but masked into a copy Pi resumes,
+and a session at rest is replaced only after Pi's leaving was confirmed.
+Every place a value is kept has three answers:
+covered,
+not there,
+and could not.
+A store,
+Pi's own credential file,
+a shell start-up file,
+an age identity the machine declares,
+or a session a run resumes that is there and cannot be read stops the run before Pi starts;
+a session that still holds a value when the run is over ends it as `session-unmasked`,
+with the summary saying where the value is.
+
+A store that is there and cannot be read stops the run before Pi starts,
+with a `SecretEnvironmentUnreadableError` naming the cause and no value,
+because a run whose values this code does not know would show them to a model.
+A checkout with no store is not that case:
+it declares no secret environment,
+and the other sources are read as usual.
+Pi's command list is the readiness check:
+the extension registers a command whose description holds how many values it armed with,
+and a Pi that answers a list without it is sent no prompt,
+ending the run as `masking-not-armed`.
+
+Pi keeps the whole text of a truncated tool output in a file under its temporary folder,
+and the extension rewrites that file too,
+so a value masked in what the model reads is not left in what Pi wrote.
+
 A provider credential still reaches Pi,
 which is why no provider key is on the allow list:
 a stored credential owns the provider,
@@ -1077,6 +1247,7 @@ or in the provider's own store.
 `prompt-rejected`,
 `compaction-failed`,
 `pi-exited`,
+`pi-exited-before-prompt`,
 `turn-cap`,
 `wall-clock`,
 `driver-failed`,
@@ -1107,7 +1278,8 @@ and its feed gains a `problem` line naming the work it waited for,
 so the two ends are never one word.
 
 What the driver asks is in `work-the-run-left-running.ts`:
-the run's own `process` tool, whose every answer is a record of the feed and whose records carry the process number,
+the run's own `process` tool, whose every answer that names processes is a `processes` line of the feed,
+carrying the process number,
 the folder it started in and the command it runs;
 the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's own unit,
 which is how a `systemd-run --scope` the agent made is found;
@@ -1117,9 +1289,36 @@ for work whose number has gone.
 What none of them can show is not guessed at,
 and a run with nothing running ends `idle` as it always did.
 
-`driver-failed` means the driver itself hit an error:
-`driverError` names it,
-or `feedProblem` does when the feed could not be written.
+An answer that names processes is on the feed twice,
+because the `tool_end` line beside the `processes` line keeps only a preview of it,
+cut at `FEED_PREVIEW_CHARACTERS.toolResult`.
+A preview cut inside a JSON string is not a JSON document,
+and reading one back fails with `Unterminated string in JSON`,
+at the position the cut landed.
+That is what turned runs of 2026-11-12 and 2026-11-13 into `driver-failed`
+after their work was whole and Pi had exited 0,
+each summary naming the position the cut landed at (issue 6299).
+The feed is read as it is written,
+so a line its writer has not finished is no record yet and is left alone:
+that is what `src/whole-lines-of-a-feed.ts` does for every reader of a feed.
+
+A read that fails after the agent ended its turn does not change why the run ended.
+The run still ends as the run it was,
+and `workProblem` carries what could not be read,
+together with a `work-unreadable` line on the feed saying the same.
+That is what a reader sees when the process table,
+the feed or the manager cannot be read while the driver asks what the run left running:
+the agent finished its turn and Pi exited 0,
+so the run did its work,
+and only the driver's knowledge of the work left behind is missing.
+
+`driver-failed` means the driver itself hit an error before it knew how the run ended,
+or that the feed could not be written:
+`driverError` names the error,
+or `feedProblem` does.
+A run that settled is never reported that way for a read that failed after its work was done:
+that failure is `workProblem`,
+and the end reason stays the one the run earned.
 
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.
@@ -1133,12 +1332,65 @@ An error an automatic retry recovers from is not one:
 the run still ends `idle`,
 because the reply after it succeeded.
 
+`pi-exited-before-prompt` means Pi left every start the driver made before any of them took the prompt:
+nothing of the run's work happened,
+and the start is made again within the bounds the section "A Pi that exits before it takes the prompt" states.
+The feed holds a `start_exited` line for each of those starts,
+naming the attempt and Pi's own reason among its last lines,
+and a `start_again` line naming the attempt it prompted and the pause before it.
+
 `compaction-failed` means Pi reported a compaction that failed and then answered nothing,
 so the run ended on the session Pi could not put in order rather than on a prompt Pi refused.
 `compactionProblem` holds what Pi said of such a compaction,
 or names the compaction that was still running when the run ended,
 and it is there however the run ended:
 a run that ended at its wall clock or on a model error after a compaction Pi could not finish carries it too.
+
+### A Pi that exits before it takes the prompt
+
+Pi writes why it will not start to its standard error and nowhere else,
+and it exits there before the prompt is read,
+so such a run did no work at all.
+Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended that way:
+13 on an extension that could not load a module,
+each start failing in 2,096 to 20,491 ms,
+one on a logger with no space left on the device (6,097 ms),
+and four on Pi's own retry of a model-store lock another process held,
+each start spending 127,176 to 247,556 ms.
+
+So a start whose Pi leaves before the prompt is taken is made again:
+`START_ATTEMPTS` (three) starts at most,
+each after a pause of `--start-pause-seconds`,
+because the conditions behind such a failure pass as often as they stand.
+The whole sequence of starts is bounded by `START_SEQUENCE_MILLISECONDS`,
+one start-up answer's bound,
+so a start that already spent it,
+as Pi's own model-store retry did in those four runs,
+is not made three times over:
+the run ends saying what stood.
+A Pi that took its prompt is never started again,
+whatever it does afterwards,
+because the prompt is where work may begin.
+
+When the starts are used up the run ends as `pi-exited-before-prompt`,
+which is a different reason from `pi-exited`,
+the ending of a run that had taken its prompt.
+`piStartFailures` holds every start that failed,
+each with its exit, the pause that followed it, and the last lines Pi wrote to its standard error,
+and the line the driver prints carries the reason among those lines in words,
+so nobody has to open a log to learn why the run did nothing.
+`piStartStoppedBy` says which bound stopped the starts:
+`tries-spent`,
+`start-sequence-spent`,
+or `wall-clock-too-near`.
+
+Every run carries `piStartAttempts`,
+which is 1 for a run Pi went on with,
+so a reader counts over a runs folder how often a start fails this way.
+A run that a later start carried reports the start it rode out in `piStartFailures` and keeps the end reason it earned,
+so `pi-exited-before-prompt` alone marks a condition that stood:
+a caller that fills a queue reads it and stops starting runs into that condition,
+and starts them again once the condition has been answered.
 
 ## When Pi compacts before it takes the prompt
 
@@ -1186,6 +1438,8 @@ A run's first three commands are `get_state`,
 `get_commands`,
 and the prompt,
 and Pi is loading its session and its extensions while they wait.
+A run whose start ended before the prompt was taken asks them again for each start it makes,
+under the same bound each time.
 Their silence is bounded by a measured figure of its own,
 not by the bound an answer owes mid-run.
 That figure is `START_UP_ANSWER_MILLISECONDS`,
@@ -1200,8 +1454,11 @@ and the run's wall clock still ends them.
 
 ## Which layer retries what
 
-The run has two retry layers,
+The run has two retry layers for a model error,
 and a 429 is Pi's.
+A start that ended before its Pi took the prompt is a third kind of retry,
+and it answers no model error at all:
+the section "A Pi that exits before it takes the prompt" states its bounds.
 The owner, 2026-11-11: "It's Pi's native retry's responsibility to deal with 429s."
 
 ### Pi's own automatic retry, inside one turn
@@ -1583,6 +1840,7 @@ and needs neither a running unit nor a process table.
 Every wait for Pi is bounded:
 Pi's start-up,
 its state and its commands,
+the pause between two starts of a Pi that left before taking the prompt,
 each command after the prompt,
 the watch,
 and putting the run away.

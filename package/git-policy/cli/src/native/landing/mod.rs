@@ -61,12 +61,40 @@ pub mod service_retry;
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
 
+/// The wait a landing gives the note that names its repository to the next service.
+pub mod service_claim_watch_note_within_a_ceiling;
+
+/// Whether a Git directory is the repository of the instance whose journal a note is written into.
+pub mod service_claim_watch_whose_repository_it_is;
+
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
+
+/// The word each failure of a commit goes by in the timing record,
+/// declared beside the renderings because they are at their line bound.
+pub mod service_messages_of_a_failure;
 
 /// The words for a start that cannot come at all,
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
+
+/// The words for a manager that answered nothing in the time one exchange is given,
+/// which says nothing about whether it is there.
+pub mod service_messages_of_a_manager_that_did_not_answer;
+
+/// The words for a wait that ended without a greeting,
+/// built from the unit the manager was asked about,
+/// what it answered,
+/// and what this command asked it to do.
+pub mod service_messages_of_a_start_that_was_asked_and_did_not_come;
+
+/// The words for work a hand-off could not hand to the commit service,
+/// in the words of what stopped it.
+pub mod service_messages_of_a_work_that_was_not_handed_over;
+
+/// The sentence a platform without a user service manager leaves the person,
+/// used by every failure that needed one.
+pub mod service_messages_of_a_platform;
 
 /// The words for a commit the person interrupted,
 /// which the service either gave up or left unsettled.
@@ -75,6 +103,11 @@ pub mod service_messages_of_an_interrupted_commit;
 /// What a commit says while it waits for the service,
 /// and that the service is restarted or the commit built again.
 pub mod service_messages_of_a_wait_for_the_service;
+
+/// The words for a commit whose service said nothing,
+/// stopped reading its request,
+/// or stopped answering it.
+pub mod service_messages_of_a_service_that_stopped;
 
 /// The one branch write of a settlement,
 /// and what the batch owes around it.
@@ -466,6 +499,10 @@ pub mod service_round;
 /// The wrapper's side of after-commit work:
 /// records and the wake.
 pub mod service_handoff;
+
+/// The words a waiting push record is named with:
+/// the bound a running service looks in and how long the record has waited.
+pub mod service_handoff_queued_push_words;
 
 /// Whether Git's own record of a branch's remote says a held push's commit has reached it.
 pub mod held_push_commit_on_the_remote;

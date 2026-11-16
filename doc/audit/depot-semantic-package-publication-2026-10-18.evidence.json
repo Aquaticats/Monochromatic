@@ -8,7 +8,19 @@
     "gzipBytes": 2484600,
     "gzipSha256": "722162765d5f8eaa65b5beac7d7c648624cf633894ef182b0049f95f82d2592f",
     "uncompressedBytes": 32709838,
-    "uncompressedSha256": "64ddaf96e8cb07510c933acf1c53275385dffe9b555dc9b492bbd369a7f8052d"
+    "uncompressedSha256": "64ddaf96e8cb07510c933acf1c53275385dffe9b555dc9b492bbd369a7f8052d",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 5c28fbf04670f0c5afd9f195f4be5dbf2d1977fc:doc/audit/depot-semantic-package-feature-assertion-manifest-2026-10-18.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "directoryOwners": 223,
   "commandReceipts": 1818,

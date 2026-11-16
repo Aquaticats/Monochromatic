@@ -230,7 +230,19 @@
     "path": "doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
     "bytes": 39722,
     "sha256": "9267311d49c9e029fec418aeb9d2af89ee77ddccaa947db08df60fbed80ffafc",
-    "records": 20
+    "records": 20,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 49e5c84d1b8066bc9d974742bffbff684e67179a:doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "privacy": {
     "allPublishedBodiesComparedAgainstExistingLoginWithoutPersistingIt": true,

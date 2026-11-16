@@ -469,6 +469,16 @@ For common issues:
   ** →
   [Keep every code span on one source line](marked-list-html-line-ends-item.md)
 
+## Removed evidence archives
+
+Records here cite evidence archives that left the tree on 2026-11-13,
+after the owner ordered that no archive stays tracked.
+What a document cites of one is kept as plain text beside it,
+and `doc/audit/removed-archives-and-where-history-holds-each.md` lists every removed archive
+with its bytes,
+SHA-256,
+the commit that last changed it and the command that prints it from history.
+
 ## Contributing
 
 When adding new troubleshooting content:

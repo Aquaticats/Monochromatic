@@ -83,6 +83,11 @@ pub use crate::service_files_of_a_stopped_instance::{
     record_worktree, remove_journal_of_a_stopped_instance, work_a_person_may_want,
 };
 
+/// The record of the unit texts the manager was told about for one instance,
+/// which goes with the instance once its units are stopped
+/// (`service_provision_loaded_unit_texts.rs`).
+use crate::service_provision_loaded_unit_texts::forget as forget_loaded_unit_texts;
+
 /// What a unit instance's worktree is,
 /// as far as the notes and the journals say.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -590,6 +595,27 @@ fn reason_of(error: &CallError) -> String {
 }
 
 /// What:
+///  Forgets every file that says an instance has units,
+/// once the units of a worktree that is gone are stopped:
+/// its note,
+///  its socket file and the record of the unit texts the manager was told about.
+/// Why:
+///   The record says what the manager read for an instance whose units no longer exist,
+/// and a worktree that is gone never
+///  comes back at that Git directory,
+/// so nothing will ask the manager about it again
+/// (`service_provision_loaded_unit_texts.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// forgetTheInstance(folders, instance); // note, socket file and record
+/// ```
+fn forget_the_instance(folders: &UnitFolders<'_>, instance: &str) {
+    forget_stopped_instance(folders.runtime_dir, instance);
+    forget_loaded_unit_texts(folders.runtime_dir, instance);
+}
+
+/// What:
 /// Stops the units of every instance whose worktree is gone,
 /// and removes the note and the socket file of each one that was stopped,
 /// and its journal when it holds nothing a person may still want and the manager reports its service gone.
@@ -618,13 +644,13 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
                 let quiet: bool = service_is_gone(manager, instance.as_str());
                 match remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str(), quiet) {
                     Some(JournalAfterStop::HoldsWork(kept)) => {
-                        forget_stopped_instance(folders.runtime_dir, instance.as_str());
+                        forget_the_instance(folders, instance.as_str());
                         outcome.journals_kept.push((instance.clone(), kept));
                     }
                     // The journal is kept for the clients that may still read it, or for a service that is still going:
                     //  the note and the socket file stay, so the next sweep finds the instance and finishes.
                     Some(JournalAfterStop::StillRead(_)) => {}
-                    Some(JournalAfterStop::Removed) | None => forget_stopped_instance(folders.runtime_dir, instance.as_str()),
+                    Some(JournalAfterStop::Removed) | None => forget_the_instance(folders, instance.as_str()),
                 }
                 outcome.stopped.push(instance.clone());
             }
