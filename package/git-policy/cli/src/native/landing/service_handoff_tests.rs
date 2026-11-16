@@ -590,38 +590,56 @@ fn a_held_push_whose_command_still_runs_is_left_to_it() {
 /// so nothing else can tell the person otherwise.
 #[test]
 fn a_held_push_whose_live_command_is_spelled_another_way_is_left_to_it() {
-    let root: std::path::PathBuf = fixture("handoff-held-live-respelled");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let own: String = crate::held_push_holder_and_verdict::this_command();
     let mut parts = own.splitn(3, '/');
     let (Some(boot), Some(pid), Some(birth)) = (parts.next(), parts.next(), parts.next()) else {
         panic!("this command's own holder text {own} does not name a boot, a process and a birth");
     };
-    let respelled: String = format!("{}/{pid}/ {birth}", boot.to_uppercase());
-    let holding: Holding = Holding { holder: respelled.clone(), verdict: Verdict::Undecided, reason: String::new() };
-    let (item, held) = held_with_verdict(&handoff, OID, &holding);
-    let woken: Woken = Woken::default();
-    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
-    let branch: &str = handoff.reference.text().expect("a branch name that is text");
-    let stopped: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), branch);
-    // Every consequence is asked and every wrong one is kept, so one run of this control names what a live holder read
-    //  as gone costs, instead of the first thing that broke.
+    // One arm per guard: the boot respelled alone leaves the birth comparable, and the birth respelled alone leaves the
+    //  boot placeable, so taking either guard out by itself makes one arm fail. A single arm that respelled both passed
+    //  when either guard alone was removed, which is what the third review named.
+    let arms: [(&str, String, &str); 2] = [
+        ("the boot respelled alone", format!("{}/{pid}/{birth}", boot.to_uppercase()), "boot-respelled"),
+        ("the birth respelled alone", format!("{boot}/{pid}/ {birth}"), "birth-respelled"),
+    ];
     let mut wrong: Vec<String> = Vec::new();
-    if !said.iter().any(|line| { return line.contains("has not finished its checks"); }) {
-        wrong.push(format!("the line does not say the command that landed the commit still runs: {said:?}"));
+    for (what, respelled, fixture_name) in arms {
+        let root: std::path::PathBuf = fixture(format!("handoff-held-live-{fixture_name}").as_str());
+        let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+        let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+        let holding: Holding = Holding { holder: respelled.clone(), verdict: Verdict::Undecided, reason: String::new() };
+        let (item, held) = held_with_verdict(&handoff, OID, &holding);
+        let woken: Woken = Woken::default();
+        // The answer itself, so that a guard taken out is named here and not only through the line:
+        // this command's number has a process, and the part the arm respelled cannot be compared, so nothing shows that
+        // the process is the record's maker.
+        let answer: crate::held_push_holder_and_verdict::HolderAnswer = crate::held_push_holder_and_verdict::holder_answer(respelled.as_str());
+        if answer != crate::held_push_holder_and_verdict::HolderAnswer::CannotBeTold {
+            wrong.push(format!("{what}: the reader answered {answer:?} for a holder whose respelled part cannot be compared"));
+        }
+        let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &woken);
+        let branch: &str = handoff.reference.text().expect("a branch name that is text");
+        let stopped: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), branch);
+        // Every consequence is asked and every wrong one is kept, so one run of this control names what a live holder read
+        //  as gone costs, instead of the first thing that broke.
+        if !said.iter().any(|line| { return line.contains("has not finished its checks"); }) {
+            wrong.push(format!("{what}: the line does not say the command that landed the commit still runs: {said:?}"));
+        }
+        if !held.exists() {
+            wrong.push(format!("{what}: the record left the held state, and the command that will decide was not the one that moved it"));
+        }
+        if !woken.0.borrow().is_empty() {
+            wrong.push(format!("{what}: the service was woken for a push no gate has decided"));
+        }
+        if stopped != vec![String::from(OID)] {
+            wrong.push(format!("{what}: a push of the branch no longer stops before the commit whose checks have not answered: {stopped:?}"));
+        }
+        remove(root.as_path());
+        if !wrong.is_empty() {
+            wrong.push(format!("   the item is {} and the holder text is {respelled}", item.id()));
+        }
     }
-    if !held.exists() {
-        wrong.push(String::from("the record left the held state, and the command that will decide was not the one that moved it"));
-    }
-    if !woken.0.borrow().is_empty() {
-        wrong.push(String::from("the service was woken for a push no gate has decided"));
-    }
-    if stopped != vec![String::from(OID)] {
-        wrong.push(format!("a push of the branch no longer stops before the commit whose checks have not answered: {stopped:?}"));
-    }
-    assert!(wrong.is_empty(), "{} is held by {respelled} (the item {}):\n{}", OID, item.id(), wrong.join("\n"));
-    remove(root.as_path());
+    assert!(wrong.is_empty(), "{OID} is held by a live command:\n{}", wrong.join("\n"));
 }
 
 /// What:
