@@ -1143,7 +1143,13 @@ fn listed_paths_of(
         for token in ["--no-optional-locks", "ls-files", "-z", "--full-name"] {
             arguments.push(OsString::from(token));
         }
-        arguments.push(OsString::from(format!("--with-tree={}", named.to_string_lossy())));
+        // The revision's own bytes, because Git resolves the name it is given and a lossy conversion
+        //  is another name: `topic` followed by raw `0xff` became `topic` followed by U+FFFD,
+        //  which was a ref of its own pointing at `main`, so the tree listed no `victim.txt` and the
+        //  forced checkout wrote it out of the raw-byte ref (the tenth review's second finding).
+        let mut with_tree: Vec<u8> = b"--with-tree=".to_vec();
+        with_tree.extend_from_slice(named.as_encoded_bytes());
+        arguments.push(crate::path_bytes::os_from_path_bytes(with_tree.as_slice()));
         arguments.push(OsString::from("--"));
         arguments.extend(pathspecs.iter().cloned());
     }
@@ -1472,14 +1478,40 @@ fn the_places_under_a_prefix(
         return Ok(inside_places(paths));
     };
     let written: Vec<u8> = named_prefix.as_encoded_bytes().to_vec();
-    let named: PathBuf = if written.starts_with(b"/") {
-        PathBuf::from(named_prefix)
+    // What:
+    //  The three parts of the prefix that decide where each path lands:
+    //  whether its text ends with a separator,
+    //  the part before that separator,
+    //  and the name after it.
+    // Why:
+    //  Git concatenates the prefix text and each path's own text, so the last name in the prefix
+    //  continues a path's name unless the text ends with a separator:
+    //  `checkout-index -f --prefix=. -a` writes `.a.txt`, `--prefix=out -a` writes `outa.txt`, and
+    //  `--prefix=link -a` writes `linka.txt` beside an untouched `link`
+    //  (measured on this host with native Git 2.56.0, 2026-11-16).
+    //  A guard that resolved the prefix as a folder read `a.txt`, `out/a.txt` and `link/a.txt`,
+    //  and let Git write over the files it had not looked at: the tenth review's first finding.
+    //  A prefix that does end with a separator names a folder, and a link there is followed by the
+    //  kernel: `--prefix=link-out/` writes outside the worktree
+    //  (`checkout-index -f --prefix=<link-out>/ -a`, the same measurement).
+    let trimmed: Vec<u8> = without_trailing_separators(written.as_slice()).to_vec();
+    let names_a_folder: bool = trimmed.len() != written.len();
+    let (way_text, last): (&[u8], Option<&[u8]>) = if names_a_folder {
+        (written.as_slice(), None)
     } else {
-        root.join(named_prefix)
+        match trimmed.iter().rposition(|byte| return *byte == b'/') {
+            Some(slash) => (&trimmed[..slash + 1], Some(&trimmed[slash + 1..])),
+            None => (&[], Some(trimmed.as_slice())),
+        }
     };
-    // One resolution of the prefix, under the same ceiling as a word's place.
-    let resolved: PathBuf = match resolve_within_a_ceiling(root, named.as_path()) {
-        Some((_resolved_root, resolved_prefix)) => resolved_prefix,
+    let way: PathBuf = match way_text {
+        [] => root.to_path_buf(),
+        absolute if absolute.starts_with(b"/") => PathBuf::from(path_from_bytes(without_trailing_separators(absolute))),
+        relative => root.join(path_from_bytes(relative)),
+    };
+    // One resolution of the way, under the same ceiling as a word's place.
+    let (resolved_root, resolved_way): (PathBuf, PathBuf) = match resolve_within_a_ceiling(root, way.as_path()) {
+        Some(found) => found,
         None => {
             return Err(format!(
                 "the guard could not place the prefix `{}` this command writes below: the worktree did not answer within {} seconds",
@@ -1488,20 +1520,13 @@ fn the_places_under_a_prefix(
             ));
         }
     };
-    let mut base: Vec<u8> = resolved.as_os_str().as_encoded_bytes().to_vec();
-    if written.ends_with(b"/") && !base.ends_with(b"/") {
+    let mut base: Vec<u8> = resolved_way.as_os_str().as_encoded_bytes().to_vec();
+    if !base.ends_with(b"/") {
         base.push(b'/');
     }
-    let resolved_root: PathBuf = match resolve_within_a_ceiling(root, root) {
-        Some((resolved_root, _same)) => resolved_root,
-        None => {
-            return Err(format!(
-                "the guard could not place the paths below `{}`: the worktree did not answer within {} seconds",
-                String::from_utf8_lossy(written.as_slice()),
-                WORKTREE_LOOKUP_CEILING.as_secs()
-            ));
-        }
-    };
+    if let Some(name) = last {
+        base.extend_from_slice(name);
+    }
     let mut places: Vec<WrittenPlace> = Vec::<WrittenPlace>::with_capacity(paths.len());
     for path in paths {
         let mut glued: Vec<u8> = Vec::<u8>::with_capacity(base.len() + path.len());
