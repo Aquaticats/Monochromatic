@@ -7,10 +7,17 @@ use std::io::{self, Write};
 /// Unix file creation mode.
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 /// Watcher state paths.
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Private application watcher runtime root.
 const WATCH_STATE_ROOT: &str = "/run/wg-quicker-exempt/watchers";
+/// Environment variable that points the watcher state at a scratch directory,
+/// so a test drives the real start and stop of this program without root,
+/// as `pin` does with its forced pin failure.
+/// It is read only in a debug build,
+/// and a release build always uses the private runtime root.
+#[cfg(debug_assertions)]
+const STATE_ROOT_ENV: &str = "WG_QUICKER_EXEMPT_TEST_WATCH_STATE_ROOT";
 /// Numeric state schema version.
 const WATCH_STATE_VERSION: u32 = 1;
 
@@ -38,9 +45,20 @@ fn encode_key(key: &str) -> io::Result<String> {
     return Ok(bytes_as_lowercase_hex(key.as_bytes()));
 }
 
+/// The root the watcher state lives under:
+/// the private runtime root,
+/// or the scratch directory a test names in its environment.
+fn state_root() -> PathBuf {
+    #[cfg(debug_assertions)]
+    if let Some(root) = std::env::var_os(STATE_ROOT_ENV) {
+        return PathBuf::from(root);
+    }
+    return PathBuf::from(WATCH_STATE_ROOT);
+}
+
 /// Maps watcher key into private state directory.
 pub fn watch_state_directory(key: &str) -> io::Result<PathBuf> {
-    return Ok(Path::new(WATCH_STATE_ROOT).join(encode_key(key)?));
+    return Ok(state_root().join(encode_key(key)?));
 }
 
 /// Maps watcher key into private state file.

@@ -49,7 +49,9 @@ export type EndReason =
     | 'wall-clock'
     | 'driver-failed'
     | 'model-error'
-    | 'pi-not-stopped';
+    | 'pi-not-stopped'
+    | 'masking-not-armed'
+    | 'session-unmasked';
 
 /**
  Every reason a run can end with, so a reader of summaries can ask about all of them without naming any twice.
@@ -66,6 +68,8 @@ export const END_REASONS: readonly EndReason[] = [
   'driver-failed',
   'model-error',
   'pi-not-stopped',
+  'masking-not-armed',
+  'session-unmasked',
 ];
 
 /**
@@ -267,6 +271,12 @@ export type RunSummary = {
   };
 
   /**
+   Why the session the run leaves behind still holds a value, when it does: the run did not finish clean, and this says where the
+   value is.
+   */
+  readonly sessionAtRest?: string;
+
+  /**
    Why the feed is incomplete, when writing it failed.
    */
   readonly feedProblem?: string;
@@ -380,6 +390,12 @@ export type RunEnding = {
    Why no further start followed the last of them, when that is why the run ended as it did.
    */
   readonly piStartStoppedBy?: NoFurtherStart;
+
+  /**
+   Why the session the run leaves behind still holds a value, when it does: the run did not finish clean, and this says where the
+   value is.
+   */
+  readonly sessionAtRest?: string;
 };
 
 /**

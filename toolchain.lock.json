@@ -103,7 +103,7 @@
     },
     "pnpm": {
       "request": "github:pnpm/pnpm@latest",
-      "version": "12.18.0",
+      "version": "12.21.0",
       "route": "bin-sourced",
       "bins": [
         "pn",
@@ -121,20 +121,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-arm64.tar.gz",
-          "sha256": "700bd1aa4028465b80e62b7c5bec8455be60bbafaf53a3262a4ab8e2057712ac"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.21.0/pnpm-linux-arm64.tar.gz",
+          "sha256": "6c5913a48c93b3a556b71c3bd9bf12c6bf9fbfbbbd2dcbd1d52a85c539751b9e"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-arm64-musl.tar.gz",
-          "sha256": "86c80eb744b1ff41ca7400bb1f8ca5fb522b2101da39ac93bd45f3bc652e5cfb"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.21.0/pnpm-linux-arm64-musl.tar.gz",
+          "sha256": "4faedaaa333b44d940ce5e38c223e829124affdbe5a6d3f694a69dd979a5a8d8"
         },
         "linux-x64": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-x64.tar.gz",
-          "sha256": "3726060e236c0db3e7124c0a5af123c840ba0cb76682149b63ea0baf290017c2"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.21.0/pnpm-linux-x64.tar.gz",
+          "sha256": "84c4773bcf4a217f4083cd7b2a91e4cee6103cf42426c1282ef37d308f55a410"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-x64-musl.tar.gz",
-          "sha256": "faaed5856527e4f1e8d5e16edf797c6e643cbe1521e3d15e2d791e8295489fb1"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.21.0/pnpm-linux-x64-musl.tar.gz",
+          "sha256": "6dbcd9ea8ed37b5acbe279159ad0ed3a4ac614f5d7ae62d5ba51d32a85a589d7"
         }
       }
     },
@@ -464,10 +464,10 @@
     },
     "rust": {
       "request": "rust@nightly",
-      "version": "nightly-2026-11-15",
+      "version": "nightly-2026-11-16",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-11-15",
+      "packageId": "nightly-2026-11-16",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -482,7 +482,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-11-15"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-16"
       },
       "options": {
         "rustComponents": [
@@ -613,7 +613,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.6.1-alpha.43",
+      "version": "0.6.1-alpha.44",
       "route": "archive",
       "bins": [
         "monochromatic-git-policy-cli"
@@ -635,20 +635,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.43/monochromatic-git-policy-cli-0.6.1-alpha.43-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "618cce35d5ab77de2cb78c637adb9ec6d8a23ca105f2d788a106d935deda37bb"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.44/monochromatic-git-policy-cli-0.6.1-alpha.44-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "68450ca275e78aca4a7b30694c3506dcff9e96f6a0b92061248a98f121795bee"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.43/monochromatic-git-policy-cli-0.6.1-alpha.43-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "618cce35d5ab77de2cb78c637adb9ec6d8a23ca105f2d788a106d935deda37bb"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.44/monochromatic-git-policy-cli-0.6.1-alpha.44-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "68450ca275e78aca4a7b30694c3506dcff9e96f6a0b92061248a98f121795bee"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.43/monochromatic-git-policy-cli-0.6.1-alpha.43-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "9ea552d623e4d158e3a63fd2f9e00fe91324ef6e8939407090d25d6033255bf9"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.44/monochromatic-git-policy-cli-0.6.1-alpha.44-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "e50b4a811ee1770d79fed0b76dbe6936082468c2ff0e7e73499f3c67666d3173"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.43/monochromatic-git-policy-cli-0.6.1-alpha.43-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "9ea552d623e4d158e3a63fd2f9e00fe91324ef6e8939407090d25d6033255bf9"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.44/monochromatic-git-policy-cli-0.6.1-alpha.44-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "e50b4a811ee1770d79fed0b76dbe6936082468c2ff0e7e73499f3c67666d3173"
         }
       }
     },
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:db8de44d3c26dfd0da65d8a19967382824a7f04f38e1a27a74a7d276f407a3e7"
+  "digest": "sha256:0a9188d889b53f123e15548487dd2f2c83fd41b0254cfcdc99a71544478fdc23"
 }
