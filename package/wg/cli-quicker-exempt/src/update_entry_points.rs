@@ -81,6 +81,20 @@ impl MatchReason {
             MatchReason::PiAgent => "Pi, the agent harness whose provider traffic stays outside the tunnel",
         };
     }
+
+    /// The method that moved a process,
+    /// short enough for the unit description the service manager shows,
+    /// where the long wording above would push the origin off the line.
+    pub fn method_label(self) -> &'static str {
+        return match self {
+            MatchReason::MiseTask => "a mise task that fetches from the network",
+            MatchReason::MpmShadowVerb => "an mpm-shadow command that fetches from the network",
+            MatchReason::MpmShim => "the mpm shadow",
+            MatchReason::ToolchainScript => "the TypeScript mpm-shadow launcher",
+            MatchReason::ToolchainPath => "a program under the toolchain install roots",
+            MatchReason::PiAgent => "Pi, the agent harness",
+        };
+    }
 }
 
 /// The final path component of raw argument bytes.
