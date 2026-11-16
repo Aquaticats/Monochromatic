@@ -97,7 +97,17 @@ pub(crate) struct HoldOnAnyThread {
 /// The hold a control set,
 /// if any,
 /// taken by the thread that reaches it so a second reach passes.
-static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync::Mutex::new(None);
+static HELD_ON_ANY_THREAD: std::sync::Mutex<Vec<HoldOnAnyThread>> = std::sync::Mutex::new(Vec::new());
+
+/// What:
+///  The turn each control takes among the controls that hold one point of a service.
+/// Why:
+///   A hold is taken by whichever thread reaches its point,
+/// and two controls of this process that hold the same point take each other's hold:
+///  the second one's check then reads a hold the first one's service consumed
+///  (the fifth review of this branch: two controls of `service_server_connection_handling` failed together in one process).
+///  Taking this turn keeps the other controls parallel and this one pair apart.
+pub(crate) static ARMS_ONE_POINT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// What:
 ///  Holds `point` on whichever thread reaches it,
@@ -112,7 +122,11 @@ static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync
 /// const [reached, reachedWait] = channel(); const [letGo, held] = channel(); holdOnAnyThread({ point, reached, letGo: held });
 /// ```
 pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
-    *HELD_ON_ANY_THREAD.lock().expect("the hold registry") = Some(held);
+    // What: A registry of holds, one per point, and not one hold for the whole process.
+    // Why:  Two controls that hold two points of one service run in one process of their own under nextest,
+    //       and run together in one process the second arming dropped the first, whose wait then failed
+    //       (the fifth review of this branch: two controls of `service_server_connection_handling` failed together).
+    HELD_ON_ANY_THREAD.lock().expect("the hold registry").push(held);
 }
 
 /// What:
@@ -224,9 +238,9 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 pub(crate) fn run_on_any_thread(point: &str) {
     let taken: Option<HoldOnAnyThread> = {
         let mut registry = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
-        match registry.as_ref() {
-            Some(held) if held.point == point => registry.take(),
-            _ => None,
+        match registry.iter().position(|held| { return held.point == point; }) {
+            Some(at) => Some(registry.remove(at)),
+            None => None,
         }
     };
     let Some(held) = taken else { return };

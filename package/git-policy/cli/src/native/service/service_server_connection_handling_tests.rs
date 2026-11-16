@@ -372,6 +372,9 @@ fn a_commit_is_beaten_while_the_note_read_waits() {
     let (shared, mut jobs) = shared_serving("connection-held-instance-and-note", own);
     let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-check-and-note"))));
     let ((), _ticks) = with_a_ticker_beside(async move {
+        // What: The turn of the controls that hold this point of a service (`hooks::ARMS_ONE_POINT`).
+        // Why:  Another control of this process holds the same point, and each would take the other's hold.
+        let _taking_turns = hooks::ARMS_ONE_POINT.lock().await;
         let (_read_half, mut write_half, mut client) = connection();
         // The instance read and the note's journal read answer only when this control lets them go, so "while they wait" is a
         //  state and not a duration.
@@ -440,6 +443,9 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
     let (shared, mut jobs) = shared_serving("connection-held-note-read-again", own);
     let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-note-read"))));
     let ((), _ticks) = with_a_ticker_beside(async move {
+        // What: The turn of the controls that hold this point of a service (`hooks::ARMS_ONE_POINT`).
+        // Why:  Another control of this process holds the same point, and each would take the other's hold.
+        let _taking_turns = hooks::ARMS_ONE_POINT.lock().await;
         let (_read_half, mut write_half, mut client) = connection();
         // The instance read answers only when this control lets it go, so the connection waits where the beats are written.
         let (instance_reached, instance_wait) = tokio::sync::oneshot::channel::<()>();

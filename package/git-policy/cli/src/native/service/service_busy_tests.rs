@@ -16,8 +16,17 @@ const NEVER: Duration = Duration::from_secs(3600);
 /// so the age is measurably above `AT_ONCE`.
 const A_MOMENT: Duration = Duration::from_millis(20);
 
+/// What: A fresh journal of its own for every control that asks, named after the control.
+/// Why:  Two controls that share a journal share its places, its busies and its removals,
+/// and run together in one process they fail each other's assertions: the sixth of them
+///  (the fifth review of this branch) failed eleven controls of this file at once.
+fn a_fixture_of_its_own(prefix: &str) -> std::path::PathBuf {
+    let named: String = std::thread::current().name().unwrap_or("a-control-with-no-name").replace("::", "-");
+    return crate::test_support::fixture(format!("{prefix}-{named}").as_str());
+}
+
 fn board_stuck_after(slow_after: Duration) -> Arc<LandingBoard> {
-    return LandingBoard::a_board_that_took_its_place(crate::test_support::fixture("service-busy-board").join("journal-that-does-not-exist"), slow_after);
+    return LandingBoard::a_board_that_took_its_place(a_fixture_of_its_own("service-busy-board").join("journal-that-does-not-exist"), slow_after);
 }
 
 fn board() -> Arc<LandingBoard> {
