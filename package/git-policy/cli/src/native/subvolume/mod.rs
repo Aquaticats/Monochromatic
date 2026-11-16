@@ -210,6 +210,16 @@ pub mod subvolume_command;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_test_support;
 
+/// What the old tree read like when the migration copied it:
+/// the record a later deletion asks rather than the checkout's own state.
+#[cfg(target_os = "linux")]
+pub mod subvolume_old_tree_record;
+
+/// The entries a deletion could not prove to stand in the tree that is kept,
+/// moved beside the checkout and named.
+#[cfg(target_os = "linux")]
+pub mod subvolume_kept_from_the_old_tree;
+
 /// Which entries of one tree are not proved to stand, byte for byte, in another:
 /// the proof the deletion of the old tree and of a rollback's subvolume rest on.
 #[cfg(target_os = "linux")]
@@ -218,6 +228,14 @@ pub mod subvolume_tree_proof;
 /// The controls of the rule that a person's bytes are deleted only when they are proved to stand in the tree kept.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_never_discards_data_tests;
+
+/// The controls of what the two deleting commands do with a checkout a person has worked in since the migration.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_work_after_the_migration_tests;
+
+/// The controls of a linked second name's bytes and of what the record of parked copies costs.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_linked_copies_and_their_record_tests;
 
 /// The migration controls that need the real btrfs ioctls,
 /// `FICLONE` and exchange.

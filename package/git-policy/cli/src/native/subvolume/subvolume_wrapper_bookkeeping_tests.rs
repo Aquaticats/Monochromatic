@@ -293,47 +293,29 @@ fn the_old_trees_record_of_this_programs_own_process_does_not_stop_the_deletion(
     remove(parent.as_path());
 }
 
-/// A person's file placed while the copy ran is still a person's,
-/// and the deletion of the old tree still refuses when the checkout lost it:
-/// one at an ordinary name,
-/// and one at a name this program keeps whose text is not that program's.
+/// What:
+///  A file a person deleted in the checkout, whose copy the old tree still holds, does not restore it and does not stop
+///  the deletion of the old tree.
+/// Why:
+///   A migration is made in order to go on working:
+///  the person deletes a file,
+///  and the old tree's copy of it is the migration's own snapshot,
+///  which the checkout held until the person deleted it.
+///  This control held the opposite before the record of the old tree existed:
+///  it asserted that the entry held the deletion back, which made a used checkout impossible to delete.
 #[test]
-fn a_persons_file_the_checkout_lost_still_stops_the_deletion() {
+fn a_persons_file_the_checkout_lost_is_not_restored_and_does_not_stop_the_deletion() {
     let (parent, root) = checkout_with_worktree("bookkeeping-personal-removal");
     let platform: PlainPlatform = PlainPlatform::new();
-    let git_directory: PathBuf = root.join(".git");
-    let records: PathBuf = records_folder(root.as_path());
-    std::fs::create_dir_all(records.as_path()).expect("records folder");
-    let note: PathBuf = git_directory.join("person-notes.txt");
-    let beside_a_record: PathBuf = records.join(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE));
-    let written: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    {
-        let written_git_directory: PathBuf = git_directory.clone();
-        let written_note: PathBuf = note.clone();
-        let written_beside_a_record: PathBuf = beside_a_record.clone();
-        watch_entries(Some(Box::new(move |examined: &Path| {
-            if examined.parent() != Some(written_git_directory.as_path()) || written.swap(true, Ordering::SeqCst) {
-                return;
-            }
-            std::fs::write(written_note.as_path(), b"a note I put there while the copy ran\n").expect("a person's note");
-            set_mtime(written_note.as_path(), BEFORE_EVERY_CUTOFF);
-            std::fs::write(written_beside_a_record.as_path(), b"my own file at a name the wrapper uses\n").expect("a person's file");
-            set_mtime(written_beside_a_record.as_path(), BEFORE_EVERY_CUTOFF);
-        })));
-    }
-    let (code, said) = run(&platform, &migrate_arguments(), root.as_path());
-    watch_entries(None);
-    assert_eq!(code, DONE, "{said}");
-    assert!(note.exists() && beside_a_record.exists(), "the catch-up carried both into the checkout");
-    // The person deleted them from the checkout on purpose, which is the entry the cut-off exists for.
-    std::fs::remove_file(note.as_path()).expect("the person's deletion");
-    std::fs::remove_file(beside_a_record.as_path()).expect("the person's deletion");
-    let (removal_code, removal_said) = run(&platform, &remove_old_arguments(), root.as_path());
-    assert_eq!(removal_code, REFUSED, "{removal_said}");
+    let (migrated, migrated_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migrated, DONE, "{migrated_said}");
     let layout = layout_of(root.as_path()).expect("layout");
-    assert!(layout.old_path.exists(), "nothing was deleted");
-    assert!(removal_said.contains("2 entr(ies) absent") && removal_said.contains("person-notes.txt"), "{removal_said}");
-    assert!(removal_said.contains(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE).as_str()), "a person's file at a name this program keeps is named too: {removal_said}");
+    std::fs::remove_file(root.join("script.sh")).expect("the person's deletion");
+    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
+    println!("removal code {code}; output: {said}");
+    assert_eq!(code, DONE, "the deletion of a file in the checkout is respected: {said}");
+    assert!(!layout.old_path.exists(), "the old tree is deleted");
+    assert!(!root.join("script.sh").exists(), "and the deleted file is not restored from it");
     remove(parent.as_path());
 }
 
@@ -449,6 +431,7 @@ fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a
         interrupt,
         stats: SyncStats::default(),
         links: HashMap::new(),
+        links_from: HashMap::new(),
         stage_holders: HashSet::new(),
     };
 }

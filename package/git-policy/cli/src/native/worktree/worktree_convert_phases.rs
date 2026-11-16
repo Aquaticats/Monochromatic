@@ -267,7 +267,21 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     interrupt.check("journaled")?;
     ensure_stage(platform, job, interrupt)?;
     interrupt.check("created")?;
-    let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None }, interrupt, None, None)?;
+    let first: SyncStats = sync_tree(
+        platform,
+        job.candidate.path.as_path(),
+        job.converting.as_path(),
+        SyncOptions {
+            never_replaces: false,
+            delete: false,
+            update_only: false,
+            excluded: &[],
+            created_since: None,
+        },
+        interrupt,
+        None,
+        None,
+    )?;
     say.say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
     for text in what_a_pass_could_not_carry("  copy", &first) {
         say.say(text.as_str());
@@ -280,22 +294,45 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     // The instant the removal compares change times against is taken before the pass, not after it: an edit made while the
     // pass runs can land after the pass examined that entry, and it carries a change time before the pass ends.
     let proof_started_ms: i64 = crate::worktree_convert_journal::now_milliseconds();
-    let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { never_replaces: false,  delete: true, update_only: false, excluded: &[], created_since: None }, interrupt, None, None)?;
-    for text in what_a_pass_could_not_carry("  proving copy", &second) {
+    let second: Result<SyncStats, MigrateError> = sync_tree(
+        platform,
+        job.candidate.path.as_path(),
+        job.converting.as_path(),
+        SyncOptions {
+            never_replaces: false,
+            delete: true,
+            update_only: false,
+            excluded: &[],
+            created_since: None,
+        },
+        interrupt,
+        None,
+        None,
+    );
+    // A proving pass that stops gives the lock back before the run ends: it was taken to keep a Git writer out of the proof,
+    //  and a failure that keeps it makes the person's own Git commands fail until a rerun finishes.
+    let proved: SyncStats = match second {
+        Ok(stats) => stats,
+        Err(failure) => {
+            release_index_lock(job)?;
+            return Err(failure);
+        }
+    };
+    for text in what_a_pass_could_not_carry("  proving copy", &proved) {
         say.say(text.as_str());
     }
-    if let Err(error) = require_complete(&second, job.candidate.path.as_path()) {
+    if let Err(error) = require_complete(&proved, job.candidate.path.as_path()) {
         release_index_lock(job)?;
         return Err(error);
     }
-    if pass_changed(&second) {
+    if pass_changed(&proved) {
         // Nothing is swapped, so nothing needs the lock any more; Git commands may write the index again.
         release_index_lock(job)?;
         return Err(MigrateError::Journal(format!(
             "{} changed while it was copied ({} file(s) copied and {} removed by the proving pass); nothing was swapped, run the command again",
             job.candidate.path.display(),
-            second.files_copied,
-            second.deleted
+            proved.files_copied,
+            proved.deleted
         )));
     }
     interrupt.check("verified")?;

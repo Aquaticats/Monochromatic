@@ -55,11 +55,6 @@ fn rollback_arguments() -> MigrateArguments {
     return MigrateArguments { mode: MigrateMode::Rollback, ..migrate_arguments() };
 }
 
-/// The arguments of the rollback that also discards what the carry back left out.
-fn rollback_discarding_left_out() -> MigrateArguments {
-    return MigrateArguments { discard_left_out: true, ..rollback_arguments() };
-}
-
 /// Run one command to completion and answer its status and everything it said.
 fn run(platform: &PlainPlatform, arguments: &MigrateArguments, root: &Path) -> (i32, String) {
     let (code, lines) = run_command(platform, arguments, root, &Interrupt::never());
@@ -69,6 +64,42 @@ fn run(platform: &PlainPlatform, arguments: &MigrateArguments, root: &Path) -> (
 /// Whether the file at `path` holds exactly `bytes`.
 fn holds(path: &Path, bytes: &[u8]) -> bool {
     return std::fs::read(path).map(|found| return found == bytes).unwrap_or(false);
+}
+
+/// What:
+///  Every file below `root` that holds exactly `bytes`,
+///  except the trees the control names.
+/// Why:
+///   The rule these controls assert is about the bytes and not about where a command decided to put them:
+///  the checkout,
+///  the old tree,
+///  and what the command keeps beside the checkout all count,
+///  because each is a place it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const places = filesHoldingUnder(parent, bytes, [checkout, oldTree]);
+/// ```
+fn files_holding_under(root: &Path, bytes: &[u8], skipped: &[&Path]) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(here) = pending.pop() {
+        if skipped.iter().any(|skip| return *skip == here) {
+            continue;
+        }
+        let Ok(listing) = std::fs::read_dir(here.as_path()) else { continue };
+        for item in listing.flatten() {
+            let path: PathBuf = item.path();
+            match item.file_type() {
+                Ok(kind) if kind.is_dir() => pending.push(path),
+                Ok(kind) if kind.is_file() && std::fs::read(path.as_path()).map(|content| return content == bytes).unwrap_or(false) => {
+                    found.push(path);
+                }
+                _ => {}
+            }
+        }
+    }
+    return found;
 }
 
 /// What:
@@ -257,8 +288,12 @@ fn one_cell(cell: &Cell<'_>) -> Result<(), String> {
     watch_the_freed_name(None);
     watch_before_the_judgement(None);
     let deleted: PathBuf = cell.deletion.deleted(layout.old_path.as_path(), layout.new_path.as_path());
-    // The tree the person keeps, and the tree this command deletes while it stands.
-    let in_the_checkout: bool = holds(root.join(target).as_path(), newest.as_slice());
+    // The tree the person keeps, the tree that stands until it is deleted, and what the command keeps beside the checkout:
+    //  each of them is a place the command names, so any of them answers for the bytes.
+    // A parked copy of a replaced entry stands inside the checkout, so the walk of the whole fixture counts every place except
+    //  the tree this command deletes: the bytes are kept there if the command says so.
+    let elsewhere: bool = !files_holding_under(parent.as_path(), newest.as_slice(), &[deleted.as_path()]).is_empty();
+    let in_the_checkout: bool = holds(root.join(target).as_path(), newest.as_slice()) || elsewhere;
     let in_the_deleted_tree: bool = holds(deleted.join(target).as_path(), newest.as_slice());
     let deleted_still_stands: bool = deleted.exists();
     if status == DONE && deleted_still_stands && in_the_deleted_tree {
@@ -365,13 +400,12 @@ fn review_a_record_a_rollback_wrote_does_not_outlive_it() {
     let (migrated, migrated_said) = run(&platform, &migrate_arguments(), root.as_path());
     assert_eq!(migrated, DONE, "{migrated_said}");
     let layout = layout_of(root.as_path()).expect("layout");
-    // In the checkout a directory becomes a file, so the carry back keeps the original tree's directory and refuses.
+    // In the checkout a directory becomes a file: the carry back writes the new root's entry where the original tree holds
+    //  another kind, parks what it replaced, and finishes.
     std::fs::remove_dir_all(root.join("ignored/node_modules").as_path()).expect("remove the directory");
     std::fs::write(root.join("ignored/node_modules"), b"a file now\n").expect("a file instead");
-    let (refused, refused_said) = run(&platform, &rollback_arguments(), root.as_path());
-    assert_eq!(refused, REFUSED, "{refused_said}");
-    let (done, done_said) = run(&platform, &rollback_discarding_left_out(), root.as_path());
-    assert_eq!(done, DONE, "{done_said}");
+    let (done, done_said) = run(&platform, &rollback_arguments(), root.as_path());
+    assert_eq!(done, DONE, "the rollback places the newer entry, parks what it replaced, and finishes: {done_said}");
     assert!(!layout.left_out_path.exists(), "the record the rollback wrote is removed with what it describes: {:?}", std::fs::read_to_string(layout.left_out_path.as_path()));
     // A clean migration then says nothing about what the rollback carried back, and its old tree can go.
     let (again, again_said) = run(&platform, &migrate_arguments(), root.as_path());

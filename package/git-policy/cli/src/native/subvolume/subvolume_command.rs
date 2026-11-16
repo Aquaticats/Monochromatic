@@ -211,7 +211,7 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
     if arguments.dry_run {
         // A preview runs the refusals of the mode it previews, in the words the real run uses, so it never promises a
         // step the real run refuses; it changes nothing either way.
-        let refusals: Vec<Refusal> = refusals_of_the_mode(&run, arguments.mode, arguments.discard_unreadable);
+        let refusals: Vec<Refusal> = refusals_of_the_mode(&run, arguments.mode, arguments.discard_unreadable, arguments.accept_the_unrecorded_old_tree);
         if !refusals.is_empty() {
             say_refusals(run.say, refusals.as_slice());
             return Ok(REFUSED_EXIT_CODE);
@@ -223,7 +223,7 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
     let refused: Option<Vec<Refusal>> = if arguments.mode == MigrateMode::Rollback {
         rollback(&mut run, arguments.discard_unreadable, arguments.discard_left_out)?
     } else {
-        remove_old_tree(&mut run, arguments.discard_unreadable, arguments.discard_left_out)?
+        remove_old_tree(&mut run, arguments.discard_unreadable, arguments.discard_left_out, arguments.accept_the_unrecorded_old_tree)?
     };
     if let Some(refusals) = refused {
         say_refusals(run.say, refusals.as_slice());

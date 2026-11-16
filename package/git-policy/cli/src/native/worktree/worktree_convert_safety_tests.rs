@@ -659,3 +659,42 @@ fn a_journal_write_sweeps_the_temporary_file_of_a_killed_conversion() {
     let root: PathBuf = admin.parent().expect("root").to_path_buf();
     remove(root.as_path());
 }
+
+/// What:
+///  The review of `9ef0169599`, finding 8, about the conversion:
+///  a proving pass that fails while the worktree's `index.lock` is held releases it.
+/// Why:
+///   The lock exists to keep a Git command from invalidating the proof while it runs;
+///  once the run ends in failure, holding it only stops the person's own Git commands
+///  (`fatal: Unable to create '.../index.lock': File exists`) until a rerun finishes the conversion.
+///  The folder is made unlistable after the first copy pass examined it, so the failure lands in the proving pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failed = run(platform, worktree, RUN, never()); assert(!admin.indexLock.exists());
+/// ```
+#[test]
+fn a_proving_pass_that_fails_releases_the_worktrees_index_lock() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let (parent, _root, worktree) = quiet_worktree("safety-proving-pass-lock");
+    let admin: PathBuf = admin_of(worktree.as_path());
+    let unlistable: PathBuf = worktree.join("later-folder");
+    std::fs::create_dir(unlistable.as_path()).expect("a folder");
+    // The walk examines this folder once in each pass; it is made unlistable on the second look, so the first pass is
+    //  complete and the proving pass is the one that fails.
+    let looks: std::sync::Arc<std::sync::atomic::AtomicU64> = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let watched: PathBuf = unlistable.clone();
+    crate::subvolume_sync::watch_entries(Some(Box::new(move |examined: &Path| {
+        if examined != watched.as_path() || looks.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+            return;
+        }
+        std::fs::set_permissions(watched.as_path(), std::fs::Permissions::from_mode(0o0)).expect("make the folder unlistable");
+    })));
+    let platform: PlainPlatform = PlainPlatform::new();
+    let outcome = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0;
+    crate::subvolume_sync::watch_entries(None);
+    std::fs::set_permissions(unlistable.as_path(), std::fs::Permissions::from_mode(LISTABLE)).expect("listable again");
+    assert!(outcome.is_err(), "the proving pass fails on a folder it cannot list: {outcome:?}");
+    assert!(!admin.join("index.lock").exists(), "the worktree's index lock is released on every way out of the run");
+    remove(parent.as_path());
+}

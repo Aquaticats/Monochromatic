@@ -369,51 +369,46 @@ fn an_index_lock_taken_by_another_git_command_after_the_preflight_stops_the_migr
     }
 }
 
-/// The migration's locks stand in the new checkout (the main index and the linked worktree's) from the exchange until
-///  the indexes are rewritten,
-/// so no Git command reads or writes a tree that is being completed;
-/// none is left after.
+/// What:
+///  A run that stops anywhere from taking the index lock to the end of the index rewrite gives the lock back,
+///  and the run that follows finishes the migration.
+/// Why:
+///   The lock keeps a Git writer out of the span the last delta and the index rewrite cover,
+///  and a lock left after a failure makes the person's own Git commands answer
+///  `fatal: Unable to create '.../index.lock': File exists` until a rerun finishes:
+///  a refusal is only an answer when the person can act on it,
+///  and a lock is not theirs to remove.
+///  A kill of the process cannot release anything, and the review's kill probes show the lock standing until the rerun;
+///  this control is about the ways out that a run can take itself.
+///  The run says it holds the lock, so the words of the span are held too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const point of ['after-lock','before-exchange','after-exchange','after-rename','after-catchup','after-indexes']) { assertNoLockLeft(point); assertRerunFinishes(point); }
+/// ```
 #[test]
-fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
-    let main: &str = ".git/index.lock";
-    let linked: &str = ".git/worktrees/wt/index.lock";
-    for point in ["after-exchange", "after-catchup", "after-indexes"] {
+fn a_run_that_stops_under_the_lock_gives_it_back() {
+    for point in ["after-lock", "before-exchange", "after-exchange", "after-rename", "after-catchup", "after-indexes"] {
         let platform: PlainPlatform = PlainPlatform::new();
-        let (parent, root) = checkout_with_worktree(format!("migrate-held-{point}").as_str());
+        let (parent, root) = checkout_with_worktree(format!("migrate-lock-back-{point}").as_str());
         let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
         assert_eq!(code, FAILED, "{point}: {lines:#?}");
+        let said: String = lines.join("\n");
+        assert!(
+            said.contains(".git/index.lock") && said.contains("so no Git command writes an index during the last delta"),
+            "{point}: the run says which lock it holds and why: {said}"
+        );
         let layout = layout_of(root.as_path()).expect("layout");
-        for lock in [main, linked] {
+        for lock in [".git/index.lock", ".git/worktrees/wt/index.lock"] {
             let content: Vec<u8> = std::fs::read(root.join(lock)).unwrap_or_default();
-            assert!(content.starts_with(b"monochromatic-git-policy-cli migrate-to-subvolume"), "{point}: {lock} is held by the migration in the new checkout");
-        }
-        if point != "after-exchange" {
-            assert!(!layout.old_path.join(main).exists() && !layout.old_path.join(linked).exists(), "{point}: the old tree's locks are dropped");
+            assert!(!content.starts_with(b"monochromatic-git-policy-cli migrate-to-subvolume"), "{point}: {lock} is given back when the run stops: {said}");
+            assert!(!layout.old_path.join(lock).exists(), "{point}: and none stands in the old tree");
         }
         let (code2, lines2) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
         assert_eq!(code2, DONE, "{point}: {lines2:#?}");
         assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
-        assert!(!root.join(linked).exists() && !layout.old_path.join(linked).exists(), "{point}");
         remove(parent.as_path());
     }
-}
-
-/// The migration holds the linked worktrees' index locks too,
-/// in the old tree before its last copy and in the new tree
-///  before the exchange.
-#[test]
-fn the_linked_worktrees_index_locks_are_held_in_both_trees_before_the_exchange() {
-    let platform: PlainPlatform = PlainPlatform::new();
-    let (parent, root) = checkout_with_worktree("migrate-worktree-lock");
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
-    assert_eq!(code, FAILED, "{lines:#?}");
-    let layout = layout_of(root.as_path()).expect("layout");
-    for tree in [root.as_path(), layout.new_path.as_path()] {
-        for lock in [".git/index.lock", ".git/worktrees/wt/index.lock"] {
-            assert!(tree.join(lock).exists(), "{} holds {lock}", tree.display());
-        }
-    }
-    remove(parent.as_path());
 }
 
 /// How often a notice stands among the lines a run said.

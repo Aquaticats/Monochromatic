@@ -741,6 +741,7 @@ fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a
         interrupt,
         stats: SyncStats::default(),
         links: HashMap::new(),
+        links_from: HashMap::new(),
         stage_holders: HashSet::new(),
     };
 }
@@ -856,6 +857,9 @@ fn only_a_file_with_several_names_is_recorded_and_linked() {
     for name in ["new-single", "new-pair"] {
         let listing: Metadata = metadata(name);
         stale.links.insert((listing.dev(), listing.ino()), vec![PathBuf::from("earlier")]);
+        // The record of the reading the copy was made from is what a link needs beside the inode: the source still reads as it
+        //  did, so linking to the earlier copy is allowed here, and the control below shows what the inode alone decides.
+        stale.links_from.insert((listing.dev(), listing.ino()), crate::subvolume_old_tree_record::OldTreeReading::of(&listing).expect("a reading"));
         stale.copy_file(&directory, Path::new(name), &listing, None).expect("copy");
     }
     assert_eq!(std::fs::read(destination.join("new-single")).expect("single"), b"new bytes", "not a link of the earlier copy");

@@ -46,6 +46,7 @@ use crate::subvolume_lock::{acquire, lock_paths, release_all, token_of};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::{INSTALLED_ROOT, Layout, Refusal, installed_identity, layout_of, migrate_refusals};
 use crate::subvolume_run::{INDEX_LOCK, Run};
+use crate::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -217,20 +218,53 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     acquire_all(root.as_path(), token.as_str())?;
     run.journal.mark("lock", "started")?;
     run.line(format!("holding {} (and the lock of every linked worktree's index) so no Git command writes an index during the last delta", root.join(INDEX_LOCK).display()).as_str());
-    run.checkpoint("after-lock")?;
-    run.pass("last delta (under the lock)", root.as_path(), new_path.as_path(), true, false)?;
-    // A worktree administered since the locks were taken has no lock yet; the new tree holds the same locks before the exchange.
-    acquire_all(root.as_path(), token.as_str())?;
-    acquire_all(new_path.as_path(), token.as_str())?;
-    run.journal.mark("exchange", "started")?;
-    run.checkpoint("before-exchange")?;
-    run.platform.exchange(root.as_path(), new_path.as_path())?;
-    run.checkpoint("after-exchange")?;
-    MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
-    run.checkpoint("after-rename")?;
-    run.line(format!("exchanged; the old tree is now {}", old_path.display()).as_str());
-    record_installed(run);
-    return run.journal.mark("exchange", "done");
+    // Everything from here to the last release runs under the lock, and a run that stops gives the lock back: a person whose
+    //  Git commands answer `fatal: Unable to create '.../index.lock': File exists` reads a failure as a broken checkout, and
+    //  the silence about it as a second one. A rerun takes the locks again.
+    let under_the_lock: Result<(), MigrateError> = (|| {
+        run.checkpoint("after-lock")?;
+        run.pass("last delta (under the lock)", root.as_path(), new_path.as_path(), true, false)?;
+        // A worktree administered since the locks were taken has no lock yet; the new tree holds the same locks before the exchange.
+        acquire_all(root.as_path(), token.as_str())?;
+        acquire_all(new_path.as_path(), token.as_str())?;
+        run.journal.mark("exchange", "started")?;
+        run.checkpoint("before-exchange")?;
+        run.platform.exchange(root.as_path(), new_path.as_path())?;
+        run.checkpoint("after-exchange")?;
+        MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
+        run.checkpoint("after-rename")?;
+        run.line(format!("exchanged; the old tree is now {}", old_path.display()).as_str());
+        record_installed(run);
+        return run.journal.mark("exchange", "done");
+    })();
+    if let Err(failure) = under_the_lock {
+        give_the_locks_back(run, token.as_str(), &[root.as_path(), new_path.as_path(), old_path.as_path()]);
+        return Err(failure);
+    }
+    return Ok(());
+}
+
+/// What:
+///  Release this migration's index locks in every tree of the run that still holds one,
+///  and say so when one cannot be released.
+/// Why:
+///   A run that stops must not leave the person's Git commands failing on a lock this program holds,
+///  and only the locks that carry this migration's token are touched:
+///  another Git command's lock is not this program's to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const tree of trees) await releaseAll(tree, token);
+/// ```
+fn give_the_locks_back(run: &mut Run<'_>, token: &str, trees: &[&Path]) {
+    for tree in trees {
+        if !tree.exists() {
+            continue;
+        }
+        if let Err(failure) = release_all(tree, token) {
+            run.line(format!("the index lock in {} could not be released ({}); remove it by hand if Git reports it", tree.display(), failure).as_str());
+        }
+    }
 }
 
 /// What:
@@ -318,19 +352,50 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     let old_path: PathBuf = run.layout.old_path.clone();
     drop_old_locks(run)?;
     let token: String = token_of(&run.journal);
+    // The checkout is locked until the index rewrite has finished; a run that stops on the way gives the lock back, so the
+    //  person's own Git commands work while they read the failure, and the rerun takes it again.
+    let finishing: Result<(), MigrateError> = finish_under_the_lock(run, options, token.as_str());
+    if let Err(failure) = finishing {
+        give_the_locks_back(run, token.as_str(), &[root.as_path(), old_path.as_path()]);
+        return Err(failure);
+    }
+    return Ok(());
+}
+
+/// What:
+///  The part of `finish` that runs while the checkout's index lock is held.
+/// Why:
+///   It is one function so every way out of it can give the lock back;
+///  see `finish`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await finishUnderTheLock(run, options, token);
+/// ```
+fn finish_under_the_lock(run: &mut Run<'_>, options: MigrateOptions, token: &str) -> Result<(), MigrateError> {
+    let root: PathBuf = run.layout.root.clone();
+    let old_path: PathBuf = run.layout.old_path.clone();
     if !run.journal.is_done("catchup") {
-        run.pass("catch-up (files newer in the old tree)", old_path.as_path(), root.as_path(), false, true)?;
+        let catch_up: SyncStats = run.pass("catch-up (files newer in the old tree)", old_path.as_path(), root.as_path(), false, true)?;
+        // What the old tree held when this pass read it is what a later deletion is asked about, and the pass has just read
+        //  it. The record is written before the step that says the catch-up finished, so a kill in between repeats the
+        //  catch-up rather than leaving an old tree nothing has a reading of.
+        run.write_the_old_tree_record(&catch_up)?;
         run.journal.mark("catchup", "done")?;
     }
     run.checkpoint("after-catchup")?;
     if options.refresh_indexes && !run.journal.is_done("indexes") {
+        // A run resumed after its own failure gave the locks back, and the rewrite of the index is protected like the last
+        //  delta it follows: the checkout's locks are taken again here, and a lock another Git command holds stops the run
+        //  with the file named.
+        acquire_all(root.as_path(), token)?;
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
         //  stops, because each of them is a fact about an index that was looked at.
         let refreshed: Result<usize, MigrateError> = refresh_all_indexes(
             root.as_path(),
-            IndexLock::Held(token.as_str().into()),
+            IndexLock::Held(token.into()),
             std::slice::from_ref(&old_path),
             run.platform.flushes_to_disk(),
             &mut lines,
@@ -344,7 +409,7 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     }
     run.checkpoint("after-indexes")?;
     // The new checkout was locked from the exchange until now; Git commands may use it again.
-    release_all(root.as_path(), token.as_str())?;
+    release_all(root.as_path(), token)?;
     if !is_subvolume(run.platform, root.as_path()) {
         return Err(MigrateError::Journal(format!("{} is not a subvolume root after the exchange; run with --rollback to restore the original tree", root.display())));
     }

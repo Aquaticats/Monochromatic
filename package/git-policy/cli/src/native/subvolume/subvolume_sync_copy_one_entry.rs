@@ -198,6 +198,26 @@ impl Pass<'_> {
         return false;
     }
 
+    /// What:
+    ///  Record a destination file as a copy of a source file with several names,
+    ///  with the reading of the source the copy was made from.
+    /// Why:
+    ///   A later name of the same file may only be linked to that copy while the source still reads the same;
+    ///  an `lstat` moves none of the fields this reading holds,
+    ///  and a write moves the change time,
+    ///  so a write between the two names is not hidden by it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pass.recordLinkFrom(key, relative, before);
+    /// ```
+    pub(crate) fn record_link_from(&mut self, key: (u64, u64), relative: &Path, reading: &Metadata) {
+        self.record_link(key, relative);
+        if let Some(known) = crate::subvolume_old_tree_record::OldTreeReading::of(reading) {
+            self.links_from.insert(key, known);
+        }
+    }
+
     /// Record a destination file as a copy of a source file with several names.
     pub(crate) fn record_link(&mut self, key: (u64, u64), relative: &Path) {
         let copies: &mut Vec<PathBuf> = self.links.entry(key).or_default();
@@ -224,6 +244,14 @@ impl Pass<'_> {
         listing: &Metadata,
         existing: Option<&Metadata>,
     ) -> Result<Option<Copied>, MigrateError> {
+        // A name is linked only when the source reads as it did when the copy it links to was made: a write between that
+        //  copy and this name moves the source's change time, so a name that would stand on the older bytes is copied
+        //  instead of linked.
+        let Ok(copying_reads_the_same) = std::fs::symlink_metadata(self.source.join(relative)) else { return Ok(None) };
+        match (self.links_from.get(&key), crate::subvolume_old_tree_record::OldTreeReading::of(&copying_reads_the_same)) {
+            (Some(made_from), Some(now)) if now == *made_from => {}
+            _ => return Ok(None),
+        }
         for copy in self.links.get(&key).cloned().unwrap_or_default() {
             let Ok(earlier) = Anchor::open_below(self.destination, copy.parent().unwrap_or(Path::new(""))) else { continue };
             let first: PathBuf = earlier.child(copy.file_name().unwrap_or_default());
@@ -284,7 +312,7 @@ impl Pass<'_> {
                 }
                 self.stats.unchanged += 1;
                 if now.nlink() > 1 {
-                    self.record_link(listed_key, relative);
+                    self.record_link_from(listed_key, relative, now);
                 }
                 return Ok(Copied::LeftAsItIs);
             } else if self.options.never_replaces {
@@ -404,7 +432,7 @@ impl Pass<'_> {
                     self.stats.copied_sample.push(relative.to_path_buf());
                 }
                 if before.nlink() > 1 {
-                    self.record_link((before.dev(), before.ino()), relative);
+                    self.record_link_from((before.dev(), before.ino()), relative, &before);
                 }
                 self.interrupt.check("copy-entry")?;
                 return Ok(Copied::Placed);

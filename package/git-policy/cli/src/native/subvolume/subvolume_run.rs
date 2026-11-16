@@ -29,6 +29,7 @@ use crate::subvolume_pass_report::what_a_pass_could_not_carry;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use crate::subvolume_sync_pass_state_and_checks::Uncarried;
 use std::collections::BTreeSet;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -96,39 +97,111 @@ fn read_path_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
 struct TheParking<'a> {
     /// The file beside the checkout.
     path: &'a Path,
+    /// What the old tree read like when the migration copied it,
+    /// when this pass carries what was written into it since.
+    old_tree: Option<&'a crate::subvolume_old_tree_record::OldTreeRecord>,
+    /// Whether what the pass replaces stays at the parked name.
+    keeps_what_it_replaces: bool,
     /// Every parked copy the record names,
     /// by its name and the path it is a copy of.
     lines: std::collections::BTreeMap<PathBuf, PathBuf>,
+    /// The handle the lines are appended to,
+    /// opened when the first entry is parked.
+    journal: Option<std::fs::File>,
+    /// Whether this pass changed what the record holds.
+    touched: bool,
     /// The failure of a write,
     /// kept so the pass stops with it once it returns.
     failed: Option<MigrateError>,
 }
 
 impl TheParking<'_> {
-    /// Write the record as it stands,
-    /// and remember a failure.
-    fn write(&mut self) {
-        let mut text: String = String::new();
-        for (parked, original) in &self.lines {
-            text.push_str(parked.to_string_lossy().as_ref());
-            text.push('\t');
-            text.push_str(original.to_string_lossy().as_ref());
-            text.push('\n');
+    /// What:
+    ///  Append one line to the record,
+    ///  opening it the first time,
+    ///  and remember a failure.
+    /// Why:
+    ///   The line is on its way to the disk before the pass goes on,
+    ///  so a kill at any later instruction leaves the knowledge that the name holds this program's copy;
+    ///  one `write` for each entry costs a fraction of the two durability syncs an atomic replacing write costs,
+    ///  and the write survives the death of this process because it is in the kernel's hands.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// parking.append(`P\t${parked}\t${original}\n`);
+    /// ```
+    fn append(&mut self, line: &str) {
+        if self.journal.is_none() {
+            if self.path.exists() && !self.path.is_file() {
+                // The record is this program's own; a link or a pipe at its name is not something to write through.
+                if let Err(error) = std::fs::remove_file(self.path) {
+                    self.failed = Some(MigrateError::io("replace the name of the list of parked copies", self.path, &error));
+                    return;
+                }
+            }
+            match std::fs::OpenOptions::new().append(true).create(true).mode(0o600).custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(self.path) {
+                Ok(opened) => self.journal = Some(opened),
+                Err(error) => {
+                    self.failed = Some(MigrateError::io("open the list of parked copies", self.path, &error));
+                    return;
+                }
+            }
         }
-        if let Err(failure) = MigrateError::from_io_result(write_beside_then_rename(self.path, text.as_bytes()), "write the list of parked copies", self.path) {
-            self.failed = Some(failure);
+        let Some(file) = self.journal.as_mut() else { return };
+        if let Err(error) = std::io::Write::write_all(file, line.as_bytes()) {
+            self.failed = Some(MigrateError::io("write the list of parked copies", self.path, &error));
         }
+    }
+
+    /// What:
+    ///  Replace the appended lines with the record as it stands,
+    ///  in one write and one durability sync,
+    ///  and answer the record that stands beside the checkout.
+    /// Why:
+    ///   The appended lines are cheap but they grow with every replacement;
+    ///  the pass writes the record once when it ends,
+    ///  which is what keeps what a person waits on from growing with the number of files a pass replaces.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// parking.finish();
+    /// ```
+    fn finish(&mut self) -> std::collections::BTreeMap<PathBuf, PathBuf> {
+        self.journal = None;
+        if self.touched && self.failed.is_none() {
+            let mut text: String = String::new();
+            for (parked, original) in &self.lines {
+                text.push_str(parked.to_string_lossy().as_ref());
+                text.push('\t');
+                text.push_str(original.to_string_lossy().as_ref());
+                text.push('\n');
+            }
+            if let Err(failure) = MigrateError::from_io_result(write_beside_then_rename(self.path, text.as_bytes()), "write the list of parked copies", self.path) {
+                self.failed = Some(failure);
+            }
+        }
+        return self.lines.clone();
     }
 }
 
 impl crate::subvolume_sync_pass_state_and_checks::Parking for TheParking<'_> {
+    fn the_old_tree_read_like(&self) -> Option<&crate::subvolume_old_tree_record::OldTreeRecord> {
+        return self.old_tree;
+    }
+    fn keeps_what_it_replaces(&self) -> bool {
+        return self.keeps_what_it_replaces;
+    }
     fn about_to_park(&mut self, original: &Path, parked: &Path) {
         self.lines.insert(parked.to_path_buf(), original.to_path_buf());
-        self.write();
+        self.touched = true;
+        let line: String = format!("{}\t{}\n", parked.to_string_lossy(), original.to_string_lossy());
+        self.append(line.as_str());
     }
     fn judged(&mut self, parked: &Path) {
         if self.lines.remove(parked).is_some() {
-            self.write();
+            self.touched = true;
+            let line: String = format!("-\t{}\n", parked.to_string_lossy());
+            self.append(line.as_str());
         }
     }
     fn known(&self) -> &std::collections::BTreeMap<PathBuf, PathBuf> {
@@ -163,7 +236,16 @@ fn read_the_parked_record(path: &Path) -> std::io::Result<std::collections::BTre
         }
         let text: String = String::from_utf8_lossy(line.as_slice()).into_owned();
         let Some((parked, original)) = text.split_once('\t') else { continue };
-        if parked.is_empty() || original.is_empty() {
+        if parked.is_empty() {
+            continue;
+        }
+        // A judged copy is named with no path after the tab, in the records a pass appends to as it runs; the record it
+        //  writes when it ends holds only the copies that still stand.
+        if parked == "-" {
+            lines.remove(&PathBuf::from(original));
+            continue;
+        }
+        if original.is_empty() {
             continue;
         }
         lines.insert(PathBuf::from(parked), PathBuf::from(original));
@@ -241,6 +323,24 @@ impl TheRecord<'_> {
 }
 
 /// What:
+///  What the pass is told about the record of parked copies and of the old tree.
+/// Why:
+///   Two facts the run keeps decide how one pass behaves,
+///  and they travel together so a caller cannot set one and forget the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Told = { keepsWhatItReplaces: boolean; carriesWhatChangedSinceTheRecord: boolean };
+/// ```
+#[derive(Clone, Copy, Default)]
+struct Told {
+    /// What the pass replaces stays at the parked name, named, instead of being removed.
+    keeps_what_it_replaces: bool,
+    /// The pass carries what was written into the old tree since the migration, which the record of the old tree names.
+    carries_what_changed_since_the_record: bool,
+}
+
+/// What:
 ///  Every path a run's passes and the record it opened with name,
 ///  which is what its next pass must write before it begins.
 /// Why:
@@ -304,6 +404,11 @@ pub struct Run<'a> {
     /// The parked copies the record beside the checkout names,
     /// by the name each stands under and the path it is a copy of.
     pub parked: std::collections::BTreeMap<PathBuf, PathBuf>,
+    /// What the old tree read like when the migration last read it,
+    /// read from the record beside the checkout;
+    /// none for a checkout an earlier version of this command migrated,
+    /// which has no record.
+    pub old_tree: Option<crate::subvolume_old_tree_record::OldTreeRecord>,
     /// Relative paths an earlier command recorded as not carried,
     /// read from the list beside the checkout.
     /// They forbid the deletion until a person copies them or accepts the loss,
@@ -364,6 +469,10 @@ impl Run<'_> {
         let recorded: BTreeSet<PathBuf> = read_path_list(layout.left_out_path.as_path()).unwrap_or_default();
         // A record that cannot be read here is asked again by the deletion, as the list of entries no pass carried is.
         let parked: std::collections::BTreeMap<PathBuf, PathBuf> = read_the_parked_record(layout.parked_path.as_path()).unwrap_or_default();
+        let old_tree: Option<crate::subvolume_old_tree_record::OldTreeRecord> = match crate::subvolume_old_tree_record::OldTreeRecord::read(layout.old_tree_record_path.as_path()) {
+            Ok(record) => record,
+            Err(error) => return Err(MigrateError::io("read the reading of the old tree", layout.old_tree_record_path.as_path(), &error)),
+        };
         return Ok(Run {
             platform,
             layout,
@@ -376,8 +485,31 @@ impl Run<'_> {
             kept_at_the_destination: BTreeSet::new(),
             changed_while_passing: BTreeSet::new(),
             parked,
+            old_tree,
             recorded,
         });
+    }
+
+    /// What:
+    ///  Write the record of what the old tree read like,
+    ///  from the pass that last read it,
+    ///  and keep it for this run.
+    /// Why:
+    ///   The record is the only evidence a later deletion can have that an entry of the old tree is the one the
+    ///  migration carried and not one somebody wrote there afterwards,
+    ///  and the catch-up is the last pass of the migration that reads the old tree.
+    ///  It is written before the step that says the catch-up finished,
+    ///  so a kill between them repeats the catch-up rather than leaving an old tree nothing has a reading of.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await run.writeTheOldTreeRecord(catchUpStats);
+    /// ```
+    pub fn write_the_old_tree_record(&mut self, stats: &SyncStats) -> Result<(), MigrateError> {
+        let record: crate::subvolume_old_tree_record::OldTreeRecord = crate::subvolume_old_tree_record::OldTreeRecord::of(stats.source_readings.clone());
+        record.write(self.layout.old_tree_record_path.as_path())?;
+        self.old_tree = Some(record);
+        return Ok(());
     }
 
     /// Send one line to the progress sink.
@@ -431,18 +563,23 @@ impl Run<'_> {
     /// const stats = await run.passUnrecorded('carry back', source, destination, { delete: false, updateOnly: true });
     /// ```
     pub fn pass_unrecorded(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
-        return self.pass_core(label, source, destination, SyncOptions { never_replaces: false,  delete, update_only, excluded: &[], created_since: None });
+        return self.pass_core(label, source, destination, SyncOptions { never_replaces: false,  delete, update_only, excluded: &[], created_since: None }, Told::default());
     }
 
     /// What:
     ///  Run the carry back of a rollback:
-    ///  create what the original directory lacks,
-    ///  and name what it holds and the new root holds differently,
-    ///  because the tree this pass writes into is the one the person keeps.
+    ///  put what the new root holds at every path where the two differ,
+    ///  keep what it replaced at the parked name,
+    ///  and name what it could not place.
     /// Why:
-    ///   See `SyncOptions::never_replaces`;
-    ///  the proof against the subvolume the rollback deletes is what holds the deletion back,
-    ///  and the record names each path.
+    ///   A rollback keeps the original directory, which holds the bytes from before the migration,
+    ///  and deletes the new subvolume, which holds the person's newer work:
+    ///  so where the two differ, the person's bytes are the ones that have to reach the kept tree,
+    ///  and what stood there (the older copy, which the migration also carried into the new tree and Git's history)
+    ///  is parked rather than removed.
+    ///  Nothing is kept back on a modification time:
+    ///  a file the checkout holds with an older timestamp and newer bytes is the person's.
+    ///  What the pass cannot place is named, and the proof against the subvolume the rollback deletes names it too.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -453,7 +590,8 @@ impl Run<'_> {
             label,
             source,
             destination,
-            SyncOptions { never_replaces: true, delete: false, update_only: true, excluded: &[], created_since: None },
+            SyncOptions { never_replaces: false,  delete: false, update_only: false, excluded: &[], created_since: None },
+            Told { keeps_what_it_replaces: true, carries_what_changed_since_the_record: false },
         )?;
         for path in &stats.copied_sample {
             self.line(format!("{label}: carried {}", path.display()).as_str());
@@ -462,24 +600,39 @@ impl Run<'_> {
     }
 
     /// What:
-    ///  Run the update-only pass that carries what was written to the old tree after the catch-up:
-    /// files newer than
-    ///  their copy,
-    /// and files the new root lacks that are no older than `since` (seconds after the epoch).
+    ///  Run the pass that reads the old tree before it is deleted and carries what was written into it since the
+    ///  migration:
+    ///  an entry the record still reads the same is left alone entirely,
+    ///  an entry the checkout lacks is created,
+    ///  and an entry the checkout holds with other bytes is replaced only when the old tree's is newer,
+    ///  with what it replaced parked at a name the run gives:
+    ///  the tree this pass writes into is the one the person keeps, so a byte of it is never deleted for a newer one.
     /// Why:
     ///   Programs that kept a descriptor in the old tree can write there until the person stops them,
     /// and the deletion
     ///  of the old tree must not be the end of those writes.
-    /// A file the new root lacks that is older than the catch-up
-    ///  was deleted there on purpose and stays deleted.
-    /// Unreadable files found are recorded like any other pass.
+    /// The record says which entries were written into the old tree,
+    /// so the checkout's own later work is never replaced on a modification time:
+    /// that is what deleted a file a person had restored in the checkout with an older timestamp.
+    /// Nothing is written over an entry the checkout holds:
+    /// what the pass cannot place is named, and the deletion keeps it out of the old tree rather than deleting it.
+    /// Unreadable files found are recorded like any other pass,
+    /// and the entries no pass carried are not:
+    /// the deletion answers for those itself, by keeping them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const stats = await run.passLate('late writes', oldTree, root, catchupSeconds);
+    /// const stats = await run.passLate('late writes', oldTree, root, record);
     /// ```
     pub fn pass_late(&mut self, label: &str, source: &Path, destination: &Path, since: i64) -> Result<SyncStats, MigrateError> {
-        let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
+        let carries_the_record: bool = self.old_tree.is_some();
+        let stats: SyncStats = self.pass_core(
+            label,
+            source,
+            destination,
+            SyncOptions { never_replaces: false,  delete: false, update_only: true, excluded: &[], created_since: Some(since) },
+            Told { keeps_what_it_replaces: true, carries_what_changed_since_the_record: carries_the_record },
+        )?;
         self.record_unreadable(label, &stats)?;
         self.record_uncarried(&stats)?;
         for path in &stats.copied_sample {
@@ -491,7 +644,7 @@ impl Run<'_> {
     /// The pass itself:
     /// the lock files of both trees are added to the excluded paths,
     /// and the counts are reported.
-    fn pass_core(&mut self, label: &str, source: &Path, destination: &Path, requested: SyncOptions<'_>) -> Result<SyncStats, MigrateError> {
+    fn pass_core(&mut self, label: &str, source: &Path, destination: &Path, requested: SyncOptions<'_>, told: Told) -> Result<SyncStats, MigrateError> {
         let mut excluded: Vec<PathBuf> = relative_lock_paths(source);
         excluded.extend(relative_lock_paths(destination));
         excluded.sort();
@@ -503,23 +656,32 @@ impl Run<'_> {
             let mut record: TheRecord<'_> =
                 TheRecord { path: self.layout.left_out_path.as_path(), paths: everything_the_run_holds(self), unreadable: &self.unreadable, failed: None };
             record.begin();
-            let mut parking: TheParking<'_> = TheParking { path: self.layout.parked_path.as_path(), lines: self.parked.clone(), failed: None };
+            let mut parking: TheParking<'_> = TheParking {
+                path: self.layout.parked_path.as_path(),
+                lines: self.parked.clone(),
+                journal: None,
+                touched: false,
+                failed: None,
+                old_tree: told.carries_what_changed_since_the_record.then_some(&self.old_tree).and_then(|held| return held.as_ref()),
+                keeps_what_it_replaces: told.keeps_what_it_replaces,
+            };
+            let mut note_uncarried = |path: &Path, _kind: Uncarried| return record.note(path);
             let stats: SyncStats = sync_tree(
                 self.platform,
                 source,
                 destination,
                 SyncOptions { excluded: excluded.as_slice(), ..requested },
                 self.interrupt,
-                Some(&mut |path: &Path, _kind: Uncarried| return record.note(path)),
+                Some(&mut note_uncarried),
                 Some(&mut parking),
             )?;
             if let Some(failure) = record.failed.take() {
                 return Err(failure);
             }
+            self.parked = parking.finish();
             if let Some(failure) = parking.failed.take() {
                 return Err(failure);
             }
-            self.parked = parking.lines.clone();
             stats
         };
         self.line(

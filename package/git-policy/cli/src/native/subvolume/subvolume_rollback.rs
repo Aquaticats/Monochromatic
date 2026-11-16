@@ -31,6 +31,7 @@ use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
+use crate::subvolume_kept_from_the_old_tree::{KeptFromTheOldTree, keep_what_the_kept_tree_does_not_hold};
 use crate::subvolume_tree_proof::is_this_programs_own;
 use crate::subvolume_rollback_identity::{
     PairLook, PinnedRoot, installed_identity_refusal, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy,
@@ -91,6 +92,38 @@ fn accepted_paths(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out:
     return Ok(accepted);
 }
 
+/// What:
+///  The refusal of a deletion of an old tree nothing has a record of.
+/// Why:
+///   The record is what tells an entry the migration carried from one written into the old tree afterwards,
+///  and without it the deletion would have to read the whole old tree against a checkout that has moved on,
+///  which keeps nearly everything instead of the few entries written there.
+///  Both ways on are named:
+///  say yes to deleting it as it stands,
+///  or look at it and delete it yourself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = noRecordOfTheOldTree(run, accepted);
+/// ```
+fn no_record_of_the_old_tree(run: &Run<'_>, accept_the_unrecorded_old_tree: bool) -> Option<Refusal> {
+    if run.old_tree.is_some() || accept_the_unrecorded_old_tree {
+        return None;
+    }
+    return Some(Refusal {
+        cause: format!(
+            "there is no record of what {} held when the migration copied it ({} does not exist), so nothing here can tell a file written there afterwards from one the migration carried",
+            run.layout.old_path.display(),
+            run.layout.old_tree_record_path.display()
+        ),
+        remedy: format!(
+            "Look through {} and copy anything you want into the checkout, then delete it yourself with `rm -rf '{}'`; or run the command with --accept-the-unrecorded-old-tree to delete it as it stands, on your word.",
+            run.layout.old_path.display(),
+            run.layout.old_path.display()
+        ),
+    });
+}
+
 /// The refusal of a deletion whose old tree is a symbolic link:
 /// the command moves the tree it deletes and never follows a link.
 fn old_tree_is_a_link(run: &Run<'_>) -> Option<Refusal> {
@@ -139,7 +172,7 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
 /// ```ts
 /// const refusals = refusalsOfTheMode(run, mode, discardUnreadable);
 /// ```
-pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable: bool) -> Vec<Refusal> {
+pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable: bool, accept_the_unrecorded_old_tree: bool) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = match mode {
         MigrateMode::Rollback => rollback_refusals(run.layout, &run.journal),
         MigrateMode::RemoveOld => remove_old_refusals(run.layout, &run.journal),
@@ -164,6 +197,9 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
                 found.push(refusal);
             }
             if let Some(refusal) = unreadable_only_in_the_old_tree(run, discard_unreadable) {
+                found.push(refusal);
+            }
+            if let Some(refusal) = no_record_of_the_old_tree(run, accept_the_unrecorded_old_tree) {
                 found.push(refusal);
             }
         }
@@ -460,15 +496,23 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
         // The same rule in the other direction: every byte of the subvolume this deletes is read against the restored
         //  original directory, and what the person accepted with the flag is what the carry back recorded and no more.
         let accepted: std::collections::BTreeSet<PathBuf> = accepted_paths(run, discard_unreadable, discard_left_out)?;
-        let unproved: Vec<PathBuf> = crate::subvolume_tree_proof::entries_not_in(new_path.as_path(), root.as_path(), &accepted)?;
+        let mut kept: KeptFromTheOldTree = KeptFromTheOldTree::open(run.layout);
+        let unproved: Vec<PathBuf> =
+            keep_what_the_kept_tree_does_not_hold(new_path.as_path(), root.as_path(), None, &accepted, &mut kept)?;
+        let kept_entries: Vec<(PathBuf, PathBuf)> = kept.finish()?;
         if !unproved.is_empty() {
             return Ok(Some(vec![Refusal { cause: unproved_cause(run, &unproved), remedy: unproved_remedy() }]));
+        }
+        for (kept_path, source) in &kept_entries {
+            run.line(format!("kept {}, which only the subvolume had, at the path {source}; nothing here deletes it", kept_path.display(), source = source.display()).as_str());
         }
         run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());
         remove_subvolume_tree(run, new_path.as_path())?;
     }
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
+    // The record of what the old tree held describes a tree this rollback turned back into the checkout.
+    remove_if_present(run.layout.old_tree_record_path.as_path())?;
     // The record describes entries of a migration that this rollback undid:
     //  the old tree is the checkout again, so nothing in that record is still true,
     //  and a later migration must not report it.
@@ -528,8 +572,8 @@ fn carry_late_writes(run: &mut Run<'_>, destination: &Path, shown: &Path) -> Res
 /// ```ts
 /// const refused = await removeOldTree(run, { discardUnreadable, discardLeftOut });
 /// ```
-pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
-    return remove_old_tree_seamed(run, discard_unreadable, discard_left_out, &mut nothing_at_all);
+pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool, accept_the_unrecorded_old_tree: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    return remove_old_tree_seamed(run, discard_unreadable, discard_left_out, accept_the_unrecorded_old_tree, &mut nothing_at_all);
 }
 
 /// A step that does nothing,
@@ -550,7 +594,13 @@ fn nothing_at_all() {}
 /// ```ts
 /// removeOldTreeSeamed(run, flags, afterPinned);
 /// ```
-pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool, after_pinned: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
+pub fn remove_old_tree_seamed(
+    run: &mut Run<'_>,
+    discard_unreadable: bool,
+    discard_left_out: bool,
+    accept_the_unrecorded_old_tree: bool,
+    after_pinned: &mut dyn FnMut(),
+) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
     let old_path: PathBuf = run.layout.old_path.clone();
     let mut pinned: Option<PinnedRoot> = None;
@@ -599,9 +649,21 @@ pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, disca
     //  because a person can set one with `touch`, `cp -p`, `tar -x` or `rsync -a`.
     //  What a person accepted with `--discard-left-out` is the recorded paths and no others.
     let accepted: std::collections::BTreeSet<PathBuf> = accepted_paths(run, discard_unreadable, discard_left_out)?;
-    let unproved: Vec<PathBuf> = crate::subvolume_tree_proof::entries_not_in(old_path.as_path(), run.layout.root.as_path(), &accepted)?;
+    // What the old tree holds and the checkout does not is moved beside the checkout rather than deleted:
+    //  an entry written into the old tree after the migration is somebody's,
+    //  and the person is told where it is instead of being left with a tree they cannot delete.
+    let mut kept: KeptFromTheOldTree = KeptFromTheOldTree::open(run.layout);
+    let unproved: Vec<PathBuf> = if accept_the_unrecorded_old_tree {
+        Vec::new()
+    } else {
+        keep_what_the_kept_tree_does_not_hold(old_path.as_path(), run.layout.root.as_path(), run.old_tree.as_ref(), &accepted, &mut kept)?
+    };
+    let kept_entries: Vec<(PathBuf, PathBuf)> = kept.finish()?;
     if !unproved.is_empty() {
         return Ok(Some(vec![Refusal { cause: unproved_cause(run, &unproved), remedy: unproved_remedy() }]));
+    }
+    for (kept_path, source) in &kept_entries {
+        run.line(format!("kept {}, which only the old tree held, at the path {source}; nothing here deletes it", kept_path.display(), source = source.display()).as_str());
     }
     // A parked copy stands in the checkout and is no entry of the old tree, so it never holds this deletion back;
     //  it is named, because nothing here deletes it and the person has to look at it.
@@ -614,6 +676,7 @@ pub fn remove_old_tree_seamed(run: &mut Run<'_>, discard_unreadable: bool, disca
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
     remove_if_present(run.layout.left_out_path.as_path())?;
+    remove_if_present(run.layout.old_tree_record_path.as_path())?;
     // The record of parked copies stays while it names one: what it names is in the checkout, and a later command tells
     //  the person about it again.
     if run.parked.is_empty() {

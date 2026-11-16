@@ -84,6 +84,47 @@ pub trait Parking {
     /// Every parked entry the record names,
     /// by the name it stands under and the path it is a copy of.
     fn known(&self) -> &std::collections::BTreeMap<PathBuf, PathBuf>;
+    /// What:
+    ///  What the old tree read like when the migration copied it,
+    ///  when this pass carries what was written into it since,
+    ///  or none for a pass that decides by modification times.
+    /// Why:
+    ///   The record is kept with the record of parked copies, and both are what this program knows of its own writes;
+    ///  the pass asks it before it reads a source entry,
+    ///  because an entry that still reads the same was carried by the migration,
+    ///  and the copy it has in the checkout is the person's own later work.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reader.theOldTreeReadLike(); // OldTreeRecord | undefined
+    /// ```
+    fn the_old_tree_read_like(&self) -> Option<&crate::subvolume_old_tree_record::OldTreeRecord> {
+        return None;
+    }
+    /// What:
+    ///  Whether what this pass replaces stays at the parked name instead of being removed.
+    /// Why:
+    ///   The carry back of a rollback replaces the original tree's older copy with the new root's,
+    ///  and what it replaced is the person's until they say otherwise:
+    ///  it is parked, named, and nothing deletes it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reader.keepsWhatItReplaces(); // boolean
+    /// ```
+    fn keeps_what_it_replaces(&self) -> bool {
+        return false;
+    }
+}
+
+impl Pass<'_> {
+    /// What the old tree read like, when this pass carries what was written into it since.
+    pub(crate) fn changed_since_a_record(&self) -> Option<&crate::subvolume_old_tree_record::OldTreeRecord> {
+        return match self.parking.as_ref() {
+            Some(parking) => parking.the_old_tree_read_like(),
+            None => None,
+        };
+    }
 }
 
 /// What:
@@ -236,6 +277,11 @@ pub struct SyncStats {
     /// relative paths,
     /// for the report.
     pub copied_sample: Vec<PathBuf>,
+    /// What every non-directory entry of the source read like when this pass examined it,
+    /// by relative path.
+    /// The migration writes the record of the old tree from the pass that last read it,
+    /// and the later deletion asks that record rather than the checkout.
+    pub source_readings: std::collections::BTreeMap<PathBuf, crate::subvolume_old_tree_record::OldTreeReading>,
 }
 
 /// How many copied paths a pass keeps for its report.
@@ -309,6 +355,12 @@ pub(crate) struct Pass<'a> {
     /// Several copies
     ///  exist when the destination cannot link across a boundary (two subvolumes).
     pub(crate) links: HashMap<(u64, u64), Vec<PathBuf>>,
+    /// What the source read like when the pass made the first copy of a file with several names,
+    /// by (device,
+    /// inode).
+    /// A later name is only linked to that copy when the source still reads the same,
+    /// so no name is linked to bytes older than the ones the pass read.
+    pub(crate) links_from: HashMap<(u64, u64), crate::subvolume_old_tree_record::OldTreeReading>,
     /// The source folders that held another command's stage container,
     /// so a folder that holds nothing else can be
     ///  recognised when its own turn comes and is not left in the destination.
@@ -705,6 +757,11 @@ impl Pass<'_> {
             _ => false,
         };
         if superseded {
+            if self.parking.as_ref().map(|parking| return parking.keeps_what_it_replaces()).unwrap_or(false) {
+                // What this pass replaced is the person's: it stays at the parked name, the record keeps naming it, and the
+                //  copy this pass made stands at the name they asked for.
+                return Ok(Published::Placed);
+            }
             remove_entry(parked.as_path(), parked_relative.as_path())?;
             if let Some(parking) = self.parking.as_mut() {
                 parking.judged(parked_relative.as_path());

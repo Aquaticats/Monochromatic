@@ -150,6 +150,17 @@ pub struct Layout {
     /// the entries of the old tree the late-write carry left out,
     /// which the deletion of the old tree does not delete without a word.
     pub left_out_path: PathBuf,
+    /// `<parent>/.cli-git-migrate-<name>.old-tree.txt`:
+    /// what every entry of the old tree read like when the migration last read it,
+    /// which is what tells an entry written there since from one the migration carried.
+    pub old_tree_record_path: PathBuf,
+    /// `<parent>/.cli-git-migrate-<name>.kept`:
+    /// the entries a deletion could not prove to stand in the tree that is kept,
+    /// moved out of the tree it deletes.
+    pub kept_path: PathBuf,
+    /// `<parent>/.cli-git-migrate-<name>.kept.txt`:
+    /// the record that names each entry the kept folder holds.
+    pub kept_record_path: PathBuf,
     /// `.cli-git-migrate-<name>.owner`:
     /// the name,
     /// in the parent directory,
@@ -198,6 +209,9 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
         journal_path: dotted(parent, name, ".journal.json"),
         unreadable_path: dotted(parent, name, ".unreadable.txt"),
         left_out_path: dotted(parent, name, ".left-out.txt"),
+        old_tree_record_path: dotted(parent, name, ".old-tree.txt"),
+        kept_path: dotted(parent, name, ".kept"),
+        kept_record_path: dotted(parent, name, ".kept.txt"),
         parked_path: dotted(parent, name, ".parked.txt"),
         claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
     });

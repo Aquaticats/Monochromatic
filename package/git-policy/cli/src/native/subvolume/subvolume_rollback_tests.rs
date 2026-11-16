@@ -714,17 +714,16 @@ fn a_subtree_the_carry_refused_as_a_type_conflict_holds_back_the_deletion() {
 }
 
 /// What:
-///  A rollback whose carry-back refused a subtree refuses,
-///  so the new subvolume keeps the only copy of those files,
-///  and `--discard-left-out` accepts the loss as it does for the deletion of the old tree.
+///  A rollback whose carry back met a subtree where the original tree holds a file finishes,
+///  with the subtree in the restored checkout and the file it replaced kept at a parked name the run names.
 /// Why:
-///   The carry-back keeps the original tree's entry where the two trees hold different kinds of entry at one path,
-/// so the new subvolume's directory and everything in it is the only copy of those files,
-/// and the rollback deletes that subvolume:
-/// nothing in that sequence needs a race or a kill,
-/// so the check must come from the same rule the deletion of the old tree follows.
+///   The carry back writes into the tree the person keeps, which after the exchange is the original directory;
+///  the newer work is in the new subvolume, and the original tree's file is the copy the migration also carried
+///  and Git's history holds.
+///  So the newer entry is placed, and what it replaced is parked rather than deleted:
+///  no flag is needed, and the new subvolume is deleted only once every byte of it stands in the restored tree.
 #[test]
-fn a_rollback_whose_carry_back_refused_a_subtree_keeps_the_new_subvolume() {
+fn a_rollback_whose_carry_back_replaced_a_subtree_finishes_and_keeps_both() {
     let platform: PlainPlatform = PlainPlatform::new();
     let (parent, root) = checkout_with_worktree("rollback-carry-conflict");
     std::fs::create_dir_all(root.join("ignored")).expect("an ignored directory");
@@ -740,18 +739,21 @@ fn a_rollback_whose_carry_back_refused_a_subtree_keeps_the_new_subvolume() {
     set_seconds(root.join("ignored/saved/precious.txt").as_path(), 1_000_000_000);
     set_seconds(layout.old_path.join("ignored/saved").as_path(), 2_000_000_000);
     let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
-    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    println!("rollback code {code2}; output: {:#?}", lines2);
+    assert_eq!(code2, DONE, "the person's newer entry is placed and what it replaced is kept: {lines2:#?}");
+    assert_eq!(std::fs::read(root.join("ignored/saved/precious.txt")).expect("the only copy"), b"its only copy\n", "the subtree is in the restored checkout");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(false), "the original directory is back");
     let text: String = lines2.join("\n");
-    assert!(text.contains("ignored/saved"), "the refusal names the entry it kept: {text}");
-    assert!(text.contains("--discard-left-out"), "and the flag that accepts the loss: {text}");
-    assert_eq!(std::fs::read(root.join("ignored/saved/precious.txt")).expect("the only copy"), b"its only copy\n", "the subtree stays in the new subvolume");
-    assert_eq!(std::fs::read(layout.old_path.join("ignored/saved")).expect("the original file"), b"the original file\n", "the file the carry kept is untouched");
-    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "nothing was exchanged");
-    // The same flag the deletion of the old tree takes accepts the loss, and then the rollback finishes.
-    let discarding: MigrateArguments = MigrateArguments { discard_left_out: true, ..rollback_arguments() };
-    let (code3, lines3) = run_command(&platform, &discarding, root.as_path(), &Interrupt::never());
-    assert_eq!(code3, DONE, "{lines3:#?}");
-    assert_original_again(&platform, root.as_path());
+    let parked: Vec<PathBuf> = std::fs::read_dir(root.join("ignored"))
+        .expect("the restored folder")
+        .flatten()
+        .map(|item| return item.path())
+        .filter(|path: &PathBuf| return path.file_name().map(|name| return name.to_string_lossy().starts_with(".cli-git-migrate-parked-")).unwrap_or(false))
+        .collect();
+    assert_eq!(parked.len(), 1, "the file the carry replaced stands at a parked name: {text}");
+    assert_eq!(std::fs::read(parked.first().expect("the parked file")).expect("its bytes"), b"the original file\n", "and it is the file the original tree held");
+    let named: String = parked.first().expect("the parked file").file_name().expect("a name").to_string_lossy().into_owned();
+    assert!(text.contains(named.as_str()), "the run names it: {text}");
     remove(parent.as_path());
 }
 
@@ -890,7 +892,7 @@ fn a_checkout_replaced_after_the_identity_check_never_receives_the_carry() {
         // Older than the old tree's late write, so a carry that resolved the path would replace it.
         set_seconds(at.join("README.md").as_path(), 1_000_000_000);
     };
-    let refused = remove_old_tree_seamed(&mut run, false, false, swap).expect("no failure");
+    let refused = remove_old_tree_seamed(&mut run, false, false, false, swap).expect("no failure");
     assert_eq!(std::fs::read(root.join("README.md")).expect("the replacement's file"), b"the replacement's own\n", "nothing is written into the directory that took the checkout's place");
     assert_eq!(std::fs::read(installed.join("README.md")).expect("the installed checkout"), b"from the old tree\n", "the files go where the descriptor points");
     assert!(layout.old_path.exists() && layout.journal_path.exists(), "the old tree and its journal are kept");

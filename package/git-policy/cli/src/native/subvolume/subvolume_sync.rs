@@ -244,7 +244,15 @@ impl Pass<'_> {
                 continue;
             }
             match vanished_is_counted(entry.metadata(), &mut self.stats.vanished) {
-                Ok(Some(metadata)) => children.push((entry.file_name(), metadata)),
+                Ok(Some(metadata)) => {
+                    // What the source read like at this instant is what the deletion of the old tree is asked about later:
+                    //  an entry that still reads the same was carried by the migration, and one that reads differently
+                    //  was written there after it. A directory is judged by its children and is not recorded.
+                    if let Some(reading) = crate::subvolume_old_tree_record::OldTreeReading::of(&metadata) {
+                        self.stats.source_readings.insert(child.clone(), reading);
+                    }
+                    children.push((entry.file_name(), metadata));
+                }
                 Ok(None) => {}
                 Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory, reason: error.to_string() }),
             }
@@ -360,11 +368,41 @@ impl Pass<'_> {
         //  counted as carried only once the copy placed it, so a notice the destination turns out to hold something else
         //  at is reported as what it is.
         let mut carried_as_notice: bool = false;
+        let own_here: Option<OwnBookkeeping> = match self.options.update_only && existing.is_none() {
+            true => own_bookkeeping_of(self.source, relative.as_path(), &metadata),
+            false => None,
+        };
+        // What:
+        //  An entry that still reads as it did when the migration copied it was carried then, and the checkout's own copy of
+        //  it is the person's later work: this pass leaves it alone entirely.
+        // Why:
+        //  The pass carries what was written into the old tree since the migration, and the record of the old tree is what
+        //  tells that from the migration's own copy.
+        //  A modification time cannot: deciding by one is what replaced a file a person had restored in the checkout with
+        //  an older timestamp, and what made a used checkout impossible to delete.
+        //  This program's own notice is the one exception, because its words are for the person and not for the tree that
+        //  is being deleted.
+        if let Some(record) = self.changed_since_a_record()
+            && !metadata.file_type().is_dir()
+            && record.unchanged(relative.as_path(), &metadata)
+        {
+            match own_here {
+                Some(OwnBookkeeping::CarriedOver) => carried_as_notice = true,
+                Some(OwnBookkeeping::LeftOut) => {
+                    self.stats.holder_records_left_out.push(relative.clone());
+                    return Ok(());
+                }
+                None => {
+                    self.stats.unchanged += 1;
+                    return Ok(());
+                }
+            }
+        }
         if existing.is_none() && self.options.update_only && older_than_since {
             // What a person or Git put there is what this cut-off holds the pass to; this program's own bookkeeping is
             //  named once, by its writers, in `subvolume_wrapper_bookkeeping.rs`, and judged by the kind this walk
             //  listed rather than by a second look at the name.
-            match own_bookkeeping_of(self.source, relative.as_path(), &metadata) {
+            match own_here {
                 // A record of one of this program's own processes:
                 // it names that process and nothing a person wrote, and the checkout sweeps such records itself, so it
                 //  is left out and counted apart from a person's entries.
@@ -472,7 +510,19 @@ pub fn sync_tree<'a>(
     note_uncarried: Option<&'a mut dyn FnMut(&Path, Uncarried)>,
     parking: Option<&'a mut dyn Parking>,
 ) -> Result<SyncStats, MigrateError> {
-    let mut pass: Pass<'a> = Pass { parking, note_uncarried, platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
+    let mut pass: Pass<'a> = Pass {
+        parking,
+        note_uncarried,
+        platform,
+        source,
+        destination,
+        options,
+        interrupt,
+        stats: SyncStats::default(),
+        links: HashMap::new(),
+        links_from: HashMap::new(),
+        stage_holders: HashSet::new(),
+    };
     let root_metadata: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
     let mut stack: Vec<Work> = vec![Work::Finish { relative: PathBuf::new(), metadata: root_metadata, created: false }, Work::Visit(PathBuf::new())];
     while let Some(work) = stack.pop() {

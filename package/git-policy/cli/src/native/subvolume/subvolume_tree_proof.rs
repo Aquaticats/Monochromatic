@@ -1,5 +1,5 @@
 //! What:
-//!  Which entries of one tree are not proved to stand, byte for byte, in another.
+//!  Whether one entry of a tree is proved to stand, byte for byte, in another.
 //! Why:
 //!  The old tree, or the subvolume a rollback deletes, is deleted only when every byte it holds is in the tree that is
 //!  kept.
@@ -21,81 +21,16 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const unproved = entriesNotIn(oldTree, checkout, accepted); // relative paths whose bytes are not in the checkout
+//! const proved = provedToStand(oldTree, checkout, relative, kind); // the entry's bytes stand in the kept tree
+//! const ours = isThisProgramsOwn(root, relative, kind); // the index, the locks it holds, its bookkeeping
 //! ```
 
 use crate::plain_file::open_plain_file;
-use crate::subvolume_error::MigrateError;
-use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// How many bytes of two files are compared at a time.
 const CHUNK: usize = 64 * 1024;
-
-/// What:
-///  The relative paths of the entries below `source` whose bytes are not proved to stand in `destination`,
-///  except the paths in `accepted`.
-///  `accepted` holds what a person has already said may go:
-///  the paths of the record beside the checkout when the deletion takes `--discard-left-out`.
-/// Why:
-///   See the module description.
-///  The answer is the paths themselves,
-///  so the refusal can name each of them and the person can look at exactly those,
-///  and nothing is deleted while one of them stands unproved.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unproved = entriesNotIn(oldTree, checkout, accepted);
-/// ```
-pub(crate) fn entries_not_in(source: &Path, destination: &Path, accepted: &BTreeSet<PathBuf>) -> Result<Vec<PathBuf>, MigrateError> {
-    let mut unproved: Vec<PathBuf> = Vec::new();
-    let mut pending: Vec<PathBuf> = vec![PathBuf::new()];
-    while let Some(relative) = pending.pop() {
-        let source_directory: PathBuf = source.join(&relative);
-        let listing: std::fs::ReadDir = match std::fs::read_dir(source_directory.as_path()) {
-            Ok(found) => found,
-            // A directory this user cannot list is not proved: its children cannot be compared, so it is named.
-            Err(_unreadable) => {
-                unproved.push(relative);
-                continue;
-            }
-        };
-        for item in listing.flatten() {
-            let child: PathBuf = relative.join(item.file_name());
-            if accepted.contains(&child) {
-                continue;
-            }
-            // The partial copy this program writes while it builds a tree holds no bytes of a person's.
-            if item.file_name() == crate::subvolume_sync_pass_state_and_checks::PARTIAL_NAME {
-                continue;
-            }
-            let Ok(kind) = item.file_type() else {
-                unproved.push(child);
-                continue;
-            };
-            // What the migration itself rewrites and what this program wrote for itself is no person's bytes to prove:
-            //  the Git index, whose stat fields the migration rewrites on purpose,
-            //  and this program's own bookkeeping under the Git directory, which every pass writes and sweeps.
-            if is_this_programs_own(source, child.as_path(), kind) {
-                continue;
-            }
-            if kind.is_dir() {
-                pending.push(child.clone());
-                if !destination.join(&child).is_dir() {
-                    unproved.push(child);
-                }
-                continue;
-            }
-            if proved_to_stand(source, destination, child.as_path(), kind) {
-                continue;
-            }
-            unproved.push(child);
-        }
-    }
-    unproved.sort();
-    return Ok(unproved);
-}
 
 /// What:
 ///  Whether the entry at `relative` in the tree at `root` is one this program writes while it builds a tree,
@@ -115,17 +50,52 @@ pub(crate) fn is_this_programs_own(root: &Path, relative: &Path, kind: std::fs::
     if relative.file_name() == Some(std::ffi::OsStr::new(crate::subvolume_sync_pass_state_and_checks::PARTIAL_NAME)) {
         return true;
     }
-    let below_a_git_directory: bool = relative.components().any(|part| return part.as_os_str() == std::ffi::OsStr::new(".git"));
-    if !kind.is_dir() && below_a_git_directory {
-        let name: &std::ffi::OsStr = relative.file_name().unwrap_or_default();
-        if name == "index" || name.as_encoded_bytes().ends_with(b".lock") {
-            return true;
-        }
+    // The one entry of a Git directory the migration rewrites is the index of the checkout and of each of its linked
+    //  worktrees, and the one name it holds while a Git command writes is that index's lock. A branch named `index` and a
+    //  person's own `*.lock` file are the person's, and a reading of them is a reading of their bytes.
+    if !kind.is_dir() && is_the_index_or_its_lock(relative) {
+        return true;
     }
     return match std::fs::symlink_metadata(root.join(relative)) {
         Ok(listed) => crate::subvolume_wrapper_bookkeeping::own_bookkeeping_of(root, relative, &listed).is_some(),
         Err(_gone) => false,
     };
+}
+
+/// What:
+///  Whether `relative` is one of the index files the migration rewrites,
+///  or the lock a Git command holds for one of them:
+///  `.git/index`,
+///  `.git/index.lock`,
+///  and the same two below `.git/worktrees/<name>`.
+/// Why:
+///   The index's stat fields describe the inodes of the tree that was copied,
+///  and the migration rewrites them in the tree it installs,
+///  so the copied index and the installed one differ by those fields and by nothing a person wrote;
+///  a lock file is Git's own while it writes.
+///  A branch called `index` and a person's file called `mine.lock` are neither,
+///  and their bytes are read like any other entry's.
+///  The shape of the path answers this in constant time and without listing anything,
+///  which the walk asks once per entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isIndex = (relative) => ['.git/index', '.git/index.lock'].includes(relative) || /^\.git\/worktrees\/[^/]+\/(index|index\.lock)$/.test(relative);
+/// ```
+fn is_the_index_or_its_lock(relative: &Path) -> bool {
+    let parts: Vec<&std::ffi::OsStr> = relative.iter().collect();
+    let is_a_git_name: bool = parts.first().map(|part| return *part == std::ffi::OsStr::new(".git")).unwrap_or(false);
+    if !is_a_git_name {
+        return false;
+    }
+    let last: Option<&std::ffi::OsStr> = parts.last().copied();
+    let is_an_index_name: bool = last
+        .map(|name| return name == std::ffi::OsStr::new("index") || name == std::ffi::OsStr::new("index.lock"))
+        .unwrap_or(false);
+    if !is_an_index_name {
+        return false;
+    }
+    return parts.len() == 2 || (parts.len() == 4 && parts.get(1) == Some(&std::ffi::OsStr::new("worktrees")));
 }
 
 /// What:
@@ -140,7 +110,7 @@ pub(crate) fn is_this_programs_own(root: &Path, relative: &Path, kind: std::fs::
 /// ```ts
 /// const proved = kind === 'dir' ? isDir(dest) : kind === 'file' ? sameBytes(src, dest) : kind === 'symlink' ? sameTarget(src, dest) : kind === 'fifo' ? isFifo(dest) : true;
 /// ```
-fn proved_to_stand(source: &Path, destination: &Path, relative: &Path, kind: std::fs::FileType) -> bool {
+pub(crate) fn proved_to_stand(source: &Path, destination: &Path, relative: &Path, kind: std::fs::FileType) -> bool {
     use std::os::unix::fs::FileTypeExt;
     let other: PathBuf = destination.join(relative);
     let Ok(found) = std::fs::symlink_metadata(other.as_path()) else { return false };
@@ -193,8 +163,3 @@ fn same_bytes(first: &Path, second: &Path) -> bool {
         }
     }
 }
-
-/// Controls of the proof stay out of the release executable.
-#[cfg(test)]
-#[path = "subvolume_tree_proof_tests.rs"]
-mod tests;

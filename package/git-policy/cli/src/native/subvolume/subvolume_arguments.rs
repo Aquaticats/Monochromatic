@@ -27,7 +27,8 @@ use std::ffi::OsString;
 pub const MIGRATE_HELP: &str = "\
 Usage: git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run] [--no-nested-worktrees] [--no-refresh-indexes]
        git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--discard-left-out] [--dry-run]
-       git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out] [--dry-run]
+       git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out]
+                                                                   [--accept-the-unrecorded-old-tree] [--dry-run]
 
 Convert the repository's main checkout into a btrfs subvolume at the same path, so that creating a worktree can start
 from a snapshot. Nothing is spawned: the command calls the btrfs ioctls, clones file data, copies the tree, swaps the
@@ -50,6 +51,12 @@ Options:
                           With --rollback: also delete the entries of the new subvolume that could not be carried back
                           because the original tree holds another kind of entry at their path. --rollback names them
                           and deletes nothing without this flag, because the new subvolume is the only copy of them.
+  --accept-the-unrecorded-old-tree
+                          With --remove-old: delete the old tree although this checkout has no record of what the old
+                          tree held when it was copied, which a migration of an earlier version did not write. Without
+                          it the command reads every entry against the checkout and keeps, beside the checkout, what
+                          the checkout does not hold; this flag deletes that too, on your word, instead. Read the old
+                          tree first: nothing proves anything in it was not written there after the migration.
   --no-nested-worktrees   Keep the linked worktrees inside the checkout as ordinary directories (default: each becomes
                           a nested subvolume).
   --no-refresh-indexes    Leave the Git index files as copied (the first git status of each worktree then hashes every
@@ -65,6 +72,18 @@ changing the same files. A program that writes through an open file or a mapping
 between a check and the step that relies on it, can lose that change, and nothing undoes the deletion of a tree. Stop
 the programs working inside the checkout first. The command says so once on standard error before it changes anything,
 and in this help.
+
+What --remove-old does with a checkout you have worked in since the migration: the migration records what every entry
+of the old tree read like when it copied it, and the deletion reads that record, not your working tree. An entry that
+still reads the same was carried by the migration, so deleting it discards nothing you have not since replaced in the
+checkout; an entry of the old tree that was written after the migration, and that the checkout does not hold with the
+same bytes, is kept beside the checkout in a folder named after it, and the command says where. The same holds for a
+rollback: the newer bytes in the new subvolume reach the original directory, and what they replaced is kept at a parked
+name the command names.
+
+Two windows this command cannot close, and says so: a program that holds a file of the old tree open keeps writing into
+it, and a write that lands after the deletion's last reading of that entry is lost with the entry; and a program that
+replaces an entry during the run can name the same path the command is reading. Stop such programs first.
 ";
 
 /// The one line printed on standard error before a run changes the checkout.
@@ -116,6 +135,10 @@ pub struct MigrateArguments {
     /// delete the entries the late-write carry left out of the checkout too,
     /// or those the rollback's carry-back could not put into the original tree.
     pub discard_left_out: bool,
+    /// With remove-old:
+    /// delete the old tree although no record of what it held when it was copied exists,
+    /// so nothing proves that nothing was written into it since.
+    pub accept_the_unrecorded_old_tree: bool,
     /// Print the help.
     pub help: bool,
 }
@@ -140,6 +163,7 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
         refresh_indexes: true,
         discard_unreadable: false,
         discard_left_out: false,
+        accept_the_unrecorded_old_tree: false,
         help: false,
     };
     let (mut rollback, mut remove_old, mut migrate_switch): (bool, bool, bool) = (false, false, false);
@@ -153,6 +177,7 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
             "--remove-old" => remove_old = true,
             "--discard-unreadable" => parsed.discard_unreadable = true,
             "--discard-left-out" => parsed.discard_left_out = true,
+            "--accept-the-unrecorded-old-tree" => parsed.accept_the_unrecorded_old_tree = true,
             "--no-nested-worktrees" => {
                 parsed.nested_worktrees = false;
                 migrate_switch = true;
@@ -179,6 +204,9 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
     }
     if parsed.discard_left_out && !remove_old && !rollback {
         return Err(String::from("--discard-left-out applies only with --remove-old or --rollback."));
+    }
+    if parsed.accept_the_unrecorded_old_tree && !remove_old {
+        return Err(String::from("--accept-the-unrecorded-old-tree applies only with --remove-old: it says what to do when no record of the old tree was written."));
     }
     if rollback {
         parsed.mode = MigrateMode::Rollback;

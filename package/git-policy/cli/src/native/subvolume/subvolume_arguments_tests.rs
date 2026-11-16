@@ -23,6 +23,7 @@ const DEFAULTS: MigrateArguments = MigrateArguments {
     refresh_indexes: true,
     discard_unreadable: false,
     discard_left_out: false,
+    accept_the_unrecorded_old_tree: false,
     help: false,
 };
 
