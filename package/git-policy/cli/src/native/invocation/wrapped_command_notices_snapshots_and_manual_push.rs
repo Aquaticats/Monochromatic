@@ -174,6 +174,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
+    // A private-index copy whose owner can be shown neither alive nor gone is kept by the sweep of every later copy, and the
+    //  person is told here, past the patience, with the copy, the owner, its age and the exact command that removes it: this
+    //  line is the command's own and no environment variable removes it (owner, 2026-11-16, "A: stays, command says how
+    //  (Recommended)"). The copies live beside the worktree's index, which is this Git directory.
+    for words in crate::candidate_private_index::copies_whose_owner_cannot_be_told(git_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{words}");
+    }
     // A subvolume a removal renamed aside is named by a record of its own, which outlives the delete's queue record: a round
     //  that settled that record before the rename, a destroy the kernel refused, and a command killed between the rename and
     //  its repair all leave the directory standing with nothing else naming its delete. This is the command that queues it

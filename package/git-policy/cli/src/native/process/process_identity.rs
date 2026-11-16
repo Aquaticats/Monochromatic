@@ -485,6 +485,29 @@ pub fn process_birth_identity(pid: i64) -> Result<Option<String>, ProcessIdentit
     }
 }
 
+/// What:
+///  The birth identity of the process `pid` names now,
+///  as a reader of a record of a live process asks it.
+/// Why:
+///   Every reader of such a record goes through this one call,
+///  so a control can show what this host cannot be made to produce:
+///  the platform refusing a process entry,
+///  which is a refusal no mount, no permission and no host of a gate produces (`linux_identity_read_by` is the same seam for
+///  the parser).
+///  In a release build it is `process_birth_identity` and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const birthOf = (pid: number) => processBirthIdentity(pid); // a control replaces it
+/// ```
+pub(crate) fn birth_identity_for_record_readers(pid: i64) -> Result<Option<String>, ProcessIdentityError> {
+    #[cfg(test)]
+    if let Some(injected) = test_birth_reader::injected() {
+        return injected(pid);
+    }
+    return process_birth_identity(pid);
+}
+
 /// The current process's identity,
 ///  computed once:
 ///  it never changes while the process runs.
@@ -551,6 +574,50 @@ pub fn signal_probe(pid: i64) -> std::io::Result<bool> {
 }
 
 /// Parser controls and live-process probes stay out of the release executable.
+/// What:
+///  A reader of a process's birth identity that a control gives this thread in place of the platform's,
+///  so the arm in which a platform refusal becomes "cannot be told" has a control.
+/// Why:
+///   A process entry the platform will not report cannot be made on demand:
+///  it needs another account's process behind `hidepid`, a refused descriptor or an unreadable mount,
+///  and a control that depended on the host would prove nothing about the host that lacks it.
+///  The arm is inert unless a control sets it,
+///  and it is per thread, so two controls beside each other cannot read each other's reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// injectBirthReader((pid) => { throw new IdentityError(pid); }); // the control; undefined restores the platform
+/// ```
+#[cfg(test)]
+pub(crate) mod test_birth_reader {
+    thread_local! {
+        // The reader this thread was given.
+        static INJECTED: std::cell::RefCell<Option<std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, super::ProcessIdentityError>>>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// What:
+    ///  Give this thread the reader `reader`, or the platform's again for `None`.
+    /// Why:
+    ///   A control sets it, drives the reader of the record, and restores it, so a later control in the same thread is not
+    ///   given a reader it never asked for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// inject(reader); // undefined restores
+    /// ```
+    pub(crate) fn inject(reader: Option<std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, super::ProcessIdentityError>>>) {
+        INJECTED.with(|held| {
+            *held.borrow_mut() = reader;
+        });
+    }
+
+    /// The reader this thread was given, or nothing for the platform's.
+    pub(super) fn injected() -> Option<std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, super::ProcessIdentityError>>> {
+        return INJECTED.with(|held| { return held.borrow().clone(); });
+    }
+}
+
 #[cfg(test)]
 #[path = "process_identity_tests.rs"]
 mod tests;

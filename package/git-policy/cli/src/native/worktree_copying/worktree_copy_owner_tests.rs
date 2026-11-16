@@ -90,15 +90,40 @@ fn a_process_id_nobody_has_is_dead() {
     assert!(!owner.is_alive(Path::new("/")).expect("answer"));
 }
 
-/// The deadness check keeps what it cannot judge and takes only a proven dead owner or a nameless one.
+/// What:
+///  The deadness check keeps what it cannot judge and takes only a proven dead owner, or a record with no owner text at all.
+/// Why:
+///  A record whose text is no token names no process this reader can read, so nothing proves its holder ended: read as a dead
+///  owner it removed a live owner's copy, journal, claim or owed mark (owner, 2026-11-16, "A: stays, command says how
+///  (Recommended)"). The item's own age is the bound, and past it the words name the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(tokenOwnerIsDead('json', youngItem)).toBe(false); expect(tokenOwnerIsDead(undefined, anyItem)).toBe(true); expect(tokenOwnerIsDead('json', agedItem)).rejects...
+/// ```
 #[test]
 fn only_a_proven_dead_or_nameless_owner_is_dead() {
+    let root: PathBuf = crate::test_support::fixture("copy-owner-token-kinds");
+    let item: PathBuf = root.join("item");
+    std::fs::write(item.as_path(), b"x").expect("item");
     let here: CopyOwner = current_copy_owner().expect("current owner");
-    let anchor: &Path = Path::new("/");
-    assert!(!token_owner_is_dead(Some(here.token().as_str()), anchor).expect("judged"));
-    assert!(token_owner_is_dead(Some(crate::test_support::dead_copy_owner().token().as_str()), anchor).expect("judged"));
-    assert!(token_owner_is_dead(None, anchor).expect("judged"));
-    assert!(token_owner_is_dead(Some("json"), anchor).expect("judged"));
+    assert!(!token_owner_is_dead(Some(here.token().as_str()), item.as_path()).expect("judged"));
+    assert!(token_owner_is_dead(Some(crate::test_support::dead_copy_owner().token().as_str()), item.as_path()).expect("judged"));
+    // A record with no owner text at all names nobody, which is the answer for a release before owners existed.
+    assert!(token_owner_is_dead(None, item.as_path()).expect("judged"));
+    // A text that is no token, and a token whose birth is blank, name no owner this reader can read: kept, and named past the
+    // patience with the text itself.
+    assert!(!token_owner_is_dead(Some("json"), item.as_path()).expect("judged"), "a text that is no token proves nothing");
+    let mut blank: String = here.token();
+    blank = blank.replace(here.birth_identity.as_str(), "");
+    assert!(!token_owner_is_dead(Some(blank.as_str()), item.as_path()).expect("judged"), "a blank birth proves nothing");
+    std::fs::File::open(item.as_path())
+        .expect("open the item")
+        .set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(60))
+        .expect("age the item");
+    let refusal: WorktreeCopyError = token_owner_is_dead(Some("json"), item.as_path()).expect_err("an old record of no token is refused");
+    assert!(refusal.0.contains("(json)") && refusal.0.contains("rm -- "), "the words name the text and the command: {}", refusal.0);
+    crate::test_support::remove(root.as_path());
 }
 
 /// An owner in another process-id namespace cannot be judged by its id:
@@ -354,4 +379,58 @@ fn an_item_is_read_by_the_value_its_owner_names_and_by_its_own_age() {
     }
     crate::test_support::remove(root.as_path());
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// What:
+///  A process the platform will not report on is a holder that cannot be told:
+///  its item is kept inside the patience, and past it the words name the item and the reason the platform gave,
+///  and the reader answers no error.
+/// Why:
+///  Every `git worktree` command runs this recovery first, so an error here failed commands that were never asked about the
+///  record: a `git worktree add` stopped and made no worktree while the claim it read proved nothing about a live owner.
+///  The arm is driven through the readers' own seam
+///  (`process_identity::birth_identity_for_record_readers`), because a process entry the platform refuses cannot be made on
+///  demand on this host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// injectBirthReader(() => { throw new IdentityError(pid) }); expect(owner.isAlive(young)).toBe(true); expect(owner.isAlive(aged)).rejects...
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_process_the_platform_will_not_report_is_a_holder_that_cannot_be_told() {
+    let here: CopyOwner = current_copy_owner().expect("this process has an identity");
+    let injected: std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, crate::process_identity::ProcessIdentityError>> =
+        std::rc::Rc::new(|pid: i64| {
+            return Err(crate::process_identity::ProcessIdentityError::Io { pid, error: std::io::Error::from_raw_os_error(libc::EACCES) });
+        });
+    let root: PathBuf = crate::test_support::fixture("copy-owner-unreadable-process");
+    let item: PathBuf = root.join("item");
+    std::fs::write(item.as_path(), b"x").expect("item");
+    crate::process_identity::test_birth_reader::inject(Some(injected));
+    // Inside the patience the item stays and nothing is said.
+    assert!(
+        here.is_alive(item.as_path()).expect("a young item is no refusal"),
+        "an owner the platform will not report on may run, so its item stays"
+    );
+    assert!(!token_owner_is_dead(Some(here.token().as_str()), item.as_path()).expect("a young item is no refusal"), "and it is not dead");
+    // Past the patience the words name the item, the owner, its age and the command that removes it.
+    std::fs::File::open(item.as_path())
+        .expect("open the item")
+        .set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(60))
+        .expect("age the item");
+    let refusal: WorktreeCopyError = here.is_alive(item.as_path()).expect_err("an old item is a refusal");
+    assert!(
+        refusal.0.contains(item.to_string_lossy().as_ref())
+            && refusal.0.contains(here.pid.to_string().as_str())
+            && refusal.0.contains("minutes old")
+            && refusal.0.contains("Permission denied")
+            && refusal.0.contains("rm -- "),
+        "the words name the item, the owner, the platform's reason, the age and the command: {}",
+        refusal.0
+    );
+    let dead: Result<bool, WorktreeCopyError> = token_owner_is_dead(Some(here.token().as_str()), item.as_path());
+    assert_eq!(dead.expect_err("and the same answer where a caller asks only for dead or not").0, refusal.0);
+    crate::process_identity::test_birth_reader::inject(None);
+    crate::test_support::remove(root.as_path());
 }

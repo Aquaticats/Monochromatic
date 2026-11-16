@@ -55,9 +55,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///  the installed wrapper uses the same one.
 pub const PRIVATE_INDEX_PREFIX: &str = "cli-git-add-policy-";
 
-/// The tag of this module's own diagnostic lines,
-///  which name a copy whose owner can be told neither alive nor gone.
-const TAG: &str = "candidatePrivateIndex";
 
 /// The file inside a private index directory that names the process which made it:
 ///  its process id,
@@ -271,11 +268,10 @@ fn owner_of_the_copy(directory: &Path) -> CopyOwnerStanding {
 /// ```ts
 /// for (const entry of await readdir(parent)) if (isCopy(entry) && ownerIsGone(entry)) await rm(entry, { recursive: true, force: true });
 /// ```
-fn reap_copies_of_gone_owners(parent: &Path) -> Vec<String> {
-    let mut said: Vec<String> = Vec::new();
+fn reap_copies_of_gone_owners(parent: &Path) {
     let Ok(listed) = std::fs::read_dir(parent) else {
         // A directory that cannot be listed proves nothing about any copy in it.
-        return said;
+        return;
     };
     for entry in listed.flatten() {
         let path: PathBuf = entry.path();
@@ -286,18 +282,43 @@ fn reap_copies_of_gone_owners(parent: &Path) -> Vec<String> {
         if !path.is_dir() {
             continue;
         }
-        match owner_of_the_copy(path.as_path()) {
-            CopyOwnerStanding::Kept => continue,
-            // The copy stays, and the person reads which one it is and the command that removes it.
-            CopyOwnerStanding::CannotBeTold(words) => {
-                said.push(words);
-                continue;
-            }
-            CopyOwnerStanding::Gone => {}
+        // A copy whose owner can be shown neither alive nor gone is kept like a live owner's; the words that name it are
+        //  written by `copies_whose_owner_cannot_be_told`, so this sweep only ever removes.
+        if owner_of_the_copy(path.as_path()) != CopyOwnerStanding::Gone {
+            continue;
         }
         // `.remove_dir_all` takes the copy and whatever Git wrote beside it; a failure leaves it for the next
         // sweep, and is not a failure of this command.
         let _ = std::fs::remove_dir_all(path.as_path());
+    }
+}
+
+/// What:
+///  The words naming every private-index copy in `index_parent` whose owner can be shown neither alive nor gone,
+///  past the patience.
+/// Why:
+///   Such a copy may belong to a command that runs, so nothing it holds is taken; past the patience the person is told,
+///  with the copy, the owner, its age and the exact `rm --recursive` that removes it.
+///  The telling is the command's own line, which no environment variable removes, because a `[warn]` line that
+///  `MONOCHROMATIC_WARN=false` silences is not the telling the owner's decision of 2026-11-16 asks for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const untellableCopyWords = (indexParent) => readdir(indexParent).filter(isCopyName).filter(isDir).map(ownerOfTheCopy).filter((s) => s.kind === 'cannot-be-told').map((s) => s.words);
+/// ```
+pub(crate) fn copies_whose_owner_cannot_be_told(index_parent: &Path) -> Vec<String> {
+    let mut said: Vec<String> = Vec::new();
+    let Ok(listed) = std::fs::read_dir(index_parent) else {
+        return said;
+    };
+    for entry in listed.flatten() {
+        let path: PathBuf = entry.path();
+        if !is_copy_name(entry.file_name().to_string_lossy().as_ref()) || !path.is_dir() {
+            continue;
+        }
+        if let CopyOwnerStanding::CannotBeTold(words) = owner_of_the_copy(path.as_path()) {
+            said.push(words);
+        }
     }
     return said;
 }
@@ -313,6 +334,7 @@ fn reap_copies_of_gone_owners(parent: &Path) -> Vec<String> {
 /// ```ts
 /// type CopyOwnerStanding = 'gone' | 'kept' | { cannotBeTold: string };
 /// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum CopyOwnerStanding {
     /// The owner ended, so the copy may be removed.
     Gone,
@@ -441,12 +463,12 @@ impl PrivateIndex {
                 "monochromatic-git-policy-cli could not prepare a private copy of the index: Git named an index path without a directory.",
             ));
         };
-        // Before a new copy exists, the copies of commands that will never finish leave, and the ones whose owner can be
-        // told neither way are named on the command the person ran: a sweep inside `git add` must not fail the command, and
-        // must not keep a copy for ever in silence either (owner, 2026-11-16, "A: stays, command says how (Recommended)").
-        for words in reap_copies_of_gone_owners(parent) {
-            crate::diagnostic_log::warn(TAG, words.as_str());
-        }
+        // Before a new copy exists, the copies of commands that will never finish leave. A copy whose owner can be shown
+        // neither alive nor gone is kept, and the words naming it are the command's own line
+        // (`copies_whose_owner_cannot_be_told`, written by the notices step of every command): a sweep inside `git add` must
+        // not fail the command, and a `[warn]` line that `MONOCHROMATIC_WARN=false` removes is not the telling the owner's
+        // decision of 2026-11-16 asks for.
+        reap_copies_of_gone_owners(parent);
         let suffix: String = unique_suffix();
         let staging: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{suffix}{STAGING_SUFFIX}"));
         if let Err(error) = create_private_directory(staging.as_path()) {

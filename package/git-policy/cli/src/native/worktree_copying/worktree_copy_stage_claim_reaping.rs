@@ -389,10 +389,11 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
     let mut verdicts: StageVerdicts = StageVerdicts::default();
     for name in claim_names(root.as_path())? {
         let claim: PathBuf = root.join(name.as_str());
-        let Some((_container, owner)) = read_claim(claim.as_path())? else {
+        let Some((container, owner)) = read_claim(claim.as_path())? else {
             continue;
         };
         // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
+        let container_named: PathBuf = container;
         match token_owner_standing(owner.as_deref(), claim.as_path())? {
             OwnerStanding::Ended => {
                 verdicts.dead_claims.insert(name);
@@ -403,7 +404,17 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
             // Why:  It may be a command that runs, so nothing it holds is taken; stopping every command of the worktree for
             //       another command's claim is not the decision, and keeping it in silence is not either. A claim of another
             //       PID namespace past the patience is the refusal the `?` above returns, and it still stops the command.
-            OwnerStanding::CannotBeTold(refusal) => verdicts.cannot_be_told.push(refusal.0),
+            OwnerStanding::CannotBeTold(refusal) => {
+                // What: the words say what removing the claim leaves behind, and the command that removes that too.
+                // Why:  The claim is what names the stage container for the sweep; a person who runs the `rm` the words give
+                //       would leave a directory nothing names, and the next command would never look at it again.
+                verdicts.cannot_be_told.push(format!(
+                    "{} The stage it names ({}) is left where it is; when nothing is filling it, remove that too with `rm --recursive -- {}`.",
+                    refusal.0,
+                    container_named.display(),
+                    crate::stale_ref_lock_message::shell_quote(container_named.as_path())
+                ));
+            }
         }
     }
     // `match` treats an absent root as having nothing to remove.

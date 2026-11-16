@@ -458,19 +458,20 @@ fn a_copy_whose_live_owner_is_named_in_another_spelling_is_kept() {
 
 /// What:
 ///  A copy whose owner's birth names no value, and which has stood past the patience,
-///  is kept and named in one line that carries the record, the owner, its age and the exact `rm --recursive`.
+///  is kept and named in one line that carries the copy, the owner, its age and the exact `rm --recursive`,
+///  and that line is read from the collector the command writes its own standard error from, not from a `[warn]` line.
 /// Why:
 ///  The sweep exists because a killed check leaves one copy per invocation until a commit fails,
 ///  and its rule is that nothing is removed without proof that the owner is gone.
 ///  A birth that names no value is neither a live owner's nor a gone one's.
 ///  The copy stays, and the decision of 2026-11-16 says the person is told past the patience, in words that name the
-///  record, the owner, its age and the command that removes it.
+///  record, the owner, its age and the command that removes it, where no environment variable removes them.
 ///  A copy whose owner is the live one in another spelling is kept and says nothing, and a copy of a command that ended
 ///  is removed, so a control that passes is not a sweep that keeps everything or one that says everything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lines = takeLinesWritten(); createPrivateIndex(real); expect(lines).toEqual([wordsForTheUntellableCopy]); expect(copy).exists();
+/// const lines = copiesWhoseOwnerCannotBeTold(gitDir); createPrivateIndex(real); expect(lines).toEqual([wordsForTheUntellableCopy]); expect(copy).exists();
 /// ```
 #[cfg(target_os = "linux")]
 #[test]
@@ -498,9 +499,7 @@ fn a_copy_whose_owner_cannot_be_told_is_named_past_the_patience() {
         let owner: crate::worktree_copy_owner::CopyOwner = crate::worktree_copy_owner::CopyOwner { birth_identity: birth, ..here.clone() };
         std::fs::write(directory.join("owner"), owner.token()).expect("the owner record");
         // The record's own age and the copy's are both the age the sweep could read, so both are aged.
-        std::fs::File::options()
-            .write(true)
-            .open(directory.join("owner"))
+        std::fs::File::open(directory.join("owner"))
             .expect("open the record")
             .set_modified(std::time::SystemTime::now() - age)
             .expect("age the record");
@@ -515,10 +514,10 @@ fn a_copy_whose_owner_cannot_be_told_is_named_past_the_patience() {
     let abandoned: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{}-ended-0", ended.pid));
     std::fs::create_dir(&abandoned).expect("an abandoned copy");
     std::fs::write(abandoned.join("owner"), ended.token()).expect("the record of a command that ended");
-    let _cleared: Vec<String> = crate::diagnostic_log::take_lines_written();
+    let said: Vec<String> = super::copies_whose_owner_cannot_be_told(root.as_path());
     let mine: PrivateIndex = PrivateIndex::create(real.as_path()).expect("a copy");
-    let said: Vec<String> = crate::diagnostic_log::take_lines_written();
-    // The words name the copy, which is what the command that removes it takes: its record is the `owner` file inside it.
+    assert!(!abandoned.exists(), "a copy whose owner ended is removed, so this sweep does remove a copy");
+    drop(mine);
     let untellable: PathBuf = made[0].1.clone();
     let mut wrong: Vec<String> = Vec::new();
     let named: bool = said.iter().any(|line| {
@@ -528,24 +527,78 @@ fn a_copy_whose_owner_cannot_be_told_is_named_past_the_patience() {
             && line.contains("rm --recursive -- ");
     });
     if !named {
-        wrong.push(format!(
-            "the copy whose owner cannot be told: the person read {said:?}, and one line should name {} and the owner {} with the command that removes it",
-            untellable.display(),
-            here.pid
-        ));
+        wrong.push(format!("the copy whose owner cannot be told: the person is told {said:?}, and one line should name {} and the owner {} with the command that removes it", untellable.display(), here.pid));
     }
     if said.len() != 1 {
-        wrong.push(format!("the sweep said these lines for three copies, and only the one whose owner cannot be told is due: {said:?}"));
+        wrong.push(format!("the command carries these lines for three copies, and only the one whose owner cannot be told is due: {said:?}"));
     }
     for (what, directory) in &made {
         if !directory.exists() {
             wrong.push(format!("{what}: the copy {} was removed, and nothing proves its owner ended", directory.display()));
         }
     }
-    if abandoned.exists() {
-        wrong.push(String::from("a copy whose owner ended was kept, so this sweep does not remove a copy"));
+    for (_, directory) in &made {
+        let _ = std::fs::remove_dir_all(directory.as_path());
     }
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// What:
+///  A live owner's copy whose record is a token with a blank birth, and one whose record is no token at all,
+///  are kept and named past the patience; a copy whose record names a number no process has is still removed.
+/// Why:
+///  Such a record names no process this reader can read, so nothing proves its owner ended: read as a dead owner's it removed
+///  a live owner's copy (main does that, and this branch did too until this change). The item's own age is the bound, and past
+///  it the words name the copy, its owner and the command that removes it, where no environment variable removes them
+///  (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+///  The number no process has is the other answer of the same reader: a free number is proof enough, whatever the birth says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// copy('RAW:<pid>~~<scope>'); copy('RAW:not-a-token'); copy('RAW:<absent>~linux:1~<scope>'); createPrivateIndex(); expect(both kept and named)..expect(the dead one).not.toExist();
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_copy_whose_owner_record_is_no_token_is_kept_and_named() {
+    let root: PathBuf = fixture("private-index-raw-owner");
+    let real: PathBuf = root.join("index");
+    std::fs::write(&real, b"DIRC").expect("real index");
+    let here: crate::worktree_copy_owner::CopyOwner = crate::worktree_copy_owner::current_copy_owner().expect("this process has an identity");
+    let namespace: String = here.pid_namespace.clone().expect("this host reports the PID namespace of a process");
+    let aged: Duration = crate::pid_namespace::FOREIGN_OWNER_PATIENCE + Duration::from_secs(600);
+    let absent: i64 = 4_194_304;
+    let texts: [(&str, String); 3] = [
+        ("a token with a blank birth", format!("{}~~{namespace}", here.pid)),
+        ("no token at all", String::from("not-a-token")),
+        ("a number no process has", format!("{absent}~linux:1~{namespace}")),
+    ];
+    let mut made: Vec<(&str, PathBuf)> = Vec::new();
+    for (index, (what, text)) in texts.into_iter().enumerate() {
+        let directory: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{}-{index}-0", here.pid));
+        std::fs::create_dir(&directory).expect("a copy a command holds");
+        std::fs::write(directory.join("index"), b"copy").expect("copy");
+        std::fs::write(directory.join("owner"), text.as_bytes()).expect("the owner record");
+        std::fs::File::open(directory.as_path()).expect("open the copy").set_modified(std::time::SystemTime::now() - aged).expect("age the copy");
+        made.push((what, directory));
+    }
+    let said: Vec<String> = super::copies_whose_owner_cannot_be_told(root.as_path());
+    let mine: PrivateIndex = PrivateIndex::create(real.as_path()).expect("a copy");
     drop(mine);
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, directory) in &made {
+        let live_or_unreadable: bool = what != &"a number no process has";
+        if live_or_unreadable && !directory.exists() {
+            wrong.push(format!("{what}: the copy {} was removed, and nothing proves its owner ended", directory.display()));
+        }
+        if live_or_unreadable && !said.iter().any(|line| { return line.contains(directory.to_string_lossy().as_ref()) && line.contains("rm --recursive -- "); }) {
+            wrong.push(format!("{what}: the person is told {said:?}, and one line should name {} and the command that removes it", directory.display()));
+        }
+    }
+    let dead_copy: &Path = made[2].1.as_path();
+    if dead_copy.exists() {
+        wrong.push(String::from("a number no process has is proof enough: the copy of that record is removed"));
+    }
     for (_, directory) in &made {
         let _ = std::fs::remove_dir_all(directory.as_path());
     }

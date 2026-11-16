@@ -33,11 +33,11 @@
 //! const problems: string[] = await finishInterruptedDestroys(commonDir); // what a person still has to act on
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
 use crate::plain_file::read_plain_file;
 use crate::pid_namespace::{UnreadableOwnerStanding, UnreadablePart, unreadable_owner_standing};
-use crate::process_identity::{birth_identity_value, process_birth_identity};
+use crate::process_identity::{birth_identity_for_record_readers, birth_identity_value};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
 use crate::worktree_removal_interrupted_destroy::{DestroyRecord, RECORD_FOLDER, RECORD_LIMIT, forget_destroy, read_record};
@@ -81,10 +81,22 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 /// const standing = ownerStanding(record.owner, recordPath); // 'runs' | 'ended' | words
 /// ```
 pub(crate) fn owner_standing(owner: Option<&String>, record: &Path) -> OwnerOfTheRecord {
-    let Some(spelled) = owner else { return OwnerOfTheRecord::Runs };
-    let Some((spelled_pid, identity)) = spelled.split_once(':') else { return OwnerOfTheRecord::Runs };
-    let Ok(pid) = spelled_pid.parse::<i64>() else { return OwnerOfTheRecord::Runs };
-    return match process_birth_identity(pid) {
+    // What: a record that names no owner in a form this command can read is a holder it cannot tell, and the record's own
+    //       age is the bound there is.
+    // Why:  Read as a command that runs it kept the record for ever and said nothing; a record with no owner line, an owner
+    //       without a process number, or a number that is no number names no process this host can be asked about, so
+    //       nothing proves the removal it belongs to ended, and nothing proves it runs.
+    let Some(spelled) = owner else {
+        return cannot_be_told(record, UnreadablePart::Owner(String::from("no owner line")));
+    };
+    let Some((spelled_pid, identity)) = spelled.split_once(':') else {
+        return cannot_be_told(record, UnreadablePart::Owner(spelled.clone()));
+    };
+    // A process number padded with a space or a zero is the same number: a number has one value however it is written.
+    let Ok(pid) = spelled_pid.trim().parse::<i64>() else {
+        return cannot_be_told(record, UnreadablePart::Owner(spelled.clone()));
+    };
+    return match birth_identity_for_record_readers(pid) {
         Ok(Some(now)) => match (birth_identity_value(identity), birth_identity_value(now.as_str())) {
             (Some(recorded), Some(live)) => {
                 if recorded == live {
@@ -94,28 +106,50 @@ pub(crate) fn owner_standing(owner: Option<&String>, record: &Path) -> OwnerOfTh
                 }
             }
             // A birth that names no value is neither a running command's nor an ended one's.
-            _ => cannot_be_told(record, identity, pid),
+            _ => cannot_be_told(record, UnreadablePart::Birth(String::from(identity))),
         },
         Ok(None) => OwnerOfTheRecord::Ended,
-        Err(error) => {
-            warn(TAG, format!("the process {pid} of a recorded destroy cannot be inspected: {error}").as_str());
-            OwnerOfTheRecord::Runs
-        }
+        // What: a process the platform will not report on is a holder that cannot be told, and the record's own age is the
+        //       bound there is.
+        // Why:  Read as a command that runs it kept the record for ever and said nothing a person could act on, in a line the
+        //       warning switch removes; read as one that ended it finished a removal that may be running. Past the patience
+        //       the words name the record, the owner, its age and the command that removes it, on the command's own stream
+        //       (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+        Err(unreadable) => cannot_be_told(record, UnreadablePart::Process(unreadable.to_string())),
     };
 }
 
 /// What:
-///  What a record says whose owner's birth names no value,
+///  What a record says whose owner's part `part` cannot be read,
 /// from the reading every reader of such a record gives.
 /// Why:
 ///   The bound and the words are the ones `pid_namespace.rs` writes,
 ///  so no reader of these records can answer differently.
-fn cannot_be_told(record: &Path, birth: &str, pid: i64) -> OwnerOfTheRecord {
-    return match unreadable_owner_standing(record, UnreadablePart::Birth(String::from(birth)), pid) {
+fn cannot_be_told(record: &Path, part: UnreadablePart) -> OwnerOfTheRecord {
+    return match unreadable_owner_standing(record, part, owner_pid_of(record)) {
         UnreadableOwnerStanding::MayRun => OwnerOfTheRecord::Runs,
         UnreadableOwnerStanding::Ended => OwnerOfTheRecord::Ended,
         UnreadableOwnerStanding::Refused(words) => OwnerOfTheRecord::CannotBeTold(words),
     };
+}
+
+/// The process number a destroy or leaving record names,
+/// or zero when it names none,
+/// for the words that name it to a person.
+fn owner_pid_of(record: &Path) -> i64 {
+    let Ok(bytes) = crate::plain_file::read_plain_file(record, crate::worktree_removal_interrupted_destroy::RECORD_LIMIT) else {
+        return 0;
+    };
+    let Ok(text) = String::from_utf8(bytes) else { return 0 };
+    for line in text.lines() {
+        if let Some(spelled) = line.strip_prefix("owner=")
+            && let Some((number, _birth)) = spelled.split_once(':')
+            && let Ok(pid) = number.trim().parse::<i64>()
+        {
+            return pid;
+        }
+    }
+    return 0;
 }
 
 /// What:

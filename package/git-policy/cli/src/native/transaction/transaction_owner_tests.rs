@@ -347,7 +347,10 @@ enum Due {
     Alive,
     /// The process ended, or the number was reused by a process of another birth.
     Dead,
-    /// Neither, and the record is named in the words a command stops with.
+    /// Neither, and the record is named in the words a command prints before it goes on.
+    CannotBeTold,
+    /// Neither, and the record is a refusal that stops the command: a record of another PID namespace past the patience,
+    ///  which the owner's decision of 2026-11-04 keeps as a stop.
     Refused,
 }
 
@@ -387,7 +390,7 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
         ("the tag in capitals over another tick", String::from("LINUX:1"), None, young, Due::Dead, ""),
         ("a birth behind a space", behind_a_space.clone(), None, young, Due::Alive, ""),
         ("a text naming the tag with no tick, young", String::from("linux:not-a-birth"), None, young, Due::Alive, ""),
-        ("a text naming the tag with no tick, past the patience", String::from("linux:not-a-birth"), None, aged, Due::Refused, "birth identity"),
+        ("a text naming the tag with no tick, past the patience", String::from("linux:not-a-birth"), None, aged, Due::CannotBeTold, "birth identity"),
         ("a leading zero on the namespace, past the patience", live.clone(), Some(padded_namespace.clone()), aged, Due::Alive, ""),
         ("another namespace, past the patience", live.clone(), Some(String::from("pid:[1]")), aged, Due::Refused, "PID namespace"),
         // A birth that is no spelling of a value a writer of this crate leaves: the holder cannot be told, so inside the
@@ -396,7 +399,7 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
         ("a space before the colon, young", live.replacen(':', " :", 1), None, young, Due::Alive, ""),
         ("a bare tick with no tag, young", live.replacen("linux:", "", 1), None, young, Due::Alive, ""),
         ("a byte order mark before the tag, young", format!("\u{feff}{live}"), None, young, Due::Alive, ""),
-        ("a bare tick with no tag, past the patience", live.replacen("linux:", "", 1), None, aged, Due::Refused, "birth identity"),
+        ("a bare tick with no tag, past the patience", live.replacen("linux:", "", 1), None, aged, Due::CannotBeTold, "birth identity"),
     ];
     // Every row is asked and every wrong answer is kept, so one run of the control names each row that was read another
     //  way instead of stopping at the first.
@@ -408,6 +411,12 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
         let record: std::path::PathBuf = owner_file(directory.as_path(), age);
         match (classify_transaction_owner_record(&owner, record.as_path()), due) {
             (Ok(OwnerLiveness::Alive), Due::Alive) | (Ok(OwnerLiveness::Dead), Due::Dead) => {}
+            (Ok(OwnerLiveness::CannotBeTold(text)), Due::CannotBeTold) => {
+                let named: bool = text.contains(record.to_string_lossy().as_ref()) && text.contains(own.owner_pid.to_string().as_str());
+                if !named || !text.contains("rm -- ") || !text.contains(must_say) {
+                    wrong.push(format!("{what}: the words do not name the record, the owner, the command that removes it and {must_say:?}: {text}"));
+                }
+            }
             (Err(OwnerLivenessError::RecordRefused(text)), Due::Refused) => {
                 let named: bool = text.contains(record.to_string_lossy().as_ref()) && text.contains(own.owner_pid.to_string().as_str());
                 if !named || !text.contains("rm -- ") || !text.contains(must_say) {
@@ -421,4 +430,49 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
     }
     crate::test_support::remove(directory.as_path());
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// What:
+///  A transaction record whose owner's process entry the platform will not report on is a holder that cannot be told:
+///  inside the patience it may run, and past the patience the words name the record, the owner, its age and the command,
+///  and the reader answers no error.
+/// Why:
+///  Read as an error it stopped every command of the worktree at any age (main does that); read as dead it settled a merge
+///  that runs. The arm is driven through the readers' own seam, because a refused process entry cannot be made on demand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// injectBirthReader(() => { throw new IdentityError(pid) }); expect(classify(young)).toBe('alive'); expect(classify(aged)).toMatchObject({ cannotBeTold: ... })
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_record_whose_process_entry_the_platform_will_not_report_cannot_be_told() {
+    let directory: std::path::PathBuf = crate::test_support::fixture("transaction-owner-unreadable-process");
+    let owner: TransactionOwner = current_transaction_owner("an-owner-the-platform-hides", "2026-10-29T00:00:00.000Z").expect("this process has an identity");
+    let injected: std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, crate::process_identity::ProcessIdentityError>> =
+        std::rc::Rc::new(|pid: i64| {
+            return Err(crate::process_identity::ProcessIdentityError::Io { pid, error: std::io::Error::from_raw_os_error(libc::EACCES) });
+        });
+    crate::process_identity::test_birth_reader::inject(Some(injected));
+    let young: std::path::PathBuf = owner_file(directory.as_path(), std::time::Duration::from_secs(30));
+    assert_eq!(
+        classify_transaction_owner_record(&owner, young.as_path()).expect("a young record is no refusal"),
+        OwnerLiveness::Alive,
+        "inside the patience the record may belong to a merge that runs"
+    );
+    let aged: std::path::PathBuf = owner_file(directory.as_path(), crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60));
+    let verdict: OwnerLiveness = classify_transaction_owner_record(&owner, aged.as_path()).expect("an old record is no error either");
+    let OwnerLiveness::CannotBeTold(words) = verdict else {
+        panic!("past the patience the record must be one that cannot be told: {verdict:?}");
+    };
+    assert!(
+        words.contains(aged.to_string_lossy().as_ref())
+            && words.contains(owner.owner_pid.to_string().as_str())
+            && words.contains("minutes old")
+            && words.contains("Permission denied")
+            && words.contains("rm -- "),
+        "the words name the record, the owner, the platform's reason, the age and the command: {words}"
+    );
+    crate::process_identity::test_birth_reader::inject(None);
+    crate::test_support::remove(directory.as_path());
 }

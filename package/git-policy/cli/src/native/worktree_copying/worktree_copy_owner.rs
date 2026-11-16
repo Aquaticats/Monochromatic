@@ -28,7 +28,7 @@
 //! ```
 
 use crate::pid_namespace::{ForeignStanding, UnreadableOwnerStanding, UnreadablePart, current_pid_namespace, foreign_owner_standing, unreadable_owner_standing};
-use crate::process_identity::{birth_identity_value, current_birth_identity, process_birth_identity};
+use crate::process_identity::{birth_identity_for_record_readers, birth_identity_value, current_birth_identity};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use std::path::Path;
 
@@ -156,7 +156,7 @@ pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
 /// ```
 pub fn copy_owner_of_process(pid: u32) -> Option<CopyOwner> {
     let id: i64 = i64::from(pid);
-    let birth: String = process_birth_identity(id).ok().flatten()?;
+    let birth: String = crate::process_identity::process_birth_identity(id).ok().flatten()?;
     return Some(CopyOwner { pid: id, birth_identity: birth, pid_namespace: current_pid_namespace() });
 }
 
@@ -254,7 +254,7 @@ impl CopyOwner {
             None => {}
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
-        return match process_birth_identity(self.pid) {
+        return match birth_identity_for_record_readers(self.pid) {
             Ok(Some(current)) => match (birth_identity_value(self.birth_identity.as_str()), birth_identity_value(current.as_str())) {
                 // What: the two births name one value or two, and a value is what names one process.
                 // Why:  The wrapper writes one spelling of its birth, so a record in another one came from a writer that is
@@ -366,10 +366,45 @@ pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, Wor
 /// function ownerStanding(token: string | undefined, itemPath: string): 'may-run' | 'ended' | { cannotBeTold: string }; // throws for a foreign refusal
 /// ```
 pub fn token_owner_standing(token: Option<&str>, item: &Path) -> Result<OwnerStanding, WorktreeCopyError> {
-    let Some(owner) = token.and_then(CopyOwner::from_token) else {
+    // What: a record with no owner text at all names nobody, which is the answer every reader has always given for the items
+    //       of a release before owners existed.
+    let Some(text) = token else {
         return Ok(OwnerStanding::Ended);
     };
+    let Some(owner) = CopyOwner::from_token(text) else {
+        // What: a record whose text is no token, or whose birth is blank, names no process this reader can read, so nothing
+        //       proves its holder ended.
+        // Why:  Read as a dead owner it removed a live owner's copy, journal, claim or owed mark: a text no writer of this
+        //       crate leaves proves nothing either way, and the item's own age is the bound there is (owner, 2026-11-16,
+        //       "A: stays, command says how (Recommended)").
+        return Ok(cannot_be_told_for(item, UnreadablePart::Owner(String::from(text)), leading_pid_of(text)));
+    };
     return owner.alive_by(item, foreign_owner_standing(owner.pid_namespace.as_deref(), item));
+}
+
+/// What:
+///  What an item says when a part of its owner's record cannot be read,
+///  from the one reading every reader of such a record gives.
+/// Why:
+///   The bound and the words are the ones `pid_namespace.rs` writes,
+///  so the copy owner cannot answer one way and a transaction another.
+fn cannot_be_told_for(item: &Path, part: UnreadablePart, owner_pid: i64) -> OwnerStanding {
+    return match unreadable_owner_standing(item, part, owner_pid) {
+        UnreadableOwnerStanding::MayRun => OwnerStanding::MayRun,
+        UnreadableOwnerStanding::Ended => OwnerStanding::Ended,
+        UnreadableOwnerStanding::Refused(words) => OwnerStanding::CannotBeTold(WorktreeCopyError(words)),
+    };
+}
+
+/// What:
+///  The process number the first field of a record's own text names,
+///  or zero when it names none.
+/// Why:
+///   A token whose birth is blank still carries the number its writer meant, so the words a person reads can name the
+///  process to look for even where the rest of the record cannot be read.
+fn leading_pid_of(text: &str) -> i64 {
+    let first: &str = text.split(FIELD_SEPARATOR).next().unwrap_or("");
+    return first.trim().parse::<i64>().unwrap_or(0);
 }
 
 #[cfg(test)]

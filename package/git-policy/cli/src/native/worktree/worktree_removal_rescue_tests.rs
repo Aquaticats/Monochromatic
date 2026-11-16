@@ -665,3 +665,89 @@ fn a_snapshot_whose_taker_cannot_be_told_is_named_past_the_patience() {
     remove(root.as_path());
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// What:
+///  A removal attempt file the platform will not report on, and one whose text is empty, are takers that cannot be told:
+///  named past the patience with the file, the process its name carries, its age and the command that removes it.
+/// Why:
+///  Read as running they kept the snapshot and every push record it holds for ever with only a warning line a switch removes;
+///  `register_attempt` publishes an attempt file whole by a rename, so an empty one is a lost write and never a write in
+///  progress. A taker that ended still ends its snapshot, so a passing control is not one that keeps everything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// injectBirthReader(() => { throw new IdentityError(pid) }); expect(settle(aged)[0]).toContain('rm --'); expect(settle(emptyAged)[0]).toContain('rm --')
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn an_attempt_record_that_cannot_be_read_is_named_past_the_patience() {
+    let root: PathBuf = fixture("rescue-attempt-unreadable");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.join(SNAPSHOT_DIRECTORY).as_path()).expect("the snapshot directory");
+    let git_dir: PathBuf = root.join("a-git-directory");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a removal that runs");
+    std::fs::write(git_dir.join(GIT_DIR_FILE).as_path(), root.join("no-checkout").to_string_lossy().as_bytes()).expect("the name of the checkout");
+    let aged: std::time::Duration = crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60);
+    let mut wrong: Vec<String> = Vec::new();
+    // A taker whose process entry the platform will not report, and one whose file is empty: both past the patience.
+    for (index, text) in ["", "linux:1"].into_iter().enumerate() {
+        let snapshot: PathBuf = common.join(SNAPSHOT_DIRECTORY).join(format!("one-{index}"));
+        std::fs::create_dir_all(snapshot.join(ATTEMPTS).as_path()).expect("the attempts directory");
+        std::fs::write(snapshot.join(GIT_DIR_FILE).as_path(), git_dir.to_string_lossy().as_bytes()).expect("the name of the Git directory");
+        let attempt: PathBuf = snapshot.join(ATTEMPTS).join(std::process::id().to_string());
+        std::fs::write(attempt.as_path(), text).expect("an attempt of the command that took the snapshot");
+        std::fs::File::open(attempt.as_path())
+            .expect("open the attempt")
+            .set_modified(std::time::SystemTime::now() - aged)
+            .expect("age the attempt");
+        let injected: std::rc::Rc<dyn Fn(i64) -> Result<Option<String>, crate::process_identity::ProcessIdentityError>> =
+            std::rc::Rc::new(|pid: i64| {
+                return Err(crate::process_identity::ProcessIdentityError::Io { pid, error: std::io::Error::from_raw_os_error(libc::EACCES) });
+            });
+        crate::process_identity::test_birth_reader::inject(Some(injected));
+        let problems: Vec<String> = settle_removals(common.as_path());
+        crate::process_identity::test_birth_reader::inject(None);
+        let named: bool = problems.iter().any(|line| {
+            return line.contains(attempt.to_string_lossy().as_ref())
+                && line.contains(std::process::id().to_string().as_str())
+                && line.contains("minutes old")
+                && line.contains("rm -- ");
+        });
+        if !named {
+            wrong.push(format!("the attempt {attempt:?}: the person read {problems:?}, and one line should name the file and the command that removes it"));
+        }
+        if !snapshot.exists() {
+            wrong.push(format!("the snapshot of a taker that cannot be told was discarded: {snapshot:?}"));
+        }
+    }
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// What:
+///  An attempt file that names its taker's number with another birth tick still ends the snapshot,
+///  so the control above is not one that keeps everything past the patience.
+/// Why:
+///  The other answer of the same reader must stay reachable, or the words would be the only thing it ever says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeAttempt(deadPid, 'linux:1'); expect(settle()).toEqual([]); expect(snapshot).not.toExist();
+/// ```
+#[test]
+fn an_attempt_of_a_taker_that_ended_is_still_settled() {
+    let root: PathBuf = fixture("rescue-attempt-ended-still-settles");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.join(SNAPSHOT_DIRECTORY).as_path()).expect("the snapshot directory");
+    let snapshot: PathBuf = common.join(SNAPSHOT_DIRECTORY).join("one");
+    std::fs::create_dir_all(snapshot.join(ATTEMPTS).as_path()).expect("the attempts directory");
+    let git_dir: PathBuf = root.join("a-git-directory");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
+    std::fs::write(git_dir.join(GIT_DIR_FILE).as_path(), root.join("no-checkout").to_string_lossy().as_bytes()).expect("the name of the checkout");
+    std::fs::write(snapshot.join(GIT_DIR_FILE).as_path(), git_dir.to_string_lossy().as_bytes()).expect("the name of the Git directory");
+    let ended: crate::worktree_copy_owner::CopyOwner = crate::test_support::dead_copy_owner();
+    std::fs::write(snapshot.join(ATTEMPTS).join(ended.pid.to_string()).as_path(), ended.birth_identity.as_str()).expect("an attempt of a taker that ended");
+    assert!(settle_removals(common.as_path()).is_empty(), "a taker that ended is no reason to say anything");
+    assert!(!snapshot.exists(), "and its snapshot is settled");
+    remove(root.as_path());
+}

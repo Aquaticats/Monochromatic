@@ -508,6 +508,9 @@ pub enum UnreadablePart {
     Birth(String),
     /// The process the record names: the platform would not report it, with the reason it gave.
     Process(String),
+    /// The record's own text names no process at all: the owner line is missing, has no process number, carries text that
+    ///  is no number, or the record is empty, with the text it holds.
+    Owner(String),
 }
 
 /// What:
@@ -573,24 +576,34 @@ impl RefusedUntellableRecord {
     /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid}, ${part}, ... rm ${recursive}-- ${quoted(record)}`
     /// ```
     pub fn describe(&self, owner_pid: i64) -> String {
+        let writer: String = match &self.part {
+            UnreadablePart::Owner(_) => String::from("was written by a process it does not name in a form this command can read"),
+            UnreadablePart::Birth(_) | UnreadablePart::Process(_) => format!("was written by process {owner_pid}"),
+        };
         let part: String = match &self.part {
             UnreadablePart::Birth(birth) => format!(
                 "and the birth identity it names ({birth}) is no spelling of a value this command can read"
             ),
             UnreadablePart::Process(reason) => format!("and the process record of that process cannot be read ({reason})"),
+            UnreadablePart::Owner(text) => format!(
+                "and the owner it names ({text}) is no process and birth identity this command can read"
+            ),
         };
         let removal: String = match self.record.is_dir() {
             true => format!("remove the copy with `rm --recursive -- {}`", crate::stale_ref_lock_message::shell_quote(self.record.as_path())),
             false => format!("remove the record with `rm -- {}`", crate::stale_ref_lock_message::shell_quote(self.record.as_path())),
         };
         return format!(
-            "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid}, {part}, so whether that process still runs cannot be told from the \
+            "monochromatic-git-policy-cli: the record {record} {writer}, {part}, so whether that process still runs cannot be told from it, \
              record, {state}. Nothing was changed. A record like that was written by a release or a program that is not this one, or names a process this host does \
              not report; its owner may still be running and a Git process monochromatic-git-policy-cli left running (a write it could not safely end, such as a merge, a \
              reset or a branch update) may still be working for it; `ps` shows them. When no monochromatic-git-policy-cli command and no such Git process runs for this \
              repository, {removal} and run the command again.",
             record = self.record.display(),
+            writer = writer,
+            part = part,
             state = refusal_state(&self.because),
+            removal = removal,
         );
     }
 }

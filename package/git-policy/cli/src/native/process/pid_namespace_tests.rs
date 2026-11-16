@@ -227,3 +227,44 @@ fn the_patience_outlasts_the_longest_measured_hold() {
     const LONGEST_HOLD_MEASURED: Duration = Duration::from_millis(119_721);
     assert!(FOREIGN_OWNER_PATIENCE > LONGEST_HOLD_MEASURED);
 }
+
+/// What:
+///  The command a refusal gives can be copied from the line a person sees and removes exactly the record it names,
+///  for a record whose path holds a space, a single quote, a double quote and a newline, and it removes nothing else.
+/// Why:
+///   The words are the person's only way to clear a record whose holder cannot be told, and a command that fails on the path it
+///  names is not that way (`shell_quote` and `--` are what make it work).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = describe({ record: awkward, part: { birth: 'ended' }, because: { pastThePatience: 200s } }, 42);
+/// const command = line.slice(line.indexOf('rm -- '), line.indexOf('`', line.indexOf('rm -- ')));
+/// execSync(command); expect(exists(awkward)).toBe(false); expect(exists(sibling)).toBe(true);
+/// ```
+#[cfg(unix)]
+#[test]
+fn the_command_a_refusal_gives_removes_exactly_the_record_for_an_awkward_path() {
+    let root: std::path::PathBuf = crate::test_support::fixture("refusal-awkward-path");
+    // A directory whose name holds the four things a shell line must survive: a space, a single quote, a double quote and a
+    // newline.
+    let awkward_directory: std::path::PathBuf = root.join("a folder's \"name\"\nwith a break");
+    std::fs::create_dir_all(&awkward_directory).expect("the awkward directory");
+    let record: std::path::PathBuf = awkward_directory.join("the record");
+    let sibling: std::path::PathBuf = awkward_directory.join("a sibling");
+    std::fs::write(&record, b"x").expect("the record");
+    std::fs::write(&sibling, b"untouched").expect("a sibling of the record");
+    let refused: RefusedUntellableRecord = RefusedUntellableRecord {
+        record: record.clone(),
+        part: UnreadablePart::Birth(String::from("ended")),
+        because: ForeignRefusal::PastThePatience(FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60)),
+    };
+    let line: String = refused.describe(42);
+    // The words of this refusal carry no JSON around them: they are the line the command's standard error holds.
+    let after: &str = line.split_once("rm -- ").expect("the line gives a command").1;
+    let command: &str = after.split_once('`').expect("the command ends at the backtick").0;
+    let ran: std::process::Output = std::process::Command::new("/bin/sh").arg("-c").arg(format!("rm -- {command}")).output().expect("sh runs");
+    assert!(ran.status.success(), "the command the words give runs: {}", String::from_utf8_lossy(ran.stderr.as_slice()));
+    assert!(!record.exists(), "it removed the record the words name");
+    assert!(sibling.exists(), "and nothing beside it");
+    crate::test_support::remove(root.as_path());
+}

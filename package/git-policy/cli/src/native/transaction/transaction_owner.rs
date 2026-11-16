@@ -22,7 +22,7 @@ use crate::json_record::{
 };
 /// Birth identities and the existence probe.
 use crate::process_identity::{
-    ProcessIdentityError, birth_identity_value, current_birth_identity, process_birth_identity,
+    ProcessIdentityError, birth_identity_for_record_readers, birth_identity_value, current_birth_identity,
 };
 /// The namespace an owner record names, the rule for an owner of another one, and the bound on a birth that names no value.
 use crate::pid_namespace::{
@@ -270,7 +270,7 @@ pub fn classify_transaction_owner(
     if !process_exists(owner_pid)? {
         return Ok(OwnerLiveness::Dead);
     }
-    return match process_birth_identity(owner_pid).map_err(OwnerLivenessError::Identity)? {
+    return match birth_identity_for_record_readers(owner_pid).map_err(OwnerLivenessError::Identity)? {
         Some(current) => match (birth_identity_value(owner_identity), birth_identity_value(current.as_str())) {
             (Some(recorded), Some(live)) => Ok(if recorded == live { OwnerLiveness::Alive } else { OwnerLiveness::Dead }),
             // A birth that names no value is no proof that the owner ended: what it holds stays, and the record's own age

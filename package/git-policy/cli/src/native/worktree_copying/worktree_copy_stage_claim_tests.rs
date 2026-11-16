@@ -349,10 +349,15 @@ fn an_unfinished_write_of_a_dead_writer_is_removed_and_a_live_writers_is_kept() 
     for file in [&leftover, &journal_leftover, &unnamed, &running] {
         std::fs::write(file.as_path(), b"cut off").expect("temporary");
     }
-    assert!(reap_abandoned_stages(common.as_path()).expect("reaped").is_empty());
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
+    assert!(notices.is_empty(), "a young temporary of a writer that cannot be told says nothing: {notices:?}");
     assert!(!leftover.exists());
     assert!(!journal_leftover.exists());
-    assert!(!unnamed.exists(), "a temporary no writer is named in belongs to nobody");
+    // What: a temporary whose writer field is no token names no writer this reader can read, so nothing proves that writer
+    //       ended; inside the patience it stays and nothing is said.
+    // Why:  Read as a dead writer's it was removed, and a removal is the one thing the decision of 2026-11-16 keeps for a
+    //       proof that the holder is gone.
+    assert!(unnamed.exists(), "a temporary whose writer field is no token proves nothing and stays");
     assert!(running.exists(), "a live writer is about to rename its temporary");
     remove(root.as_path());
 }
@@ -764,16 +769,42 @@ fn releasing_an_add_removes_the_record_before_the_marker() {
     remove(root.as_path());
 }
 
-/// The temporaries of an interrupted record or marker write are removed with the unfinished claims.
+/// What:
+///  The temporaries of an interrupted record or marker write whose writer field is no token are kept and named past the
+///  patience, and one that names a dead writer is still removed.
+/// Why:
+///  A name that carries no token is no writer this reader can read, and the decision of 2026-11-16 removes such a record only
+///  on a proof that its holder is gone; past the patience the person is told.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of ['a.stage.1.tmp','a.add.2.tmp','a.done.3.tmp']) { write(name); age(name, 20min); }
+/// const notices = await reap(common); expect(notices.length).toBe(3); expect(readdir(journals).length).toBe(3);
+/// ```
 #[test]
-fn unfinished_record_and_marker_writes_are_removed() {
+fn unfinished_record_and_marker_writes_are_named_past_the_patience() {
     let (root, common, _destination) = scene("claim-add-temporaries");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let aged: std::time::Duration = crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60);
+    let mut names: Vec<String> = Vec::new();
     for name in ["a.stage.1.tmp", "a.add.2.tmp", "a.done.3.tmp"] {
-        std::fs::write(journals.join(name), b"half").expect("temporary");
+        let path: PathBuf = journals.join(name);
+        std::fs::write(path.as_path(), b"half").expect("temporary");
+        std::fs::File::open(path.as_path()).expect("open the temporary").set_modified(std::time::SystemTime::now() - aged).expect("age the temporary");
+        names.push(String::from(name));
     }
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(notices.len(), names.len(), "one line for each temporary whose writer cannot be told: {notices:?}");
+    for name in &names {
+        assert!(notices.iter().any(|line| { return line.contains(name.as_str()) && line.contains("rm -- "); }), "{name} is not named: {notices:?}");
+        assert!(journals.join(name).exists(), "{name} stays");
+    }
+    // The other answer of the same reader: a temporary that names a dead writer is still removed.
+    let dead: String = dead_copy_owner().token();
+    let dead_temporary: PathBuf = journals.join(format!("b.stage.{dead}.def.tmp"));
+    std::fs::write(dead_temporary.as_path(), b"half").expect("temporary");
     reap_abandoned_stages(common.as_path()).expect("reap");
-    assert_eq!(journals.read_dir().expect("listing").count(), 0);
+    assert!(!dead_temporary.exists(), "a dead writer's temporary is removed");
     remove(root.as_path());
 }
 
@@ -2503,6 +2534,12 @@ fn a_claim_whose_owner_cannot_be_told_is_kept_and_named() {
         aged[0]
     );
     assert!(claim_path.exists(), "the claim stays");
+    // The words say what running the `rm` leaves behind: the stage container, and the command that removes it.
+    assert!(
+        aged[0].contains(claim.container().to_string_lossy().as_ref()) && aged[0].contains("rm --recursive -- "),
+        "the line names the stage the claim leaves behind and the command that removes it: {}",
+        aged[0]
+    );
     // The other answer of the same reader: a dead owner's claim is still reaped and its stage removed.
     let dead: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &crate::test_support::dead_copy_owner()).expect("claim");
     abandoned_stage(dead.container());

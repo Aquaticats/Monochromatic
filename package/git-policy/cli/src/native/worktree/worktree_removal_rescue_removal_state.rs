@@ -15,10 +15,9 @@
 //! removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
 //! ```
 
-use super::{ATTEMPTS, GITDIR_HEX_PREFIX, TAG, files_of, name_of, path_bytes};
-use crate::diagnostic_log::warn;
+use super::{ATTEMPTS, GITDIR_HEX_PREFIX, files_of, name_of, path_bytes};
 use crate::pid_namespace::{UnreadableOwnerStanding, UnreadablePart, unreadable_owner_standing};
-use crate::process_identity::{birth_identity_value, process_birth_identity};
+use crate::process_identity::{birth_identity_for_record_readers, birth_identity_value};
 use std::path::{Path, PathBuf};
 /// What a Git directory,
 /// the process that took a snapshot,
@@ -117,10 +116,13 @@ fn attempt_file_may_be_running(path: &Path) -> Attempts {
     let Ok(bytes) = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT) else { return Attempts::Runs };
     let Ok(recorded) = String::from_utf8(bytes) else { return Attempts::Runs };
     if recorded.is_empty() {
-        // Being written.
-        return Attempts::Runs;
+        // What: an attempt file whose text names nothing is a taker that cannot be told, and the file's own age is the bound.
+        // Why:  Read as "being written" it kept the snapshot and every push record it holds for ever and said nothing a
+        //       person could act on: `register_attempt` publishes the file whole by a rename, so an empty one is a lost write
+        //       or a writer that is not this release, never a write in progress.
+        return cannot_be_told(path, UnreadablePart::Owner(String::from("an empty attempt record")), pid);
     }
-    return match process_birth_identity(pid) {
+    return match birth_identity_for_record_readers(pid) {
         Ok(Some(now)) => match (birth_identity_value(recorded.as_str()), birth_identity_value(now.as_str())) {
             (Some(theirs), Some(live)) => {
                 if theirs == live {
@@ -130,17 +132,27 @@ fn attempt_file_may_be_running(path: &Path) -> Attempts {
                 }
             }
             // A birth that names no value is neither a running command's nor an ended one's.
-            _ => match unreadable_owner_standing(path, UnreadablePart::Birth(recorded.clone()), pid) {
-                UnreadableOwnerStanding::MayRun => Attempts::Runs,
-                UnreadableOwnerStanding::Ended => Attempts::Ended,
-                UnreadableOwnerStanding::Refused(words) => Attempts::CannotBeTold(words),
-            },
+            _ => cannot_be_told(path, UnreadablePart::Birth(recorded.clone()), pid),
         },
         Ok(None) => Attempts::Ended,
-        Err(error) => {
-            warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
-            Attempts::Runs
-        }
+        // What: a process the platform will not report on is a taker that cannot be told, and the file's own age is the bound.
+        // Why:  Read as running it kept the snapshot for ever with nothing a person could act on, in a line the warning
+        //       switch removes (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+        Err(unreadable) => cannot_be_told(path, UnreadablePart::Process(unreadable.to_string()), pid),
+    };
+}
+
+/// What:
+///  What a removal attempt file says when the part `part` cannot be read,
+/// from the reading every reader of such a record gives.
+/// Why:
+///   The bound and the words are the ones `pid_namespace.rs` writes, so no reader of these records can answer differently,
+///  and the words name the file, the process its name carries, its age and the command that removes it.
+fn cannot_be_told(path: &Path, part: UnreadablePart, pid: i64) -> Attempts {
+    return match unreadable_owner_standing(path, part, pid) {
+        UnreadableOwnerStanding::MayRun => Attempts::Runs,
+        UnreadableOwnerStanding::Ended => Attempts::Ended,
+        UnreadableOwnerStanding::Refused(words) => Attempts::CannotBeTold(words),
     };
 }
 
