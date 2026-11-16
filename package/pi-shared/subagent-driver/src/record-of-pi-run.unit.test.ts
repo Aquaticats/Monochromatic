@@ -122,6 +122,44 @@ await describe({
       },
     },),
     it({
+      name: 'keeps the start time the process tool gave, and reads no start time of its own',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The feed a test writes.
+         */
+        const feedFile = join(folder.path, 'feed.jsonl',);
+        const { record, } = recordOnOwnClock(feedFile,);
+        /**
+         The start time the tool gave, as the answer reports it.
+         */
+        const startTime = 1_700_000_000_000;
+        // The number is this test's own process, which is certainly alive: a driver that read the birth itself would keep one.
+        record.note({
+          kind: 'processes',
+          processes: [{
+            id: 'proc_build',
+            pid: process.pid,
+            command: 'cargo build',
+            cwd: '/w',
+            status: 'running',
+            startTime,
+          },],
+        },);
+        await record.close();
+        /**
+         The process as the feed kept it.
+         */
+        const written = JSON.parse(
+          (await readFile(feedFile, 'utf8',)).trim(),
+        ).processes[0];
+        expect(written.startTime,).toBe(startTime,);
+        // The answer's own start time is the only one kept: a birth sampled here would be a later process's whenever the number had
+        // already been given to one.
+        expect(written.birth,).toBeUndefined();
+      },
+    },),
+    it({
       name: 'a note counts as activity, so a message just delivered does not look like a long silence',
       fn: async () => {
         await using folder = await makeFolder();

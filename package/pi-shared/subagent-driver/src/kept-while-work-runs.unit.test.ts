@@ -13,9 +13,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   type CommandAnswer,
+  UNREADABLE_WORK_MILLISECONDS,
   type WatchRequest,
   type WorkWaitedFor,
   askAboutItsWorkOrReportAFailure,
+  answeredItsWake,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -163,11 +165,176 @@ await describe({
             const wake = noted.find(function isTheWake(entry,) {
               return entry.kind === 'wake';
             },);
-            expect(wake?.success,).toBe(false,);
+            expect(wake?.acceptance,).toBe('unknown',);
             expect(String(wake?.error,),).toContain('the answer path failed after Pi took the prompt',);
             // A reply to that wake is still owed, so the run is not free to end as one that came back.
             expect(waited.wokenAtSettle,).toBe(0,);
             expect(waited.work,).toBeUndefined();
+          },
+        },),
+        it({
+          name: 'sends a wake once when its answer never came, and keeps the run for a turn that may still settle',
+          fn: async () => {
+            /**
+             The messages that went to Pi.
+             */
+            const sent: string[] = [];
+            /**
+             The feed lines the driver wrote.
+             */
+            const noted: Record<string, unknown>[] = [];
+            /**
+             How many times the work was read.
+             */
+            let reads = 0;
+            /**
+             A watch whose work ran once, and whose wake Pi accepted while its answer was lost: the connection answers as it does
+             when no answer arrives, which is a resolved value and not a throw.
+             */
+            const watch = aWatchWith({
+              read: async function read() {
+                reads += 1;
+                return (reads === 1) ? ['4242 build',] : [];
+              },
+              send: async function send({ command, },) {
+                sent.push(command.message,);
+                return {
+                  ending: 'silence',
+                  problem: 'no answer in 30000 ms',
+                };
+              },
+              noted,
+            },);
+            /**
+             Where the driver stands with the work.
+             */
+            const waited: WorkWaitedFor = {};
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+            },),).toBe('kept',);
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+            },),).toBe('resumed',);
+            // The wake went out once, and no turn has settled since, so the run is not free to end as one that came back.
+            expect(sent.length,).toBe(1,);
+            expect(waited.wokenAtSettle,).toBe(0,);
+            expect(answeredItsWake({
+              wokenAtSettle: waited.wokenAtSettle,
+              settledNow: 0,
+            },),).toBe(false,);
+            /**
+             The feed's line for that wake, which says the acceptance is unknown rather than that Pi declined it.
+             */
+            const wake = noted.find(function isTheWake(entry,) {
+              return entry.kind === 'wake';
+            },);
+            expect(wake?.acceptance,).toBe('unknown',);
+            expect(String(wake?.error,),).toContain('no answer in 30000 ms',);
+          },
+        },),
+        it({
+          name: 'ends the run as one whose leftover work could not be read after the span of failed reads, and keeps it before that',
+          fn: async () => {
+            /**
+             The instant the test's clock stands at.
+             */
+            let clock = 1_000_000;
+            /**
+             A watch whose read of the run's work always fails.
+             */
+            const watch = aWatchWith({
+              read: async function read() {
+                throw anUnreadableProcessTable();
+              },
+              send: async function send() {
+                throw new Error('no message is sent in this test',);
+              },
+            },);
+            /**
+             Where the driver stands with the work.
+             */
+            const waited: WorkWaitedFor = {};
+            /**
+             Where the test's clock is read from.
+             */
+            const now = function now() {
+              return clock;
+            };
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('kept',);
+            clock += UNREADABLE_WORK_MILLISECONDS - 1;
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('kept',);
+            clock += 1;
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('work-unreadable',);
+          },
+        },),
+        it({
+          name: 'keeps the run when a failed read recovers before the span, and counts the span again from the next failure',
+          fn: async () => {
+            /**
+             The instant the test's clock stands at.
+             */
+            let clock = 1_000_000;
+            /**
+             How many times the work was read, of which the second answered.
+             */
+            let reads = 0;
+            /**
+             A watch whose read fails, answers, and fails again.
+             */
+            const watch = aWatchWith({
+              read: async function read() {
+                reads += 1;
+                if (reads === 2) {
+                  return [];
+                }
+                throw anUnreadableProcessTable();
+              },
+              send: async function send() {
+                throw new Error('no message is sent in this test',);
+              },
+            },);
+            /**
+             Where the driver stands with the work.
+             */
+            const waited: WorkWaitedFor = {};
+            /**
+             Where the test's clock is read from.
+             */
+            const now = function now() {
+              return clock;
+            };
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('kept',);
+            clock += UNREADABLE_WORK_MILLISECONDS * 2;
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('nothing',);
+            // The good read cleared the span, so this failure is counted from its own instant rather than from the one before it.
+            expect(await askAboutItsWorkOrReportAFailure({
+              watch,
+              waited,
+              now,
+            },),).toBe('kept',);
+            expect(waited.unreadableSince,).toBe(clock,);
           },
         },),
         it({

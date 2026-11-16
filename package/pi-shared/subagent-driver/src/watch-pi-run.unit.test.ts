@@ -411,6 +411,12 @@ function answeringConnection({
     send: async function send({ command, }: CommandRequest,) {
       const { message } = command;
       sent.push((typeof message) === 'string' ? message : '',);
+      if (noAnswer) {
+        return {
+          ending: 'silence',
+          problem: 'no answer in 30000 ms',
+        };
+      }
       if (refuses) {
         return {
           ending: 'answered',
@@ -894,7 +900,7 @@ await describe({
         const feed = await feedOf(run.runFolder,);
         expect(feed.filter((entry,) => entry.kind === 'waiting').length,).toBe(1,);
         expect(String(feed.find((entry,) => entry.kind === 'waiting')?.problem,),).toContain('native-build-2',);
-        expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
+        expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.acceptance === 'taken')),).toBe(true,);
       },
     },),
     it({
@@ -962,7 +968,48 @@ await describe({
          What the run's feed holds.
          */
         const feed = await feedOf(run.runFolder,);
-        expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
+        expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.acceptance === 'taken')),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'does not end a run as idle when the answer to its wake was lost, and ends it on the wall clock instead',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          // Pi accepted the wake, and the answer never came back: this seam resolves with no answer and no turn started, which the
+          // driver must not read as a wake Pi declined.
+          connection: answeringConnection({
+            sent,
+            noAnswer: true,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS * 2,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        // The wake went out once, and the run stayed up for a reply that never settled rather than ending as one that came back.
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('wall-clock',);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.find((entry,) => entry.kind === 'wake')?.acceptance,).toBe('unknown',);
       },
     },),
     it({
@@ -1035,7 +1082,7 @@ await describe({
          What the run's feed holds.
          */
         const feed = await feedOf(run.runFolder,);
-        expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
+        expect(feed.find((entry,) => entry.kind === 'wake')?.acceptance,).toBe('refused',);
       },
     },),
     it({

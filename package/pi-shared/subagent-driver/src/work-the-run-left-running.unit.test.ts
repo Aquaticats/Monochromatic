@@ -94,6 +94,54 @@ function aScopeOfItsOwn(): string {
 }
 
 /**
+ The instant the fixture says the machine booted, in seconds since the epoch.
+
+ A process's start time in `/proc/<pid>/stat` is counted from the boot, so a test places a process on the wall clock by writing this
+ and counting from it.
+ */
+const THE_MACHINES_BOOT_TIME_SECONDS = 1_700_000_000;
+
+/**
+ How many clock ticks `/proc/<pid>/stat` counts a second in, which the kernel reports in hundreds.
+ */
+const CLOCK_TICKS_PER_SECOND = 100;
+
+/**
+ How long one clock tick of that file lasts.
+ */
+const MILLISECONDS_PER_CLOCK_TICK = 1_000 / CLOCK_TICKS_PER_SECOND;
+
+/**
+ The instant a fixture's process started, in milliseconds since the epoch, an hour after the machine it says it booted on.
+
+ @returns the instant
+
+ @example
+ ```ts
+ const startedAt = anInstant();
+ ```
+ */
+function anInstant(): number {
+  return (THE_MACHINES_BOOT_TIME_SECONDS * 1_000) + 3_600_000;
+}
+
+/**
+ The start time `/proc/<pid>/stat` holds for a process that started at a wall-clock instant.
+
+ @param startedAt - the instant, in milliseconds since the epoch
+
+ @returns the start time the kernel gives it, in clock ticks since boot
+
+ @example
+ ```ts
+ const birth = birthOfAProcessStartingAt({ startedAt: anInstant(), },);
+ ```
+ */
+function birthOfAProcessStartingAt({ startedAt, }: { readonly startedAt: number },): string {
+  return String(Math.round((startedAt - (THE_MACHINES_BOOT_TIME_SECONDS * 1_000)) / MILLISECONDS_PER_CLOCK_TICK,),);
+}
+
+/**
  The start time a fixture gives both a recorded process and the process at its number, in clock ticks since boot.
 
  @returns the start time
@@ -104,7 +152,21 @@ function aScopeOfItsOwn(): string {
  ```
  */
 function aBirth(): string {
-  return '20004601';
+  return birthOfAProcessStartingAt({ startedAt: anInstant(), },);
+}
+
+/**
+ The instant a later process at the same number started, in milliseconds since the epoch.
+
+ @returns the instant
+
+ @example
+ ```ts
+ const startedAt = aLaterInstant();
+ ```
+ */
+function aLaterInstant(): number {
+  return anInstant() + 60_000;
 }
 
 /**
@@ -118,7 +180,34 @@ function aBirth(): string {
  ```
  */
 function aLaterBirth(): string {
-  return '21000000';
+  return birthOfAProcessStartingAt({ startedAt: aLaterInstant(), },);
+}
+
+/**
+ Writes the boot time a process folder reports, which is what places a process's start time on the wall clock.
+
+ @param folder - the process folder
+
+ @param bootedAt - the instant the machine booted, in seconds since the epoch
+
+ @returns nothing
+
+ @example
+ ```ts
+ await writeBootTime({ folder: '/proc', bootedAt: THE_MACHINES_BOOT_TIME_SECONDS, },);
+ ```
+ */
+async function writeBootTime({
+  folder,
+  bootedAt = THE_MACHINES_BOOT_TIME_SECONDS,
+}: {
+  readonly folder: string;
+  readonly bootedAt?: number;
+},): Promise<void> {
+  await writeFile(
+    join(folder, 'stat',),
+    `cpu  0 0 0 0 0 0 0 0 0 0\nbtime ${String(bootedAt,)}\n`,
+  );
 }
 
 /**
@@ -161,6 +250,22 @@ function aStatLine({
     birth,
   ];
   return `4242 (a-program) ${afterTheName.join(' ',)}\n`;
+}
+
+/**
+ The line the scan gives for the fixture's recorded process at a number.
+
+ @param pid - the number the tool held
+
+ @returns the line
+
+ @example
+ ```ts
+ const line = theRecordedLineFor(101,);
+ ```
+ */
+function theRecordedLineFor(pid: number,): string {
+  return `proc_7adb (native-build-2) ${String(pid,)} cd ${aWorktree()} && systemd-run --user --scope -- mise run build`;
 }
 
 /**
@@ -794,6 +899,7 @@ await describe({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
+            await writeBootTime({ folder: processes, },);
             await writeProcess({
               folder: processes,
               pid: 101,
@@ -808,7 +914,7 @@ await describe({
                 action: 'list',
                 processes: [aProcess({
                   pid: 101,
-                  birth: aBirth(),
+                  startTime: anInstant(),
                 },),],
               },)}\n`,
             );
@@ -826,35 +932,6 @@ await describe({
             },),).toEqual(['proc_7adb (native-build-2) 101 cd /repo/.claude/worktrees/pi-copy-route && systemd-run --user --scope -- mise run build',],);
           },
         },),
-        it({
-          name: 'counts recorded work as gone when a later process holds its number, and asks no manager about it',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The process folder a test writes, whose own entry is the run's unit.
-             */
-            const processes = join(folder.path, 'proc',);
-            await writeSelf({
-              folder: processes,
-              cgroup: theRunsUnit(),
-            },);
-            // The process at the number the build held, which is a later one: its start time is its own, and it works elsewhere.
-            await writeProcess({
-              folder: processes,
-              pid: 101,
-              cgroup: aScopeOfItsOwn(),
-              worksIn: '/elsewhere',
-              command: 'unrelated',
-              birth: aLaterBirth(),
-            },);
-            await writeFile(
-              join(folder.path, 'feed.jsonl',),
-              `${aToolAnswer({
-                action: 'start',
-                process: aProcess({
-                  pid: 101,
-                  birth: aBirth(),
-                },),
               },)}\n`,
             );
             expect(await workOutlivingTheTurnIn({
@@ -863,44 +940,6 @@ await describe({
               processFolder: processes,
               run: async function answered() {
                 throw new Error('no manager is asked about work whose process is not the recorded one',);
-              },
-            },),).toEqual([],);
-          },
-        },),
-        it({
-          name: 'counts recorded work as gone when the record kept no start time for it',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The process folder a test writes, whose own entry is the run's unit.
-             */
-            const processes = join(folder.path, 'proc',);
-            await writeSelf({
-              folder: processes,
-              cgroup: theRunsUnit(),
-            },);
-            await writeProcess({
-              folder: processes,
-              pid: 101,
-              cgroup: aScopeOfItsOwn(),
-              worksIn: '/elsewhere',
-              command: 'bash',
-              birth: aBirth(),
-            },);
-            // A record written before the driver kept a start time, which cannot say which process it named.
-            await writeFile(
-              join(folder.path, 'feed.jsonl',),
-              `${aToolAnswer({
-                action: 'start',
-                process: aProcess({ pid: 101, },),
-              },)}\n`,
-            );
-            expect(await workOutlivingTheTurnIn({
-              runFolder: folder.path,
-              workingFolder: aWorktree(),
-              processFolder: processes,
-              run: async function answered() {
-                throw new Error('no manager is asked about work that names no unit',);
               },
             },),).toEqual([],);
           },
@@ -917,6 +956,7 @@ await describe({
               folder: processes,
               cgroup: theRunsUnit(),
             },);
+            await writeBootTime({ folder: processes, },);
             // The very process the record named, which has ended and whose parent has not reaped it: a zombie does no work.
             await writeProcess({
               folder: processes,
@@ -933,7 +973,7 @@ await describe({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  birth: aBirth(),
+                  startTime: anInstant(),
                 },),
               },)}\n`,
             );
@@ -973,7 +1013,7 @@ await describe({
                 action: 'start',
                 process: aProcess({
                   pid: 101,
-                  birth: aBirth(),
+                  startTime: anInstant(),
                 },),
               },)}\n`,
             );
@@ -1017,6 +1057,245 @@ await describe({
               '101',
               'stat',
             ),);
+          },
+        },),
+        it({
+          name: 'counts recorded work as running when the process at its number started when the tool said',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, with the boot time that places a start time on the wall clock.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeBootTime({ folder: processes, },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'bash',
+              birth: aBirth(),
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 101,
+                  startTime: anInstant(),
+                },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work whose process is the one recorded',);
+              },
+            },),).toEqual([theRecordedLineFor(101,),],);
+          },
+        },),
+        it({
+          name: 'counts recorded work as gone when a later process holds its number',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose process at that number started a minute after the tool's answer.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeBootTime({ folder: processes, },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'unrelated',
+              birth: aLaterBirth(),
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 101,
+                  startTime: anInstant(),
+                },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work whose process is not the recorded one',);
+              },
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'counts recorded work whose record kept no start time as work that may still run',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding the process a record without a start time names.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeBootTime({ folder: processes, },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'bash',
+              birth: aBirth(),
+            },);
+            // A record written without the tool's start time, which cannot say which process it named: the process is there and has
+            // not ended, so the work may still run.
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({ pid: 101, },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work that names no unit',);
+              },
+            },),).toEqual([theRecordedLineFor(101,),],);
+          },
+        },),
+        it({
+          name: 'counts recorded work whose number holds nothing, and whose record kept no start time, as work that may still run',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which holds no process of the run.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeBootTime({ folder: processes, },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({ pid: 424_242, },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work that names no unit',);
+              },
+            },),).toEqual([theRecordedLineFor(424_242,),],);
+          },
+        },),
+        it({
+          name: 'counts recorded work as work that may still run when the machine\'s boot time cannot be read',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, which reports no boot time.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'bash',
+              birth: aBirth(),
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 101,
+                  startTime: anInstant(),
+                },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work that names no unit',);
+              },
+            },),).toEqual([theRecordedLineFor(101,),],);
+          },
+        },),
+        it({
+          name: 'passes over the git wrapper\'s commit service working in the run\'s worktree, and keeps a scope of the agent\'s',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The commit service of this worktree, which goes on running after the run's last command by design.
+            await writeProcess({
+              folder: processes,
+              pid: 201,
+              cgroup: '0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dgit\\x2dpolicy\\x2dcli.slice/monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service',
+              worksIn: aWorktree(),
+              command: 'git',
+            },);
+            // The commit service of the release before it, which names its unit otherwise.
+            await writeProcess({
+              folder: processes,
+              pid: 202,
+              cgroup: '0::/user.slice/user-1000.slice/user@1000.service/app.slice/cli-git@fedcba9876543210fedcba9876543210.service',
+              worksIn: aWorktree(),
+              command: 'git',
+            },);
+            // A build the agent left in a scope of its own, which is the run's work.
+            await writeProcess({
+              folder: processes,
+              pid: 203,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+            },);
+            await writeFile(join(folder.path, 'feed.jsonl',), '',);
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work the table names',);
+              },
+            },),).toEqual(['203 bash',],);
           },
         },),
         it({
