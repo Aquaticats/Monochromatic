@@ -25,7 +25,7 @@
 use std::path::{Path, PathBuf};
 /// Imports `Duration`,
 /// `Instant` from `std::time`.
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime};
 
 /// How a process holds a store path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,6 +69,10 @@ pub struct OpaqueProcess {
     /// The name the process calls itself (`/proc/<pid>/comm`),
     /// which is the only thing the kernel still says about it.
     pub comm: String,
+    /// When the process started, when the kernel still says it,
+    /// which is what tells a process that may have re-executed itself into a version from one that started before the
+    /// version was installed.
+    pub started: Option<SystemTime>,
 }
 
 /// What a scan of the process table found.
@@ -247,7 +251,7 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
                 .unwrap_or_default()
                 .trim()
                 .to_string();
-            holders.opaque.push(OpaqueProcess { pid: *pid, comm });
+            holders.opaque.push(OpaqueProcess { pid: *pid, comm, started: process_start_time(*pid) });
         }
     }
     return holders;
@@ -343,30 +347,118 @@ pub fn opaque_reason(holders: &StoreHolders, tool_directory_name: &str) -> Optio
 }
 
 /// What:
-/// Why any process of this account that the kernel refuses to describe may use any version,
-/// or `None` when every process of the account can be described.
+/// When the version at `directory` was installed, as the filesystem last changed its record of that directory,
+/// or `None` when the record cannot be read.
+/// Why:
+/// The write time of a version directory is not the install time: a published archive is unpacked with `tar`, which
+/// restores the times the archive recorded, and a version unpacked from an old release then looks installed long
+/// before it was. The change time is written by the filesystem itself whenever the directory or its entries change,
+/// so it is when the install last touched it, and `tar` putting a write time back is itself such a change.
+#[cfg(unix)]
+pub fn installed_at(directory: &Path) -> Option<SystemTime> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = std::fs::symlink_metadata(directory).ok()?;
+    let seconds: i64 = metadata.ctime();
+    let nanos: i64 = metadata.ctime_nsec();
+    let since_epoch: Duration = Duration::new(seconds.unsigned_abs(), u32::try_from(nanos.unsigned_abs()).ok()?);
+    return Some(if seconds < 0 { SystemTime::UNIX_EPOCH - since_epoch } else { SystemTime::UNIX_EPOCH + since_epoch });
+}
+
+/// What:
+/// When the version at `directory` was installed, on a platform without a change time.
+/// Why:
+/// The age rule's only other answer there is the write time, which is the best the platform says.
+#[cfg(not(unix))]
+pub fn installed_at(directory: &Path) -> Option<SystemTime> {
+    return std::fs::symlink_metadata(directory).ok()?.modified().ok();
+}
+
+/// What:
+/// Why a process of this account that the kernel refuses to describe may run the version installed at
+/// `installed`, or `None` when no such process started after it.
 /// Why:
 /// A process that hides what it runs is a process nobody can check:
 /// it may hold any file of the store and work in any version,
-/// so what it may hold is kept and the line says the scan cannot tell.
-/// The review of this change showed a same-user process that made itself undumpable holding a version's file and
-/// working inside it while the removals took the version for unused.
-/// Its name is not evidence either way:
-/// a wrapper that holds tokens hides its program the same way and calls itself anything,
-/// so a match was never a proof and a miss was never a clearance.
-/// The cost is that every such process keeps every removable version until it ends;
-/// that cost is the owner's question, and until it is answered this is the answer both removals give.
+/// and its name is not evidence either way, because a wrapper that holds tokens hides its program the same way and
+/// calls itself anything.
+/// The owner's decision of 2026-11-15 (recorded in `doc/handover/cli-git-rust-implementation.md`) is the age rule:
+/// a hidden process that started after a version was installed keeps that version,
+/// and one that started before it is taken not to run it.
+/// The gap that accepts: such a process re-executing itself into the version later is possible and not seen.
+/// The other answer, keeping every version for every hidden process until it ends, was measured on this machine at
+/// one such process per session (the desktop's own), so it would have kept every version for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function opaqueHolderReason(holders: StoreHolders): string | undefined
+/// export function opaqueHolderReason(holders: StoreHolders, versionWritten: Date): string | undefined
 /// ```
-pub fn opaque_holder_reason(holders: &StoreHolders) -> Option<String> {
-    let first: &OpaqueProcess = holders.opaque.first()?;
-    let others: usize = holders.opaque.len() - 1;
+pub fn opaque_holder_reason(holders: &StoreHolders, installed: Option<SystemTime>) -> Option<String> {
+    // What: a version whose own write time cannot be read, which is a version that is not there, is kept by nothing.
+    // Why: the age rule compares two times, and a version that is not there is not something a process runs;
+    // what a lock names and what a readable hold shows still keep it.
+    let installed_at: SystemTime = installed?;
+    // What: a process whose start the kernel will not say keeps the version, and the line says it could not tell.
+    // Why: the age rule is the only evidence there is about such a process, and a guess against it would be an
+    // unmeasured claim about what may be running.
+    let unknown: Option<&OpaqueProcess> = holders.opaque.iter().find(|process| return process.started.is_none());
+    if let Some(process) = unknown {
+        return Some(format!(
+            "pid {} hides what it runs, and when it started cannot be read, so a process of this account may run this version",
+            process.pid
+        ));
+    }
+    // What: a start the kernel counts is read one tick later than it happened, so a version written in that last tick
+    // before a process started counts as written after it, and the version is kept.
+    // Why: that direction of error costs a version a few milliseconds too young; the other direction would take one a
+    // process had just started using.
+    let started_after: Vec<&OpaqueProcess> = holders
+        .opaque
+        .iter()
+        .filter(|process| return process.started.is_some_and(|started| return started > installed_at))
+        .collect();
+    let first: &&OpaqueProcess = started_after.first()?;
+    let others: usize = started_after.len() - 1;
     let more: String = if others > 0 { format!(" and {others} more") } else { String::new() };
     return Some(format!(
-        "pid {}{more} hides what it runs, so a process of this account may run any version",
+        "pid {}{more} hides what it runs and started after this version was installed, so a process of this account may run it",
         first.pid
     ));
+}
+
+/// What:
+/// When the process `pid` started, or `None` when the kernel will not say.
+/// Why:
+/// The age rule needs the start of a process whose program and folders cannot be read,
+/// and `/proc/<pid>/stat` still gives it: its twenty-second field counts clock ticks since boot, and `/proc/uptime`
+/// says how long the machine has been up.
+/// The count of ticks per second is taken as 100, which is what Linux uses on every architecture this repository
+/// builds for; a machine with another rate would misdate the start by that factor, which the rule's boundary case
+/// (a process started within a second of the install) already accepts.
+fn process_start_time(pid: u32) -> Option<SystemTime> {
+    let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let uptime: f64 = std::fs::read_to_string("/proc/uptime")
+        .ok()?
+        .split_whitespace()
+        .next()?
+        .parse()
+        .ok()?;
+    // The name the process calls itself can hold spaces and brackets, so the fields after it are counted from the last
+    // closing bracket, not from the first space.
+    let after_name: &str = stat.rsplit_once(')')?.1;
+    let mut fields = after_name.split_whitespace();
+    // The third field of the line is the state letter, and the twenty-second is the start; the fields after the name
+    // start at the third.
+    // What: the tick count is rounded up by one, so the start read is never earlier than the start that happened.
+    // Why: the count has a tick of a hundredth of a second, and a start read earlier than it was would take a version
+    // that the process had just begun to use.
+    let start_ticks: f64 = fields.nth(19)?.parse::<f64>().ok()? + 1.0;
+    let started_seconds: f64 = uptime - start_ticks / 100.0;
+    let now: SystemTime = SystemTime::now();
+    if started_seconds >= 0.0 {
+        return now.checked_sub(Duration::from_secs_f64(started_seconds));
+    }
+    // The process started after this reading of the clock (a machine whose uptime and clock disagree): the start is
+    // now.
+    return Some(now);
 }

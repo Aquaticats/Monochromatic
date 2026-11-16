@@ -76,8 +76,9 @@ use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_re
 /// Imports what this module uses from `super::store_versions`.
 use super::segment::check_version;
 use super::store_versions::{
-    DOWNLOADS_DIRECTORY_NAME, EntryNaming, TOMBSTONE_PREFIX, VersionDirectory, downloads_in_use, downloads_of,
-    install_directory_name, leftover_downloads, resolves_under, tombstone_of, tombstones, tree_size, version_directories,
+    DOWNLOADS_DIRECTORY_NAME, EntryNaming, StoreAct, TOMBSTONE_PREFIX, VersionDirectory, downloads_in_use, downloads_of,
+    install_directory_name, leftover_downloads, proved_under, remove_file_proved, remove_tree_proved, rename_proved,
+    resolves_under, tombstone_of, tombstones, tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -742,10 +743,11 @@ fn is_the_judged_file(metadata: &fs::Metadata, candidate: &TrimCandidate) -> boo
 fn remove_leftover(candidate: &TrimCandidate) -> Removal {
     let name: String = file_name_text(&candidate.directory);
     let set_aside: PathBuf = candidate.directory.with_file_name(format!(".{name}.{}", std::process::id()));
-    match fs::rename(&candidate.directory, &set_aside) {
-        Ok(()) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => return Removal::Gone,
-        Err(error) => return Removal::Kept(format!("it cannot be moved aside: {error}")),
+    // What: the move is an act on the store, so it goes through the proof of where it lands.
+    // Why: a name from a scan is not a proof that no link stands on the way to it.
+    if let Err(reason) = rename_proved(&candidate.root, &candidate.directory, &set_aside, "a leftover of an old release")
+    {
+        return if candidate.directory.exists() { Removal::Kept(reason.to_string()) } else { Removal::Gone };
     }
     let moved: Option<fs::Metadata> = fs::symlink_metadata(&set_aside).ok();
     let judged_still_there: bool = match &moved {
@@ -755,7 +757,7 @@ fn remove_leftover(candidate: &TrimCandidate) -> Removal {
     if !judged_still_there {
         // What: a file another run published after the scan goes back to the name it had.
         // Why: it is not the file that was judged, and the install that wrote it is about to unpack it.
-        return match fs::rename(&set_aside, &candidate.directory) {
+        return match rename_proved(&candidate.root, &set_aside, &candidate.directory, "a leftover another run wrote") {
             Ok(()) => Removal::Kept("another run wrote it while the cleanup ran".to_string()),
             Err(error) => Removal::Kept(format!(
                 "another run wrote it while the cleanup ran, and what it wrote cannot be put back: {error}; \
@@ -765,10 +767,15 @@ fn remove_leftover(candidate: &TrimCandidate) -> Removal {
             )),
         };
     }
-    return match fs::remove_file(&set_aside) {
+    return match remove_file_proved(&candidate.root, &set_aside, "a leftover of an old release") {
         Ok(()) => Removal::Removed(candidate.bytes),
-        Err(error) if error.kind() == ErrorKind::NotFound => Removal::Gone,
-        Err(error) => Removal::Kept(format!("it was moved aside and cannot be removed: {error}; it is at {}", set_aside.display())),
+        Err(reason) => {
+            if set_aside.exists() {
+                Removal::Kept(format!("{reason}; it is at {}", set_aside.display()))
+            } else {
+                Removal::Gone
+            }
+        }
     };
 }
 
@@ -855,14 +862,20 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
     let Some(claimed) = claim_name_beside(&candidate.directory) else {
         return Removal::Kept("no free claim name is left beside it, so it is not moved aside".to_string());
     };
-    // What: the marker is written and known to be written before the first move.
+    // What: the marker is written and known to be written before the first move, through the act that proves where it
+    // lands.
     // Why: the marker is what makes a later sync look at this root,
-    // so destructive work must not begin without it:
-    // a removal that cannot write it removes nothing, and its line says why.
-    if let Err(error) = fs::write(unfinished_marker(&candidate.root), b"") {
+    // so destructive work must not begin without it;
+    // the review of this change made the marker a link to a person's file and the write emptied it,
+    // so a link where the marker belongs is refused, never followed and never replaced.
+    let marker_act: StoreAct = match proved_under(&candidate.root, &unfinished_marker(&candidate.root), "the recovery marker") {
+        Ok(act) => act,
+        Err(reason) => return Removal::Kept(format!("{reason}, so nothing was removed")),
+    };
+    if let Err(error) = fs::write(marker_act.path(), b"") {
         return Removal::Kept(format!(
             "its recovery marker {} cannot be written, so nothing was removed: {error}",
-            unfinished_marker(&candidate.root).display()
+            marker_act.path().display()
         ));
     }
     if out_of_time() {
@@ -892,10 +905,14 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
                 }
                 downloads_right = Some(claim);
                 let marker: PathBuf = tombstone_of(downloads);
-                match fs::rename(downloads, &marker) {
+                match rename_proved(&candidate.root, downloads, &marker, "the downloads of a version") {
                     Ok(()) => Some(marker),
-                    Err(error) if error.kind() == ErrorKind::NotFound => None,
-                    Err(error) => return Removal::Kept(format!("its downloads cannot be moved aside: {error}")),
+                    Err(reason) => {
+                        if downloads.exists() {
+                            return Removal::Kept(format!("its downloads cannot be moved aside: {reason}"));
+                        }
+                        None
+                    }
                 }
             }
         },
@@ -905,43 +922,43 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
     // Why: the version's own name is where a reader expects it, and a downloads marker without a version beside it is
     // work the next pass would have to guess about.
     if out_of_time() {
-        restore_downloads(&moved_downloads, &candidate.downloads);
+        restore_downloads(&candidate.root, &moved_downloads, &candidate.downloads);
         return Removal::Deferred;
     }
     // What: the version is taken out of its name before anything is compared or deleted,
     // to a hidden name no scan judges and no recovery deletes.
     // Why: the move is one atomic step, so whatever another run put at that name is in hand and can be told from the
     // version that was judged; a check and then a move would delete whatever the second run published in between.
-    match fs::rename(&candidate.directory, &claimed) {
-        Ok(()) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            restore_downloads(&moved_downloads, &candidate.downloads);
-            return Removal::Gone;
-        }
-        Err(error) => {
-            restore_downloads(&moved_downloads, &candidate.downloads);
-            return Removal::Kept(format!("it cannot be moved aside: {error}"));
-        }
+    if let Err(reason) = rename_proved(&candidate.root, &candidate.directory, &claimed, "a version being removed") {
+        restore_downloads(&candidate.root, &moved_downloads, &candidate.downloads);
+        return if candidate.directory.exists() {
+            Removal::Kept(format!("it cannot be moved aside: {reason}"))
+        } else {
+            Removal::Gone
+        };
     }
     if !judged.still_at(&claimed) {
-        return Removal::Kept(put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
+        return Removal::Kept(put_back(&candidate.root, &candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
     }
     // What: the deadline is looked at once more before the version takes its removal name.
     // Why: from there on the delete runs to its end, and a pass that would cut it short had better stop before it.
     if out_of_time() {
-        return Removal::Kept(put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
+        return Removal::Kept(put_back(&candidate.root, &candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
     }
     let version_marker: PathBuf = tombstone_of(&candidate.directory);
-    if let Err(error) = fs::rename(&claimed, &version_marker) {
+    if let Err(error) = rename_proved(&candidate.root, &claimed, &version_marker, "a version taking its removal name") {
         // The version stays, so it goes back to its name with the downloads that were moved aside for it.
-        let reason: String = put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads);
+        let reason: String = put_back(&candidate.root, &candidate.directory, &claimed, &moved_downloads, &candidate.downloads);
         return Removal::Kept(format!("it cannot be moved aside: {error}; {reason}"));
     }
     for marker in [Some(version_marker), moved_downloads].into_iter().flatten() {
-        match fs::remove_dir_all(&marker) {
+        match remove_tree_proved(&candidate.root, &marker, "a version under its removal name") {
             Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Removal::Kept(format!("{} is left half removed: {error}", marker.display())),
+            Err(reason) => {
+                if marker.exists() {
+                    return Removal::Kept(format!("{reason}; it is left half removed"));
+                }
+            }
         }
     }
     // The claim goes before the tool's downloads directory is looked at, which is not empty while it is there.
@@ -950,7 +967,11 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
         && let Some(tool_downloads) = downloads.parent()
     {
         // Best effort: a tool's downloads directory goes once its last version's archives are gone.
-        let _ = fs::remove_dir(tool_downloads);
+        // What: the directory goes through the proof of where it lands too.
+        // Why: it is an entry in the store like any other, and an unused one is still a path a link could stand at.
+        if let Ok(act) = proved_under(&candidate.root, tool_downloads, "a tool's downloads directory") {
+            let _ = fs::remove_dir(act.path());
+        }
     }
     return Removal::Removed(candidate.bytes);
 }
@@ -1106,12 +1127,14 @@ fn claim_name_beside(version_directory: &Path) -> Option<PathBuf> {
 
 /// Puts the downloads moved aside for a version back under their name,
 /// as the removal does when the version stays.
-fn restore_downloads(moved_downloads: &Option<PathBuf>, downloads: &Option<PathBuf>) {
+fn restore_downloads(root: &Path, moved_downloads: &Option<PathBuf>, downloads: &Option<PathBuf>) {
     if let Some(marker) = moved_downloads
         && let Some(downloads_directory) = downloads
     {
         // Best effort: the version is staying, and a download this run cannot put back is a name the next pass reads.
-        let _ = fs::rename(marker, downloads_directory);
+        // What: the putting back is an act on the store, so it goes through the proof of where it lands.
+        // Why: a link at the version's downloads name would send the archives outside the store.
+        let _ = rename_proved(root, marker, downloads_directory, "the downloads of a version that stays");
     }
 }
 
@@ -1125,9 +1148,18 @@ fn restore_downloads(moved_downloads: &Option<PathBuf>, downloads: &Option<PathB
 /// a put that cannot happen keeps it at the hidden name it was moved to,
 /// and the line has to say that name and the command that puts it back,
 /// because a kept version nobody can find is a lost version to the run that installed it.
-fn put_back(version_directory: &Path, claimed: &Path, moved_downloads: &Option<PathBuf>, downloads: &Option<PathBuf>) -> String {
-    let restored: std::io::Result<()> = fs::rename(claimed, version_directory);
-    restore_downloads(moved_downloads, downloads);
+fn put_back(
+    root: &Path,
+    version_directory: &Path,
+    claimed: &Path,
+    moved_downloads: &Option<PathBuf>,
+    downloads: &Option<PathBuf>,
+) -> String {
+    // What: putting the version back is an act on the store, so it goes through the proof of where it lands.
+    // Why: the tree that was moved aside goes back to a name a link could stand at.
+    let restored: Result<(), super::store_versions::StoreActFailure> =
+        rename_proved(root, claimed, version_directory, "a version that stays");
+    restore_downloads(root, moved_downloads, downloads);
     return match restored {
         Ok(()) => "another run wrote it while the cleanup ran".to_string(),
         Err(error) => format!(
@@ -1184,7 +1216,25 @@ fn give_back_claimed(
             unfinished.insert(root.to_path_buf());
             return;
         }
-        match fs::rename(&claimed, tool_directory.join(&claim.version)) {
+        // What: giving a version back is an act on the store, and it goes through the proof of where it lands.
+        // Why: a link at a tool's folder would otherwise send the rename outside the store.
+        let source: StoreAct = match proved_under(root, &claimed, "a claim an earlier run left") {
+            Ok(act) => act,
+            Err(reason) => {
+                unfinished.insert(root.to_path_buf());
+                lines.push(format!("mpm-shadow: kept {}: {reason}", claimed.display()));
+                continue;
+            }
+        };
+        let target: StoreAct = match proved_under(root, &tool_directory.join(&claim.version), "a version's name") {
+            Ok(act) => act,
+            Err(reason) => {
+                unfinished.insert(root.to_path_buf());
+                lines.push(format!("mpm-shadow: kept {}: {reason}", claimed.display()));
+                continue;
+            }
+        };
+        match fs::rename(source.path(), target.path()) {
             Ok(()) => {
                 lines.push(format!(
                     "mpm-shadow: gave back {} of {}, which a removal an earlier run started had taken out of its name",
@@ -1281,7 +1331,9 @@ fn give_back_downloads(root: &Path, tool: &str, version: &str) -> Result<(), Str
         // Nothing was moved aside for this version, or another pass took it: either way there is nothing to give back.
         return Ok(());
     }
-    return match fs::rename(&marker, &downloads) {
+    let source: StoreAct = proved_under(root, &marker, "the archives' removing name")?;
+    let target: StoreAct = proved_under(root, &downloads, "the archives' name")?;
+    return match fs::rename(source.path(), target.path()) {
         Ok(()) => Ok(()),
         // The archives are back under their name already, which is where this call wanted them.
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
@@ -1302,11 +1354,25 @@ fn give_back_downloads(root: &Path, tool: &str, version: &str) -> Result<(), Str
 /// ```
 pub fn finish_removals(
     roots: &[PathBuf],
-    tools: &BTreeSet<String>,
+    locks: &NamedVersions,
     run: &TrimRun,
 ) -> (Vec<String>, BTreeSet<PathBuf>) {
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
+    // What: a cleanup deletes nothing before every lock has been read, and "a lock could not be read" is a value it
+    // cannot delete with.
+    // Why: the readable part of a lock names some tools, and recovery used to run on that part and delete a
+    // tombstone of a version the unreadable row could have named, before the pass said every version is kept.
+    if let Some(reason) = &locks.unreadable {
+        lines.push(format!(
+            "mpm-shadow: finished no removal an earlier run started: {reason}; every version and its archives are kept until the locks can be read"
+        ));
+        for root in roots {
+            unfinished.insert(root.clone());
+        }
+        return (lines, unfinished);
+    }
+    let tools: &BTreeSet<String> = &locks.tool_directories();
     for root in roots {
         for tool in tools {
             give_back_claimed(root, tool, run, &mut lines, &mut unfinished);
@@ -1336,7 +1402,26 @@ pub fn finish_removals(
                 let version_directory: PathBuf = root.join(&tool).join(&version);
                 let downloads: PathBuf = downloads_of(root, &tool, &version);
                 if version_directory.is_dir() && !downloads.exists() {
-                    match fs::rename(&marker, &downloads) {
+                    // What: the restore goes through the act that proves where it lands, for its source and its target.
+                    // Why: recovery deletes and moves too, and the same link at a tool's folder that sends a search
+                    // outside the store sends a rename.
+                    let archives_act: StoreAct = match proved_under(root, &downloads, "the archives' name") {
+                        Ok(act) => act,
+                        Err(reason) => {
+                            unfinished.insert(root.clone());
+                            lines.push(format!("mpm-shadow: kept {}: {reason}", marker.display()));
+                            continue;
+                        }
+                    };
+                    let source: StoreAct = match proved_under(root, &marker, "the archives' removing name") {
+                        Ok(act) => act,
+                        Err(reason) => {
+                            unfinished.insert(root.clone());
+                            lines.push(format!("mpm-shadow: kept {}: {reason}", marker.display()));
+                            continue;
+                        }
+                    };
+                    match fs::rename(source.path(), archives_act.path()) {
                         Ok(()) => {
                             lines.push(format!(
                                 "mpm-shadow: gave back the archives of {version} of {tool}, which a removal an earlier run started moved aside before it claimed the version"
@@ -1353,8 +1438,19 @@ pub fn finish_removals(
                     continue;
                 }
             }
-            let bytes: u64 = tree_size(&marker);
-            match fs::remove_dir_all(&marker) {
+            // What: the deletion goes through the act that proves where it lands.
+            // Why: the review of this change put a link at a tool's folder and recovery deleted a directory and its
+            // payload outside the store.
+            let act: StoreAct = match proved_under(root, &marker, "a removal an earlier run started") {
+                Ok(act) => act,
+                Err(reason) => {
+                    unfinished.insert(root.clone());
+                    lines.push(format!("mpm-shadow: kept {}: {reason}", marker.display()));
+                    continue;
+                }
+            };
+            let bytes: u64 = tree_size(act.path());
+            match fs::remove_dir_all(act.path()) {
                 Ok(()) => lines.push(format!(
                     "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
                     marker.display(),
@@ -1410,7 +1506,11 @@ pub fn settle_markers(roots: &[PathBuf], tools: &BTreeSet<String>, unfinished: &
         if unfinished.contains(root) || !tombstones(root, tools).is_empty() || has_claimed_versions(root, tools) {
             continue;
         }
-        let _ = fs::remove_file(unfinished_marker(root));
+        // What: the marker goes through the proof of where it lands.
+        // Why: a link where the marker belongs must not be removed by the cleanup, and must not be followed either.
+        if let Ok(act) = proved_under(root, &unfinished_marker(root), "the recovery marker") {
+            let _ = fs::remove_file(act.path());
+        }
     }
 }
 
@@ -1577,8 +1677,11 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
     let tools: BTreeSet<String> = named.tool_directories();
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
-    if !tools.is_empty() {
-        let (finished, still_pending) = finish_removals(&roots, &tools, &run);
+    // What: the recovery pass runs on the lock reading itself, so a lock that could not be read forbids its deletions.
+    // Why: the readable part of a lock used to be enough to start recovery, and it deleted a tombstone the unreadable
+    // row could have named.
+    {
+        let (finished, still_pending) = finish_removals(&roots, &named, &run);
         lines.extend(finished);
         unfinished.extend(still_pending);
     }

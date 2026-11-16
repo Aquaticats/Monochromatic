@@ -56,7 +56,13 @@ const REMOVAL_SUFFIX: &str = ".download-removal";
 /// A removal of one downloads directory takes milliseconds,
 /// so a claim that is still there after two seconds belongs to a command that is not finishing;
 /// the install then reports that it could not take the directory rather than writing under the remover.
-const OWNERSHIP_WAIT: Duration = Duration::from_secs(2);
+/// What:
+/// How long an install waits for a removal to finish with the archives before it refuses with the reason.
+/// Why:
+/// The owner's decision of 2026-11-15 (recorded in `doc/handover/cli-git-rust-implementation.md`) is ten seconds:
+/// two was the earlier bound, and a removal that also waits on a process, or on a slow disk, was refused while it was
+/// still working.
+const OWNERSHIP_WAIT: Duration = Duration::from_secs(10);
 
 /// The pause between two attempts at a removal claim.
 const OWNERSHIP_POLL: Duration = Duration::from_millis(20);
@@ -235,9 +241,12 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
                 return Err(ToolchainError::failure(format!("cannot write the removal claim {}: {error}", claim.display())));
             }
         }
-        match claim_holder(&claim) {
+        let Some(reading): Option<ClaimReading> = read_claim(&claim) else {
+            continue;
+        };
+        match &reading.maker {
             // A live command holds it: this one has nothing to do.
-            Some(maker) if !process_has_ended(&maker) => return Ok(RemovalRight::Taken),
+            Some(maker) if !process_has_ended(maker) => return Ok(RemovalRight::Taken),
             // What: a claim that does not say who holds it counts as held while it is young.
             // Why: the holder writes its number immediately after creating the file,
             // so a file read in that instant looks empty; a younger claim than the wait an install gives it is
@@ -249,7 +258,10 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
                 if attempts > CLAIM_ATTEMPTS {
                     return Ok(RemovalRight::Taken);
                 }
-                let _ = fs::remove_file(&claim);
+                // What: the leftover is taken by removing exactly the claim that was read.
+                // Why: the review of this change replaced the claim with a live one between the read and the unlink,
+                // and the unlink removed the live claim, so two removers then held one downloads directory.
+                let _ = take_the_claim_it_read(&claim, &reading);
             }
         }
     }
@@ -283,13 +295,87 @@ pub(crate) fn removal_held(root: &Path, tool: &str, version: &str) -> bool {
 /// because its holder writes its number immediately
 /// after creating the file.
 fn claim_is_held(claim: &Path) -> bool {
-    match claim_holder(claim) {
-        Some(maker) if !process_has_ended(&maker) => return true,
+    let Some(reading): Option<ClaimReading> = read_claim(claim) else {
+        return false;
+    };
+    match &reading.maker {
+        Some(maker) if !process_has_ended(maker) => return true,
         None if claim_is_young(claim) => return true,
         // The maker has ended, or the claim never got a readable maker and is old: a kill's leftover, which goes.
         _ => {}
     }
-    let _ = fs::remove_file(claim);
+    // What: the leftover goes only as exactly the claim that was read.
+    // Why: a live claim another remover put there in the meantime is not this one's to remove.
+    let _ = take_the_claim_it_read(claim, &reading);
+    return false;
+}
+
+/// What:
+/// One reading of a removal claim: what it says its maker is, and the file that said it.
+/// Why:
+/// The take below must remove exactly the claim whose text was judged,
+/// so the numbers of the file read travel with the answer.
+struct ClaimReading {
+    /// Who the claim says holds it, when it says anything.
+    maker: Option<ProcessIdentity>,
+    /// The file that was read, for the take's comparison.
+    metadata: fs::Metadata,
+}
+
+/// What:
+/// Reads the claim at `claim` and what it says, or nothing when nothing is there.
+/// Why:
+/// A claim is created empty and given its maker's number immediately after,
+/// so a reading can say nothing about its maker and still come from a file whose identity the take needs.
+fn read_claim(claim: &Path) -> Option<ClaimReading> {
+    let metadata: fs::Metadata = fs::symlink_metadata(claim).ok()?;
+    let maker: Option<ProcessIdentity> = claim_holder(claim);
+    return Some(ClaimReading { maker, metadata });
+}
+
+/// What:
+/// Removes the claim at `claim` only if it is still the file `read` described, and puts back a claim that is not.
+/// Why:
+/// A stale claim is read, judged, and then removed, and another remover can replace it in between:
+/// unlinking the name as it stands removes a live claim, and two removers then hold one archives directory.
+/// The claim is moved aside to a name no later claim can have, what was moved is compared with what was read by
+/// device and inode, and a claim that is not the one read is put back where it was.
+/// Returns whether the claim read was the one removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function takeTheClaimItRead(claim: string, read: Stat): boolean
+/// ```
+#[cfg(unix)]
+fn take_the_claim_it_read(claim: &Path, read: &ClaimReading) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    static ATTEMPT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let attempt: u64 = ATTEMPT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let aside: PathBuf = claim.with_file_name(format!(
+        ".taken-{}-{attempt}-{}",
+        std::process::id(),
+        claim.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default()
+    ));
+    if fs::rename(claim, &aside).is_err() {
+        // Another remover took it first, or the name is not there any more: nothing of this one's to remove.
+        return false;
+    }
+    let moved: fs::Metadata = match fs::symlink_metadata(&aside) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    if moved.dev() == read.metadata.dev() && moved.ino() == read.metadata.ino() {
+        let _ = fs::remove_file(&aside);
+        return true;
+    }
+    // What: a claim that is not the one read goes back where it was.
+    // Why: it is a live claim another remover wrote, and removing it would give two removers one archives directory.
+    if fs::rename(&aside, claim).is_err() {
+        // The name is taken again, so the claim that was moved aside is not the current one: it stays under its aside
+        // name, where no remover looks, and the pass that finds it names it.
+        return false;
+    }
     return false;
 }
 

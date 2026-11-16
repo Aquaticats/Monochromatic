@@ -15,7 +15,7 @@
 //! and each runs on a store of the test's own under a disposable home.
 
 /// Imports `BTreeMap` and `BTreeSet` from `std::collections`.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `FileTimes` from `std::fs`.
@@ -36,6 +36,15 @@ use crate::toolchain::store_trim::{
 use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
+
+/// The lock reading a recovery pass takes, naming `tools` and nothing else wrong.
+fn named_of(tools: &BTreeSet<String>) -> crate::toolchain::store_trim::NamedVersions {
+    let mut named = crate::toolchain::store_trim::NamedVersions::default();
+    for tool in tools {
+        named.by_tool.insert(tool.clone(), BTreeMap::new());
+    }
+    return named;
+}
 
 /// A deadline no test reaches,
 /// for an inventory a test asks for in full.
@@ -407,7 +416,7 @@ fn finishes_a_removal_cut_short() {
     assert_eq!(files_before, 1);
     let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
 
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
 
     assert!(unfinished.is_empty(), "{unfinished:?}");
     assert!(!marker.exists(), "the marker is still there");
@@ -509,7 +518,7 @@ fn gives_back_a_version_a_killed_removal_took_out_of_its_name() {
     fs::rename(&version, &claimed).expect("leave the claim a kill leaves");
     let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
 
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
 
     assert!(unfinished.is_empty(), "{unfinished:?}");
     assert!(!claimed.exists(), "the claim is still there");
@@ -530,7 +539,7 @@ fn leaves_the_claim_of_a_run_that_is_still_working() {
     fs::rename(&version, &claimed).expect("move the version to the claim of this process");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
 
     assert!(lines.is_empty(), "this pass says nothing about a claim another run holds: {lines:?}");
     assert!(unfinished.is_empty(), "{unfinished:?}");
@@ -559,7 +568,7 @@ fn gives_back_a_claim_whose_process_number_a_later_process_took() {
     fs::rename(&version, &claimed).expect("leave the claim a killed removal left");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
 
     assert!(unfinished.is_empty(), "{unfinished:?}");
     assert!(version.join("program").is_file(), "the version was not given back");
@@ -602,7 +611,7 @@ fn two_recoveries_of_one_claim_at_once_say_nothing_false() {
             let pass_barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&barrier);
             passes.push(std::thread::spawn(move || {
                 pass_barrier.wait();
-                return finish_removals(std::slice::from_ref(&pass_root), &pass_tools, &fixture_run());
+                return finish_removals(std::slice::from_ref(&pass_root), &named_of(&pass_tools), &fixture_run());
             }));
         }
         for pass in passes {
@@ -975,7 +984,7 @@ fn the_recovery_marker_stays_while_a_claim_is_under_the_root() {
     fs::rename(&version, &claimed).expect("model a removal after its claim");
     fs::write(unfinished_marker(&fixture.root), b"").expect("model its recovery marker");
 
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
     assert!(lines.is_empty(), "the claim of a live removal is not this pass's to move: {lines:?}");
     settle_markers(std::slice::from_ref(&fixture.root), &tools, &unfinished);
 
@@ -986,7 +995,7 @@ fn the_recovery_marker_stays_while_a_claim_is_under_the_root() {
 
     // Control: once the claim is gone, a pass settles the marker, so it is not kept for ever.
     fs::rename(&claimed, &version).expect("give the version back by hand");
-    let (_, second_pass_unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (_, second_pass_unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
     settle_markers(std::slice::from_ref(&fixture.root), &tools, &second_pass_unfinished);
     assert!(!has_unfinished_removal(&fixture.root), "the marker stayed with nothing left to do");
 }
@@ -1041,7 +1050,7 @@ fn a_recovery_gives_a_version_back_with_its_downloads() {
     fs::write(unfinished_marker(&fixture.root), b"").expect("leave the recovery marker");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
 
     assert!(version.join("program").is_file(), "the claimed version was not given back: {lines:?}");
     assert!(
@@ -1077,12 +1086,12 @@ fn a_downloads_tombstone_a_live_removal_holds_is_not_deleted() {
     fs::rename(&downloads, &downloads_marker).expect("removal A moves the archives aside");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let _ = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let _ = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
     assert!(downloads_marker.is_dir(), "a pass deleted the archives a live removal had moved aside");
 
     // Control: with the right given up, the same pass finishes the tombstone.
     drop(held);
-    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
     assert!(!downloads_marker.exists(), "the tombstone stayed with no removal over it: {lines:?}");
 }
 
@@ -1107,12 +1116,12 @@ fn a_downloads_tombstone_a_version_claim_holds_is_not_deleted() {
     fs::create_dir_all(&claimed).expect("a directory standing in for the live claim");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let _ = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let _ = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
     assert!(downloads_marker.is_dir(), "a pass deleted the archives of a version a live claim holds");
 
     // Control: with the claim gone, the same pass finishes the tombstone.
     fs::remove_dir_all(&claimed).expect("drop the stand-in claim");
-    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &named_of(&tools), &fixture.run());
     assert!(!downloads_marker.exists(), "the tombstone stayed with no claim over it: {lines:?}");
 }
 
@@ -1443,7 +1452,7 @@ fn killed_at(step: KilledAt) -> Killed {
 /// and answers every line.
 fn recover(killed: &Killed) -> Vec<String> {
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&killed.fixture.root), &tools, &killed.fixture.run());
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&killed.fixture.root), &named_of(&tools), &killed.fixture.run());
     settle_markers(std::slice::from_ref(&killed.fixture.root), &tools, &unfinished);
     return lines;
 }
@@ -1586,9 +1595,9 @@ fn recovery_does_not_follow_a_link_at_a_tools_folder() {
     fs::write(unfinished_marker(&root), b"").expect("leave the recovery marker");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let (_lines, _unfinished) = finish_removals(std::slice::from_ref(&root), &tools, &fixture_run());
+    let (_lines, _unfinished) = finish_removals(std::slice::from_ref(&root), &named_of(&tools), &fixture_run());
     let (lines_after_marker, unfinished_after_marker) =
-        finish_removals(std::slice::from_ref(&root), &tools, &fixture_run());
+        finish_removals(std::slice::from_ref(&root), &named_of(&tools), &fixture_run());
     settle_markers(std::slice::from_ref(&root), &tools, &unfinished_after_marker);
 
     assert!(

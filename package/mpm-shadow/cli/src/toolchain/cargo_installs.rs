@@ -29,9 +29,6 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;
-/// Imports `ErrorKind` from `std::io`,
-/// so a version another run removed first is told apart from one this run could not remove.
-use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
@@ -430,11 +427,19 @@ pub fn remove_older_than_newest(
         // What: a version another run removed between the listing above and this removal is a finished cleanup.
         // Why: every worktree shares this store root, so two installs of the same newer version reach this loop at
         // once; the second `remove_dir_all` finds nothing, which is the state it set out to reach.
-        match fs::remove_dir_all(&directory) {
+        // What: the removal goes through the proof of where it lands.
+        // Why: a name from a scan is not a proof that no link stands on the way to it.
+        match super::store_versions::remove_tree_proved(toolchain_root, &directory, "a superseded install") {
             Ok(()) => removed.push(directory),
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+            Err(super::store_versions::StoreActFailure::Refused(reason)) => {
+                if directory.exists() {
+                    return Err(ToolchainError::failure(reason));
+                }
+            }
+            Err(super::store_versions::StoreActFailure::Failed(error)) => {
+                if directory.exists() {
+                    return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+                }
             }
         }
     }

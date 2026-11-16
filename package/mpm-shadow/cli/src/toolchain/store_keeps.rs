@@ -34,7 +34,7 @@
 /// Imports `Path` and `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 /// Imports `Instant` from `std::time`.
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
@@ -44,7 +44,7 @@ use super::model::{LockedTool, Route};
 /// which names the crate a `cargo-binstall` entry installs.
 use super::observe::package_name;
 /// Imports what this module uses from `super::store_path_holders`.
-use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_holder_reason};
+use super::store_path_holders::{StoreHolders, held_reason, holders_of, installed_at, opaque_holder_reason};
 /// Imports what this module uses from `super::store_trim`,
 /// so a removal reads the same locks and the same process table the cleanup does.
 use super::store_trim::{NamedVersions, TrimBounds, read_named_versions, roots_to_trim, visible_locks};
@@ -184,6 +184,11 @@ impl InstallKeeps {
     /// ```ts
     /// export function inUseReason(keeps: InstallKeeps, directory: string): string | undefined
     /// ```
+    /// The holders this answer was made from, for a test that has to see what the scan collected.
+    pub fn holders_for_test(&self) -> &StoreHolders {
+        return &self.holders;
+    }
+
     pub fn in_use_reason(&self, directory: &Path) -> Option<String> {
         if let Some(reason) = &self.unreadable {
             // What: a read that failed keeps every version, and the line says which read it was.
@@ -199,7 +204,11 @@ impl InstallKeeps {
         // Why: the scan cannot tell which file it runs or where it works,
         // and taking the version away would leave that process's next start with nothing;
         // the removal of old versions answers this the same way, and the two answer alike.
-        if let Some(reason) = opaque_holder_reason(&self.holders) {
+        // What: a process that hides what it runs keeps a version only when it started after that version was
+        // installed.
+        // Why: the owner's age rule of 2026-11-15; the version's own write time is what "installed" means.
+        let written: Option<SystemTime> = installed_at(directory);
+        if let Some(reason) = opaque_holder_reason(&self.holders, written) {
             return Some(format!("it is in use: {reason}"));
         }
         return None;

@@ -208,6 +208,197 @@ pub fn install_directory_name(route: Route, id: &str) -> Option<String> {
 }
 
 /// What:
+/// One act of the cleanup on the store,
+/// carrying the path that was just proved to lie under the store's root with no link on the way.
+/// Why:
+/// Every act that removes or overwrites something on the store goes through [`proved_under`]:
+/// a name is checked at its reader, but a reader's check is not the proof at the act,
+/// and a link at a tool's folder once sent a whole recovery outside the store
+/// and a link at the recovery marker emptied a file a person owned.
+/// Only this value reaches `remove_dir_all`, `remove_file`, `rename` and `write` in the cleanup,
+/// so an act that did not come through the proof cannot be written without one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StoreAct = { path: string };
+/// export function provedUnder(root: string, path: string, forWhat: string): StoreAct  // throws
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StoreAct {
+    /// The path the act uses; proved at the instant it was made.
+    path: PathBuf,
+}
+
+/// The methods of `StoreAct`.
+impl StoreAct {
+    /// The path the act uses.
+    pub fn path(&self) -> &Path {
+        return &self.path;
+    }
+}
+
+/// What:
+/// Proves that `path` lies under the store `root` and that no component of it below the root is a link,
+/// and returns the act that may now use it,
+/// or refuses with the component and the link it found.
+/// Why:
+/// The path is read one component at a time from the root, with `symlink_metadata`, which never follows the last
+/// component of what it reads,
+/// so a link anywhere below the root is seen and refused before anything is removed or overwritten,
+/// and it is never followed and never replaced.
+/// A component that is not there ends the walk: nothing beyond it exists, and the caller's own not-found handling says
+/// what that means.
+/// A store root that does not resolve, or a path outside it, is refused.
+/// What it holds at the act: the path, at the instant of the walk, and the root's own numbers, re-read by every act's
+/// caller where it matters. A link that appears between the walk and the act is the window this leaves; closing it
+/// needs the act itself to be made relative to a held descriptor of the root with `O_NOFOLLOW`, which this package's
+/// dependency set does not carry yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function provedUnder(root: string, path: string, forWhat: string): StoreAct  // throws
+/// ```
+pub fn proved_under(root: &Path, path: &Path, for_what: &str) -> Result<StoreAct, String> {
+    return proved_with(root, path, for_what, false);
+}
+
+/// What:
+/// Proves that `path` lies under the store `root` and that no link stands on the way to it,
+/// where the path's own last entry may be a link,
+/// and returns the act that may now use it.
+/// Why:
+/// Removing a link removes the link and never what it points at, and a rename replaces the entry it lands on:
+/// both are acts on the store that a link at the last name does not send outside it.
+/// A link at any name on the way still does, and is refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function provedUnderItself(root: string, path: string, forWhat: string): StoreAct  // throws
+/// ```
+pub fn proved_under_itself(root: &Path, path: &Path, for_what: &str) -> Result<StoreAct, String> {
+    return proved_with(root, path, for_what, true);
+}
+
+/// The walk both proofs share: `allow_last_link` decides whether the path's own last entry may be a link.
+fn proved_with(root: &Path, path: &Path, for_what: &str, allow_last_link: bool) -> Result<StoreAct, String> {
+    let resolved_root: PathBuf = match fs::canonicalize(root) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("{for_what}: the store root {} cannot be resolved: {error}", root.display())),
+    };
+    // The path is spelled from the root it was built from; the root may itself be reached through a link ($HOME on this
+    // machine), so both spellings are tried before the path is refused as outside.
+    let relative: PathBuf = match path.strip_prefix(root) {
+        Ok(rest) => rest.to_path_buf(),
+        Err(_) => match path.strip_prefix(&resolved_root) {
+            Ok(rest) => rest.to_path_buf(),
+            Err(_) => {
+                return Err(format!(
+                    "{for_what}: {} does not lie under the store {}",
+                    path.display(),
+                    root.display()
+                ));
+            }
+        },
+    };
+    let mut current: PathBuf = if path.starts_with(root) { root.to_path_buf() } else { resolved_root.clone() };
+    let last: usize = relative.components().count().saturating_sub(1);
+    for (index, component) in relative.components().enumerate() {
+        current = current.join(component);
+        if allow_last_link && index == last {
+            break;
+        }
+        match fs::symlink_metadata(&current) {
+            // What: a link below the root is refused, and the line names it.
+            // Why: the act would otherwise leave the store, or empty a file the link points at.
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "{for_what}: {} is a link, and an act on the store never follows one and never replaces one",
+                    current.display()
+                ));
+            }
+            Ok(_) => {}
+            // Nothing there: nothing beyond it exists either, and the act's own not-found answer says what that means.
+            Err(_) => break,
+        }
+    }
+    return Ok(StoreAct { path: path.to_path_buf() });
+}
+
+/// What:
+/// Removes the directory tree at `path`, after proving that it lies under `root` with no link on the way.
+/// Why:
+/// This, [`remove_file_proved`] and [`rename_proved`] are the only places the cleanup's removals and moves are made,
+/// and each one asks [`proved_under`] first;
+/// a caller that skips them is a caller that can leave the store.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removeTreeProved(root: string, path: string, forWhat: string): void  // throws
+/// ```
+pub fn remove_tree_proved(root: &Path, path: &Path, for_what: &str) -> Result<(), StoreActFailure> {
+    let act: StoreAct = proved_under(root, path, for_what).map_err(StoreActFailure::Refused)?;
+    return fs::remove_dir_all(act.path()).map_err(StoreActFailure::Failed);
+}
+
+/// What:
+/// Removes the file at `path`, after proving that it lies under `root` with no link on the way.
+/// Why:
+/// See [`remove_tree_proved`]: one door for every act on the store.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removeFileProved(root: string, path: string, forWhat: string): void  // throws
+/// ```
+pub fn remove_file_proved(root: &Path, path: &Path, for_what: &str) -> Result<(), StoreActFailure> {
+    let act: StoreAct = proved_under_itself(root, path, for_what).map_err(StoreActFailure::Refused)?;
+    return fs::remove_file(act.path()).map_err(StoreActFailure::Failed);
+}
+
+/// What:
+/// Moves `from` to `to`, after proving that both lie under `root` with no link on the way.
+/// Why:
+/// See [`remove_tree_proved`]: one door for every act on the store, and a rename lands on both of its ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function renameProved(root: string, from: string, to: string, forWhat: string): void  // throws
+/// ```
+pub fn rename_proved(root: &Path, from: &Path, to: &Path, for_what: &str) -> Result<(), StoreActFailure> {
+    let source: StoreAct = proved_under_itself(root, from, for_what).map_err(StoreActFailure::Refused)?;
+    let target: StoreAct = proved_under_itself(root, to, for_what).map_err(StoreActFailure::Refused)?;
+    return fs::rename(source.path(), target.path()).map_err(StoreActFailure::Failed);
+}
+
+/// What:
+/// Why an act on the store did not happen: the proof that it lands inside the store refused it,
+/// or the filesystem refused the act itself.
+/// Why:
+/// A caller prints its own sentence about the act,
+/// and a refusal has words of its own that name the link or the place outside the store.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StoreActFailure = { kind: "refused"; reason: string } | { kind: "failed"; error: Error };
+/// ```
+#[derive(Debug)]
+pub enum StoreActFailure {
+    /// The path was not proved to lie inside the store, or a link stood on the way to it.
+    Refused(String),
+    /// The act itself failed, and the error is the filesystem's.
+    Failed(std::io::Error),
+}
+
+/// The methods of `StoreActFailure`.
+impl std::fmt::Display for StoreActFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return match self {
+            StoreActFailure::Refused(reason) => formatter.write_str(reason),
+            StoreActFailure::Failed(error) => write!(formatter, "{error}"),
+        };
+    }
+}
+
+/// What:
 /// Whether what stands at `path` lies under `root` once both are resolved,
 /// or whether nothing stands there at all.
 /// Why:

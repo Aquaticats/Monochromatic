@@ -155,16 +155,18 @@ fn a_stale_claim_is_taken_by_removing_exactly_the_claim_it_read() {
     let root_for_thread: PathBuf = root.clone();
     let remover: std::thread::JoinHandle<_> = std::thread::spawn(move || return take_removal_right(&root_for_thread, "bin", "0.29.4"));
     let mut writer: fs::File = fs::OpenOptions::new().write(true).open(&claim).expect("open the claim's writer");
-    // The live claim another remover would put there, naming this process.
+    // The live claim another remover would put there, naming a process that is running (init, whose number is 1 on
+    // every Unix).
     let live: PathBuf = downloads.with_file_name("live-replacement-claim");
-    fs::write(&live, format!("{}.0\n", std::process::id())).expect("write the live claim");
+    fs::write(&live, "1.0\n").expect("write the live claim");
     let live_inode: u64 = fs::symlink_metadata(&live).expect("read the live claim").ino();
     fs::rename(&live, &claim).expect("replace the old claim with the live one");
     writer.write_all(b"4294967294.12345\n").expect("release the reader with a dead maker");
     drop(writer);
     let right = remover.join().expect("the remover thread ended").expect("the removal right");
 
-    assert!(matches!(&right, RemovalRight::Held { .. }), "the probe did not reach the stale-claim branch");
+    // The take puts the live claim back, so the remover yields to it instead of taking the right.
+    assert!(matches!(&right, RemovalRight::Taken), "the remover went past a live claim");
     let after_inode: u64 = fs::symlink_metadata(&claim).expect("the claim after the take").ino();
     drop(right);
     assert_eq!(after_inode, live_inode, "stale cleanup removed the live replacement claim");

@@ -35,8 +35,6 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 /// Imports `fs` from `std`.
 use std::fs;
-/// Imports `ErrorKind` from `std::io`.
-use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 /// Imports `Instant` from `std::time`.
@@ -286,18 +284,30 @@ pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Resul
         drop(claim);
         return Ok(());
     }
-    match fs::remove_dir_all(&directory) {
+    // What: the downloads go through the proof of where they land.
+    // Why: a name from a scan is not a proof that no link stands on the way to it.
+    match super::store_versions::remove_tree_proved(toolchain_root, &directory, "the downloads of a version") {
         Ok(()) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(ToolchainError::failure(format!("cannot remove the superseded downloads {}: {error}", directory.display())));
+        Err(super::store_versions::StoreActFailure::Refused(reason)) => {
+            if directory.exists() {
+                return Err(ToolchainError::failure(reason));
+            }
+        }
+        Err(super::store_versions::StoreActFailure::Failed(error)) => {
+            if directory.exists() {
+                return Err(ToolchainError::failure(format!("cannot remove the superseded downloads {}: {error}", directory.display())));
+            }
         }
     }
     if let Some(tool_downloads) = directory.parent() {
         // Best effort: the tool's downloads directory goes once its last version's downloads are gone, and stays when
         // another version's downloads are still in it.
         drop(claim);
-        let _ = fs::remove_dir(tool_downloads);
+        // What: the directory goes through the proof of where it lands too.
+        // Why: an unused entry is still a path a link could stand at.
+        if let Ok(act) = super::store_versions::proved_under(toolchain_root, tool_downloads, "a tool's downloads directory") {
+            let _ = fs::remove_dir(act.path());
+        }
         return Ok(());
     }
     return Ok(());
@@ -357,7 +367,11 @@ pub fn remove_orphan_downloads(toolchain_root: &Path, tools: &BTreeSet<String>, 
             }
         }
         // Best effort: the tool's downloads directory goes once its last version's archives are gone.
-        let _ = fs::remove_dir(&tool_downloads);
+        // What: the directory goes through the proof of where it lands too.
+        // Why: an unused entry is still a path a link could stand at.
+        if let Ok(act) = super::store_versions::proved_under(toolchain_root, &tool_downloads, "a tool's downloads directory") {
+            let _ = fs::remove_dir(act.path());
+        }
     }
     return lines;
 }
@@ -422,11 +436,17 @@ pub fn remove_older_archives(
         // once; the second `remove_dir_all` finds nothing, which is the state it set out to reach.
         // The downloads are removed either way, because a run killed between its own version removal and its
         // downloads removal leaves them under a name nothing else reads once the version directory is gone.
-        match fs::remove_dir_all(&directory) {
+        match super::store_versions::remove_tree_proved(toolchain_root, &directory, "a superseded install") {
             Ok(()) => removed.push(directory),
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+            Err(super::store_versions::StoreActFailure::Refused(reason)) => {
+                if directory.exists() {
+                    return Err(ToolchainError::failure(reason));
+                }
+            }
+            Err(super::store_versions::StoreActFailure::Failed(error)) => {
+                if directory.exists() {
+                    return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+                }
             }
         }
         remove_downloads(toolchain_root, id, &name)?;

@@ -211,9 +211,6 @@ fn only_an_archive_tool_with_a_repository_tag_prefix_is_repository_published() {
 
 #[test]
 fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_dangling_link() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     serve_releases(&rig, &["0.2.0", "0.2.1"]);
     let lock_old = lock_at(&rig, "0.2.0");
@@ -252,9 +249,6 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
 /// and the next tree that installed the newer one removed it again (seen on this machine on 2026-11-13).
 #[test]
 fn installing_a_newer_release_keeps_the_version_another_worktree_lock_names_and_removes_the_one_nothing_names() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     serve_releases(&rig, &["0.2.2"]);
     let root = rig.scope.toolchain_root.clone();
@@ -285,9 +279,6 @@ fn installing_a_newer_release_keeps_the_version_another_worktree_lock_names_and_
 /// and a service whose program went away cannot start again until an install puts it back.
 #[test]
 fn installing_a_newer_release_keeps_the_version_a_process_of_this_account_runs() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     serve_releases(&rig, &["0.2.2"]);
     let root = rig.scope.toolchain_root.clone();
@@ -325,9 +316,6 @@ fn installing_a_newer_release_keeps_the_version_a_process_of_this_account_runs()
 /// a record written through `current` never goes stale in the first place.
 #[test]
 fn a_record_names_a_program_a_newer_install_in_another_tree_leaves_in_place() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     serve_versioned_releases(&rig, &["0.2.0", "0.2.1"]);
     let scope_old = second_tree(&rig);
@@ -613,9 +601,6 @@ fn the_archive_prune_rule_keeps_the_newest_finished_version_and_never_judges_by_
 /// the report is the only place a person learns what is gone from the tree.
 #[test]
 fn a_failure_after_the_crate_deletions_names_what_was_removed() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     // A crate version goes before the archive step runs.
@@ -658,9 +643,6 @@ fn an_archive_prune_that_cannot_repoint_current_deletes_no_version() {
 
 #[test]
 fn the_prune_command_removes_older_release_archives_a_lock_names_and_leaves_other_archive_tools_alone() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     for version in ["0.2.0", "0.2.1"] {
@@ -732,9 +714,6 @@ fn a_tool_of_another_repository_with_this_repositorys_style_of_prefix_keeps_its_
 
 #[test]
 fn a_tool_whose_request_spells_this_repository_in_another_case_is_kept_newest_only() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     serve_releases(&rig, &["0.2.0", "0.2.1"]);
     let root = rig.scope.toolchain_root.clone();
@@ -765,9 +744,6 @@ const LATER_ALPHA: &str = "0.2.2-alpha.10";
 
 #[test]
 fn the_newest_archive_and_the_removal_of_older_ones_read_a_longer_alpha_number_as_the_newer_one() {
-    if crate::toolchain::fixtures::machine_hides_processes() {
-        return;
-    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     for version in [EARLIER_ALPHA, LATER_ALPHA] {

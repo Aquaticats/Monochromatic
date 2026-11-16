@@ -112,12 +112,28 @@ pub fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> 
         note = uninstall_bin(ctx, plan, &cargo_home, install)?;
         cargo_ran = true;
     }
-    match fs::remove_file(&plan.path) {
+    // What: the file goes through the proof of where it lands.
+    // Why: the path is built from names a lock gives, and this is the proof at the act.
+    match super::store_versions::remove_file_proved(&ctx.scope.toolchain_root, &plan.path, "a copy another root installed") {
         Ok(()) => {}
         // Cargo removes the file itself, so a file that is gone after `cargo uninstall` is the normal case.
-        Err(error) if error.kind() == ErrorKind::NotFound && cargo_ran => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => note = "another run had already removed the file".to_string(),
-        Err(error) => return Err(format!("cannot remove the file: {error}")),
+        Err(super::store_versions::StoreActFailure::Refused(reason)) => {
+            if plan.path.exists() {
+                return Err(reason);
+            }
+            if !cargo_ran {
+                note = "another run had already removed the file".to_string();
+            }
+        }
+        Err(super::store_versions::StoreActFailure::Failed(error)) => {
+            if error.kind() == ErrorKind::NotFound {
+                if !cargo_ran {
+                    note = "another run had already removed the file".to_string();
+                }
+            } else {
+                return Err(format!("cannot remove the file: {error}"));
+            }
+        }
     }
     return Ok(note);
 }
@@ -145,10 +161,12 @@ pub fn remove_version(plan: &LoserPlan, directory: &Path, version: &str) -> Resu
             plan.root.display()
         ));
     }
-    match fs::remove_dir_all(directory) {
-        Ok(()) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("cannot remove {}: {error}", directory.display())),
+    // What: the removal goes through the proof of where it lands.
+    // Why: the name comes from a lock, and the reader's check is not the proof at the act.
+    if let Err(reason) = super::store_versions::remove_tree_proved(&plan.root, directory, "a version another root installed")
+        && directory.exists()
+    {
+        return Err(reason.to_string());
     }
     if plan.archive
         && let Err(error) = remove_downloads(&plan.root, &plan.tool_id, version)

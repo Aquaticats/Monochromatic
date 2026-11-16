@@ -226,24 +226,3 @@ pub(crate) fn sample_scope_on_disk() -> (tempfile::TempDir, Scope, EnvMap) {
     std::fs::write(&scope.lock_file, render_lock(&sample_lock())).expect("write the lock");
     return (directory, scope, env);
 }
-
-/// What:
-/// Whether this machine has a process of this account that the kernel will not describe,
-/// which keeps every removable version of the account until it ends.
-/// Why:
-/// The removals answer "could not tell which file it runs or where it works" by keeping the version,
-/// and that answer is the same one the removal of old versions gives.
-/// A test whose subject is a removal therefore has no premise on such a machine:
-/// it says so and returns, and the rule that keeps the version is covered by
-/// `store_keeps_tests::a_version_a_process_hides_its_use_of_is_kept`.
-pub(crate) fn machine_hides_processes() -> bool {
-    let holders = super::store_path_holders::holders_of(&[], std::time::Instant::now() + std::time::Duration::from_secs(2));
-    if holders.opaque.is_empty() {
-        return false;
-    }
-    eprintln!(
-        "skipped on this machine: {} process(es) of this account hide what they run, and a version they may hold is kept",
-        holders.opaque.len()
-    );
-    return true;
-}

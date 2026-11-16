@@ -39,7 +39,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 /// Imports `Duration` and `Instant` from `std::time`,
 /// which bound the read of the process table.
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Imports `ArgMatches` from `clap`.
 use clap::ArgMatches;
@@ -71,7 +71,7 @@ use super::runner::{ProcessRunner, Runner};
 use super::scope::{EnvMap, Scope, ScopeKind, resolve_scope};
 /// Imports what this module uses from `super::store_path_holders`,
 /// which answers whether a running process uses a version.
-use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_holder_reason};
+use super::store_path_holders::{StoreHolders, held_reason, holders_of, installed_at, opaque_holder_reason};
 /// Imports `resolves_under` from `super::store_versions`,
 /// which proves at the act that a path lies under the store.
 use super::store_versions::resolves_under;
@@ -122,10 +122,12 @@ fn running_reason(holders: &StoreHolders, version_directory: &Path) -> Option<St
     if let Some(reason) = held_reason(holders, version_directory) {
         return Some(format!("it is in use: {reason}"));
     }
-    // What: a process the kernel will not describe may hold this version, so it is kept too.
-    // Why: the scan cannot tell which file it runs or where it works, and a version in use must not be deleted;
-    // the removal of old versions answers this the same way, and the two answer alike.
-    return opaque_holder_reason(holders).map(|reason| return format!("it is in use: {reason}"));
+    // What: a process the kernel will not describe keeps this version only when it started after the version was
+    // installed.
+    // Why: the owner's age rule of 2026-11-15;
+    // the removal of installs answers it the same way, and the two answer alike.
+    let written: Option<SystemTime> = installed_at(version_directory);
+    return opaque_holder_reason(holders, written).map(|reason| return format!("it is in use: {reason}"));
 }
 
 /// One version directory found on disk.
@@ -360,10 +362,22 @@ fn prune_archives(
         // the second `remove_dir_all` finds nothing, which is the state it set out to reach,
         // and it is the other run that deleted it, so this one does not report it as its own.
         if !dry_run {
-            match fs::remove_dir_all(&directory) {
+            // What: the removal goes through the proof of where it lands.
+            // Why: the names come from files, and the check at the reader is not the proof at the act.
+            match super::store_versions::remove_tree_proved(&scope.toolchain_root, &directory, "an older version") {
                 Ok(()) => {}
-                Err(error) if error.kind() == ErrorKind::NotFound => continue,
-                Err(error) => return Err(partly_removed(&directory, &error, removed)),
+                Err(super::store_versions::StoreActFailure::Refused(reason)) => {
+                    if !directory.exists() {
+                        continue;
+                    }
+                    return Err(ToolchainError::failure(reason));
+                }
+                Err(super::store_versions::StoreActFailure::Failed(error)) => {
+                    if !directory.exists() {
+                        continue;
+                    }
+                    return Err(partly_removed(&directory, &error, removed));
+                }
             }
         }
         removed.push(directory);
@@ -577,10 +591,22 @@ pub fn prune_toolchain(
         // the second `remove_dir_all` finds nothing, which is the state it set out to reach,
         // and it is the other run that deleted it, so this one does not report it as its own.
         if !dry_run {
-            match fs::remove_dir_all(&directory) {
+            // What: the removal goes through the proof of where it lands.
+            // Why: the name comes from a scan, and a scan is not the proof at the act.
+            match super::store_versions::remove_tree_proved(&scope.toolchain_root, &directory, "an older version") {
                 Ok(()) => {}
-                Err(error) if error.kind() == ErrorKind::NotFound => continue,
-                Err(error) => return Err(partly_removed(&directory, &error, &removed)),
+                Err(super::store_versions::StoreActFailure::Refused(reason)) => {
+                    if !directory.exists() {
+                        continue;
+                    }
+                    return Err(ToolchainError::failure(reason));
+                }
+                Err(super::store_versions::StoreActFailure::Failed(error)) => {
+                    if !directory.exists() {
+                        continue;
+                    }
+                    return Err(partly_removed(&directory, &error, &removed));
+                }
             }
         }
         removed.push(directory);
@@ -604,7 +630,7 @@ pub fn prune_toolchain(
             // `remove_dir` is what keeps a version installed after the scan above: an empty directory goes,
             // and a directory that is no longer empty stays with whatever another run put there.
             if !remaining && had_versions {
-                remove_crate_directory(&crate_dir).map_err(|error| return after_removing(error, &removed))?;
+                remove_crate_directory(&scope.toolchain_root, &crate_dir).map_err(|error| return after_removing(error, &removed))?;
             }
         }
     }
@@ -693,16 +719,20 @@ fn remove_current_link(
     if !going && fs::metadata(&link).is_ok() {
         return Ok(());
     }
-    return match fs::remove_file(&link) {
+    // What: the link goes through the proof of where it lands.
+    // Why: a `current` link is an entry in the store like any other, and the name is built from a scan.
+    return match super::store_versions::remove_file_proved(toolchain_root, &link, "a current link") {
         Ok(()) => {
             unlinked.push(link);
             Ok(())
         }
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(after_removing(
-            ToolchainError::failure(format!("cannot remove {}: {error}", link.display())),
-            unlinked,
-        )),
+        Err(reason) => {
+            if link.exists() {
+                Err(after_removing(ToolchainError::failure(reason.to_string()), unlinked))
+            } else {
+                Ok(())
+            }
+        }
     };
 }
 
@@ -714,8 +744,14 @@ fn remove_current_link(
 /// and that version may be one a lock names.
 /// A directory that is no longer empty is another run's work,
 /// so it stays and this is not a failure.
-fn remove_crate_directory(crate_dir: &Path) -> Result<(), ToolchainError> {
-    return match fs::remove_dir(crate_dir) {
+fn remove_crate_directory(root: &Path, crate_dir: &Path) -> Result<(), ToolchainError> {
+    // What: what stands at the name is proved to lie under the store before it goes.
+    // Why: an unused entry is still a path a link could stand at.
+    let proved = super::store_versions::proved_under(root, crate_dir, "a crate directory");
+    let Ok(crate_act) = proved else {
+        return Ok(());
+    };
+    return match fs::remove_dir(crate_act.path()) {
         Ok(()) => Ok(()),
         // `ENOTEMPTY`: something arrived after the scan, and the directory is not this run's to remove.
         Err(error) if error.kind() == ErrorKind::DirectoryNotEmpty => Ok(()),
