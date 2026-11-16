@@ -307,6 +307,7 @@ fn bisect_mark_in(admin: &Path) -> Option<String> {
 ///  and the `.git` file it leaves standing is the older record of it,
 ///  while a record older than the worktree's first instant costs only a worktree kept.
 ///  A file system that records no birth time for either record says nothing,
+///  as does a record later than this clock,
 ///  and the hidden process then keeps the worktree.
 ///
 /// In TS you'd write (pseudocode):

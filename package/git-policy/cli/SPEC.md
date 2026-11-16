@@ -3231,7 +3231,7 @@ A worktree whose branch a merge landed is removed by those same routes,
  so a worktree this program made as a snapshot reads as old as the checkout it came from,
  and every process of this account that started after that checkout and before the worktree,
  the account's service manager above all,
- would keep it for ever
+ would keep it for as long as that process lives
  (measured on this machine 2026-11-13:
  a worktree made at 20:16 carried the folder birth time `2026-11-08T03:33:27.264647059-05:00`,
  and the service manager,
