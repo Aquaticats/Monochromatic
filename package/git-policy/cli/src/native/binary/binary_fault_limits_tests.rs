@@ -951,8 +951,27 @@ fn a_case_reads_a_service_log_only_after_the_copy_of_its_stream_ended_or_says_it
 
 /// How long one wait for the log's copies is let run in the controls that hold a copy open:
 /// short, because the copy they hold cannot end in it,
-/// and a wait is judged by what it answers and not by how long it waited.
+/// and long enough that the delay a thread's release takes is not most of it.
 const A_WAIT_GIVES_UP_AFTER: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// How long the control of a wait's bound gives each of its shorter waits, in milliseconds:
+/// long enough that a loaded host's delay to a thread's release is a small part of it,
+/// and short enough that the control waits a second for its verdict.
+const A_SHORTER_WAIT_OF_THE_BOUND_CONTROL_MILLISECONDS: u64 = 400;
+
+/// That bound of a shorter wait.
+const A_SHORTER_WAIT_OF_THE_BOUND_CONTROL: std::time::Duration =
+    std::time::Duration::from_millis(A_SHORTER_WAIT_OF_THE_BOUND_CONTROL_MILLISECONDS);
+
+/// How many of those shorter waits stand at the seam together in the control of a wait's bound.
+const SHORTER_WAITS_OF_THE_BOUND_CONTROL: usize = 2;
+
+/// The bound of the one caller of that control that may hold the list of copies longer than a shorter wait's whole
+/// bound:
+/// four of them, so a shorter wait that waits for it has spent its own bound several times over,
+/// while a shorter wait that keeps its own bound returns with the longer one still waiting.
+const A_LONGER_WAIT_OF_THE_BOUND_CONTROL: std::time::Duration =
+    std::time::Duration::from_millis(4 * A_SHORTER_WAIT_OF_THE_BOUND_CONTROL_MILLISECONDS);
 
 /// How many callers the control of two waits puts on one fixture.
 const TWO_WAITS: usize = 2;
@@ -1038,6 +1057,69 @@ fn two_waits_on_one_fixture_never_answer_that_a_running_copy_ended() {
     assert!(
         service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
         "once the test closes its end both copies end, and a wait made after that must answer that every copy ended"
+    );
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Each caller of a wait for the log's copies returns within the bound that caller gave,
+///  even when another caller of the same fixture is waiting on a longer bound of its own.
+/// Why:
+///  The whole meaning of a bound here is that the wait ends by then:
+/// a wait that reads the clock only once it holds the list of copies spends one whole bound for each caller ahead of
+/// it,
+/// so a caller behind a longer wait comes back long after its own bound has passed and says nothing about that.
+///  The three callers stand at the seam together,
+/// so the order in which they take the list is the machine's,
+/// and this control states a fact of every order:
+/// two waits of one length and one of four times that length,
+/// so a shorter wait that waits for the longer one is unmistakably past its own bound,
+/// and a shorter wait that keeps its own bound returns while the longer one still waits.
+#[test]
+fn each_wait_for_the_logs_copies_returns_within_the_bound_its_caller_gave() {
+    let fixture: Fixture = fixture("log-copies-bound");
+    let service: FixtureService = super::support::start_fixture_service(&fixture);
+    // The test keeps the writing end for the whole of every wait, so no copy ends in any of them.
+    let (kept_open, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe whose copy the test holds open");
+    service.record_a_log_copy(when_the_copy_ends);
+    let mut bounds: Vec<std::time::Duration> = vec![A_SHORTER_WAIT_OF_THE_BOUND_CONTROL; SHORTER_WAITS_OF_THE_BOUND_CONTROL];
+    bounds.push(A_LONGER_WAIT_OF_THE_BOUND_CONTROL);
+    let together: std::sync::Barrier = std::sync::Barrier::new(bounds.len());
+    // What each caller gave its wait, what it answered, and how long the call it made took.
+    let measured: Mutex<Vec<(std::time::Duration, bool, std::time::Duration)>> = Mutex::new(Vec::new());
+    let waited_on: &FixtureService = &service;
+    std::thread::scope(|scope| {
+        for bound in &bounds {
+            let (at_the_seam, collected, waited, given): (
+                &std::sync::Barrier,
+                &Mutex<Vec<(std::time::Duration, bool, std::time::Duration)>>,
+                &FixtureService,
+                std::time::Duration,
+            ) = (&together, &measured, waited_on, *bound);
+            scope.spawn(move || {
+                let _released: std::sync::BarrierWaitResult = at_the_seam.wait();
+                let began: std::time::Instant = std::time::Instant::now();
+                let answered: bool = waited.settle_the_service_log(given);
+                collected.lock().expect("the measured waits").push((given, answered, began.elapsed()));
+            });
+        }
+    });
+    drop(kept_open);
+    let found: Vec<(std::time::Duration, bool, std::time::Duration)> = measured.into_inner().expect("the measured waits");
+    assert!(
+        found.iter().all(|(_bound, answered, _elapsed)| { return !*answered; }),
+        "no wait may answer that every copy of the service's words ended while the test holds one open, and one did: {found:?}"
+    );
+    // The half of its own bound a caller may overrun is a thread's release on a loaded host, and it is less than the
+    //  whole bound a caller that reads the clock after it has the list spends on the caller in front of it.
+    let late: Vec<&(std::time::Duration, bool, std::time::Duration)> =
+        found.iter().filter(|(bound, _answered, elapsed)| { return *elapsed > *bound + *bound / 2; }).collect();
+    assert!(
+        late.is_empty(),
+        "every caller of a wait for the log's copies returns within the bound it gave, and {} of {} returned later than half again their bound: {found:?}",
+        late.len(),
+        found.len()
     );
     remove_settled(&fixture);
 }
