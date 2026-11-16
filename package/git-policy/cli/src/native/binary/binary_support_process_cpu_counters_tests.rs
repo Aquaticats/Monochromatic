@@ -90,6 +90,37 @@ fn a_process_that_ends_a_thread_keeps_its_processor_time() {
 }
 
 /// What:
+///  The ticks a worker thread spends are the process's own,
+///  which is why the first round of this branch needed no sum over the threads to see a service's look at work.
+/// Why:
+///   The first round summed one reading per thread,
+/// on the comment that `/proc/<pid>/stat` is the main thread's alone and that the look runs on a worker of the service's
+/// runtime, so a reading of the main thread alone showed no processor time.
+///  Measured, the process's own file reports the whole thread group,
+/// so the work a look does on a worker is visible in the process's total and the sum was never what made it visible.
+/// A control that showed only `after >= before` would pass with a reading that saw no thread's work at all,
+///  so this one takes work that a worker has certainly done and asks for a rise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = cpuTicks(pid); await worker.ready; expect(cpuTicks(pid)).toBeGreaterThan(before);
+/// ```
+#[test]
+fn work_on_a_worker_thread_is_in_the_process_total() {
+    let pid: u32 = std::process::id();
+    let before: u64 = cpu_ticks(pid).expect("this process lives");
+    let (ready, release, worker) = a_worker_that_spends_ticks_and_then_ends();
+    ready.recv().expect("the worker is ready, which is after its work");
+    let after: u64 = cpu_ticks(pid).expect("this process lives");
+    let _released = release.send(());
+    worker.join().expect("the worker ends");
+    assert!(
+        after > before,
+        "the ticks a worker thread spent are in the process's own total, which is what the look's work is read from: {before} then {after}"
+    );
+}
+
+/// What:
 ///  A killed child that nothing has reaped yet is not a live process,
 ///  so the reader answers nothing for it.
 /// Why:

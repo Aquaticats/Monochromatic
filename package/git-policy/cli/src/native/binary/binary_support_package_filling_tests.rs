@@ -347,7 +347,7 @@ fn a_queue_entry_that_is_not_a_regular_file_does_not_keep_the_reader_waiting() {
     });
     let answered: Option<String> = answers
         .recv_timeout(A_READERS_ANSWER_PATIENCE)
-        .unwrap_or_else(|_| { return panic!("the reader did not answer within {A_READERS_ANSWER_PATIENCE:?} although its bound is the harness's patience: a queue entry that is not a regular file is being opened"); });
+        .unwrap_or_else(|_| { panic!("the reader did not answer within {A_READERS_ANSWER_PATIENCE:?} although its bound is the harness's patience: a queue entry that is not a regular file is being opened") });
     assert!(answered.is_some(), "the filling failed, so the reader answers with its reason: {answered:?}");
     assert!(answered.expect("the sentence").contains(FAILED), "the sentence names the state the record stands in");
     reader.join().expect("the reader ends");
@@ -417,7 +417,7 @@ fn an_earlier_record_of_the_same_path_does_not_decide_the_current_filling() {
     write_record(work.as_path(), DONE, &earlier);
     write_record(work.as_path(), FAILED, &current);
     let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
-    let words: String = said.unwrap_or_else(|| { return panic!("the current filling failed, so the reader says so, and an earlier done record does not hide it"); });
+    let words: String = said.unwrap_or_else(|| { panic!("the current filling failed, so the reader says so, and an earlier done record does not hide it") });
     assert!(words.contains(FAILED), "the sentence names the current filling's state: {words}");
     assert!(words.contains("stopped by signal 9"), "and quotes the service's reason: {words}");
     // The other way round: an earlier failure, and a current filling that ran to its end.
@@ -427,6 +427,9 @@ fn an_earlier_record_of_the_same_path_does_not_decide_the_current_filling() {
     std::fs::remove_file(state_directory(work.as_path(), DONE).join(earlier.id().as_str())).expect("the previous control state goes");
     write_record(work.as_path(), FAILED, &earlier);
     write_record(work.as_path(), DONE, &later);
-    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
-    assert!(said.is_none(), "the current filling ran to its end, and an earlier failed record does not make it fail: {said:?}");
+    let after_the_earlier_failure: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path(), started);
+    assert!(
+        after_the_earlier_failure.is_none(),
+        "the current filling ran to its end, and an earlier failed record does not make it fail: {after_the_earlier_failure:?}"
+    );
 }
