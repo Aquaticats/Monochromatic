@@ -3219,6 +3219,55 @@ A worktree whose branch a merge landed is removed by those same routes,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
  the worktree's own Git directory goes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
+ The read that decides that nothing works in the worktree,
+ for the merge's proof and for the service's look again alike,
+ is `src/native/worktree/worktree_process_inside.rs` `process_working_inside`,
+ and it reads two things about each process in the process table,
+ never the process's environment,
+ stopping at the first process that counts:
+ the folder the process works in (`/proc/<pid>/cwd`),
+ and, when that folder is elsewhere,
+ the files it holds open (the targets of `/proc/<pid>/fd`,
+ where the suffix the kernel appends to an unlinked target, a space and then `(deleted)`, is dropped).
+ A process keeps the worktree when its working folder is the worktree or a folder below it,
+ when its working folder is elsewhere and one of its descriptors names a path in the worktree,
+ and when a read of it was refused for a process of this account:
+ a working folder or a descriptor table this account may not read is never read as none,
+ so such a process keeps the worktree unless it is shown to have started before the worktree was made.
+ A descriptor into the worktree's own Git directory does not count,
+ because this program's commit service holds its marker there for as long as it lives,
+ and a rule that counted it would keep every landed worktree a service runs for.
+ A process that ended while it was read is passed over,
+ and one of another account whose working folder or descriptor table cannot be read is passed over too,
+ because its folder is unreadable to this account by design and `git worktree remove` has never waited for one.
+ The reason printed names the process,
+ and this command's own process is read like every other one,
+ so a program that spawns a wrapped merge with a landed worktree as its working folder keeps that worktree,
+ with the reason saying that this command was started there.
+ The ages decide the refused reads only:
+ the worktree's age is the birth time of its directory (`statx` `STATX_BTIME`),
+ and a process's start is its twenty-second field in `/proc/<pid>/stat`,
+ counted from the machine's boot and read against `/proc/uptime`.
+ A process that is not older than the worktree keeps it,
+ and so does one whose start cannot be read,
+ or whose worktree's birth time cannot be read,
+ because nothing then shows it started before the folder was made.
+ A process older than the worktree is taken to hold nothing there.
+
+ The limit is that guess's:
+ a process that hides its working folder or its descriptor table and started before the worktree was made
+ can open a file in the worktree afterwards,
+ or change its working folder into it,
+ and neither read sees that,
+ so the worktree is removed under it.
+ The person would see the removal line and nothing saying that a process may be in it,
+ and a shell in the worktree would read `(deleted)` in its working folder,
+ with its writes there failing for a path that is not there.
+ The owner's decision of 2026-11-15T19:16:23-05:00 accepts that gap
+ (`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`,
+ the amendment "Accept the gap"):
+ the other rule, keeping every worktree while any process of this account hid its folder or its files,
+ would remove none on a desktop whose login services hide their tables.
  The registration the record names must still be the one standing beside that path,
  which is what the next paragraph says the record carries.
  A worktree the service keeps is named in a record under the common Git directory,

@@ -135,8 +135,9 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     if let Some(mark) = bisect_mark_in(admin) {
         return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
     }
-    // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
-    // inside at all: a process older than the directory cannot have changed into it.
+    // How long the worktree has existed, which is the age a process that hides its working folder is judged by: a process
+    // older than the directory is taken to hold nothing there, though one that changed into it or opened a file in it
+    // afterwards is the gap the owner accepted (`worktree_process_inside.rs`, its module doc).
     if let Some(working) = process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
         return Some(working.why());
     }

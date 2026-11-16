@@ -55,16 +55,17 @@
 //!  a process of this account whose working folder cannot be read is taken to be working inside the worktree
 //!  when it started after the worktree was made,
 //!  or when its start cannot be read,
-//!  and taken to be outside when it started before the worktree was made,
+//!  and taken to hold nothing there when it started before the worktree was made,
 //!  and the reason names the process when the answer is that it may be inside.
 //!  That is a guess at which processes change into a worktree,
 //!  not a proof:
 //!  a process that started before the worktree was made can change into it afterwards,
 //!  and one that does is the miss this rule leaves.
-//!  Whether that miss is accepted is an open question for the owner
-//!  (`doc/handover/cli-git-rust-implementation.md`,
-//! `Questions kept for the owner's return`,
-//!  the item added 2026-11-15T03:06:17-05:00).
+//!  The owner's decision of 2026-11-15 accepts that miss:
+//!  the rule stays,
+//!  and the docs and the notice say it rather than calling such a process outside
+//!  (`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`,
+//!  the amendment "Accept the gap").
 //!  A refused read of the files a process holds open is never none either:
 //!  a program can keep its working folder readable and stop every other reader of its descriptor table
 //!  (measured on this host with a password manager that runs from login:
@@ -74,13 +75,13 @@
 //!  The same ages decide that answer as decide a working folder that cannot be read:
 //!  the process is taken to be working inside when it is younger than the worktree,
 //!  or when its age cannot be read,
-//!  and taken to be outside when it is older.
+//!  and taken to hold nothing there when it is older.
 //!  The miss is larger there than it is for a working folder,
 //!  because a program can open a file in a worktree long after it started:
-//!  an older program that opens one after the worktree was made is taken to be outside all the same.
+//!  an older program that opens one after the worktree was made is taken to hold nothing there all the same.
 //!  The rule is as it is because without it every walk of this host stops at that password manager,
 //!  which keeps every worktree and removes none,
-//!  and whether its miss is accepted is the same open question for the owner as the folder's.
+//!  and its miss, which is larger than the folder's, is accepted by the same decision of 2026-11-15.
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
@@ -179,7 +180,7 @@ impl WorkingProcess {
 ///  and `-C` names the repository rather than that folder.
 ///  `worktree_age` is how long `root` has existed,
 ///  which is what a process this account could not see into is judged by:
-///  one older than the folder is taken to be outside it,
+///  one older than the folder is taken to hold nothing there,
 ///  though one can change into it or open a file in it after the folder was made,
 ///  which is the miss the module doc names.
 ///
@@ -246,7 +247,7 @@ enum OpenFiles {
 ///  a working folder and a descriptor table,
 ///  and both are judged by the same two facts:
 ///  another account's process is not this account's to wait for,
-///  and a process that started before the worktree was made is taken to be outside it,
+///  and a process that started before the worktree was made is taken to hold nothing there,
 ///  though one can change into it or open a file in it afterwards,
 ///  which is the miss the module doc names.
 ///  An age that cannot be read excuses nothing,
@@ -339,7 +340,7 @@ fn without_deleted_suffix(target: &Path) -> &Path {
 const DELETED_SUFFIX: &str = " (deleted)";
 
 /// What:
-///  Whether a process that started this long ago is taken to be outside a folder this young.
+///  Whether a process that started this long ago is taken to hold nothing in a folder this young.
 /// Why:
 ///   A working folder is a directory the process changed into,
 ///  and a process that started before the worktree was made can change into it afterwards,
