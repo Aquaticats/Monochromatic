@@ -71,7 +71,7 @@ which is what `8202ef15e6` repaired for the index-commit control.
 ## The check that catches a stale control
 
 The smallest check that fails at the merge which makes a control stale is the planted-controls unit test.
-On 2026-11-16 it took 1.3 seconds at four CPUs on this host:
+On 2026-11-16 it took about 1.5 seconds at four CPUs in a capped scope:
 
 ```sh
 # Run from the repository top level.
@@ -89,7 +89,7 @@ src/native/commit/commit_args.rs"
 ```
 
 The whole package run is the same task with no file names,
-and took 11.3 seconds at seven CPUs on the same day:
+and took about 12 seconds at seven CPUs on the same day:
 
 ```sh
 mise run //package/git-policy/cli:test:unit

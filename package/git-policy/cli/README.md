@@ -6273,7 +6273,7 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and this package's TypeScript unit tests are the only check that says so:
 
   ```sh
-  # Run from the repository top level; it fails in about a second and names the control and the file.
+  # Run from the repository top level; it fails in about two seconds and names the control and the file.
   mise run //package/git-policy/cli:test:unit \
     -- bin/native-planted-controls.unit.test.ts bin/native-planted-controls-harness.unit.test.ts
   ```
