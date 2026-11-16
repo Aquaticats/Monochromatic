@@ -734,6 +734,27 @@ pub const LANDING_WATCH_NOTE_CEILING: Duration = Duration::from_secs(1);
 ///  gives serves better.
 pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the read of a repository's location waits for the file system on a command's own face:
+/// the walk up from the start directory,
+/// the configuration files it reads and the directory entries it checks,
+/// as `repo_read/repo_read_layout_within.rs` runs them.
+///  Why:
+///  That read is the first fact every guarded command asks (`repo_read/repository_facts.rs`),
+///  and each of its calls waits in the kernel on a mount that stopped answering,
+///  so the wait is bounded and a read that gives no answer is the reader's own "ask Git".
+///  The landing's route decision asks the same read through `read_layout_in` and bounds it at
+///  `ROUTE_STATE_CEILING`,
+///  and one read has one ceiling on both faces,
+///  so this is that constant:
+/// the two cannot disagree about how long the same walk may take.
+///  No measurement fixes the value:
+///  it is `START_CEILING`,
+///  the wait a state step of the service is granted,
+///  because a location read that outlasts it is one the answer Git gives serves better.
+///  It costs a working system nothing:
+/// the ceiling is what the caller waits for an answer, never a pause it takes first.
+pub const LOCATION_READ_CEILING: Duration = ROUTE_STATE_CEILING;
+
 /// The longest a preparation's own file read waits:
 /// the `-F` file of a commit message,
 /// which `landing/service_message.rs` reads as a job of the blocking pool.

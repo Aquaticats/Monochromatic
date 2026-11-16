@@ -49,7 +49,6 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 pub use crate::repo_read_layout_environment_rules::{WRAPPER_ENVIRONMENT_PREFIX, env_config_avoids};
 pub(crate) use crate::repo_read_layout_environment_rules::{effective_environment, environment_is_plain};
-pub(crate) use crate::repo_read_layout_disk_and_directory_facts::start_directory;
 use crate::repo_read_layout_disk_and_directory_facts::{device_of, has_git_directory_entries, has_git_directory_entries_split, is_hex_byte, owned_by_current_user, small_file, small_file_bytes};
 /// A pathname from the bytes a `gitdir:` line holds.
 use crate::hooks_path_values::path_answer;
@@ -376,8 +375,7 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
     if !environment_is_plain(variables.as_slice()) || !environment_is_accepted(variables.as_slice()) {
         return None;
     }
-    let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), true);
+    return crate::repo_read_layout_within::from_the_global_prefix(global_prefix.to_vec(), ScopeEnvironment::from_variables(variables.as_slice()), true);
 }
 
 /// What:
@@ -394,7 +392,7 @@ pub fn read_layout_with(start: &Path, variables: &[(OsString, OsString)], scope:
     if !environment_is_plain(variables) || !environment_is_accepted(variables) {
         return None;
     }
-    return walk_up(std::fs::canonicalize(start).ok()?.as_path(), scope, true);
+    return crate::repo_read_layout_within::from_a_directory(start.to_path_buf(), scope.clone(), true);
 }
 
 /// What:
@@ -448,7 +446,7 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
     if !environment_is_plain(variables.as_slice()) {
         return None;
     }
-    return walk_up(std::fs::canonicalize(directory).ok()?.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
+    return crate::repo_read_layout_within::from_a_directory(directory.to_path_buf(), ScopeEnvironment::from_variables(variables.as_slice()), false);
 }
 
 /// What:
@@ -467,7 +465,7 @@ pub fn read_layout_after_success_with(start: &Path, variables: &[(OsString, OsSt
     if !environment_is_plain(variables) {
         return None;
     }
-    return walk_up(std::fs::canonicalize(start).ok()?.as_path(), scope, false);
+    return crate::repo_read_layout_within::from_a_directory(start.to_path_buf(), scope.clone(), false);
 }
 
 /// What:
@@ -494,8 +492,7 @@ pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsS
     if !environment_is_plain(variables.as_slice()) {
         return None;
     }
-    let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
+    return crate::repo_read_layout_within::from_the_global_prefix(global_prefix.to_vec(), ScopeEnvironment::from_variables(variables.as_slice()), false);
 }
 
 /// Walk from `start` to the root looking for the first `.git`,
@@ -546,9 +543,9 @@ pub fn git_path(layout: &RepoLayout, name: &str) -> Option<PathBuf> {
     }
     let path: PathBuf = layout.git_dir.join(name);
     // With `--path-format=absolute` Git prints the target of a link, so a linked name is left to Git.
-    if let Ok(metadata) = std::fs::symlink_metadata(path.as_path())
-        && metadata.file_type().is_symlink()
-    {
+    // A lookup that gave no answer within the ceiling is left to Git too, so a name an earlier command read without
+    //  waiting forever is never answered from a mount that stopped answering.
+    if crate::repo_read_layout_within::is_a_link(path.as_path())? {
         return None;
     }
     return Some(path);

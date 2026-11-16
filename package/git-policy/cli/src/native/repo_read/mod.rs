@@ -96,6 +96,11 @@ pub mod repo_read_config_value_kinds;
 /// Git paths and object format found from the file system.
 pub mod repo_read_layout;
 
+/// In-process repository reads:
+/// the location read as one job under a ceiling,
+/// so a mount that stopped answering cannot hold a command.
+pub mod repo_read_layout_within;
+
 /// The rules about the environment of a Git command:
 /// which variables can move discovery,
 /// and the effective environment.

@@ -16,9 +16,8 @@
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_config_typed::environment_is_accepted;
 use crate::repo_read_hook::enabled;
-use crate::repo_read_layout::{RepoLayout, effective_environment, environment_is_plain, start_directory, walk_up};
+use crate::repo_read_layout::{RepoLayout, effective_environment, environment_is_plain};
 use std::ffi::OsString;
-use std::path::PathBuf;
 
 /// Whether `name` spells one of `spellings`.
 fn is_one_of(name: &OsString, spellings: &[&str]) -> bool {
@@ -60,6 +59,5 @@ pub fn read_layout_without(global_prefix: &[OsString], overlay: &[(OsString, OsS
     if !environment_is_plain(kept.as_slice()) || !environment_is_accepted(kept.as_slice()) {
         return None;
     }
-    let start: PathBuf = start_directory(prefix.as_slice())?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(kept.as_slice()), true);
+    return crate::repo_read_layout_within::from_the_global_prefix(prefix, ScopeEnvironment::from_variables(kept.as_slice()), true);
 }
