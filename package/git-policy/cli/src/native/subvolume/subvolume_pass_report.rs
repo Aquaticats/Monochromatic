@@ -87,7 +87,10 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
         lines.push(format!("{label}: did not place {} because the destination holds an entry there that this pass did not put there, and it stays", path.display()));
     }
     for path in &stats.changed_while_passing {
-        lines.push(format!("{label}: did not carry {} because it was another kind of entry when the copy reached it", path.display()));
+        lines.push(format!(
+            "{label}: did not carry {}: it changed while the copy ran, so the destination does not hold what the source holds there",
+            path.display()
+        ));
     }
     if !stats.notices_carried.is_empty() {
         lines.push(format!(

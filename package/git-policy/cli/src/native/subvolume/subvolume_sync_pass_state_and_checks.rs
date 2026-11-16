@@ -576,6 +576,11 @@ impl Pass<'_> {
             }
             Err(error) => return Err(MigrateError::io("park the entry the destination holds", shown.as_path(), &error)),
         }
+        // The baseline of the parked entry is read here, in the instruction after the parking:
+        //  the parking itself moves the change time,
+        //  so this reading is what "unchanged since the pass parked it" means,
+        //  and a writer who changes the parked entry after it moves a field the pass can see.
+        let parked_first: Option<Metadata> = std::fs::symlink_metadata(parked.as_path()).ok();
         #[cfg(test)]
         note_the_freed_name(destination.as_path());
         // The name is free here, and only here, so the copy is created and never renamed over anything.
@@ -597,9 +602,21 @@ impl Pass<'_> {
                 return Err(MigrateError::io("create the copy at the freed name", shown.as_path(), &error));
             }
         }
-        // The parked entry is judged as the object it is, at the instant the name was freed.
-        let displaced: Option<Metadata> = std::fs::symlink_metadata(parked.as_path()).ok();
-        let superseded: bool = matches!(displaced, Some(ref found) if unchanged_since(found, examined));
+        #[cfg(test)]
+        note_before_the_judgement(parked.as_path());
+        // The parked entry is judged as the object it is: the object the pass examined, and unchanged since the reading
+        //  the parking was followed by. A write in place that keeps the size and puts the modification time back moves
+        //  the change time, which no writer can set, so it is caught here; a write nobody can tell from the parked
+        //  object keeps the file below.
+        if parked_first.is_none() {
+            // What the pass parked is gone: whoever held it removed it, so there is nothing of theirs left to keep.
+            return Ok(Published::Placed);
+        }
+        let parked_now: Option<Metadata> = std::fs::symlink_metadata(parked.as_path()).ok();
+        let superseded: bool = match (parked_first.as_ref(), parked_now.as_ref()) {
+            (Some(first), Some(now)) => unchanged_since(first, examined) && same_reading(first, now),
+            _ => false,
+        };
         if superseded {
             remove_entry(parked.as_path(), parked_relative.as_path())?;
             return Ok(Published::Placed);
@@ -609,6 +626,31 @@ impl Pass<'_> {
         remove_if_present(destination.as_path(), shown.as_path())?;
         MigrateError::from_io_result(std::fs::rename(parked.as_path(), destination.as_path()), "put the entry the pass did not examine back", shown.as_path())?;
         return Ok(Published::KeptTheDestinationEntry);
+    }
+
+    /// What:
+    ///  Whether the entry at `relative` in the source is still the object the pass examined,
+    ///  read by everything a writer cannot keep while changing it:
+    ///  the device,
+    ///  the inode,
+    ///  the size,
+    ///  the modification time and the change time.
+    /// Why:
+    ///   The source is only read by this pass,
+    ///  so no act of the pass moves any of those fields,
+    ///  and a write in place or a replacement of the name moves at least one of them.
+    ///  The change time is the field a writer cannot set:
+    ///  `utimensat` sets the modification time and not that one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const unchanged = (examined) => sameReading(statSync(source), examined); // dev, ino, size, mtimeNs, ctimeNs
+    /// ```
+    pub(crate) fn source_unchanged_since(&self, examined: &Metadata, relative: &Path) -> bool {
+        return match std::fs::symlink_metadata(self.source.join(relative)) {
+            Ok(now) => same_reading(&now, examined),
+            Err(_gone) => false,
+        };
     }
 
     /// Whether the source path still names the object the pass examined:
@@ -767,6 +809,27 @@ pub(crate) fn place_where_nothing_was(partial: &Path, destination: &Path, shown:
 /// const unchanged = (found, examined) => found.dev === examined.dev && found.ino === examined.ino
 ///   && found.size === examined.size && found.mtimeNs === examined.mtimeNs;
 /// ```
+/// What:
+///  Whether two readings describe the same object unchanged:
+///  the device and inode,
+///  the size,
+///  the modification time and the change time.
+/// Why:
+///   This is the whole identity a writer cannot keep while changing a file,
+///  and it is what two readings of one object have to agree on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = (a, b) => a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+/// ```
+pub(crate) fn same_reading(left: &Metadata, right: &Metadata) -> bool {
+    return left.dev() == right.dev()
+        && left.ino() == right.ino()
+        && left.len() == right.len()
+        && (left.mtime(), left.mtime_nsec()) == (right.mtime(), right.mtime_nsec())
+        && (left.ctime(), left.ctime_nsec()) == (right.ctime(), right.ctime_nsec());
+}
+
 pub(crate) fn unchanged_since(found: &Metadata, examined: &Metadata) -> bool {
     return found.dev() == examined.dev()
         && found.ino() == examined.ino()

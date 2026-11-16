@@ -74,10 +74,13 @@
 //! and an entry that is another kind when the copy opens it is counted as `changed_while_passing` rather than as a
 //! file that vanished.
 //! This one could delete a person's file, when a listed file became a directory: it is closed.
-//! - The source path, looked at again after the copy and before the copy takes the destination name:
-//! a path that no longer names the object that was copied means another command put a new file or link there,
-//! and that object is then copied in its place, a bounded number of times;
-//! a name that will not stand still is counted as `changed_while_passing`.
+//! - The source entry, read before the copy and again after the copy has taken the destination name:
+//! the device, the inode, the size, the modification time and the change time are compared,
+//! and a source that moved at any point is copied again from what stands there now, a bounded number of times;
+//! a name that will not stand still is counted as `changed_while_passing`, which keeps the old tree.
+//! The change time is in this reading because a writer cannot set it:
+//! `utimensat` sets the modification time and not that one.
+//! No check before the publish can close the window, so the copy is judged against the source once it is in place.
 //! This one could copy an entry the old tree no longer held and then let the replacement be deleted with it: it is
 //!  closed.
 //! - The destination name's absence when the pass decided to copy, then the placement of the finished copy:
@@ -86,13 +89,18 @@
 //! This one could delete a person's file: it is closed.
 //! - The destination entry the pass examined, then the name it takes:
 //! the entry is parked under its own parked name with `renameat2(RENAME_NOREPLACE)`,
+//! its reading is taken in the instruction after the parking,
 //! the copy is created at the freed name, and the parked entry is then judged as the object it is:
 //! the device and inode,
 //!  the size and the modification time it had when the pass examined it,
-//!  a write in place moving the last two.
-//! Only the object the pass examined is removed; anything else is put back,
+//!  and the reading taken at the parking,
+//!  which carries the change time that the parking itself moved and that a writer cannot set.
+//! Only the object the pass examined, unchanged since that reading, is removed; anything else is put back,
 //! over the copy this pass made there and nothing else,
 //! and is counted as `kept_at_the_destination`.
+//! A writer who keeps the size, puts the modification time back and lands inside the two instructions between the
+//!  parking and that reading cannot be told from the object the pass examined by any field the kernel offers, and that is
+//!  the one window this pass cannot close; every other write to the parked entry moves a field the reading compares.
 //! A kill between the parking and the judgement leaves the parked entry at `<name>.cli-git-migrate-displaced`,
 //! which no pass deletes: every pass names it, so the deletion waits for the person.
 //! This one could discard a write made in place, and a file another command put at the name in the instant between

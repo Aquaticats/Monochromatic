@@ -94,6 +94,10 @@ impl Pass<'_> {
             self.interrupt.check("copy-kept")?;
             return Ok(Copied::KeptTheDestinationEntry);
         }
+        if !self.source_unchanged_since(metadata, relative) || std::fs::read_link(&source).ok().as_ref() != Some(&wanted) {
+            self.uncarried(relative, Uncarried::ChangedWhilePassing);
+            return Ok(Copied::ChangedKind);
+        }
         self.stats.symlinks += 1;
         return Ok(Copied::Placed);
     }
@@ -169,6 +173,10 @@ impl Pass<'_> {
             self.interrupt.check("copy-kept")?;
             return Ok(Copied::KeptTheDestinationEntry);
         }
+        if !self.source_unchanged_since(&examined, relative) {
+            self.uncarried(relative, Uncarried::ChangedWhilePassing);
+            return Ok(Copied::ChangedKind);
+        }
         self.stats.fifos += 1;
         return Ok(Copied::Placed);
     }
@@ -228,6 +236,9 @@ impl Pass<'_> {
         let destination: PathBuf = directory.child(relative.file_name().unwrap_or_default());
         let shown: PathBuf = self.shown(relative);
         let listed_key: (u64, u64) = (listing.dev(), listing.ino());
+        // What stands at the destination name, which is what the pass examined there; a retry after the publish examines
+        //  the copy this pass made itself.
+        let mut at_the_name: Option<Metadata> = existing.clone();
         if let Some(found) = &existing {
             if !found.is_file() {
                 if !self.replace_allowed(relative, found, listing) {
@@ -250,7 +261,7 @@ impl Pass<'_> {
         }
         if listing.nlink() > 1
             && self.source_path_still_names(listing, relative)
-            && let Some(outcome) = self.link_to_earlier_copy(directory, relative, listed_key, existing.as_ref())?
+            && let Some(outcome) = self.link_to_earlier_copy(directory, relative, listed_key, at_the_name.as_ref())?
         {
             return Ok(outcome);
         }
@@ -314,16 +325,29 @@ impl Pass<'_> {
                     remove_if_present(directory.partial().as_path(), shown.as_path())?;
                     if names >= COPY_ATTEMPTS {
                         self.uncarried(relative, Uncarried::ChangedWhilePassing);
-                        self.uncarried(relative, Uncarried::ChangedWhilePassing);
                         return Ok(Copied::ChangedKind);
                     }
                     self.stats.recopied += 1;
                     break;
                 }
-                if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
-                self.uncarried(relative, Uncarried::KeptAtTheDestination);
-                self.interrupt.check("copy-kept")?;
-                return Ok(Copied::KeptTheDestinationEntry);
+                if self.publish(directory, relative, at_the_name.as_ref())? == Published::KeptTheDestinationEntry {
+                    self.uncarried(relative, Uncarried::KeptAtTheDestination);
+                    self.interrupt.check("copy-kept")?;
+                    return Ok(Copied::KeptTheDestinationEntry);
+                }
+                // What was published is checked against the source once it is in place: no check before the publish can
+                //  close the window, so the copy is compared with the source as it stands now. A source that moved is
+                //  copied again, a bounded number of times, and a name that will not stand still keeps its newer bytes in
+                //  the old tree and its path in the record.
+                if !self.source_unchanged_since(&before, relative) {
+                    if names >= COPY_ATTEMPTS {
+                        self.uncarried(relative, Uncarried::ChangedWhilePassing);
+                        self.interrupt.check("copy-changed-after-the-publish")?;
+                        return Ok(Copied::ChangedKind);
+                    }
+                    self.stats.recopied += 1;
+                    at_the_name = std::fs::symlink_metadata(&destination).ok();
+                    break;
                 }
                 if cloned.is_ok() {
                     self.stats.cloned += 1;

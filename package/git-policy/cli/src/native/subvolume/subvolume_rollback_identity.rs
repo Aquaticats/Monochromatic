@@ -342,7 +342,7 @@ pub(crate) fn uncarried_cause(run: &Run<'_>, uncarried: &BTreeSet<PathBuf>) -> S
     }
     if !run.changed_while_passing.is_empty() {
         parts.push(format!(
-            "{} entr(ies) this carry did not place because they were another kind of entry when it reached them ({})",
+            "{} entr(ies) this carry did not place because they changed while it ran, so the destination does not hold what the source holds there ({})",
             run.changed_while_passing.len(),
             shown_left_out(run.changed_while_passing.iter())
         ));

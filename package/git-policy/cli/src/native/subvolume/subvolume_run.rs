@@ -107,12 +107,37 @@ struct TheRecord<'a> {
 }
 
 impl TheRecord<'_> {
+    /// What:
+    ///  Write the record as it stands before the pass begins,
+    ///  when it holds anything.
+    /// Why:
+    ///   A pass that is interrupted must not shrink what earlier passes of the run found:
+    ///  the record is the union of the list the run opened with and every entry any pass of it found,
+    ///  and it is written whole before each pass so an interruption cannot leave less.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// record.begin(); // write the union as it stands
+    /// ```
+    fn begin(&mut self) {
+        if self.paths.is_empty() {
+            return;
+        }
+        self.write();
+    }
+
     /// Add one path and write the record,
     /// remembering a failure so the pass that called this stops with it.
     fn note(&mut self, relative: &Path) {
         if self.unreadable.contains(relative) || !self.paths.insert(relative.to_path_buf()) {
             return;
         }
+        self.write();
+    }
+
+    /// Write every path the record holds,
+    /// and remember a failure.
+    fn write(&mut self) {
         let mut text: String = String::new();
         for path in &self.paths {
             text.push_str(path.to_string_lossy().as_ref());
@@ -122,6 +147,26 @@ impl TheRecord<'_> {
             self.failed = Some(failure);
         }
     }
+}
+
+/// What:
+///  Every path a run's passes and the record it opened with name,
+///  which is what its next pass must write before it begins.
+/// Why:
+///   The record only ever grows until the entry it names is settled,
+///  so a pass that is interrupted leaves the union of everything found so far and not only its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const union = new Set([...run.recorded, ...run.leftOut, ...run.conflicts, ...run.kept, ...run.changed]);
+/// ```
+fn everything_the_run_holds(run: &Run<'_>) -> BTreeSet<PathBuf> {
+    let mut every: BTreeSet<PathBuf> = run.recorded.clone();
+    every.extend(run.left_out.iter().cloned());
+    every.extend(run.conflicts.iter().cloned());
+    every.extend(run.kept_at_the_destination.iter().cloned());
+    every.extend(run.changed_while_passing.iter().cloned());
+    return every;
 }
 
 /// What:
@@ -332,7 +377,8 @@ impl Run<'_> {
         //  instruction after that leaves the fact behind, not only the run's memory of it.
         let stats: SyncStats = {
             let mut record: TheRecord<'_> =
-                TheRecord { path: self.layout.left_out_path.as_path(), paths: self.recorded.clone(), unreadable: &self.unreadable, failed: None };
+                TheRecord { path: self.layout.left_out_path.as_path(), paths: everything_the_run_holds(self), unreadable: &self.unreadable, failed: None };
+            record.begin();
             let stats: SyncStats = sync_tree(
                 self.platform,
                 source,

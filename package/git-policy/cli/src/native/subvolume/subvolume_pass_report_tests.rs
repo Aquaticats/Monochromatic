@@ -45,7 +45,7 @@ fn each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label() {
         lines[6],
         "copy: did not place .git/person-notes.txt because the destination holds an entry there that this pass did not put there, and it stays"
     );
-    assert_eq!(lines[7], "copy: did not carry src/changed-kind.rs because it was another kind of entry when the copy reached it");
+    assert_eq!(lines[7], "copy: did not carry src/changed-kind.rs: it changed while the copy ran, so the destination does not hold what the source holds there");
     assert_eq!(
         lines[8],
         "copy: carried 1 of this program's own notice(s) although the destination lacks them and they are older than the cut-off: .git/monochromatic-git-policy-cli/notices/push+main+0f3a.txt"

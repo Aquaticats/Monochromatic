@@ -562,7 +562,7 @@ fn a_source_file_that_became_a_directory_holds_the_deletion_back() {
     let (removal_code, removal_said) = run(&platform, &remove_old_arguments(), root.as_path());
     watch_entries(None);
     assert_eq!(removal_code, REFUSED, "{removal_said}");
-    assert!(removal_said.contains("did not carry person-notes.txt because it was another kind of entry"), "{removal_said}");
+    assert!(removal_said.contains("did not carry person-notes.txt: it changed while the copy ran"), "{removal_said}");
     assert!(note.join("inside.txt").is_file(), "the person's file inside the replacement directory is still in the old tree");
     assert!(layout.old_path.exists(), "nothing was deleted");
     remove(parent.as_path());
