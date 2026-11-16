@@ -330,16 +330,64 @@ fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateE
         Ok(None) => Ok(None),
         // The number names a process, so the birth decides: one this reader cannot compare is a question it cannot answer,
         //  and the item stays where it is.
-        Ok(Some(_current)) if !is_birth_identity(birth.as_str()) => Err(MigrateError::Journal(format!(
-            "{} names process {pid}, and its birth identity {birth} is not one this program writes, so whether that process still runs cannot be decided; nothing was changed. Look at the file: if no monochromatic-git-policy-cli command is running on this item, remove it and run the command again",
-            path.display()
+        Ok(Some(_current)) if !is_birth_identity(birth.as_str()) => Err(MigrateError::Journal(a_record_that_cannot_be_told(
+            path,
+            *pid,
+            birth.as_str(),
+            String::from("its birth identity is not one this program writes, so it cannot be compared with the process that has its number"),
         ))),
         Ok(Some(current)) => Ok((&current == birth).then_some(*pid)),
-        Err(error) => Err(MigrateError::Journal(format!(
-            "{} names process {pid}, and whether it still runs cannot be decided ({error}); nothing was changed. If it does not, remove the file and run the command again",
-            path.display()
+        Err(error) => Err(MigrateError::Journal(a_record_that_cannot_be_told(
+            path,
+            *pid,
+            birth.as_str(),
+            format!("its process record could not be read ({error}), so the process table says nothing about it"),
         ))),
     };
+}
+
+/// What:
+///  The words for a claim record whose owner can be shown neither alive nor gone:
+///  which record it is,
+///  whose,
+///  how old,
+///  and the exact command that removes it.
+/// Why:
+///   The owner decided on 2026-11-16 that such a record stays and that past the patience a command prints these four
+/// facts (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force",
+/// "A record whose holder can be shown neither alive nor gone").
+/// This command does not wait for the patience: it stops at once,
+/// takes nothing,
+/// and changes nothing,
+/// which is the other half of the same decision ("the command stops or prints words").
+/// The age is the record's own time read against this reader's clock,
+/// so a clock set forward here,
+/// or one behind where the record was written,
+/// makes it read older or younger than the hold.
+/// The path is quoted for a shell,
+/// so a path with a space,
+/// a quote,
+/// a line break or a leading dash is one argument that removes that file and no other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aRecordThatCannotBeTold(path, pid, birth, why)
+/// ```
+fn a_record_that_cannot_be_told(path: &Path, pid: i64, birth: &str, why: String) -> String {
+    let age: std::time::Duration = std::fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|modified| std::time::SystemTime::now().duration_since(modified).ok())
+        .unwrap_or(std::time::Duration::ZERO);
+    return format!(
+        "monochromatic-git-policy-cli: the claim record {} names process {pid} with the birth {birth}, and {why}. Nothing was changed. The record is \
+         {} seconds old, counted from its own time on this host's clock. Look at it: when no monochromatic-git-policy-cli command is running on this item, \
+         remove it with `rm -- {}` and run the command again.",
+        path.display(),
+        age.as_secs(),
+        crate::stale_ref_lock_message::shell_quote(path)
+    );
 }
 
 /// This process's claim record.

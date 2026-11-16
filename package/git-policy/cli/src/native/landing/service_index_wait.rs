@@ -28,7 +28,7 @@
 use crate::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
 use crate::service_index_watch::POLL_PAUSE;
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
-use crate::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
+use crate::service_index_marker::{HolderState, holder_is_running, holder_state, mark_names_a_gone_holder, marker_of};
 use crate::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -219,6 +219,40 @@ fn stale_line(command: &str, age: Duration) -> String {
     );
 }
 
+/// What:
+///  The line for the person when the lock's marker names a holder that can be shown neither alive nor gone,
+///  past the age after which nothing is waited for:
+///  the record,
+///  its owner,
+///  its age,
+///  and the exact command that removes it.
+/// Why:
+///   The owner decided on 2026-11-16 that such a record stays and that past the patience a command prints these four facts
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force",
+/// "A record whose holder can be shown neither alive nor gone").
+/// The wait is not shortened by the words: the command goes on with Git's answer,
+/// which is what every stale hold does,
+/// so a lock nothing proves gone never blocks a commit for ever.
+/// The age is the lock's own time read against this reader's clock.
+/// The path is quoted for a shell,
+/// so a path with a space,
+/// a quote,
+/// a line break or a leading dash is one argument that removes that file and no other.
+fn a_holder_that_cannot_be_told(command: &str, lock: &Path, holder: (i64, &str), age: Duration) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the commit service's hold on this repository's index is {seconds} seconds old, and the record {lock} it carries \
+         names process {pid} with the identity {birth}, which this command can neither show alive nor show gone, so git {command} does not wait for it \
+         and reports what Git says. The age is the record's own time on this host's clock. When no monochromatic-git-policy-cli command is landing a \
+         commit in this repository, remove the record with `rm -- {path}` and run the command again.\n",
+        seconds = age.as_secs(),
+        lock = lock.display(),
+        pid = holder.0,
+        birth = holder.1,
+        path = crate::stale_ref_lock_message::shell_quote(lock)
+    );
+}
+
 /// The line for the person when the hold names a service process that is gone.
 fn gone_line(command: &str) -> String {
     return format!(
@@ -292,9 +326,21 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         let age: Duration = age_of(&lock);
         // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
         //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
-        let running: bool = matches!(marker_of(&lock), Some(marked) if holder_is_running(marked.holder.as_ref()));
+        let marked: Option<crate::service_index_marker::Marked> = marker_of(&lock);
+        let running: bool = matches!(marked.as_ref(), Some(marked) if holder_is_running(marked.holder.as_ref()));
         if age >= UNASKABLE_HOLD_AGE && !running {
-            note_line(out, stale_line(command, age).as_str());
+            // A marker whose holder can be shown neither alive nor gone is the state the owner decided on 2026-11-16: the
+            //  record stays, and past this age the line names the record, its owner, its age and the exact command that
+            //  removes it, which is what a person needs to clear a lock no command will reclaim.
+            let unclear: Option<(i64, String)> = match marked.as_ref().and_then(|marked| marked.holder.clone()) {
+                Some(holder) if holder_state(Some(&holder)) == HolderState::Unknown => Some(holder),
+                _ => None,
+            };
+            let said: String = match unclear {
+                Some((pid, birth)) => a_holder_that_cannot_be_told(command, lock.as_path(), (pid, birth.as_str()), age),
+                None => stale_line(command, age),
+            };
+            note_line(out, said.as_str());
             return Waited::Stale;
         }
         held = true;

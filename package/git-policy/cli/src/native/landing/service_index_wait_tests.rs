@@ -505,3 +505,81 @@ fn a_command_waits_for_no_hold_of_a_named_pipe() {
     assert!(out.is_empty(), "{}", String::from_utf8_lossy(out.as_slice()));
     remove(root.as_path());
 }
+
+/// A marker of this release naming process number `pid` with the identity `identity`,
+/// which is one the reader may not be able to compare.
+/// Why:
+///   The words past the age are about a holder this reader cannot place,
+/// so the marker must carry an identity written another way.
+fn marker_naming(pid: i64, identity: &str) -> String {
+    let tail: String = format!(
+        "#{}#{}#{}",
+        crate::claim_time::current_boot_id(),
+        crate::service_index_marker::current_pid_scope().expect("a PID namespace"),
+        crate::claim_time::current_machine_id()
+    );
+    return format!("{LOCK_MARKER}{}0 {pid} {identity}{tail}\n", crate::service_index_marker::MARKER_VERSION);
+}
+
+/// What:
+///  A hold whose marker names a holder this command can neither show alive nor show gone is not waited for past the age,
+///  and the line names the record,
+///  its owner,
+///  its age and the exact command that removes it.
+/// Why:
+///  The owner decided on 2026-11-16 that such a record stays and that past the patience a command prints those four facts
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force").
+/// The marker here names this process's number with a birth written another way,
+/// so the number is live and the birth says nothing about it.
+/// The lock is never reclaimed, which is the state that leaves a person with nothing to do but read the line.
+#[test]
+fn a_hold_that_cannot_be_told_names_its_record_owner_age_and_removal_past_the_age() {
+    let root: PathBuf = fixture("index-wait-cannot-be-told");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let birth: String = crate::process_identity::current_birth_identity().expect("this process has an identity");
+    let respelled: String = format!(" {}", birth);
+    std::fs::write(&lock, marker_naming(i64::from(std::process::id()), respelled.as_str())).expect("lock");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - UNASKABLE_HOLD_AGE - Duration::from_secs(60);
+    std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
+    let mut out: Vec<u8> = Vec::new();
+    let waited: Waited = wait_for_service_hold(index.as_path(), "add", QUICK, &mut out);
+    let text: String = String::from_utf8_lossy(&out).into_owned();
+    assert_eq!(waited, Waited::Stale, "the command goes on rather than waits for a hold nothing proves alive: {text}");
+    assert!(lock.exists(), "nothing deletes the record on a timer");
+    let quoted: String = crate::stale_ref_lock_message::shell_quote(lock.as_path());
+    let age: u64 = UNASKABLE_HOLD_AGE.as_secs() + 60;
+    let mut wrong: Vec<String> = Vec::new();
+    // Within the age the same hold is waited for, and nothing about a removal is said: that is the control of this control.
+    let fresh_root: PathBuf = fixture("index-wait-cannot-be-told-young");
+    let fresh_index: PathBuf = index_in(fresh_root.as_path());
+    let fresh_lock: PathBuf = lock_path_of(fresh_index.as_path());
+    std::fs::write(&fresh_lock, marker_naming(i64::from(std::process::id()), respelled.as_str())).expect("a young lock");
+    let mut young_out: Vec<u8> = Vec::new();
+    let young: Waited = wait_for_service_hold_within(fresh_index.as_path(), "add", Duration::from_millis(300), QUICK, &mut young_out);
+    let young_text: String = String::from_utf8_lossy(&young_out).into_owned();
+    if young != Waited::GaveUp {
+        wrong.push(format!("a hold younger than the age was answered {young:?} instead of waited for"));
+    }
+    if !young_text.contains("is waiting for the commit service") {
+        wrong.push(format!("a hold younger than the age says nothing about waiting: {young_text:?}"));
+    }
+    if young_text.contains("rm -- ") {
+        wrong.push(format!("a hold younger than the age already names a removal: {young_text:?}"));
+    }
+    remove(fresh_root.as_path());
+    for (what, required) in [
+        ("the record's path", lock.display().to_string()),
+        ("its owner's number", std::process::id().to_string()),
+        ("its owner's identity", respelled.clone()),
+        ("its age in seconds", format!("{age} seconds")),
+        ("the exact removal", format!("rm -- {quoted}")),
+    ] {
+        if !text.contains(required.as_str()) {
+            wrong.push(format!("the line does not name {what}: it reads {text:?}"));
+        }
+    }
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

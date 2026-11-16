@@ -578,3 +578,55 @@ fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// What:
+///  A claim whose owner can be shown neither alive nor gone stops the claimant at once,
+///  and the words name the record,
+///  its owner,
+///  its age and the exact command that removes it.
+/// Why:
+///  The owner decided on 2026-11-16 that such a record stays and that a command prints those four facts
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force").
+/// The claim names this process's number with a birth written another way,
+/// so the number is live and the birth says nothing about it:
+/// the item must not be taken, and a person must be able to clear the record.
+/// The record is planted in a directory whose name holds a space and a quote,
+/// so the removal in the words is shown to be one argument.
+#[test]
+fn a_claim_that_cannot_be_told_names_its_record_owner_age_and_removal() {
+    let birth: String = current_birth_identity().expect("this process has an identity");
+    let respelled: String = format!(" {birth}");
+    let outer: PathBuf = fixture("claim-cannot-be-told");
+    let directory: PathBuf = outer.join("with a space and 'a quote'");
+    std::fs::create_dir(directory.as_path()).expect("a directory whose name is awkward on purpose");
+    let record: PathBuf = directory.join("item.owner.1");
+    plant_claim_for_tests(directory.as_path(), prefix(), FIRST, i64::from(std::process::id()), respelled.as_str());
+    let aged: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(4242);
+    std::fs::File::options().write(true).open(record.as_path()).expect("the claim record").set_modified(aged).expect("the record is aged");
+    let outcome: Result<ClaimOutcome, MigrateError> = take_claim(directory.as_path(), prefix());
+    let generations_after: Vec<u64> = present(directory.as_path());
+    let refusal: String = match outcome {
+        Ok(ClaimOutcome::Held(_claim)) => String::from("the claimant took the item"),
+        Ok(ClaimOutcome::Busy(owner)) => format!("the claimant answered with the owner {owner:?}"),
+        Err(refusal) => refusal.to_string(),
+    };
+    remove(directory.as_path());
+    let quoted: String = crate::stale_ref_lock_message::shell_quote(record.as_path());
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, required) in [
+        ("the record's path", record.display().to_string()),
+        ("its owner's number", std::process::id().to_string()),
+        ("its owner's birth", respelled.clone()),
+        ("its age in seconds", String::from("4242 seconds")),
+        ("the exact removal", format!("rm -- {quoted}")),
+    ] {
+        if !refusal.contains(required.as_str()) {
+            wrong.push(format!("the words do not name {what}: they read {refusal}"));
+        }
+    }
+    if generations_after != vec![FIRST] {
+        wrong.push(format!("the item holds generations {generations_after:?} afterwards, and [1] is what this claim leaves"));
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

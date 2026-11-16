@@ -285,12 +285,40 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 /// const gone = bootEnded(boot) || pidIsFree(pid) || (bootIsThisOne(boot) && canCompare(birth) && birthIdentityOf(pid) !== birth);
 /// ```
 pub fn proven_gone(holder: &str) -> bool {
+    return holder_answer(holder) == HolderAnswer::Gone;
+}
+
+/// What a holder text says about the command that wrote it:
+/// that it is gone,
+/// that it is the process that has the number now,
+/// or that this reader cannot tell.
+/// The project decided the last one on 2026-11-16 ("A: stays, command says how"):
+/// the record stays,
+/// and past a patience a command prints which record it is,
+/// whose,
+/// how old,
+/// and the exact `rm -- <path>` (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force").
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HolderAnswer {
+    /// Nothing the text names runs now.
+    Gone,
+    /// The number names the very process the text names.
+    Alive,
+    /// The text cannot be compared with what the process table answers,
+    /// so nothing shows whether its command still runs.
+    CannotBeTold,
+}
+
+/// What `holder` answers,
+/// by the rule `proven_gone` states.
+pub fn holder_answer(holder: &str) -> HolderAnswer {
     if holder.is_empty() {
-        return false;
+        return HolderAnswer::CannotBeTold;
     }
     let mut parts = holder.split('/');
     let (Some(boot), Some(pid), Some(birth)) = (parts.next(), parts.next(), parts.next()) else {
-        return false;
+        return HolderAnswer::CannotBeTold;
     };
     let here: &str = current_boot_id();
     // A boot part this reader can place: a boot ID in the one spelling both are written in, on a reader that knows its
@@ -302,23 +330,25 @@ pub fn proven_gone(holder: &str) -> bool {
     //  answers nothing still ends the record below.
     let boot_is_this_one: bool = boot_is_a_boot_id && boot == here;
     if boot_is_a_boot_id && !boot_is_this_one {
-        return true;
+        return HolderAnswer::Gone;
     }
     let Ok(number) = pid.parse::<i64>() else {
-        return false;
+        return HolderAnswer::CannotBeTold;
     };
     // Zero names no process, so a text that holds it names no command and proves nothing.
     if number <= 0 {
-        return false;
+        return HolderAnswer::CannotBeTold;
     }
     return match process_birth_identity(number) {
         // No process has this number now, so the command that wrote the record has ended whatever its other parts say.
-        Ok(None) => true,
+        Ok(None) => HolderAnswer::Gone,
         // The number names a process, so the rest of the text decides: it is another process only when the boot is this
-        //  one and the birth is a spelling this reader can compare, and otherwise nothing is proven.
-        Ok(Some(now)) => boot_is_this_one && birth_text(birth).can_be_compared() && now != birth,
-        // The process table could not be read, so nothing is proven.
-        Err(_unreadable) => false,
+        //  one and the birth is a spelling this reader can compare, and otherwise nothing is shown either way.
+        Ok(Some(_now)) if !boot_is_this_one || !birth_text(birth).can_be_compared() => HolderAnswer::CannotBeTold,
+        Ok(Some(now)) if now == birth => HolderAnswer::Alive,
+        Ok(Some(_reused)) => HolderAnswer::Gone,
+        // The process table could not be read, so nothing is shown either way.
+        Err(_unreadable) => HolderAnswer::CannotBeTold,
     };
 }
 

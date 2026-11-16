@@ -787,3 +787,132 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
     std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o700)).expect("writable again");
     remove(root.as_path());
 }
+
+/// The boot ID of this host in the spelling the kernel prints in its own file, with its dashes,
+/// which is the same boot written another way.
+/// Why:
+///   A tool that copied the kernel's file as it is writes the boot this way,
+/// and this reader cannot place it.
+fn this_boot_with_the_kernels_dashes() -> String {
+    let boot: &str = crate::claim_time::current_boot_id();
+    assert_eq!(boot.len(), 32, "this host's boot ID {boot} is not the 32 digits a boot ID has");
+    return format!("{}-{}-{}-{}-{}", &boot[0..8], &boot[8..12], &boot[12..16], &boot[16..20], &boot[20..32]);
+}
+
+/// Ages the held record at `path` so that a command reading it now finds it `age` old.
+fn age_the_held_record(path: &std::path::Path, age: std::time::Duration) {
+    let when: std::time::SystemTime = std::time::SystemTime::now() - age;
+    std::fs::File::options().write(true).open(path).expect("the held record").set_modified(when).expect("the record is aged");
+}
+
+/// What:
+///  A held record whose command can be shown neither alive nor gone is kept,
+///  and past the patience the line names the record,
+///  its owner,
+///  its age and the exact command that removes it.
+/// Why:
+///  The owner decided on 2026-11-16 that such a record stays and that past the patience a command prints those four facts
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force").
+/// The record here names this process's number with a boot written the kernel's way,
+/// so the number is live and the boot cannot be placed:
+/// nothing shows whether the recorded command is this one.
+///  Within the patience nothing more is said than the line every held record gets,
+/// which is the control of this control.
+#[test]
+fn a_held_record_that_cannot_be_told_names_its_record_owner_age_and_removal_past_the_patience() {
+    let root: std::path::PathBuf = fixture("handoff-held-cannot-be-told");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let holding: Holding = Holding {
+        holder: format!("{}/{}/linux:1", this_boot_with_the_kernels_dashes(), std::process::id()),
+        verdict: Verdict::Passed,
+        reason: String::new(),
+    };
+    let (_item, held) = held_with_verdict(&handoff, OID, &holding);
+    let mut wrong: Vec<String> = Vec::new();
+    // Within the patience the record is named as every held record is, and nothing else is said.
+    let fresh: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
+    assert!(held.exists(), "an unclear holder is never settled by a command that is not its gate");
+    if !fresh.iter().any(|line| { return line.contains("has not finished its checks"); }) {
+        wrong.push(format!("within the patience the line is not the one every held record gets: {fresh:?}"));
+    }
+    if fresh.iter().any(|line| { return line.contains("rm -- "); }) {
+        wrong.push(format!("within the patience the line already names a removal: {fresh:?}"));
+    }
+    // Past it, the four facts are named.
+    let age: std::time::Duration = HELD_HOLDER_UNCLEAR_AFTER + std::time::Duration::from_secs(7);
+    age_the_held_record(held.as_path(), age);
+    let said: Vec<String> = held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
+    assert!(held.exists(), "the record stays, as the decision says");
+    let line: String = said.first().cloned().unwrap_or_default();
+    let quoted: String = crate::stale_ref_lock_message::shell_quote(held.as_path());
+    let required: [(&str, String); 5] = [
+        ("the record's path", held.display().to_string()),
+        ("its owner's number", std::process::id().to_string()),
+        ("its owner's birth", holding.holder.clone()),
+        ("its age in seconds", format!("{} seconds", age.as_secs())),
+        ("the exact removal", format!("rm -- {quoted}")),
+    ];
+    for (what, text) in required {
+        if !line.contains(text.as_str()) {
+            wrong.push(format!("the line does not name {what}: it reads {line:?}"));
+        }
+    }
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Refused:
+///  the removal a past-the-patience line names removes that record file and no other,
+///  whatever the path holds,
+///  so a person can paste it and lose nothing.
+/// Why:
+///  The paths a work directory can have include a space,
+/// a quote,
+/// a line break and a leading dash,
+/// and each of them must stay one argument of `rm`.
+/// A path that broke into two would remove a file the person did not name.
+///  This control runs the command the line carries through a shell,
+/// with a neighbour file whose name shares the awkward part,
+/// and asks that the record is gone and the neighbour is not.
+#[test]
+fn the_removal_a_line_names_removes_that_record_and_no_other() {
+    let root: std::path::PathBuf = fixture("handoff-held-removal-quoting");
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, name) in [("a space", "record with a space"), ("a quote", "record's name"), ("a line break", "record\nline"), ("a leading dash", "-record")] {
+        let directory: std::path::PathBuf = root.join(format!("{}-{}", what.replace(' ', "-"), std::process::id()));
+        std::fs::create_dir_all(directory.as_path()).expect("a directory for the record");
+        let record: std::path::PathBuf = directory.join(name);
+        std::fs::write(record.as_path(), "the record").expect("a record beside an awkward name");
+        // A neighbour that shares the awkward part and differs in the rest: a removal that split the argument would take it.
+        let neighbour: std::path::PathBuf = directory.join(format!("{name}.neighbour"));
+        std::fs::write(neighbour.as_path(), "the neighbour").expect("a neighbour file");
+        let line: String = a_holder_that_cannot_be_told(
+            "refs/heads/main",
+            OID,
+            &Holding { holder: format!("{}/{}/linux:1", this_boot_with_the_kernels_dashes(), std::process::id()), verdict: Verdict::Undecided, reason: String::new() },
+            record.as_path(),
+            HELD_HOLDER_UNCLEAR_AFTER,
+        );
+        // The command the line carries sits in backticks, so the text between them, backticks included, is what a person pastes.
+        let Some(command) = line.split_once('`').map(|(_before, after)| { return after.split_once('`').map_or(after, |(command, _after)| { return command; }); }) else {
+            wrong.push(format!("{what}: the line names no removal: {line:?}"));
+            continue;
+        };
+        let ran = std::process::Command::new("/bin/sh").arg("-c").arg(command).output();
+        match ran {
+            Ok(output) if output.status.success() => {}
+            Ok(output) => wrong.push(format!("{what}: the shell refused the removal `{command}`: {}", String::from_utf8_lossy(output.stderr.as_slice()))),
+            Err(error) => wrong.push(format!("{what}: the removal `{command}` could not be run: {error}")),
+        }
+        if record.exists() {
+            wrong.push(format!("{what}: the record named by `{command}` still exists"));
+        }
+        if !neighbour.exists() {
+            wrong.push(format!("{what}: the removal `{command}` took the neighbour file too"));
+        }
+        remove(directory.as_path());
+    }
+    remove(root.as_path());
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

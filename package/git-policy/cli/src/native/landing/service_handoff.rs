@@ -20,7 +20,7 @@
 
 use crate::blocked_commit_lines::named_reason;
 use crate::held_push_commit_on_the_remote::{OnTheRemote, RemoteRecord};
-use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, pid_of, proven_gone};
+use crate::held_push_holder_and_verdict::{HolderAnswer, Holding, Verdict, holder_answer, holding_in, pid_of, proven_gone};
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
@@ -389,6 +389,84 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
     };
 }
 
+/// How old a held record must be before a command tells the person that nothing shows whether its command still runs.
+/// Why:
+///   A record whose holder can be shown neither alive nor gone is kept, and the owner decided on 2026-11-16 that past a
+/// patience the command prints words naming the record, its owner, its age and the exact `rm -- <path>`
+/// (`doc/handover/cli-git-rust-implementation.md`,
+/// "Owner decisions in force",
+/// "A record whose holder can be shown neither alive nor gone").
+/// The landing command writes this record inside its own commit,
+/// and a whole commit is bounded by `ANSWER_CEILING`:
+/// the longest whole commit in the timing log of 2026-11-03 was 750,604 ms,
+/// and twenty minutes is 1.6 times that,
+/// so a record older than this cannot be one a landing command is still working inside.
+/// A record younger than it is one whose landing command may still be running,
+/// and nothing is said beyond the line every held record gets.
+/// Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads and nothing waits on it.
+pub const HELD_HOLDER_UNCLEAR_AFTER: std::time::Duration = crate::wait_ceilings::ANSWER_CEILING;
+
+/// How long ago the file at `record` was written,
+/// zero when its time cannot be read.
+/// Why:
+///   The record's own modification time is the only age there is,
+/// and a time in the future says nothing rather than something wrong.
+fn a_record_s_age(record: &Path) -> std::time::Duration {
+    let Ok(modified) = std::fs::metadata(record).and_then(|metadata| metadata.modified()) else {
+        return std::time::Duration::ZERO;
+    };
+    return std::time::SystemTime::now().duration_since(modified).unwrap_or(std::time::Duration::ZERO);
+}
+
+/// What:
+///  The one sentence the worktree says about a held commit whose command can be shown neither alive nor gone,
+///  past the patience,
+///  naming the record,
+///  its owner,
+///  its age and the command that removes it.
+/// Why:
+///   The record is kept, as the owner decided,
+/// and a person who meets it must be able to tell which record it is,
+/// whose it was,
+/// how long it has stood,
+/// and exactly what removes it.
+/// The age is the record file's time read against this reader's clock,
+/// so a clock that was set forward here,
+/// or one behind where the record was written,
+/// makes it read older or younger than the hold.
+/// The path is quoted for a shell,
+/// so a path with a space,
+/// a quote,
+/// a line break or a leading dash is one argument that removes that file and no other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aHolderThatCannotBeTold(branch, commit, holding, record, age)
+/// ```
+pub fn a_holder_that_cannot_be_told(reference: &str, commit: &str, holding: &Holding, record: &Path, age: std::time::Duration) -> String {
+    let command: String = match pid_of(holding.holder.as_str()) {
+        Some(pid) => format!("process {pid}"),
+        None => String::from("a process whose number cannot be read"),
+    };
+    let carrying: &str = match reference.is_empty() {
+        true => "the next automatic push of this repository carries the commit if it is not published yet, and a push you make yourself sends it the same way",
+        false => "the next automatic push of the branch carries the commit if it is not published yet, and a push you make of it sends it the same way",
+    };
+    return format!(
+        "the commit {commit} is held: its record {} names the command that landed it as {command} ({}), and nothing shows whether that command still runs, \
+         so this record pushes nothing and is kept as it is. The record is {seconds} seconds old, counted from its own time on this host's clock, so a \
+         clock that was set forward here or one behind where it was written makes it read older or younger than the hold. {carrying}. When no \
+         monochromatic-git-policy-cli command that landed a commit runs in this worktree, remove the record with `rm -- {path}` and run the command \
+         again.",
+        record.display(),
+        holding.holder,
+        seconds = age.as_secs(),
+        path = crate::stale_ref_lock_message::shell_quote(record)
+    );
+}
+
 /// What:
 ///  The one sentence the worktree says about a commit whose refusal the queue could not keep as a verdict beside it,
 /// and what still holds it.
@@ -521,6 +599,15 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
                 }
                 // No verdict was ever written: the commit stays local, and the line says what holds it.
                 Verdict::Undecided => {}
+            }
+        }
+        // A holder that can be shown neither alive nor gone is the state the owner decided on 2026-11-16: the record stays,
+        //  and past the patience the line names the record, its owner, its age and the exact command that removes it.
+        if !gone && holder_answer(holding.holder.as_str()) == HolderAnswer::CannotBeTold {
+            let age: std::time::Duration = a_record_s_age(entry.path().as_path());
+            if age >= HELD_HOLDER_UNCLEAR_AFTER {
+                lines.push(a_holder_that_cannot_be_told(branch.as_str(), commit, &holding, entry.path().as_path(), age));
+                continue;
             }
         }
         lines.push(held_push_line(branch.as_str(), commit, &holding, gone));
