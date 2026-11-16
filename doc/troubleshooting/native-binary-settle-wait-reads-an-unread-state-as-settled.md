@@ -134,22 +134,78 @@ so the module was not where it came from.
 
 ## Verified workarounds
 
-The wait now reads the folder by the wrapper's own rule,
+The wait now reads every folder the wrapper's own reader of a Git directory names,
 refuses to answer from a listing it could not
 make,
-lists the three states in the order an item moves through them
-(`open_records`),
-and calls the work settled only on two readings in a row,
+reads the three states in both orders a record moves through them
+(`records_between_the_orders`),
+and calls the work settled only on two looks in a row,
 a pause apart,
-with the reading passed in so a control can stand in for it
+with the listing passed in so a control moves a record between two real listings
 (`package/git-policy/cli/src/native/binary/binary_support_observation.rs`,
-`settle_service_work_read_with`).
+`settle_service_work_list_with`).
 Tradeoff:
 a repository whose queue genuinely cannot be listed now fails the
 control with the directory named,
 instead of passing on a state it never saw;
-and a call that finds nothing reads the queue twice,
-one pause apart.
+a call that finds nothing makes six listings instead of three;
+and its settled case costs one pause.
+
+## A record in motion and a second queue
+
+The review of 2026-11-16 found two more ways this wait answered "settled" without evidence,
+each reproduced against the branch's tip
+(`/home/user/temp/agent/change-reviews/git-policy-cli-settle-wait-of-the-binary-controls-one-function-from-two-repairs/review.md`).
+
+**One recovery missed by two looks.**
+A record an expired claim returns from `claimed` to `pending` through `recovering`
+(`package/git-policy/cli/src/native/landing/work_item_recovery.rs`,
+`requeue_with`),
+and one pass listed the three states at three instants in the order a claim carries a record,
+so the return ran the other way:
+a record that left `recovering` before that listing and reached `pending` after the next was in none of them.
+Two looks a pause apart did not help,
+because the same record could be missed one step on in each;
+the reproduction returned after exactly two empty looks
+and printed `BUG REPRODUCED` with the record still in `pending`
+(`reproductions/one_recovery_missed_by_two_consecutive_empty_readings.rs`).
+
+**A queue under the other name never listed.**
+A repository can hold both data-folder spellings at once,
+and this wait resolved one folder with `path_for_reading`,
+which answers the current spelling when both exist,
+so a record open under `.git/cli-git/work` was never listed;
+the reproduction returned settled in about 20 ms with the earlier queue's record still open
+(`reproductions/current_folder_selected_while_earlier_queue_is_open.rs`).
+
+Both are controls now
+(`package/git-policy/cli/src/native/binary/binary_settle_the_after_commit_work_tests.rs`),
+and both failed against the wait as it stood:
+
+```text
+FAIL [ 1.124s] ... settle_the_after_commit_work::a_recovery_moved_at_every_gap_is_never_read_as_settled
+  the wait answered settled while its record was still in `pending`: the recovery's renames fell at the gaps after listings 2 and 4 of the 6 this control places them at, and the record's work settles only after listing 7
+FAIL [ 1.899s] ... settle_the_after_commit_work::a_queue_under_either_name_is_waited_for_when_both_exist
+  the wait answered settled while .../repo/.git/cli-git/work held a record
+```
+
+The wait now reads every queue the Git directory holds (`work_directories`),
+and reads the three states twice in one look,
+once in the order a claim carries a record and once in the order an expired claim returns it
+(`OPEN_STATES`,
+`RETURNING_STATES`,
+`ORDERS_A_LOOK_READS`).
+A record that only moves one way is missed by one order and seen by the other,
+so an answer no longer turns on which way the service happened to carry the record.
+The one case left is a record that changes state three times inside a single look,
+which the second look then has to miss as well;
+no order of listings can rule that out,
+because a record is always in the state a look is not listing at that moment.
+The seam moved with it:
+`settle_service_work_list_with` gives a control one state directory's listing (`records_in`),
+so a control moves a record at the gap between two real listings
+instead of standing in for a whole look,
+and `LISTINGS_IN_A_LOOK` says how many listings a look takes.
 
 ## What does not work
 

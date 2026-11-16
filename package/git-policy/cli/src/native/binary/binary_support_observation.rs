@@ -387,6 +387,7 @@ pub fn work_listing(work: &Path) -> String {
         .collect::<Vec<String>>()
         .join(" ");
 }
+
 /// How long a wait for the after-commit work pauses before it looks again:
 ///  the pause between its two looks,
 /// and the pause between one look and the next while work is still queued.
@@ -403,15 +404,33 @@ const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 /// `take_entry`).
 /// Why this order:
 ///  a claim moves a record `pending` to `recovering` to `claimed` by two renames with a stamp between them,
-/// so the listings are taken in that order:
+/// so a look lists them in that order:
 /// a record that left `pending` before it was listed is in `recovering` when that is listed,
 /// and it cannot have reached `claimed` unseen,
 /// because that listing comes last.
 const OPEN_STATES: [&str; 3] = [PENDING, RECOVERING, CLAIMED];
 
+/// The same three states in the order an expired claim returns a record to `pending`
+/// (`landing/work_item_recovery.rs`,
+/// `requeue_with`).
+/// Why this order is read as well:
+///  a record that only moves one way is missed by a look that lists the states the other way,
+/// so a look reads both:
+/// the order a claim carries a record through (`OPEN_STATES`) sees a claim,
+/// and this order sees the return an expired claim makes,
+/// whichever gap between two listings the renames of either fall in.
+/// A record that is in one of the three folders when a look ends was in one of the listings of one of the two orders,
+/// unless it changes state three times inside that single look,
+/// which the two looks a pause apart then have to miss as well.
+const RETURNING_STATES: [&str; 3] = [CLAIMED, RECOVERING, PENDING];
+
+/// The orders one look lists the three states in,
+/// the order a claim moves a record and the order an expired claim returns it.
+const ORDERS_A_LOOK_READS: [[&str; 3]; 2] = [OPEN_STATES, RETURNING_STATES];
+
 /// How many state listings one look takes,
 /// for a control that moves a record at a gap between two of them.
-pub const LISTINGS_IN_A_LOOK: usize = OPEN_STATES.len();
+pub const LISTINGS_IN_A_LOOK: usize = ORDERS_A_LOOK_READS.len() * OPEN_STATES.len();
 
 /// What:
 ///  How many records one state directory of a work directory holds,
@@ -447,27 +466,32 @@ pub fn records_in(work: &Path, state: &str) -> Result<usize, String> {
 ///  The records one look finds in a work directory,
 ///  a listing it could not make named in a failure.
 /// Why:
-///   The states are listed in the order an item moves through them (`OPEN_STATES`),
-/// so a record the wait is asked about while a claim carries it is seen in one pass,
-/// whichever gap between two listings the claim's two renames fall in.
-/// A settled answer can therefore not turn on how fast the machine carried a claim,
-/// which is what the failing sighting did:
-/// one control read the queue as settled and the service ran the relink it held three milliseconds later
-/// (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
-/// 2026-11-14).
+///   A record is in one of the three states at every instant,
+/// and either of the two motions the queue makes carries it from one to another between two listings,
+/// so a look lists the states in both orders (`ORDERS_A_LOOK_READS`):
+/// whichever way the record moves,
+/// the order that lists the state it left before the state it reached sees it,
+/// and an answer of "settled" cannot turn on how fast the machine carried it.
+/// One pass in the order a claim moves a record already could not miss a claim,
+/// which is what the failing sighting of 2026-11-14 was,
+/// but an expired claim's return runs the other way and one pass can miss it
+/// (review of 2026-11-16,
+/// `one_recovery_missed_by_two_consecutive_empty_readings.rs`).
 ///  A queue nothing can list is reported with the work it would have held
 ///  (`work_listing`) instead of ending the wait as settled work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const betweenTheStates = (work, recordsIn) => OPEN_STATES.reduce((total, state) => total + recordsIn(work, state), 0);
+/// const betweenTheOrders = (work, recordsIn) => ORDERS_A_LOOK_READS.flat().reduce((total, state) => total + recordsIn(work, state), 0);
 /// ```
-fn records_between_the_states(work: &Path, records_in: &dyn Fn(&Path, &str) -> Result<usize, String>) -> usize {
+fn records_between_the_orders(work: &Path, records_in: &dyn Fn(&Path, &str) -> Result<usize, String>) -> usize {
     let mut total: usize = 0;
-    for state in OPEN_STATES {
-        match records_in(work, state) {
-            Ok(count) => total += count,
-            Err(unread) => panic!("{unread}: {}", work_listing(work)),
+    for order in ORDERS_A_LOOK_READS {
+        for state in order {
+            match records_in(work, state) {
+                Ok(count) => total += count,
+                Err(unread) => panic!("{unread}: {}", work_listing(work)),
+            }
         }
     }
     return total;
@@ -477,12 +501,18 @@ fn records_between_the_states(work: &Path, records_in: &dyn Fn(&Path, &str) -> R
 ///  The queue folders of the repository around `directory`,
 /// and nothing when no Git directory above it holds one.
 /// Why:
-///   The queue is read under the data folder the wrapper's own reading of a Git directory names
-/// (`path_for_reading`),
-/// because a repository whose folder keeps the earlier release's name holds its queue there.
+///   A repository can hold both data-folder spellings at once,
+/// while the folder is folded or after a process was killed during a move,
+/// and the wrapper's own reader of those folders says that reading the first one alone hides the other
+/// (`foundation/kept_names_in_the_git_directories.rs`,
+/// `relative_paths_for_reading`).
+/// A record open under the earlier name was never listed while this wait resolved one folder
+/// (review of 2026-11-16,
+/// `current_folder_selected_while_earlier_queue_is_open.rs`).
 fn work_directories(directory: &Path) -> Option<Vec<PathBuf>> {
     let git_dir: PathBuf = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); })?;
-    return Some(vec![git_policy_cli::kept_names_in_the_git_directories::path_for_reading(git_dir.as_path(), git_policy_cli::work_item::WORK_DIRECTORY)]);
+    let relative: Vec<String> = git_policy_cli::kept_names_in_the_git_directories::relative_paths_for_reading(git_dir.as_path(), git_policy_cli::work_item::WORK_DIRECTORY);
+    return Some(relative.iter().map(|path: &String| { return git_dir.join(path); }).collect());
 }
 
 /// What:
@@ -504,6 +534,9 @@ fn work_directories(directory: &Path) -> Option<Vec<PathBuf>> {
 /// and a control that means to read what one step of the work did waits for that step's own record
 /// (`wait_for_pnpm_runs`),
 /// because no reading of a queue says what a service has not reached yet.
+///  Every queue the repository's Git directory can hold is read,
+/// in both orders a record moves through its states (`work_directories`,
+/// `records_between_the_orders`).
 pub fn settle_service_work(directory: &Path) {
     return settle_service_work_list_with(directory, &records_in);
 }
@@ -531,7 +564,7 @@ pub fn settle_service_work_list_with(directory: &Path, records_in: &dyn Fn(&Path
     let Some(work_paths) = work_directories(directory) else {
         return;
     };
-    return settle_while_records_are_open(work_paths.as_slice(), &|work: &Path| { return records_between_the_states(work, records_in); });
+    return settle_while_records_are_open(work_paths.as_slice(), &|work: &Path| { return records_between_the_orders(work, records_in); });
 }
 
 /// What:

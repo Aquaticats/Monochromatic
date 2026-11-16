@@ -19,7 +19,7 @@
 //! `pending`,
 //!  and a repository holding both data-folder spellings kept a record open in a queue the wait never listed
 //! (`doc/troubleshooting/native-binary-settle-wait-reads-an-unread-state-as-settled.md`,
-//! "A record in motion, and a second queue").
+//! "A record in motion and a second queue").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -179,14 +179,16 @@ struct MovingRecord {
     state: RefCell<&'static str>,
     /// How many listings have been answered.
     listings: Cell<usize>,
-    /// What happens in the gap after each listing, by the number of the listing it follows:
+    /// What happens in the gap after each listing,
+    /// by the number of the listing it follows:
     /// the state the record is moved to.
     moves_after: Vec<(usize, &'static str)>,
 }
 
 impl MovingRecord {
     /// What:
-    ///  The listing the wait asks for, with the record's next move done in the gap after it.
+    ///  The listing the wait asks for,
+    /// with the record's next move done in the gap after it.
     /// Why:
     ///   A control cannot make a rename straddle a listing on a real filesystem,
     ///  so it moves the record in the gap the wait itself leaves between two listings,
@@ -308,7 +310,8 @@ fn an_empty_queue(repo: &Path, data_folder: &str) -> PathBuf {
 /// and the wrapper's own reader of those folders says reading the first alone hides the other
 /// (`foundation/kept_names_in_the_git_directories.rs`,
 /// `relative_paths_for_reading`).
-/// Until 2026-11-16 this wait resolved one folder, so a record open under the earlier name was never listed
+/// Until 2026-11-16 this wait resolved one folder,
+/// so a record open under the earlier name was never listed
 /// (review of 2026-11-16,
 /// `current_folder_selected_while_earlier_queue_is_open.rs`).
 /// What this control proves:
