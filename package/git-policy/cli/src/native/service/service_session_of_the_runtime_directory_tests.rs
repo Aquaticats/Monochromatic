@@ -165,3 +165,31 @@ fn a_bus_address_that_spells_the_runtime_directory_another_way_is_this_session()
     );
     crate::test_support::remove(root.as_path());
 }
+
+/// What:
+///  A resolution that gives no answer in time is no proof, and the command keeps the account's durable state.
+/// Why:
+///  The sixth review of issue 6293 (finding 5):
+///  two paths that differ as text were resolved with no ceiling,
+/// so a mount that stopped answering could hold a commit before any bounded wait.
+/// The control makes the resolution take longer than the ceiling;
+/// the safe side is "not proven", which keeps the journal where a logout does not clear it.
+#[test]
+fn a_resolution_that_gives_no_answer_in_time_is_not_proven_and_keeps_the_durable_state() {
+    let root: PathBuf = crate::test_support::fixture("session-slow-resolution");
+    let runtime: PathBuf = root.join("run/user/1000");
+    std::fs::create_dir_all(runtime.as_path()).expect("the runtime directory");
+    let aliased: String = format!("unix:path={}/../1000/bus", runtime.display());
+    crate::service_session_of_the_runtime_directory::a_control_takes_the_resolution_slowly(super::PLACE_LOOK_CEILING + std::time::Duration::from_millis(1500));
+    let began: std::time::Instant = std::time::Instant::now();
+    let session: Session = session_of(Some(runtime.as_path()), runtime.as_path(), Some(aliased.as_str()));
+    let waited: std::time::Duration = began.elapsed();
+    assert_eq!(session, Session::Unproven, "a resolution that gave no answer is not this session and not another");
+    assert!(waited < super::PLACE_LOOK_CEILING + std::time::Duration::from_secs(1), "the answer came at the ceiling and not with the stuck call: {waited:?}");
+    assert_eq!(
+        state_dir_of_the_command(Some(runtime.as_path()), runtime.as_path(), Some(aliased.as_str()), Some(Path::new("/account/state")), Some(Path::new("/home/user"))),
+        Some(PathBuf::from("/account/state")),
+        "and the durable records stay in the account's state directory"
+    );
+    crate::test_support::remove(root.as_path());
+}

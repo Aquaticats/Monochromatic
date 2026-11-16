@@ -170,7 +170,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     //       directory "proven by nothing" and move its journals, scratch and retry plans into storage a logout clears
     //       (the sixth review of issue 6293, finding 5).
     let named_in_use: Option<PathBuf> = match inputs.named_runtime_dir {
-        Some(named) if crate::service_session_of_the_runtime_directory::same_place(named, runtime_dir) => Some(named.to_path_buf()),
+        Some(named) if matches!(crate::service_session_of_the_runtime_directory::same_place(named, runtime_dir), Some(true)) => Some(named.to_path_buf()),
         _ => None,
     };
     // What: The state folder of this command: the account's, or the runtime directory for a run of its own.

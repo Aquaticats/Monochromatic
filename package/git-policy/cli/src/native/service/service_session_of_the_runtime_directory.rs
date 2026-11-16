@@ -97,7 +97,7 @@ pub enum Session {
 /// ```
 pub fn session_of(named_runtime_directory: Option<&Path>, runtime_dir: &Path, bus_address: Option<&str>) -> Session {
     let Some(named) = named_runtime_directory else { return Session::Unproven };
-    if !same_place(named, runtime_dir) {
+    if !matches!(same_place(named, runtime_dir), Some(true)) {
         return Session::Unproven;
     }
     let Some(spelled) = bus_address else { return Session::Unproven };
@@ -107,7 +107,12 @@ pub fn session_of(named_runtime_directory: Option<&Path>, runtime_dir: &Path, bu
         }
         let Some(path) = one.strip_prefix(PATH_ENTRY) else { continue };
         let Some(directory) = Path::new(path).parent() else { return Session::Unproven };
-        return if same_place(directory, runtime_dir) { Session::ThisSession } else { Session::AnotherSession };
+        return match same_place(directory, runtime_dir) {
+            Some(true) => Session::ThisSession,
+            Some(false) => Session::AnotherSession,
+            // No answer in time is no proof: "not proven" never moves a real session's records.
+            None => Session::Unproven,
+        };
     }
     return Session::Unproven;
 }
@@ -130,15 +135,94 @@ pub fn session_of(named_runtime_directory: Option<&Path>, runtime_dir: &Path, bu
 /// ```ts
 /// samePlace(a, b) // a === b || (realpath(a) === realpath(b))
 /// ```
-pub(crate) fn same_place(left: &Path, right: &Path) -> bool {
+pub(crate) fn same_place(left: &Path, right: &Path) -> Option<bool> {
     if left == right {
-        return true;
+        return Some(true);
     }
-    return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
-        (Ok(resolved_left), Ok(resolved_right)) => resolved_left == resolved_right,
-        _ => false,
+    return same_place_within(left, right, PLACE_LOOK_CEILING);
+}
+
+/// What:
+///  Whether two spellings name one place, resolved within `ceiling`,
+///  or nothing when the file system gave no answer in time.
+/// Why:
+///   A path resolution waits in the kernel, and a mount that stopped answering waits with no end;
+/// the owner's rule is that nothing waits forever, and no blocking call may hold a worker
+/// (`work_awaited_within_a_ceiling.rs`, `doc/planning/git-policy-cli-full-tokio.md`).
+/// A resolve that gave no answer is not evidence that the two paths differ,
+/// so the caller gets nothing and answers "not proven", which keeps the account's state directory:
+/// the safe side, because the other side moves durable records into storage a logout clears
+/// (the sixth review of issue 6293, finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// samePlaceWithin(a, b, ceiling) // true | false | undefined within the ceiling
+/// ```
+fn same_place_within(left: &Path, right: &Path, ceiling: std::time::Duration) -> Option<bool> {
+    let here: std::path::PathBuf = left.to_path_buf();
+    let there: std::path::PathBuf = right.to_path_buf();
+    let resolved = crate::work_awaited_within_a_ceiling::work_within_reporting(ceiling, move || {
+        run_the_controls_step_before_the_resolution();
+        return (std::fs::canonicalize(here), std::fs::canonicalize(there));
+    });
+    return match resolved {
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran((Ok(here), Ok(there))) => Some(here == there),
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(_) => Some(false),
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart
+        | crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => None,
     };
 }
+
+// What:
+//  A control's step before the two paths are resolved, so a resolution that outlasts the ceiling is produced without a stalled
+//  mount.
+// Why:
+//   The rule this change answers is about a resolution that gives no answer in time, and no control on this host can stall a
+//   file system call.
+// The resolution runs on the thread of the bounded job, so the control's step is shared by the threads of this process.
+#[cfg(test)]
+static BEFORE_THE_RESOLUTION: std::sync::Mutex<Option<std::time::Duration>> = std::sync::Mutex::new(None);
+
+/// What:
+///  Makes the next resolution take `slowly`, so a control can produce one that outlasts its ceiling.
+/// Why:
+///   It is the one way to hold the file-system call the bound exists for,
+/// and it runs on the thread of the bounded job, which is left behind exactly as a stuck call is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aControlTakesTheResolutionSlowly(2000)
+/// ```
+#[cfg(test)]
+pub(crate) fn a_control_takes_the_resolution_slowly(slowly: std::time::Duration) {
+    let mut slot = match BEFORE_THE_RESOLUTION.lock() {
+        Ok(slot) => slot,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *slot = Some(slowly);
+}
+
+/// Runs a control's slow resolution once, if one was set.
+fn run_the_controls_step_before_the_resolution() {
+    #[cfg(test)]
+    {
+        let slowly: Option<std::time::Duration> = match BEFORE_THE_RESOLUTION.lock() {
+            Ok(mut slot) => slot.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        };
+        if let Some(slowly) = slowly {
+            std::thread::sleep(slowly);
+        }
+    }
+}
+
+/// The longest the session's own boundary waits for two spellings of a path to be resolved.
+/// Why:
+///   It is a look at the file system on a command's own path,
+/// and it buys the answer this boundary needs:
+/// a quarter of a second is `WARM_REQUEST_CONNECT_CEILING`, the ceiling the package gives a look made before a request,
+/// and a resolve that outlasts it is one the file system is not answering.
+pub const PLACE_LOOK_CEILING: std::time::Duration = crate::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
 
 /// What:
 ///  Whether the session bus this command inherited is the one inside `runtime_dir`.
