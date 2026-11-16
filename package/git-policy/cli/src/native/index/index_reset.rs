@@ -67,7 +67,7 @@ fn selected(path: &[u8], names: &[&[u8]]) -> bool {
         return true;
     }
     let mut end: usize = path.len();
-    while let Some(slash) = path[..end].iter().rposition(|byte| *byte == b'/') {
+    while let Some(slash) = path[..end].iter().rposition(|byte| return *byte == b'/') {
         let ancestor: &[u8] = &path[..slash];
         if names.binary_search(&ancestor).is_ok() {
             return true;
@@ -289,7 +289,7 @@ pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry],
     }
     prepare_extensions(index, settings)?;
     // The paths that differ, in path order: each is in the tree, the index or both.
-    let mut ordered: Vec<&[u8]> = names.iter().map(|name| name.as_slice()).collect();
+    let mut ordered: Vec<&[u8]> = names.iter().map(|name| return name.as_slice()).collect();
     ordered.sort_unstable();
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for entry in tree {

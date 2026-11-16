@@ -115,3 +115,34 @@ fn a_large_commit_of_deletions_lands_gits_tree() {
 fn a_large_commit_of_renames_lands_gits_tree() {
     a_large_commit_of("commit-large-rename", "rename");
 }
+
+/// A commit of a thousand files that lack their final newline:
+/// the policy corrects every one of them,
+/// and the commit and the worktree both hold the corrected bytes.
+/// Why:
+///  This is the shape a pass that corrects many files has:
+/// one blob and one index entry per correction,
+/// and the worktree copy proven unchanged before it is replaced.
+/// The batch that writes them must not start a Git process per file,
+/// and the tree it lands must be the corrected one.
+#[test]
+fn a_large_commit_of_files_missing_their_final_newline_lands_the_corrected_tree() {
+    let fixture: Fixture = fixture("commit-large-correct");
+    let repo: PathBuf = many_files(&fixture, "repo");
+    for number in 0..CHANGED_FILES {
+        std::fs::write(repo.join(file_at(number)), format!("edit {number}")).expect("edit without a newline");
+    }
+    git(&fixture, repo.as_path(), &["add", "--all"]);
+    let landed = run_commit(&fixture, repo.as_path(), &["commit", "--no-only", "--quiet", "--message=corrected"]);
+    assert_eq!(landed.code, Some(0), "a large corrected commit: {}", stderr_of(&landed));
+    let landed_tree: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD^{tree}"]).trim().to_string();
+    let installed_tree: String = git_text(&fixture, repo.as_path(), &["write-tree"]).trim().to_string();
+    assert_eq!(landed_tree, installed_tree, "the commit lands the corrected tree the installed index holds");
+    assert_eq!(porcelain(&fixture, repo.as_path()), "", "the correction reaches the worktree and leaves nothing staged");
+    for number in [0, CHANGED_FILES / 2, CHANGED_FILES - 1] {
+        let shown: String = git_text(&fixture, repo.as_path(), &["show", format!("HEAD:{}", file_at(number)).as_str()]);
+        assert!(shown.ends_with('\n'), "the corrected file {number} ends with a newline: {shown:?}");
+    }
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}

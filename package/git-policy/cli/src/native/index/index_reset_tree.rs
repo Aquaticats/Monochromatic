@@ -96,7 +96,7 @@ fn entries_at_many(
         return None;
     }
     let entries: Vec<TreeEntry> = entries_of(database, tree, format)?;
-    let by_name: BTreeMap<&[u8], &TreeEntry> = entries.iter().map(|entry| (entry.name.as_slice(), entry)).collect();
+    let by_name: BTreeMap<&[u8], &TreeEntry> = entries.iter().map(|entry| return (entry.name.as_slice(), entry)).collect();
     let mut position: usize = 0;
     while position < names.len() {
         let (component, children): (&[u8], usize) = component_at(names[position].as_slice(), offset);
@@ -143,7 +143,7 @@ fn entries_at_many(
 /// as the component walk found no entry for it; it is dropped here rather than read as its directory.
 pub fn tree_entries_at(database: &ObjectDatabase, root: &[u8], names: &[Vec<u8>], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
     let mut ordered: Vec<Vec<u8>> = names.to_vec();
-    ordered.retain(|name| name.last() != Some(&b'/'));
+    ordered.retain(|name| return name.last() != Some(&b'/'));
     ordered.sort_unstable();
     ordered.dedup();
     let mut found: Vec<FlatEntry> = Vec::new();

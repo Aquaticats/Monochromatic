@@ -66,6 +66,7 @@ fn selected_corrections_are_recorded_only_while_the_worktree_holds_the_original(
         repo.as_path(),
         repo.as_path(),
         index.as_path(),
+        crate::repo_read_layout::ObjectFormat::Sha1,
         &[
             change("a.txt", b"one", b"one\n"),
             change("b.txt", b"two", b"two\n"),
@@ -109,6 +110,7 @@ fn a_correction_below_the_top_is_recorded_by_its_repository_relative_name() {
         repo.join("sub").as_path(),
         repo.as_path(),
         index.as_path(),
+        crate::repo_read_layout::ObjectFormat::Sha1,
         &[InstallChange {
             path: b"sub/a.txt".to_vec(),
             mode: CandidateMode::Regular,
@@ -153,6 +155,7 @@ fn a_completion_record_reads_its_entry_under_the_callers_conflicting_glob_modes(
         repo.as_path(),
         repo.as_path(),
         index.as_path(),
+        crate::repo_read_layout::ObjectFormat::Sha1,
         &[InstallChange {
             path: b"a.txt".to_vec(),
             mode: CandidateMode::Regular,
@@ -211,6 +214,7 @@ fn a_changed_mode_or_an_unchanged_blob_gets_no_completion() {
         repo.as_path(),
         repo.as_path(),
         repo.join(".git/index").as_path(),
+        crate::repo_read_layout::ObjectFormat::Sha1,
         &[change("same.txt", b"same", b"same\n"), change("moded.txt", b"moded", b"moded\n")],
     )
     .expect("records");
@@ -250,6 +254,7 @@ fn a_case_insensitive_lookup_records_the_path_it_asked_about() {
         repo.as_path(),
         repo.as_path(),
         repo.join(".git/index").as_path(),
+        crate::repo_read_layout::ObjectFormat::Sha1,
         &[InstallChange {
             path: b"a.txt".to_vec(),
             mode: CandidateMode::Regular,

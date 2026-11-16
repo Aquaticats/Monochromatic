@@ -15,9 +15,12 @@
 use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install::InstallChange;
 use crate::path_bytes::os_from_path_bytes;
+use crate::repo_read_layout::ObjectFormat;
+use crate::subvolume_sha::{sha1, sha256};
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 use crate::transaction_journal::AddedPath;
 use crate::worktree_completion::{WorktreeFileState, inspect_worktree_file};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// What:
@@ -43,19 +46,23 @@ fn ordinary_git_mode(mode: CandidateMode) -> Option<&'static str> {
 /// without writing an object.
 /// Why:
 ///   The record names the original staged blob,
-/// which only its bytes determine.
+/// which only its bytes determine,
+/// and a commit that corrected thousands of files asked Git for each hash:
+/// the hash is the framed bytes under the repository's object format,
+/// so it is computed here in one pass and starts nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// gitBlobId(bytes)
+/// const oid = hash(`blob ${bytes.length}\0`, bytes); // sha1 or sha256
 /// ```
-fn blob_id(context: &GitContext, cwd: &Path, bytes: &[u8]) -> Result<String, GitFailure> {
-    let mut request: GitRequest = GitRequest::new(cwd, &["hash-object", "--stdin"]);
-    request.without_prefix = true;
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
-    request.input = Some(bytes.to_vec());
-    let output: GitOutput = run_git_checked(context, &request)?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+fn blob_id(bytes: &[u8], format: ObjectFormat) -> String {
+    let mut framed: Vec<u8> = format!("blob {}\0", bytes.len()).into_bytes();
+    framed.extend_from_slice(bytes);
+    let digest: Vec<u8> = match format {
+        ObjectFormat::Sha1 => sha1(framed.as_slice()).to_vec(),
+        ObjectFormat::Sha256 => sha256(framed.as_slice()).to_vec(),
+    };
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(digest.as_slice());
 }
 
 /// What:
@@ -89,14 +96,60 @@ fn is_tab_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  The settled mode and object of one path in the private index,
-/// or nothing when it has no stage-zero entry.
+///  The settled mode and object of each path in the private index,
+/// in the order the listing names them,
+/// with a path that has no stage-zero entry left out.
 /// Why:
-///   A correction counts only while the settled entry still has the ordinary mode of the original.
+///   A correction counts only while the settled entry still has the ordinary mode of the original,
+/// and one listing answers every corrected path of a pass,
+/// so a commit that corrected thousands of files starts one Git, not one for each.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await loadIndexEntries({ gitPath, cwd, indexPath, paths })).get(path)
+/// const entries = await loadIndexEntries({ indexPath, paths }); // one ls-files --stage
+/// ```
+pub fn settled_entries(context: &GitContext, cwd: &Path, index: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, (String, String)>, GitFailure> {
+    /// The most paths one listing names: a thousand paths of a quarter kilobyte each stay far under the
+    /// argument limit of one start, and a pass of many corrections pays one start per thousand instead of one per path.
+    const PATHS_PER_LISTING: usize = 1_024;
+    let mut settled: BTreeMap<Vec<u8>, (String, String)> = BTreeMap::new();
+    for chunk in paths.chunks(PATHS_PER_LISTING) {
+        let mut request: GitRequest = GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
+        for path in chunk {
+            let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
+            pathspec.extend_from_slice(path.as_slice());
+            request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+        }
+        request.without_prefix = true;
+        // The listing runs in the caller's repository, which a Git directory beside its work tree only names.
+        request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+        request.index = Some(index.to_path_buf());
+        let output: GitOutput = run_git_checked(context, &request)?;
+        for record in output.stdout.split(is_nul_byte) {
+            let Some(tab) = record.iter().position(is_tab_byte) else {
+                continue;
+            };
+            let metadata: String = String::from_utf8_lossy(&record[..tab]).into_owned();
+            let fields: Vec<&str> = metadata.split(' ').collect();
+            if fields.len() == 3 && fields[2] == "0" {
+                settled.insert(record[tab + 1..].to_vec(), (String::from(fields[0]), String::from(fields[1])));
+            }
+        }
+    }
+    return Ok(settled);
+}
+
+/// What:
+///  The settled entry of one path,
+/// read with one Git start.
+/// Why:
+///   The record of one correction is written from one path;
+/// a control that asks about one path uses this,
+/// and the pass itself reads every path in one listing (`settled_entries`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await loadIndexEntries({ indexPath, paths: [path] })).get(path)
 /// ```
 pub fn settled_entry(
     context: &GitContext,
@@ -104,38 +157,8 @@ pub fn settled_entry(
     index: &Path,
     path: &[u8],
 ) -> Result<Option<(String, String)>, GitFailure> {
-    let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
-    pathspec.extend_from_slice(path);
-    // The pathspec is magic, and this start skips the caller's prefix, so every mode the caller set is
-    // removed from the child's environment: under literal mode the name would match nothing and a landed
-    // correction would never reach the worktree copy, and two glob modes at once make Git refuse the listing
-    // and fail the commit.
-    // `--full-name` answers with repository-relative names, which is how `path` is written: from a
-    // nested working directory `ls-files` would otherwise report `a.txt` for the `sub/a.txt` asked about.
-    let mut request: GitRequest = GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
-    request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
-    request.without_prefix = true;
-    // The listing runs in the caller's repository, which a Git directory beside its work tree only names.
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
-    request.index = Some(index.to_path_buf());
-    let output: GitOutput = run_git_checked(context, &request)?;
-    for record in output.stdout.split(is_nul_byte) {
-        let Some(tab) = record.iter().position(is_tab_byte) else {
-            continue;
-        };
-        // This asks about one path, so a record naming another is not its settled entry: under
-        // `GIT_ICASE_PATHSPECS=1` Git lists every entry whose name differs only in case, and the first one is
-        // not necessarily the path asked about.
-        if record.get(tab + 1..) != Some(path) {
-            continue;
-        }
-        let metadata: String = String::from_utf8_lossy(&record[..tab]).into_owned();
-        let fields: Vec<&str> = metadata.split(' ').collect();
-        if fields.len() == 3 && fields[2] == "0" {
-            return Ok(Some((String::from(fields[0]), String::from(fields[1]))));
-        }
-    }
-    return Ok(None);
+    let mut settled = settled_entries(context, cwd, index, &[path.to_vec()])?;
+    return Ok(settled.remove(path));
 }
 
 /// What:
@@ -155,18 +178,21 @@ pub fn selected_worktree_records(
     cwd: &Path,
     repository_root: &Path,
     index: &Path,
+    format: ObjectFormat,
     changes: &[InstallChange],
 ) -> Result<Vec<AddedPath>, GitFailure> {
+    let wanted: Vec<Vec<u8>> = changes.iter().filter(|change| return ordinary_git_mode(change.mode).is_some()).map(|change| return change.path.clone()).collect();
+    let settled: BTreeMap<Vec<u8>, (String, String)> = settled_entries(context, cwd, index, wanted.as_slice())?;
     let mut records: Vec<AddedPath> = Vec::new();
     for change in changes {
         let Some(git_mode) = ordinary_git_mode(change.mode) else {
             continue;
         };
-        let original_oid: String = blob_id(context, cwd, &change.original)?;
-        let Some((entry_mode, entry_oid)) = settled_entry(context, cwd, index, change.path.as_slice())? else {
+        let original_oid: String = blob_id(change.original.as_ref(), format);
+        let Some((entry_mode, entry_oid)) = settled.get(&change.path) else {
             continue;
         };
-        if entry_mode != git_mode || entry_oid == original_oid {
+        if entry_mode.as_str() != git_mode || entry_oid.as_str() == original_oid.as_str() {
             continue;
         }
         let destination = repository_root.join(path_from_bytes(change.path.as_slice()));
@@ -185,7 +211,7 @@ pub fn selected_worktree_records(
             path: change.path.clone(),
             git_mode: String::from(git_mode),
             original_oid,
-            intended_oid: entry_oid,
+            intended_oid: entry_oid.clone(),
         });
     }
     return Ok(records);

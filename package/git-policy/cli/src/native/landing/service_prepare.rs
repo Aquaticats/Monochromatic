@@ -362,7 +362,12 @@ pub fn prepare<F: RepositoryFacts>(
     part.next("worktreeRecords");
     let repository_root: &Path = capture.layout.repository_root.as_path();
     let install = private.content.install_changes();
-    let records: Vec<AddedPath> = selected_worktree_records(context, cwd, repository_root, indexes.commit_index.as_path(), install.as_slice())?;
+    let object_format: crate::repo_read_layout::ObjectFormat = if capture.layout.object_format == crate::repo_read_layout::ObjectFormat::Sha256.name() {
+        crate::repo_read_layout::ObjectFormat::Sha256
+    } else {
+        crate::repo_read_layout::ObjectFormat::Sha1
+    };
+    let records: Vec<AddedPath> = selected_worktree_records(context, cwd, repository_root, indexes.commit_index.as_path(), object_format, install.as_slice())?;
     // Corrections that removed every change leave nothing to commit: the copies are reconciled and the person is told.
     let eligible: bool = !install.is_empty() && !region.allow_empty && !amends && !selection.concludes_sequencer;
     part.next("treeCheck");

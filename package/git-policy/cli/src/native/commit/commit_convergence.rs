@@ -28,7 +28,7 @@ use crate::policy_events::PolicyEvent;
 use crate::policy_pass::{PassResult, run_policy_pass};
 use crate::path_bytes::path_message_text;
 use crate::policy_trigger::Trigger;
-use crate::private_index_stage::{PrivateStage, stage_correction};
+use crate::private_index_stage::{PrivateStage, stage_correction, stage_corrections};
 use crate::repository_facts::RepositoryFacts;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -161,11 +161,23 @@ impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
             Some(pass) => pass.arguments.clone(),
             None => unreachable!("apply follows a pass that proposed corrections"),
         };
-        for correction in &proposals {
-            if let Err(message) = stage_correction(&self.stage, correction) {
-                self.blocked = Some(patch_conflict_pass(arguments.as_slice(), correction.path.as_slice(), message));
-                return false;
+        // What: One pass's corrections go into the private index in two Git starts, and only a batch that
+        //      failed is tried one correction at a time, to name the path Git refused.
+        // Why:  A formatter or a final-newline rule can correct thousands of files in one pass, and a
+        //      `hash-object` and an `update-index` for each of them was a process per file.
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!await stageCorrections(stage, proposals)) for (const correction of proposals) await stageCorrection(stage, correction);
+        // ```
+        if let Err(_batch) = stage_corrections(&self.stage, proposals.as_slice()) {
+            for correction in &proposals {
+                if let Err(message) = stage_correction(&self.stage, correction) {
+                    self.blocked = Some(patch_conflict_pass(arguments.as_slice(), correction.path.as_slice(), message));
+                    return false;
+                }
             }
+        }
+        for correction in &proposals {
             record_path(&mut self.changed_paths, correction);
         }
         self.checks.content.apply(proposals);
