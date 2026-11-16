@@ -3240,3 +3240,111 @@ fn a_kept_stage_is_examined_once_and_its_reason_reused() {
     make_removable(container.as_path());
     remove(root.as_path());
 }
+/// A change below a subfolder of the payload makes the kept record stale,
+/// so removing the person's nested file lets the next command settle the folder,
+/// which is the way out the line gives them.
+/// Why the control reads this way:
+///  the record's times were read from `payload/` alone,
+///  and creating or removing `payload/ignored/pkg/notes.txt` changes the times of `payload/ignored/pkg/` and not
+///  those of `payload/`,
+///  so every later command printed a reason naming a file that was gone and the folder stayed for good.
+#[test]
+fn a_nested_change_makes_the_kept_reason_stale_and_the_folder_settles() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-nested-stale", "ignored/pkg/notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let persons: PathBuf = container.join("payload/ignored/pkg/notes.txt");
+    let first: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
+    assert!(first.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("payload/ignored/pkg/notes.txt"); }), "{first:?}");
+    // The person does what the line says: removes the file it names, below a subfolder of the payload.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::remove_file(persons.as_path()).expect("the person's file goes");
+    let second: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the second pass examines it again");
+    assert!(!container.exists(), "the folder settles once the person's file is gone: {second:?}");
+    assert!(second.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "{second:?}");
+    remove(root.as_path());
+}
+
+/// A whole second is not needed for a nested change to be seen,
+/// so the record is not stale for as long as its whole-second granularity would have made it.
+#[test]
+fn a_nested_change_in_the_same_second_makes_the_kept_reason_stale() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-nested-same-second", "ignored/pkg/notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let persons: PathBuf = container.join("payload/ignored/pkg/notes.txt");
+    let first: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
+    assert!(first.iter().any(|notice: &String| { return notice.contains("payload/ignored/pkg/notes.txt"); }), "{first:?}");
+    // No sleep at all: the change lands in the same second as the record.
+    std::fs::remove_file(persons.as_path()).expect("the person's file goes");
+    let second: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the second pass examines it again");
+    assert!(!container.exists(), "the folder settles in the same second: {second:?}");
+    remove(root.as_path());
+}
+
+/// A change at the top of the payload makes the record stale too, as it always did.
+#[test]
+fn a_top_level_change_still_makes_the_kept_reason_stale() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-top-stale", "notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let first: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
+    assert!(first.iter().any(|notice: &String| { return notice.contains("payload/notes.txt"); }), "{first:?}");
+    std::fs::remove_file(container.join("payload/notes.txt").as_path()).expect("the person's file goes");
+    let second: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the second pass examines it again");
+    assert!(!container.exists(), "the folder settles: {second:?}");
+    remove(root.as_path());
+}
+
+/// The record that says why a stage was kept goes when its claim goes,
+/// so the journal root keeps no litter of them.
+/// Why the control reads this way:
+///  the record was written and never removed,
+///  so one small file stayed for every stage that was kept and then settled,
+///  and nothing bounded their number.
+#[test]
+fn the_kept_record_goes_with_the_claim_that_settled() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-kept-removed", "notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let kept: PathBuf = crate::worktree_copy_stage_intended_entries::kept_record_beside(claim.path.as_path());
+    let claim_file: PathBuf = claim.path.clone();
+    reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
+    assert!(kept.is_file(), "the record was written: {}", kept.display());
+    std::fs::remove_file(container.join("payload/notes.txt").as_path()).expect("the person's file goes");
+    reap_abandoned_stages(common.as_path()).expect("the second pass settles it");
+    assert!(!container.exists() && !claim_file.exists(), "the folder and its claim are gone");
+    assert!(!kept.exists(), "the record of why it was kept went with them: {}", kept.display());
+    remove(root.as_path());
+}
+
+/// The record a release without that removal left behind goes on the next command,
+/// so an upgrade bounds the litter it finds.
+#[test]
+fn a_kept_record_left_by_an_earlier_release_is_swept() {
+    let (root, common, destination) = scene("claim-copy-kept-orphan");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("a claim");
+    let kept: PathBuf = crate::worktree_copy_stage_intended_entries::kept_record_beside(claim.path.as_path());
+    std::fs::write(kept.as_path(), b"reason=it holds something\n").expect("the record an earlier release left");
+    std::fs::write(claim.path.as_path(), b"").expect("a claim that cannot be read");
+    std::fs::set_permissions(claim.path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("private claim");
+    std::fs::remove_file(claim.path.as_path()).expect("the release that settled it took the claim and left the record");
+    reap_abandoned_stages(common.as_path()).expect("the next command");
+    assert!(!kept.exists(), "a record no claim names is litter and goes: {}", kept.display());
+    remove(root.as_path());
+}
+
+/// The kept record is not believed once a directory the walk read has moved on,
+/// and it is believed while none has,
+/// so the reuse saves what it claims to save and no more.
+#[test]
+fn the_kept_record_is_believed_only_while_the_directories_it_names_are_unchanged() {
+    let (root, common, claim) = a_dead_copys_stage_whose_payload_holds_a_persons_file("claim-copy-kept-belief", "ignored/pkg/notes.txt", 0o700);
+    let container: PathBuf = claim.container().to_path_buf();
+    let claim_path: PathBuf = claim.path.clone();
+    reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
+    let believed: Option<String> = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim_path.as_path(), container.as_path());
+    assert!(believed.clone().is_some_and(|reason: String| { return reason.contains("payload/ignored/pkg/notes.txt"); }), "the record is believed while nothing moved: {believed:?}");
+    // An entry added to a directory the walk read, four levels down.
+    let deeper: PathBuf = container.join("payload/ignored/pkg/deeper/still");
+    std::fs::create_dir_all(deeper.as_path()).expect("a directory of the person's");
+    assert_eq!(crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim_path.as_path(), container.as_path()), None, "a change below a subfolder makes the record stale");
+    make_removable(container.as_path());
+    remove(root.as_path());
+}
