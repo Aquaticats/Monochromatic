@@ -797,10 +797,11 @@ fn record_a_copy_of_the_service_log(fixture: &Fixture, when_the_copy_ends: std::
 /// order,
 /// so a stream that takes no more bytes holds the copy with the service's later bytes still in the pipe:
 /// a person's terminal that cannot keep up, and a host under load, leave the log in that state for a moment.
-///  The stream is the same one a panic writes to, and a panic that cannot write would hold the whole run,
-/// so a control holds the stream only across calls that cannot panic,
-///  asserts nothing until it is given back,
-/// and this guard gives it back on the way out and on the way out of a panic.
+///  The stream is the same one a panic writes to, and a pipe nothing reads would hold a panic and the whole run with
+/// it,
+/// so while the stream is held a panic is written to the stream this control kept,
+/// a control asserts nothing until the stream is given back,
+/// and this guard gives the stream and the hook back on the way out of the test and on the way out of a panic.
 struct StderrHeldAsAPipeThatIsFull {
     /// The stream this control found and puts back on the same number.
     found: Option<std::os::fd::OwnedFd>,
@@ -808,6 +809,8 @@ struct StderrHeldAsAPipeThatIsFull {
     reader: Option<std::io::PipeReader>,
     /// The thread that reads them, joined when the stream is given back.
     draining: Option<std::thread::JoinHandle<()>>,
+    /// The panic hook this control found, put back before the stream it writes to is closed.
+    hook: Option<Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>>,
 }
 
 impl StderrHeldAsAPipeThatIsFull {
@@ -844,7 +847,16 @@ impl StderrHeldAsAPipeThatIsFull {
         let put: libc::c_int = unsafe { libc::dup2(writer.as_raw_fd(), libc::STDERR_FILENO) };
         assert_eq!(put, libc::STDERR_FILENO, "the pipe's writing end stands on this process's error stream: {}", std::io::Error::last_os_error());
         drop(writer);
-        return Self { found: Some(found), reader: Some(reader), draining: None };
+        // A panic writes to this process's error stream, and a full pipe nothing reads would hold the panic and the
+        //  whole run with it, so the hook writes to the stream this control kept instead.
+        let kept_number: libc::c_int = found.as_raw_fd();
+        let found_hook: Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static> = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |information: &std::panic::PanicHookInfo<'_>| {
+            let said: String = what_a_panic_says(information);
+            // SAFETY: `write` takes a descriptor this control kept, and the bytes of a string it owns.
+            let _written: isize = unsafe { libc::write(kept_number, said.as_ptr().cast(), said.len()) };
+        }));
+        return Self { found: Some(found), reader: Some(reader), draining: None, hook: Some(found_hook) };
     }
 
     /// What:
@@ -862,6 +874,15 @@ impl StderrHeldAsAPipeThatIsFull {
     /// Puts the stream this control found back where a person's output goes, and waits for the thread that read the
     /// pipe: that thread ends when the pipe's last writing end goes with the stream's own number.
     fn restore(&mut self) {
+        // The hook goes back first, before the stream it writes to is closed and the number can name another file.
+        //  A thread that is unwinding may not set a hook, so there the held one stays and writes to the stream this
+        //  control kept until the process ends, which is where a panic has already said what it had to say.
+        let unwinding: bool = std::thread::panicking();
+        if let Some(found_hook) = self.hook.take()
+            && !unwinding
+        {
+            std::panic::set_hook(found_hook);
+        }
         if let Some(found) = self.found.take() {
             // SAFETY: `dup2` copies a descriptor this process owns onto a number it owns.
             let _put_back: libc::c_int = unsafe { libc::dup2(found.as_raw_fd(), libc::STDERR_FILENO) };
@@ -876,6 +897,24 @@ impl Drop for StderrHeldAsAPipeThatIsFull {
     fn drop(&mut self) {
         self.restore();
     }
+}
+
+/// What:
+///  What a panic says, written by the hook this control puts in while it holds this process's error stream.
+/// Why:
+///  The stream a panic would write to is a pipe nothing reads while the control holds it,
+/// so the hook writes to the stream the control kept,
+/// and the words and the place of a panic inside that window are kept rather than lost.
+fn what_a_panic_says(information: &std::panic::PanicHookInfo<'_>) -> String {
+    let said: String = match information.payload().downcast_ref::<&str>() {
+        Some(text) => String::from(*text),
+        None => match information.payload().downcast_ref::<String>() {
+            Some(text) => text.clone(),
+            None => String::from("(a panic whose words are not text)"),
+        },
+    };
+    let place: String = information.location().map_or_else(String::new, |location| { return format!(" at {}:{}", location.file(), location.line()); });
+    return format!("a binary control panicked{place}: {said}\n");
 }
 
 /// What:
