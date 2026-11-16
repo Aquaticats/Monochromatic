@@ -303,11 +303,15 @@ fn a_live_holders_text_spelled_another_way_is_never_proven_gone() {
 }
 
 /// The birth of a process that never ran:
+/// A boot ID of a boot that has ended, which is no boot of this host.
+const AN_ENDED_BOOT: &str = "0123456789abcdef0123456789abcdef";
+
+/// The birth of a process that never ran:
 /// the largest start tick a 64-bit number holds,
 /// written as this program writes one,
 /// which no process is born at.
 /// Why:
-///   The table below pairs it with the number of a process that runs to say what a record of an earlier process reads as,
+///   The table pairs it with the number of a process that runs to say what a record of an earlier process reads as,
 /// and it is a birth a live process can never have.
 const NO_SUCH_BIRTH: &str = "linux:18446744073709551615";
 
@@ -333,69 +337,173 @@ enum Required {
     Unknown,
 }
 
-/// Refused:
-///  no pairing of what the process table says about a record's number with what the record says about its birth
-///  gives "gone" for a holder that runs,
-///  and no pairing keeps a holder that cannot run.
+/// What the boot part of a holder text holds,
+/// which is the one proof of an end that stands apart from the birth.
+enum BootState {
+    /// This host's boot ID, as this program writes it.
+    ThisBoot,
+    /// A boot ID of a boot that has ended, which ends every process in it.
+    AnEndedBoot,
+    /// This host's boot ID in the spelling the kernel prints, with its dashes.
+    ThisBootDashed,
+    /// A text that names no boot ID at all.
+    Unreadable,
+    /// The empty part a writer leaves when it cannot read its boot ID.
+    Absent,
+}
+
+/// The process number a holder text names, and which process has it now,
+/// which is the other proof of an end that stands apart from the birth.
+enum NumberState {
+    /// A number no process has.
+    Free,
+    /// The number of the process that wrote the record.
+    TheWriter,
+    /// The number of a later process, which the recorded birth is not.
+    ALaterProcess,
+}
+
+/// What the birth part of a holder text holds.
+enum BirthState {
+    /// The birth of the record, in the spelling this program writes.
+    Written,
+    /// That birth in another spelling: a leading zero on its start tick.
+    Respelled,
+    /// That birth with padding before the colon of its tag, which is the same tag in another spelling.
+    PaddedTag,
+    /// Nothing but a space.
+    Blank,
+    /// The empty text.
+    Empty,
+    /// This platform's tag and no tick.
+    NoTick,
+}
+
+/// One row of the identity table:
+/// the three parts of a holder text, and the answer the rule owes that state.
 /// Why:
-///  The two rules pull against each other.
-/// Nothing may prove a live holder gone,
-/// so a birth that is not one value in the spelling this program writes it answers unknown.
-/// And a holder that cannot run must be clearable by the next command,
-/// so the birth decides only where there is a process to compare it with:
-/// a number no process has ends the record whatever its birth says,
-/// and only a live process with that number is asked about the birth.
-///  The birth texts are the value as the writer writes it,
-/// that value in another spelling (a leading zero on its start tick),
-/// nothing but a space,
+///  A row states the boot and the number,
+/// which are the proofs that stand apart from the birth,
+/// beside the birth itself,
+/// so a reader that uses an unreadable part as proof is named by the row it broke.
+struct Row {
+    what: &'static str,
+    boot: BootState,
+    number: NumberState,
+    birth: BirthState,
+    due: Required,
+}
+
+/// The birth `birth` with a space between its tag and the colon, which is the same tag in another spelling.
+/// Why:
+///   A field that was padded on the left of a colon names the same tag,
+/// and a reader that compared it with the kernel's text would read another process.
+fn birth_with_padding_before_the_colon(birth: &str) -> String {
+    let Some((tag, tick)) = birth.split_once(':') else {
+        panic!("the birth {birth} carries no tag this control can pad");
+    };
+    return format!("{tag} :{tick}");
+}
+
+/// The holder text of one row,
+/// with every part the row does not name taken from this process.
+/// Why:
+///   A control that respells one part must leave the other two as the writer would have written them.
+fn holder_text_of(row: &Row, live_birth: &str, free: i64, own: i64) -> String {
+    let boot: String = match row.boot {
+        BootState::ThisBoot => String::from(current_boot_id()),
+        BootState::AnEndedBoot => String::from(AN_ENDED_BOOT),
+        BootState::ThisBootDashed => boot_with_the_kernels_dashes(current_boot_id()),
+        BootState::Unreadable => String::from("an-earlier-boot"),
+        BootState::Absent => String::new(),
+    };
+    let (number, value): (i64, &str) = match row.number {
+        NumberState::Free => (free, live_birth),
+        NumberState::TheWriter => (own, live_birth),
+        NumberState::ALaterProcess => (own, NO_SUCH_BIRTH),
+    };
+    let birth: String = match row.birth {
+        BirthState::Written => value.to_owned(),
+        BirthState::Respelled => birth_with_a_leading_zero(value),
+        BirthState::PaddedTag => birth_with_padding_before_the_colon(value),
+        BirthState::Blank => String::from(" "),
+        BirthState::Empty => String::new(),
+        BirthState::NoTick => String::from(LINUX_IDENTITY_PREFIX),
+    };
+    return format!("{boot}/{number}/{birth}");
+}
+
+/// Refused:
+///  no row of the identity table gives "gone" for a holder that runs,
+///  and no row keeps a holder that cannot run.
+/// Why:
+///  The two rules pull against each other,
+/// and every proof that stands on its own is used:
+/// a boot ID of another boot ends every process in it,
+/// a number no process has is the end of the command that wrote the record,
+/// and only where the number names a process do the boot and the birth decide,
+///  where a part this reader cannot compare answers unknown and keeps the record.
+///  A boot part this reader cannot read is no end and hides no end:
+/// the number's own proof still stands, which is what a holder proven dead by its absent number needs.
+///  The birth spellings include the ones a person or a program produces without changing the value:
+/// a leading zero on the start tick,
+/// padding before the tag's colon,
+/// a field of nothing but a space,
 /// the empty text,
-/// and a text that claims this platform's tag and names no tick.
-/// The number states are a number no process has,
-/// the number of the process that wrote the record,
-/// and the number of a later process,
-/// which is a live number with a birth the record says belongs to an earlier process.
-///  Where the number is live,
-/// an answer of unknown says only that this reader cannot compare the birth it read with the
-/// process that has the number,
-/// which is the same answer whether that process is the one the record names or a later one:
-/// a respelled birth of an earlier process is no more comparable than a respelled birth of the record's own.
+/// and this platform's tag with no tick.
 #[test]
-fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_requires() {
-    let boot: &str = current_boot_id();
+fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
     let own: i64 = i64::from(std::process::id());
     let live_birth: String = current_birth_identity().expect("this process has an identity");
-    let live_birth_respelled: String = birth_with_a_leading_zero(live_birth.as_str());
-    let earlier_birth: String = String::from(NO_SUCH_BIRTH);
-    let earlier_birth_respelled: String = birth_with_a_leading_zero(NO_SUCH_BIRTH);
-    let blank: &str = " ";
-    let empty: &str = "";
-    let unparseable: String = format!("{LINUX_IDENTITY_PREFIX}not-a-tick");
+    assert_ne!(AN_ENDED_BOOT, current_boot_id(), "the table needs a boot ID other than this host's");
     let free: i64 = crate::single_owner_claim::unused_pid_for_tests();
-    let rows: [(&str, i64, &str, Required); 15] = [
-        ("a free number and the birth as the writer writes it", free, live_birth.as_str(), Required::Gone),
-        ("a free number and the birth in another spelling", free, live_birth_respelled.as_str(), Required::Gone),
-        ("a free number and a blank birth", free, blank, Required::Gone),
-        ("a free number and an empty birth", free, empty, Required::Gone),
-        ("a free number and an unparseable birth", free, unparseable.as_str(), Required::Gone),
-        ("the writer's own number and the birth as the writer writes it", own, live_birth.as_str(), Required::Alive),
-        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown),
-        ("the writer's own number and a blank birth", own, blank, Required::Unknown),
-        ("the writer's own number and an empty birth", own, empty, Required::Unknown),
-        ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
-        ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
-        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Unknown),
-        ("a later process's number and a blank birth", own, blank, Required::Unknown),
-        ("a later process's number and an empty birth", own, empty, Required::Unknown),
-        ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown),
+    let rows: [Row; 33] = [
+        // The birth column, beside this host's boot.
+        Row { what: "a free number and the birth as the writer writes it", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "a free number and the birth in another spelling", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::Respelled, due: Required::Gone },
+        Row { what: "a free number and padding before the birth's colon", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::PaddedTag, due: Required::Gone },
+        Row { what: "a free number and a blank birth", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::Blank, due: Required::Gone },
+        Row { what: "a free number and an empty birth", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::Empty, due: Required::Gone },
+        Row { what: "a free number and a birth that names no tick", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::NoTick, due: Required::Gone },
+        Row { what: "the writer's number and the birth as the writer writes it", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Written, due: Required::Alive },
+        Row { what: "the writer's number and the birth in another spelling", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Respelled, due: Required::Unknown },
+        Row { what: "the writer's number and padding before the birth's colon", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::PaddedTag, due: Required::Unknown },
+        Row { what: "the writer's number and a blank birth", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Blank, due: Required::Unknown },
+        Row { what: "the writer's number and an empty birth", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Empty, due: Required::Unknown },
+        Row { what: "the writer's number and a birth that names no tick", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::NoTick, due: Required::Unknown },
+        Row { what: "a later process's number and the birth as the writer writes it", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "a later process's number and the birth in another spelling", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::Respelled, due: Required::Unknown },
+        Row { what: "a later process's number and padding before the birth's colon", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::PaddedTag, due: Required::Unknown },
+        Row { what: "a later process's number and a blank birth", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::Blank, due: Required::Unknown },
+        Row { what: "a later process's number and an empty birth", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::Empty, due: Required::Unknown },
+        Row { what: "a later process's number and a birth that names no tick", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::NoTick, due: Required::Unknown },
+        // The boot column, beside the birth this program writes: a boot that ended ends every process in it.
+        Row { what: "an ended boot and a free number", boot: BootState::AnEndedBoot, number: NumberState::Free, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "an ended boot and the writer's number", boot: BootState::AnEndedBoot, number: NumberState::TheWriter, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "an ended boot and a later process's number", boot: BootState::AnEndedBoot, number: NumberState::ALaterProcess, birth: BirthState::Written, due: Required::Gone },
+        // A boot part this reader cannot compare is no end, and hides none: the number still decides.
+        Row { what: "this boot with the kernel's dashes and a free number", boot: BootState::ThisBootDashed, number: NumberState::Free, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "this boot with the kernel's dashes and the writer's number", boot: BootState::ThisBootDashed, number: NumberState::TheWriter, birth: BirthState::Written, due: Required::Unknown },
+        Row { what: "this boot with the kernel's dashes and a later process's number", boot: BootState::ThisBootDashed, number: NumberState::ALaterProcess, birth: BirthState::Written, due: Required::Unknown },
+        Row { what: "a boot part that names no boot and a free number", boot: BootState::Unreadable, number: NumberState::Free, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "a boot part that names no boot and the writer's number", boot: BootState::Unreadable, number: NumberState::TheWriter, birth: BirthState::Written, due: Required::Unknown },
+        Row { what: "a boot part that names no boot and a later process's number", boot: BootState::Unreadable, number: NumberState::ALaterProcess, birth: BirthState::Written, due: Required::Unknown },
+        Row { what: "no boot part and a free number", boot: BootState::Absent, number: NumberState::Free, birth: BirthState::Written, due: Required::Gone },
+        Row { what: "no boot part and the writer's number", boot: BootState::Absent, number: NumberState::TheWriter, birth: BirthState::Written, due: Required::Unknown },
+        Row { what: "no boot part and a later process's number", boot: BootState::Absent, number: NumberState::ALaterProcess, birth: BirthState::Written, due: Required::Unknown },
+        // A number no process has ends the record whatever else the text says, and the birth cannot soften an ended boot.
+        Row { what: "a boot part that names no boot, a free number and a blank birth", boot: BootState::Unreadable, number: NumberState::Free, birth: BirthState::Blank, due: Required::Gone },
+        Row { what: "an ended boot, the writer's number and padding before the birth's colon", boot: BootState::AnEndedBoot, number: NumberState::TheWriter, birth: BirthState::PaddedTag, due: Required::Gone },
+        Row { what: "no boot part, a free number and a birth that names no tick", boot: BootState::Absent, number: NumberState::Free, birth: BirthState::NoTick, due: Required::Gone },
     ];
-    // Every row is asked and every wrong answer is kept, so one run of this table names each pairing that broke a rule.
+    // Every row is asked and every wrong answer is kept, so one run of this table names each row the rule did not reach.
     let mut wrong: Vec<String> = Vec::new();
-    for (what, number, birth, required) in rows {
-        let holder: String = format!("{boot}/{number}/{birth}");
+    for row in &rows {
+        let holder: String = holder_text_of(row, live_birth.as_str(), free, own);
         let gone: bool = proven_gone(holder.as_str());
-        let expected_gone: bool = required == Required::Gone;
+        let expected_gone: bool = row.due == Required::Gone;
         if gone != expected_gone {
-            wrong.push(format!("{what}: the reader answered {} for {holder}, and the rule requires {required:?}", match gone { true => "gone", false => "not gone" }));
+            wrong.push(format!("{}: the reader answered {} for {holder}, and the rule requires {:?}", row.what, match gone { true => "gone", false => "not gone" }, row.due));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

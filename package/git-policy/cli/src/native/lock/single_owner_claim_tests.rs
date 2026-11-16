@@ -455,6 +455,18 @@ fn birth_with_a_leading_zero(birth: &str) -> String {
     return format!("{prefix}:0{tick}");
 }
 
+/// The birth `birth` with a space between its tag and the colon,
+/// which is the same tag written by a program that padded it.
+/// Why:
+///   Padding before a colon does not change the tag it belongs to,
+/// so a claim that carries it names the same birth another way.
+fn birth_with_padding_before_the_colon(birth: &str) -> String {
+    let Some((tag, tick)) = birth.split_once(':') else {
+        panic!("the birth {birth} carries no tag this control can pad");
+    };
+    return format!("{tag} :{tick}");
+}
+
 /// Whether the refusal of a row says what the reader could not read.
 /// Why:
 ///   The two ways this caller cannot tell are told apart by their words,
@@ -493,32 +505,37 @@ fn names_the_unreadable(names: UnknownNames, birth: &str, directory: &Path, refu
 /// and the number of a later process,
 /// which is a live number with a birth the claim says belongs to an earlier owner.
 #[test]
-fn every_pairing_of_a_number_state_and_a_birth_state_gives_the_answer_the_rule_requires() {
+fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
     let own: i64 = i64::from(std::process::id());
     let live_birth: String = current_birth_identity().expect("this process has an identity");
     let live_birth_respelled: String = birth_with_a_leading_zero(live_birth.as_str());
     let earlier_birth: String = String::from(NO_SUCH_BIRTH);
     let earlier_birth_respelled: String = birth_with_a_leading_zero(NO_SUCH_BIRTH);
+    let live_birth_padded: String = birth_with_padding_before_the_colon(live_birth.as_str());
+    let earlier_birth_padded: String = birth_with_padding_before_the_colon(NO_SUCH_BIRTH);
     let blank: &str = " ";
     let empty: &str = "";
     let unparseable: String = format!("{}not-a-tick", crate::process_identity::LINUX_IDENTITY_PREFIX);
     let free: i64 = unused_pid_for_tests();
-    let rows: [(&str, i64, &str, Required); 15] = [
+    let rows: [(&str, i64, &str, Required); 18] = [
         ("a free number and the birth as the writer writes it", free, live_birth.as_str(), Required::Gone),
         ("a free number and the birth in another spelling", free, live_birth_respelled.as_str(), Required::Gone),
+        ("a free number and padding before the birth's colon", free, live_birth_padded.as_str(), Required::Gone),
         ("a free number and a blank birth", free, blank, Required::Gone),
         ("a free number and an empty birth", free, empty, Required::Unknown(UnknownNames::TheFile)),
-        ("a free number and an unparseable birth", free, unparseable.as_str(), Required::Gone),
+        ("a free number and a birth that names no tick", free, unparseable.as_str(), Required::Gone),
         ("the writer's own number and the birth as the writer writes it", own, live_birth.as_str(), Required::Alive),
         ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("the writer's own number and padding before the birth's colon", own, live_birth_padded.as_str(), Required::Unknown(UnknownNames::TheBirth)),
         ("the writer's own number and a blank birth", own, blank, Required::Unknown(UnknownNames::TheBirth)),
         ("the writer's own number and an empty birth", own, empty, Required::Unknown(UnknownNames::TheFile)),
-        ("the writer's own number and an unparseable birth", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("the writer's own number and a birth that names no tick", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
         ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
         ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("a later process's number and padding before that birth's colon", own, earlier_birth_padded.as_str(), Required::Unknown(UnknownNames::TheBirth)),
         ("a later process's number and a blank birth", own, blank, Required::Unknown(UnknownNames::TheBirth)),
         ("a later process's number and an empty birth", own, empty, Required::Unknown(UnknownNames::TheFile)),
-        ("a later process's number and an unparseable birth", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("a later process's number and a birth that names no tick", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
     ];
     // Every row is asked in a fixture of its own, and every wrong answer is kept, so one run of this table names each
     //  pairing that broke a rule.

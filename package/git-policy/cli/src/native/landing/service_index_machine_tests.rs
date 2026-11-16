@@ -446,3 +446,61 @@ fn a_landing_names_the_lock_of_another_machine() {
     assert!(lines.contains("another machine") && lines.contains(&format!("rm -- '{}'", lock.display())), "{lines}");
     remove(root.as_path());
 }
+
+/// Refused:
+///  a service whose marker spells its birth as nothing but a space is still proven gone by its absent process number,
+///  and its index lock is removed.
+/// Why:
+///  A marker's holder is decided by every proof that stands on its own.
+/// The birth is compared only beside a process that has the number,
+/// so a birth this reader cannot compare is no proof that the maker lives,
+/// and a number the process table answers nothing for ends the maker whatever its birth field holds.
+///  Without that order a dead service leaves a marker nothing can settle:
+/// the lock stays, every later landing meets it, and a person has to remove it by hand.
+///  The canonical arm is the control of the control:
+/// the same marker text with the birth this program writes is gone, from the same one probe,
+/// so the difference between the arms is the birth alone.
+#[test]
+fn a_marker_whose_birth_is_blank_is_still_proven_gone_by_its_free_number() {
+    let identity: String = own_identity().expect("this process has an identity");
+    let (_birth, boot, scope, tail) = split_birth_parts(identity.as_str());
+    let host_tail: String = format!("#{boot}#{scope}{tail}");
+    let free: i64 = crate::single_owner_claim::unused_pid_for_tests();
+    let pid_field: String = free.to_string();
+    let arms: [(&str, String, &str); 2] = [
+        ("the birth this program writes", format!("linux:1{host_tail}"), "written"),
+        ("a birth of nothing but a space", format!(" {host_tail}"), "blank"),
+    ];
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, identity, fixture_name) in arms {
+        // The probe is counted, so a reader that never asks about a number no process has is named by this arm.
+        let asked = std::cell::Cell::new(0_usize);
+        let nothing = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
+            asked.set(asked.get() + 1);
+            return Ok(None);
+        };
+        let marked = (free, identity.clone());
+        let state: HolderState = holder_state_in(Some(&marked), &ReaderView::current(), &nothing);
+        if state != HolderState::Gone {
+            wrong.push(format!("{what}: the reader answered {state:?} for {identity}, and Gone is what a number no process has gives"));
+        }
+        if asked.get() != 1 {
+            wrong.push(format!("{what}: the reader asked the process table {} times for a number no process has, and once is what that proof costs", asked.get()));
+        }
+        // The real reader over the real marker text, and the real reclaiming of the lock it sits in.
+        let (root, _index, lock) = index_in(format!("blank-birth-{fixture_name}").as_str());
+        let text: String = marker_naming(pid_field.as_str(), identity.as_str());
+        std::fs::write(&lock, text.as_bytes()).expect("a marker of a maker whose number no process has");
+        let holder = crate::service_index_marker::marker_of(lock.as_path()).expect("a marker").holder;
+        let state: HolderState = holder_state(holder.as_ref());
+        if state != HolderState::Gone {
+            wrong.push(format!("{what}: the reader answered {state:?} for the marker text {text:?}, and Gone is what a number no process has gives"));
+        }
+        let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
+        if outcome != Reclaimed::Removed || lock.exists() {
+            wrong.push(format!("{what}: the lock of a maker whose number no process has was {outcome:?}, and it exists afterwards: {}", lock.exists()));
+        }
+        remove(root.as_path());
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
