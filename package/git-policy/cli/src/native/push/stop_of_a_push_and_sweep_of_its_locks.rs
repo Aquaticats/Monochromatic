@@ -26,9 +26,6 @@ use crate::blocking_job::run_blocking_job;
 /// A child owned until it is reaped,
 /// awaited through its pidfd.
 use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
-/// The process's runtime,
-/// for the task that sweeps after the child ends.
-use crate::lazy_runtime::spawn_on_runtime;
 /// When a stop that asked its tree to end may force the end.
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{STOP_CEILING, escalation_waits};
 /// The processes a push started,
@@ -140,7 +137,8 @@ pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) 
 /// `sweep_after_exit` for a push that may already have been collected:
 /// with no child there is only the tree to wait for.
 fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
-    let started = spawn_on_runtime(async move {
+    // Counted by the one starter this crate hands a task through, so a fixture removal waits for the sweep of a stop.
+    let started = crate::scoped_start::spawn_task(async move {
         // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
         let _earlier: usize = reap_abandoned_children();
         if let Some(uncollected) = child {

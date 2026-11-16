@@ -29,9 +29,6 @@
 
 /// The bounded removal and what it came to.
 use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
-/// The service's own runtime,
-/// which runs the removal beside the landing loop.
-use crate::lazy_runtime::spawn_on_runtime;
 /// One step of blocking work,
 /// off the runtime's threads.
 use crate::blocking_job::run_blocking_job;
@@ -77,7 +74,8 @@ pub fn the_tree_of(named: &std::path::Path, git_dir: &std::path::Path) -> Option
 /// ```
 pub fn start(path: PathBuf) {
     let named: String = path.display().to_string();
-    let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime(remove(path));
+    // Counted by the one starter this crate hands a task through, so a fixture removal waits for a released tree to go.
+    let started: Option<tokio::task::JoinHandle<()>> = crate::scoped_start::spawn_task(remove(path));
     if started.is_none() {
         crate::service_warn!("the released scratch directory {named} is left to the sweep: this service has no multi-threaded runtime to remove it on");
     }

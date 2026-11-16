@@ -180,7 +180,9 @@ pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     };
     // What the thread ended with; a thread that outlives the ceiling sends into a channel nobody reads, which is no error.
     let (ended, waited) = std::sync::mpsc::channel::<std::io::Result<()>>();
-    let started = std::thread::Builder::new().name(String::from("scratch-removal")).spawn(move || {
+    // Counted by the one starter this crate starts a job through, so a fixture removal waits for a removal its caller
+    //  stopped waiting for at the ceiling.
+    let started = crate::scoped_start::spawn_named("scratch-removal", move || {
         // The place belongs to the removal's own work, so a removal its caller stopped waiting for keeps it until that work ends.
         let outcome: std::io::Result<()> = remove_entry(&target);
         // It goes back before the answer is sent, so a caller told a removal finished finds its place free: a sweep that

@@ -50,7 +50,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::blocking_job::{BlockingJobError, run_blocking_job};
-use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
+use crate::lazy_runtime::run_on_runtime;
 use tokio::task::JoinHandle;
 
 /// A marked file that is flushed and ready to become the lock.
@@ -413,7 +413,9 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     let wanted_by_the_job: std::sync::Arc<AtomicBool> = std::sync::Arc::clone(&wanted);
     // The flush is handed to the service's background task, so a commit that takes this marker never waits for a flush;
     //  see the module doc.
-    let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
+    // Counted by the one starter this crate hands a task through, so a fixture removal waits for a marker's making and
+    //  flush inside it.
+    let spawned = crate::scoped_start::spawn_task(run_blocking_job(move || -> std::io::Result<Prestaged> {
         // The three points of the marker's own life, where a control kills the service: before its file exists, with the
         //  file recorded and its flush not yet asked for, and with the file complete and its flush asked for.
         crate::service_fault::reach(crate::service_fault::PRESTAGE_START);

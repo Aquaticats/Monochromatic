@@ -206,6 +206,37 @@ fn starts() -> std::io::Result<()> {
 }
 
 /// What:
+///  Run a task on this process's runtime,
+/// counted while it runs in a test build,
+/// as `spawn_named` counts a thread.
+/// Why:
+///  A task that writes into a repository's folders outlives the call that handed it over,
+/// and a fixture removal waits for it as it waits for a thread
+/// (`testing/test_support.rs`,
+///  `remove`).
+///  A runtime with no worker answers nothing,
+/// as `spawn_on_runtime` does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const task = spawnTask(work()); // counted until it ends
+/// ```
+pub fn spawn_task<F>(future: F) -> Option<tokio::task::JoinHandle<F::Output>>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    #[cfg(test)]
+    let counted: started_threads::StartedThread = started_threads::begun();
+    return crate::lazy_runtime::spawn_on_runtime(async move {
+        // A task that ends, one that panics and a runtime that drops its tasks all end the count with this value.
+        #[cfg(test)]
+        let _ended = counted;
+        return future.await;
+    });
+}
+
+/// What:
 ///  One sentence saying that no thread could be started to `what`,
 /// which limit refused it,
 /// and what frees one.

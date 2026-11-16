@@ -358,25 +358,30 @@ pub(crate) fn age(path: &Path) {
 
 /// Remove only the fixture directory a test created,
 /// giving this user back the permission on any directory of it that a test closed,
-/// and waiting for every thread this process started to end first.
-/// A thread `spawn_named` started cannot call this:
+/// and waiting for every job this process started that can write into it to end first.
+/// A thread a counted starter began cannot call this:
 /// it would wait for itself until the run shows nothing,
 /// and then fail.
 pub(crate) fn remove(root: &Path) {
     restore_owner_access(root);
-    // What: the threads this process started through `spawn_named` have ended before the tree goes.
-    // Why:  A job started that way belongs to no caller, and the service starts three of them beside a landing (the pool
-    //       fill, the repository scratch collection and the draw). The draw makes a folder under the repository's Git
-    //       directory after the call that started it returned, so a control that removed its fixture at once met
-    //       `DirectoryNotEmpty` (`Directory not empty`) with that folder left in it: 1 of 20 removals on this host on
-    //       2026-11-15, and the control that failed in the gate of 2026-11-14
+    // What: the jobs this process handed over, which can write into a repository's folders, have ended before the tree goes.
+    // Why:  A job started that way belongs to no caller. The service starts the pool fill, the repository scratch collection
+    //       and the draw beside a landing, and its records are fsynced, its markers made, its logs trimmed and its scratch
+    //       trees removed on threads and tasks of their own; a landing's note is written on one too. The draw makes a folder
+    //       under the repository's Git directory after the call that started it returned, so a control that removed its
+    //       fixture at once met `DirectoryNotEmpty` (`Directory not empty`) with that folder left in it: 1 of 20 removals on
+    //       this host on 2026-11-15, and the control that failed in the gate of 2026-11-14
     //       (`landing::service_land::owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it`).
-    //       The wait is a control's own (it ends when the run shows nothing, `wait_until`), so it fails a removal a
-    //       writer never lets go rather than hanging the suite.
+    //       The note's thread was not one of those, so a fixture went out from under it and the note made its directories
+    //       again under the removed tree (the review of 2026-11-15,
+    //       `REPRO_REMOVE_RETURNED_WHILE_NOTE_WRITER_WAS_HELD`), which is why every job of that kind goes through the counted
+    //       starters now, and why `source_guard::writers_into_a_repository` fails when a start they do not cover is added.
+    //       The wait is a control's own (it ends when the run shows nothing, `wait_until`), so it fails a removal a writer
+    //       never lets go rather than hanging the suite.
     let writers_ended: bool = wait_until(&|| { return crate::scoped_start::started_threads::running() == 0; });
     assert!(
         writers_ended,
-        "{} was not removed: {} thread(s) this process started through `spawn_named` are still running, and one of them may be writing into the tree (a job started that way belongs to no caller); wait for those jobs to end, or take the wait out of `remove` for the test that holds one on purpose",
+        "{} was not removed: {} job(s) this process handed to a thread or a task are still running, and one of them may be writing into the tree (a job started that way belongs to no caller); wait for those jobs to end, or take the wait out of `remove` for the test that holds one on purpose",
         root.display(),
         crate::scoped_start::started_threads::running()
     );

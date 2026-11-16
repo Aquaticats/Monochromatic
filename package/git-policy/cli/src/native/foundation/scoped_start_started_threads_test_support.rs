@@ -17,14 +17,17 @@
 //!  and a thread lowers it after its last write,
 //!  so a removal that has seen the count reach zero meets no job started through `spawn_named`
 //!  that was still running when it looked.
-//!  What the count does not cover,
-//! and no fixture removal waits for:
-//!  work a job hands to a task of the runtime,
-//!  the note a landing writes on a thread of its own
-//!  (`service_claim_watch_note_within_a_ceiling.rs`,
-//!  which may still write when its ceiling passed),
+//!  Both starters are counted:
+//! `spawn_named` for a thread,
+//!  and `spawn_task` for a task of the process's runtime,
+//!  so the note a landing writes on a thread of its own is covered as the draw and the fills are
+//!  (`foundation/work_awaited_within_a_ceiling.rs`).
+//!  What the count does not cover:
 //!  a child process a control starts,
-//!  and a new job started while the removal is under way.
+//!  a job started while the removal is under way,
+//!  and the work of a thread or task this crate starts without one of those starters.
+//!  The inventory in `source_guard/writers_into_a_repository` names every start and its reason,
+//!  and it fails when one is added that the wait does not see.
 //!  It counts one process's threads,
 //! so it is the count of one test only while one test runs in the process:
 //!  this repository's suite runs one test per process (`cargo nextest`),

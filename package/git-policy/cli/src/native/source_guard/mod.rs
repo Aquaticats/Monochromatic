@@ -57,6 +57,13 @@ mod standards_review_boundary_tests;
 #[cfg(test)]
 pub(crate) mod source_scan_tests;
 
+/// The inventory of every place the crate hands work to a thread or a task:
+/// a start that creates or removes a file under a repository is counted by the starter a fixture removal waits on,
+/// and every other start says what it writes instead.
+#[cfg(test)]
+#[path = "writers_into_a_repository_tests.rs"]
+mod writers_into_a_repository_tests;
+
 /// The owner's rule that nothing of the wrapper starts at system startup or at login:
 /// no install line,
 /// no enabling call,

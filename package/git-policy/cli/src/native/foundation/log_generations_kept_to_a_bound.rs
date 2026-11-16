@@ -281,7 +281,9 @@ pub fn schedule_trim(target: &Path, retention: &LogRetention) {
     }
     let owned: PathBuf = target.to_path_buf();
     let kept: LogRetention = *retention;
-    let spawned = std::thread::Builder::new().name(String::from("log-trim")).spawn(move || {
+    // Counted by the one starter this crate starts a job through, so a fixture removal waits for a pass that trims the
+    //  generations of a log inside it.
+    let spawned = crate::scoped_start::spawn_named("log-trim", move || {
         if let Err(error) = trim_generations(owned.as_path(), &kept) {
             debug(TAG, &format!("the generations of {} could not be trimmed: {error}", owned.display()));
         }

@@ -91,7 +91,9 @@ where
         return TheAnswerOfAThreadOfWork::NoThreadToStart;
     }
     let (sender, receiver): (std::sync::mpsc::Sender<Value>, Receiver<Value>) = channel::<Value>();
-    let started = std::thread::Builder::new().name(String::from(WORK_THREAD_NAME)).spawn(move || {
+    // The thread is counted by the one starter this crate starts a job through, so a fixture removal waits for the work it
+    //  may be doing in that fixture when its caller gave up at the ceiling.
+    let started = crate::scoped_start::spawn_named(WORK_THREAD_NAME, move || {
         let value: Value = work();
         // A caller that stopped waiting is gone with its receiver, and the value goes with the send.
         let _sent = sender.send(value);

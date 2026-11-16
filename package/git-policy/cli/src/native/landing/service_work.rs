@@ -616,9 +616,12 @@ impl WorkHandlers for GitHandlers {
     ///  while a thread of the blocking pool still carries that runtime with it.
     ///  So the removal gets a thread of its own,
     ///  and the round awaits its answer no longer than a bulk Git step may take:
-    ///  a thread the system refuses, and one that gives no answer at the ceiling, are both a removal that did not run,
+    ///  a thread the system refuses,
+    /// and one that gives no answer at the ceiling,
+    /// are both a removal that did not run,
     ///  and the record keeps its lease for the next round.
-    ///  Before this, every removal the service made answered "the runtime that runs this command's waits was asked for
+    ///  Before this,
+    /// every removal the service made answered "the runtime that runs this command's waits was asked for
     ///  from inside itself",
     ///  which read as ignored files nothing could vouch for,
     ///  and the service kept every worktree it was handed.
@@ -631,7 +634,9 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move {
             let held: WorkItem = item.clone();
             let (sender, receiver): (tokio::sync::oneshot::Sender<Verdict>, tokio::sync::oneshot::Receiver<Verdict>) = tokio::sync::oneshot::channel::<Verdict>();
-            let started = std::thread::Builder::new().name(String::from(REMOVAL_THREAD_NAME)).spawn(move || {
+            // Counted by the one starter this crate starts a job through, so a fixture removal waits for a removal this
+            //  round stopped waiting for at its ceiling.
+            let started = crate::scoped_start::spawn_named(REMOVAL_THREAD_NAME, move || {
                 // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
                 let _sent = sender.send(crate::worktree_remove_hand_over::delete_subvolume_of(&held));
             });
