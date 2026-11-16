@@ -339,7 +339,16 @@ pub(crate) fn start_seamed(server: &ServerToStart, wait: Duration, manager_start
             Waited::Ended => {
                 attempt += 1;
                 if attempt > STARTS_PER_COMMAND {
-                    return StartAttempt::DidNotGreet(log);
+                    // What: Every start this command made has ended, and something else may still greet at the address (a
+                    //       scope the manager was asked for, whose server comes up late), so the bound is waited for.
+                    // Why:  Failing at once here failed two controls of the manager's scope, whose stand-in starts its server
+                    //       300 ms after the scope answers (`a_scope_that_reports_no_process_number_does_not_hold_the_base_start_back`,
+                    //       2026-11-16): a start that ended is no proof that the address will not answer.
+                    return match waits_for_a_greeting_of(&server.address, deadline, None) {
+                        Waited::Greeted => StartAttempt::Greeted,
+                        Waited::Ended | Waited::NotYet if accepts(&server.address) => StartAttempt::AnotherCommandStartsIt,
+                        Waited::Ended | Waited::NotYet => StartAttempt::DidNotGreet(log),
+                    };
                 }
                 // The service this command spawned is gone before it greeted: one more start, inside the same bound, and the
                 //  caller keeps the deadline it started with.

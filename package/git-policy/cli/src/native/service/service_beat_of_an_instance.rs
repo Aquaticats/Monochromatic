@@ -92,7 +92,7 @@ impl Beat {
                 std::thread::sleep(BEAT_EVERY);
                 touch(&file);
             }
-        }).map(|_handle| { return (); });
+        }).map(|_handle| { return; });
     }
 
     /// Removes the file, when it is still the one this service made.

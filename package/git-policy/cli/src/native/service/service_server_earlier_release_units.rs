@@ -31,8 +31,6 @@
 use crate::service_server_start_through_the_manager::{PROBE_WAIT, bus_is_ours, end_and_reap_off_the_path};
 use std::path::{Path, PathBuf};
 
-/// Tag used for diagnostics from this module.
-
 /// What:
 ///  The texts an earlier release wrote on its unit files' first lines,
 ///  and the names of the folders it wrote beside them.

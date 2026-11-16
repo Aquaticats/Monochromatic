@@ -234,6 +234,16 @@ pub(super) const ALLOWED: &[Allowed] = &[
               a bounded write without a thread removes it",
     },
     Allowed {
+        file: "service/service_beat_of_an_instance.rs",
+        rule: "thread-start",
+        why: "the beat a service keeps while it works, which must run before the service's runtime exists: the beat is the fact               that tells a frozen service from one still building its runtime, and a task cannot run before that build arrives",
+    },
+    Allowed {
+        file: "service/service_beat_of_an_instance.rs",
+        rule: "blocking-sleep",
+        why: "the pause between two beats, on that same thread: `tokio::time::sleep` needs the runtime the beat has to outlive,               so this is not a wait the runtime can end",
+    },
+    Allowed {
         file: "foundation/scoped_start.rs",
         rule: "thread-start",
         why: "the helper that starts a thread and runs the work in turn where no thread can start; this is the one thread the runtime step replaces last",

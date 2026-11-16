@@ -463,7 +463,10 @@ fn a_service_that_keeps_no_beat_is_ended_and_one_that_beats_is_waited_for() {
     let pid: i32 = i32::try_from(service.id()).expect("a process number");
     let instance: String = String::from("3f9a");
     let note: std::path::PathBuf = crate::service_server_pid_note_of_an_instance::path(directory.as_path(), instance.as_str());
-    crate::service_server_pid_note_of_an_instance::write(note.as_path(), pid).expect("the note");
+    // The note names a process that is not this one, so it carries that process's own birth identity:
+    //  `write` takes this process's identity, which names this process and not the child.
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("a readable identity").expect("the process is alive");
+    std::fs::write(note.as_path(), format!("{pid} {identity}\n")).expect("the note");
     let beat: std::path::PathBuf = crate::service_beat_of_an_instance::path(directory.as_path(), instance.as_str());
     let taken: crate::service_beat_of_an_instance::Beat = crate::service_beat_of_an_instance::Beat::take(beat.clone()).expect("the beat");
     // The beat is stale: the service stopped inside itself.
@@ -490,7 +493,20 @@ fn a_service_that_keeps_no_beat_is_ended_and_one_that_beats_is_waited_for() {
     let took = began.elapsed();
     assert!(reached.is_err(), "a service that greets nothing is not reached: {reached:?}");
     assert!(took < Duration::from_secs(5), "the command ends in seconds, not after the recovering ceiling: {took:?}");
-    let ended: bool = matches!(service.try_wait(), Ok(Some(_)));
+    // The signal a control's reach sends is taken by the kernel at once and the process ends a moment later, so the end is
+    //  waited for, bounded, as a suite's load makes that moment later.
+    let ended: bool = {
+        let waited_since = std::time::Instant::now();
+        loop {
+            if matches!(service.try_wait(), Ok(Some(_))) {
+                break true;
+            }
+            if waited_since.elapsed() > std::time::Duration::from_secs(5) {
+                break false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    };
     if !ended {
         let _killed = service.kill();
         let _reaped: std::io::Result<std::process::ExitStatus> = service.wait();
@@ -499,7 +515,8 @@ fn a_service_that_keeps_no_beat_is_ended_and_one_that_beats_is_waited_for() {
     // The same state with a beat that moves: the service is working, and the command waits for it and ends nothing.
     let mut working: std::process::Child = std::process::Command::new("/bin/sleep").arg("60").spawn().expect("a process to end");
     let working_pid: i32 = i32::try_from(working.id()).expect("a process number");
-    crate::service_server_pid_note_of_an_instance::write(note.as_path(), working_pid).expect("the note of the working service");
+    let working_identity: String = crate::process_identity::process_birth_identity(i64::from(working_pid)).expect("a readable identity").expect("the process is alive");
+    std::fs::write(note.as_path(), format!("{working_pid} {working_identity}\n")).expect("the note of the working service");
     crate::service_beat_of_an_instance::touch_for_a_control(beat.as_path()).expect("a fresh beat");
     let reached_again = reach(&settings, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
     let still_running: bool = matches!(working.try_wait(), Ok(None));

@@ -34,10 +34,10 @@ pub fn read_regular_file(path: &Path) -> Option<String> {
         return None;
     }
     let mut text: String = String::new();
-    match file.read_to_string(&mut text) {
+    return match file.read_to_string(&mut text) {
         Ok(_read) => Some(text),
         Err(_cannot_read) => None,
-    }
+    };
 }
 
 /// What:
