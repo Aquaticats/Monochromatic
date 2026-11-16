@@ -433,3 +433,40 @@ fn the_last_lock_read_decides_which_program_shows_an_install_finished() {
     let reversed = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&extra), true).expect("planned");
     assert_eq!(reversed, vec![tool_directory(&root, ID).expect("a plain name").join("0.2.0")]);
 }
+
+/// What:
+/// An install of an archive tool owns the version's downloads directory while its archive is unpacked, through the
+/// sync the install runs.
+/// Why:
+/// The review of 82531265a7 took the owner file out of the install and all tests still passed: only
+/// `remove_downloads` was controlled, so a removal that ran beside an unpack could lose the archive with nothing
+/// failing.
+#[test]
+fn an_archive_install_owns_its_downloads_while_it_unpacks() {
+    let rig = rig_with_working_older_release();
+    serve_bodies(&rig, &["0.2.1"]);
+    let downloads: PathBuf = tool_downloads_dir(&rig.scope.toolchain_root, ID, "0.2.1").expect("a plain name");
+    // At the moment `tar` is asked to unpack, the install's owner file is in the downloads directory.
+    let observed = std::rc::Rc::new(std::cell::Cell::new(false));
+    let seen = std::rc::Rc::clone(&observed);
+    let watched = downloads.clone();
+    rig.runner.on(
+        "tar --extract",
+        Box::new(move |request: &RunRequest| {
+            seen.set(super::download_ownership::live_owner(&watched).is_some());
+            let folder = tar_directory(request).join("release-folder");
+            fs::create_dir_all(&folder).expect("make the folder");
+            write_executable(&folder.join(BIN));
+        }),
+    );
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    assert!(observed.get(), "the install did not own the downloads directory while its archive was unpacked");
+    assert!(
+        super::download_ownership::live_owner(&downloads).is_none(),
+        "the install still owns the directory after it unpacked"
+    );
+}

@@ -678,3 +678,70 @@ fn a_version_another_run_removed_before_the_deletion_is_a_finished_cleanup() {
 }
 
 //endregion
+
+/// What:
+/// `prune --toolchain` keeps a version a process of this account runs from, and one a hidden process started after it
+/// may run, through the command itself.
+/// Why:
+/// The review of 82531265a7 took each process check out of `prune_cargo.rs` and all tests still passed, so the command
+/// could remove a version a process was running with nothing failing.
+#[cfg(unix)]
+#[test]
+fn the_command_keeps_a_version_a_process_runs_from_and_one_a_hidden_process_may_run() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    finish_install(&version_directory(&root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    let held: PathBuf = version_directory(&root, "fd-find", "1.1.0");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.3\",\"route\":\"cargo-binstall\"}}}")
+        .expect("write a lock naming the newer version");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    // A process of this account working inside the older version.
+    let mut holder = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&held)
+        .spawn()
+        .expect("start a process that works inside the version");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let planned = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    let _ = holder.kill();
+    let _ = holder.wait();
+
+    assert!(planned.is_empty(), "the command pruned a version a process of this account was working inside: {planned:?}");
+    assert!(held.is_dir(), "the version a process works inside went");
+}
+
+/// What:
+/// `prune --toolchain` keeps every version when its process scan cannot see the whole machine.
+/// Why:
+/// The scan is the only thing that keeps a version a process runs, so a scan that cannot tell must refuse rather than
+/// delete; the review of 82531265a7 showed the command has no process check at all under a regression.
+#[cfg(unix)]
+#[test]
+fn the_command_keeps_a_version_a_hidden_process_started_after_may_run() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    finish_install(&version_directory(&root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.3\",\"route\":\"cargo-binstall\"}}}")
+        .expect("write a lock naming the newer version");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    // A process that hides what it runs, started after both versions were installed, calling itself something that
+    // names no tool: the age rule is what keeps the version, not the name.
+    let mut hiding = std::process::Command::new("python3")
+        .arg("-I")
+        .arg("-c")
+        .arg("import ctypes,time; ctypes.CDLL(None).prctl(15,b'node',0,0,0); ctypes.CDLL(None).prctl(4,0,0,0,0); time.sleep(60)")
+        .spawn()
+        .expect("start the hidden process");
+    let give_up = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while std::fs::read_link(format!("/proc/{}/exe", hiding.id())).is_ok() {
+        assert!(std::time::Instant::now() < give_up, "the stand-in never hid what it runs");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let planned = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    let _ = hiding.kill();
+    let _ = hiding.wait();
+
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "a version a hidden process started after may run went: {planned:?}");
+}

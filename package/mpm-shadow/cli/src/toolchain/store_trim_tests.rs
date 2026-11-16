@@ -1923,3 +1923,41 @@ fn a_span_larger_than_the_count_holds_saturates() {
     assert!(huge >= Duration::from_secs(u64::from(u32::MAX)) * 3600 / 3600, "the count saturates: {huge:?}");
     assert_eq!(parse_duration("0h"), Some(Duration::ZERO), "a zero span is still zero");
 }
+
+/// What:
+/// A removal whose work limit is gone before it starts moves nothing, defers, and says so, and the archives moved aside
+/// are put back.
+/// Why:
+/// The review of 82531265a7 took the deadline out of `remove_one` and of `apply_trim` and all 286 tests still passed: the
+/// half-done states the deadline exists to leave were entered by no test.
+#[test]
+fn a_removal_out_of_its_work_limit_moves_nothing_and_says_so() {
+    let fixture = Fixture::new();
+    // An archive an older removal would move aside: a downloads directory beside the version.
+    let archives: PathBuf = fixture.root.join("downloads").join("node").join("26.11.0");
+    fs::create_dir_all(&archives).expect("make the downloads directory");
+    fs::write(archives.join("archive.tar.gz"), b"the archive").expect("write the archive");
+    let candidate: TrimCandidate = fixture
+        .candidates()
+        .into_iter()
+        .find(|found| return found.version == "26.11.0")
+        .expect("the oldest version is a candidate");
+    let archives: PathBuf = candidate.downloads.clone().expect("its downloads were seen");
+    let plan: TrimPlan = TrimPlan { total_bytes: 10, over_bound: true, steps: vec![TrimStep::Remove(candidate.clone())] };
+    let started: Instant = Instant::now();
+    let run: TrimRun = TrimRun {
+        bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::ZERO },
+        started,
+    };
+
+    let outcome: TrimOutcome = apply_trim(&plan, &run, &nothing_new_is_named);
+
+    assert!(candidate.directory.is_dir(), "a version was moved by a pass whose work limit was gone");
+    assert!(archives.join("archive.tar.gz").is_file(), "the archives were left under their removing name");
+    assert_eq!(outcome.removed, 0, "{:?}", outcome.lines);
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("limit") && line.contains("left 1 version")),
+        "the pass says what it left: {:?}",
+        outcome.lines
+    );
+}
