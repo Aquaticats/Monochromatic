@@ -8,6 +8,7 @@
  @module
  */
 
+import { collapsed, } from './command-words.ts';
 import { readRegularFileAt, } from './reading-a-regular-file.ts';
 import {
   type ReviewReading,
@@ -38,6 +39,11 @@ import {
   reviewFolderOf,
 } from './reviewer-of-a-change.ts';
 import type { SessionReadings, } from './session-commands-of-a-run.ts';
+
+/**
+ The longest commit hash git writes, which is the most of a statement's commit a verdict repeats.
+ */
+const LONGEST_COMMIT_HASH = 40;
 
 /**
  What is at a path one review's file is read from.
@@ -384,7 +390,11 @@ export function commitReadingIn({
     ? { kind: 'the same commit', }
     : {
       kind: 'another commit',
-      problem: `the statement names commit ${stated} and the review recorded ${recorded.reading
-        .commit}`,
+      problem: `the statement names commit ${collapsed(stated,)
+        .slice(
+          0,
+          LONGEST_COMMIT_HASH,
+        )} and the review recorded ${collapsed(recorded.reading
+          .commit,)}`,
     };
 }
