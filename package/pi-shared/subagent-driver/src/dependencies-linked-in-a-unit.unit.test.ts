@@ -10,6 +10,7 @@
  */
 
 import { execFile, } from 'node:child_process';
+import { createServer, } from 'node:net';
 import {
   access,
   mkdir,
@@ -29,13 +30,16 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   DEPENDENCIES_CLIENT_SECONDS,
+  DEPENDENCIES_RECORD_NAME,
   DEPENDENCIES_UNIT_SECONDS,
   type CommandOutput,
   fileSystemOfARun,
   gitRunnerOf,
   linkDependenciesInAUnit,
   makeTheFoldersAToolMakesIn,
+  managerPresenceIn,
   runCommandWithChildProcess,
+  StartRefusedError,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -163,6 +167,118 @@ async function gitIn({ folder, words, }: { readonly folder: string; readonly wor
     killSignal: 'SIGKILL',
   },);
   return answered.stdout.trim();
+}
+
+/**
+ What a call answered, or what it threw, so a call that refuses is read as a value.
+
+ @param call - the call
+
+ @returns its answer, or the error it threw
+
+ @example
+ ```ts
+ const refused = await settledBy({ call: async () => await linkDependenciesInAUnit({ ... }), });
+ ```
+ */
+async function settledBy<Answer>({ call, }: { readonly call: () => Promise<Answer> },): Promise<{
+  readonly value?: Answer;
+  readonly error?: unknown;
+}> {
+  try {
+    return { value: await call(), };
+  }
+  catch (error) {
+    return { error, };
+  }
+}
+
+/**
+ What a fixture says the machine has: a manager whose socket is there, or one whose socket and units are not.
+ */
+type ManagerFixture = {
+  /**
+   The folder the manager's socket lives in, which this step reads.
+   */
+  readonly runtimeDirectory: string;
+
+  /**
+   The file that names the units this process is in, which this step reads.
+   */
+  readonly cgroupFile: string;
+
+  /**
+   Stops the socket, so the fixture leaves nothing listening.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Makes what this machine has, as a fixture: a folder holding the manager's own socket, and a cgroup file naming a unit of a manager
+ or naming nothing of one.
+
+ Why a fixture: the question decides whether an install that cannot be confined is degraded or refused, and the answer a machine
+ gives must not depend on the machine a test happens to run on.
+
+ @param withSocket - whether the manager's socket is there
+
+ @returns the runtime folder, the cgroup file, and the way to stop the socket
+
+ @example
+ ```ts
+ await using manager = await makeManagerFixture({ withSocket: true, });
+ ```
+ */
+async function makeManagerFixture({
+  withSocket,
+}: {
+  readonly withSocket: boolean;
+},): Promise<ManagerFixture> {
+  /**
+   The fixture's own folder, made short on purpose: a Unix socket's path may not pass the length the kernel keeps for it, and the
+   harness's scratch root is already long.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'pi-manager-',),);
+  /**
+   The folder the manager keeps its socket in.
+   */
+  const runtimeDirectory = join(path, 'runtime',);
+  await mkdir(join(runtimeDirectory, 'systemd',), { recursive: true, mode: 0o700, },);
+  /**
+   The file that names the units this process is in.
+   */
+  const cgroupFile = join(path, 'cgroup',);
+  await writeFile(
+    cgroupFile,
+    withSocket
+      ? '0::/user.slice/user-1000.slice/user@1000.service/app.slice/probe.service\n'
+      : '0::/user.slice/user-1000.slice/session-1.scope\n',
+  );
+  /**
+   The socket the manager listens on, which nothing connects to.
+   */
+  const socket = join(runtimeDirectory, 'systemd', 'private',);
+  /**
+   What listens on it, or nothing when the fixture has no manager.
+   */
+  const server = createServer(function accept() {});
+  if (withSocket) {
+    await new Promise<void>(function waitForListening(resolve,) {
+      server.listen(socket, resolve,);
+    },);
+  }
+  return {
+    runtimeDirectory,
+    cgroupFile,
+    async [Symbol.asyncDispose]() {
+      await new Promise<void>(function waitForClosing(resolve,) {
+        server.close(function closed() {
+          resolve();
+        },);
+      },);
+      await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 200, },);
+    },
+  };
 }
 
 /**
@@ -317,11 +433,21 @@ await describe({
             /**
              What the step answered, with a runner that records every request and answers as the machine would.
              */
+            await using folder = await makeFolder();
+            /**
+             The run's own folder, which this step records what it answered in.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            /**
+             What this machine has, as a fixture: a manager's socket, so the question about the machine comes out the same
+             wherever this test runs.
+             */
+            await using manager = await makeManagerFixture({ withSocket: true, },);
             const linked = await linkDependenciesInAUnit({
               runName: 'probe-bounds',
               checkoutFolder: '/repo',
               worktree: '/repo/.claude/worktrees/pi-a',
-              runFolder: '/runs/a-1',
+              runFolder,
               fileSystem: {
                 foldersAUnitCannotWrite: ['/repo',],
                 foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-a',],
@@ -331,6 +457,8 @@ await describe({
               taskCount: 100,
               pathOfMiseEnvironment: '/bin',
               home: '/home/a',
+              managerRuntimeDirectory: manager.runtimeDirectory,
+              cgroupFile: manager.cgroupFile,
               run: async function recorder(request,): Promise<CommandOutput> {
                 asked.push({
                   command: request.command,
@@ -370,6 +498,170 @@ await describe({
             // would leave the install running while the run starts.
             expect(unitRequest?.timeoutMilliseconds,).toBeGreaterThanOrEqual(DEPENDENCIES_UNIT_SECONDS * 1_000,);
             expect(unitRequest?.timeoutMilliseconds,).toBe(DEPENDENCIES_CLIENT_SECONDS * 1_000,);
+          },
+        },),
+        it({
+          name: 'refuses the start, naming the socket and both answers, when a manager that is there does not answer, rather than running the install unconfined',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             What this machine has, as a fixture: a manager's socket is there.
+             */
+            await using manager = await makeManagerFixture({ withSocket: true, },);
+            /**
+             The run's own folder.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            /**
+             Every request this step made, so a test can say what it did not do.
+             */
+            const asked: string[] = [];
+            /**
+             What this step refused with.
+             */
+            const refused = await settledBy({
+              call: async function link() {
+                return await linkDependenciesInAUnit({
+                  runName: 'probe-unanswered',
+                  checkoutFolder: '/repo',
+                  worktree: '/repo/.claude/worktrees/pi-a',
+                  runFolder,
+                  fileSystem: {
+                    foldersAUnitCannotWrite: ['/repo',],
+                    foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-a',],
+                  },
+                  cpuPercent: 100,
+                  memory: '1G',
+                  taskCount: 100,
+                  pathOfMiseEnvironment: '/bin',
+                  home: '/home/a',
+                  managerRuntimeDirectory: manager.runtimeDirectory,
+                  cgroupFile: manager.cgroupFile,
+                  run: async function recorder(request,): Promise<CommandOutput> {
+                    asked.push(request.command,);
+                    if (request.command === 'bash') {
+                      return { status: 0, stdout: '/bin/mise\n', stderr: '', };
+                    }
+                    return { status: 1, stdout: '', stderr: 'a manager that did not answer', };
+                  },
+                },);
+              },
+            },);
+            expect(refused.error,).toBeInstanceOf(StartRefusedError,);
+            /**
+             What the refusal says.
+             */
+            const words = (refused.error as Error).message;
+            expect(words,).toContain(join(manager.runtimeDirectory, 'systemd', 'private',),);
+            expect(words,).toContain('a manager that did not answer',);
+            // Asked twice, because a manager that missed one answer is not a missing manager, and then refused rather than
+            // running the branch's install scripts with the launcher's access.
+            expect(asked.filter(function isTheQuestion(command,) {
+              return command === 'systemctl';
+            },).length,).toBe(2,);
+            expect(asked,).not.toContain('/bin/mise',);
+            expect(await isThere({ path: join(runFolder, DEPENDENCIES_RECORD_NAME,), },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'degrades where this machine has no manager at all, and records in the run folder that the install ran with the launcher\'s access',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             What this machine has, as a fixture: no socket, and no unit of a manager in its cgroup.
+             */
+            await using manager = await makeManagerFixture({ withSocket: false, },);
+            /**
+             The run's own folder.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            /**
+             A file of the checkout an install script writes to, which is what a run lacks protection from in this case.
+             */
+            const written = join(folder.path, 'written-by-the-install',);
+            /**
+             Every request this step made.
+             */
+            const asked: string[] = [];
+            /**
+             What linking answered.
+             */
+            const linked = await linkDependenciesInAUnit({
+              runName: 'probe-no-manager',
+              checkoutFolder: '/repo',
+              worktree: '/repo/.claude/worktrees/pi-a',
+              runFolder,
+              fileSystem: {
+                foldersAUnitCannotWrite: ['/repo',],
+                foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-a',],
+              },
+              cpuPercent: 100,
+              memory: '1G',
+              taskCount: 100,
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              managerRuntimeDirectory: manager.runtimeDirectory,
+              cgroupFile: manager.cgroupFile,
+              run: async function recorder(request,): Promise<CommandOutput> {
+                asked.push(request.command,);
+                if (request.command === 'bash') {
+                  return { status: 0, stdout: '/bin/mise\n', stderr: '', };
+                }
+                await writeFile(written, 'written by an install script\n',);
+                return { status: 0, stdout: 'installed\n', stderr: '', };
+              },
+            },);
+            expect(linked.confined,).toBe(false,);
+            expect(await readFile(written, 'utf8',),).toBe('written by an install script\n',);
+            // The question about the manager is never asked where the machine has none: what decides is what the machine has, not
+            // one answer to one question.
+            expect(asked,).not.toContain('systemctl',);
+            expect(linked.why,).toContain('no user manager',);
+            expect(linked.why,).toContain('/repo',);
+            /**
+             What the run's own folder records about this.
+             */
+            const record = JSON.parse(await readFile(join(runFolder, DEPENDENCIES_RECORD_NAME,), 'utf8',),) as {
+              readonly status: number;
+              readonly confined: boolean;
+              readonly why?: string;
+            };
+            expect(record.confined,).toBe(false,);
+            expect(record.status,).toBe(0,);
+            expect(record.why,).toBe(linked.why,);
+          },
+        },),
+        it({
+          name: 'reads what the machine has from its socket or from the unit the launcher runs in, never from one answer to one question',
+          fn: async () => {
+            /**
+             A machine whose manager's socket is there.
+             */
+            await using withSocket = await makeManagerFixture({ withSocket: true, },);
+            expect(await managerPresenceIn({
+              runtimeDirectory: withSocket.runtimeDirectory,
+              cgroupFile: withSocket.cgroupFile,
+            },),).toEqual({ there: true, evidence: `the manager's socket is ${join(withSocket.runtimeDirectory, 'systemd', 'private',)}`, },);
+            /**
+             A machine whose socket is gone but whose cgroup names a unit of a manager.
+             */
+            await using cgroupOnly = await makeManagerFixture({ withSocket: false, },);
+            /**
+             A cgroup file naming the unit of this user's own manager, which is where a manager's own units sit.
+             */
+            const withAManager = join(cgroupOnly.runtimeDirectory, 'cgroup-with-a-manager',);
+            await writeFile(withAManager, '0::/user.slice/user-1000.slice/user@1000.service/app.slice/probe.service\n',);
+            expect(await managerPresenceIn({
+              runtimeDirectory: cgroupOnly.runtimeDirectory,
+              cgroupFile: withAManager,
+            },),).toEqual({ there: true, evidence: `this launcher runs in a unit of a manager (${withAManager})`, },);
+            /**
+             A machine with neither.
+             */
+            expect((await managerPresenceIn({
+              runtimeDirectory: cgroupOnly.runtimeDirectory,
+              cgroupFile: cgroupOnly.cgroupFile,
+            },)).there,).toBe(false,);
           },
         },),
       ],

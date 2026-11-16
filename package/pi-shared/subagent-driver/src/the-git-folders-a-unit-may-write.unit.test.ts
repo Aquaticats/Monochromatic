@@ -31,6 +31,7 @@ import {
   fileSystemOfARun,
   fileSystemPropertiesOf,
   foldersAToolMakesIn,
+  gitFoldersOf,
   gitRunnerOf,
   makeTheFoldersAToolMakesIn,
   runCommandWithChildProcess,
@@ -693,6 +694,172 @@ await describe({
               folder: bare,
               words: ['log', '--format=%s', '-1', 'agent-branch',],
             },),).toBe('a commit the run keeps',);
+          },
+        },),
+        it({
+          name: 'asks Git for each Git directory on its own, so a checkout whose path holds a newline or ends in a space is still named',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Checkouts whose own names carry what a reader of two answers in one stream cannot tell apart: a newline, and a trailing
+             space that trimming would eat.
+             */
+            const awkwardNames = [
+              'checkout\nline-break',
+              'checkout-with-a-trailing-space ',
+            ];
+            /**
+             What this package names for each of those checkouts, keyed by its name.
+             */
+            const named = await Promise.all(awkwardNames.map(async function nameOne(name,) {
+              /**
+               The checkout itself, which is a real repository named that way.
+               */
+              const checkout = join(folder.path, name,);
+              await mkdir(checkout, { recursive: true, },);
+              // Nine answers cannot be told from four in a repository whose path holds a line feed, and this repository's own git
+              // wrapper refuses to classify one: a commit there is another tool's limit, and none of this package needs one to name
+              // the folders it writes.
+              await gitIn({ folder: checkout, words: ['init', '--initial-branch=main',], });
+              /**
+               What this package names for its two Git directories, compared with the paths the fixture made rather than with a
+               reader that splits two answers by newline, which is the reading this test exists to replace.
+               */
+              return [name, await gitFoldersOf({ git, folder: checkout, },),];
+            },),);
+            expect(Object.fromEntries(named,),).toEqual({
+              'checkout\nline-break': {
+                gitDirectory: join(folder.path, 'checkout\nline-break', '.git',),
+                commonDirectory: join(folder.path, 'checkout\nline-break', '.git',),
+              },
+              'checkout-with-a-trailing-space ': {
+                gitDirectory: join(folder.path, 'checkout-with-a-trailing-space ', '.git',),
+                commonDirectory: join(folder.path, 'checkout-with-a-trailing-space ', '.git',),
+              },
+            },);
+          },
+        },),
+        it({
+          name: 'refuses a run that works in the checkout itself every write to its Git data, and still lets an author commit in a worktree of it',
+          fn: async () => {
+            if (NO_MANAGER_REASON !== undefined) {
+              console.log(`[fileSystemOfARun] the two modes at a real unit: skipped: ${NO_MANAGER_REASON}`,);
+              return;
+            }
+            await using folder = await makeFolder();
+            /**
+             A checkout with two commits on `main`, so a run that moves `main` can be seen doing it.
+             */
+            const checkout = join(folder.path, 'checkout',);
+            await makeRepository({ folder: checkout, },);
+            await gitIn({
+              folder: checkout,
+              words: ['-c', 'user.name=Disposable', '-c', 'user.email=disposable@example.invalid', 'commit', '--allow-empty', '--message', 'main-only',],
+            },);
+            /**
+             What `main` names before any unit runs, which nothing may move.
+             */
+            const mainBefore = await gitIn({ folder: checkout, words: ['rev-parse', 'main',], },);
+            /**
+             The run's own folder.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            await mkdir(runFolder, { recursive: true, },);
+            await makeTheFoldersAToolMakesIn({ checkoutFolder: checkout, },);
+            /**
+             What a run's unit may and may not write when the run works in the checkout itself: the checkout is read-only, and
+             nothing of its Git data is writable either.
+             */
+            const readOnlyInMain = await fileSystemOfARun({
+              git,
+              checkoutFolder: checkout,
+              worktree: checkout,
+              runFolder,
+              worksInTheCheckoutItself: true,
+            },);
+            /**
+             What the unit answered for each attempt, keyed by what was attempted.
+             */
+            const attempts: Record<string, { readonly status: number; readonly output: string }> = {};
+            /**
+             Each attempt, in the unit this package's folders build: a ref moved, a commit made, and a file written into the Git
+             directory, all of which a read-only-in-main run must be refused.
+             */
+            const attemptsInTheUnit: readonly (readonly [string, readonly string[]])[] = [
+              ['update-ref', ['git', '-C', checkout, 'update-ref', 'refs/heads/main', mainBefore,],],
+              ['commit', ['git', '-C', checkout, '-c', 'user.name=Disposable', '-c', 'user.email=disposable@example.invalid', '-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '--message', 'a commit from a read-only run',],],
+              ['write-into-the-git-directory', ['sh', '-c', `printf 'written\\n' > '${checkout}/.git/written-by-the-run'`,],],
+            ];
+            const attemptEntries = await Promise.all(attemptsInTheUnit.map(async function attemptInTheUnit(entry,) {
+              const [what, words,] = entry;
+              const ended = await inAUnitOfTheRun({
+                unit: `probe-read-only-in-main-${what.replaceAll('/', '-',)}-${String(process.pid,)}`,
+                fileSystem: readOnlyInMain,
+                words,
+              },);
+              return [what, ended,] as const;
+            },),);
+            for (const [what, ended,] of attemptEntries) {
+              attempts[what] = ended;
+            }
+            // The operating system refused each write, which is what a run that cannot change the checkout needs.
+            expect(
+              Object.fromEntries(Object.entries(attempts,).map(function whatHappened(entry,) {
+                const [what, ended,] = entry;
+                return [what, (ended.status === 0) ? 'allowed' : 'refused',];
+              },),),
+            ).toEqual({
+              'update-ref': 'refused',
+              commit: 'refused',
+              'write-into-the-git-directory': 'refused',
+            },);
+            expect(attempts['write-into-the-git-directory']?.output,).toContain('Read-only file system',);
+            // Reading the checkout's own Git data still works, because it is readable through the read-only checkout.
+            const read = await inAUnitOfTheRun({
+              unit: `probe-read-only-in-main-log-${String(process.pid,)}`,
+              fileSystem: readOnlyInMain,
+              words: ['git', '-C', checkout, 'log', '--format=%s', '-1',],
+            },);
+            expect(read.status,).toBe(0,);
+            expect(read.output.trim(),).toBe('main-only',);
+            // `main` is where it was: the ref the unit tried to move is the ref it could not write.
+            expect(await gitIn({ folder: checkout, words: ['rev-parse', 'main',], },),).toBe(mainBefore,);
+
+            /**
+             The worktree an author's run works in, which Git made.
+             */
+            const worktree = join(checkout, '.claude', 'worktrees', 'pi-author',);
+            await mkdir(join(checkout, '.claude', 'worktrees',), { recursive: true, },);
+            await gitIn({ folder: checkout, words: ['worktree', 'add', '-b', 'agent-branch', worktree,], });
+            /**
+             What an author's unit may and may not write: the checkout is still read-only, and the Git folders a worktree commit
+             writes are writable, so the run's work is kept.
+             */
+            const withAWorktree = await fileSystemOfARun({
+              git,
+              checkoutFolder: checkout,
+              worktree,
+              runFolder,
+              worksInTheCheckoutItself: false,
+            },);
+            expect(withAWorktree.foldersAUnitMustWrite,).toContain(join(checkout, '.git',),);
+            /**
+             What an ordinary commit in the author's worktree answered inside the unit.
+             */
+            const committed = await inAUnitOfTheRun({
+              unit: `probe-author-commit-${String(process.pid,)}`,
+              fileSystem: withAWorktree,
+              words: ['git', '-C', worktree, '-c', 'user.name=Disposable', '-c', 'user.email=disposable@example.invalid', '-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '--message', 'an author commit the run keeps',],
+            },);
+            expect(committed.status,).toBe(0,);
+            // What `git commit` prints when it worked: the branch, the new commit and the message it was given.
+            expect(committed.output,).toContain('an author commit the run keeps',);
+            expect(await gitIn({ folder: checkout, words: ['log', '--format=%s', '-1', 'agent-branch',], },),).toBe('an author commit the run keeps',);
+            // The worktree's own Git directory is a folder inside the checkout's, and the same writable folder covers both: what
+            // tells the two modes apart is the mode, not a path. An author's unit writes its own branch's ref by renaming a lock
+            // file in `refs/heads`, so the folder holding that ref is writable in this mode and the read-only mode is where a
+            // checkout's refs are out of a run's reach.
+            expect(await gitIn({ folder: checkout, words: ['rev-parse', '--show-toplevel',], },),).toBe(checkout,);
           },
         },),
       ],

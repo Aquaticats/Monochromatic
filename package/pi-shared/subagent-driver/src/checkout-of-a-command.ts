@@ -371,6 +371,91 @@ export class GitFoldersUnreadableError extends Error {
 }
 
 /**
+ Asks Git for one of a checkout's Git directories, and takes off only that answer's own record terminator.
+
+ Why one question per path: Git prints a pathname as it is, and a pathname may hold a newline, so two answers in one stream cannot be
+ told apart from one answer with a newline in it. A record terminator is the newline Git ends an answer with, and only that one is
+ removed: trimming would eat a pathname's own leading or trailing space, and splitting would cut a pathname's own newline in two.
+
+ @param git - how one git question is run
+
+ @param folder - the checkout to ask about, which must be its own root
+
+ @param word - the `git rev-parse` option that names this path, such as `--git-common-dir`
+
+ @param what - what that path is, in the words a refusal prints
+
+ @returns the path Git named, made absolute, with its own trailing spaces and newlines kept
+
+ @throws GitFoldersUnreadableError when Git does not answer, or answers with something that is not one absolute path
+
+ @example
+ ```ts
+ const gitDirectory = await gitPathFromAnswer({ git, folder: '/repo', word: '--absolute-git-dir', what: 'the Git directory of the checkout', });
+ ```
+ */
+export async function gitPathFromAnswer({
+  git,
+  folder,
+  word,
+  what,
+}: {
+  /**
+   How one git question is run.
+   */
+  readonly git: GitRunner;
+
+  /**
+   The checkout to ask about, which must be its own root.
+   */
+  readonly folder: string;
+
+  /**
+   The `git rev-parse` option that names this path.
+   */
+  readonly word: string;
+
+  /**
+   What that path is, in the words a refusal prints.
+   */
+  readonly what: string;
+},): Promise<string> {
+  /**
+   What git answered about that one path.
+   */
+  const answered = await git({
+    folder,
+    words: [
+      'rev-parse',
+      '--path-format=absolute',
+      word,
+    ],
+  },);
+  if (answered.status !== 0) {
+    throw new GitFoldersUnreadableError(
+      `git rev-parse ${word} asked in ${folder} for ${what} answered ${String(answered.status,)}${((answered.problem ?? answered.stderr).trim() === '') ? '' : `: ${(answered.problem ?? answered.stderr).trim()}`}, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder.`,
+    );
+  }
+  /**
+   Git's answer without the single newline it ends an answer with, and without anything else.
+   */
+  const answeredPath = answered.stdout
+    .endsWith('\n')
+    ? answered.stdout
+      .slice(
+      0,
+      -1,
+      )
+    : answered.stdout;
+  if ((answeredPath === '') || (!isAbsolute(answeredPath,))) {
+    throw new GitFoldersUnreadableError(
+      `git rev-parse ${word} asked in ${folder} for ${what} answered ${JSON.stringify(answered.stdout,)}, which is not one absolute path, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder.`,
+    );
+  }
+  return resolve(answeredPath,);
+}
+
+/**
  Asks Git for the Git directory of the checkout at a folder, and the Git directory every worktree of the repository shares.
 
  Why Git and not the files: a Git directory kept elsewhere (`git init --separate-git-dir`) and a submodule keep theirs without a
@@ -383,7 +468,7 @@ export class GitFoldersUnreadableError extends Error {
 
  @returns the Git directory of that folder, and the one every worktree of its repository shares
 
- @throws GitFoldersUnreadableError when Git does not answer, or answers with something that is not two absolute paths
+ @throws GitFoldersUnreadableError when Git does not answer, or answers with something that is not an absolute path
 
  @throws GitFolderAboveTheCheckoutError when an answer is a folder that holds the checkout, which a start must not make writable
 
@@ -410,48 +495,27 @@ export async function gitFoldersOf({
   readonly commonDirectory: string;
 }> {
   /**
-   What git answered about the two directories.
+   The Git directory of the checkout, asked for on its own.
+
+   One path per question, and only that question's own record terminator taken off: a Git pathname may hold a newline, so an
+   answer split into lines turned one checkout into several and refused it. Asking twice costs one more `git rev-parse`, which
+   answers from the checkout itself rather than from a walk of the files.
    */
-  const answered = await git({
+  const gitDirectory = await gitPathFromAnswer({
+    git,
     folder,
-    words: [
-      'rev-parse',
-      '--path-format=absolute',
-      '--absolute-git-dir',
-      '--git-common-dir',
-    ],
+    word: '--absolute-git-dir',
+    what: 'the Git directory of the checkout',
   },);
-  if (answered.status !== 0) {
-    throw new GitFoldersUnreadableError(
-      `git rev-parse asked in ${folder} for its Git directories answered ${String(answered.status,)}${((answered.problem ?? answered.stderr).trim() === '') ? '' : `: ${(answered.problem ?? answered.stderr).trim()}`}, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder.`,
-    );
-  }
   /**
-   The two paths, one per line, in the order they were asked for.
+   The Git directory every worktree of the repository shares, asked for on its own for the same reason.
    */
-  const lines = answered.stdout
-    .split('\n',)
-    .map(function withoutTrailingSpace(line,) {
-      return line.trim();
-    },)
-    .filter(function holdsSomething(line,) {
-      return line !== '';
-    },);
-  if ((lines.length !== 2) || (!lines.every(function namesAnAbsolutePath(line,) {
-    return isAbsolute(line,);
-  },))) {
-    throw new GitFoldersUnreadableError(
-      `git rev-parse asked in ${folder} for its Git directories answered ${JSON.stringify(answered.stdout
-        .trim(),)}, which is not two absolute paths, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder.`,
-    );
-  }
-  /**
-   The Git directory of the checkout and the one every worktree of its repository shares.
-   */
-  const [gitDirectory, commonDirectory,] = [
-    resolve(lines[0] ?? '',),
-    resolve(lines[1] ?? '',),
-  ];
+  const commonDirectory = await gitPathFromAnswer({
+    git,
+    folder,
+    word: '--git-common-dir',
+    what: 'the Git directory every worktree of the repository shares',
+  },);
   for (const answeredFolder of [
     gitDirectory,
     commonDirectory,

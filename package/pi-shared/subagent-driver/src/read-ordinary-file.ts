@@ -27,7 +27,7 @@ import {
   open,
   type FileHandle,
 } from 'node:fs/promises';
-import { setTimeout as wait, } from 'node:timers/promises';
+import { answerWithinABound, } from './an-answer-within-a-bound.ts';
 
 /**
  Opens a file with flags, which a test replaces to hold an open that never answers.
@@ -143,28 +143,18 @@ export async function readOrdinaryFileWithin({
    */
   readonly openFile?: OpenAFile;
 },): Promise<string> {
-  /**
-   The bound, made before anything is opened so that an open which never answers is answered by it, and stopped when the reading
-   answers so that nothing of it keeps this process alive after the answer is in hand.
-   */
-  using bound = aBoundOf({
-    path,
-    milliseconds,
-  },);
-  /**
-   What the reading answered, either way it ends, so a reading the bound has answered for never rejects unhandled.
-   */
-  const settled = await Promise.race([
-    settleBy({ call: readAnOrdinaryFile({
+  return await answerWithinABound({
+    call: readAnOrdinaryFile({
       path,
       openFile,
-    },), },),
-    bound.promise,
-  ],);
-  if (settled.failed !== undefined) {
-    throw settled.failed;
-  }
-  return settled.value ?? '';
+    },),
+    milliseconds,
+    refusal: function readingTookTooLong() {
+      return new ReadThatTookTooLongError(
+        `reading ${path} took longer than ${String(milliseconds,)} ms, so this process stopped waiting for it. What it opened or asked the kernel for is still the kernel's until the filesystem answers; nothing here waits on it any more.`,
+      );
+    },
+  },);
 }
 
 /**
@@ -210,108 +200,4 @@ async function readAnOrdinaryFile({
     );
   }
   return await handle.readFile({ encoding: 'utf8', },);
-}
-
-/**
- Makes the bound a read is given: a rejection that names the file once the bound has passed, and a way to stop it when the
- reading answers first.
-
- @param path - the file being read, for the message
-
- @param milliseconds - the bound
-
- @returns the rejection the read is raced against, and the way to stop the timer behind it
-
- @example
- ```ts
- using bound = aBoundOf({ path: '/runs/a-1/summary.json', milliseconds: 30_000, });
- ```
- */
-function aBoundOf({
-  path,
-  milliseconds,
-}: {
-  readonly path: string;
-  readonly milliseconds: number;
-},): {
-  readonly promise: Promise<never>;
-  readonly [Symbol.dispose]: () => void;
-} {
-  /**
-   The signal that stops the timer, which is what `using` does when the reading answers first.
-   */
-  const stopping = new AbortController();
-  return {
-    promise: aRefusalAfterTheBound({
-      path,
-      milliseconds,
-      signal: stopping.signal,
-    },),
-    /**
-     Stops the timer, so nothing of it keeps this process alive after the answer is in hand.
-     */
-    [Symbol.dispose]: function dispose() {
-      stopping.abort();
-    },
-  };
-}
-
-/**
- Waits out the bound, then refuses the read that has not finished inside it.
-
- @param path - the file being read, for the message
-
- @param milliseconds - the bound it waits out
-
- @param signal - the signal that stops the wait when the reading answers first
-
- @throws ReadThatTookTooLongError when the bound has passed
-
- @example
- ```ts
- const refusal = aRefusalAfterTheBound({ path: '/runs/a-1/summary.json', milliseconds: 30_000, signal: new AbortController().signal, });
- ```
- */
-async function aRefusalAfterTheBound({
-  path,
-  milliseconds,
-  signal,
-}: {
-  readonly path: string;
-  readonly milliseconds: number;
-  readonly signal: AbortSignal;
-},): Promise<never> {
-  await wait(
-    milliseconds,
-    undefined,
-    { signal, },
-  );
-  throw new ReadThatTookTooLongError(
-    `reading ${path} took longer than ${String(milliseconds,)} ms, so this process stopped waiting for it. What it opened or asked the kernel for is still the kernel's until the filesystem answers; nothing here waits on it any more.`,
-  );
-}
-
-/**
- What a call answered, or what it threw, so a call that may refuse is read as a value.
-
- @param call - the call, already started
-
- @returns its answer, or the error it threw
-
- @example
- ```ts
- const settled = await settleBy({ call: readAnOrdinaryFile({ path, openFile, }), });
- ```
- */
-async function settleBy<Answer>({ call, }: { readonly call: Promise<Answer> },): Promise<{
-  readonly value?: Answer;
-  readonly failed?: Error;
-}> {
-  try {
-    return { value: await call, };
-  }
-  catch (error) {
-    // Anything a read throws is reported as an error, so the caller has one shape to throw onward.
-    return { failed: (Error.isError(error,)) ? error : new Error(String(error,)), };
-  }
 }

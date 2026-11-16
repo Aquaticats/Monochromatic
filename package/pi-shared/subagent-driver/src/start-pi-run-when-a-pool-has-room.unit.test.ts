@@ -306,7 +306,8 @@ async function writeStandIns({
       // The policy namespace help is what the launcher asks for before it starts a session, and only the wrapper answers it.
       `  *'monochromatic-git-policy-cli --help'*) printf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]' ;;`,
       `  *'rev-parse --show-toplevel'*) printf '%s\\n' "$FAKE_CHECKOUT" ;;`,
-      `  *'rev-parse --path-format=absolute'*) printf '%s\\n%s\\n' "$FAKE_CHECKOUT/.git" "$FAKE_CHECKOUT/.git" ;;`,
+      `  *'rev-parse --path-format=absolute --absolute-git-dir'*) printf '%s\\n' "$FAKE_CHECKOUT/.git" ;;`,
+      `  *'rev-parse --path-format=absolute --git-common-dir'*) printf '%s\\n' "$FAKE_CHECKOUT/.git" ;;`,
       `  *'rev-parse --verify'*) exit 0 ;;`,
       `  *'worktree add'*) mkdir --parents "$FAKE_CHECKOUT/.claude/worktrees/pi-copy-route" ;;`,
       `  *'symbolic-ref'*) printf 'refs/heads/feat/a\\n' ;;`,

@@ -31,6 +31,7 @@ import {
   type GitRunner,
   GitFoldersUnreadableError,
   WorktreeGoneError,
+  ACanonicalPathThatDidNotAnswerError,
   fileSystemOfARun,
   fileSystemPropertiesOf,
   foldersAToolMakesIn,
@@ -70,10 +71,21 @@ function gitAnswering({
         stderr: `a test's git answers no ${request.words.join(' ',)}`,
       };
     }
+    /**
+     Which of the two paths was asked for, which Git answers one at a time: two answers in one stream cannot be told apart from a
+     pathname that holds a newline.
+     */
+    const asked = request.words.slice(2,).join(' ',);
+    if (asked === '--absolute-git-dir') {
+      return { status: 0, stdout: `${gitDirectory}\n`, stderr: '', };
+    }
+    if (asked === '--git-common-dir') {
+      return { status: 0, stdout: `${commonDirectory}\n`, stderr: '', };
+    }
     return {
-      status: 0,
-      stdout: `${gitDirectory}\n${commonDirectory}\n`,
-      stderr: '',
+      status: 1,
+      stdout: '',
+      stderr: `a test's git answers no ${asked}`,
     };
   };
 }
@@ -359,7 +371,7 @@ await describe({
           },
         },),
         it({
-          name: 'makes no worktree writable for a run that works in the checkout itself, whose files it must not change',
+          name: 'makes neither a worktree nor a Git folder writable for a run that works in the checkout itself, whose files and refs it must not change',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -384,12 +396,14 @@ await describe({
               worksInTheCheckoutItself: true,
             },);
             expect(fileSystem.foldersAUnitCannotWrite,).toEqual([made.checkoutFolder,],);
+            // The checkout itself is read-only in this mode, so nothing of its Git data is writable either: a writable `.git`
+            // would let a run that cannot change one file move `main`, which is what a review reproduced.
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
-              made.commonDirectory,
               ...foldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },),
               runFolder,
             ],);
             expect(fileSystem.foldersAUnitMustWrite,).not.toContain(made.checkoutFolder,);
+            expect(fileSystem.foldersAUnitMustWrite,).not.toContain(made.commonDirectory,);
           },
         },),
         it({
@@ -462,12 +476,68 @@ await describe({
               runFolder,
               worksInTheCheckoutItself: true,
             },);
+            // Asked about a checkout with its own Git directory elsewhere, and with no worktree of its own to commit in: the two
+            // Git directories stay out, which is the same rule as above with folders other than `.git`.
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
-              gitDirectory,
-              commonDirectory,
               ...foldersAToolMakesIn({ checkoutFolder, },),
               runFolder,
             ],);
+          },
+        },),
+        it({
+          name: 'stops waiting for a folder the file system never names inside its bound, instead of holding the start before any unit exists',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The checkout and the run's own folders, which exist so that nothing but the path reading can fail.
+             */
+            const made = await makeCheckout({ folder: folder.path, name: 'checkout', },);
+            const worktree = await makeWorktree({
+              ...made,
+              name: 'pi-a',
+            },);
+            const runFolder = await makeRunFolder({ folder: folder.path, },);
+            /**
+             How long a folder's own reading may take here, short enough that a test can wait it out.
+             */
+            const patience = 50;
+            /**
+             A file system that never names a folder, which is what a mount that has stopped answering looks like.
+             */
+            async function neverAnswers(): Promise<string> {
+              return await new Promise<string>(function waitForEver(resolve,) {
+                // Nothing resolves it, which is what a file system that has stopped answering looks like.
+                void resolve;
+              },);
+            }
+            /**
+             What asking for the run's folders answered.
+             */
+            const asked = await settledBy({
+              call: async function readTheFolders() {
+                return await fileSystemOfARun({
+                  git: gitAnswering({
+                    gitDirectory: made.commonDirectory,
+                    commonDirectory: made.commonDirectory,
+                  },),
+                  checkoutFolder: made.checkoutFolder,
+                  worktree,
+                  runFolder,
+                  worksInTheCheckoutItself: false,
+                  readRealPath: neverAnswers,
+                  canonicalPathMilliseconds: patience,
+                },);
+              },
+            },);
+            // The start refused in its own words rather than waiting for a file system that may never answer: no unit exists at
+            // this point, so nothing else bounds this wait.
+            expect(asked.error,).toBeInstanceOf(ACanonicalPathThatDidNotAnswerError,);
+            /**
+             What the refusal says, which names the folder and the bound.
+             */
+            const refusal = (asked.error as Error).message;
+            expect(refusal,).toContain(made.checkoutFolder,);
+            expect(refusal,).toContain(`longer than ${String(patience,)} ms`,);
           },
         },),
         it({

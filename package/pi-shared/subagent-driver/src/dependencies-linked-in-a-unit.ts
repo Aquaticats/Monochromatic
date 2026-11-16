@@ -10,13 +10,27 @@
  The unit is named `<run name>-dependencies`, never `pi-*`: the slot count reads every `pi-*` unit as a run. It ends by itself, and
  the manager collects it.
 
- Where no service manager answers, the install still happens: it runs with the launcher's own access, and the answer says so, so
- the launcher tells its reader what protection it lacked. No step here depends on a manager being there.
+ Where this machine has no user manager at all, the install still happens: it runs with the launcher's own access, the answer says
+ so, and the run's own folder records it, so a reader of the run knows what protection it lacked and why. No step here depends on
+ a manager being there.
+
+ A machine that *has* a manager and did not answer is another case, and it is refused rather than degraded: the socket says the
+ manager is there, so an install that could not be confined to the worktree would be a fault silently spent, and the branch's own
+ lifecycle scripts would run with the launcher's access. The question is asked twice before that, because a manager that missed one
+ answer on a loaded machine is not a missing manager.
 
  @module
  */
 
+import {
+  mkdir,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
+import { errorCodeOf, } from './error-code-of.ts';
+import { readOrdinaryFileWithin, } from './read-ordinary-file.ts';
 import type { RunCommand, } from './run-command.ts';
 import {
   type FileSystemOfARun,
@@ -113,6 +127,16 @@ export type DependenciesUnitRequest = {
    How one command is run.
    */
   readonly run: RunCommand;
+
+  /**
+   The folder the manager's socket lives in, which is this launcher's own runtime directory; a test points it at a fixture.
+   */
+  readonly managerRuntimeDirectory?: string;
+
+  /**
+   The file that names the units this launcher is in, which a test points at a fixture.
+   */
+  readonly cgroupFile?: string;
 };
 
 /**
@@ -200,10 +224,15 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
   readonly output: string;
 
   /**
-   Whether a unit confined the install. When this machine's manager does not answer, the install runs with the launcher's access
-   and this is false, so a caller can say what protection the run lacked.
+   Whether a unit confined the install. On a machine with no user manager at all the install runs with the launcher's access and
+   this is false, so a caller can say what protection the run lacked.
    */
   readonly confined: boolean;
+
+  /**
+   What the run lacked, when no unit confined the install, as the run's own folder records it.
+   */
+  readonly why?: string;
 }> {
   /**
    The mise the unit runs, found in the launcher's own search path because a unit does not inherit it.
@@ -234,19 +263,53 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
     ],
     folder: request.worktree,
   };
-  if (!(await managerAnswers({
-    run: request.run,
-    folder: request.worktree,
-  },))) {
-    // No manager: the install still happens, and this is the step that says so rather than refusing the run.
+  /**
+   What this machine has, which decides whether an install that cannot be confined is degraded or refused.
+   */
+  const presence = await managerPresenceIn({
+    ...((request.managerRuntimeDirectory === undefined)
+      ? {}
+      : { runtimeDirectory: request.managerRuntimeDirectory, }),
+    ...((request.cgroupFile === undefined) ? {} : { cgroupFile: request.cgroupFile, }),
+  },);
+  if (presence.there) {
+    /**
+     Whether that manager answered, asked twice before this start gives up on it.
+     */
+    const manager = await managerAnswerOf({
+      run: request.run,
+      folder: request.worktree,
+    },);
+    if (!manager.answered) {
+      throw new StartRefusedError(
+        `${request.runName} was not started: ${presence.evidence}, so this machine has a user manager, and \`systemctl --user show --property=Version\` did not answer it twice (${manager.answer}). The install was not run, because it could only have run with this launcher's access, and the branch's own lifecycle scripts would have written wherever the launcher may. A manager that answers again can be started then, and a machine that has no user manager at all takes the unconfined path and records it.`,
+      );
+    }
+  }
+  if (!presence.there) {
+    // No manager on this machine: the install still happens, this step says so, and the run's own folder records it rather than
+    // refusing a run this machine can confine no other way.
     /**
      What the unconfined install answered.
      */
     const unconfined = await request.run(install,);
+    /**
+     What this step has to say about the run's dependencies, which the run's own folder keeps.
+     */
+    const record = {
+      status: unconfined.status,
+      confined: false,
+      why: `this machine has no user manager (${presence.evidence}), so the install ran with the launcher's access and an install script could write ${request.checkoutFolder}`,
+    };
+    await writeTheRecord({
+      runFolder: request.runFolder,
+      record,
+    },);
     return {
       status: unconfined.status,
       output: `${unconfined.stdout}${unconfined.stderr}${unconfined.problem ?? ''}`.trim(),
       confined: false,
+      why: record.why,
     };
   }
   /**
@@ -265,6 +328,13 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
     folder: request.worktree,
     timeoutMilliseconds: DEPENDENCIES_CLIENT_SECONDS * MILLISECONDS_PER_SECOND,
   },);
+  await writeTheRecord({
+    runFolder: request.runFolder,
+    record: {
+      status: answered.status,
+      confined: true,
+    },
+  },);
   return {
     status: answered.status,
     output: `${answered.stdout}${answered.stderr}${answered.problem ?? ''}`.trim(),
@@ -273,28 +343,280 @@ export async function linkDependenciesInAUnit(request: DependenciesUnitRequest,)
 }
 
 /**
- Says whether this machine's user manager answers, which decides whether the install can be confined.
+ What one run's folder keeps about its dependency linking, so a reader of the run knows what confined the install.
+
+ @param runFolder - the run's own folder
+
+ @param record - what this step answered
+
+ @example
+ ```ts
+ await writeTheRecord({ runFolder: '/runs/a-1', record: { status: 0, confined: true, }, });
+ ```
+ */
+async function writeTheRecord({
+  runFolder,
+  record,
+}: {
+  readonly runFolder: string;
+  readonly record: {
+    readonly status: number;
+    readonly confined: boolean;
+    readonly why?: string;
+  };
+},): Promise<void> {
+  await mkdir(
+    runFolder,
+    { recursive: true, },
+  );
+  await writeFile(
+    join(
+      runFolder,
+      DEPENDENCIES_RECORD_NAME,
+    ),
+    `${JSON.stringify(
+      record,
+      undefined,
+      2,
+    )}\n`,
+    { encoding: 'utf8', },
+  );
+}
+
+/**
+ What the run's own folder calls what this step answered about its dependencies.
+ */
+export const DEPENDENCIES_RECORD_NAME: string = 'dependencies.json';
+
+/**
+ What this machine has, which decides whether an install that cannot be confined is degraded or refused.
+ */
+export type ManagerPresence = {
+  /**
+   Whether a user manager is on this machine at all.
+   */
+  readonly there: boolean;
+
+  /**
+   What says so, in the words a refusal or a note prints: the socket that was found, the unit this launcher runs in, or that neither
+   was there.
+   */
+  readonly evidence: string;
+};
+
+/**
+ Reads whether this machine has a user manager at all: its own socket, or the unit this launcher itself runs in.
+
+ Why this and not one answer to one question: `systemctl` failing once says nothing about whether the machine has a manager, and a
+ timeout on a loaded machine says less. The socket and the cgroup are what the machine has, and they are read from the filesystem,
+ so a wrong answer to a question cannot turn a manager that is there into one that is not.
+
+ @param runtimeDirectory - the folder the manager's socket lives in, which a test points at a fixture
+
+ @param cgroupFile - the file that names the units this process is in, which a test points at a fixture
+
+ @returns whether the machine has a manager, and what says so
+
+ @example
+ ```ts
+ const presence = await managerPresenceIn({ runtimeDirectory: '/run/user/1000', });
+ ```
+ */
+export async function managerPresenceIn({
+  runtimeDirectory = process.env
+    .XDG_RUNTIME_DIR,
+  cgroupFile = CGROUP_FILE,
+}: {
+  /**
+   The folder the manager's socket lives in, which is this launcher's own runtime directory when it is not named.
+   */
+  readonly runtimeDirectory?: string;
+
+  /**
+   The file that names the units this process is in, which a test points at a fixture.
+   */
+  readonly cgroupFile?: string;
+},): Promise<ManagerPresence> {
+  if (runtimeDirectory !== undefined) {
+    /**
+     The manager's own socket, which every connection to a user manager goes through.
+     */
+    const socket = join(
+      runtimeDirectory,
+      MANAGER_SOCKET,
+    );
+    try {
+      if ((await stat(socket,)).isSocket()) {
+        return {
+          there: true,
+          evidence: `the manager's socket is ${socket}`,
+        };
+      }
+    }
+    catch (error) {
+      // A socket that is not there is one of the two things a machine without a manager looks like, so the cgroup decides next.
+      if (errorCodeOf(error,) !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+  /**
+   What the units this process is in say, which a manager writes and nothing else does.
+   */
+  const cgroup = await cgroupTextOf({ cgroupFile, },);
+  if (namesAManagerUnit({ cgroup, },)) {
+    return {
+      there: true,
+      evidence: `this launcher runs in a unit of a manager (${cgroupFile})`,
+    };
+  }
+  return {
+    there: false,
+    evidence: `neither ${String(runtimeDirectory,)}/systemd/private nor a unit of a manager in ${cgroupFile}`,
+  };
+}
+
+/**
+ Reads what this process's own cgroup file says, and nothing when it cannot be read.
+
+ @param cgroupFile - the file that names the units this process is in
+
+ @returns its text, or nothing when it is not there or cannot be read as an ordinary file
+
+ @example
+ ```ts
+ const cgroup = await cgroupTextOf({ cgroupFile: '/proc/self/cgroup', });
+ ```
+ */
+async function cgroupTextOf({ cgroupFile }: { readonly cgroupFile: string },): Promise<string> {
+  try {
+    return await readOrdinaryFileWithin({ path: cgroupFile, },);
+  }
+  catch (error) {
+    // A cgroup file that cannot be read is no answer about this machine, and the manager's socket then decides alone.
+    if (errorCodeOf(error,) === 'ENOENT') {
+      return '';
+    }
+    throw error;
+  }
+}
+
+/**
+ Says whether a cgroup file names a unit of this user's own manager, which is `user@1000.service`: a session's own
+ `session-1.scope` is not one of them, so a machine whose session started this process has no manager.
+
+ @param cgroup - what the cgroup file says
+
+ @returns whether it names a manager's own unit
+
+ @example
+ ```ts
+ const named = namesAManagerUnit({ cgroup: '0::/user.slice/user-1000.slice/user@1000.service/app.slice/a.service', });
+ ```
+ */
+function namesAManagerUnit({ cgroup }: { readonly cgroup: string },): boolean {
+  return cgroup.includes('/user@',) && cgroup.includes('.service',);
+}
+
+/**
+ Where the manager's socket lives under the runtime directory of the user.
+ */
+const MANAGER_SOCKET: string = 'systemd/private';
+
+/**
+ Where this process's own units are named.
+ */
+const CGROUP_FILE: string = '/proc/self/cgroup';
+
+/**
+ What asking the manager whether it is there answered.
+ */
+type ManagerAnswer = {
+  /**
+   Whether it answered at all.
+   */
+  readonly answered: boolean;
+
+  /**
+   What it answered, or what it said instead, in the words a refusal prints.
+   */
+  readonly answer: string;
+};
+
+/**
+ Asks this machine's user manager whether it is there, and asks once more when the first answer does not come.
+
+ Why twice: the question decides whether an install can be confined, and a manager that missed one answer on a loaded machine is not a
+ missing manager. Two answers that both fail are a manager that is there and is not answering, which the caller refuses rather than
+ degrading.
 
  @param run - how one command is run
 
  @param folder - the folder the question is asked in, which exists whether a manager does or not
 
- @returns whether a manager answered with its version
+ @returns whether it answered, and what it answered or said
 
  @example
  ```ts
- const answers = await managerAnswers({ run: runCommandWithChildProcess, folder: '/repo', });
+ const answers = await managerAnswerOf({ run: runCommandWithChildProcess, folder: '/repo', });
  ```
  */
-async function managerAnswers({
+async function managerAnswerOf({
   run,
   folder,
 }: {
   readonly run: RunCommand;
   readonly folder: string;
-},): Promise<boolean> {
+},): Promise<ManagerAnswer> {
   /**
-   What the manager said about itself.
+   What the manager said the first time.
+   */
+  const first = await oneManagerAnswer({
+    run,
+    folder,
+  },);
+  if (first.answered) {
+    return first;
+  }
+  /**
+   What it said when it was asked again, which a manager that missed one answer on a loaded machine is worth.
+   */
+  const second = await oneManagerAnswer({
+    run,
+    folder,
+  },);
+  if (second.answered) {
+    return second;
+  }
+  return {
+    answered: false,
+    answer: `the first said ${first.answer}; asked again, it said ${second.answer}`,
+  };
+}
+
+/**
+ Asks the manager whether it is there, once.
+
+ @param run - how one command is run
+
+ @param folder - the folder the question is asked in
+
+ @returns whether it answered, and what it answered or said
+
+ @example
+ ```ts
+ const answer = await oneManagerAnswer({ run: runCommandWithChildProcess, folder: '/repo', });
+ ```
+ */
+async function oneManagerAnswer({
+  run,
+  folder,
+}: {
+  readonly run: RunCommand;
+  readonly folder: string;
+},): Promise<ManagerAnswer> {
+  /**
+   What the manager said about itself this time.
    */
   const answered = await run({
     command: 'systemctl',
@@ -307,9 +629,21 @@ async function managerAnswers({
     folder,
     timeoutMilliseconds: MANAGER_ANSWER_MILLISECONDS,
   },);
-  return (answered.status === 0) && (answered.stdout
-    .trim()
-    !== '');
+  /**
+   What this answer amounts to, which is the answer itself or the status and words that came instead.
+   */
+  const thisAnswer = answered.stdout
+    .trim();
+  if ((answered.status === 0) && (thisAnswer !== '')) {
+    return {
+      answered: true,
+      answer: thisAnswer,
+    };
+  }
+  return {
+    answered: false,
+    answer: `status ${String(answered.status,)} ${JSON.stringify(`${answered.stdout}${answered.stderr}${answered.problem ?? ''}`.trim(),)}`,
+  };
 }
 
 /**
@@ -373,6 +707,8 @@ export async function linkDependenciesOrRefuse(request: DependenciesUnitRequest,
     status: linked.status,
     ...(linked.confined
       ? {}
-      : { note: `linked with this launcher's access, because no user manager answered, so an install script could write ${request.checkoutFolder}`, }),
+      : {
+        note: `${linked.why ?? `linked with this launcher's access, so an install script could write ${request.checkoutFolder}`}; the run's own folder records this as ${DEPENDENCIES_RECORD_NAME}`,
+      }),
   };
 }

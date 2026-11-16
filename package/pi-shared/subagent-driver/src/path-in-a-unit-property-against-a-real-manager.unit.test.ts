@@ -387,11 +387,12 @@ await describe({
                    The two directories this fixture's Git would name, which are the checkout's own `.git` folder.
                    */
                   const gitDirectory = join(checkout, '.git',);
-                  const [first, second,] = request.words.slice(0, 4,);
-                  return ((first === 'rev-parse') && (second === '--path-format=absolute'))
+                  const [first, second, third,] = request.words.slice(0, 4,);
+                  return ((first === 'rev-parse') && (second === '--path-format=absolute')
+                    && ((third === '--absolute-git-dir') || (third === '--git-common-dir')))
                     ? {
                       status: 0,
-                      stdout: `${gitDirectory}\n${gitDirectory}\n`,
+                      stdout: `${gitDirectory}\n`,
                       stderr: '',
                     }
                     : {

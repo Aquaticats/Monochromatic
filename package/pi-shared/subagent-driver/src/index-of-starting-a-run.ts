@@ -129,11 +129,15 @@ export {
 export * from './index-of-a-runs-file-system.ts';
 export {
   DEPENDENCIES_CLIENT_SECONDS,
+  DEPENDENCIES_RECORD_NAME,
   DEPENDENCIES_UNIT_SECONDS,
   type DependenciesUnitRequest,
+  type ManagerPresence,
   dependenciesUnitCommandOf,
   dependenciesUnitNameOf,
   linkDependenciesInAUnit,
+  linkDependenciesOrRefuse,
+  managerPresenceIn,
 } from './dependencies-linked-in-a-unit.ts';
 export {
   PI_LOAD_FAILURE_TEXT,

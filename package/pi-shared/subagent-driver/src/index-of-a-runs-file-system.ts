@@ -7,8 +7,12 @@
  */
 
 export {
+  ACanonicalPathThatDidNotAnswerError,
+  AGitFolderThatIsNotThereError,
+  CANONICAL_PATH_MILLISECONDS,
   type FileSystemOfARun,
   FolderAToolMakesCannotBeMadeError,
+  type RealPathOf,
   WorktreeGoneError,
   fileSystemOfARun,
   fileSystemPropertiesOf,

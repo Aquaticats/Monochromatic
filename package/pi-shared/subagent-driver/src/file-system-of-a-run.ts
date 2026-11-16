@@ -35,6 +35,7 @@ import {
   realpath,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { answerWithinABound, } from './an-answer-within-a-bound.ts';
 import { gitFoldersOf, } from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import type { GitRunner, } from './worktree-of-a-run.ts';
@@ -44,6 +45,29 @@ import { pathInAUnitProperty, } from './path-in-a-unit-property.ts';
  The code the operating system gives a path that is not there.
  */
 const MISSING_PATH_CODE = 'ENOENT';
+
+/**
+ How long reading one folder as the file system names it may take, in milliseconds.
+
+ A bound rather than a measurement: every folder here is a checkout, a Git directory or a worktree on a mounted disk, which
+ `realpath` answers for in microseconds, and the launcher asks before it makes any unit, so no unit's `RuntimeMaxSec` covers this
+ wait. A filesystem that has stopped answering path resolution would otherwise hold the start for ever.
+ */
+export const CANONICAL_PATH_MILLISECONDS: number = 30_000;
+
+/**
+ Reads one folder as the file system names it, which a test replaces to hold a `realpath` that never answers.
+
+ @param path - the folder to read
+
+ @returns its canonical path
+
+ @example
+ ```ts
+ const canonical = await readRealPath('/repo/.git');
+ ```
+ */
+export type RealPathOf = (path: string) => Promise<string>;
 
 /**
  The folder of the checkout this repository's tools cache their binaries and guards in.
@@ -183,6 +207,8 @@ async function makeTheFolder({ folder, }: { readonly folder: string },): Promise
 
  @throws GitFolderAboveTheCheckoutError when Git names a folder that holds the checkout, which a start must not make writable
 
+ @throws ACanonicalPathThatDidNotAnswerError when one of those folders did not answer inside {@link CANONICAL_PATH_MILLISECONDS}
+
  @example
  ```ts
  const fileSystem = await fileSystemOfARun({ git, checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', runFolder: '/runs/a-1', worksInTheCheckoutItself: false },);
@@ -194,11 +220,23 @@ export async function fileSystemOfARun({
   worktree,
   runFolder,
   worksInTheCheckoutItself,
+  readRealPath = realpath,
+  canonicalPathMilliseconds = CANONICAL_PATH_MILLISECONDS,
 }: {
   /**
    How one git question is run, which Git's own answers about the checkout come through.
    */
   readonly git: GitRunner;
+
+  /**
+   How one folder is read as the file system names it, which a test replaces to hold a `realpath` that never answers.
+   */
+  readonly readRealPath?: RealPathOf;
+
+  /**
+   How long reading one folder that way may take, which a test shortens and no caller else names.
+   */
+  readonly canonicalPathMilliseconds?: number;
 
   /**
    The checkout the run's launcher works in, which its run must not change.
@@ -232,34 +270,54 @@ export async function fileSystemOfARun({
    path written as its target compare equal.
    */
   const canonical = {
-    checkout: await canonicalPathOf({ path: checkoutFolder, },),
-    gitDirectory: await canonicalPathOf({ path: gitFolders.gitDirectory, },),
-    commonDirectory: await canonicalPathOf({ path: gitFolders.commonDirectory, },),
+    checkout: await canonicalPathOf({
+      path: checkoutFolder,
+      readRealPath,
+      milliseconds: canonicalPathMilliseconds,
+    },),
+    gitDirectory: await canonicalPathOf({
+      path: gitFolders.gitDirectory,
+      readRealPath,
+      milliseconds: canonicalPathMilliseconds,
+    },),
+    commonDirectory: await canonicalPathOf({
+      path: gitFolders.commonDirectory,
+      readRealPath,
+      milliseconds: canonicalPathMilliseconds,
+    },),
   };
+  /**
+   The Git folders this run's unit writes: a run with a worktree of its own commits there, so its own Git directory and the one
+   every worktree shares must be writable wherever they lie. A run that works in the checkout itself has nothing of its own to
+   commit: its worktree is the checkout, the checkout is read-only, and a writable Git directory would let it write `HEAD` and the
+   refs of a checkout it cannot change otherwise, which is how a run that could not edit one file still moved `main`.
+   */
+  const gitFoldersTheRunWrites: readonly string[] = worksInTheCheckoutItself
+    ? []
+    : [
+      canonical.gitDirectory,
+      canonical.commonDirectory,
+    ];
   /**
    The folders this run must write, in the order a reader needs them: where it works, where its Git data is, where this
    repository's tools install themselves, and where the driver writes it.
    */
   const wanted: readonly string[] = [
     ...(worksInTheCheckoutItself ? [] : [worktree,]),
-    canonical.gitDirectory,
-    canonical.commonDirectory,
+    ...gitFoldersTheRunWrites,
     ...foldersAToolMakesIn({ checkoutFolder: canonical.checkout, },),
     runFolder,
   ];
   /**
-   The Git folders, which the unit must write wherever they lie: a bare repository's Git directory is the checkout itself, and a
-   commit there fails if that folder stays read-only.
+   The Git folders as one set, which decides whether the checkout itself stays read-only.
    */
-  const gitFoldersTheRunWrites = new Set([
-    canonical.gitDirectory,
-    canonical.commonDirectory,
-  ],);
+  const gitFoldersTheRunWritesSet = new Set(gitFoldersTheRunWrites,);
   return {
     // A folder that is a Git directory of the run is not read-only, even when it is the checkout: a bare repository holds the
-    // run's commits and nothing a run could edit, so its read-only view would only block them.
+    // run's commits and nothing a run could edit, so its read-only view would only block them. A run with no worktree of its own
+    // writes no Git folder, so its checkout stays read-only and every ref in it stays where it was.
     foldersAUnitCannotWrite: [canonical.checkout,].filter(function isNoGitFolder(path,) {
-      return !gitFoldersTheRunWrites.has(path,);
+      return !gitFoldersTheRunWritesSet.has(path,);
     },),
     foldersAUnitMustWrite: namedOnce(wanted,),
   };
@@ -272,6 +330,8 @@ export async function fileSystemOfARun({
 
  @returns the canonical path
 
+ @throws ACanonicalPathThatDidNotAnswerError when the folder did not answer inside its bound, naming it and the bound
+
  @throws the error the read gives, such as a folder that is not there
 
  @example
@@ -279,9 +339,36 @@ export async function fileSystemOfARun({
  const canonical = await canonicalPathOf({ path: '/repo/.git', });
  ```
  */
-async function canonicalPathOf({ path }: { readonly path: string },): Promise<string> {
+async function canonicalPathOf({
+  path,
+  readRealPath,
+  milliseconds,
+}: {
+  /**
+   The folder to read.
+   */
+  readonly path: string;
+
+  /**
+   How one folder is read as the file system names it, which a test replaces to hold a `realpath` that never answers.
+   */
+  readonly readRealPath: RealPathOf;
+
+  /**
+   How long that read may take.
+   */
+  readonly milliseconds: number;
+},): Promise<string> {
   try {
-    return await realpath(path,);
+    return await answerWithinABound({
+      call: readRealPath(path,),
+      milliseconds,
+      refusal: function readingTheFolderTookTooLong() {
+        return new ACanonicalPathThatDidNotAnswerError(
+          `reading ${path} as the file system names it took longer than ${String(milliseconds,)} ms, so this start stopped waiting for it and no unit was asked for. The request is still the kernel's until the filesystem answers, and nothing here waits on it any more; a checkout on a filesystem that answers again can be started then.`,
+        );
+      },
+    },);
   }
   catch (error) {
     // A folder Git named that is not there is a checkout this start cannot describe: it is refused, never taken as written, and
@@ -294,6 +381,21 @@ async function canonicalPathOf({ path }: { readonly path: string },): Promise<st
       { cause: error, },
     );
   }
+}
+
+/**
+ A folder the file system did not name inside the bound, so a start has no folders to give its unit.
+
+ @example
+ ```ts
+ throw new ACanonicalPathThatDidNotAnswerError('/repo took longer than 30000 ms to answer',);
+ ```
+ */
+export class ACanonicalPathThatDidNotAnswerError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'ACanonicalPathThatDidNotAnswerError';
 }
 
 /**

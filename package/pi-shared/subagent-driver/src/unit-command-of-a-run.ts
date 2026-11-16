@@ -57,6 +57,16 @@ export type UnitCommandRequest = {
   readonly taskCount: number;
 
   /**
+   The folder this machine's user manager keeps its own socket in, which a run's scopes need to reach that manager.
+
+   A run started by this unit puts every command of its brief into a `systemd-run --user --scope` of its own, and a scope reaches
+   the manager through this folder. Inheriting it from the manager's own environment works on a machine whose manager was started
+   with it, and says nothing on a machine whose manager was not; named here, the unit carries the folder the launcher itself
+   reached the manager through.
+   */
+  readonly runtimeDirectory?: string;
+
+  /**
    How long the run may last, in seconds.
    */
   readonly wallSeconds: number;
@@ -175,6 +185,9 @@ export function unitCommandOf(request: UnitCommandRequest,): {
       ...fileSystemPropertiesOf(request.fileSystem,),
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
+      // A scope inside this unit reaches the manager through this folder: named here so that a run's commands do not depend on the
+      // manager's own environment having it.
+      ...((request.runtimeDirectory === undefined) ? [] : [`--setenv=XDG_RUNTIME_DIR=${request.runtimeDirectory}`]),
       request.node,
       request.driverEntry,
       `--run-folder=${request.runFolder}`,

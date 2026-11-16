@@ -207,13 +207,14 @@ await describe({
             const file = join(folder.path, 'summary.json',);
             await writeFile(file, '{"endReason":"idle"}\n',);
             /**
-             How long the bound is, which is longer than any read of one small file takes.
+             How long the bound is, which is longer than any read of one small file takes and long enough that a child which
+             waits it out is told apart from one that does not on a loaded machine.
              */
-            const boundMilliseconds = 1_200;
+            const boundMilliseconds = 8_000;
             /**
-             How long the test waits before it calls the child stuck.
+             How long the child may live after it has reported its read, which is the gap the timer would fill.
              */
-            const patienceMilliseconds = 900;
+            const exitLagMilliseconds = 900;
             /**
              The reading, in a process of its own, so that what keeps that process alive is the read's own timer.
              */
@@ -223,7 +224,7 @@ await describe({
               `import { readOrdinaryFileWithin, } from ${JSON.stringify(new URL('../dist/final/node/index.mjs', import.meta.url,).href,)};
 const started = Date.now();
 const text = await readOrdinaryFileWithin({ path: ${JSON.stringify(file,)}, milliseconds: ${String(boundMilliseconds,)} });
-console.log(JSON.stringify({ text, milliseconds: Date.now() - started }));`,
+console.log(JSON.stringify({ text, milliseconds: Date.now() - started, endedAt: Date.now() }));`,
             ], {
               cwd: folder.path,
               stdio: ['ignore', 'pipe', 'pipe',],
@@ -233,21 +234,24 @@ console.log(JSON.stringify({ text, milliseconds: Date.now() - started }));`,
             child.stdout.on('data', function hold(chunk: string,) {
               stdout += chunk;
             },);
-            /**
-             How long the child took to end, from the moment it was asked to read.
-             */
-            const startedAt = Date.now();
             const closed: readonly unknown[] = await once(child, 'close',);
-            const endedMilliseconds = Date.now() - startedAt;
+            const closedAt = Date.now();
             expect(closed[0],).toBe(0,);
             /**
-             What the child's own record says it read, and how long that took.
+             What the child's record says it read, how long that took, and when it said its reading had ended.
              */
-            const read = JSON.parse(stdout,) as { readonly text?: unknown; readonly milliseconds?: unknown };
+            const read = JSON.parse(stdout,) as { readonly text?: unknown; readonly milliseconds?: unknown; readonly endedAt?: unknown };
             expect(read.text,).toBe('{"endReason":"idle"}\n',);
             expect(typeof read.milliseconds,).toBe('number',);
-            // With the timer left alive the child would live until the bound; the read answers in a millisecond.
-            expect(endedMilliseconds,).toBeLessThan(patienceMilliseconds,);
+            expect(typeof read.endedAt,).toBe('number',);
+            /**
+             How long the child lived after it had reported its read, which is the time the read's timer would have held it for.
+             */
+            const exitLag = closedAt - Number(read.endedAt,);
+            // With the timer left alive the child lives until the bound, which is minutes of lag; the read answers in a
+            // millisecond and the child ends. Measured this way, a loaded machine stretching the child's start or its module load
+            // moves neither number against the other.
+            expect(exitLag,).toBeLessThan(exitLagMilliseconds,);
           },
         },),
       ],

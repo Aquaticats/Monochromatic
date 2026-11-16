@@ -338,6 +338,22 @@ On 2026-11-11 that refusal ended all ten starts of a batch before any of them ma
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
 
+The unit carries the runtime directory the launcher itself reached the manager through,
+because every brief on this machine tells a run to put its commands into a
+`systemd-run --user --scope` of their own,
+and a scope reaches the manager through that folder.
+A unit that inherits it from the manager's environment starts scopes on a machine whose manager was started with it,
+and says nothing on a machine whose manager was not,
+which is why it is named.
+A review read the bus client's `Argument list too long` from a scope inside a run's unit as a fault of these properties,
+and it was not one:
+with the unit's own runtime directory the same properties start a scope,
+and with a runtime directory that holds no manager socket every property set fails the same way,
+measured with the read-only set,
+the writable set and both.
+The repository's own test starts a scope from inside the unit the launcher builds,
+and requires the checkout to stay read-only around it.
+
 The unit is started with the checkout read-only:
 the checkout's own path is a `ReadOnlyPaths=`,
 and a `ReadWritePaths=` carves the run's worktree out of it,
@@ -359,6 +375,17 @@ which is what lets a checkout whose first run must install a tool work at all.
 A run started with `--branch=none` works in the checkout itself and so gets no writable worktree:
 it can read the checkout and run its tools there,
 and it cannot change a file of it.
+It gets no writable Git folder either,
+which is the mode rather than a path:
+the checkout is read-only there,
+so there is nothing of its own to commit,
+and a writable Git directory would let it write `HEAD` and the refs of a checkout it cannot change otherwise,
+which is how a run that could not edit one file still moved `main` backwards in a review's reproduction.
+A run with a worktree of its own keeps both Git directories writable,
+and that is where its refs are writable too:
+Git writes a branch by renaming a lock file in the folder that holds it,
+so a unit that may write its own branch may write `refs/heads` with it,
+and a folder list cannot say "this branch and no other".
 
 On 2026-11-14 two runs wrote into the main checkout:
 one wrote twenty new files and four edits there over fifty minutes while its own worktree was empty,
@@ -377,7 +404,7 @@ naming the folder and what systemd takes,
 before anything is made.
 
 The folders a unit may write are Git's own answers about the checkout,
-asked with `git rev-parse --path-format=absolute --absolute-git-dir --git-common-dir`,
+asked with `git rev-parse --path-format=absolute` once per folder,
 never rebuilt from the files Git writes there:
 a checkout whose Git directory is kept elsewhere and a submodule both carry no `commondir`,
 and a walk that guesses names the folder above the checkout,
@@ -392,6 +419,15 @@ so a path reached through a link and the same path written as its target are one
 A Git folder that holds the checkout is refused,
 and so is a checkout Git cannot describe,
 because a start that cannot say which folders a run writes does not start.
+One question per folder,
+and only that answer's own final newline taken off,
+because a Git pathname may hold a newline:
+two answers in one stream cannot be told apart from one pathname with a newline in it,
+and trimming would eat a pathname's own trailing space,
+so a valid checkout named that way was refused before this.
+A checkout whose path holds a line feed cannot be committed in here for another reason:
+this repository's Git wrapper refuses to classify such a worktree,
+and a commit prints its own words about it.
 Where the repository is found by reading files,
 a marker whose Git directory names no shared one is refused,
 with words saying to name the checkout.
@@ -415,10 +451,21 @@ An install that failed stops the start,
 naming its status and what it printed,
 because an agent that began against a half-installed tree would build,
 test and commit on it.
-Where no user manager answers,
+Where this machine has no user manager at all,
 the install still happens with the launcher's access,
-and the line the launcher prints says so,
-so a reader knows the run has no read-only checkout around its install scripts.
+the line the launcher prints says so,
+and the run's own folder keeps it as `dependencies.json`,
+so a reader of the run knows what protection it lacked and why.
+What says the machine has none is what the machine has,
+not one answer to one question:
+the manager's own socket under the launcher's runtime directory,
+or a cgroup naming a unit of this user's manager.
+A machine that *has* a manager and did not answer is another case,
+and it refuses the start:
+the question is asked twice,
+because a manager that missed one answer on a loaded machine is not a missing manager,
+and two failures are a manager that is there and is not answering,
+whose install could only have run with the launcher's access.
 What runs outside those units runs no branch code:
 the git questions,
 the mise environment questions,
@@ -464,6 +511,15 @@ when it fires,
 the open,
 the metadata read or the read it interrupted stays the kernel's until the filesystem answers,
 and nothing here waits for it any more.
+
+Reading the checkout and its Git folders as the file system names them is bounded the same way,
+by the same module and with the same reason:
+those three reads happen before any unit exists,
+so no unit's `RuntimeMaxSec` covers them,
+and a filesystem that has stopped answering path resolution would hold the start for ever.
+A folder that has not answered inside the bound refuses the start,
+naming the folder and the bound,
+rather than waiting for an answer that may never come.
 
 The wait for the unit is the launcher's own:
 it starts the waiter,

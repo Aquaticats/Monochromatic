@@ -628,7 +628,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -782,7 +782,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    exit 0 ;;\n  *'rev-parse --verify --quiet'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    exit 0 ;;\n  *'rev-parse --verify --quiet'*)\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -1062,7 +1062,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -1208,7 +1208,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -1315,7 +1315,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -1426,7 +1426,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH, the node, and the install itself.
@@ -1445,7 +1445,8 @@ await describe({
           body: `printf '%s\\n' "$*" >> '${unitLog}'\nexit 0\n`,
         },);
         /**
-         The manager that does not answer whether it is there, which is a machine with no user manager.
+         The manager that does not answer whether it is there, while this machine has one: the socket and the unit this
+         launcher runs in are what says so, and neither is a stand-in's to hide.
          */
         await writeProgram({
           folder: launcherBin,
@@ -1480,18 +1481,39 @@ await describe({
           branch: 'probe-branch',
           base: 'a-commit',
         },);
-        expect(ended.code,).toBe(0,);
-        // The install ran, and the line says it ran with the launcher's access, which is the protection the run then lacks.
-        expect(await logIn(programLog,),).toContain('exec -- pnpm install --offline --frozen-lockfile',);
-        expect(ended.stdout,).toContain(`dependencies: status 0; linked with this launcher's access, because no user manager answered, so an install script could write ${checkout}`,);
+        // A manager that is there and did not answer refuses the start: the install could only have run with the launcher's
+        // access, and the branch's own lifecycle scripts would have written wherever the launcher may.
+        expect(ended.code,).not.toBe(0,);
+        expect(ended.stderr,).toContain('was not started: ');
+        expect(ended.stderr,).toContain('did not answer it twice');
+        // The install never ran, and no unit was asked for. What the launcher did ask is where its mise is, which is a question
+        // about this machine and no branch code.
         /**
-         Every unit the launcher asked the manager for.
+         What the launcher asked the programs it ran.
          */
-        const askedUnits = (await readFile(unitLog, 'utf8',)).trim()
-          .split('\n',);
-        // No dependencies unit is asked for where none can run, and the run still starts in its own unit.
-        expect(askedUnits,).toHaveLength(1,);
-        expect(askedUnits[0],).toContain('--unit=pi-refused.service');
+        /**
+         What the launcher asked the programs it ran, or nothing when it asked none.
+         */
+        let asked = '';
+        try {
+          asked = await readFile(programLog, 'utf8',);
+        }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error;
+          }
+        }
+        expect(asked,).not.toContain('pnpm install',);
+        let unitsAsked = '';
+        try {
+          unitsAsked = await readFile(unitLog, 'utf8',);
+        }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error;
+          }
+        }
+        expect(unitsAsked.trim(),).toBe('',);
       },
     },),
   ],

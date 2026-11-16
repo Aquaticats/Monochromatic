@@ -340,6 +340,7 @@ const unit = unitCommandOf({
   idleSeconds: options.idleSeconds,
   turnCap,
   fileSystem,
+  ...((env.XDG_RUNTIME_DIR === undefined) ? {} : { runtimeDirectory: env.XDG_RUNTIME_DIR, }),
   ...(options.session === undefined ? {} : { session: options.session, }),
 },);
 
