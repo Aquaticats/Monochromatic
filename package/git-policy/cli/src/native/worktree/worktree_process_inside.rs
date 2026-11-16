@@ -54,7 +54,9 @@
 //!  What decides instead is the process's start:
 //!  a process of this account whose working folder cannot be read is taken to be working inside the worktree
 //!  when it started after the worktree was made,
-//!  or when its start cannot be read,
+//!  when its age and the worktree's own are equal,
+//!  when its start cannot be read,
+//!  or when the age of the worktree cannot be read,
 //!  and taken to hold nothing there when it started before the worktree was made,
 //!  and the reason names the process when the answer is that it may be inside.
 //!  That is a guess at which processes change into a worktree,
@@ -74,7 +76,9 @@
 //!  so a file it holds in a worktree would be invisible.
 //!  The same ages decide that answer as decide a working folder that cannot be read:
 //!  the process is taken to be working inside when it is younger than the worktree,
-//!  or when its age cannot be read,
+//!  when its age and the worktree's own are equal,
+//!  when its age cannot be read,
+//!  or when the age of the worktree cannot be read,
 //!  and taken to hold nothing there when it is older.
 //!  The miss is larger there than it is for a working folder,
 //!  because a program can open a file in a worktree long after it started:
@@ -205,8 +209,9 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
                     OpenFiles::Outside => {}
                     // A descriptor table this account may not read hides what the process holds, so the age of the
                     // process decides it as it decides a hidden working folder: one younger than the worktree keeps
-                    // it, one older is taken to hold nothing there, and an older one that opened a file there after
-                    // the worktree was made is the miss the module doc names.
+                    // it, as do equal ages and an age that cannot be read, one older is taken to hold nothing there,
+                    // and an older one that opened a file there after the worktree was made is the miss the module
+                    // doc names.
                     OpenFiles::Unreadable => {
                         if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
                             return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
