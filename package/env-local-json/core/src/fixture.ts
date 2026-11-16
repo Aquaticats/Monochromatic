@@ -10,7 +10,6 @@
  */
 
 import { spawn, } from 'node:child_process';
-import { once, } from 'node:events';
 import {
   chmod,
   mkdir,
@@ -29,6 +28,13 @@ import { randomUUID, } from 'node:crypto';
 import {
   caughtValueText,
 } from '@monochromatic-dev/caught-value-core/ts';
+
+import {
+  MAX_SOPS_OUTPUT_BYTES,
+} from './constants.ts';
+import {
+  collectChildStdout,
+} from './sops-stdout-capture.ts';
 
 //region Constants
 
@@ -152,7 +158,11 @@ type RunCommandOptions = {
 //region Command execution
 
 /**
- Runs one real tool and captures its standard output.
+ Runs one real tool and captures its whole standard output.
+
+ The capture ends at the tool's `close` event, never at its `exit` event: a
+ tool can end while its standard output pipe still holds unread data, and a
+ join there yields empty or cut text that then lands in a fixture store.
 
  Exported so a test can drive a stand-in tool the fixture's own helpers cannot
  name, such as one whose standard output arrives after its exit event.
@@ -180,13 +190,9 @@ export async function runCommand({
   args,
   extraEnv,
 }: RunCommandOptions,): Promise<CommandResult> {
-  /**
-   Output chunks captured from the child process.
-   */
-  const captured: string[] = [];
   try {
     /**
-     Tool child process with captured standard output.
+     Tool child process, whose standard output the capture seam owns.
      */
     const child = spawn(
       command,
@@ -203,30 +209,33 @@ export async function runCommand({
         ],
       },
     );
-    child.stdout
-      .setEncoding('utf8',);
-    child.stdout
-      .on(
-      'data',
-      function captureChunk(chunk: string,): void {
-        captured.push(chunk,);
+    /**
+     Whole standard output of the tool, whether it outran the bound, and what
+     its child reported when every stdio stream had ended.
+     */
+    const capture = await collectChildStdout({
+      completionSource: child,
+      stdoutSource: child,
+      onOverflow: function killOverflowingTool() {
+        child.kill();
       },
+      // The reader this fixture feeds refuses a document longer than this, so
+      // a tool that printed one has produced a fixture no test could use.
+      maxBytes: MAX_SOPS_OUTPUT_BYTES,
+    },);
+    if (capture.overflow)
+      throw new Error(
+        `${command} printed more than ${String(MAX_SOPS_OUTPUT_BYTES,)} characters of standard output`,
       );
     /**
-     Raw exit event of the tool process.
+     Reported exit code from the completion tuple.
      */
-    const exitEvent: unknown = await once(
-      child,
-      'exit',
-    );
-    /**
-     Reported exit code from the event tuple.
-     */
-    const code: unknown = Array.isArray(exitEvent,) ? exitEvent[0] : undefined;
+    const code: unknown = Array.isArray(capture.endEvent,) ? capture.endEvent[0] : undefined;
     if ((typeof code) !== 'number')
       throw new Error(`${command} did not exit with a status`,);
     if (code !== 0)
       throw new Error(`${command} exited with status ${String(code,)}`,);
+    return { stdout: capture.output, };
   }
   catch (error) {
     throw new Error(
@@ -234,7 +243,6 @@ export async function runCommand({
       { cause: error, },
     );
   }
-  return { stdout: captured.join('',), };
 }
 
 //endregion Command execution

@@ -36,15 +36,16 @@ import {
 //region Constants
 
 /**
- Head of the document the stand-in tool prints, in the shape of a store.
+ First half of the document the stand-in tool prints: a store whose one value
+ it has not finished. A join that stops here holds text no reader can parse.
  */
-const STORE_HEAD = '{"values":';
+const STORE_HEAD = '{"STAND_IN_NAME":"stand-in-value-';
 
 /**
- Tail of that document, which the stand-in prints after its direct child has
- ended.
+ Second half of that value and the document's close, which the stand-in prints
+ after its direct child has ended.
  */
-const STORE_TAIL = '{"STAND_IN_NAME":"stand-in-value"}}';
+const STORE_TAIL = '0123456789"}';
 
 /**
  Whole document the stand-in tool prints, and the only text a reader can parse.
@@ -54,7 +55,7 @@ const WHOLE_STORE = `${STORE_HEAD}${STORE_TAIL}`;
 /**
  Values {@link WHOLE_STORE} declares, which is what a cut store cannot parse to.
  */
-const STAND_IN_VALUES: Readonly<Record<string, string>> = { STAND_IN_NAME: 'stand-in-value', };
+const STAND_IN_VALUES: Readonly<Record<string, string>> = { STAND_IN_NAME: 'stand-in-value-0123456789', };
 
 /**
  Seconds the stand-in's background subshell waits before printing the tail:
@@ -142,8 +143,8 @@ await describe({
         },);
         expect(result.stdout,)
           .toBe(WHOLE_STORE,);
-        // The consequence, not just the text: a cut capture is a store no reader can parse, which is how the failure of
-        // `encryptJson`'s store reached the driver's suite as a SyntaxError.
+        // The consequence, not just the text: text cut inside a value is a store no reader can parse, which is how the cut
+        // text `encryptJson` wrote reached the driver suite as a SyntaxError.
         expect(JSON.parse(result.stdout,),)
           .toEqual(STAND_IN_VALUES,);
       },
