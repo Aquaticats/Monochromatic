@@ -960,15 +960,6 @@ fn a_path_whose_removal_has_not_finished_is_never_handed_to_the_next_attempt() {
 ///  (the ninth review's third finding).
 ///  A `NotFound` for a directory this maker just made means it is gone, and another is made.
 #[test]
-///  A commit's tree that a finished sweep removed before the maker's claim is made again, and the path answered is one
-///  the commit can write into.
-/// Why:
-///  The maker claims the tree it just made, and a claim on a path that is gone answers `NotFound`;
-///  the claim reads `NotFound` as "the volume cannot be asked" and handed the removed path back as if the tree were a
-///  command's to build in, so the first private-index write failed with `ENOENT`
-///  (the ninth review's third finding).
-///  A `NotFound` for a directory this maker just made means it is gone, and another is made.
-#[test]
 fn a_tree_a_finished_sweep_removed_before_the_claim_is_made_again() {
     let root: PathBuf = fixture("scratch-tree-swept-before-the-claim");
     let common: PathBuf = root.join("repo").join(".git");
