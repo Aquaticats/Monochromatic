@@ -196,7 +196,9 @@ const asked: { count: number } = { count: 0, };
  */
 function nextUnitName(): string {
   asked.count += 1;
-  return `probe-encoding-${String(asked.count,)}`;
+  // The process's own number is part of the name: two runs of this file at once (two worktrees, two agents) would otherwise ask for
+  // the same unit name, and the second `systemd-run` failing reads as "no manager answered", which skips the whole file.
+  return `probe-encoding-${String(process.pid,)}-${String(asked.count,)}`;
 }
 
 /**

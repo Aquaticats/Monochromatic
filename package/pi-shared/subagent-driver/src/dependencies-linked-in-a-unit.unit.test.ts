@@ -10,7 +10,6 @@
  */
 
 import { execFile, } from 'node:child_process';
-import { createServer, } from 'node:net';
 import {
   access,
   mkdir,
@@ -194,123 +193,6 @@ async function settledBy<Answer>({ call, }: { readonly call: () => Promise<Answe
 }
 
 /**
- The folder a manager fixture keeps its socket under, which is the harness's scratch root unless that would make a socket path the
- kernel refuses.
-
- Why: a Unix socket address is a fixed 108-byte field, and `listen` answers `EINVAL` for a longer path. The harness's scratch root is
- short on this machine and long under a review's own folder, so a fixture that always used it would fail for the folder's length
- rather than for the code it tests. The user's runtime directory is the one short folder every session on such a machine has.
-
- @param scratch - the harness's scratch root
-
- @returns the folder to make the fixture's folder in
-
- @example
- ```ts
- const base = socketBase({ scratch: '/home/a/.cache/monochromatic-dev/test-scratch', });
- ```
- */
-function socketBase({ scratch }: { readonly scratch: string },): string {
-  /**
-   The longest path this fixture may hand `listen`: the kernel's field less a NUL, less the fixture's own folder name and the socket
-   path inside it.
-   */
-  const longest = 108 - 1 - 'pi-manager-XXXXXX/runtime/systemd/private'.length;
-  return (join(scratch, 'pi-manager-XXXXXX', 'runtime', 'systemd', 'private',).length <= longest)
-    ? scratch
-    : join('/run/user', String(process.getuid?.() ?? 1_000,),);
-}
-
-/**
- What a fixture says the machine has: a manager whose socket is there, or one whose socket and units are not.
- */
-type ManagerFixture = {
-  /**
-   The folder the manager's socket lives in, which this step reads.
-   */
-  readonly runtimeDirectory: string;
-
-  /**
-   The file that names the units this process is in, which this step reads.
-   */
-  readonly cgroupFile: string;
-
-  /**
-   Stops the socket, so the fixture leaves nothing listening.
-   */
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-};
-
-/**
- Makes what this machine has, as a fixture: a folder holding the manager's own socket, and a cgroup file naming a unit of a manager
- or naming nothing of one.
-
- Why a fixture: the question decides whether an install that cannot be confined is degraded or refused, and the answer a machine
- gives must not depend on the machine a test happens to run on.
-
- @param withSocket - whether the manager's socket is there
-
- @returns the runtime folder, the cgroup file, and the way to stop the socket
-
- @example
- ```ts
- await using manager = await makeManagerFixture({ withSocket: true, });
- ```
- */
-async function makeManagerFixture({
-  withSocket,
-}: {
-  readonly withSocket: boolean;
-},): Promise<ManagerFixture> {
-  /**
-   The folder the fixture's socket lives in, which must be short: a Unix socket's path may not pass the length the kernel keeps for
-   it, and a harness scratch root under a long folder would pass it.
-   */
-  const shortBase = socketBase({ scratch: scratchRoot(), },);
-  const path = await mkdtemp(join(shortBase, 'pi-manager-',),);
-  /**
-   The folder the manager keeps its socket in.
-   */
-  const runtimeDirectory = join(path, 'runtime',);
-  await mkdir(join(runtimeDirectory, 'systemd',), { recursive: true, mode: 0o700, },);
-  /**
-   The file that names the units this process is in.
-   */
-  const cgroupFile = join(path, 'cgroup',);
-  await writeFile(
-    cgroupFile,
-    withSocket
-      ? '0::/user.slice/user-1000.slice/user@1000.service/app.slice/probe.service\n'
-      : '0::/user.slice/user-1000.slice/session-1.scope\n',
-  );
-  /**
-   The socket the manager listens on, which nothing connects to.
-   */
-  const socket = join(runtimeDirectory, 'systemd', 'private',);
-  /**
-   What listens on it, or nothing when the fixture has no manager.
-   */
-  const server = createServer(function accept() {});
-  if (withSocket) {
-    await new Promise<void>(function waitForListening(resolve,) {
-      server.listen(socket, resolve,);
-    },);
-  }
-  return {
-    runtimeDirectory,
-    cgroupFile,
-    async [Symbol.asyncDispose]() {
-      await new Promise<void>(function waitForClosing(resolve,) {
-        server.close(function closed() {
-          resolve();
-        },);
-      },);
-      await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 200, },);
-    },
-  };
-}
-
-/**
  Asks this machine's manager whether it answers at all.
 
  @returns what it said when it does not answer, or nothing when it does
@@ -471,7 +353,6 @@ await describe({
              What this machine has, as a fixture: a manager's socket, so the question about the machine comes out the same
              wherever this test runs.
              */
-            await using manager = await makeManagerFixture({ withSocket: true, },);
             const linked = await linkDependenciesInAUnit({
               runName: 'probe-bounds',
               checkoutFolder: '/repo',
@@ -585,7 +466,11 @@ await describe({
             // Asked twice, because a manager that missed one answer is not a missing manager.
             expect(asked.length,).toBe(3,);
             // The install never ran, and no record was written: nothing happened for a run that cannot start.
-            expect(asked,).not.toContain('/bin/mise',);
+            // The install never ran: the step asks the manager for a unit of its own twice and, when neither answers, asks for no
+            // dependency unit at all. `asked` holds command names, so this is the assertion that would catch the install running.
+            expect(asked.filter(function isTheInstall(command,) {
+              return command === 'systemd-run';
+            },).length,).toBe(2,);
             expect(await isThere({ path: join(runFolder, DEPENDENCIES_RECORD_NAME,), },),).toBe(false,);
           },
         },),

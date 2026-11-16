@@ -650,9 +650,21 @@ await describe({
           return line.startsWith('git worktree add',);
         },),).toBe(true,);
         // The dependencies are linked inside a unit of the run's own, which carries the same read-only checkout.
-        expect(asked.some(function linkedDependencies(line,) {
+        const dependencies = asked.find(function linkedDependencies(line,) {
           return line.startsWith('systemd-run --user --wait',) && line.includes('--unit=copy-route-dependencies',) && line.includes('--working-directory=');
-        },),).toBe(true,);
+        },);
+        expect(dependencies,).toBeDefined();
+        /**
+         The worktree the launcher made for this run, which is what a unit may write.
+         */
+        const worktree = join(folder.path, '.claude', 'worktrees', 'pi-copy-route',);
+        // The join between the launcher and the confinement, which the unit builder holds and the launcher must not lose: the run's
+        // own unit and the dependency unit both name the checkout read-only and the worktree writable. A launcher that handed its
+        // unit an empty file system would pass every test of the builder and confine nothing.
+        for (const [what, command,] of [['the run unit', unit,], ['the dependency unit', dependencies,],] as const) {
+          expect({ what, readOnly: command?.includes(`--property=ReadOnlyPaths="${folder.path}"`), },).toEqual({ what, readOnly: true, },);
+          expect({ what, writable: command?.includes(`--property=ReadWritePaths="${worktree}"`), },).toEqual({ what, writable: true, },);
+        }
       },
     },),
     it({

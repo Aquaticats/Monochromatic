@@ -267,6 +267,30 @@ async function launch({
 }
 
 /**
+ What a stand-in `systemd-run` recorded, or nothing when it recorded nothing because nothing asked it.
+
+ @param marker - the file the stand-in records every call in
+
+ @returns what it recorded, and nothing when the file is not there
+
+ @example
+ ```ts
+ const asked = await askOfTheManager({ marker: unitMarker, });
+ ```
+ */
+async function askOfTheManager({ marker }: { readonly marker: string },): Promise<{ readonly asked?: string }> {
+  try {
+    return { asked: await readFile(marker, 'utf8',), };
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+    return {};
+  }
+}
+
+/**
  Says that a refused start asked for no unit of the run's own name and no dependency unit, while the question about the manager, which
  is a unit of its own, may have been asked.
 
@@ -290,16 +314,10 @@ async function expectNoUnitOfTheRun({
   readonly runName: string;
 },): Promise<void> {
   /**
-   What the launcher asked the manager for, or nothing when it asked for nothing.
+   What the launcher asked the manager for, which is nothing when the file is not there.
    */
-  let asked = '';
-  try {
-    asked = await readFile(marker, 'utf8',);
-  }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error;
-    }
+  const { asked, } = await askOfTheManager({ marker, },);
+  if (asked === undefined) {
     return;
   }
   /**

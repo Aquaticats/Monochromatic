@@ -715,6 +715,108 @@ await describe({
           },
         },),
         it({
+          name: 'refuses every write to an entry of the shared Git directory a run never writes, in a real unit, while its own worktree Git directory takes one',
+          fn: async () => {
+            if (NO_MANAGER_REASON !== undefined) {
+              console.log(`[fileSystemOfARun] the shared Git directory entries at a real unit: skipped: ${NO_MANAGER_REASON}`,);
+              return;
+            }
+            await using folder = await makeFolder();
+            /**
+             A checkout with a commit, the run's worktree, and another worktree playing a second run's.
+             */
+            const checkout = join(folder.path, 'checkout',);
+            await makeRepository({ folder: checkout, },);
+            // The checkout's own index, which a real checkout always has and which this test needs to exist for its read-only mount
+            // to be there at all: a read-only path that does not exist is skipped by systemd, and the entry could then be created.
+            await writeFile(join(checkout, 'tracked.txt',), 'tracked\n',);
+            await gitIn({ folder: checkout, words: ['add', '--', 'tracked.txt',], });
+            const worktree = join(checkout, '.claude', 'worktrees', 'pi-a',);
+            const otherWorktree = join(checkout, '.claude', 'worktrees', 'pi-b',);
+            await mkdir(join(checkout, '.claude', 'worktrees',), { recursive: true, },);
+            await gitIn({ folder: checkout, words: ['worktree', 'add', '-q', '-b', 'fix/run-a', worktree,], });
+            await gitIn({ folder: checkout, words: ['worktree', 'add', '-q', '-b', 'fix/run-b', otherWorktree,], });
+            /**
+             The per-worktree configuration, which a repository with `extensions.worktreeConfig` has and which this test needs to exist
+             for its read-only mount to be there at all.
+             */
+            await writeFile(join(checkout, '.git', 'config.worktree',), '[probe]\n\tfrom = the fixture\n',);
+            /**
+             The shared Git directory, and the run's own Git directory inside it.
+             */
+            const shared = join(checkout, '.git',);
+            const ownGitDirectory = join(shared, 'worktrees', 'pi-a',);
+            /**
+             The run's own folder.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            await mkdir(runFolder, { recursive: true, },);
+            await makeTheFoldersAToolMakesIn({ checkoutFolder: checkout, },);
+            /**
+             What the run's unit may and may not write, in author mode, which is the mode that commits.
+             */
+            const fileSystem = await fileSystemOfARun({
+              git,
+              checkoutFolder: checkout,
+              worktree,
+              runFolder,
+              worksInTheCheckoutItself: false,
+            },);
+            /**
+             One write per entry a run never writes, at the path the entry is, and one at the same name inside the run's own worktree Git
+             directory, which a commit does write.
+             */
+            const entries: readonly (readonly [string, string, boolean])[] = [
+              ['HEAD', join(shared, 'HEAD',)],
+              ['index', join(shared, 'index',)],
+              ['config.worktree', join(shared, 'config.worktree',)],
+              ['hooks/pre-commit', join(shared, 'hooks', 'pre-commit',)],
+              ['info/exclude', join(shared, 'info', 'exclude',)],
+              ['another worktree HEAD', join(shared, 'worktrees', 'pi-b', 'HEAD',)],
+              ['the run own worktree HEAD', join(ownGitDirectory, 'HEAD',)],
+            ].map(function withWhetherItIsTheRunsOwn(entry,) {
+              const [name, path,] = entry as unknown as readonly [string, string];
+              return [name, path, path === join(ownGitDirectory, 'HEAD',),] as const;
+            },);
+            /**
+             What each write answered, keyed by the entry's name: one unit of the run's own per entry, appending to that one path.
+             */
+            const answers = Object.fromEntries(
+              await Promise.all(entries.map(async function writeOne(entry,) {
+                const [name, path,] = entry;
+                const ended = await inAUnitOfTheRun({
+                  unit: `probe-git-entry-${String(process.pid,)}-${name.replaceAll('/', '-',).replaceAll(' ', '-',)}`,
+                  fileSystem,
+                  words: ['sh', '-c', `printf 'written by the run\\n' >> '${path}'`,],
+                },);
+                return [name, (ended.status === 0) ? 'written' : `refused: ${ended.output.slice(0, 60)}`,] as const;
+              },),),
+            );
+            // Every entry a run never writes refused the write, and the run's own worktree Git directory took one: the positive
+            // control that says the refusals are the grant and not a unit that refuses everything.
+            expect(
+              Object.fromEntries(Object.entries(answers,).map(function whetherItWasWritten(entry,) {
+                const [name, answer,] = entry;
+                return [name, answer === 'written',];
+              },),),
+            ).toEqual({
+              HEAD: false,
+              index: false,
+              'config.worktree': false,
+              'hooks/pre-commit': false,
+              'info/exclude': false,
+              'another worktree HEAD': false,
+              'the run own worktree HEAD': true,
+            },);
+            // The refusals are the operating system's, and each names the entry it refused.
+            expect(Object.entries(answers,).filter(function isNotRefused(entry,) {
+              const [name, answer,] = entry;
+              return (answer !== 'written') && (!answer.startsWith('refused:'));
+            },),).toEqual([],);
+            expect(await gitIn({ folder: checkout, words: ['log', '--format=%s', '-1',], },),).toBe('base',);
+          },
+        },),
+        it({
           name: 'asks Git for each Git directory on its own, so a checkout whose path holds a newline or ends in a space is still named',
           fn: async () => {
             await using folder = await makeFolder();

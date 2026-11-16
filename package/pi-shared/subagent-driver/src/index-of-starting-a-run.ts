@@ -308,17 +308,4 @@ export {
   runningRunLinesOf,
   turnsInFeed,
 } from './turns-of-running-runs.ts';
-export {
-  type EndedRun,
-  endedRunIn,
-  endedRunLineOf,
-  endedRunsSince,
-  timeIn,
-} from './runs-that-ended-since.ts';
-export {
-  type UnitWaitForActive,
-  ACTIVATING_STATE,
-  waitedLineOf,
-  waitForUnitToBecomeActive,
-} from './waiting-for-a-unit-to-become-active.ts';
-export { SUMMARY_FILE_NAME, } from './runs-that-ended-since.ts';
+export * from './index-of-runs-a-start-reads-after.ts';

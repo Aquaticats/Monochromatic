@@ -33,6 +33,12 @@ export {
   theWorktreeThatWentLineIn,
 } from './the-run-a-unit-left.ts';
 
+export { workUntilTheUnitIsAsked, } from './work-until-the-unit-is-asked.ts';
+export {
+  REFUSED_START_RECORD_NAME,
+  recordARefusedStart,
+} from './what-a-refused-start-kept.ts';
+
 export {
   type OpenAFile,
   NotAnOrdinaryFileError,
