@@ -1021,7 +1021,7 @@ fn a_slow_push_stopped_at_its_window_leaves_no_process_of_its_hook_behind() {
         let alive: Vec<i32> = still_alive(pids.as_slice());
         assert!(landed.status.success(), "the commit itself succeeds: {report}");
         assert!(report.contains(push_unfinished_words()), "the push was stopped at its window: {report}");
-        assert_eq!(report.contains("limit=connected"), true, "and it names the window: {report}");
+        assert!(report.contains("limit=connected"), "and it names the window: {report}");
         if expected_alive {
             assert!(!alive.is_empty(), "the tripwire sees a process of the push that outlived it, so its silence in the other arm means something");
         } else {

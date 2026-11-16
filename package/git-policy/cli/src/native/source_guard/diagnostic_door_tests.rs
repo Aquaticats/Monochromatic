@@ -468,10 +468,10 @@ fn a_helper_in_another_file_is_read_and_a_name_that_is_no_file_is_a_finding() {
             text.push_str("\ncrate::a_module_no_file_holds::say();\n");
         }
     }
-    let found: Vec<String> = findings_of_the_stops_path(with_unknown.as_slice());
+    let unfollowed_found: Vec<String> = findings_of_the_stops_path(with_unknown.as_slice());
     assert!(
-        found.iter().any(|sentence| return sentence.contains("cannot follow `crate::a_module_no_file_holds`")),
-        "a name the guard cannot follow is said and not passed over: {found:?}"
+        unfollowed_found.iter().any(|sentence| return sentence.contains("cannot follow `crate::a_module_no_file_holds`")),
+        "a name the guard cannot follow is said and not passed over: {unfollowed_found:?}"
     );
 }
 
