@@ -58,7 +58,7 @@ firefox_esr: {
   select: function () {
     return ['firefox ' + FIREFOX_ESR_VERSION]
   }
-}
+},
 ```
 
 These selectors explain why a Chrome version-count query does not track the Extended Stable channel.
@@ -70,11 +70,23 @@ Run this from a project where `browserslist` resolves:
 
 ```sh
 # Consumer-side API probe, without changing browser configuration.
-node --input-type=module -e '
+node --input-type=module --eval '
 import { createRequire } from "node:module";
 const load = createRequire(import.meta.url);
 const browserslist = load("browserslist");
-for (const query of ["Firefox ESR", "last 1 Chrome versions", "last 2 Chrome versions", "Chrome 156", "Chrome >= 156", "Chrome ESR", "Chrome extended stable", "last 1 Chrome extended stable version", "Chromium 156", "last 1 Chromium versions"]) {
+const queries = [
+  "Firefox ESR",
+  "last 1 Chrome versions",
+  "last 2 Chrome versions",
+  "Chrome 156",
+  "Chrome >= 156",
+  "Chrome ESR",
+  "Chrome extended stable",
+  "last 1 Chrome extended stable version",
+  "Chromium 156",
+  "last 1 Chromium versions"
+];
+for (const query of queries) {
   try { console.log(JSON.stringify({ query, result: browserslist(query) })); }
   catch (error) { console.log(JSON.stringify({ query, error: error.message })); }
 }'
@@ -149,14 +161,21 @@ No recommendation to file is made.
 
 ## Check limits
 
-Source selections were checked against the clone.
+Source selections were checked against the clone and confirmed in `agent-browser`.
+The release endpoint responses were also confirmed in the browser.
+The Markdown renderer produced the expected headings, code blocks, lists, and links.
 Browser confirmation initially failed with agent-browser's
 `Failed to read: Resource temporarily unavailable (os error 11)` diagnostic;
 see [the existing diagnostic investigation](agent-browser-eagain.md).
-This does not affect the successful Browserslist API or release-endpoint probes.
+After restarting the disposable browser with the documented recovery limits,
+Chrome reported `FATAL:chrome/browser/process_singleton_posix.cc:315` and `Socket path too long`
+for its temporary socket.
+A shorter `TMPDIR` alias under the agent scratch root allowed the browser checks to pass.
+Both disposable browser runs used for the successful source checks were closed.
+These browser failures are separate from the successful Browserslist API and release-endpoint probes.
 
 [documented-queries]: https://github.com/browserslist/browserslist/blob/8253b7071aae92f6ea755aee54bc93dee47048a1/README.md#L235-L257
 [last-browser-selector]: https://github.com/browserslist/browserslist/blob/8253b7071aae92f6ea755aee54bc93dee47048a1/index.js#L772-L780
 [firefox-selector]: https://github.com/browserslist/browserslist/blob/8253b7071aae92f6ea755aee54bc93dee47048a1/index.js#L1079-L1085
-[extended-windows]: https://chromiumdash.appspot.com/fetch_releases?channel=Extended&platform=Windows&num=1
-[stable-windows]: https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Windows&num=1
+[extended-windows]: https://chromiumdash.appspot.com/fetch_releases?channel=Extended&platform=Windows&num=1#:~:text=156.0.8078.100
+[stable-windows]: https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Windows&num=1#:~:text=158.0.8127.37
