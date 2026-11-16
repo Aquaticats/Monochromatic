@@ -5,7 +5,7 @@
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output};
-use std::thread::JoinHandle;
+use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
 /// The built binary,
@@ -378,13 +378,22 @@ fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     return (directory, count);
 }
 
+/// How many cargo calls one run may make one after another before the bound of the whole run is no longer about speed.
+/// Why:
+/// The program bounds each cargo call, not the run: a resolving command makes the install step's update (and its check) and then runs
+/// the user's own command, so a healthy run may take several allowances in sequence (measured 2026-11-15 in the launcher fixture:
+/// three starts). A whole-run bound of one call would end a healthy run whose every call met its own allowance. The count bounds the
+/// calls, it is not a measurement, and only a hang reaches it: the runner ends a hung test long before (nextest's own termination),
+/// so this number never decides a run that is merely slow.
+const RUN_CALLS: u64 = 8;
+
 /// How long a run of the built shadow may take here before the test ends it.
 /// Why:
 /// The bound ends a run that hangs, and must never decide a healthy run's outcome: a test that fails on this machine's speed
 /// measures the machine, not the program (owner rule "nothing should ever wait forever or indefinitely" is what a bound is for).
-/// Its value is the program's own allowance for one cargo call (`cargo_shadow::cargo_run::CARGO_CALL_SECONDS`), and a cargo call
-/// it starts may legally take that long; a bound below that would fail a run the program completes.
-const RUN_BOUND: Duration = Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS);
+/// Its value is the program's own allowance for one cargo call (`cargo_shadow::cargo_run::CARGO_CALL_SECONDS`) times the calls a run
+/// makes in sequence: a bound of one such allowance fails a run the program completes.
+const RUN_BOUND: Duration = Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS * RUN_CALLS);
 
 /// How often a running command is asked whether it ended.
 const POLL: Duration = Duration::from_millis(50);
@@ -409,23 +418,65 @@ struct Running {
     /// The command itself, still running or ended and not yet reaped.
     child:Child,
     /// Everything it wrote to standard output.
-    printed_out: JoinHandle<Vec<u8>>,
+    printed_out: Receiver<Vec<u8>>,
     /// Everything it wrote to standard error.
-    printed_err: JoinHandle<Vec<u8>>,
+    printed_err: Receiver<Vec<u8>>,
+}
+
+/// How long a writer the run left behind is given to close its pipe once the run's process group was killed.
+/// Why:
+/// A killed process's descriptors close as it is torn down, which took 1 ms to 5 ms in the probes of `bounded_run.rs`
+/// (`REAP_BOUND` there is 5 s for the same reason), so five seconds is a thousand times the measured consent and only ends a writer
+/// that cannot be killed at all, which no bound can fix.
+const WRITER_END_GRACE: Duration = Duration::from_secs(5);
+
+/// Reads one pipe to its end on a thread and hands the text back through a channel.
+/// Why:
+/// The channel is what lets the wait for a pipe be bounded: a `JoinHandle` can only be joined, and a descendant that inherited a pipe
+/// can hold that join open after the command is gone.
+fn read_pipe<R: std::io::Read + Send + 'static>(mut pipe: R) -> Receiver<Vec<u8>> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut found: Vec<u8> = Vec::new();
+        let _ = pipe.read_to_end(&mut found);
+        let _ = sender.send(found);
+    });
+    return receiver;
+}
+
+/// Kills a command's whole process group and reaps the command.
+/// Why:
+/// The group is the command and everything it started, and it is also what holds the two pipes after the command itself ended.
+fn kill_group_and_reap(child: &mut Child, group: u32) -> std::process::ExitStatus {
+    let _ = Command::new("kill").arg("-KILL").arg(format!("-{group}")).status();
+    return child.wait().expect("reap the command");
+}
+
+/// Ends one stream at `deadline`, killing the run's process group when a writer the run left behind still holds the pipe.
+/// Why:
+/// The wait is the run's own: a descendant that inherited the pipe keeps it open, and only the end of the group frees it. `None`
+/// says the pipe was still held after the group was killed, which is a writer nothing can end, and the caller must not take what
+/// arrived as the run's output.
+fn ended_stream(printed: &Receiver<Vec<u8>>, group: u32, deadline: Instant) -> Option<Vec<u8>> {
+    let until_deadline: Duration = deadline.saturating_duration_since(Instant::now());
+    if let Ok(text) = printed.recv_timeout(until_deadline) {
+        return Some(text);
+    }
+    let _ = Command::new("kill").arg("-KILL").arg(format!("-{group}")).status();
+    return printed.recv_timeout(WRITER_END_GRACE).ok();
 }
 
 /// How a running command is asked.
 impl Running {
     /// Starts the command in its own process group, so a runaway tree can be killed whole, and reads both of its streams.
     fn start(command: &mut Command) -> Running {
-        use std::io::Read;
         use std::os::unix::process::CommandExt;
         use std::process::Stdio;
         let mut child: Child = command.process_group(0).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start the command");
-        let mut out_pipe = child.stdout.take().expect("the standard output pipe");
-        let mut err_pipe = child.stderr.take().expect("the standard error pipe");
-        let printed_out: JoinHandle<Vec<u8>> = std::thread::spawn(move || { let mut found: Vec<u8> = Vec::new(); let _ = out_pipe.read_to_end(&mut found); return found; });
-        let printed_err: JoinHandle<Vec<u8>> = std::thread::spawn(move || { let mut found: Vec<u8> = Vec::new(); let _ = err_pipe.read_to_end(&mut found); return found; });
+        let out_pipe = child.stdout.take().expect("the standard output pipe");
+        let err_pipe = child.stderr.take().expect("the standard error pipe");
+        let printed_out: Receiver<Vec<u8>> = read_pipe(out_pipe);
+        let printed_err: Receiver<Vec<u8>> = read_pipe(err_pipe);
         return Running { child, printed_out, printed_err };
     }
 
@@ -436,15 +487,24 @@ impl Running {
 
     /// Kills the command's whole process group and reaps it.
     fn kill(&mut self) {
-        let _ = Command::new("kill").arg("-KILL").arg(format!("-{}", self.child.id())).status();
-        let _ = self.child.wait();
+        let group: u32 = self.child.id();
+        let _ = kill_group_and_reap(&mut self.child, group);
     }
 
-    /// The command's status and everything it printed.
-    fn output(mut self) -> Output {
-        let status: std::process::ExitStatus = self.child.wait().expect("reap the command");
-        let stdout: Vec<u8> = self.printed_out.join().expect("the reader of the standard output");
-        let stderr: Vec<u8> = self.printed_err.join().expect("the reader of the standard error");
+    /// Ends the command if it has not ended, and collects both streams without waiting past `deadline`.
+    /// Why:
+    /// The same deadline ends the wait for a stream and the process group that holds it: a descendant the command left behind keeps
+    /// the pipe open after the command is gone, and only the end of the group frees it. A pipe still held after that is a writer
+    /// nothing can end, so the test stops and says so rather than reading a part as the run's output.
+    fn finish(mut self, deadline: Instant) -> Output {
+        let group: u32 = self.child.id();
+        let status: std::process::ExitStatus = match self.child.try_wait().expect("poll") {
+            Some(found) => found,
+            None => kill_group_and_reap(&mut self.child, group),
+        };
+        let not_whole = || { panic!("the command ended, but a process it left behind held one of its pipes open after the run's deadline and after its whole process group was killed, so the output is not the run's") };
+        let stdout: Vec<u8> = ended_stream(&self.printed_out, group, deadline).unwrap_or_else(not_whole);
+        let stderr: Vec<u8> = ended_stream(&self.printed_err, group, deadline).unwrap_or_else(not_whole);
         return Output { status, stdout, stderr };
     }
 }
@@ -452,13 +512,13 @@ impl Running {
 /// Runs a command with a deadline;
 /// `None` on a timeout.
 fn output_within(command: &mut Command, bound: Duration) -> Option<Output> {
+    let deadline: Instant = Instant::now() + bound;
     let mut running: Running = Running::start(command);
-    let started: Instant = Instant::now();
     loop {
         if running.ended() {
-            return Some(running.output());
+            return Some(running.finish(deadline));
         }
-        if started.elapsed() > bound {
+        if Instant::now() >= deadline {
             running.kill();
             return None;
         }
@@ -482,21 +542,26 @@ fn entered_below_the_first_shadows_depth(trace: &Path) -> Option<Vec<String>> {
 
 /// Runs a command whose chain must not nest, watching the entry trace as the event that shows a loop.
 /// Why:
-/// The loop is proven by the trace and not by the clock: a second start that enters the launcher again is reported the instant it
-/// happens, and the bound only ends a run that neither ended nor nested. Nothing here reports a slow machine as a loop, which is
-/// what a deadline alone does.
+/// The verdict is the whole trace, read after the chain ended: the entry and the end of a stopped inner shadow can fall in the same
+/// poll, so a verdict taken from the poll alone loses an entry that is already on disk. Reading the trace while the chain still runs
+/// stays as an early exit for a runaway, and it can only report a nesting, never hide one. The bound only ends a run that neither
+/// ended nor nested, so nothing here reports a slow machine as a loop.
 fn chain_end_within(command: &mut Command, trace: &Path, bound: Duration) -> ChainEnd {
+    let deadline: Instant = Instant::now() + bound;
     let mut running: Running = Running::start(command);
-    let started: Instant = Instant::now();
     loop {
         if running.ended() {
-            return ChainEnd::Ended(running.output());
+            if let Some(nested) = entered_below_the_first_shadows_depth(trace) {
+                running.kill();
+                return ChainEnd::Nested(nested);
+            }
+            return ChainEnd::Ended(running.finish(deadline));
         }
         if let Some(nested) = entered_below_the_first_shadows_depth(trace) {
             running.kill();
             return ChainEnd::Nested(nested);
         }
-        if started.elapsed() > bound {
+        if Instant::now() >= deadline {
             running.kill();
             return ChainEnd::Hung;
         }
@@ -767,6 +832,11 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     assert_eq!(output.status.code(), Some(2), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stderr).contains("because cargo-shadow was started by cargo-shadow"), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(log_lines(&world).is_empty(), "the real cargo ran after the second start: {:?}", log_lines(&world));
+    // The trace of the launcher: every entry is the first shadow's, so no second start reached the launcher again. The status and the
+    // message alone do not show that, because an inner stopped shadow has both of them too.
+    let entries: Vec<String> = std::fs::read_to_string(&count).unwrap_or_default().lines().map(str::to_string).collect();
+    let depths: Vec<&str> = entries.iter().map(|entry| { return entry.split(' ').nth(1).unwrap_or("?"); }).collect();
+    assert!(depths.iter().all(|depth| { return *depth == "1"; }), "a launcher was entered at a depth other than the first shadow's: {entries:?}");
 }
 
 /// A toolchain-style launcher (certification of 0.1.0 behind the repository's launcher,
