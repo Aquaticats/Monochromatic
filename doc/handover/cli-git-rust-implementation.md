@@ -1312,6 +1312,13 @@ Not final and not approved; written by the coordinating session. Reviews are by 
 - **The review brief's template** (author's sixth run, `cc2e91e8d8`): review queued at 22:48:55 (23 code files).
   Its two open points are adopted as built, open to veto: a plain line after a sentence saying the review stopped counts by the grammar; a header inside a code fence is refused.
   Whether that refusal names the fence in its words is left with the author's next change, since a diagnostic names its cause.
+- **Commit does not wait behind the service's writes** (`6d67fbc5fb`, 16 of 16 files): three reproduced by probes against the library, each with a positive control.
+  A service whose registration was refused goes on with a board of its own, a second service sees itself alone and confirms a withdrawal the first then lands (the probe showed the confirmation and the request still held; the step into the landing is by reading);
+  the check behind a withdrawal reads holder files on the one landing thread with no bound (a FIFO with no writer held it for good);
+  the registration's `sync_all` runs before the service accepts clients. Fifth run queued at 22:54:45, also asked why its own guard listed none of the three.
+- **After the masking merge, added to each round:** `list-the-runs-that-ended-since-a-time-without-their-masking-or-with-a-failed-driver.ts` (none of the three runs that ended between 22:41 and 22:52);
+  the masking author, whose sixth run is going as a resumed session with the masking armed, got a note that a value changed during a run is a limit to state;
+  the driver package's built output in the main checkout, which dated from 2026-11-13, was built again (no start uses it; the package's type check does).
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
