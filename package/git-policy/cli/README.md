@@ -2787,9 +2787,18 @@ The rule is:
   index's is an edit even when an `assume-unchanged` or `skip-worktree` mark keeps it out of
   `git status`,
   and so is a link you replaced with a regular file, whatever that file's bytes are,
-  unless the repository records no file mode (`core.fileMode=false`), where Git keeps your bits.
+  unless the repository records no file mode (`core.fileMode=false`), where Git keeps your bits,
+  or stores its links as plain files (`core.symlinks=false`), where a file holding the target's text is
+  the same entry the index records and is no edit.
   A revision is resolved the way the command resolves it, so `git checkout -f A...B` is the merge base
-  Git writes and a name that is both a tag and a branch means the branch to `checkout`.
+  Git writes, `:/text` and `<rev>:<path>` name what Git resolves them to, and a name that is both a tag
+  and a branch means the branch to `checkout`.
+  A range Git's own command refuses (`A..B`, `A^!`) is Git's to refuse, with its own sentence, and so is
+  a word that names no commit where the form moves `HEAD` or resets the worktree: those commands run and
+  `Cannot switch branch to a non-commit` answers.
+  An object id is read whatever its length, so a SHA-256 repository is read as a SHA-1 one is.
+  A question the wrapper's Git does not answer refuses the command, names the revision, and quotes Git's
+  own words, rather than reading a failure as "no such name".
   `git read-tree --prefix=<dir>` names a directory with or without the trailing slash,
   while `git checkout-index --prefix=<text>` glues the text as written,
   and a `checkout` carrying `--ignore-skip-worktree-bits` asks the marked edits even when its one word is

@@ -19529,29 +19529,48 @@ because `ls-tree` matches a pathspec literally and refuses its magic:
 `pathspec magic not supported by this command`
 (measured on this host with native Git 2.56.0, 2026-11-16).
 Both readings print the worktree root's own names, so no directory prefix is written before an answer.
-A revision is resolved by Git, and the tree it names is handed to every query as an object id.
+A revision is resolved by Git, and the object it names is handed to every query as an object id.
 The eleventh review's first two findings, measured on this host with native Git 2.56.0 on 2026-11-16:
-`git checkout -f work...other` writes the merge base's tree while every single-object query refuses that
-spelling (`ls-tree`, `cat-file -t` and `rev-parse --verify` all answer "not a valid object name"),
+`git checkout -f work...other` writes the merge base's tree while `ls-tree work...other` and
+`cat-file -t work...other` answer nothing,
 and a name that is at once a tag and a branch is the branch's tip to `checkout`, `switch` and
 `restore --source` while `ls-tree` and `rev-parse` take the tag.
-So the word goes to `rev-parse --verify --quiet --end-of-options <word>^{tree}`,
+So the word goes to `rev-parse --verify --quiet --end-of-options <word>` unpeeled,
 with `refs/heads/<word>` asked first for the forms that prefer their local branch,
 and the answer is an object id that no spelling and no ambiguity can move:
 the listing (`ls-tree -r --full-tree`) and the `--with-tree` query are given that id.
-A word Git reads as more than one object (a range, a set, an object that is no tree) is refused with the
-opt-out, because the guard cannot name one tree for it.
+The word is unpeeled because a suffix is a different word: `rev-parse other:sub` answers that subtree's
+id while `rev-parse other:sub^{tree}` exits 1, and `:/text^{tree}` searches the text `text^{tree}`
+(the twelfth review's first finding, measured on this host with native Git 2.56.0, 2026-11-16).
+A word that is no single object is read by `rev-parse --revs-only`: the symmetric difference of two
+commits (`A...B`) is the one spelling these forms run among those Git prints as several entries, and
+`merge-base` answers the object Git writes for it, so `git checkout -f A...B`, the same through `switch`,
+and `git restore --source=A...B` are read on.
+Every other shape a word can have (`A..B`, `A^!`, `A^@`, a name Git does not know) is left to Git: its own
+command rejects it and writes nothing, so its own sentence answers the person.
+An object named through a path (`other:`, `other:sub`, `other:file.txt`) is that tree or blob, and a form
+that names paths writes what it names.
+A form that writes a whole tree, which is a forced `checkout` or `switch`, a `reset` in its three
+whole-tree modes and an empty pathspec file, moves `HEAD` or resets the worktree to a commit, and Git
+refuses a word that names anything else itself (`Cannot switch branch to a non-commit`,
+`is a tree, not a commit`, measured on this host with native Git 2.56.0, 2026-11-16).
+Such a word writes no path, so the command is run and Git's own refusal answers the person
+(the twelfth review's eighth finding).
+The object's kind is asked of `cat-file -t` before the listing for those forms, and a kind Git does not
+answer is a refusal, because the guard then cannot tell what the command would write.
+The answer's length is not assumed: `rev-parse` prints 40 hexadecimal digits for a SHA-1 repository and
+64 for a SHA-256 one, and both are object ids (the twelfth review's second finding).
+A question Git does not answer is a refusal that names the word and quotes Git's own words: exit 1 with
+nothing or only object ids on its output is Git's answer that the word names no one object, while every
+other exit, a signal, and output that is no object id are "could not find out", never "no such name"
+(the twelfth review's fifth finding).
 `reset` and `read-tree` resolve the general way, as their own commands do.
 The axis `every_documented_revision_spelling_is_read_as_git_reads_it` runs the fourteen spellings
-`gitrevisions(7)` documents against the four guarded forms that take a revision.
-What that costs, measured on this host, 2026-11-16, seven interleaved rounds of the wrapper built before
-the change and after it on one 20,000-file worktree:
-`checkout -f <branch>` 78 to 82 ms (ratio 1.05, 4 ms against the arm's own 17 ms spread),
-`switch -f --detach <branch>` 73 to 78 ms (1.07, 5 against 18),
-`reset --hard HEAD` 255 to 269 ms (1.06, 15 against 18), which needs no resolution at all, and
-`restore --source=<branch> -- <path>` 42 to 66 ms (1.59, 25 against 9),
-the only row whose difference stands outside the spread: two Git starts, the branch question and the tree
-question, on a form whose own work is small enough for them to show.
+`gitrevisions(7)` documents against the four guarded forms that take a revision, and
+`a_word_git_refuses_as_no_commit_is_left_to_git` runs the words Git's own command refuses with the
+person's file planted in the tree's way,
+and carries the branch itself as its control: the wrapper refuses that row, so a row that runs proves
+the wrapping and not a fixture that lets everything through.
 The revision handed to `--with-tree` keeps its own bytes,
 because Git resolves the name it is given and a lossy conversion is another name:
 `topic` followed by raw `0xff` became `topic` followed by U+FFFD in that argument,
