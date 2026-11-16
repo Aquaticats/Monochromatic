@@ -235,6 +235,8 @@ A second review is the review's own name with `-restart-<n>`:
 on branch `test/<change>-restart-2`,
 in the folder `<reviews folder>/<change>-restart-2`.
 The numbers count the review itself as the first run.
+The command starts it by itself;
+`--start` is accepted for a caller that already passes it and changes nothing.
 
 - Its worktree starts at the commit the earlier review recorded it read.
 - Its brief is the review brief,
