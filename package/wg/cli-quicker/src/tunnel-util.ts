@@ -110,9 +110,6 @@ export async function executeHooks(
         expanded,
       ],
       deadlineMilliseconds: HOOK_DEADLINE_MILLISECONDS,
-      // A hook may start a daemon and exit; the shell leads its own group,
-      // so the deadline's kill reaches a process the hook left waiting rather than the shell alone.
-      ownProcessGroup: true,
     },);
   }
   /* oxlint-enable eslint/no-await-in-loop */

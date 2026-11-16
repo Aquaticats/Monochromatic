@@ -621,15 +621,27 @@ A command's own exit ends the wait for it, not the close of its pipes.
 A command that exits while a process it started still holds its standard output or standard error open,
 as `sh -c 'something &'` does,
 reports its exit at once and keeps the output it wrote;
-the read ends are closed a hundred milliseconds after the exit,
-which is where the output already written has arrived
-(measured on the host of the review: 64 KiB took 0 to 4 ms after the exit),
-and anything the other process writes later is not waited for.
-A hook is the one command that leads its own process group,
-so the hook deadline ends the shell together with every process the hook started:
-a `PostUp` that waits for a daemon it started does not leave that daemon running when its bound passes.
-A command the program runs itself keeps the caller's process group,
-so a person's interrupt reaches it as before.
+the output already written has arrived a hundred milliseconds after the exit
+(measured on the host of the review: 64 KiB took 0 to 4 ms),
+and nothing later is waited for.
+
+The pipes stay read and are no longer kept,
+so a program a hook started that writes to the hook's standard output or standard error
+goes on writing instead of dying of a broken pipe:
+the output is discarded, and the write succeeds for as long as `wg-quicker` itself runs.
+That is the limit to know about, and it is the limit `wg-quick` has too:
+`wg-quicker` exits when its lifecycle is done, the pipe closes then,
+and a program that outlives it and writes afterwards gets `EPIPE`.
+A daemon a hook starts should therefore redirect its own output,
+`PostUp = /usr/bin/mydaemon >>/var/log/mydaemon.log 2>&1 </dev/null &`,
+and be stopped by a `PostDown`.
+No command leads its own process group:
+every command, hooks included, runs in the caller's group,
+so the terminal's interrupt reaches a hook the way it reaches `wg-quicker` itself,
+and one Ctrl-C ends the hook and rolls the up back.
+The hook deadline therefore ends the command the hook runs and not the processes it left behind:
+`sh -c 'sleep 30 & wait'` times out after ten minutes and leaves the `sleep` running,
+which the `PostDown` hook is the place to stop.
 A hook that exits is not a timeout:
 a timeout is claimed only for a command the deadline ended,
 because reporting one for a hook that already succeeded would run a rollback for nothing.
@@ -644,6 +656,9 @@ Releasing a lock waits two seconds for the holder to end after `SIGTERM` and two
 where it ended within a millisecond when measured;
 a holder that outlasts the kill is reported with its program number and the lock path,
 so the record of a lock that is still held names what holds it.
+A refusal clears the readiness timer before it is reported,
+so a claim that refuses ends the process at once
+instead of holding it open for the rest of the ten seconds.
 
 ## Taking the tunnel down
 
@@ -1031,6 +1046,10 @@ It also removes only what that `up` made.
 Each thing a start creates is recorded as it creates it,
 the link after `ip link add` succeeded and the endpoint allowance, the DNS settings, the policy rules,
 the bypass routing, the kill switch and the application watcher before the command that makes each one.
+A link `ip link add` made and then reported failure about is recorded too:
+the failure may be a deadline or an interrupt that arrived after the kernel call,
+so the link is claimed whenever it is there and the refusal was not the kernel's "File exists",
+which is the one answer that proves the link belongs to another start.
 A start that made nothing, because it lost the race for an interface's link,
 removes nothing at all,
 so a failed `up` never takes down the link, the policy rules or the kill switch of an `up` that succeeded.

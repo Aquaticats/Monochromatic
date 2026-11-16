@@ -20,7 +20,10 @@ import {
 } from './tunnel-up-made.ts';
 import { teardownKeepingTunnelOnFailure, } from './tunnel-teardown.ts';
 import { removeTrafficBlock, } from './tunnel-traffic-block.ts';
-import { linkExists, } from './tunnel-link.ts';
+import {
+  createLink,
+  linkExists,
+} from './tunnel-link.ts';
 import {
   installOpenSnitchEndpointAllowance,
   removeOpenSnitchEndpointAllowance,
@@ -92,30 +95,6 @@ async function applyPeerConfig({ config, }: { readonly config: WireguardConfig; 
       'addconf',
       config.interfaceName,
       path,
-    ],
-  },);
-}
-
-/**
- Creates the WireGuard kernel link for the interface.
- 
- @param interfaceName - Interface to create.
- 
- @example
- ```ts
- await addLink({ interfaceName: 'wg0' });
- ```
- */
-async function addLink({ interfaceName, }: { readonly interfaceName: string; },): Promise<void> {
-  await run({
-    command: 'ip',
-    args: [
-      'link',
-      'add',
-      'dev',
-      interfaceName,
-      'type',
-      'wireguard',
     ],
   },);
 }
@@ -320,6 +299,12 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
     made[thing] = true;
   }
   /**
+   Records the link as this up's, which the step asks for once the link is there.
+   */
+  function recordLinkMade(): void {
+    made.link = true;
+  }
+  /**
    Ends this up at the next step boundary when a signal arrives,
    so the rollback below runs and no half-configured tunnel is left behind.
    Disposed when the up ends, whichever way it ended,
@@ -330,11 +315,11 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
     interruption,
     ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
     steps: {
-      addLink: async function addLinkStep(): Promise<void> {
-        // The entry is recorded after the command: a refused `ip link add` made nothing,
-        // and the link that refused it belongs to the start that made it.
-        await addLink({ interfaceName: iface, },);
-        made.link = true;
+      addLink: function addLinkStep(): Promise<void> {
+        return createLink({
+          interfaceName: iface,
+          recordMade: recordLinkMade,
+        },);
       },
       runPreUp: function runPreUpStep(): Promise<void> {
         return executeHooks({

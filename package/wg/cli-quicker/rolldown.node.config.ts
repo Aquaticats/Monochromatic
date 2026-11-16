@@ -50,6 +50,8 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/tunnel-up.ts',
     './src/interrupt-signal.ts',
     './src/operation-lock.ts',
+    './src/tunnel-util.ts',
+    './src/tunnel-link.ts',
     './src/config.ts',
     './src/tunnel-bypass.ts',
     './src/tunnel-bypass-route.ts',

@@ -52,6 +52,35 @@ async function refusalOf(call: () => Promise<unknown>,): Promise<unknown> {
 }
 
 /**
+ Waits, bounded, for a file to appear.
+
+ @param path - File to look for.
+
+ @returns Whether it appeared within the bound.
+ */
+async function fileAppears({ path, }: { readonly path: string; },): Promise<boolean> {
+  /**
+   When the wait gives up.
+   */
+  const deadline = performance.now() + 3_000;
+  while (performance.now() < deadline) {
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- The file is looked for again within one bound.
+      await readFile(path,);
+      return true;
+    }
+    catch (error: unknown) {
+      // Not written yet; the bound above decides when to stop looking.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+        throw error;
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- The pause is part of the same bounded wait.
+    await wait(50,);
+  }
+  return false;
+}
+
+/**
  Waits, bounded, for a process to end.
 
  A signal ends a process a moment after it is sent, so the end is awaited rather than assumed.
@@ -288,37 +317,26 @@ await describe({
       },
     },),
     it({
-      name: 'ends every process a hook started when the hook outlives its deadline, so the deadline leaves nothing behind',
+      name: 'leaves a program a hook started with a standard output it can still write to when the hook itself passes its deadline, because the deadline ends the command and not what it left behind',
       fn: async () => {
         await using directory = await scratchDirectory();
         /**
-         File the hook writes the background process number into.
+         File the background program writes only if its write after the deadline worked.
          */
-        const pidFile = join(directory.path, 'background.pid',);
+        const marker = join(directory.path, 'wrote-after-deadline',);
         /**
          What the call threw.
          */
         const refusal = await refusalOf(() => run({
           command: 'sh',
-          // The shell waits for the sleep, so the deadline ends a hook that is still running.
-          args: ['-c', `sleep 30 & echo $! > '${pidFile}'; wait`,],
+          // The shell waits on its background program, so the deadline ends a command that is still running.
+          args: ['-c', `( sleep 0.5; echo after-deadline; touch '${marker}' ) & wait`,],
           deadlineMilliseconds: TEST_DEADLINE_MILLISECONDS,
-          ownProcessGroup: true,
         },),);
         expect((refusal as Error).name,).toBe('CommandTimeoutError',);
-        /**
-         Program number of the process the hook started.
-         */
-        const background = Number((await readFile(pidFile, 'utf8',)).trim(),);
-        /**
-         Whether the process the deadline should have ended ended within the test's bound.
-         */
-        const ended = await endsWithin({
-          pid: background,
-          milliseconds: 2_000,
-        },);
-        await endProcess({ pid: background, },);
-        expect(ended,).toBe(true,);
+        // The write comes half a second after the deadline ended the shell,
+        // and a reader that closed the pipe would end the program here instead.
+        expect(await fileAppears({ path: marker, },),).toBe(true,);
       },
     },),
     it({

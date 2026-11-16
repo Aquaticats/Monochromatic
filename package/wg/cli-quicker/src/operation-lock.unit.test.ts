@@ -1,3 +1,5 @@
+import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
   chmod,
   mkdtemp,
@@ -25,6 +27,14 @@ import { claimOperationLock, } from '../dist/final/node/operation-lock.mjs';
  shows a call that waited with no bound of its own.
  */
 const CASE_BOUND_MILLISECONDS = 5_000;
+
+/**
+ Longest a claim process may live after a refusal, in milliseconds.
+
+ The refusal itself takes milliseconds, and the readiness timer's default is ten seconds:
+ a timer that outlives the refusal shows up as a process that lives the whole ten.
+ */
+const READINESS_TIMER_LEAK_MILLISECONDS = 3_000;
 
 /**
  Bound the cases give the readiness and the release wait.
@@ -66,6 +76,10 @@ if (mode === 'slow') {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4,),), 0, 0, ${String(STAND_IN_DELAY_MILLISECONDS,)});
   process.exit(0);
 }
+else if (mode === 'unexpected-line') {
+  process.stdout.write('unexpected-output\\n',);
+  process.exit(0);
+}
 else if (mode === 'ignores-sigterm') {
   // The handler comes first: the claim may send its signal the moment it reads the readiness line.
   process.on('SIGTERM', () => {});
@@ -97,7 +111,7 @@ async function withStandInFlock<Result>(
     mode,
     body,
   }: {
-    readonly mode: 'slow' | 'ignores-sigterm';
+    readonly mode: 'slow' | 'ignores-sigterm' | 'unexpected-line';
     readonly body: (call: {
       readonly directory: string;
       readonly pidFile: string;
@@ -250,6 +264,72 @@ await describe({
             expect(stillRunning,).toBe(false,);
           },
         },);
+      },
+    },),
+    it({
+      name: 'ends the process at once when the holder prints a line that is not its readiness line, because a refusal leaves no timer behind',
+      timeout: 20_000,
+      fn: async () => {
+        /**
+         Scratch directory of the case.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wg-operation-lock-line-',),);
+        await using scratch = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        await standInFlock({ directory, },);
+        /**
+         Claim run in a process of its own, so what is measured is when that process can end.
+         */
+        const claimScript = join(directory, 'claim.ts',);
+        await writeFile(
+          claimScript,
+          `import { claimOperationLock, } from ${JSON.stringify(new URL('../dist/final/node/operation-lock.mjs', import.meta.url,).pathname,)};
+try {
+  await claimOperationLock({
+    lockPath: ${JSON.stringify(join(directory, 'line.lock',),)},
+    conflictMessage: 'busy',
+    errorFactory: (message,) => new Error(message,),
+  },);
+  console.log('acquired',);
+}
+catch (error) {
+  console.log(\`refused: \${String(error,)}\`,);
+}
+`,
+        );
+        /**
+         When the claim process was started.
+         */
+        const started = performance.now();
+        /**
+         The claim process.
+         */
+        const claim = spawn(process.execPath, [claimScript,], {
+          env: {
+            ...process.env,
+            PATH: `${directory}:${process.env.PATH ?? ''}`,
+            WG_TEST_FLOCK_MODE: 'unexpected-line',
+          },
+          stdio: ['ignore', 'pipe', 'pipe',],
+        },);
+        /**
+         Everything the claim printed.
+         */
+        let printed = '';
+        claim.stdout.on('data', (chunk: Buffer,) => {
+          printed += chunk.toString('utf8',);
+        },);
+        await once(claim, 'close',);
+        /**
+         How long the claim process lived.
+         */
+        const elapsed = performance.now() - started;
+        expect(printed,).toContain('refused: Error: Unexpected operation-lock readiness output: unexpected-output',);
+        // The readiness timer must not outlive the refusal it ended: the default ten seconds of it would keep this process running.
+        expect(elapsed,).toBeLessThan(READINESS_TIMER_LEAK_MILLISECONDS,);
       },
     },),
   ],

@@ -238,14 +238,20 @@ export async function claimOperationLock(
     );
   }
   for await (const line of lines) {
+    // Every refusal below ends this call, so the readiness deadline is cleared before each:
+    // a timer left behind would hold the process open for its whole remaining bound,
+    // which is ten seconds in production.
     if (line !== LOCK_READY_LINE) {
+      clearTimeout(deadline,);
       signalHolder({ signal: 'SIGKILL', },);
       throw errorFactory(`Unexpected operation-lock readiness output: ${line}`,);
     }
     // A line that arrives after the bound belongs to a holder that was already killed,
     // and a lock nobody holds is not a lock this call may report.
-    if (waited.pastDeadline)
+    if (waited.pastDeadline) {
+      clearTimeout(deadline,);
       throw deadlineRefusal();
+    }
     clearTimeout(deadline,);
     lines.close();
     return {
