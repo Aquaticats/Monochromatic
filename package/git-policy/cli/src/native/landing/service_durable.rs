@@ -93,8 +93,8 @@ pub static BACKGROUND_SYNCED: std::sync::atomic::AtomicU64 = std::sync::atomic::
 /// so a failure cannot
 ///  fail a commit that was already answered,
 /// and the next landing or restart handles the record as it would after a power cut.
-fn sync_batch(batch: Vec<Pending>) {
-    let figures: Vec<(&'static str, Duration)> = sync_all_at_once(batch.as_slice(), true);
+fn sync_batch(batch: &[Pending]) {
+    let figures: Vec<(&'static str, Duration)> = sync_all_at_once(batch, true);
     let mut total: Duration = Duration::ZERO;
     for (_what, took) in &figures {
         total += *took;
@@ -191,13 +191,30 @@ async fn background(mut jobs: UnboundedReceiver<Job>) {
     while let Some(job) = jobs.recv().await {
         match job {
             Job::Batch(batch) => {
-                let holding_and_syncing = move || {
-                    crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
-                    sync_batch(batch);
-                };
-                if let Err(error) = run_a_slow_job_within_the_budget("the landing records being synced to the disk", holding_and_syncing).await {
-                    // Nobody waits for this: the records are as a power cut leaves them, which the next landing or restart handles.
-                    crate::service_warn!("the background sync of a landing's records could not run: {error}");
+                // What: A batch that got no place waits for one and is handed to a job again.
+                // Why:  "No place came within five seconds" is an answer about this moment, never a verdict on the sync:
+                //       dropping the batch left the records of landings that were already answered unsynced, and nothing
+                //       asked again (the review of `04b80a66cb`, half one, finding 3). The batch stays with its own queue
+                //       until a place comes, and the pause is the wait a place is given.
+                let held: std::sync::Arc<Vec<Pending>> = std::sync::Arc::new(batch);
+                loop {
+                    let handing: std::sync::Arc<Vec<Pending>> = std::sync::Arc::clone(&held);
+                    let holding_and_syncing = move || {
+                        crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
+                        sync_batch(handing.as_slice());
+                    };
+                    let ran: Result<(), crate::blocking_job::BlockingJobError> =
+                        run_a_slow_job_within_the_budget("the landing records being synced to the disk", holding_and_syncing).await;
+                    match ran {
+                        Ok(()) => break,
+                        Err(error) => {
+                            crate::service_warn!("the background sync of a landing's records got no place yet ({error}), so it waits for one and is tried again");
+                            std::thread::sleep(crate::wait_ceilings::PLACE_WAIT_CEILING);
+                            // The batch is this task's own, so the same records are asked for again: a job that ran nothing
+                            //  touched nothing.
+                            continue;
+                        }
+                    }
                 }
             }
             Job::Barrier(done) => {

@@ -203,7 +203,8 @@ fn durable_helper() {
     };
     let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
     force(pending("forced"));
-    sync_batch(pending("background"));
+    let batch: Vec<Pending> = pending("background");
+    sync_batch(batch.as_slice());
     let made: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
     std::fs::write(directory.join("done"), made.to_string()).expect("the helper says it finished");
 }

@@ -647,17 +647,16 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::Ran(Err(reason)) => {
             return EmptiedTrash::Kept(TrashLeft::kept(format!("{} {reason}", held.inside.display())));
         }
-        // A listing that got no place, or gave no answer, removed nothing: the round could not work, which is a retry and
-        //  not progress (`worktree_trash_dispose_awaiting.rs`).
+        // What: A listing that got no place is left for a later look, which is a deferral and not a try.
+        // Why:  "No place came within the ceiling" is an answer about this moment, never a verdict on the trash, and every
+        //       other step's no-place answer here is already a deferral: a retry spent one of the trash's three tries for a
+        //       step that never ran (the review of `04b80a66cb`, half two, finding 5).
         crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::NotRun => {
-            return EmptiedTrash::LeftForALaterRound {
-                left: TrashLeft::kept(format!(
-                    "the listing of {} got no place within {:?}, so nothing was removed and it is tried again when its claim runs out",
-                    held.inside.display(),
-                    crate::wait_ceilings::TRASH_LISTING_CEILING
-                )),
-                removed: 0,
-            };
+            return EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
+                "the listing of {} got no place within {:?}, so nothing was removed and nothing of it failed",
+                held.inside.display(),
+                crate::wait_ceilings::TRASH_LISTING_CEILING
+            )));
         }
         crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::NoAnswer => {
             return EmptiedTrash::LeftForALaterRound {

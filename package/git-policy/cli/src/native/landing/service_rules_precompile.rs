@@ -233,6 +233,9 @@ fn warm_and_say(repository_root: &Path) -> bool {
     };
 }
 
+/// Whether a warm that got no place left the first look of its repository owed.
+static FORGET_THE_FIRST_LOOK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Starts the job on the blocking pool unless one runs;
 /// nothing when no worker can run it.
 fn spawn_warm(repository_root: PathBuf, first: bool, changed: Vec<String>) {
@@ -240,8 +243,17 @@ fn spawn_warm(repository_root: PathBuf, first: bool, changed: Vec<String>) {
         return;
     }
     let started = spawn_on_runtime(async move {
-        let _ended = run_a_slow_job_within_the_budget("the service rules being warmed", move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
+        let ran: Result<(), crate::blocking_job::BlockingJobError> =
+            run_a_slow_job_within_the_budget("the service rules being warmed", move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
         RUNNING.store(false, Ordering::SeqCst);
+        // What: A warm that got no place is asked for again by the next landing, as a warm that never started is.
+        // Why:  "No place came within five seconds" is an answer about this moment: the remembered file was already written,
+        //       so the next landing read the repository as not the first look and never warmed it, and the client compiled
+        //       the rules itself on its next commit (the review of `04b80a66cb`, half one B, finding 7).
+        if ran.is_err() {
+            // The first look at this repository is still owed its warm, whatever this landing was.
+            FORGET_THE_FIRST_LOOK.store(true, Ordering::SeqCst);
+        }
     });
     if started.is_none() {
         RUNNING.store(false, Ordering::SeqCst);
@@ -290,7 +302,12 @@ pub fn after_landing(journal: &Path, repository: &Path, changed: &[String]) {
     if !room_for_a_warm() {
         return;
     }
-    let first: bool = first_look_at(journal, repository);
+    // What: A warm that got no place last time makes this landing the first look again.
+    // Why:  The remembered file was written before the warm was asked for, so without this the repository was never warmed
+    //       after that landing and the client paid for the rules on its own next commit
+    //       (the review of `04b80a66cb`, half one B, finding 7).
+    let owed: bool = FORGET_THE_FIRST_LOOK.swap(false, Ordering::SeqCst);
+    let first: bool = owed || first_look_at(journal, repository);
     if first {
         remember(journal, repository);
     }
