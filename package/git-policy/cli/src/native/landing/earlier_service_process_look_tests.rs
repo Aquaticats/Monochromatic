@@ -318,15 +318,20 @@ fn earlier_journal_below(root: &Path) -> PathBuf {
 /// What:
 ///  A program whose `--journal` word is relative is judged by the folder that word names in the working folder of
 ///  that program,
-///  not in the folder this command runs in.
+///  not in the folder this command runs in,
+///  and the two ends are stated apart:
+///  a word that names another folder holds nothing back,
+///  and the same word that names this worktree's earlier journal holds.
 /// Why:
-///   A review of another worktree ran the wrapper as a service with `--journal home/.local/state/...` from its own
-///   folder (2026-11-14),
-/// and every settle command on the machine then held, because the word was read in the wrong
-///  folder and could not be found.
-/// A word that names this worktree's earlier journal through the program's own folder still holds:
-///  a
-///  program that writes there may be that journal's helper.
+///   The look reads the word in the program's own folder,
+/// which is what makes another program's word harmless;
+/// a look that
+///  read it in the settling command's folder would refuse on every program with a relative word,
+/// and one that
+///  took every relative word for this worktree's would settle a batch beside an earlier helper that writes it.
+/// A review of another worktree ran the wrapper as a service with
+///  `--journal home/.local/state/...` from its own folder (2026-11-14),
+/// and the settle controls of that machine held on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -344,13 +349,13 @@ fn a_relative_journal_word_is_read_in_the_working_folder_of_the_program() {
     std::fs::create_dir_all(another_working_folder.join(EARLIER_JOURNAL_TAIL)).expect("another worktree's journal");
     let elsewhere: PathBuf = proc_root_with(&[String::from("/p/monochromatic-git-policy-cli"), String::from("service"), String::from("run"), String::from("--journal"), String::from(EARLIER_JOURNAL_TAIL)]);
     with_working_folder(elsewhere.as_path(), another_working_folder.as_path());
-    let held: Option<Holding> = earlier_service_process_hold(look.clone(), elsewhere.as_path());
-    assert!(held.is_none(), "the word names another worktree's journal, so nothing of this one holds: {held:?}");
+    let elsewhere_held: Option<Holding> = earlier_service_process_hold(look.clone(), elsewhere.as_path());
+    assert!(elsewhere_held.is_none(), "the word names another worktree's journal, so nothing of this one holds: {elsewhere_held:?}");
     // The same word, the same command line, and a working folder this worktree's journal is in: it may be the helper.
     let here: PathBuf = proc_root_with(&[String::from("/p/monochromatic-git-policy-cli"), String::from("service"), String::from("run"), String::from("--journal"), String::from(EARLIER_JOURNAL_TAIL)]);
     with_working_folder(here.as_path(), fixture.as_path());
-    let held: Option<Holding> = earlier_service_process_hold(look, here.as_path());
-    assert_eq!(held.map(|holding| { return holding.because; }), Some(Hold::InstanceHelperRuns), "the word names this worktree's earlier journal in the program's own folder");
+    let here_held: Option<Holding> = earlier_service_process_hold(look, here.as_path());
+    assert_eq!(here_held.map(|holding| { return holding.because; }), Some(Hold::InstanceHelperRuns), "the word names this worktree's earlier journal in the program's own folder");
     remove(fixture.as_path());
 }
 

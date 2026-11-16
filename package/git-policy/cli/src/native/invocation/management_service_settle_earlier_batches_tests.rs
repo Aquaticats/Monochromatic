@@ -486,7 +486,7 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("not/yet/there")]);
     let ((relative_code, _, relative_err), _) = run(&world.request());
     assert_eq!(relative_code, 1);
-    assert!(relative_err.contains("`not/yet/there`") && relative_err.contains("working directory of process 77"), "a relative folder says what it is relative to: {relative_err}");
+    assert!(relative_err.contains("`not/yet/there`") && relative_err.contains("working folder of process 77"), "a relative folder names the folder it is read in: {relative_err}");
     std::fs::create_dir_all(world.root.join("exists")).expect("a folder that exists");
     run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), world.root.join("exists").display().to_string()]);
     let ((resolved_code, _, resolved_err), _) = run(&world.request());

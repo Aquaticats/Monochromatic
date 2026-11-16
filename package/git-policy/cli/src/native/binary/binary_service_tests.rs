@@ -516,15 +516,14 @@ const SETTLE_ASK_AGAIN_PAUSE: Duration = Duration::from_millis(20);
 ///   The look reads the command line of every process of the user,
 /// so it answers from facts the control does not own,
 /// and
-///  two of its answers are one a person meets by running the command again:
-/// a process whose `--journal` folder does not
-///  exist yet (a service another control is starting,
-/// one whose fixture was just removed,
-/// a program another session
-///  runs) may be an earlier helper,
-/// and a look the machine was too busy to finish inside its ceiling proves
-///  nothing either way.
-/// Both are a refusal that changes nothing and leaves standard output empty,
+///  three of its answers are one a person meets by running the command again:
+/// a program whose `--journal` word names this
+///  worktree's earlier journal before it makes the folder (a service another control is starting for this worktree)
+///  may be that journal's helper,
+/// a program whose arguments or working folder cannot be read may be one,
+/// and a look the machine was too
+///  busy to finish inside its ceiling proves nothing either way.
+/// Each is a refusal that changes nothing and leaves standard output empty,
 /// which is
 ///  what every hold does;
 /// its own words tell the person to run the command again,
