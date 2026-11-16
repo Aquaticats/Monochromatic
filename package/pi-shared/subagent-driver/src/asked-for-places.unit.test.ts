@@ -10,6 +10,7 @@ import {
   mkdir,
   mkdtemp,
   rm,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -178,6 +179,49 @@ await describe({
             expect(places.map(function nameOf(place,) {
               return place.name;
             },),).toEqual(['b',],);
+          },
+        },),
+        it({
+          name: 'gives a place back when the entry of an active batch has already finished its run, which that batch can never start again',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The list an active batch is still working from, which names a finished run and a going one.
+             */
+            const list = join(folder.runs, 'batch-1-queue-entry-a.json',);
+            await writeFile(
+              list,
+              JSON.stringify([runNamed('a',), runNamed('b',)],),
+            );
+            /**
+             A moment before the list was written, so the finished run below is strictly later than it.
+             */
+            const anHourBefore = new Date(Date.now() - 3_600_000,);
+            await utimes(
+              list,
+              anHourBefore,
+              anHourBefore,
+            );
+            await mkdir(join(folder.runs, 'a-1',),);
+            await writeFile(
+              join(folder.runs, 'a-1', 'summary.json',),
+              '{"endReason":"idle"}\n',
+            );
+            /**
+             What the look found while b is going and a has finished.
+             */
+            const places = await placesAskedFor({
+              runsFolder: folder.runs,
+              run: systemdListing({ units: ['launch-batch-1-queue-entry-a.service',], },),
+              goingNames: new Set(['b',],),
+              onProblem: function onProblem() {
+                throw new Error('nothing should be a problem here',);
+              },
+            },);
+            // a took its place from this batch and cannot take another one, so only b holds a place.
+            expect(places.map(function nameOf(place,) {
+              return place.name;
+            },),).toEqual([],);
           },
         },),
         it({

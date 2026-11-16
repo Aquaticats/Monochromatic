@@ -5,18 +5,56 @@
  */
 
 import {
+  spawn,
+} from 'node:child_process';
+import {
+  once,
+} from 'node:events';
+import {
+  mkdtemp,
   readdir,
   readFile,
+  rm,
+  writeFile,
 } from 'node:fs/promises';
+import { join, } from 'node:path';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  isThere,
   runCommandShowingItsOutput,
   runCommandWithChildProcess,
 } from '../dist/final/node/index.mjs';
+
+/**
+ A folder a test may write its own programs in, removed when the test ends.
+
+ @returns the folder, and how to remove it
+
+ @example
+ ```ts
+ await using folder = await makeFolder();
+ ```
+ */
+async function makeFolder(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  /**
+   The folder.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'pi-run-command-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
 
 /**
  Milliseconds a stand-in question is given, which is far less than the sleep it is asked to run.
@@ -262,6 +300,78 @@ await describe({
         expect(await aChildStillRuns({ word: A_CHILD_OF_THIS_TEST, },),).toBe(true,);
         await passTime(POLITE_SIGNAL_GRACE_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);
         expect(await aChildStillRuns({ word: A_CHILD_OF_THIS_TEST, },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'kills the program at its grace even when the caller that set the bound has exited',
+      timeout: 40_000,
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the child would write if it outlived the grace: the marker names the moment it was written.
+         */
+        const marker = join(
+          folder.path,
+          'the-child-survived.txt',
+        );
+        /**
+         The program that sets the bound and exits at once, which is what the launcher does.
+         */
+        const caller = join(
+          folder.path,
+          'a-caller-that-exits.ts',
+        );
+        /**
+         The program that ignores the polite signal and writes its marker a second past the grace.
+         */
+        const child = join(
+          folder.path,
+          'a-child-that-ignores-its-signal.ts',
+        );
+        await writeFile(
+          caller,
+          [
+            `import { runCommandShowingItsOutput, } from ${JSON.stringify(new URL('../dist/final/node/index.mjs', import.meta.url,).href,)};`,
+            'const [child, marker, ] = process.argv.slice(2,);',
+            'const ending = await runCommandShowingItsOutput({',
+            '  command: process.execPath,',
+            '  words: [child, marker, ],',
+            `  timeoutMilliseconds: ${String(SHORT_BOUND_MILLISECONDS,)},`,
+            '},);',
+            'process.stdout.write(`${JSON.stringify({ ending, })}\\n`,);',
+            '',
+          ].join('\n',),
+        );
+        await writeFile(
+          child,
+          [
+            "import { writeFileSync, } from 'node:fs';",
+            'const [marker, ] = process.argv.slice(2,);',
+            "process.on('SIGTERM', () => {});",
+            `setTimeout(() => { writeFileSync(marker, 'the child survived past the grace\\n',); }, ${String(POLITE_SIGNAL_GRACE_MILLISECONDS + 600,)});`,
+            `setTimeout(() => { process.exit(0,); }, ${String(POLITE_SIGNAL_GRACE_MILLISECONDS + 1_200,)});`,
+            '',
+          ].join('\n',),
+        );
+        /**
+         The caller's process, which this test started and whose number it was given back.
+         */
+        const started = spawn(
+          process.execPath,
+          [caller, child, marker,],
+          { stdio: 'ignore', },
+        );
+        /**
+         How the caller ended.
+         */
+        const [status,] = await once(
+          started,
+          'close',
+        );
+        // The caller answered at its bound and exited; the child is not its to leave behind.
+        expect(status,).toBe(0,);
+        await passTime(POLITE_SIGNAL_GRACE_MILLISECONDS + AFTER_THE_GRACE_MILLISECONDS,);
+        expect(await isThere(marker,),).toBe(false,);
       },
     },),
   ],

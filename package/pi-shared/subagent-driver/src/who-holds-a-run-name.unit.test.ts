@@ -360,7 +360,7 @@ await describe({
           },
         },),
         it({
-          name: 'counts a launcher whose run ended as no run at all, which is what lets a start of that name go ahead',
+          name: 'counts a launcher whose run has ended, because it may still resume that run and the wake path and the count cannot disagree',
           fn: async () => {
             await using folder = await makeFolder();
             await writeProcess({
@@ -395,7 +395,10 @@ await describe({
               facts: new Map([['pi-a.service', 'LoadState=loaded\nActiveState=inactive\n',],],),
               units: '',
             },);
-            expect(await goingRunsNow({
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
               run: systemd.run,
               processFolder: folder.processes,
               runsFolder: folder.runs,
@@ -403,7 +406,17 @@ await describe({
               onProblem: function onProblem(problem,) {
                 throw new Error(`nothing was expected to be a problem: ${problem}`);
               },
-            },),).toEqual([],);
+            },);
+            // A launcher that outlived its run is waiting for work the run left, or removing its worktree, or about to resume
+            // that run. Until it exits it is the holder of the name: dropping it lets a replacement start while its own wake path
+            // resumes the same run.
+            expect(going.map(function nameOf(run,) {
+              return run.name;
+            },),).toEqual(['a',],);
+            expect(going[0]?.held,).toMatchObject({
+              kind: 'launcher',
+              pid: 21,
+            },);
             expect(systemd.asked,).toContain('--user show pi-a.service --property=LoadState --property=ActiveState --property=ActiveEnterTimestamp',);
           },
         },),

@@ -670,6 +670,53 @@ await describe({
           },
         },),
         it({
+          name: 'leaves the record of a start it cannot tell apart, whose entry is still queued and whose batch is not going yet',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            // The state a concurrent settler meets while the filling that wrote the record is asking for its unit: the entry has
+            // not been taken out yet, and the batch is not visible to the manager.
+            await putAQueueEntryIn({
+              queueFile: folder.queueFile,
+              entry: anEntry({ name: 'a', },),
+              position: 0,
+            },);
+            /**
+             What the second settlement said.
+             */
+            const said: string[] = [];
+            /**
+             What settling found, which is that it cannot tell whether the start is in flight.
+             */
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: function report(problem,) {
+                said.push(problem,);
+              },
+            },);
+            expect(settled[0]?.outcome,).toBe('cannot-tell',);
+            expect(settled[0]?.line,).toContain('could not be told apart',);
+            // The record is the only way back to that start, so a settlement that cannot prove the start ended leaves it, and leaves
+            // the entry where it is.
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toHaveLength(1,);
+            expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
+              return entry.name;
+            },),).toEqual(['a',],);
+            expect(await setAsideRecordOf({
+              runsFolder: folder.runs,
+              name: 'a',
+            },),).toBe(NO_SET_ASIDE_RECORD,);
+            expect(said,).toEqual([],);
+          },
+        },),
+        it({
           name: 'reports a start it cannot settle and goes on to the next one',
           fn: async () => {
             await using folder = await makeFolder([],);
