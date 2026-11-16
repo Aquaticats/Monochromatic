@@ -41,7 +41,7 @@ fn ask(
 fn every_clean_asks_nothing() {
     for command in [GuardedCommand::Clean, GuardedCommand::CleanIgnored, GuardedCommand::CleanIgnoredOnly] {
         let (answer, asked) = ask(command, &["-f", "-d"], Ok(vec![String::from("b.txt")]));
-        assert!(answer.is_ok_and(|found| found.entries.is_empty()), "{command:?}");
+        assert!(answer.is_ok_and(|found| return found.entries.is_empty()), "{command:?}");
         assert!(asked.is_empty(), "{command:?} asked {asked:?}");
     }
 }
@@ -57,7 +57,7 @@ fn forms_that_write_no_tree_ask_nothing() {
         GuardedCommand::ResetMixed,
     ] {
         let (answer, asked) = ask(command, &["--force", "a.txt"], Ok(vec![String::from("b.txt")]));
-        assert!(answer.is_ok_and(|found| found.entries.is_empty()), "{command:?}");
+        assert!(answer.is_ok_and(|found| return found.entries.is_empty()), "{command:?}");
         assert!(asked.is_empty(), "{command:?} asked {asked:?}");
     }
 }
@@ -90,7 +90,7 @@ fn a_written_tree_or_path_asks_and_names_what_stands_there() {
 fn the_merge_and_keep_modes_ask_about_the_ignored_entries() {
     for mode in ["--merge", "--keep"] {
         let (answer, asked) = ask(GuardedCommand::ResetHard, &[mode, "other"], Ok(Vec::<String>::new()));
-        assert!(answer.is_ok_and(|found| found.entries.is_empty()), "{mode}");
+        assert!(answer.is_ok_and(|found| return found.entries.is_empty()), "{mode}");
         assert_eq!(asked, vec![String::from("paths-in-the-way:tree-of-ignored-entries")], "{mode}");
     }
 }

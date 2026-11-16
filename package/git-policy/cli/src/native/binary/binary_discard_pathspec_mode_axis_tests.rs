@@ -271,7 +271,7 @@ fn run(scenario: &Scenario, mode: Option<&Mode>, wrapped_arm: bool, label: &str)
     let directory: PathBuf = scenario.prepare(&fixture, "repo");
     let before: BTreeMap<PathBuf, Vec<u8>> = snapshot(directory.as_path());
     let mut words: Vec<String> = Vec::<String>::new();
-    if let Some(option) = mode.and_then(|mode| return mode.option) {
+    if let Some(option) = mode.and_then(|written| return written.option) {
         words.push(String::from(option));
     }
     for argument in scenario.arguments() {
@@ -281,14 +281,14 @@ fn run(scenario: &Scenario, mode: Option<&Mode>, wrapped_arm: bool, label: &str)
     let observed: Observed = if wrapped_arm {
         let mut command = wrapped(&fixture);
         command.current_dir(directory.as_path()).args(borrowed.as_slice());
-        if let Some(variable) = mode.and_then(|mode| return mode.variable) {
+        if let Some(variable) = mode.and_then(|written| return written.variable) {
             command.env(variable, "1");
         }
         observe(&mut command, b"")
     } else {
         let mut command = direct(&fixture);
         command.current_dir(directory.as_path()).args(borrowed.as_slice());
-        if let Some(variable) = mode.and_then(|mode| return mode.variable) {
+        if let Some(variable) = mode.and_then(|written| return written.variable) {
             command.env(variable, "1");
         }
         observe(&mut command, b"")
