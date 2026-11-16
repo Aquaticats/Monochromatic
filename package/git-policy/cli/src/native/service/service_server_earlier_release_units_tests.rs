@@ -37,19 +37,25 @@ fn the_earlier_releases_files_go_and_nothing_else_does() {
     std::fs::write(socket.as_path(), earlier_unit()).expect("the socket template");
     std::fs::write(legacy.as_path(), earlier_unit()).expect("the earlier single socket");
     std::fs::create_dir_all(notes.as_path()).expect("the notes folder");
-    std::fs::write(notes.join(format!("{}{NOTE_ENDING}", an_instance())), hex_of("/repo/.git")).expect("a note");
+    std::fs::write(notes.join(format!("{}{NOTE_ENDING}", an_instance())), hex_of("/repo/.git")).expect("this worktree's note");
+    let other_worktree: String = String::from("fedcba9876543210fedcba9876543210");
+    std::fs::write(notes.join(format!("{other_worktree}{NOTE_ENDING}")), hex_of("/other/.git")).expect("another worktree's note");
     // Somebody else's file under one of the names this program also uses.
     std::fs::write(other.as_path(), "[Unit]\nDescription=another program's unit\n").expect("another program's unit");
 
-    let removed: Vec<PathBuf> = remove_earlier_unit_files(root.as_path());
-    assert!(!service.exists() && !socket.exists() && !legacy.exists(), "the earlier release's files are gone");
-    assert!(!notes.exists(), "and its notes folder with them");
+    let removed: Vec<PathBuf> = remove_earlier_unit_files(root.as_path(), an_instance().as_str());
+    // What this command may take: its own instance's note, and nothing of another worktree's.
+    //  The old assertions here read "the earlier release's files are gone", "and its notes folder with them" and
+    //  "five paths went"; they held while one command took the templates every installed worktree starts from and the note of
+    //  another worktree, which the review of `e347be3115` (part one, finding 7) measured on 2026-11-16.
+    assert!(service.exists() && socket.exists() && legacy.exists(), "the templates and the earlier single socket stay: {removed:?}");
+    assert!(notes.exists(), "the notes folder stays, because it holds another worktree's note");
+    assert!(notes.join(format!("{other_worktree}{NOTE_ENDING}")).exists(), "another worktree's note stays: {removed:?}");
+    assert!(!notes.join(format!("{}{NOTE_ENDING}", an_instance())).exists(), "this worktree's note goes");
     assert!(other.exists(), "a file this program did not write is left: {:?}", removed);
-    // The two templates, the single service's socket, the note and the folder that held it and nothing else.
-    assert_eq!(removed.len(), 5, "five paths went: {removed:?}");
-    assert!(removed.iter().any(|path| { return path.ends_with(NOTES_FOLDER); }), "the folder goes too once nothing of a person's is in it: {removed:?}");
+    assert_eq!(removed.len(), 1, "one path went, the instance's own note: {removed:?}");
     // A second sweep finds nothing to do.
-    assert!(remove_earlier_unit_files(root.as_path()).is_empty(), "the sweep is idempotent");
+    assert!(remove_earlier_unit_files(root.as_path(), an_instance().as_str()).is_empty(), "the sweep is idempotent");
 }
 
 /// One instance name: the 32 hexadecimal digits of a worktree's hash.
@@ -153,7 +159,8 @@ fn the_notes_folder_keeps_what_this_program_did_not_write() {
     std::fs::create_dir_all(notes.as_path()).expect("the notes folder");
     // This program's: one note of this release's shape, one of the earlier plain shape, and the program link.
     std::fs::write(notes.join(format!("{}{NOTE_ENDING}", an_instance())), hex_of("/repo/.git")).expect("a note in hexadecimal");
-    let another_instance: String = an_instance().replace('a', "b");
+    // A different instance: another worktree of this account, whose note this command must leave.
+    let another_instance: String = String::from("11111111111111111111111111111111");
     std::fs::write(notes.join(format!("{another_instance}{NOTE_ENDING}")), "/repo/.git\n").expect("a note as the earlier release wrote it");
     std::os::unix::fs::symlink("/usr/bin/monochromatic-git-policy-cli", notes.join(PROGRAM_LINK)).expect("the program link");
     // A person's: a file of their own, and a file whose name looks like a note and whose text is not one.
@@ -162,23 +169,26 @@ fn the_notes_folder_keeps_what_this_program_did_not_write() {
     let under_a_note_name: PathBuf = notes.join(format!("{}{NOTE_ENDING}", an_instance().replace('a', "c")));
     std::fs::write(under_a_note_name.as_path(), "a person's notes, under a name like this program's\n").expect("a person's file under a note's name");
 
-    let removed: Vec<PathBuf> = remove_earlier_unit_files(root.as_path());
-    // What a person kept there is what the removal must not touch, so it is asked first: a removal that takes the folder
-    // whole fails here.
+    let removed: Vec<PathBuf> = remove_earlier_unit_files(root.as_path(), an_instance().as_str());
+    // What a person kept there, another worktree's note and the program link are what the removal must not touch; this
+    //  instance's own note is what it takes. The old assertions here read "this program's notes are the ones that went",
+    //  "and the earlier release's, whose text is a path", "and the link its units started the service through" and
+    //  "three entries went", and held while one command took every note in the folder (the review of `e347be3115`, part one,
+    //  finding 7).
     assert!(precious.exists(), "a file a person kept there is left: {removed:?}");
     assert!(under_a_note_name.exists(), "and so is one whose name looks like a note and whose text is not one: {removed:?}");
-    assert!(notes.exists(), "the folder itself stays while anything of a person's is in it");
-    assert!(removed.iter().any(|path| { return path.extension() == Some(std::ffi::OsStr::new("git-dir")) && path.file_name() != under_a_note_name.file_name(); }), "this program's notes are the ones that went: {removed:?}");
-    assert!(!notes.join(format!("{another_instance}{NOTE_ENDING}")).exists(), "and the earlier release's, whose text is a path");
-    assert!(!notes.join(PROGRAM_LINK).exists(), "and the link its units started the service through");
-    assert_eq!(removed.len(), 3, "three entries went, and the folder did not: {removed:?}");
-    // Once nothing of a person's is left, the folder goes with the last note of this program.
+    assert!(notes.exists(), "the folder stays, because it holds what is not this instance's");
+    assert!(!notes.join(format!("{}{NOTE_ENDING}", an_instance())).exists(), "this instance's own note goes: {removed:?}");
+    assert!(notes.join(format!("{another_instance}{NOTE_ENDING}")).exists(), "another worktree's note stays: {removed:?}");
+    // A link is asked about by its own entry: `exists` follows it, and this one names a program a build may not have.
+    assert!(std::fs::symlink_metadata(notes.join(PROGRAM_LINK)).is_ok(), "and the link its units started the service through, which every worktree uses");
+    assert_eq!(removed.len(), 1, "one entry went, this instance's note: {removed:?}");
+    // The folder is another worktree's as much as this one's, so it stays even once a person's files are gone.
     std::fs::remove_file(precious.as_path()).expect("the person's file");
     std::fs::remove_file(under_a_note_name.as_path()).expect("the person's other file");
-    std::fs::write(notes.join(format!("{}{NOTE_ENDING}", an_instance().replace('a', "d"))), hex_of("/repo/.git")).expect("a note");
-    let removed_now: Vec<PathBuf> = remove_earlier_unit_files(root.as_path());
-    assert!(!notes.exists(), "an empty notes folder goes: {removed_now:?}");
-    assert_eq!(removed_now.len(), 2, "the note and the folder: {removed_now:?}");
+    let removed_now: Vec<PathBuf> = remove_earlier_unit_files(root.as_path(), an_instance().replace('a', "d").as_str());
+    assert!(notes.exists(), "the notes folder is never removed for one instance's sake: {removed_now:?}");
+    assert!(removed_now.is_empty(), "and nothing of another worktree's goes: {removed_now:?}");
 }
 
 /// What:

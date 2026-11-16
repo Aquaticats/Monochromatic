@@ -32,7 +32,6 @@ use crate::service_server_start_through_the_manager::{PROBE_WAIT, bus_is_ours, e
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "serviceServerEarlierReleaseUnits";
 
 /// What:
 ///  The texts an earlier release wrote on its unit files' first lines,
@@ -60,15 +59,13 @@ pub const STOP_PROGRAM: &str = "systemctl";
 /// ```
 pub fn unit_paths(runtime_dir: &Path) -> Vec<PathBuf> {
     let directory: PathBuf = runtime_dir.join("systemd").join("user");
-    return vec![
-        directory.join("monochromatic-git-policy-cli@.service"),
-        directory.join("monochromatic-git-policy-cli@.socket"),
-        directory.join(NOTES_FOLDER),
-        directory.join("cli-git@.service"),
-        directory.join("cli-git@.socket"),
-        directory.join("cli-git.service"),
-        directory.join("cli-git.socket"),
-    ];
+    // What: The two templates and the earliest release's single socket for every worktree are not this command's to remove.
+    // Why:  The review of `e347be3115` (part one, finding 7) measured a commit of this branch removing both templates and the
+    //       notes of other worktrees: on a machine where other worktrees run the installed wrapper's own units, those units are
+    //       what every one of them starts from, and one command must not take another worktree's files. What a command may take
+    //       is its own instance's files, and the notes folder holds one file per worktree, which the removal below sorts by the
+    //       instance's own name.
+    return vec![directory.join(NOTES_FOLDER)];
 }
 
 /// What:
@@ -114,12 +111,12 @@ pub const PROGRAM_LINK: &str = "service-program";
 /// ```ts
 /// for (const path of unitPaths(dir)) if (isOurs(path)) rm(path)
 /// ```
-pub fn remove_earlier_unit_files(runtime_dir: &Path) -> Vec<PathBuf> {
+pub fn remove_earlier_unit_files(runtime_dir: &Path, instance: &str) -> Vec<PathBuf> {
     let mut removed: Vec<PathBuf> = Vec::new();
     for path in unit_paths(runtime_dir) {
         let ours: bool = match std::fs::symlink_metadata(&path) {
             // A folder: only the notes this program is shown to have written go, one at a time, and only then the folder.
-            Ok(metadata) if metadata.is_dir() => remove_the_notes_of_this_program(&path, &mut removed),
+            Ok(metadata) if metadata.is_dir() => remove_the_note_of_this_instance(&path, instance, &mut removed),
             Ok(_) => match std::fs::read_to_string(&path) {
                 Ok(text) if OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }) => std::fs::remove_file(&path).is_ok(),
                 _ => false,
@@ -148,12 +145,19 @@ pub fn remove_earlier_unit_files(runtime_dir: &Path) -> Vec<PathBuf> {
 /// for (const entry of readdir(folder)) if (isOurNote(entry) || isOurProgramLink(entry)) rm(entry); else name(entry);
 /// if (isEmpty(folder)) rmdir(folder);
 /// ```
-fn remove_the_notes_of_this_program(folder: &Path, removed: &mut Vec<PathBuf>) -> bool {
+fn remove_the_note_of_this_instance(folder: &Path, instance: &str, removed: &mut Vec<PathBuf>) -> bool {
     let Ok(listing) = std::fs::read_dir(folder) else { return false };
     let mut left: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
-        if !is_a_note_of_this_program(&path) {
+        // What: Only this instance's own note goes, and another worktree's note is left where it is.
+        // Why:  The folder holds one note per worktree, and an earlier release's units of another worktree read theirs: a
+        //       command of this worktree removed another worktree's note on 2026-11-16 (the review of `e347be3115`, part one,
+        //       finding 7).
+        let mine: bool = path.file_name().and_then(std::ffi::OsStr::to_str).is_some_and(|name| {
+            return name == format!("{instance}{NOTE_ENDING}") || name == format!("{instance}{NOTE_ENDING}~old");
+        });
+        if !mine || !is_a_note_of_this_program(&path) {
             left.push(path);
             continue;
         }
@@ -161,19 +165,8 @@ fn remove_the_notes_of_this_program(folder: &Path, removed: &mut Vec<PathBuf>) -
             removed.push(path);
         }
     }
-    if left.is_empty() {
-        return std::fs::remove_dir(folder).is_ok();
-    }
-    crate::diagnostic_log::warn(
-        TAG,
-        format!(
-            "{} holds what this program did not write, so it and its entries are left: {}",
-            folder.display(),
-            left.iter().map(|path| { return path.display().to_string(); }).collect::<Vec<String>>().join(", ")
-        )
-        .as_str(),
-    );
-    return false;
+    // The folder stays: it is another worktree's as much as this one's, and its entries are read by units that still run.
+    return left.is_empty();
 }
 
 /// What:
@@ -316,7 +309,7 @@ pub(crate) fn stop_with_the_managers_client_seamed(instance: &str, end_and_reap:
 /// return removed;
 /// ```
 pub fn retire_earlier_units(runtime_dir: &Path, named_runtime_dir: Option<&Path>, bus_address: Option<&str>, instance: &str) -> Vec<PathBuf> {
-    let removed: Vec<PathBuf> = remove_earlier_unit_files(runtime_dir);
+    let removed: Vec<PathBuf> = remove_earlier_unit_files(runtime_dir, instance);
     // What: The manager is asked only when this command's runtime directory is the one the environment named and its bus is
     //       that session's own.
     // Why:  A command given a runtime directory of its own must leave the account's manager alone (issue 6293), and a folder

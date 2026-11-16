@@ -247,13 +247,14 @@ fn read_the_number(reading: libc::c_int) -> Option<i32> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// setsid(); signal(SIGHUP, SIG_IGN); chdir('/'); close_range(3, ~0); dup2(nullFd, 0); dup2(logFd, 1); dup2(logFd, 2); execv(program, argv); _exit(127);
+/// setsid(); chdir('/'); close_range(3, ~0); dup2(nullFd, 0); dup2(logFd, 1); dup2(logFd, 2); execv(program, argv); _exit(127);
 /// ```
 fn become_the_server(program: usize, pointers: *const *const libc::c_char, nothing_fd: i32, log_fd: i32) -> ! {
     // SAFETY: before the `execv`, only async-signal-safe calls run, and every argument was made whole before the fork.
     unsafe {
         let _session: libc::pid_t = libc::setsid();
-        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+        // No `SIG_IGN` for SIGHUP: the service installs its own handler for it and ends on it as on SIGTERM, which is what the
+        //  handler did all along; an ignore here said the opposite (the review of `e347be3115`, part one, finding 8).
         // What:
         //  The service starts in no directory of the caller's and with no descriptor of the caller's beyond its own three.
         // Why:
