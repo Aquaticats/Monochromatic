@@ -458,6 +458,48 @@ fn a_lock_whose_file_system_records_no_birth_time_is_kept_and_named() {
 }
 
 /// What:
+///  A command started in one repository that names another with `-C` clears the lock of the
+///  repository it names,
+///  and leaves the lock of the one it was started from alone.
+/// Why:
+///  Agents run most of their Git commands as `git -C <repository> ...` from another folder,
+///  and a lock a killed Git left in the repository such a command names made it fail with Git's
+///  own `File exists`.
+///  The pass searches the repository the command will work in,
+///  so the named one is repaired before its own Git starts and the started-from one keeps its lock
+///  until a command of its own meets it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantLock(startedFrom, 'index.lock', dead); plantLock(named, 'index.lock', dead);
+/// expect(runWrapped(startedFrom, ['-C', named, 'add', 'later.txt']).code).toBe(0);
+/// ```
+#[test]
+fn a_dash_c_command_clears_the_lock_of_the_repository_it_names() {
+    let fixture: Fixture = fixture("dash-c-lock");
+    let started_from: PathBuf = repository(&fixture, std::ffi::OsStr::new("started-from"));
+    let named: PathBuf = repository(&fixture, std::ffi::OsStr::new("named"));
+    std::fs::write(named.join("later.txt"), "a later change\n").expect("the file the command stages");
+    let (pid, identity) = a_dead_holder();
+    plant_lock(started_from.as_path(), "index.lock", pid, Some(&identity), "record-started-from");
+    let (named_pid, named_identity) = a_dead_holder();
+    plant_lock(named.as_path(), "index.lock", named_pid, Some(&named_identity), "record-named");
+    let began: Instant = Instant::now();
+    let mut command: Command = super::support::wrapped(&fixture);
+    let _in_the_started_from: &mut Command = command
+        .current_dir(started_from.as_path())
+        .args(["-C", named.to_str().expect("UTF-8 fixture path"), "add", "--", "later.txt"]);
+    let observed: Observed = super::support::observe(&mut command, b"");
+    let elapsed: Duration = began.elapsed();
+    assert_eq!(observed.code, Some(0), "the command must go on in the repository it names: {}", stderr_of(&observed));
+    assert!(!named.join(".git/index.lock").exists(), "the named repository's lock of a proven dead holder must be cleared: {}", stderr_of(&observed));
+    assert!(stderr_of(&observed).contains("cleared"), "the removal is told once: {}", stderr_of(&observed));
+    assert!(started_from.join(".git/index.lock").exists(), "a lock of the repository the command was started from is not this command's to remove: {}", stderr_of(&observed));
+    assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}");
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
 ///  Each lock file a killed command can leave,
 ///  with the record a kill leaves,
 ///  is cleared by the next command.
