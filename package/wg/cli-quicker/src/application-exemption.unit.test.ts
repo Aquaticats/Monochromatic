@@ -28,6 +28,29 @@ const NOT_FOUND: ApplicationExemptionCommand = {
   searched: ['/repo/package/wg/cli-quicker-exempt/target/release/wg-quicker-exempt', '/usr/bin/wg-quicker-exempt',],
 };
 
+/**
+ Reads what a call throws.
+
+ @param run - Call expected to throw.
+
+ @returns The thrown value,
+ or nothing when it did not throw.
+
+ @example
+ ```ts
+ await thrownBy({ run: () => Promise.reject(new Error('x')) });
+ ```
+ */
+async function thrownBy({ run, }: { readonly run: () => unknown; },): Promise<unknown> {
+  try {
+    await run();
+    return undefined;
+  }
+  catch (error) {
+    return error;
+  }
+}
+
 await describe({
   name: resolveApplicationUid.name,
   children: [
@@ -226,21 +249,20 @@ await describe({
         /**
          Error the abort threw.
          */
-        const error = await startExemptionsOrAbort({
-          interfaceName: 'wg0',
-          mark: 100,
-          start: (call,) => startApplicationExemptions({
-            ...call,
-            resolveCommand: () => Promise.resolve(NOT_FOUND,),
-            runCommand: (command,) => {
-              ran.push(command.command,);
-              return Promise.resolve({ stdout: '', stderr: '', },);
-            },
+        const error = await thrownBy({
+          run: () => startExemptionsOrAbort({
+            interfaceName: 'wg0',
+            mark: 100,
+            start: (call,) => startApplicationExemptions({
+              ...call,
+              resolveCommand: () => Promise.resolve(NOT_FOUND,),
+              runCommand: (command,) => {
+                ran.push(command.command,);
+                return Promise.resolve({ stdout: '', stderr: '', },);
+              },
+            },),
           },),
-        },).then(
-          () => new Error('The start did not throw.',),
-          (thrown: unknown,) => thrown,
-        );
+        },);
         expect(ran,).toEqual([],);
         expect(Error.isError(error,),).toBe(true,);
         expect((error as Error).name,).toBe('WatcherMissingError',);
