@@ -6267,6 +6267,20 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   `native:install` moves the installed wrapper to a released version and samples one commit with it
   (`bin/native-install.ts`);
   see "The checks and the install" below for both.
+- A Rust change that moves a guard,
+  rewrites the text it guards or renames the test that holds it
+  leaves a planted control naming code that is gone,
+  and this package's TypeScript unit tests are the only check that says so:
+
+  ```sh
+  # Run from the repository top level; it fails in about a second and names the control and the file.
+  mise run //package/git-policy/cli:test:unit \
+    -- bin/native-planted-controls.unit.test.ts bin/native-planted-controls-harness.unit.test.ts
+  ```
+
+  `doc/planted-controls-name-the-code-that-holds-their-guard.md` says how to repoint one,
+  how the identity of the campaign code follows it,
+  and which checks at a merge read the table.
 
 A release build of the executable:
 
