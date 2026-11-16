@@ -153,6 +153,13 @@ const STARTS: &[Start] = &[
         reason: "it renames and removes the generations of a log inside a repository's data folder",
     },
     Start {
+        file: "foundation/diagnostic_lines_off_the_calling_thread.rs",
+        marker: "String::from(\"cli-git-diagnostic-lines\")",
+        count: 1,
+        waited: Waited::NoFileUnderARepository,
+        reason: "it writes this process's diagnostic lines to the stream it was given, for as long as the process runs, and makes no file",
+    },
+    Start {
         file: "foundation/notice_stream_that_does_not_hold_its_writer.rs",
         marker: "WRITER_THREAD_NAME",
         count: 1,

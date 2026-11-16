@@ -56,6 +56,7 @@ fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file.starts_with("source_guard/standards_review_boundary_")
         || file.starts_with("source_guard/blocking_code_off_the_runtime_rules_")
+        || file.starts_with("source_guard/writers_into_a_repository_")
         || file.starts_with("landing/service_work")
         || SERVICE_ONLY_FILE_PREFIXES.iter().any(|prefix| return file.starts_with(prefix));
 }

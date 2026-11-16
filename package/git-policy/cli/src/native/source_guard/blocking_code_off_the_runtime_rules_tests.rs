@@ -217,11 +217,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
               awaits the build",
     },
     Allowed {
-        file: "foundation/log_generations_kept_to_a_bound.rs",
-        rule: "thread-start",
-        why: "one thread trims the log generations; a job of the blocking pool replaces it",
-    },
-    Allowed {
         file: "foundation/notice_stream_that_does_not_hold_its_writer.rs",
         rule: "thread-start",
         why: "the writer of the notice stream, which a reader must never hold",
@@ -249,35 +244,14 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the one thread that writes the service's log lines, and it exists because a caller must never wait for the stream: a landing was held 7.35 s by a full FIFO, and the journal's own disk held commits for 56 to 199 s (the audit of 0.6.1-alpha.14). Its job never returns while the process runs, which a job of the blocking pool cannot be, so nothing of that pool replaces it; the entry goes when the process's log is a stream a write cannot wait on, where a caller writes its own line",
     },
     Allowed {
-        file: "foundation/scratch_entry_removal.rs",
-        rule: "thread-start",
-        why: "the removal of a scratch entry on a thread it starts, awaited under a ceiling",
-    },
-    Allowed {
         file: "foundation/side_by_side_threads.rs",
         rule: "thread-start",
         why: "the scoped runner of the blocking rounds; the runtime's runner replaces it with the last converted call site",
     },
     Allowed {
-        file: "foundation/work_awaited_within_a_ceiling.rs",
-        rule: "thread-start",
-        why: "a call that can wait in the kernel with no end, on a thread awaited under a ceiling",
-    },
-    Allowed {
         file: "landing/service_scratch_renewal.rs",
         rule: "thread-start",
         why: "the renewal of a scratch claim on its own thread while the landing proceeds",
-    },
-    Allowed {
-        file: "landing/service_work.rs",
-        rule: "thread-start",
-        why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on; the refusal is \
-              `run_on_runtime`'s `Handle::try_current`, which holds on a thread of the blocking pool, so a job there answers that \
-              the runtime was asked for from inside itself and removes nothing (every removal did, until bd06020567); the round \
-              awaits the answer on a oneshot under \
-              `OBJECT_STEP_CEILING`, so no worker of the runtime is held, and that commit measured a removal at 128 ms from the \
-              record to the worktree gone. The entry goes when the removal's Git step is awaited, which makes the removal a job of \
-              the blocking pool",
     },
     Allowed {
         file: "markdown/markdown_linter_guard.rs",
