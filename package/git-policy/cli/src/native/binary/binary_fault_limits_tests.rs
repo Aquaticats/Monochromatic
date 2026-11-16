@@ -167,6 +167,9 @@ struct Case {
     /// for the control that says it ended,
     /// and `None` for every control that does not watch for it.
     service_end: Option<ServiceEnd>,
+    /// The process the instance's note named after the limited attempt,
+    /// which is the service that would have served it.
+    served_by: Option<i32>,
 }
 
 /// One commit with `service` limits on the commit service and `wrapper` limits on the wrapper,
@@ -176,6 +179,25 @@ struct Case {
 /// the repository must recover):
 /// the services are stopped (the manager starts a new one at the next command),
 /// and the repository must recover.
+/// What:
+///  The processes the fixture started under the limit, and the process the instance's note named after the attempt.
+/// Why:
+///  A limit can only be judged against the process that would have served, and this branch starts its own service when the
+///  fixture's is not the one a command reaches (measured 2026-11-15: `the note names Some(3533802) whose limits say
+///  [Max address space unlimited]`): the note is the fact that names it.
+fn limited_and_served(fixture: &Fixture, repo: &Path) -> (Vec<i32>, Option<i32>) {
+    let started = fixture.service.lock().expect("the fixture's service lock");
+    let Some(started) = started.as_ref() else { return (Vec::new(), None) };
+    let limited: Vec<i32> = started.process_ids().into_iter().map(|pid| { return i32::try_from(pid).unwrap_or(0); }).collect();
+    let runtime: PathBuf = started.runtime.clone();
+    drop(started);
+    let directory: PathBuf = git_policy_cli::service_socket_directory_only_this_account_may_open::path(runtime.as_path());
+    let instance: String = git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
+    let note: PathBuf = git_policy_cli::service_server_pid_note_of_an_instance::path(directory.as_path(), instance.as_str());
+    let served: Option<i32> = git_policy_cli::service_server_pid_note_of_an_instance::read(note.as_path()).map(|server| { return server.pid; });
+    return (limited, served);
+}
+
 fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, verify: bool, watched_end: Option<std::time::Duration>) -> Case {
     let fixture: Fixture = fixture(label);
     // A service limited to a size at which it aborts before it listens (the limit falls within a signal stack's size below its
@@ -204,6 +226,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     };
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
+    let (limited_pids, served_by): (Vec<i32>, Option<i32>) = limited_and_served(&fixture, repo.as_path());
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);
@@ -218,6 +241,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
         limited_log,
         recovery_log,
         service_end,
+        served_by,
     };
 }
 
@@ -931,8 +955,43 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
         let limit: u64 = (mapped_mebibytes(*pid) + reserve_mebibytes) * step / MEMORY_STEPS * MEBIBYTE;
         LimitKind::AddressSpace.lift_for(*pid, limit, hard).expect("the soft limit of a running service is lowered");
     }
+    // What: The limit follows the process the note names, for as long as the commit runs.
+    // Why:  The wrapper starts its own service when the fixture's is not the one it reaches (the review of `567ae37198`,
+    //       measured 2026-11-15: `step 3 lowered [3533395] ; the note names Some(3533802) whose limits say [Max address space
+    //       unlimited]`), so a limit applied once, before the commit, can miss the process that serves. The note is the fact
+    //       that says which process serves, so each new process it names is lowered as it appears.
+    let directory: PathBuf = git_policy_cli::service_socket_directory_only_this_account_may_open::path(super::support::service_runtime(&fixture).expect("the fixture's runtime").as_path());
+    let instance: String = git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
+    let note: PathBuf = git_policy_cli::service_server_pid_note_of_an_instance::path(directory.as_path(), instance.as_str());
+    let watched: std::sync::Arc<std::sync::Mutex<Vec<i32>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let watching: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let watcher: std::thread::JoinHandle<()> = {
+        let note: PathBuf = note.clone();
+        let watched: std::sync::Arc<std::sync::Mutex<Vec<i32>>> = std::sync::Arc::clone(&watched);
+        let watching: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&watching);
+        std::thread::spawn(move || {
+            while watching.load(std::sync::atomic::Ordering::SeqCst) {
+                if let Some(server) = git_policy_cli::service_server_pid_note_of_an_instance::read(note.as_path())
+                    && !watched.lock().expect("the limited services").contains(&server.pid)
+                {
+                    let reserve_mebibytes: u64 = git_policy_cli::runtime_plan::ADDRESS_SPACE_RESERVE_BYTES / MEBIBYTE;
+                    if let Some(limit) = mapped_mebibytes(u32::try_from(server.pid).unwrap_or(0)).checked_add(reserve_mebibytes) {
+                        let limit: u64 = limit * step / MEMORY_STEPS * MEBIBYTE;
+                        if LimitKind::AddressSpace.lift_for(u32::try_from(server.pid).unwrap_or(0), limit, hard).is_ok() {
+                            watched.lock().expect("the limited services").push(server.pid);
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        })
+    };
     let commits_before: String = commits_of_the_branch(&fixture, repo.as_path());
     let output: Output = limited_commit(&fixture, repo.as_path(), &[]);
+    watching.store(false, std::sync::atomic::Ordering::SeqCst);
+    let _joined: std::thread::Result<()> = watcher.join();
+    let limited_services: Vec<i32> = watched.lock().expect("the limited services").clone();
+    assert!(!limited_services.is_empty(), "{label}: the note named a service to lower the limit of");
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, false);
     // The pressure ends here, so the limited attempt's words are complete and are read before the recovery adds its own.
@@ -942,6 +1001,7 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
+    let served_by: Option<i32> = limited_and_served(&fixture, repo.as_path()).1;
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);
@@ -956,6 +1016,7 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
         limited_log,
         recovery_log,
         service_end: None,
+        served_by,
     };
 }
 
@@ -1053,7 +1114,7 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(below);
     let case: Case = run_case("as-service-below-start", service.as_slice(), wrapper.as_slice(), true, true, Some(SERVICE_END_BOUND));
     match case.service_end {
-        Some(ServiceEnd::Ended(status)) => assert_eq!(
+        Some(ServiceEnd::Ended(_pid, status)) => assert_eq!(
             status.code(),
             Some(git_policy_cli::service_runtime_build_report::EXIT_NO_WORKER),
             "the service at {below} MiB must end by itself with the status the program gives a service that cannot run a task it cannot serve without, and it ended with {status}; what it wrote explains it: {}",
@@ -1066,10 +1127,18 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
         Some(ServiceEnd::NotServed) => panic!("the fixture served no service for this worktree, so this control has no end to observe: {}", case.limited_log),
         None => panic!("this control asked for the service's end and was given none"),
     }
+    // What: The commit, if it landed, was not served by the service that ended before it listened.
+    // Why:  This branch starts its own service when the one a command reaches cannot run (measured 2026-11-15: the note named a
+    //       process whose address space was unlimited while the limited one had ended), so "no commit lands" is not this
+    //       branch's promise; that the ended service served none of it is.
+    let ended_pid: Option<i32> = match case.service_end {
+        Some(ServiceEnd::Ended(pid, _status)) => Some(pid),
+        _ => None,
+    };
     assert!(
-        !case.landed,
-        "a service that ended before it accepted a connection cannot have landed a commit, and the commits on the repository's branch were {} before the limited attempt and {} after it; the wrapper ended {} and returned success: {}; its standard error said: {}",
-        case.commits_before, case.commits_after, case.status, case.returned_success, case.stderr
+        !case.landed || case.served_by != ended_pid,
+        "the commit landed through the service that ended before it accepted a connection: served by {:?}, which ended as {:?}; the commits were {} before the limited attempt and {} after it; the wrapper ended {} and its standard error said: {}",
+        case.served_by, ended_pid, case.commits_before, case.commits_after, case.status, case.stderr
     );
     assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
 }

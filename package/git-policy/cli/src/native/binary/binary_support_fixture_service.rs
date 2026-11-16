@@ -46,10 +46,12 @@ pub struct Fixture {
 /// Why an event and not a line:
 ///  the state a control names is that this process ended, by itself, with this status;
 /// a line the service wrote about it arrives through a copy thread of its own and says only what the service claimed.
+#[derive(Debug)]
 pub enum ServiceEnd {
     /// It ended by itself,
-    /// with this status.
-    Ended(std::process::ExitStatus),
+    /// with this process number and this status,
+    /// so a control can say that a commit that landed did not go through it.
+    Ended(i32, std::process::ExitStatus),
     /// It still ran when the bound passed.
     StillRunning,
     /// The fixture held no service for this worktree,
@@ -750,16 +752,16 @@ pub fn wait_for_the_service_to_end(fixture: &Fixture, worktree_or_its_git_dir: &
     let key: PathBuf = std::fs::canonicalize(own_git_dir.as_path()).unwrap_or(own_git_dir);
     let began: std::time::Instant = std::time::Instant::now();
     loop {
-        let reached: Option<Option<std::process::ExitStatus>> = {
+        let reached: Option<(i32, Option<std::process::ExitStatus>)> = {
             let service = fixture.service.lock().expect("the fixture's service lock");
             let Some(services) = service.as_ref() else { return ServiceEnd::NotServed };
             let mut children = services.children.lock().expect("the fixture's services");
-            children.get_mut(&key).map(|child| { return child.try_wait().ok().flatten(); })
+            children.get_mut(&key).map(|child| { return (i32::try_from(child.id()).unwrap_or(0), child.try_wait().ok().flatten()); })
         };
         match reached {
             None => return ServiceEnd::NotServed,
-            Some(Some(status)) => return ServiceEnd::Ended(status),
-            Some(None) => {}
+            Some((pid, Some(status))) => return ServiceEnd::Ended(pid, status),
+            Some((_pid, None)) => {}
         }
         if began.elapsed() > bound {
             return ServiceEnd::StillRunning;
