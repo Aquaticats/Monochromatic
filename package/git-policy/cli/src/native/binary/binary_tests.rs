@@ -493,6 +493,12 @@ mod worktree_checkout_workers;
 #[path = "binary_worktree_removal_held_commit_tests.rs"]
 mod worktree_removal_held_commit;
 
+/// The two states the commit service a merge hands a worktree's removal to can be in:
+/// one that is not answering,
+/// and one that ended before it did the work.
+#[path = "binary_worktree_removal_held_commit_hand_over_tests.rs"]
+mod worktree_removal_held_commit_hand_over;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;

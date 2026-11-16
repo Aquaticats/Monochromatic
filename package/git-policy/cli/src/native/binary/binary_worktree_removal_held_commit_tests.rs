@@ -10,6 +10,12 @@
 //!  so only a command that starts the executable over a disposable repository
 //!  shows that the person's commit survives the command that deletes its last reference
 //!  (the owner's rule "never discard user data").
+//!  A merge that lands a worktree's branch hands the removal of that worktree to the commit service and returns,
+//!  so the worktree's own end is waited for,
+//! bounded,
+//! instead of being read at the moment the merge returns;
+//!  the states a person can leave that service in are the sibling module's controls
+//!  (`binary_worktree_removal_held_commit_hand_over_tests.rs`).
 //!  The states a person really leaves are the ones these controls build:
 //!  a checkout deleted before `git worktree prune`,
 //!  and a lock file standing on the reference the commit should be kept on.
@@ -25,22 +31,23 @@ use super::support::{Fixture, Observed, fixture, git, observe, remove, run_direc
 use git_policy_cli::held_commit_record::{Held, write};
 use git_policy_cli::worktree_added_by_the_wrapper::record;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// The branch the linked worktree has checked out.
-const BRANCH: &str = "feature";
+pub(super) const BRANCH: &str = "feature";
 
 /// The file the held commit changes.
 const EDITED: &str = "edited.txt";
 
 /// The batch number of the held commit.
-const SEQ: u64 = 7;
+pub(super) const SEQ: u64 = 7;
 
 /// The file the landed branch adds,
 /// which is the commit the merge brings in.
 const LANDED: &str = "feature.txt";
 
 /// The name of the linked worktree inside the repository's own registrations.
-const LINKED_REGISTRATION: &str = "worktrees/linked";
+pub(super) const LINKED_REGISTRATION: &str = "worktrees/linked";
 
 /// Real Git's answer to a question,
 /// trimmed,
@@ -48,7 +55,7 @@ const LINKED_REGISTRATION: &str = "worktrees/linked";
 /// Why:
 ///  A control compares the reference name real Git reports,
 /// and the binary harness has no reader of a direct command's standard output.
-fn git_said(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
+pub(super) fn git_said(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
     let output: std::process::Output = git(fixture, directory, arguments);
     return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
 }
@@ -56,22 +63,22 @@ fn git_said(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
 /// What one fixture holds:
 ///  the repository the commands run in,
 /// and the linked worktree whose commit is held.
-struct HeldScene {
+pub(super) struct HeldScene {
     /// The fixture whose wrapper link every command starts.
-    fixture: Fixture,
+    pub(super) fixture: Fixture,
     /// The main checkout every command runs in.
-    repo: PathBuf,
+    pub(super) repo: PathBuf,
     /// The linked worktree the held commit belongs to.
-    linked: PathBuf,
+    pub(super) linked: PathBuf,
     /// The common Git directory of the repository.
-    common: PathBuf,
+    pub(super) common: PathBuf,
     /// The commit no branch names.
-    held: String,
+    pub(super) held: String,
 }
 
 impl HeldScene {
     /// The name the commit is kept on.
-    fn kept_name(&self) -> String {
+    pub(super) fn kept_name(&self) -> String {
         return format!("refs/cli-git/kept/{SEQ}");
     }
 
@@ -92,7 +99,7 @@ impl HeldScene {
     /// What real Git's own maintenance says about the commit:
     /// its type,
     /// or nothing when no object holds it any more.
-    fn object_type_after_maintenance(&self) -> String {
+    pub(super) fn object_type_after_maintenance(&self) -> String {
         git(&self.fixture, self.repo.as_path(), &["gc", "--prune=now"]);
         let asked: Observed = run_direct(&self.fixture, self.repo.as_path(), &["cat-file", "-t", self.held.as_str()]);
         return String::from_utf8_lossy(asked.stdout.as_slice()).trim().to_string();
@@ -167,7 +174,7 @@ fn a_held_commit(label: &str) -> HeldScene {
 /// const scene = aHeldCommitAMergeLands('binary-removal-held-landed-sweep');
 /// const ran = await wrapped(['merge', '--no-edit', BRANCH]);
 /// ```
-fn a_held_commit_a_merge_lands(label: &str) -> HeldScene {
+pub(super) fn a_held_commit_a_merge_lands(label: &str) -> HeldScene {
     let fixture: Fixture = fixture(label);
     let repo: PathBuf = fixture.root.join("repo");
     let linked: PathBuf = fixture.root.join("linked");
@@ -320,10 +327,69 @@ fn a_forced_removal_stops_when_no_reference_can_hold_the_held_commit() {
     remove(&scene.fixture);
 }
 
+/// How long a control waits for the removal the merge handed to the commit service,
+/// which the merge does not wait for.
+/// Why a minute:
+///  the removal of a worktree this size takes tens of milliseconds once a service is at work on it,
+///  the fixture's own wait for the service's work is the same minute (`SERVICE_WORK_PATIENCE` in
+///  `src/native/binary/binary_support_observation.rs`),
+///  and nextest ends a test after five,
+///  so a removal that never runs is named by this bound instead of holding the suite.
+pub(super) const REMOVAL_PATIENCE: Duration = Duration::from_secs(60);
+
+/// What:
+///  Every state of the removal's queue and every kept-worktree notice of the repository,
+///  as one text a failure carries.
+/// Why:
+///   The merge records the removal and returns,
+/// so the only place the outcome exists afterwards is the record it named
+///  and,
+/// for a worktree the service kept,
+/// the notice the next command shows:
+///  a failure that says neither leaves a reader guessing between a removal that has not run yet and one that was
+///  refused.
+pub(super) fn what_became_of_the_removal(scene: &HeldScene) -> String {
+    let work: PathBuf = scene.common.join("monochromatic-git-policy-cli/work");
+    let mut said: String = format!("the queue of the removal is {}", super::support::work_listing(work.as_path()));
+    let notices: PathBuf = scene.common.join("monochromatic-git-policy-cli/kept-worktree-notices");
+    let Ok(entries) = std::fs::read_dir(notices.as_path()) else { return said };
+    for entry in entries.flatten() {
+        let text: String = std::fs::read_to_string(entry.path()).unwrap_or_else(|unreadable| { return format!("(unreadable: {unreadable})") });
+        said.push_str(format!("\nthe notice {} says: {text}", entry.file_name().to_string_lossy()).as_str());
+    }
+    return said;
+}
+
+/// What:
+///  Wait,
+/// bounded,
+/// until the worktree the merge handed over and its registration are gone.
+/// Why:
+///  Removing a worktree Git removes file by file reads every tracked file of it and is a step that may not be run twice,
+///  so the merge records it for the commit service and returns before it runs
+///  (`src/native/worktree/worktree_landed_removal.rs`):
+///  the worktree's own end is the service's step,
+///  and a control that read the directory at the moment the merge returned measured which of two processes finished
+///  first
+///  (the release gate on `0f07c4f0ee` failed on exactly that,
+/// once in thirty-five gates).
+pub(super) fn wait_until_the_removal_ran(scene: &HeldScene, said: &str) {
+    let began: Instant = Instant::now();
+    while scene.linked.exists() || scene.common.join(LINKED_REGISTRATION).exists() {
+        assert!(
+            began.elapsed() < REMOVAL_PATIENCE,
+            "the removal the merge handed to the commit service did not run within {REMOVAL_PATIENCE:?}: {}; the merge said: {said}",
+            what_became_of_the_removal(scene)
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 /// What:
 ///  A merge that lands the branch of a worktree holding a commit behind a reference lock keeps that commit
-///  on a reference of this repository before the automatic removal deletes the worktree,
-///  and the person reads where it is before reading that the worktree went.
+///  on a reference of this repository before the automatic removal,
+///  and the removal the merge hands to the commit service runs,
+///  the person being told where the commit is kept before the worktree goes.
 /// Why:
 ///  The sweep the merge wakes removed the landed worktree by one of its own removal routes,
 ///  which skip what a person's `git worktree remove` does first:
@@ -335,6 +401,11 @@ fn a_forced_removal_stops_when_no_reference_can_hold_the_held_commit() {
 ///  "Landed sweep drops the only reference to an unmerged held commit").
 ///  The commit a reference lock holds is the one state where the wrapper's own words say it kept something,
 ///  so the removal that follows may not take the only reference that names it.
+///  That removal is the commit service's whenever the mount forbids the fast destroy,
+///  which is every container the gate runs in,
+///  so the worktree's end is read by a bounded wait and never by a look at the directory the merge returned from:
+///  the kept reference is read on both sides of that wait,
+///  because it is the one thing no order may change.
 #[test]
 fn a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes() {
     let scene: HeldScene = a_held_commit_a_merge_lands("binary-removal-held-landed-sweep");
@@ -356,14 +427,19 @@ fn a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes(
     let said: String = stderr_of(&ran);
     assert_eq!(ran.code, Some(0), "the merge ran: {said}");
     assert!(said.contains(scene.kept_name().as_str()), "the person is told where the commit is kept: {said}");
-    assert!(!scene.linked.exists(), "the sweep removed the worktree whose branch landed: {said}");
-    assert!(!scene.common.join(LINKED_REGISTRATION).exists(), "the removal took the worktree's registration: {said}");
-    assert_eq!(git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(), scene.held, "the kept reference names the held commit");
+    assert_eq!(
+        git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(),
+        scene.held,
+        "the kept reference names the held commit before the removal has run, and after it: {said}"
+    );
     assert_eq!(
         git_said(&scene.fixture, &scene.repo, &["rev-parse", format!("refs/heads/{BRANCH}").as_str()]).trim(),
         branch_tip,
         "the branch the person has to move by hand stays where the lock left it"
     );
+    wait_until_the_removal_ran(&scene, said.as_str());
+    assert!(!scene.common.join(LINKED_REGISTRATION).exists(), "the removal took the worktree's registration: {said}");
+    assert_eq!(git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(), scene.held, "the kept reference still names the held commit after the removal");
     assert_eq!(scene.object_type_after_maintenance(), "commit", "the commit is not lost with the worktree the merge removed");
     remove(&scene.fixture);
 }
