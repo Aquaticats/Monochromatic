@@ -19,8 +19,11 @@ const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BRANCH: &str = "refs/heads/feature";
 
 /// What a process that is not running is recorded as:
-/// no process has this birth identity.
-const ENDED_IDENTITY: &str = "ended:0";
+/// the kernel's own spelling of a start tick the process at that number does not have.
+/// Why:
+///  A text that names no start tick at all (such as `ended`) is a record whose holder cannot be told, which is kept
+///  and named rather than settled, so the fixtures that mean "this process ended" write a tick of another value.
+const ENDED_IDENTITY: &str = "linux:1";
 
 fn plain(commit: &str) -> String {
     return commit.to_string();

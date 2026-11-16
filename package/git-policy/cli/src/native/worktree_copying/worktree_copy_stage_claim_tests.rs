@@ -2416,3 +2416,46 @@ fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left()
     crate::fs_btrfs_ioctl::subvolume_destroy_at(container.as_path()).expect("the control's snapshot");
     remove(root.as_path());
 }
+
+/// What:
+///  A record whose child Git cannot be told, and which has stood past the patience,
+///  is named and kept, and the same record inside the patience says nothing and stays.
+/// Why:
+///  The child's owner is judged by `CopyOwner::is_alive`, whose third answer is neither alive nor gone.
+///  Settling the record on that answer drops the only place the add's own command marks its success, and does it in
+///  silence; the decision of 2026-11-16 keeps the record and names it, with the record, the owner, its age and the
+///  exact `rm`, once the patience is past.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = plannedRecordWithChild(destination, untellableChild); ageRecord(record, 30min);
+/// const { notice, keep } = settleText(record); expect(keep).toBe(true); expect(notice).toContain('rm --');
+/// ```
+#[test]
+fn a_record_whose_child_cannot_be_told_is_named_and_kept_past_the_patience() {
+    let (root, _common, destination) = scene("settle-untellable-child");
+    let record: PathBuf = root.join("record");
+    let child: crate::worktree_copy_owner::CopyOwner = crate::worktree_copy_owner::CopyOwner {
+        pid: i64::from(std::process::id()),
+        birth_identity: String::from("linux:not-a-birth"),
+        pid_namespace: crate::pid_namespace::current_pid_namespace(),
+    };
+    let text: String = crate::worktree_add_binding::planned_record_with_child(destination.as_path(), &child);
+    std::fs::write(record.as_path(), text.as_bytes()).expect("the record");
+    std::fs::File::open(record.as_path())
+        .expect("open the record")
+        .set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(60))
+        .expect("age the record");
+    let settlement: Settlement = settle_text(record.as_path(), Ok(text.clone()));
+    assert!(settlement.keep, "the record of a child that cannot be told stays: {settlement:?}", settlement = settlement.notice.clone());
+    let notice: String = settlement.notice.expect("the person reads the words");
+    assert!(
+        notice.contains(record.to_string_lossy().as_ref()) && notice.contains("rm --") && notice.contains("birth identity"),
+        "the words name the record and the command that removes it: {notice}"
+    );
+    // The same record inside the patience says nothing, and stays.
+    std::fs::write(record.as_path(), text.as_bytes()).expect("the record again");
+    let young: Settlement = settle_text(record.as_path(), Ok(text));
+    assert!(young.keep && young.notice.is_none(), "inside the patience the record stays and says nothing: {young:?}", young = young.notice.clone());
+    remove(root.as_path());
+}

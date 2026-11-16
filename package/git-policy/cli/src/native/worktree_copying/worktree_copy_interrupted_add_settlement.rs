@@ -505,7 +505,11 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
                     return match child.is_alive(record) {
                         Ok(true) => Settlement { notice: None, keep: true },
                         Ok(false) => Settlement { notice: None, keep: false },
-                        Err(_unproven) => unnamed_child_settlement(record),
+                        // What: a child whose record says neither that it runs nor that it ended is a holder that cannot be
+                        //       told, and its record stays with the words that name it.
+                        // Why:  The record is the only place the add's own command marks its success, and settling it on that
+                        //       answer dropped it in silence; owner, 2026-11-16, "A: stays, command says how (Recommended)".
+                        Err(refusal) => Settlement { notice: Some(refusal.0), keep: true },
                     };
                 }
                 PointerPresence::Present => {}

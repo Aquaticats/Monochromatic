@@ -45,7 +45,7 @@ fn a_removal_of_a_subvolume(name: &str) -> Removal {
 /// A leaving that was written by a command that has ended,
 /// as a removal killed after its rename leaves it.
 fn a_leaving_of_a_removal_that_ended(removal: &Removal) -> Leaving {
-    return record_a_leaving_with_owner(removal.common.as_path(), &removal.item, Some("1:ended")).expect("the leaving is recorded");
+    return record_a_leaving_with_owner(removal.common.as_path(), &removal.item, Some("1:linux:1")).expect("the leaving is recorded");
 }
 
 /// The bytes of the one record a folder of leavings holds,

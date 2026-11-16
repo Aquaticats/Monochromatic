@@ -165,7 +165,7 @@ fn a_record_left_by_an_earlier_removal_is_replaced_and_never_read_as_this_remova
     std::fs::create_dir_all(admin.as_path()).expect("the registration");
     let identity = identity_of(&std::fs::File::open(admin.as_path()).expect("the registration")).expect("its identity");
     // The record of an earlier removal of a worktree of the same name, whose destroy happened and whose target is gone.
-    record_destroy_with_owner(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, root.join("an-earlier-worktree").as_path(), Some("1:ended")).expect("the older record");
+    record_destroy_with_owner(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, root.join("an-earlier-worktree").as_path(), Some("1:linux:1")).expect("the older record");
     record_destroyed(common_dir.as_path(), std::ffi::OsStr::new("wt"));
     let record: PathBuf = record_path(common_dir.as_path(), std::ffi::OsStr::new("wt"));
     let older: String = std::fs::read_to_string(record.as_path()).expect("the older record");
@@ -209,7 +209,7 @@ fn a_removal_ready_to_be_killed(root: &Path, name: &str) -> (PathBuf, PathBuf, P
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = common_dir.join("worktrees/wt");
     let identity = identity_of(&std::fs::File::open(admin.as_path()).expect("the registration")).expect("its identity");
-    record_destroy_with_owner(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some("1:ended")).expect("the record of the destroy");
+    record_destroy_with_owner(common_dir.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some("1:linux:1")).expect("the record of the destroy");
     return (common_dir, worktree, admin, identity);
 }
 

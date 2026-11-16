@@ -542,8 +542,11 @@ fn a_link_at_the_mark_writers_temporary_name_is_not_written_through() {
 }
 
 /// A record's owner that no process has:
-/// a process number whose birth identity is not the one written.
-const ENDED_OWNER: &str = "1:ended:0";
+/// a process number whose birth identity is not the one written, in the kernel's own spelling of a start tick.
+/// Why:
+///  A birth that names no start tick is a record whose holder cannot be told, which is kept and named rather than
+///  settled, so a fixture that means "this process ended" writes a tick of another value.
+const ENDED_OWNER: &str = "1:linux:1";
 
 /// A named pipe at `path`,
 /// created with the platform's own call.

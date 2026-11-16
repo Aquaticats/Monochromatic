@@ -98,7 +98,7 @@ fn pending_of(killed: &Killed) -> PathBuf {
 #[test]
 fn a_leaving_a_killed_removal_left_is_queued_again_by_the_next_command() {
     let Some(killed): Option<Killed> = a_removal_killed_after_its_rename("leaving-killed") else { return };
-    record_a_leaving_with_owner(killed.common.as_path(), &killed.item, Some("1:ended")).expect("the record the killed command wrote before its rename");
+    record_a_leaving_with_owner(killed.common.as_path(), &killed.item, Some("1:linux:1")).expect("the record the killed command wrote before its rename");
     enqueue(work_of(&killed).as_path(), &killed.item).expect("the delete the killed command queued");
     let claimed: Claimed = claim_next_of(work_of(&killed).as_path(), &ClaimTime::read(), &[WorkKind::SubvolumeDelete]).expect("a claim").expect("the record is claimable");
     settle(work_of(&killed).as_path(), &claimed, DONE).expect("a round looked before the rename and settled a delete it found nothing for");
@@ -162,7 +162,7 @@ fn a_leaving_whose_command_may_still_be_running_is_left_alone() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const killed = aRemovalKilledAfterItsRename('leaving-a-replacement');
-/// await recordALeavingWithOwner(common, item, '1:ended');
+/// await recordALeavingWithOwner(common, item, '1:linux:1');
 /// moveAside(killed.hidden); subvolumeCreate(killed.hidden); write(killed.hidden + '/mine.txt');
 /// const answer = queueTheLeavingsARecordNoLongerNames(common);
 /// expect(answer.queued).toBe(false); expect(answer.said.length).toBe(1);
@@ -171,7 +171,7 @@ fn a_leaving_whose_command_may_still_be_running_is_left_alone() {
 #[test]
 fn a_directory_that_is_not_the_subvolume_the_record_names_is_left_as_it_is_and_named() {
     let Some(killed): Option<Killed> = a_removal_killed_after_its_rename("leaving-a-replacement") else { return };
-    record_a_leaving_with_owner(killed.common.as_path(), &killed.item, Some("1:ended")).expect("the record of the removal");
+    record_a_leaving_with_owner(killed.common.as_path(), &killed.item, Some("1:linux:1")).expect("the record of the removal");
     // Another command put a subvolume of its own at the name the removal's was renamed to.
     let elsewhere: PathBuf = killed.root.join("the-original");
     std::fs::rename(killed.hidden.as_path(), elsewhere.as_path()).expect("the subvolume of the removal is moved away");
@@ -200,7 +200,7 @@ fn a_directory_that_is_not_the_subvolume_the_record_names_is_left_as_it_is_and_n
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const killed = aRemovalKilledAfterItsRename('leaving-attempts-spent');
-/// await recordALeavingWithOwner(common, item, '1:ended');
+/// await recordALeavingWithOwner(common, item, '1:linux:1');
 /// for (const round of range(MAX_TRIES)) { expect(queueTheLeavings(common).queued).toBe(true); settleTheQueuedDelete(killed, FAILED); }
 /// const spent = queueTheLeavings(common);
 /// expect(spent.queued).toBe(false); expect(spent.said.length).toBe(1); expect(exists(pendingOf(killed))).toBe(false);
@@ -209,7 +209,7 @@ fn a_directory_that_is_not_the_subvolume_the_record_names_is_left_as_it_is_and_n
 #[test]
 fn a_leaving_whose_attempts_ran_out_names_the_directory_and_the_commands_that_end_it() {
     let Some(killed): Option<Killed> = a_removal_killed_after_its_rename("leaving-attempts-spent") else { return };
-    record_a_leaving_with_owner(killed.common.as_path(), &killed.item, Some("1:ended")).expect("the record of the removal");
+    record_a_leaving_with_owner(killed.common.as_path(), &killed.item, Some("1:linux:1")).expect("the record of the removal");
     for _round in 0..MAX_TRIES {
         let queued: Leavings = queue_the_leavings_a_record_no_longer_names(killed.common.as_path());
         assert!(queued.queued, "a leaving whose attempts are not spent is queued again: {:?}", queued.said);

@@ -63,8 +63,12 @@ fn the_running_process_is_alive_and_a_killed_one_is_dead() {
     // An item that has stood past the patience names both the record and the command that removes it, because a birth in
     //  no spelling proves nothing either way and the age is the only bound there is.
     let refused: WorktreeCopyError = unreadable.is_alive(anchor).expect_err("an old item of a record of no value is refused");
+    // The anchor is a directory, so the command the words give is the one that removes a directory: the command a person
+    //  runs from the words must remove what the words name.
     assert!(
-        refused.0.contains("linux:not-this-process") && refused.0.contains("rm -- ") && refused.0.contains("birth identity"),
+        refused.0.contains("linux:not-this-process")
+            && refused.0.contains("rm --recursive -- /")
+            && refused.0.contains("birth identity"),
         "{}",
         refused.0
     );
