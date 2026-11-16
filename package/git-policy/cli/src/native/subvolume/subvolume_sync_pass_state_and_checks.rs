@@ -449,6 +449,46 @@ fn note_before_the_judgement(path: &Path) {
 }
 //endregion
 
+//region A test-only seam: one callback after the pass removed its own copy and before it puts the parked entry back
+#[cfg(test)]
+thread_local! {
+    // The callback a control installs to act on the freed name between the removal of the pass's own copy and the
+    // put-back of the parked entry; nothing in a release build reads or sets it.
+    static BEFORE_THE_PUT_BACK_WATCH: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Install `watch` to run with the destination name after a pass removed the copy it made there and before it puts the
+///  entry it parked back,
+///  or clear the callback with `None`.
+/// Why:
+///   That instant is where another command's file can appear at the name, and a control of the put-back has to stand in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchBeforeThePutBack((freed) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_before_the_put_back(watch: Option<Box<dyn FnMut(&Path)>>) {
+    BEFORE_THE_PUT_BACK_WATCH.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the freed destination name,
+/// if a control installed one.
+#[cfg(test)]
+fn note_before_the_put_back(path: &Path) {
+    BEFORE_THE_PUT_BACK_WATCH.with(|slot| {
+        // The borrow ends before the callback runs nothing of this module's, so it cannot re-enter the slot.
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
+}
+//endregion
+
 impl Pass<'_> {
     /// Note one entry the pass does not carry,
     /// and count it where the report and the deletion read it.
@@ -576,6 +616,8 @@ impl Pass<'_> {
             }
             Err(error) => return Err(MigrateError::io("park the entry the destination holds", shown.as_path(), &error)),
         }
+        // The pass may be stopped here by a control, with the entry parked and nothing yet judged.
+        self.interrupt.check("parked")?;
         // The baseline of the parked entry is read here, in the instruction after the parking:
         //  the parking itself moves the change time,
         //  so this reading is what "unchanged since the pass parked it" means,
@@ -624,6 +666,8 @@ impl Pass<'_> {
         // Not the object the pass examined: it goes back to its name, over the copy this pass just made there, and the
         //  copy is dropped.
         remove_if_present(destination.as_path(), shown.as_path())?;
+        #[cfg(test)]
+        note_before_the_put_back(destination.as_path());
         MigrateError::from_io_result(std::fs::rename(parked.as_path(), destination.as_path()), "put the entry the pass did not examine back", shown.as_path())?;
         return Ok(Published::KeptTheDestinationEntry);
     }

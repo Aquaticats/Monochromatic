@@ -210,6 +210,10 @@ pub mod subvolume_command;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_test_support;
 
+/// The controls of the rule that a person's bytes are deleted only when they are proved to stand in the tree kept.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_never_discards_data_tests;
+
 /// The migration controls that need the real btrfs ioctls,
 /// `FICLONE` and exchange.
 #[cfg(all(test, target_os = "linux"))]
