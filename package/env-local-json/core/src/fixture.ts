@@ -154,6 +154,9 @@ type RunCommandOptions = {
 /**
  Runs one real tool and captures its standard output.
 
+ Exported so a test can drive a stand-in tool the fixture's own helpers cannot
+ name, such as one whose standard output arrives after its exit event.
+
  @param command - executable to run
 
  @param args - arguments passed without a shell
@@ -172,7 +175,7 @@ type RunCommandOptions = {
  const result = await runCommand({ command: 'age-keygen', args: ['--version'] });
  ```
  */
-async function runCommand({
+export async function runCommand({
   command,
   args,
   extraEnv,
