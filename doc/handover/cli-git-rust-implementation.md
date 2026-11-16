@@ -39518,6 +39518,85 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### Answers of the evening, the long sitting (2026-11-15, asked from about 19:22 after the owner's "Ask me all the questions now.", written here at 19:44:14-05:00)
+
+Eleven rounds through the question tool.
+Each answer is quoted as chosen or as typed; what follows a quotation is the session's reading, to be vetoed.
+Not yet acted on unless a line says so.
+
+Credentials and masking:
+
+- The string after `PNPR_SECRET=` in a transcript of 2026-09-15: **"Bad question. You can check the repo for it."**
+  A measurable fact was asked as a preference. The session checks it itself, in process, printing no value.
+- Runs started without the values in reach: **"Masking only, and keep the masking work narrow. There are gotta be more and more ways through always, and we shouldn't fight that. We'll accept the risk and rotate. And Neuralwatt is ZDR."**
+- Where narrow ends: **"Plain case and no damage (Recommended)"**:
+  masking is merged when a review that builds and runs shows that every declared value printed as it is gets masked,
+  and that masking never damages a session file or another run.
+  Every other way through becomes a stated limit and is not fixed.
+- When to rotate: **"After narrow masking is merged (Recommended)"**. This replaces "Keep waiting for masking" as the bar.
+- Encoded containers, wrapped base64, values under eight characters: **"Accept all three as stated (Recommended)"**.
+
+The wrapper:
+
+- Hand-written lines to standard error and the non-blocking door: **"Only where another command can be held (Recommended)"**:
+  writes by the resident service, or by a command while it holds a lock, go through the door; a one-shot command's own last words keep a blocking write.
+- The discarding guard's window between its last look and Git's start: **"State the limit (Recommended)"**.
+- A commit run a second time when its private files vanish after Git made the commit: **"Run it again (Recommended)"**.
+- The rule that clears the record of a moved branch: **"No path holds the old tip (Recommended)"**.
+- A killable process for storage that never answers: **"Bounds on stuck threads stand (Recommended)"**.
+- A branch never pushed: **"Push and set the upstream (Recommended)"**.
+- A retried push whose report cannot be written: **"Journal is enough (Recommended)"**.
+- The wrapper's line for a live lock in the command's own worktree: **"Keep the line (Recommended)"**.
+- Drawn trees: **"A lifetime"** (against the session's recommendation), and for its span **"Author measures and proposes"**.
+- Git's messages quoting the absolute path the removal guard judged: **"Keep the absolute path (Recommended)"**.
+- A log fragment left when a line is given up: **"Close the fragment (Recommended)"**.
+- The sentence "Nothing releases a held record by judging a process": **"Correct the sentence (Recommended)"**.
+- Notes naming a checkout that no longer exists: **"Sweep notes whose checkout is gone (Recommended)"**.
+- Three adoptions confirmed, each ticked: **"Inherited ignore stays ignored"**, **"Test failures may quote the service"**, **"FETCH_HEAD protects a worktree"**.
+- Compilers: **"Everything nightly. This doesn't break "pacman for everything it has" if you're implying pacman doesn't have nightly. And the lock's nightly is always the latest nightly anyway."**
+  Host tasks, the container gate and the release workflow all build with the lock's nightly.
+- A binary test's fixture root: **"Make the fixture root private (Recommended)"**.
+- The three files of the old name `cli-git-native` in the main checkout's `.cache`: **"Move them to scratch (Recommended)"**.
+
+mpm-shadow and cargo-shadow:
+
+- Processes that hide what they run: **"Age rule, gap accepted (Recommended)"**.
+- The removal's three limits (24 GiB, one hour, two seconds): **"Approve as proposed (Recommended)"**.
+- llama.cpp builds: **"Limits: Only keep the newest 2 of any tool."**, and asked whether a pinned version goes too: **"Newest two plus pinned (Recommended)"**.
+- A damaged row in a lock file: **"Whole file, and name it (Recommended)"**.
+- A control group around a launched program: first **"I said to not hard depend on systemd, and graceful enhancement and graceful degration."**,
+  then, asked for the reading: **"Where available, with a named exception list"**.
+  The session's first wording of that question misstated the owner's rule as "stop depending on systemd"; the rule is no hard dependency.
+- A `current` link that names an unfinished version: **"Launcher refuses with words (Recommended)"**.
+- Lock files read again before each deletion: **"Read again before each deletion (Recommended)"**.
+- An install that meets a removal of its archives: **"Wait up to ten seconds, then refuse (Recommended)"**.
+- Flat downloads: **"Delete flat downloads (Recommended)"**.
+- A good copy held aside while an install never finishes: **"Put it back when the install is proven dead (Recommended)"**.
+- cargo-shadow's cleanup limits (296 GiB free, six hours, thirty minutes, pinned toolchains included when old): **"Approve as proposed (Recommended)"**.
+- cargo-shadow's test task on a machine with no user service manager: **"Its own non-zero status (Recommended)"**.
+
+The Pi driver and reviews:
+
+- A review that does not cover its change: **"Restart once by itself ON A DIFFERENT MODEL"**, and which model: **"The other of the pair; Sonnet while Qwen is dry (Recommended)"**.
+- A review's unit and a read-only worktree: **"Authors only"** (against the session's recommendation).
+- A worktree at a run's name with no proof of who made it: **"Remove after a bound"** (against the session's recommendation).
+- A wrapper process in a run's worktree: **"Do not count the commit service (Recommended)"**.
+- A run kept because its scan cannot be read: **"A shorter limit, then end as failed (Recommended)"**.
+
+The machine:
+
+- OpenSnitch's reject rules for freshly built programs: **"You remove the piled-up rules and you add regex allow rules so we'd never have to worry about it again."**
+  The session reads the rule files first and asks the scope of the allow rules before changing the firewall.
+
+Settled by a recorded rule and therefore not asked, each open to veto:
+the two constants of the push stop and the 5 ms retry of a refused log line are decided by a measurement, since a shipped limit cites one;
+the durable record before a branch moves keeps its flushed write;
+a session bus address nothing answers on gets words of its own, since a diagnostic names its cause;
+`index_lock_holders.rs`'s module text is changed to match the answer of 2026-11-07;
+a pinned run number that is taken is refused where it is and also when the batch list is read;
+`libc` and `rustix` are already in `rust-catalog.toml`, so ending a process group needs no new dependency;
+a wrapper that ends on a signal when its address space runs out is a defect and gets a run.
+
 ### Answers of the evening (2026-11-15, answered between 19:09 and 19:14, written here at 19:16:23-05:00)
 
 Three answers through the question tool,
