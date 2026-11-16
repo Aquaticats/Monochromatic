@@ -461,7 +461,7 @@ fn retrying_for(git_dir: &Path, worktree: &Path) -> Retrying {
         created: String::from("2026-11-10T17:50:25.196Z"),
         tries: 3,
     };
-    return Retrying { first: Some(FIRST_PAUSE), due: vec![crate::push_retry::Due { git_dir: git_dir.to_path_buf(), item, attempt: 4 }], plans: None };
+    return Retrying { first: Some(FIRST_PAUSE), due: vec![crate::push_retry::Due { git_dir: git_dir.to_path_buf(), item, attempt: 4, owes: None }], plans: None };
 }
 
 /// What:

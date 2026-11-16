@@ -86,8 +86,8 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
 fn a_forget_drops_the_branch_from_the_list_and_the_worker_takes_its_file() {
     let root: PathBuf = crate::test_support::fixture("retry-forget-older");
     let here: &Path = Path::new("/srv/repo/.git");
-    let main: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 };
-    let other: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/topic"), attempt: 1 };
+    let main: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1, owes: None };
+    let other: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/topic"), attempt: 1, owes: None };
     save(root.as_path(), &main).expect("saved");
     save(root.as_path(), &other).expect("saved");
     let first: Duration = Duration::from_secs(10);
@@ -123,7 +123,7 @@ fn a_forget_applied_after_a_later_plan_leaves_that_plan_on_disk() {
     let root: PathBuf = crate::test_support::fixture("retry-forget-after-later-plan");
     let here: &Path = Path::new("/srv/repo/.git");
     let branch: &str = "refs/heads/main";
-    let later: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item(branch), attempt: 4 };
+    let later: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item(branch), attempt: 4, owes: None };
     // The later round's worker wrote the plan it promised before its notice reached the person.
     save(root.as_path(), &later).expect("the later round's plan");
     let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());

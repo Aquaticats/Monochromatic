@@ -35,7 +35,7 @@ fn plan(git_dir: &Path, repository: &Path, oid: &str) -> StoredPlan {
         created: String::from("2026-11-11T08:55:00.000-05:00"),
         tries: 148,
     };
-    return StoredPlan { git_dir: git_dir.to_path_buf(), item, attempt: 149 };
+    return StoredPlan { git_dir: git_dir.to_path_buf(), item, attempt: 149, owes: None };
 }
 
 /// One repository under `holder` that is then deleted,

@@ -375,6 +375,7 @@ fn a_journal_with_a_plan(machine: &Machine, instance: &str, git_dir: &Path, repo
             tries: 148,
         },
         attempt: 149,
+        owes: None,
     };
     crate::push_retry_store::save(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &plan).expect("the plan is kept");
     age_a_journal(journal.as_path());
@@ -460,6 +461,7 @@ fn a_journal_that_keeps_a_plan_of_a_repository_that_is_there_stays() {
             tries: 0,
         },
         attempt: 1,
+        owes: None,
     };
     crate::push_retry_store::save(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &kept_plan).expect("the plan of a repository that is there");
     let mut recorder: Recorder = Recorder::default();

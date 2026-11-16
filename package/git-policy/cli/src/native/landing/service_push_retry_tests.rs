@@ -1570,7 +1570,7 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
         created: String::from("2026-11-04T05:40:00.000Z"),
         tries: 0,
     };
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: planned, attempt: 1 }).expect("the plan is kept");
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: planned, attempt: 1, owes: None }).expect("the plan is kept");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     std::thread::scope(|scope| {
@@ -1774,7 +1774,7 @@ fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
     };
-    let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
+    let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 , owes: None };
     // A round that keeps no plan: no first pause, and this push due again.
     let round: Retrying = Retrying { first: None, due: vec![due], plans: None };
     let drained: Drained = drain_planned_with(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
@@ -1822,7 +1822,7 @@ fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
     };
-    let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
+    let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 , owes: None };
     // A round that keeps a plan: this push due again, and the first pause to plan the next try with.
     let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due], plans: None };
     let drained: Drained = drain_planned_with(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
@@ -1970,6 +1970,7 @@ fn a_plan_the_start_could_not_list_is_listed_again_and_its_push_is_made() {
                 tries: 0,
             },
             attempt: 1,
+            owes: None,
         },
     )
     .expect("the plan an earlier service promised");
@@ -2178,7 +2179,7 @@ fn a_terminal_refusal_whose_record_was_refused_keeps_the_plan_and_says_its_words
     let plans: PathBuf = root.join("journal").join(PLAN_DIRECTORY);
     // The plan of a protected-branch refusal whose last try has just been refused.
     let item: WorkItem = push_item(repo.as_path(), landed.as_str());
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: item.clone(), attempt: PROTECTED_BRANCH_TRIES - 1 })
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: item.clone(), attempt: PROTECTED_BRANCH_TRIES - 1, owes: None })
         .expect("the plan of the last try");
     // The plan is due at once, which is the state of one whose pause has passed.
     let mut retries: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
@@ -2216,7 +2217,7 @@ fn a_push_the_retry_plan_lands_keeps_what_the_server_said() {
     let git_dir: PathBuf = repo.join(".git");
     let plans: PathBuf = root.join("journal").join(PLAN_DIRECTORY);
     let item: WorkItem = push_item(repo.as_path(), landed.as_str());
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item, attempt: 1 }).expect("the plan");
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item, attempt: 1, owes: None }).expect("the plan");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     let mut retries: PushRetries = PushRetries::restored(Duration::ZERO, plans.as_path());
     let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);

@@ -72,6 +72,7 @@ fn a_saved_plan() -> crate::push_retry_store::StoredPlan {
             tries: 0,
         },
         attempt: 2,
+        owes: None,
     };
 }
 

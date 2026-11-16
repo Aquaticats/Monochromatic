@@ -36,8 +36,9 @@ use crate::service_work_storage_awaited::{
     clear_push_failures_before_awaiting, instance_of_awaiting, record_push_failure_awaiting, record_push_report_awaiting, record_push_skip_awaiting,
 };
 use crate::claim_time::ClaimTime;
-use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, FIRST_PAUSE, Retrying};
+use crate::push_failure_notice::{PushOutcome, clean_reason};
+use crate::push_retry::{Due, FIRST_PAUSE, OWED_RECORD_LOOKS, Retrying};
+use crate::push_retry_store::{OwedRecord, OwedRecordKind};
 use crate::push_retry_cause_line::cause_line;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
@@ -207,7 +208,18 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 "the push of {branch} {} is not tried again: its repository or branch record is no longer acceptable",
                 crate::service_timing::in_the_repository_at(due.item.repository.as_path())
             );
+            // A plan that owed the person a record has nowhere to write it now, and no look can be kept for it, so its words
+            //  are said where a person can read them.
+            if let Some(owed) = due.owes.as_ref() {
+                crate::service_error!("the record of the push of {commit} cannot be written for the person, so the journal holds what it says:\n{}", owed.words);
+            }
             replanning.forget(git_dir, branch).await;
+            continue;
+        }
+        // A plan whose push ended in a refusal no retry mends owes the person the record of that end instead of another try:
+        //  the look writes it and ends the plan, and never asks the server again.
+        if let Some(owed) = due.owes.as_ref() {
+            write_the_record_it_owes(git_dir, due, owed, replanning).await;
             continue;
         }
         let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
@@ -317,28 +329,148 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 );
                 // The record of a refusal the person must act on is the last word about this push, so it is written
                 //  before the plan's file goes: a kill between the two then leaves the plan, and a later service tries
-                //  the push again instead of the person waiting for a try nothing schedules.
-                if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, text.as_str()).await {
-                    crate::service_error!(
-                        "the failed push of {commit} {} could not be recorded for the person: {reason}",
-                        crate::service_timing::in_the_repository_at(due.item.repository.as_path())
-                    );
+                //  the push again instead of the person waiting for a try nothing schedules. A storage that refused the
+                //  record keeps the plan too, with the words, and its next look writes them and ends the plan then.
+                match record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, text.as_str()).await {
+                    Ok(()) => replanning.forget(git_dir, branch).await,
+                    Err(reason) => {
+                        crate::service_error!(
+                            "the failed push of {commit} {} could not be recorded for the person: {reason}",
+                            crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+                        );
+                        keep_the_record_it_owes(git_dir, due, replanning, OwedRecordKind::Refused, text.as_str()).await;
+                    }
                 }
-                replanning.forget(git_dir, branch).await;
             }
             Verdict::Skipped(text) => {
-                if !text.is_empty()
-                    && let Err(reason) = record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await
-                {
-                    crate::service_error!(
-                        "the skipped push of {commit} {} could not be recorded for the person: {reason}",
-                        crate::service_timing::in_the_repository_at(due.item.repository.as_path())
-                    );
+                // Nothing was pushed, so the words are the service's own reason, and a skip that said nothing owes nothing.
+                if text.is_empty() {
+                    replanning.forget(git_dir, branch).await;
+                    continue;
                 }
-                // The skip's words go before the plan's file, as every other record of a push's end does here.
-                replanning.forget(git_dir, branch).await;
+                // The skip's words go before the plan's file, as every other record of a push's end does here; a storage that
+                //  refused them keeps the plan, and its next look writes them and ends the plan then.
+                match record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await {
+                    Ok(()) => replanning.forget(git_dir, branch).await,
+                    Err(reason) => {
+                        crate::service_error!(
+                            "the skipped push of {commit} {} could not be recorded for the person: {reason}",
+                            crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+                        );
+                        keep_the_record_it_owes(git_dir, due, replanning, OwedRecordKind::Skipped, text.as_str()).await;
+                    }
+                }
             }
         }
     }
     return;
+}
+
+/// What:
+///  Keep the record a push's end owes the person in its branch's plan,
+/// for the look that can write it,
+/// and leave the plan standing until that look has.
+/// Why:
+///   The plan is the only durable record that the push waits for the person,
+/// and the words of its end are the only copy of what the server said:
+/// the item is in `failed`, which nothing scans,
+/// so a plan dropped before the record is written leaves neither a notice nor anything that would try the branch again.
+/// The words travel in the plan itself,
+/// which is also what keeps the branch from being pushed again:
+/// the failure that ended it is one no retry mends,
+/// so the look writes the record and ends the plan (`write_the_record_it_owes`).
+/// A drain that keeps no plan has no later look to give the words to,
+/// so the plan ends and the words stand in the journal alone,
+/// as they do for the report of a push that landed whose record the storage refused.
+///  A plan whose own file refused the words keeps the push as a try instead:
+/// the server says the same thing at that try's end, and nothing is left that only the journal holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = { kind, words: cleanReason(said), looksLeft: OWED_RECORD_LOOKS };
+/// if (!(await replanning.keepTheOwedRecord(gitDir, item, attempt + 1, owed))) await plannedRetry(gitDir, replanning, first, item, attempt + 1, said);
+/// ```
+async fn keep_the_record_it_owes(git_dir: &Path, due: &Due, replanning: &mut Replanning, kind: OwedRecordKind, said: &str) {
+    let Some(first): Option<Duration> = replanning.first else {
+        replanning.forget(git_dir, due.item.branch_ref.as_str()).await;
+        return;
+    };
+    let attempt: u32 = due.attempt + 1;
+    let owed: OwedRecord = OwedRecord { kind, words: clean_reason(said), looks_left: OWED_RECORD_LOOKS };
+    if replanning.keep_the_owed_record(git_dir, &due.item, attempt, owed).await {
+        return;
+    }
+    crate::service_warn!(
+        "the record of the push of {} {} could not be kept in the plan, so the push is kept as another try whose own end says the same words again",
+        due.item.oid,
+        crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+    );
+    let _planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, attempt, said).await;
+}
+
+/// What:
+///  Write the record a plan owes the person,
+/// end the plan once it is written,
+/// and leave it for one look more while it is refused;
+/// a plan whose looks are spent gives the words up to the journal.
+/// Why:
+///   The plan ends only after what its ending owes the person is written (`SPEC.md`,
+/// "a refusal no retry can mend ends the plan too"),
+/// so a storage that briefly refuses the record costs the person nothing.
+/// Nothing waits without an end:
+/// a record the storage keeps refusing is asked for `OWED_RECORD_LOOKS` looks,
+/// spaced by the plan's own pauses,
+/// and then the words stay in the journal's line of that push's end,
+/// as they do for the report of a push that landed whose record was refused
+/// (`push_failure_notice_reports.rs`).
+/// A plan whose file refused one more look is given up the same way:
+/// nothing is left that could write the words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = owed.kind === 'refused' ? await recordPushFailure(...) : await recordPushSkip(...);
+/// if (written) { await replanning.forget(gitDir, branch); return; }
+/// if (owed.looksLeft > 1 && (await replanning.keepTheOwedRecord(gitDir, item, attempt + 1, { ...owed, looksLeft: owed.looksLeft - 1 }))) return;
+/// await replanning.forget(gitDir, branch);
+/// ```
+async fn write_the_record_it_owes(git_dir: &Path, due: &Due, owed: &OwedRecord, replanning: &mut Replanning) {
+    let branch: &str = due.item.branch_ref.as_str();
+    let commit: &str = due.item.oid.as_str();
+    let looked: u32 = OWED_RECORD_LOOKS.saturating_sub(owed.looks_left) + 1;
+    let written: Result<(), String> = match owed.kind {
+        OwedRecordKind::Refused => record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, owed.words.as_str()).await,
+        OwedRecordKind::Skipped => record_push_skip_awaiting(git_dir, branch, commit, owed.words.as_str()).await,
+    };
+    match written {
+        Ok(()) => {
+            replanning.forget(git_dir, branch).await;
+            crate::service_warn!(
+                "the record of the push of {commit} {} was written on look {looked} of {OWED_RECORD_LOOKS}, so the plan that waited for it ends",
+                crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+            );
+        }
+        Err(reason) => {
+            crate::service_error!(
+                "the record of the push of {commit} {} could not be written on look {looked} of {OWED_RECORD_LOOKS}: {reason}",
+                crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+            );
+            if owed.looks_left > 1 {
+                let next: OwedRecord = OwedRecord { kind: owed.kind, words: owed.words.clone(), looks_left: owed.looks_left - 1 };
+                if replanning.keep_the_owed_record(git_dir, &due.item, due.attempt + 1, next).await {
+                    return;
+                }
+                crate::service_warn!(
+                    "the plan of the push of {commit} {} could not be kept for one look more, so the journal's line of that push's end is where its words stay",
+                    crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+                );
+                replanning.forget(git_dir, branch).await;
+                return;
+            }
+            crate::service_warn!(
+                "the plan of the push of {commit} {} is given up after {OWED_RECORD_LOOKS} looks, and the journal's line of that push's end is where its words stay",
+                crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+            );
+            replanning.forget(git_dir, branch).await;
+        }
+    }
 }

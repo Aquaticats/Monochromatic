@@ -45,7 +45,7 @@ use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk:
 /// what a start reads,
 /// and what the workers write.
-use crate::push_retry_store::LoadedPlans;
+use crate::push_retry_store::{LoadedPlans, OwedRecord};
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
@@ -69,6 +69,24 @@ pub const FIRST_PAUSE: Duration = Duration::from_secs(10);
 /// The longest pause between two tries:
 /// a push that keeps failing is tried about this often for as long as it fails.
 pub const LONGEST_PAUSE: Duration = Duration::from_secs(10 * 60);
+
+/// What:
+///  How many looks the plan of a record the person's storage refused gets before the words are the journal's alone.
+/// Why:
+///   The plan's own schedule spaces the looks:
+/// each pause doubles and none passes `LONGEST_PAUSE`,
+/// so a look after a first try that ended comes at 20, 40, 80, 160, 320 and 600 seconds,
+/// which adds up to `ANSWER_CEILING`,
+/// the twenty minutes a client already waits for the commit service's answer (`wait_ceilings.rs`,
+/// 3.9 times the longest answer wait in the timing log of 2026-11-03),
+/// and a push that spent more tries before its end asks at most 600 seconds a look,
+/// which is an hour in all.
+/// Six looks are the end of it:
+/// a storage that refuses a person's record for longer than that is one only the person mends,
+/// and the words then stand in the journal's own line of that push's end,
+/// as the report of a push that landed does when its record is refused
+/// (`push_failure_notice_reports.rs`).
+pub const OWED_RECORD_LOOKS: u32 = 6;
 
 /// What:
 ///  The first pause for a value of the variable.
@@ -117,6 +135,9 @@ struct Waiting {
     attempt: u32,
     /// When it is due.
     due: Instant,
+    /// What the plan owes the person at that look instead of another try,
+    /// or nothing when it tries the push again.
+    owes: Option<OwedRecord>,
 }
 
 /// The waiting plans without the one for `branch_ref` of `git_dir`,
@@ -141,6 +162,9 @@ pub struct Due {
     pub item: WorkItem,
     /// The number of this try.
     pub attempt: u32,
+    /// The record the person is owed at this look instead of another try,
+    /// or nothing when this look pushes.
+    pub owes: Option<OwedRecord>,
 }
 
 /// What:
@@ -211,6 +235,9 @@ pub enum RetryChange {
         attempt: u32,
         /// When it is due.
         due: Instant,
+        /// The record the person is owed at that look instead of the try,
+        /// or nothing when the look pushes.
+        owes: Option<OwedRecord>,
     },
     /// The branch needs no new try:
     /// its push landed,
@@ -349,7 +376,13 @@ impl PushRetries {
         let read: LoadedPlans = crate::push_retry_store::load_reporting(directory);
         let now: Instant = Instant::now();
         for saved in read.plans {
-            list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
+            list.waiting.push(Waiting {
+                git_dir: saved.git_dir,
+                item: saved.item,
+                attempt: saved.attempt,
+                due: now + pause_before(saved.attempt, first),
+                owes: saved.owes,
+            });
         }
         list.unread = read.unread;
         return list;
@@ -467,7 +500,13 @@ impl PushRetries {
             if !found.contains(&saved.git_dir) {
                 found.push(saved.git_dir.clone());
             }
-            self.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, self.first) });
+            self.waiting.push(Waiting {
+                git_dir: saved.git_dir,
+                item: saved.item,
+                attempt: saved.attempt,
+                due: now + pause_before(saved.attempt, self.first),
+                owes: saved.owes,
+            });
         }
         self.unread = read.unread;
         self.read_failures = if self.unread { self.read_failures.saturating_add(1) } else { 0 };
@@ -491,15 +530,16 @@ impl PushRetries {
     /// the worker that decided the try keeps the file (`Replanning::keep_the_plan`).
     pub fn schedule(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, now: Instant) -> Duration {
         let pause: Duration = pause_before(attempt, self.first);
-        self.plan(git_dir, item, attempt, now + pause);
+        self.plan(git_dir, item, attempt, now + pause, None);
         return pause;
     }
 
     /// Plan try number `attempt` of the branch of `item` for `due`,
-    /// replacing any plan for the same branch.
-    fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
+    /// replacing any plan for the same branch;
+    /// `owes` is the record the person is owed at that look instead of the try.
+    fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant, owes: Option<OwedRecord>) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
-        self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
+        self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due, owes });
     }
 
     /// Drop the plan of a branch:
@@ -559,7 +599,7 @@ impl PushRetries {
                 applied += 1;
             }
             match change {
-                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
+                RetryChange::Plan { git_dir, item, attempt, due, owes } => self.plan(git_dir.as_path(), &item, attempt, due, owes),
                 RetryChange::Forget { git_dir, branch_ref, only_while_unreachable, taken } => {
                     // The plan a proof of a missing repository ends was read before this change was applied, and a repository
                     //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
@@ -570,7 +610,9 @@ impl PushRetries {
                         //  Only a drain of an unreachable directory asks for this kind of forget, and such a drain runs no
                         //  push and asks nothing else of that branch, so the plans of a branch here are this one's alone.
                         if let Some(plan) = taken {
-                            self.plan(git_dir.as_path(), &plan.item, plan.attempt, Instant::now());
+                            // The plan the reading ended may owe a record rather than a try, so what comes back is the plan
+                            //  itself, with the words it holds.
+                            self.plan(git_dir.as_path(), &plan.item, plan.attempt, Instant::now(), plan.owes);
                         }
                         continue;
                     }
@@ -586,7 +628,7 @@ impl PushRetries {
         let mut due: Vec<Due> = Vec::new();
         for entry in std::mem::take(&mut self.waiting) {
             if entry.git_dir == git_dir && entry.due <= now {
-                due.push(Due { git_dir: entry.git_dir, item: entry.item, attempt: entry.attempt });
+                due.push(Due { git_dir: entry.git_dir, item: entry.item, attempt: entry.attempt, owes: entry.owes });
             } else {
                 kept.push(entry);
             }

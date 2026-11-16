@@ -112,7 +112,7 @@ fn a_read_that_gives_no_answer_within_its_ceiling_leaves_both_directories_and_re
     // A service that stopped left the plan of a push it was still trying.
     let mut previous: PushRetries = PushRetries::restored(Duration::from_secs(1), plan.as_path());
     let _pause: Duration = previous.schedule(here.as_path(), &item, 1, Instant::now());
-    crate::push_retry_store::save(plan.as_path(), &crate::push_retry_store::StoredPlan { git_dir: here.clone(), item: item.clone(), attempt: 1 })
+    crate::push_retry_store::save(plan.as_path(), &crate::push_retry_store::StoredPlan { git_dir: here.clone(), item: item.clone(), attempt: 1, owes: None })
         .expect("the earlier service's plan file");
     drop(previous);
     assert_eq!(crate::push_retry_store::load(plan.as_path()).len(), 1, "the earlier service's plan is on disk");
@@ -177,7 +177,7 @@ fn a_journal_a_service_could_not_list_at_its_start_is_read_again_and_tried() {
     // A service that stopped left the plan of a push it was still trying.
     let mut previous: PushRetries = PushRetries::restored(Duration::from_secs(1), plan.as_path());
     let _pause: Duration = previous.schedule(here.as_path(), &item, 1, Instant::now());
-    crate::push_retry_store::save(plan.as_path(), &crate::push_retry_store::StoredPlan { git_dir: here.clone(), item: item.clone(), attempt: 1 })
+    crate::push_retry_store::save(plan.as_path(), &crate::push_retry_store::StoredPlan { git_dir: here.clone(), item: item.clone(), attempt: 1, owes: None })
         .expect("the earlier service's plan file");
     drop(previous);
     assert_eq!(crate::push_retry_store::load(plan.as_path()).len(), 1, "the earlier service's plan is on disk");

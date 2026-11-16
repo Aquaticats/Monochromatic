@@ -152,6 +152,7 @@ fn a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted() {
             tries: 148,
         },
         attempt: 149,
+        owes: None,
     };
     crate::push_retry_store::save(world.journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &plan).expect("the plan is kept");
     std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");

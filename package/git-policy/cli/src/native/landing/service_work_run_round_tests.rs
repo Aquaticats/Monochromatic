@@ -28,7 +28,7 @@ fn item(branch: &str) -> WorkItem {
 
 /// One change a worker of a round asked of the plan.
 fn a_planned_attempt(directory: &Path) -> RetryChange {
-    return RetryChange::Plan { git_dir: directory.to_path_buf(), item: item("refs/heads/main"), attempt: 1, due: Instant::now() + Duration::from_secs(10) };
+    return RetryChange::Plan { git_dir: directory.to_path_buf(), item: item("refs/heads/main"), attempt: 1, due: Instant::now() + Duration::from_secs(10), owes: None };
 }
 
 /// What:

@@ -6164,6 +6164,25 @@ the worker that decided it removes that branch's file as it decides
 and only after the record of what ended the plan is written,
 so a service killed between the two leaves the plan and a later service tries the push once more,
 never a notice that promises a retry nothing schedules.
+A record the storage refused leaves the plan as well,
+and the plan holds the words the person is owed (`OwedRecord` in `src/native/push/push_retry_store.rs`):
+the item is in `failed`, which nothing scans,
+so a plan dropped with a refused record would leave neither a notice nor anything that tries the branch again.
+Such a plan's next look writes the record and ends the plan then,
+and it never pushes again,
+because the failure that ended it is one no retry mends
+(`src/native/landing/service_work_drains_awaiting.rs`,
+`write_the_record_it_owes`).
+A storage that keeps refusing it is asked for the record `OWED_RECORD_LOOKS` looks,
+spaced by the plan's own pauses,
+which at the default first pause puts a first try's six looks within twenty minutes
+and never asks more than once a longest pause;
+the plan then ends and the words stay in the journal's line of that push's end,
+as the report of a push that landed does when its record is refused
+(`src/native/push/push_retry.rs`,
+`src/native/push/push_failure_notice_reports.rs`).
+A plan whose own file refuses the words keeps the push as a try instead,
+whose own end says the same words again.
 The loop writes no plan's file at all and replays nothing onto the journal
 (`PushRetries::apply` changes only the list it owns).
 Each statement about a branch is therefore made once,

@@ -1141,7 +1141,7 @@ fn a_plan_kept_after_an_older_forget_survives_its_replay() {
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
     let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down"));
-    let published: PathBuf = plans.join(crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: newest.clone(), attempt: 1 }));
+    let published: PathBuf = plans.join(crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: newest.clone(), attempt: 1, owes: None }));
     let kept_inode: u64 = std::fs::metadata(published.as_path()).expect("the plan the notice promises is on disk before the loop applies anything").ino();
     let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
     retries.apply(replanning.changes);
@@ -1178,6 +1178,7 @@ fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes()
         git_dir: repo.common.clone(),
         item: newer.clone(),
         attempt: 1,
+        owes: None,
     });
     for stopped_after in 0..replanning.changes.len() {
         // The state the workers left: the plan they published,
@@ -1189,6 +1190,7 @@ fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes()
             git_dir: repo.common.clone(),
             item: newer.clone(),
             attempt: 1,
+            owes: None,
         })
         .expect("the plan the newer push's worker published");
         let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
@@ -1299,7 +1301,7 @@ fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     let waiting: crate::push_retry_store::StoredPlan =
-        crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 };
+        crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1, owes: None };
     crate::push_retry_store::save(plans.as_path(), &waiting).expect("the plan of the try that failed");
     // The plan's own file becomes a pipe with no writer, which is a record the removal cannot read.
     let reading: PathBuf = plans.join(crate::push_retry_store::name_of(&waiting));
@@ -1308,7 +1310,7 @@ fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
     assert_eq!(made, 0, "the pipe stands where the plan's file was: {}", std::io::Error::last_os_error());
     let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from("the server declined the push")));
-    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: vec![Due { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 }], plans: Some(plans.clone()) };
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: vec![Due { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 , owes: None }], plans: Some(plans.clone()) };
     let recorded_first: bool = std::thread::scope(|scope| {
         let pipe: &Path = reading.as_path();
         let watcher = scope.spawn(|| {
@@ -1389,7 +1391,7 @@ fn forgetting_a_branch_takes_its_plan_file_as_a_job_of_the_blocking_pool() {
     let repo: Repo = repo("work-plan-removed-in-a-job");
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 })
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1, owes: None })
         .expect("the plan the branch is done with");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
@@ -1783,7 +1785,7 @@ fn the_worker_that_forgets_a_branch_removes_its_plan_file() {
     let repo: Repo = repo("work-retry-forget-takes-the-file");
     let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
     let landed: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: landed.clone(), attempt: 3 })
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: landed.clone(), attempt: 3, owes: None })
         .expect("the due plan the round took");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     await_it(replanning.forget(repo.common.as_path(), BRANCH));
@@ -1816,10 +1818,10 @@ fn a_gone_repository_takes_the_file_of_its_plan() {
     // A Git directory the fixture never made, which is what the proof of a deleted repository leaves.
     let gone: PathBuf = gone_repository.root.join("gone").join(".git");
     let due: WorkItem = item(&gone_repository, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3, owes: None })
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 }));
+    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 , owes: None }));
     assert!(
         crate::push_retry_store::load(plans.as_path()).is_empty(),
         "a repository the filesystem still proves gone ends its plan's file, so no later service tries it again"
@@ -1853,11 +1855,11 @@ fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
     let back_repository: Repo = repo("work-retry-forget-when-reachable");
     let plans: PathBuf = back_repository.root.join(crate::push_retry::PLAN_DIRECTORY);
     let back: WorkItem = item(&back_repository, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 })
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3, owes: None })
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     // The repository is there, so the stale proof ends nothing.
-    await_it(replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 }));
+    await_it(replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 , owes: None }));
     assert_eq!(
         crate::push_retry_store::load(plans.as_path()).len(),
         1,
@@ -1888,10 +1890,10 @@ fn a_repository_that_returns_before_the_forget_lands_keeps_its_retry() {
     let plans: PathBuf = returning.root.join(crate::push_retry::PLAN_DIRECTORY);
     let gone: PathBuf = returning.root.join("gone").join(".git");
     let due: WorkItem = item(&returning, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3, owes: None })
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 }));
+    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 , owes: None }));
     assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the proof of a gone repository ends the file of its plan where it is made");
     // The repository is renamed back while the round still holds the change.
     std::fs::create_dir_all(gone.as_path()).expect("the repository is back");

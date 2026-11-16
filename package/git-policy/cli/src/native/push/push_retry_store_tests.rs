@@ -29,6 +29,7 @@ fn plan(branch: &str, oid: &str, attempt: u32) -> StoredPlan {
             tries: 0,
         },
         attempt,
+        owes: None,
     };
 }
 
@@ -65,6 +66,7 @@ fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
         git_dir: git_dir.clone(),
         item: WorkItem { repository: worktree, git_dir: git_dir.clone(), ..plan("refs/heads/main", FIRST_OID, 2).item },
         attempt: 2,
+        owes: None,
     };
     save(root.as_path(), &saved).expect("saved");
     assert_eq!(load(root.as_path()), vec![saved.clone()], "the plan comes back as it went in");
@@ -417,4 +419,98 @@ fn a_plan_whose_record_could_not_be_read_is_kept_and_read_again() {
     std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o600)).expect("readable again");
     assert_eq!(load(root.as_path()), vec![waiting], "the next read finds the plan the failed one kept");
     remove_fixture(root.as_path());
+}
+
+/// What:
+///  A plan that owes the person a record comes back with its kind, its words and the looks it has left.
+/// Why:
+///   The words in that file are the only copy of what the server said at a push's end,
+/// and a look that read the plan without them would end the plan and tell the person nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = { kind: 'refused', words: 'the hook declined', looksLeft: 4 }; expect(load(save({ ...plan, owes: owed }))[0].owes).toEqual(owed);
+/// ```
+#[test]
+fn a_plan_that_owes_a_record_is_read_back_with_its_words() {
+    let root: PathBuf = fixture("retry-store-owed-record");
+    let mut owing: StoredPlan = plan("refs/heads/main", FIRST_OID, 2);
+    owing.owes = Some(OwedRecord { kind: OwedRecordKind::Refused, words: String::from("the hook declined"), looks_left: 4 });
+    save(root.as_path(), &owing).expect("saved");
+    assert_eq!(load(root.as_path()), vec![owing.clone()], "the plan's words come back as they went in");
+    let skipped: StoredPlan = StoredPlan {
+        owes: Some(OwedRecord { kind: OwedRecordKind::Skipped, words: String::from("the branch was deleted"), looks_left: 1 }),
+        ..plan("refs/heads/topic", SECOND_OID, 3)
+    };
+    save(root.as_path(), &skipped).expect("saved");
+    assert!(load(root.as_path()).contains(&skipped), "the skip's words come back as they went in");
+    remove_fixture(root.as_path());
+}
+
+/// What:
+///  A plan whose owed record cannot be read as one is no plan,
+///  and is removed rather than scheduling a look that would write nothing.
+/// Why:
+///   Every field of the owed record decides what the look at the plan does:
+/// its kind names which record to write,
+/// its words are what the person reads,
+/// and its looks are what bounds the asking.
+/// A file that names one of them and not another is not one this store wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [label, member] of cases) { write(withOwes(text, member)); expect(load(root)).toEqual([]); expect(dir).toBeEmpty(); }
+/// ```
+#[test]
+fn a_plan_whose_owed_record_cannot_be_read_is_no_plan() {
+    let root: PathBuf = fixture("retry-store-owed-record-malformed");
+    let mut owing: StoredPlan = plan("refs/heads/main", FIRST_OID, 2);
+    owing.owes = Some(OwedRecord { kind: OwedRecordKind::Refused, words: String::from("a refusal"), looks_left: 6 });
+    save(root.as_path(), &owing).expect("saved");
+    let file: PathBuf = root.join(name_of(&owing));
+    let whole: String = std::fs::read_to_string(file.as_path()).expect("the plan's file");
+    let cases: [(&str, &str); 6] = [
+        ("names no kind", "{\"looks\":6,\"words\":\"a refusal\"}"),
+        ("names a kind this release does not know", "{\"kind\":\"a telling\",\"looks\":6,\"words\":\"a refusal\"}"),
+        ("names no words", "{\"kind\":\"refused\",\"looks\":6}"),
+        ("names no looks", "{\"kind\":\"refused\",\"words\":\"a refusal\"}"),
+        ("names looks that are not a count", "{\"kind\":\"refused\",\"looks\":-1,\"words\":\"a refusal\"}"),
+        ("names more looks than a try count holds", "{\"kind\":\"refused\",\"looks\":4294967296,\"words\":\"a refusal\"}"),
+    ];
+    for (label, member) in cases {
+        std::fs::write(file.as_path(), with_owes(whole.as_str(), member)).expect("the plan with that owed record");
+        assert!(load(root.as_path()).is_empty(), "a plan that {label} is read as a push: {member}");
+        assert!(!file.exists(), "a plan that {label} stays to be said at every start: {member}");
+    }
+    remove_fixture(root.as_path());
+}
+
+/// What:
+///  The text of a plan's file with the member `owes` replaced by `member`,
+///  for a control that states a shape this store cannot read.
+/// Why:
+///   Every other field of the file is the one `save` wrote,
+/// so a control varies only what it is about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// return text.slice(0, start) + '"owes":' + member + text.slice(end);
+/// ```
+fn with_owes(text: &str, member: &str) -> String {
+    let member_at: usize = text.find("\"owes\":").expect("the plan owes a record");
+    let mut depth: i32 = 0;
+    let mut end: usize = member_at;
+    for (offset, character) in text[member_at..].char_indices() {
+        if character == '{' {
+            depth += 1;
+        }
+        if character == '}' {
+            depth -= 1;
+            if depth == 0 {
+                end = member_at + offset + 1;
+                break;
+            }
+        }
+    }
+    return format!("{}\"owes\":{member}{}", &text[..member_at], &text[end..]);
 }
