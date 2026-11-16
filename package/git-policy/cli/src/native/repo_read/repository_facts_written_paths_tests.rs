@@ -75,6 +75,7 @@ fn tree_of(repository: &Path, revision: &str, guesses: bool) -> Result<Vec<Vec<u
             revision: Some(OsString::from(revision)),
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: guesses,
+            prefers_a_local_branch: guesses,
         },
         repository,
     ));
@@ -232,6 +233,7 @@ fn from_the_file(
             nul_separated,
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: true,
+            prefers_a_local_branch: true,
         },
         repository,
     ));
@@ -375,6 +377,7 @@ fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
                 revision: Some(OsString::from("topic")),
                 entries: WrittenEntries::EveryEntry,
                 guesses_a_remote_branch: true,
+                prefers_a_local_branch: true,
             },
             repository.as_path(),
         ));
