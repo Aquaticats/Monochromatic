@@ -8,6 +8,8 @@ import {
   startApplicationExemptions,
   startExemptionsOrAbort,
 } from '../dist/final/node/application-exemption.mjs';
+import { UpInterruptedError, } from '../dist/final/node/errors.mjs';
+import type { UpInterruption, } from '../dist/final/node/interrupt-signal.mjs';
 import { bringUp, } from '../dist/final/node/tunnel-up.mjs';
 
 /**
@@ -177,6 +179,80 @@ await describe({
           'rollback',
         ],);
         expect((thrown as Error).message,).toBe('setDns failed',);
+      },
+    },),
+    it({
+      name: 'rolls back and refuses when a signal arrived while the last step ran, so an interrupted up never leaves its tunnel up',
+      fn: async () => {
+        /**
+         Events of the run, in order.
+         */
+        const events: string[] = [];
+        /**
+         The refusal a signal during the last step produces,
+         as the interruption watch builds it.
+         */
+        const interruption: UpInterruption = {
+          beforeStep: function beforeStep(step: string,): void {
+            events.push(`before ${step}`,);
+          },
+          insteadOfStepFailure: function insteadOfStepFailure(
+            _step: string,
+            failure: unknown,
+          ): unknown {
+            return failure;
+          },
+          afterLastStep: function afterLastStep(step: string,): void {
+            throw new UpInterruptedError({
+              signal: 'SIGINT',
+              step,
+              during: true,
+            },);
+          },
+        };
+        /**
+         Builds a step that records its name.
+         */
+        const step = (name: string,) => (): Promise<void> => {
+          events.push(name,);
+          return Promise.resolve();
+        };
+        /**
+         Whether the rollback ran.
+         */
+        const rolledBack = { ran: false, };
+        /**
+         What the up threw,
+         absent when it did not throw.
+         */
+        const thrown = await bringUp({
+          exemptMark: 100,
+          steps: {
+            addLink: step('addLink',),
+            runPreUp: step('runPreUp',),
+            applyPeerConfig: step('applyPeerConfig',),
+            allowEndpoints: step('allowEndpoints',),
+            addAddressesAndBringUp: step('addAddressesAndBringUp',),
+            setDns: step('setDns',),
+            setupRoutes: step('setupRoutes',),
+            startExemptions: step('startExemptions',),
+            runPostUp: step('runPostUp',),
+          },
+          rollback: () => {
+            rolledBack.ran = true;
+            events.push('rollback',);
+            return Promise.resolve();
+          },
+          interruption,
+        },).then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+        expect(rolledBack.ran,).toBe(true,);
+        expect(events.at(-2),).toBe('runPostUp',);
+        expect(events.at(-1),).toBe('rollback',);
+        expect((thrown as Error).name,).toBe('UpInterruptedError',);
+        expect((thrown as UpInterruptedError).step,).toBe('run the post-up hooks',);
       },
     },),
   ],

@@ -50,3 +50,11 @@ run = ["mise run build", "node src/tunnel-traffic-block.integration.test.ts"]
 [tasks."test:integration:route"]
 description = "Build wg-quicker and verify endpoint routing in disposable root network namespaces"
 run = ["mise run build", "node src/tunnel-route.integration.test.ts"]
+
+[tasks."test:integration:lifecycle"]
+description = "Build wg-quicker and verify that concurrent starts neither remove another start's tunnel nor share a policy table, in disposable user and network namespaces"
+run = ["mise run build", "node src/tunnel-lifecycle.integration.test.ts"]
+
+[tasks."test:integration:watcher-readiness"]
+description = "Build wg-quicker and verify a slowly starting route watcher is accepted, in a container without a system manager"
+run = ["mise run build", "node src/tunnel-lifecycle-watcher-readiness.integration.test.ts"]

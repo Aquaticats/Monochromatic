@@ -1,8 +1,16 @@
 import {
+  mkdtemp,
+  readFile,
+  rm,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+
+import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import type {
   CommandError,
@@ -40,6 +48,67 @@ async function refusalOf(call: () => Promise<unknown>,): Promise<unknown> {
     return error;
   }
   throw new Error('Expected the call to refuse, but it returned',);
+}
+
+/**
+ Reports whether a program number names a process that can still run.
+
+ A process the kernel holds only as a zombie cannot run anything, which is what a
+ killed grandchild is until its new parent reaps it.
+
+ @param pid - Program number to look for.
+
+ @returns Whether a process that can still run has that number.
+
+ @example
+ ```ts
+ await canStillRun({ pid: 4242 });
+ ```
+ */
+async function canStillRun({ pid, }: { readonly pid: number; },): Promise<boolean> {
+  try {
+    /**
+     Stat line of the process, whose state letter follows the parenthesised name.
+     */
+    const stat = await readFile(`/proc/${String(pid,)}/stat`, 'utf8',);
+    /**
+     State letter of the process.
+     */
+    const state = stat.slice(stat.lastIndexOf(')',) + 2,)
+      .split(' ',)[0];
+    return state !== 'Z';
+  }
+  catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return false;
+    throw error;
+  }
+}
+
+/**
+ Makes a scratch directory and binds its removal to the caller's scope.
+
+ @returns The directory path.
+
+ @example
+ ```ts
+ await using directory = await scratchDirectory();
+ ```
+ */
+async function scratchDirectory(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+}> {
+  /**
+   New directory under the harness scratch root.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'wg-runner-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(path, { force: true, recursive: true, },);
+    },
+  };
 }
 
 await describe({
@@ -129,6 +198,94 @@ await describe({
         expect(result.exitCode,).toBe(0,);
         expect(result.stdout,).toBe('kept\n',);
         expect(elapsed,).toBeLessThan(1_000,);
+      },
+    },),
+    it({
+      name: 'returns when a hook shell exits although a process it left behind holds its output open, instead of waiting the whole deadline for the pipes',
+      fn: async () => {
+        await using directory = await scratchDirectory();
+        /**
+         File the hook writes the background process number into, which this test ends afterwards.
+         */
+        const pidFile = join(directory.path, 'background.pid',);
+        /**
+         When the call started, for the wait it is expected not to take.
+         */
+        const started = performance.now();
+        /**
+         What the call answered.
+         */
+        const result = await runAllowingFailure({
+          command: 'sh',
+          // The shell exits at once, and the sleep it started keeps standard output and standard error open.
+          args: ['-c', `echo kept; sleep 5 & echo $! > '${pidFile}'; exit 0`,],
+          deadlineMilliseconds: 3_000,
+        },);
+        /**
+         How long the call took.
+         */
+        const elapsed = performance.now() - started;
+        try {
+          expect(result.exitCode,).toBe(0,);
+          expect(result.stdout,).toBe('kept\n',);
+          expect(elapsed,).toBeLessThan(1_000,);
+        }
+        finally {
+          /**
+           Program number of the process the hook left behind, when it named one.
+           */
+          const survivor = Number((await readFile(pidFile, 'utf8',)).trim(),);
+          try {
+            process.kill(survivor, 'SIGKILL',);
+          }
+          catch (error: unknown) {
+            // The process is gone already, which is what the cleanup is for.
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+              throw error;
+          }
+        }
+      },
+    },),
+    it({
+      name: 'ends every process a hook started when the hook outlives its deadline, so the deadline leaves nothing behind',
+      fn: async () => {
+        await using directory = await scratchDirectory();
+        /**
+         File the hook writes the background process number into.
+         */
+        const pidFile = join(directory.path, 'background.pid',);
+        /**
+         What the call threw.
+         */
+        const refusal = await refusalOf(() => run({
+          command: 'sh',
+          // The shell waits for the sleep, so the deadline ends a hook that is still running.
+          args: ['-c', `sleep 30 & echo $! > '${pidFile}'; wait`,],
+          deadlineMilliseconds: TEST_DEADLINE_MILLISECONDS,
+          ownProcessGroup: true,
+        },),);
+        expect((refusal as Error).name,).toBe('CommandTimeoutError',);
+        /**
+         Program number of the process the hook started.
+         */
+        const background = Number((await readFile(pidFile, 'utf8',)).trim(),);
+        /**
+         Whether the process the deadline should have ended can still run.
+         */
+        const stillRunning = await canStillRun({ pid: background, },);
+        try {
+          expect(stillRunning,).toBe(false,);
+        }
+        finally {
+          try {
+            process.kill(background, 'SIGKILL',);
+          }
+          catch (error: unknown) {
+            // A process the deadline ended is gone already.
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+              throw error;
+          }
+        }
       },
     },),
     it({
