@@ -185,12 +185,46 @@ fn stop(address: &Bind, directory: &Path, instance: &str) -> Action {
             stderr: String::new(),
         };
     }
+    // What: A service that was asked to leave and is still there after its bound is ended by the process its own note proves.
+    // Why:  `service stop` is the command every failure of this program names for a service that does not answer, and a service
+    //       held inside a landing that never ends (a branch write on a hung mount, a read of a file a person left as a pipe)
+    //       answered "it finishes the batch it holds first; run this command again" for ever: the review of `e347be3115`
+    //       (part two-a, finding 5) measured the same words 30 s later, and only `kill -TERM` to the number in the note ended it.
+    //       The batch such a service held is not lost: it is in the journal, and the next service recovers it (the fault points
+    //       of the landing are the same state, and every one of them recovers).
+    let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(directory, instance);
+    let proven: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note.as_path());
+    let named: Option<i32> = proven.as_ref().filter(|service| { return crate::service_server_pid_note_of_an_instance::is_still_the_process(service); }).map(|service| { return service.pid; });
+    if let Some(pid) = named {
+        let ended: crate::service_ended_through_a_pinned_handle::Ended = crate::service_ended_through_a_pinned_handle::end_the_service(directory, instance, None);
+        let free: bool = wait_until_free(address, STOP_BOUND);
+        return match (ended, free) {
+            (crate::service_ended_through_a_pinned_handle::Ended::Sent, true) | (crate::service_ended_through_a_pinned_handle::Ended::Gone, true) => Action::Exit {
+                code: 0,
+                stdout: format!(
+                    "The commit service of this worktree (instance {instance}, pid {pid}) was asked to leave and did not within {} seconds, so it was ended and its address is free. The batch it held is in its journal, and the next service recovers it.\n",
+                    STOP_BOUND.as_secs()
+                ),
+                stderr: String::new(),
+            },
+            _ => Action::Exit {
+                code: 1,
+                stdout: String::new(),
+                stderr: format!(
+                    "{COMMAND}: the commit service of this worktree (instance {instance}, pid {pid}) was asked to leave and did not within {} seconds, and it was ended ({ended:?}) but its address is still taken; look at {} and at the service's log beside it.\n",
+                    STOP_BOUND.as_secs(),
+                    crate::service_server::address_text(address)
+                ),
+            },
+        };
+    }
     return Action::Exit {
         code: 1,
         stdout: String::new(),
         stderr: format!(
-            "{COMMAND}: the commit service of this worktree (instance {instance}) was asked to leave and is still there after {} seconds. It finishes the batch it holds first; run this command again once that batch has landed.\n",
-            STOP_BOUND.as_secs()
+            "{COMMAND}: the commit service of this worktree (instance {instance}) was asked to leave and is still there after {} seconds, and the note beside its address ({}) names no process that is still running, so this command cannot end it. Look at what holds that address and end that process.\n",
+            STOP_BOUND.as_secs(),
+            note.display()
         ),
     };
 }

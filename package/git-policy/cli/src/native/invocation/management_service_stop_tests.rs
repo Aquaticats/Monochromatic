@@ -176,3 +176,66 @@ fn a_service_that_is_there_and_does_not_answer_is_ended_by_the_note_that_names_i
     assert_eq!(stderr_of(&stopped), "");
     assert!(ended, "the process the note named is gone");
 }
+
+/// What:
+///  A service that greets, is asked to leave, and does not leave is ended by the process its own note proves.
+/// Why:
+///  The review of `e347be3115` (part two-a, finding 5): `service stop` is the command every failure names for a service that does
+///  not answer, and a service held inside a landing that never ends answered "it finishes the batch it holds first; run this
+///  command again" for ever. Nothing the words named ended it.
+#[test]
+fn a_service_that_greets_and_does_not_leave_is_ended_by_the_note_that_names_it() {
+    use std::os::unix::process::CommandExt;
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("stop-stuck");
+    let socket: std::path::PathBuf = root.join("3f9a.sock");
+    // A service that greets (so it is asked to leave) and then holds its connection for ever, as one inside a landing that
+    // never ends does: the ask is read and answered by nothing.
+    let greeting = crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from("control")) });
+    let service: UnixListener = listen_at(socket.as_path()).expect("the service listens");
+    let holding = std::thread::spawn(move || {
+        use std::io::Write;
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        loop {
+            match service.accept() {
+                Ok((mut stream, _)) => {
+                    let _sent = stream.write_all(format!("{greeting}\n").as_bytes());
+                    held.push(stream);
+                }
+                // A connection that was closed before this side took it is no reason to stop listening, which is the state
+                //  this control is about: the service is still there.
+                Err(_closed) => std::thread::sleep(std::time::Duration::from_millis(1)),
+            }
+            if held.len() > 64 {
+                held.remove(0);
+            }
+        }
+    });
+    let mut process: std::process::Child = {
+        let mut command: std::process::Command = std::process::Command::new("/usr/bin/tail");
+        command.args(["--follow=name", "--retry", "/dev/null"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        // SAFETY: the child calls `setsid` before it execs, and nothing else runs between the fork and that call.
+        unsafe {
+            command.pre_exec(|| {
+                libc::setsid();
+                return Ok(());
+            });
+        }
+        command.spawn().expect("the service's process")
+    };
+    let pid: i32 = i32::try_from(process.id()).expect("a process number");
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("a readable identity").expect("the process is alive");
+    std::fs::write(crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a").as_path(), format!("{pid} {identity}\n")).expect("the service's own note");
+    let stopped = stop(&crate::service_server::Bind::Path(socket.clone()), root.as_path(), "3f9a");
+    let ended: bool = matches!(process.try_wait(), Ok(Some(_status)));
+    if !ended {
+        let _killed: std::io::Result<()> = process.kill();
+        let _reaped: std::io::Result<std::process::ExitStatus> = process.wait();
+    }
+    std::mem::forget(holding);
+    assert!(ended, "the process the note named is ended when the service does not leave: stdout [{}] stderr [{}]", stdout_of(&stopped), stderr_of(&stopped));
+    // What the command says: that the service was asked, did not leave, and was ended. The address is still taken here, because
+    //  the listener of this control is not the process the note names, so the words are the ones for that state.
+    let said: String = format!("{}{}", stdout_of(&stopped), stderr_of(&stopped));
+    assert!(said.contains("did not within") && said.contains("it was ended"), "the command says what it did: {said}");
+    crate::test_support::remove(root.as_path());
+}
