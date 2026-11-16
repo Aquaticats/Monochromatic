@@ -100,13 +100,33 @@
 //!  The worktree then stays,
 //! the notice says this command was started in it,
 //!  and a person removes it when nothing there is theirs.
+//!  A table that could not be read is never a table with nothing in it:
+//!  a removal rests on a proof that no process works in the worktree,
+//!  and a read that did not happen proves nothing,
+//!  so the worktree stays and the reason names the table and the operating system's own answer.
+//!  There are two such reads,
+//!  and both were taken for an answer that nothing works there
+//!  (found by reading, then reproduced through the real removal):
+//!  the listing of the table's own directory,
+//!  which fails when the table is not there,
+//!  is not a directory,
+//!  or may not be listed,
+//!  and a listing that stops answering part way,
+//!  whose entries nobody read are processes nobody looked at.
+//!  A removal that could not look keeps the worktree and says so in one line,
+//!  naming the table,
+//!  what the operating system refused,
+//!  and the command a person runs when nothing there is theirs
+//!  (`worktree_landed_sweep_notice.rs`,
+//!  `worktree_kept_notices.rs`);
+//!  nobody is asked to prove anything a read of the table did not.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const working = processWorkingInside(worktree, '/proc'); // undefined: nothing works there
+//! const look = processWorkingInside(worktree, '/proc'); // { working } | 'nothingWorksThere' | { cannotLook: reason }
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// What the reads of one process showed:
@@ -171,6 +191,29 @@ impl WorkingProcess {
     }
 }
 
+/// What the read of a process table answered.
+/// Why:
+///  A removal that destroys a folder needs a proof that nothing works inside it,
+///  and a read that could not be made is not that proof:
+///  answering "nothing works there" for a table nobody could read
+///  took a worktree out from under a process that was working in it.
+///  The three answers are kept apart for that reason,
+///  and `CannotLook` carries why in the words a person reads.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProcessLook {
+    /// One process is working in the folder,
+    /// and the reason names it.
+    Working(WorkingProcess),
+    /// Every process the table lists was read,
+    /// and none of them is working in the folder.
+    NothingWorksThere,
+    /// A read the answer rests on could not be made,
+    /// so nothing proves no process is working in the folder:
+    /// why,
+    /// as the sentence a person reads beside the worktree that stays.
+    CannotLook(String),
+}
+
 /// What:
 ///  The first process id whose working folder is `root` or below it,
 ///  or whose working folder this account cannot read and could lead into it.
@@ -186,25 +229,71 @@ impl WorkingProcess {
 ///  one older than the folder is taken to be outside it,
 ///  though one can change into it or open a file in it after the folder was made,
 ///  which is the miss the module doc names.
+///  A table that cannot be listed,
+///  or one whose listing stops answering part way,
+///  answers that the look could not be made,
+///  never that nothing works there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// processWorkingInside(root, procRoot, worktreeAge) // WorkingProcess | undefined
+/// processWorkingInside(root, procRoot, worktreeAge) // { working } | 'nothingWorksThere' | { cannotLook: reason }
 /// ```
-pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
-    let listing = std::fs::read_dir(proc_root).ok()?;
+pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> ProcessLook {
+    let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
+        Ok(found) => found,
+        // A table nobody could list hides every process it holds, and a removal that read this refusal as a table with
+        // nothing in it took a worktree out from under a process working in it.
+        Err(refused) => {
+            return ProcessLook::CannotLook(format!("the process table {} could not be listed ({refused})", proc_root.display()));
+        }
+    };
+    return look_at_each(
+        listing.map(|listed| { return listed.map(|entry: std::fs::DirEntry| { return entry.path(); }); }),
+        root,
+        git_dir,
+        proc_root,
+        worktree_age,
+    );
+}
+
+/// What:
+///  The answer one listing of a process table gives.
+/// Why:
+///  The walk is written over the listing rather than over `read_dir` so that a control can name a table that stops
+///  answering part way,
+///  which no directory of a fixture can make a real listing do:
+///  production names the table's own listing,
+///  and every item of it is a process,
+///  or the read that would have named one failed,
+///  and a failed item hides the processes it never named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const listed of listing) { if (listed.error) return cannotLook(listed.error); ... }
+/// ```
+fn look_at_each<Listed>(listed: Listed, root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> ProcessLook
+where
+    Listed: Iterator<Item = std::io::Result<PathBuf>>,
+{
     let uptime: Option<Duration> = uptime_of(proc_root);
-    for entry in listing.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
+    for one in listed {
+        let entry: PathBuf = match one {
+            Ok(found) => found,
+            // The listing stopped before its end, so the processes it had not named were never looked at.
+            Err(stopped) => {
+                return ProcessLook::CannotLook(format!("the process table {} stopped answering before its end ({stopped})", proc_root.display()));
+            }
+        };
+        let name: String = entry.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
         let Ok(pid) = name.parse::<u32>() else {
             continue;
         };
-        match std::fs::read_link(entry.path().join("cwd")) {
-            Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
+        match std::fs::read_link(entry.join("cwd")) {
+            Ok(working) if working.starts_with(root) => return ProcessLook::Working(WorkingProcess { pid, folder: WorkingFolder::Inside }),
             Ok(_elsewhere) => {
                 // A folder outside the worktree can still hold a file open in it, and that process is working there.
-                match open_files_in(entry.path().as_path(), root, git_dir) {
-                    OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
+                match open_files_in(entry.as_path(), root, git_dir) {
+                    OpenFiles::Inside => return ProcessLook::Working(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
                     OpenFiles::Outside => {}
                     // A descriptor table this account may not read hides what the process holds, so the age of the
                     // process decides it as it decides a hidden working folder: one younger than the worktree keeps
@@ -212,8 +301,8 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
                     // and an older one that opened a file there after the worktree was made is the miss the module
                     // doc names.
                     OpenFiles::Unreadable => {
-                        if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
-                            return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
+                        if could_be_working_inside(entry.as_path(), proc_root, pid, uptime, worktree_age) {
+                            return ProcessLook::Working(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
                         }
                     }
                 }
@@ -221,13 +310,13 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
             // The process went while it was being read, so it cannot be working in the worktree any more.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_refused) => {
-                if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
-                    return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
+                if could_be_working_inside(entry.as_path(), proc_root, pid, uptime, worktree_age) {
+                    return ProcessLook::Working(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
                 }
             }
         }
     }
-    return None;
+    return ProcessLook::NothingWorksThere;
 }
 
 /// What a read of one process's open files showed.

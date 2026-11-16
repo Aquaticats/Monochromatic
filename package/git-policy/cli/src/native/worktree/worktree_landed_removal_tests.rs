@@ -2201,3 +2201,30 @@ fn btrfs_a_landed_removal_whose_volume_went_away_says_what_that_path_did() {
     assert_eq!(registrations_under(landed.common.as_path()), Vec::<String>::new(), "and its registration is gone");
     remove(landed.root.as_path());
 }
+
+/// What:
+///  A worktree a person added through a symbolic link is registered under the folder's own path,
+///  so the process read compares a process's working folder with the folder itself and not with a spelling.
+/// Why:
+///  The read compares the text of paths,
+///  and `/proc/<pid>/cwd` is the kernel's answer with every link resolved,
+///  so a removal that named the linked spelling would miss a process working in the worktree.
+///  The registration is what the removal names,
+///  and it canonicalizes the folder the `gitdir` record points into,
+///  which is what keeps the link from reaching the read at all.
+#[test]
+fn a_worktree_added_through_a_link_is_registered_under_the_folders_own_path() {
+    let root: PathBuf = fixture("landed-added-through-a-link");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let worktrees: PathBuf = root.join("worktrees");
+    std::fs::create_dir(worktrees.as_path()).expect("a folder the worktree is made in");
+    let link: PathBuf = root.join("through-a-link");
+    std::os::unix::fs::symlink(worktrees.as_path(), link.as_path()).expect("a link to the folder the worktree is made in");
+    let spelled: PathBuf = link.join("topic");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", spelled.to_str().expect("a UTF-8 fixture path")]);
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("the common Git directory");
+    let registered: Vec<Registration> = registrations_of(common.as_path()).expect("the registrations the sweep read");
+    let own: PathBuf = worktrees.join("topic");
+    assert_eq!(registered.len(), 1, "the one worktree the fixture added: {registered:?}");
+    assert_eq!(registered[0].worktree, own, "the registration names the folder's own path, not the spelling the add was given");
+}

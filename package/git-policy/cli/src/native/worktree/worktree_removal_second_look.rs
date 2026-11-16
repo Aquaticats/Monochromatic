@@ -34,7 +34,7 @@ use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::GitContext;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{Registration, registrations_of};
-use crate::worktree_process_inside::process_working_inside;
+use crate::worktree_process_inside::{ProcessLook, process_working_inside};
 use crate::worktree_removal_rescue::snapshot_one;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
@@ -137,8 +137,12 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
-    if let Some(working) = process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
-        return Some(working.why());
+    match process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
+        ProcessLook::Working(working) => return Some(working.why()),
+        ProcessLook::NothingWorksThere => {}
+        // A table that could not be read proves nothing about the processes on this machine, and a removal that took that
+        // for an empty table destroyed a worktree with a process working in it.
+        ProcessLook::CannotLook(reason) => return Some(format!("nothing proves no process is working in it, so nothing is removed: {reason}")),
     }
     let Some(source) = look.source else {
         return Some(String::from(

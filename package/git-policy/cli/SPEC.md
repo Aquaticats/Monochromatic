@@ -3203,6 +3203,7 @@ A worktree whose branch a merge landed is removed by those same routes,
  that it is unlocked,
  that no operation is unfinished in it,
  that nothing works inside it,
+ in a process table the read reached the end of,
  that every ignored file it holds is one the worktree the merge ran in also holds,
  and that the records of its own Git directory are copied,
  and then it records the removal and returns.
@@ -3221,6 +3222,15 @@ A worktree whose branch a merge landed is removed by those same routes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
  The registration the record names must still be the one standing beside that path,
  which is what the next paragraph says the record carries.
+ A process table that could not be read proves nothing,
+ and neither does a listing of it that stopped before its end,
+ so the read answers that the look could not be made,
+ with the table's path and the operating system's own answer,
+ and the worktree stays.
+ A read that did not happen is never a table with nothing in it:
+ taking one for that destroyed a worktree a live process was working in
+ (`src/native/worktree/worktree_process_inside.rs`,
+ found by reading and reproduced through the removal).
  A worktree the service keeps is named in a record under the common Git directory,
  `monochromatic-git-policy-cli/kept-worktree-notices`,
  which the next wrapper command in any worktree of that repository shows once,

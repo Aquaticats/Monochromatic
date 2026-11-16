@@ -431,7 +431,8 @@ each one a control:
   `rebase-apply` or `sequencer`
    stands in its administrative directory;
 - `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it,
-  and no process of this account that hides its working folder and started after the worktree was made;
+  and no process of this account that hides its working folder and started after the worktree was made,
+  in a process table it read to its end (the paragraph after the amendment below);
 - every ignored file and link it holds is also in the worktree this merge ran in,
   by kind,
   mode and bytes (the paragraph below).
@@ -473,6 +474,38 @@ The rule stays as written here,
 and the docs and the notice say the gap in these words instead of calling such a process outside.
 The landed sweep's controls write their own process table,
 so no test depends on which programs this machine happens to run.
+
+Amendment, 2026-11-16T01:24:44-05:00 (a table nobody read is never a table with nothing in it):
+the condition above rested on a read that could fail,
+and a read that failed answered what an empty table answers.
+`process_working_inside` took `read_dir(<proc root>)`'s refusal for nothing works there,
+and it dropped an entry the listing could not name,
+so a worktree holding a live process went:
+found by reading the module,
+then reproduced through the real removal,
+with a fixture worktree the wrapper made,
+a `sleep` started with that worktree as its working folder,
+and the proof read against a table this account may not list and against one that is not there
+(`a_landed_worktree_with_a_process_inside_stays_when_its_process_table_cannot_be_listed`,
+`a_landed_worktree_with_a_process_inside_stays_when_its_process_table_is_not_there`,
+which failed on the code before the change by handing the worktree's destruction to the commit service).
+The read now answers three things and never two:
+that one process is working there,
+that every entry was read and none works there,
+or that the look could not be made,
+with the table's own path and the operating system's answer,
+and the third keeps the worktree.
+The line says why it was kept and what a person can do:
+"nothing proves no process is working in it, so nothing is removed:
+the process table /proc could not be listed (Permission denied (os error 13))",
+and both notices follow it with the command that removes the worktree.
+A listing that stops before its end is the same answer,
+which no directory of a fixture can make a real `read_dir` do,
+so the walk is written over the listing's items and a control names a listing that refused after its first entry.
+What this costs a removal with nothing in its way is measured for this change,
+against the commit it started from,
+both arms interleaved over one walk of this machine's own table,
+with the spread of each arm stated beside it.
 
 Cleanliness,
 that Git would remove the worktree without `--force`,
@@ -636,6 +669,31 @@ The four runs below were made against the committed code with
    Those need retention numbers nobody has picked yet.
 - It does not remove any worktree that already existed when it landed,
    because none of them carries the record.
+- It does not see a process that works in the worktree through a bind mount.
+   The read compares the text of the folder a process works in with the text of the worktree,
+   a bind mount is a second spelling of one folder that no canonical path resolves,
+   and a removal that named the worktree would take it with the process's files in it.
+   A symbolic link does not reach the read:
+   the registration it names is canonicalized,
+   and `/proc/<pid>/cwd` is the kernel's answer with every link resolved
+   (both controlled:
+   `a_worktree_added_through_a_link_is_registered_under_the_folders_own_path`,
+   `a_process_that_entered_the_worktree_through_a_link_is_found`).
+   The fix is to compare the device and inode of the folder with the worktree's own,
+   as `landing/earlier_service_look_paths.rs` already compares a journal's,
+   and neither record says whether a removal may pay that stat per process.
+   Listed for the owner; not decided here
+   (`a_process_that_works_in_the_worktree_through_a_bind_mount_is_not_found`,
+   a control in a private user namespace that fails when this is fixed).
+- It does not see a process that mapped a file of the worktree and closed its descriptor.
+   The read looks at what a process holds open,
+   a mapping outlives the descriptor it was made from,
+   and the removal takes the directory the file was in while the program still uses it.
+   The fix is a read of `/proc/<pid>/maps`,
+   which is a second long read of every process on every removal,
+   and no record names what that may cost.
+   Listed for the owner; not decided here
+   (`a_process_that_mapped_a_file_in_the_worktree_and_closed_it_is_not_found`).
 
 ## The merge of main, and the final run
 
