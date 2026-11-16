@@ -727,6 +727,14 @@ mod reconcile_report_shown_once;
 /// a rebase does not.
 #[path = "binary_push_trigger_tests.rs"]
 mod push_trigger;
+/// The push of a branch that has never been pushed:
+/// where it goes with and without `origin`,
+/// with only one of its two tracking settings,
+/// with an upstream on another remote,
+/// and from a linked worktree.
+#[path = "binary_push_a_branch_never_pushed_tests.rs"]
+mod push_a_branch_never_pushed;
+
 /// A fetch after a Git was killed while it held reference locks:
 /// removed on a proof,
 /// described and kept otherwise.
