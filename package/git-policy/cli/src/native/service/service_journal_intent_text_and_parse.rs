@@ -521,11 +521,14 @@ pub(crate) enum CleanupForm {
 /// ```
 pub(crate) fn parse_cleanup(entry: &str, form: CleanupForm) -> Option<Cleanup> {
     let mut parts = entry.split('\t');
-    let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
+    let (written_git_dir, written_scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
     let (git_dir, scratch): (PathBuf, PathBuf) = match form {
-        CleanupForm::Hexadecimal => (path_bytes::path_of_hex(git_dir)?, path_bytes::path_of_hex(scratch)?),
-        CleanupForm::Encoded => (path_bytes::path_of_bytes(path_bytes::decode_field(git_dir)?.as_slice()), path_bytes::path_of_bytes(path_bytes::decode_field(scratch)?.as_slice())),
-        CleanupForm::Plain => (PathBuf::from(git_dir), PathBuf::from(scratch)),
+        CleanupForm::Hexadecimal => (path_bytes::path_of_hex(written_git_dir)?, path_bytes::path_of_hex(written_scratch)?),
+        CleanupForm::Encoded => (
+            path_bytes::path_of_bytes(path_bytes::decode_field(written_git_dir)?.as_slice()),
+            path_bytes::path_of_bytes(path_bytes::decode_field(written_scratch)?.as_slice()),
+        ),
+        CleanupForm::Plain => (PathBuf::from(written_git_dir), PathBuf::from(written_scratch)),
     };
     return Some(Cleanup { git_dir, scratch, reftable: reftable == "1" });
 }

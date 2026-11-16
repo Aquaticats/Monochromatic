@@ -224,8 +224,8 @@ pub fn sweep_temporaries(folder: &Path, grace: std::time::Duration) -> Swept {
     };
     let mut swept: Swept = Swept::default();
     for entry in entries.flatten() {
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
+        let listed = entry.file_name();
+        let Some(name) = listed.to_str() else {
             continue;
         };
         if !candidates_a_temporary(name) {
