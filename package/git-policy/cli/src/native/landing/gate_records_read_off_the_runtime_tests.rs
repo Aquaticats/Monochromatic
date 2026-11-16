@@ -572,20 +572,29 @@ fn a_work_tree_with_a_handful_of_gate_records(root: &Path) -> PathBuf {
     std::fs::create_dir_all(held.as_path()).expect("the held directory");
     std::fs::create_dir_all(blocked.as_path()).expect("the blocked directory");
     for number in 0..RECORDS_OF_EACH_STATE {
-        let item: WorkItem = WorkItem {
-            kind: WorkKind::Push,
-            repository: root.to_path_buf(),
-            git_dir: root.to_path_buf(),
-            branch_ref: format!("refs/heads/topic-{number}"),
-            oid: format!("{number:040x}"),
-            parent: String::new(),
-            created: String::from("2026-11-14T00:00:00.000Z"),
-            tries: 0,
-        };
-        crate::work_item::hold(work.as_path(), &item, "4321").expect("a held record");
-        crate::work_item_holding::block(work.as_path(), &item, "a check of that commit refused it");
+        // A verdict a gate kept, on a branch of its own: its record is what the push reads first.
+        let refused: WorkItem = an_item_of(root, format!("refs/heads/topic-{number}"), format!("{number:040x}"));
+        crate::work_item::hold(work.as_path(), &refused, "4321").expect("a held record");
+        crate::work_item_holding::block(work.as_path(), &refused, "a check of that commit refused it");
+        // A commit of the pushed branch whose gate still runs: its record is what the push reads second, and it stays held.
+        let undecided: WorkItem = an_item_of(root, String::from("refs/heads/main"), format!("{:040x}", RECORDS_OF_EACH_STATE + number));
+        crate::work_item::hold(work.as_path(), &undecided, "4321").expect("a held record whose gate still runs");
     }
     return work;
+}
+
+/// The push record of one commit of `branch` in the work tree under `root`.
+fn an_item_of(root: &Path, branch: String, oid: String) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: root.to_path_buf(),
+        git_dir: root.to_path_buf(),
+        branch_ref: branch,
+        oid,
+        parent: String::new(),
+        created: String::from("2026-11-14T00:00:00.000Z"),
+        tries: 0,
+    };
 }
 
 /// The middle,
@@ -652,7 +661,7 @@ fn on_the_tasks_thread(work: &Path, branch: &str) -> u128 {
     let took: u128 = began.elapsed().as_micros();
     // The reads' answers are read here so neither is optimised away, and a wrong answer is a fixture's fault.
     assert_eq!(verdicts.len(), RECORDS_OF_EACH_STATE, "the control arm read every verdict record");
-    assert!(!undecided.is_empty(), "the control arm read the held records");
+    assert_eq!(undecided.len(), RECORDS_OF_EACH_STATE, "the control arm read the held records of the pushed branch");
     return took;
 }
 
@@ -665,7 +674,7 @@ async fn on_a_job_of_the_pool(work: &Path, branch: &str) -> u128 {
     let undecided: Vec<String> = undecided_commits_within_awaiting(GENEROUS, work, branch).await.expect("the held records answer");
     let took: u128 = began.elapsed().as_micros();
     assert_eq!(verdicts.len(), RECORDS_OF_EACH_STATE, "the bounded arm read every verdict record");
-    assert!(!undecided.is_empty(), "the bounded arm read the held records");
+    assert_eq!(undecided.len(), RECORDS_OF_EACH_STATE, "the bounded arm read the held records of the pushed branch");
     return took;
 }
 
