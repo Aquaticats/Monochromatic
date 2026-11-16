@@ -43,6 +43,7 @@ export {
 } from './order-of-an-entry-in-a-queue.ts';
 export {
   LONGEST_ESCAPED_NAME,
+  NO_NAME_IN_AN_ESCAPED_FORM,
   QueueNameError,
   aNameInAnEscapedName,
   aUnitNameOf,

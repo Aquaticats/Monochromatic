@@ -23,6 +23,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   LONGEST_ESCAPED_NAME,
+  NO_NAME_IN_AN_ESCAPED_FORM,
   QueueNameError,
   aNameInAnEscapedName,
   aUnitNameOf,
@@ -304,9 +305,9 @@ await describe({
         it({
           name: 'answers nothing for a file or a unit this queue did not name',
           fn: async () => {
-            expect(anEntryNameInAFileName({ fileName: 'notes.txt', },),).toBeUndefined();
-            expect(anEntryNameInAFileName({ fileName: '%zz.json', },),).toBeUndefined();
-            expect(anEntryNameInAUnitName({ unitName: 'pi-some-run', },),).toBeUndefined();
+            expect(anEntryNameInAFileName({ fileName: 'notes.txt', },),).toBe(NO_NAME_IN_AN_ESCAPED_FORM,);
+            expect(anEntryNameInAFileName({ fileName: '%zz.json', },),).toBe(NO_NAME_IN_AN_ESCAPED_FORM,);
+            expect(anEntryNameInAUnitName({ unitName: 'pi-some-run', },),).toBe(NO_NAME_IN_AN_ESCAPED_FORM,);
           },
         },),
       ],
