@@ -22,7 +22,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
-    "directory": "package/hall-monitor/daemon"
+    "directory": "package-paused/hall-monitor/daemon"
   },
   "sideEffects": true
 }
