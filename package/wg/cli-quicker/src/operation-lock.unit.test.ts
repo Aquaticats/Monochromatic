@@ -15,6 +15,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
+import { isErrnoException, } from '../dist/final/node/errors.mjs';
 import { claimOperationLock, } from '../dist/final/node/operation-lock.mjs';
 
 /**
@@ -119,18 +120,18 @@ async function withStandInFlock<Result>(
   process.env.PATH = `${directory}:${previousPath ?? ''}`;
   process.env.WG_TEST_FLOCK_MODE = mode;
   process.env.WG_TEST_FLOCK_PID_FILE = pidFile;
-  try {
-    return await body({ directory, pidFile, },);
-  }
-  finally {
-    if (previousPath === undefined)
-      delete process.env.PATH;
-    else
-      process.env.PATH = previousPath;
-    delete process.env.WG_TEST_FLOCK_MODE;
-    delete process.env.WG_TEST_FLOCK_PID_FILE;
-    await rm(directory, { force: true, recursive: true, },);
-  }
+  await using restore = {
+    async [Symbol.asyncDispose](): Promise<void> {
+      if (previousPath === undefined)
+        delete process.env.PATH;
+      else
+        process.env.PATH = previousPath;
+      delete process.env.WG_TEST_FLOCK_MODE;
+      delete process.env.WG_TEST_FLOCK_PID_FILE;
+      await rm(directory, { force: true, recursive: true, },);
+    },
+  };
+  return await body({ directory, pidFile, },);
 }
 
 /**
@@ -149,12 +150,13 @@ async function canStillRun({ pid, }: { readonly pid: number; },): Promise<boolea
     /**
      State letter of the process.
      */
-    const state = stat.slice(stat.lastIndexOf(')',) + 2,)
-      .split(' ',)[0];
+    const [state,] = stat.slice(stat.lastIndexOf(')',) + 2,)
+      .split(' ',);
     return state !== 'Z';
   }
   catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+    // The kernel reports a program number it has no process for as either code, depending on the lookup.
+    if (['ENOENT', 'ESRCH',].includes((error as NodeJS.ErrnoException).code ?? '',))
       return false;
     throw error;
   }
@@ -176,23 +178,25 @@ await describe({
              */
             const started = performance.now();
             /**
-             What the claim threw.
+             What the claim answered, or what it threw.
              */
-            const refusal = await claimOperationLock({
-              lockPath: join(directory, 'slow.lock',),
-              conflictMessage: 'busy',
-              errorFactory: (message,) => new Error(message,),
-              deadlineMilliseconds: TEST_DEADLINE_MILLISECONDS,
-            },).then(
-              () => undefined,
-              (error: unknown) => error,
-            );
+            const answered = { refusal: new Error('the claim returned'), };
+            try {
+              await claimOperationLock({
+                lockPath: join(directory, 'slow.lock',),
+                conflictMessage: 'busy',
+                errorFactory: (message,) => new Error(message,),
+                deadlineMilliseconds: TEST_DEADLINE_MILLISECONDS,
+              },);
+            }
+            catch (error) {
+              answered.refusal = isErrnoException(error) ? new Error(error.message,) : new Error(String(error,),);
+            }
             /**
              How long the claim took.
              */
             const elapsed = performance.now() - started;
-            expect(Error.isError(refusal,),).toBe(true,);
-            expect((refusal as Error).message,).toContain(`${String(TEST_DEADLINE_MILLISECONDS,)} ms`,);
+            expect(answered.refusal.message,).toContain(`${String(TEST_DEADLINE_MILLISECONDS,)} ms`,);
             expect(elapsed,).toBeLessThan(STAND_IN_DELAY_MILLISECONDS,);
           },
         },);
@@ -221,25 +225,29 @@ await describe({
              What releasing the lock answered within the case's bound.
              */
             const released = await Promise.race([
-              lock[Symbol.asyncDispose]()
-                .then(() => 'released',),
-              wait(CASE_BOUND_MILLISECONDS,)
-                .then(() => 'still waiting',),
+              (async function release(): Promise<string> {
+                await lock[Symbol.asyncDispose]();
+                return 'released';
+              })(),
+              (async function waitForCase(): Promise<string> {
+                await wait(CASE_BOUND_MILLISECONDS,);
+                return 'still waiting';
+              })(),
             ],);
+            /**
+             Whether the holder the release should have ended can still run.
+             */
+            const stillRunning = await canStillRun({ pid: holderPid, },);
             try {
-              expect(released,).toBe('released',);
-              expect(await canStillRun({ pid: holderPid, },),).toBe(false,);
+              process.kill(holderPid, 'SIGKILL',);
             }
-            finally {
-              try {
-                process.kill(holderPid, 'SIGKILL',);
-              }
-              catch (error: unknown) {
-                // The release already ended the holder.
-                if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
-                  throw error;
-              }
+            catch (error: unknown) {
+              // The release already ended the holder.
+              if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+                throw error;
             }
+            expect(released,).toBe('released',);
+            expect(stillRunning,).toBe(false,);
           },
         },);
       },

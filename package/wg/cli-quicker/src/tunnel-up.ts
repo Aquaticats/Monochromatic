@@ -82,7 +82,7 @@ export type UpSteps = {
  @throws What the failing step threw,
  after the rollback.
 
- @throws {@link UpInterruptedError} when a signal arrived before a step,
+ @throws {@link UpInterruptedError} when a signal arrived before a step or while the last one ran,
  after the rollback.
 
  @example
@@ -168,6 +168,10 @@ export async function bringUp(
       await step();
     }
     /* oxlint-enable eslint/no-await-in-loop */
+    // A signal that arrived while the last step ran is answered here:
+    // the loop has no next boundary to stop at, and an up that reports success
+    // after a person asked it to stop would leave its tunnel up.
+    interruption?.afterLastStep(at.does,);
   }
   catch (error: unknown) {
     await rollback();

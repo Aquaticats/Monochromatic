@@ -13,8 +13,11 @@
  @module
  */
 
-import { existsSync, } from 'node:fs';
-import { mkdir, writeFile, } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+  writeFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 
 /**
@@ -25,7 +28,25 @@ import { join, } from 'node:path';
  */
 const HELD_MODULE_LOAD_MILLISECONDS = 1_500;
 
-if (existsSync('/run/systemd/private')) {
+/**
+ Reports whether a system manager can be reached,
+ which this scenario must not ask for a unit.
+
+ @returns Whether the system manager's own socket is there.
+ */
+async function systemManagerIsReachable(): Promise<boolean> {
+  try {
+    await access('/run/systemd/private',);
+    return true;
+  }
+  catch (error) {
+    // No socket means no manager to ask, which is what this scenario needs.
+    void error;
+    return false;
+  }
+}
+
+if (await systemManagerIsReachable()) {
   throw new Error(
     'This scenario asks the system manager for the sentinel service when one is reachable; run it in a container without a system manager.',
   );
@@ -39,26 +60,46 @@ if (scratch === '')
   throw new Error('The scenario needs its scratch directory as the first argument.',);
 
 /**
- * Runtime directory of the CLI, which holds the watcher record this scenario reads.
+ Runtime directory of the CLI, which holds the watcher record this scenario reads.
  */
-const runtime = join(scratch, 'run',);
-await mkdir(runtime, { recursive: true, },);
-process.env.WG_QUICKER_RUNTIME_DIRECTORY = runtime;
+const runtime = join(
+  scratch,
+  'run',
+);
+await mkdir(
+  runtime,
+  { recursive: true, },
+);
+process.env
+  .WG_QUICKER_RUNTIME_DIRECTORY = runtime;
 
 /**
  Program that holds a child node's module load without using the processor.
  */
-const heldModuleLoad = join(scratch, 'held-module-load.cjs',);
+const heldModuleLoad = join(
+  scratch,
+  'held-module-load.cjs',
+);
 await writeFile(
   heldModuleLoad,
   `Atomics.wait(new Int32Array(new SharedArrayBuffer(4,),), 0, 0, ${String(HELD_MODULE_LOAD_MILLISECONDS,)});\n`,
 );
 // The watcher and the sentinel are child processes, so they inherit this and start slowly;
 // this process was started before the variable was set and reads nothing slowly.
-process.env.NODE_OPTIONS = `--require=${heldModuleLoad}`;
+process.env
+  .NODE_OPTIONS = `--require=${heldModuleLoad}`;
 
+/**
+ Path the CLI keeps the watcher's record under.
+ */
 const { bypassStatePath, } = await import('../dist/final/node/tunnel-bypass-path.mjs',);
-const { startBypassWatcher, stopBypassWatcher, } = await import(
+/**
+ The start and stop this scenario drives.
+ */
+const {
+  startBypassWatcher,
+  stopBypassWatcher,
+} = await import(
   '../dist/final/node/tunnel-bypass-watch-service.mjs',
 );
 
@@ -84,21 +125,24 @@ await writeFile(
  */
 const started = performance.now();
 /**
- What the start threw, absent when it accepted the watcher.
+ What the start answered, with an empty message when it accepted the watcher.
  */
-const failure = await startBypassWatcher({ state, },).then(
-  () => undefined,
-  (error: unknown) => (error as Error).message,
-);
+const outcome = { failure: '', };
+try {
+  await startBypassWatcher({ state, },);
+}
+catch (error) {
+  outcome.failure = String(error,);
+}
 /**
  How long the start took.
  */
 const elapsedMilliseconds = Math.round(performance.now() - started,);
-if (failure === undefined) {
+if (outcome.failure === '') {
   await stopBypassWatcher({ state, },);
 }
 console.log(JSON.stringify({
-  registered: failure === undefined,
+  registered: outcome.failure === '',
   elapsedMilliseconds,
-  failure,
+  failure: outcome.failure,
 },),);

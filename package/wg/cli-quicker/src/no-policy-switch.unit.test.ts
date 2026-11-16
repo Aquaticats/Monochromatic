@@ -292,7 +292,12 @@ async function productionSources(
   return Promise.all(
     (await readdir(directory,))
       .filter(function isProduction(name,): boolean {
-        return name.endsWith(extension,) && (!name.includes('test',)) && (!name.includes('fixture',));
+        // A scenario is a fixture a test runs in a child process of its own,
+        // so it ships nothing and its environment use cannot be a switch of the tool.
+        return name.endsWith(extension,)
+          && (!name.includes('test',))
+          && (!name.includes('fixture',))
+          && (!name.endsWith('.scenario.ts',));
       },)
       .map(async function read(name,): Promise<readonly [string, string]> {
         return [name, await readFile(join(directory, name,), 'utf8',),];

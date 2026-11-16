@@ -9,6 +9,21 @@ import { removeKillSwitch, } from './tunnel-firewall.ts';
 import { linkExists, } from './tunnel-link.ts';
 import { removeOpenSnitchEndpointAllowance, } from './opensnitch.ts';
 import { removePolicyRules, } from './tunnel-route.ts';
+import type { UpMade, } from './tunnel-up-made.ts';
+
+/**
+ Everything a teardown removes,
+ for the `down` that removes a whole interface whatever made it.
+ */
+const EVERYTHING_MADE: UpMade = {
+  link: true,
+  endpointAllowance: true,
+  dns: true,
+  policyRules: true,
+  exemptRouting: true,
+  killSwitch: true,
+  applicationWatcher: true,
+};
 
 /**
  Removes application watcher, routes, rules, firewall, link, and DNS without hooks.
@@ -31,38 +46,65 @@ import { removePolicyRules, } from './tunnel-route.ts';
  a watcher that cannot be stopped still leaves routing and state that must be removed,
  and the caller says so in the words of the report.
 
+ What is removed is what the caller says this run made.
+ A failed `up` passes its own record,
+ so a start that made nothing removes nothing and a start that lost a race
+ never takes down the tunnel of the start that won it.
+ `down` passes no record and removes the whole interface,
+ because a person asking for the interface to be down wants everything of it gone,
+ whoever made it.
+
  @param config - Interface lifecycle configuration.
+
+ @param made - What this run made,
+ absent for the teardown that removes the whole interface.
 
  @returns What stopping the application watcher led to.
 
  @example
  ```ts
- await cleanup({ config });
+ await cleanup({ config, made });
  ```
  */
 export async function cleanup(
-  { config, }: { readonly config: WireguardConfig; },
+  {
+    config,
+    made,
+  }: {
+    readonly config: WireguardConfig;
+    readonly made?: Readonly<UpMade>;
+  },
 ): Promise<ExemptionOutcome> {
   /**
    Interface whose state is removed.
    */
   const iface = config.interfaceName;
-  await removeOpenSnitchEndpointAllowance({ interfaceName: iface, },);
+  /**
+   What this run made, which is everything when the caller names nothing.
+   */
+  const created: Readonly<UpMade> = made ?? EVERYTHING_MADE;
+  if (created.endpointAllowance)
+    await removeOpenSnitchEndpointAllowance({ interfaceName: iface, },);
   /**
    What stopping the application watcher led to,
    which the caller reports when it is a failure.
    */
-  const exemptions = await stopExemptionsOrReport({ config, },);
+  const exemptions = created.applicationWatcher
+    ? await stopExemptionsOrReport({ config, },)
+    : { ok: true, } as const;
   /**
    Whether the link is still there,
    which decides the two steps that need it.
    */
   const present = await linkExists({ interfaceName: iface, },);
-  if (present && (config.table !== 'off'))
+  if (present && (config.table !== 'off')
+    && created.policyRules)
     await removePolicyRules({ interfaceName: iface, },);
-  await removeExemptRule({ interfaceName: iface, });
-  await removeKillSwitch({ interfaceName: iface, },);
-  if (present)
+  if (created.exemptRouting)
+    await removeExemptRule({ interfaceName: iface, });
+  if (created.killSwitch)
+    await removeKillSwitch({ interfaceName: iface, },);
+  if (present && created.link)
     await runAllowingFailure({
       command: 'ip',
       args: [
@@ -72,9 +114,9 @@ export async function cleanup(
         iface,
       ],
     },);
-  if (config.dns
+  if (created.dns && (config.dns
     .length
-    > 0)
+    > 0))
     await runAllowingFailure({
       command: 'resolvectl',
       args: [

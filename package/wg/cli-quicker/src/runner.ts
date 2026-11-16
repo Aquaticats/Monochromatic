@@ -3,12 +3,14 @@ import {
 } from 'node:child_process';
 import type { Readable, } from 'node:stream';
 
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   CommandError,
   CommandSpawnError,
   CommandTimeoutError,
+  isErrnoException,
 } from './errors.ts';
 
 /**
@@ -48,6 +50,19 @@ const COMMAND_DEADLINE_MILLISECONDS = 60_000;
  so a hook that needs longer can be changed.
  */
 export const HOOK_DEADLINE_MILLISECONDS: number = 600_000;
+
+/**
+ Milliseconds the collector waits, after the command itself exited,
+ for the output the command had already written.
+
+ The kernel buffer of a pipe holds at most 64 KiB and the collector reads it
+ while the command runs, so what is left at the exit is small:
+ measured on this host, 64 KiB written by a command finished arriving 0 to 4 ms
+ after the command exited, and this bound is twenty-five times the slowest of ten rounds.
+ The wait exists only for a process the command left behind that holds the pipes:
+ without it, the call would wait for that process rather than for the command.
+ */
+const OUTPUT_DRAIN_MILLISECONDS = 100;
 
 /**
  Sentinel standing for a program that was started,
@@ -205,11 +220,13 @@ async function execute(
     args,
     input,
     deadlineMilliseconds,
+    ownProcessGroup = false,
   }: {
     readonly command: string;
     readonly args: readonly string[];
     readonly input?: string;
     readonly deadlineMilliseconds: number;
+    readonly ownProcessGroup?: boolean;
   },
 ): Promise<CommandResult & { readonly exitCode: number; }> {
   /**
@@ -226,6 +243,9 @@ async function execute(
         'pipe',
         'pipe',
       ],
+      // A command that leads its own process group can be ended together with
+      // every process it started; the deadline's kill then reaches them.
+      detached: ownProcessGroup,
     },
   );
   /**
@@ -280,6 +300,14 @@ async function execute(
     resolve: resolveClosed,
   } = Promise.withResolvers<void>();
   /**
+   Settled when the command itself ended or could not start,
+   which is earlier than the close of its pipes when it left a process behind.
+   */
+  const {
+    promise: ended,
+    resolve: resolveEnded,
+  } = Promise.withResolvers<void>();
+  /**
    Settled when the deadline passed,
    whatever the child and its children were doing.
    */
@@ -291,15 +319,79 @@ async function execute(
     'error',
     function noteSpawnFailure(error: Readonly<Error>,): void {
       observed.spawnFailure = error;
+      resolveEnded();
+    },
+  );
+  child.once(
+    'exit',
+    function exited(): void {
+      resolveEnded();
     },
   );
   child.once(
     'close',
-    function ended(): void {
+    function closedNow(): void {
       clearTimeout(deadline,);
       resolveClosed();
+      resolveEnded();
     },
   );
+  /**
+   Ends the command, and every process it started when it leads its own group.
+
+   A hook that waits for its own background child is ended here with that child:
+   a signal to the shell alone leaves the child running with no one to end it.
+   */
+  function killCommand(): void {
+    /**
+     Program number of the child, absent when it never started.
+     */
+    const { pid, } = child;
+    if (ownProcessGroup && (pid !== undefined)
+      && (pid > 0)) {
+      try {
+        process.kill(
+          -pid,
+          'SIGKILL',
+        );
+        return;
+      }
+      catch (error: unknown) {
+        // A group that is already gone needs no signal; anything else is reported.
+        if ((!isErrnoException(error,)) || (error.code !== 'ESRCH'))
+          throw error;
+        return;
+      }
+    }
+    child.kill('SIGKILL',);
+  }
+  /**
+   The wait for a command that has ended,
+   which the close of its pipes may outlast when it left a process behind.
+
+   The command's own output is read as it arrives, so the drain only covers
+   what was written just before the end; then the read ends are closed,
+   and the call answers with the command's own status as `wg-quick` does.
+   */
+  async function finishAfterEnd(): Promise<void> {
+    await ended;
+    await Promise.race([
+      closed,
+      wait(OUTPUT_DRAIN_MILLISECONDS,),
+    ],);
+    /**
+     Standard output of the child, when it was piped.
+     */
+    const output = child.stdout;
+    if (output !== null)
+      output.destroy();
+    /**
+     Standard error of the child, when it was piped.
+     */
+    const errors = child.stderr;
+    if (errors !== null)
+      errors.destroy();
+  }
   /**
    Ends a command that outlives its deadline,
    and stops waiting for its output either way.
@@ -322,7 +414,7 @@ async function execute(
         observed.endedByDeadline = true;
         // SIGKILL, because a command that ignored the deadline would ignore a polite signal too,
         // and every command run here is idempotent or is rolled back.
-        child.kill('SIGKILL',);
+        killCommand();
       }
       else {
         l.warn(
@@ -346,9 +438,10 @@ async function execute(
     deadlineMilliseconds,
   );
   await Promise.race([
-    closed,
+    finishAfterEnd(),
     pastDeadline,
   ],);
+  clearTimeout(deadline,);
   /**
    Captured stdout and stderr of the child,
    closed by its own end or by the deadline.
@@ -402,7 +495,12 @@ async function execute(
  @param input - Optional text written to the command's standard in.
  
  @param deadlineMilliseconds - Longest time to wait for the command.
- 
+
+ @param ownProcessGroup - Whether the command leads its own process group,
+ so the deadline's kill reaches every process it started.
+ A hook's shell does; a command of the program's own does not,
+ because the person's interrupt must reach it as before.
+
  @returns Captured stdout and stderr.
  
  @throws {@link CommandSpawnError} when the program could not be started.
@@ -422,11 +520,13 @@ export async function run(
     args,
     input,
     deadlineMilliseconds = COMMAND_DEADLINE_MILLISECONDS,
+    ownProcessGroup = false,
   }: {
     readonly command: string;
     readonly args: readonly string[];
     readonly input?: string;
     readonly deadlineMilliseconds?: number;
+    readonly ownProcessGroup?: boolean;
   },
 ): Promise<CommandResult> {
   /**
@@ -448,6 +548,7 @@ export async function run(
     args,
     ...(input === undefined ? {} : { input, }),
     deadlineMilliseconds,
+    ownProcessGroup,
   },);
   if (execution.exitCode !== 0) {
     fl.error(`${command} exited ${String(execution.exitCode,)}: ${execution.stderr}`,);

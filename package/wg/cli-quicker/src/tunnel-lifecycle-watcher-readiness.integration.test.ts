@@ -54,36 +54,35 @@ if (existsSync('/run/systemd/private')) {
 Scratch directory of this test, which the scenario keeps its runtime state in.
  */
 const directory = await mkdtemp(join(scratchRoot(), 'wg-watcher-readiness-',),);
-
-try {
-  /**
-   What the scenario printed on its last line.
-   */
-  const stdout = execFileSync(
-    process.execPath,
-    [
-      new URL('tunnel-lifecycle-watcher-readiness.scenario.ts', import.meta.url,).pathname,
-      directory,
-    ],
-    {
-      timeout: SCENARIO_BOUND_MILLISECONDS,
-      encoding: 'utf8',
-    },
-  );
-  /**
-   The observation, parsed from the scenario's verdict line.
-   */
-  const observed = JSON.parse(
-    stdout.trim()
-      .split('\n',)
-      .at(-1,) ?? '{}',
-  ) as Observed;
-  assert.equal(
-    observed.registered,
-    true,
-    `a healthy watcher whose startup took ${String(observed.elapsedMilliseconds,)} ms was killed before it registered: ${String(observed.failure,)}`,
-  );
-}
-finally {
-  await rm(directory, { force: true, recursive: true, },);
-}
+await using scratch = {
+  async [Symbol.asyncDispose](): Promise<void> {
+    await rm(directory, { force: true, recursive: true, },);
+  },
+};
+/**
+ What the scenario printed on its last line.
+ */
+const stdout = execFileSync(
+  process.execPath,
+  [
+    new URL('tunnel-lifecycle-watcher-readiness.scenario.ts', import.meta.url,).pathname,
+    directory,
+  ],
+  {
+    timeout: SCENARIO_BOUND_MILLISECONDS,
+    encoding: 'utf8',
+  },
+);
+/**
+ The observation, parsed from the scenario's verdict line.
+ */
+const observed = JSON.parse(
+  stdout.trim()
+    .split('\n',)
+    .at(-1,) ?? '{}',
+) as Observed;
+assert.equal(
+  observed.registered,
+  true,
+  `a healthy watcher whose startup took ${String(observed.elapsedMilliseconds,)} ms was killed before it registered: ${String(observed.failure,)}`,
+);

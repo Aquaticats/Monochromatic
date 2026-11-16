@@ -307,6 +307,15 @@ export async function writeWatcherRecord(
    named after this process so two writers never share one.
    */
   const temporary = `${path}.${String(process.pid,)}.tmp`;
+  // A temp named after this program number can only be one an earlier process left:
+  // the kernel never gives a live process a number another live process holds.
+  // A watcher killed between its temp write and the rename left it,
+  // and the `wx` write below would refuse every later watcher the kernel gives that number,
+  // so the stale file goes first.
+  await rm(
+    temporary,
+    { force: true, },
+  );
   await writeFile(
     temporary,
     JSON.stringify(identity,),

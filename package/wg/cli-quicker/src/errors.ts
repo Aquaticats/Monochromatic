@@ -170,12 +170,15 @@ export class WatcherMissingError extends Error {
 }
 
 /**
- Error raised when an `up` was interrupted by a signal between two of its steps.
+ Error raised when an `up` was interrupted by a signal between two of its steps,
+ or while its last step ran.
 
  A signal's default action ends the process without an exception,
  so nothing would run the rollback that removes a half-configured tunnel;
  this error is thrown at the next step boundary instead,
  which the up's own rollback answers.
+ The last step has no next boundary,
+ so the refusal after it names the step that had just run.
 
  @example
  ```ts
@@ -189,16 +192,19 @@ export class UpInterruptedError extends Error {
   override name = 'UpInterruptedError';
 
   /**
-   The step the up was about to run when the signal arrived.
+   The step the up was about to run, or was running when the signal arrived.
    */
   readonly step: string;
 
   /**
-   Creates the error naming the signal and the step that did not run.
+   Creates the error naming the signal and the step that did not run,
+   or the step that ran to its end after the signal arrived.
 
    @param signal - The signal that arrived.
 
-   @param step - What the up was about to do.
+   @param step - What the up was about to do, or what it was doing.
+
+   @param during - Whether the signal arrived while that step ran.
 
    @example
    ```ts
@@ -209,13 +215,17 @@ export class UpInterruptedError extends Error {
     {
       signal,
       step,
+      during = false,
     }: {
       readonly signal: NodeJS.Signals;
       readonly step: string;
+      readonly during?: boolean;
     },
   ) {
     super(
-      `The up was interrupted by ${signal} before it could ${step}, so it is rolled back: what this up already created is being removed.`,
+      during
+        ? `The up was interrupted by ${signal} while it ran ${step}, so it is rolled back: what this up already created is being removed.`
+        : `The up was interrupted by ${signal} before it could ${step}, so it is rolled back: what this up already created is being removed.`,
     );
     this.step = step;
   }

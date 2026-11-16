@@ -14,6 +14,10 @@ import {
 import { makeTempDir, } from './tempdir.ts';
 import { bringUp, } from './tunnel-up.ts';
 import { cleanup, } from './tunnel-cleanup.ts';
+import {
+  nothingMade,
+  type UpMadeThing,
+} from './tunnel-up-made.ts';
 import { teardownKeepingTunnelOnFailure, } from './tunnel-teardown.ts';
 import { removeTrafficBlock, } from './tunnel-traffic-block.ts';
 import { linkExists, } from './tunnel-link.ts';
@@ -303,6 +307,19 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
    */
   const iface = config.interfaceName;
   /**
+   What this up made, recorded as it made each thing,
+   so the rollback removes exactly that and nothing another start made.
+   */
+  const made = nothingMade();
+  /**
+   Records one thing this up made.
+
+   @param thing - What the up just began to make.
+   */
+  function recordThing(thing: UpMadeThing,): void {
+    made[thing] = true;
+  }
+  /**
    Ends this up at the next step boundary when a signal arrives,
    so the rollback below runs and no half-configured tunnel is left behind.
    Disposed when the up ends, whichever way it ended,
@@ -313,8 +330,11 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
     interruption,
     ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
     steps: {
-      addLink: function addLinkStep(): Promise<void> {
-        return addLink({ interfaceName: iface, },);
+      addLink: async function addLinkStep(): Promise<void> {
+        // The entry is recorded after the command: a refused `ip link add` made nothing,
+        // and the link that refused it belongs to the start that made it.
+        await addLink({ interfaceName: iface, },);
+        made.link = true;
       },
       runPreUp: function runPreUpStep(): Promise<void> {
         return executeHooks({
@@ -326,6 +346,7 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
         return applyPeerConfig({ config, },);
       },
       allowEndpoints: function allowEndpointsStep(): Promise<void> {
+        made.endpointAllowance = true;
         return installOpenSnitchEndpointAllowance({
           interfaceName: iface,
           endpointPorts: config.endpointPorts,
@@ -335,12 +356,17 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
         return addAddressesAndUp({ config, },);
       },
       setDns: function setDnsStep(): Promise<void> {
+        made.dns = true;
         return setDns({ config, },);
       },
       setupRoutes: function setupRoutesStep(): Promise<void> {
-        return setupRoutes({ config, },);
+        return setupRoutes({
+          config,
+          recordThing,
+        },);
       },
       startExemptions: function startExemptionsStep({ mark, }: { readonly mark: number; },): Promise<void> {
+        made.applicationWatcher = true;
         return startExemptionsOrAbort({
           interfaceName: iface,
           mark,
@@ -359,7 +385,10 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
        A failed-up rollback has already failed,
        so the application watcher's report goes to the log and not over the failure that caused the rollback.
        */
-      const exemptions = await cleanup({ config, },);
+      const exemptions = await cleanup({
+        config,
+        made,
+      },);
       if (!exemptions.ok)
         l.error(`rollback of ${iface}: ${exemptions.report}`,);
     },

@@ -38,14 +38,36 @@ export const WATCHER_PATH: string = new URL(
 ).pathname;
 
 /**
- Readiness and shutdown retry count.
+ Shutdown retry count, at the delay below.
  */
 export const PROCESS_WAIT_ATTEMPTS = 100;
 
 /**
- Delay between bounded process identity probes.
+ Delay between bounded shutdown probes.
  */
 export const PROCESS_WAIT_DELAY_MS = 10;
+
+/**
+ Milliseconds a start waits for the watcher to register its identity record.
+
+ Registration is the watcher's own event: it writes the record once it has read
+ its identity and before it starts the route monitor, so the record is what a
+ start waits for. The wait is a bound on that event rather than a count of short
+ sleeps, because how long a cold start takes is set by the machine and not by the
+ number of probes:
+ measured on this machine, a cold start registered in 999 to 1489 ms over eight
+ rounds in a container capped to a fifth of one processor, and the review of the
+ lifecycle branch measured 2104 and 2309 ms on a loaded host.
+ Ten seconds is more than four times the slowest of those,
+ and it is a stall detector: a watcher that has not registered by then has failed,
+ and the start fails and rolls back instead of holding the lifecycle open.
+ */
+export const WATCHER_STARTUP_DEADLINE_MILLISECONDS = 10_000;
+
+/**
+ Milliseconds between checks of the watcher's identity record while a start waits for it.
+ */
+export const WATCHER_STARTUP_POLL_MILLISECONDS = 25;
 
 /**
  Checks live process has exact watcher script and state arguments.

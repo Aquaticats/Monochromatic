@@ -6,6 +6,7 @@ import {
   runAllowingFailure,
 } from './runner.ts';
 import { addExemptRule, } from './tunnel-bypass.ts';
+import { claimBypassAllocationOperation, } from './tunnel-bypass-operation-lock.ts';
 import { BYPASS_ROUTE_PROTOCOL, } from './tunnel-bypass-types.ts';
 import { isAbsentDelete, } from './ip-delete.ts';
 import { addKillSwitch, } from './tunnel-firewall.ts';
@@ -14,6 +15,7 @@ import {
   addRoutes,
   ensureFwmark,
 } from './tunnel-route-add.ts';
+import type { UpMadeThing, } from './tunnel-up-made.ts';
 import {
   isV6,
   prefixLength,
@@ -327,6 +329,62 @@ export function untaggedSuppressionWarning(
 
 
 /**
+ Chooses the policy table of an interface and installs the rules that name it,
+ inside the global allocation lock.
+
+ The lock spans the choice of a table and the rules that make the table visibly
+ this interface's, because a later allocator sees only the kernel:
+ a table that is chosen but not yet named by a rule looks free to it,
+ and two starts would then share one table and route each other's traffic.
+ The lock is released as soon as the rules name the table;
+ the routes added afterwards do not decide who owns it.
+
+ @param interfaceName - Interface whose table is chosen.
+
+ @param protos - Address families the interface routes.
+
+ @param recordThing - Records one thing this start made.
+
+ @returns The chosen table.
+
+ @example
+ ```ts
+ await choosePolicyTable({ interfaceName: 'wg0', protos: new Set(['-4']), recordThing });
+ ```
+ */
+async function choosePolicyTable(
+  {
+    interfaceName,
+    protos,
+    recordThing,
+  }: {
+    readonly interfaceName: string;
+    readonly protos: ReadonlySet<Proto>;
+    readonly recordThing: (thing: UpMadeThing,) => void;
+  },
+): Promise<number> {
+  /**
+   The global allocation lock, held until the rules name the chosen table.
+   */
+  await using allocation = await claimBypassAllocationOperation();
+  /**
+   Shared policy table carried in the interface fwmark for both families.
+   */
+  const table = await ensureFwmark({ interfaceName, },);
+  // Recorded before the rules, so a failure after the first family still removes the rules of this table.
+  recordThing('policyRules',);
+  /* oxlint-disable eslint/no-await-in-loop -- Policy rules install per family in deterministic order. */
+  for (const proto of protos) {
+    await addPolicyRules({
+      proto,
+      table,
+    },);
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return table;
+}
+
+/**
  Installs routes and policy rules for the allowed prefixes.
  
  Automatic routing places every allowed prefix in one policy table carried by
@@ -336,14 +394,22 @@ export function untaggedSuppressionWarning(
  even when a non-default prefix contains the peer's public endpoint.
  
  @param config - Parsed config.
- 
+
+ @param recordThing - Records one thing this start made, so its rollback removes exactly that.
+
  @example
  ```ts
- await setupRoutes({ config });
+ await setupRoutes({ config, recordThing });
  ```
  */
 export async function setupRoutes(
-  { config, }: { readonly config: WireguardConfig; },
+  {
+    config,
+    recordThing,
+  }: {
+    readonly config: WireguardConfig;
+    readonly recordThing: (thing: UpMadeThing,) => void;
+  },
 ): Promise<void> {
   if (config.table === 'off')
     return;
@@ -361,41 +427,42 @@ export async function setupRoutes(
       prefixes,
       table: Math.trunc(Number(config.table,),),
     },);
-    if (config.exemptMark !== undefined)
+    if (config.exemptMark !== undefined) {
+      recordThing('exemptRouting',);
       await addExemptRule({
         interfaceName: iface,
         mark: config.exemptMark,
         watchRouteChanges: true,
       },);
+    }
     return;
   }
   if (prefixes.length === 0) {
-    if (config.exemptMark !== undefined)
+    if (config.exemptMark !== undefined) {
+      recordThing('exemptRouting',);
       await addExemptRule({
         interfaceName: iface,
         mark: config.exemptMark,
         watchRouteChanges: true,
       },);
+    }
     return;
   }
-  /**
-   Shared policy table carried in the interface fwmark for both families.
-   */
-  const table = await ensureFwmark({ interfaceName: iface, },);
   /**
    Families represented by at least one allowed prefix, deduplicated.
    */
   const protos = new Set(prefixes.map(function toProto(prefix,): Proto {
     return protoFlag({ prefix, },);
   },),);
-  /* oxlint-disable eslint/no-await-in-loop -- Policy rules install per family in deterministic order. */
-  for (const proto of protos) {
-    await addPolicyRules({
-      proto,
-      table,
-    },);
-  }
-  /* oxlint-enable eslint/no-await-in-loop */
+  /**
+   Shared policy table carried in the interface fwmark for both families,
+   chosen under the allocation lock together with the rules that name it.
+   */
+  const table = await choosePolicyTable({
+    interfaceName: iface,
+    protos,
+    recordThing,
+  },);
   if (protos.has('-4',))
     await runAllowingFailure({
       command: 'sysctl',
@@ -413,12 +480,15 @@ export async function setupRoutes(
    Exempt rule added last so its fixed priority (below every auto-allocated
    tunnel rule) is evaluated before the tunnel's `not fwmark` rule.
    */
-  if (config.exemptMark !== undefined)
+  if (config.exemptMark !== undefined) {
+    recordThing('exemptRouting',);
     await addExemptRule({
       interfaceName: iface,
       mark: config.exemptMark,
       watchRouteChanges: true,
     },);
+  }
+  recordThing('killSwitch',);
   await addKillSwitch({
     config,
     table,

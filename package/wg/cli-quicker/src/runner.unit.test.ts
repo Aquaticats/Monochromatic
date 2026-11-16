@@ -5,6 +5,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
@@ -51,6 +52,56 @@ async function refusalOf(call: () => Promise<unknown>,): Promise<unknown> {
 }
 
 /**
+ Waits, bounded, for a process to end.
+
+ A signal ends a process a moment after it is sent, so the end is awaited rather than assumed.
+
+ @param pid - Program number of the process.
+
+ @param milliseconds - Longest time to wait.
+
+ @returns Whether the process ended within that time.
+ */
+async function endsWithin(
+  {
+    pid,
+    milliseconds,
+  }: {
+    readonly pid: number;
+    readonly milliseconds: number;
+  },
+): Promise<boolean> {
+  /**
+   When the wait gives up.
+   */
+  const deadline = performance.now() + milliseconds;
+  while (performance.now() < deadline) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- The end is polled within one bound.
+    if (!(await canStillRun({ pid, },)))
+      return true;
+    // oxlint-disable-next-line eslint/no-await-in-loop -- The pause is part of the same bounded wait.
+    await wait(10,);
+  }
+  return !(await canStillRun({ pid, },));
+}
+
+/**
+ Ends a process the test started, tolerating one that has already ended.
+
+ @param pid - Program number of the process.
+ */
+async function endProcess({ pid, }: { readonly pid: number; },): Promise<void> {
+  try {
+    process.kill(pid, 'SIGKILL',);
+  }
+  catch (error: unknown) {
+    // A process that has already ended needs no signal.
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+      throw error;
+  }
+}
+
+/**
  Reports whether a program number names a process that can still run.
 
  A process the kernel holds only as a zombie cannot run anything, which is what a
@@ -74,12 +125,13 @@ async function canStillRun({ pid, }: { readonly pid: number; },): Promise<boolea
     /**
      State letter of the process.
      */
-    const state = stat.slice(stat.lastIndexOf(')',) + 2,)
-      .split(' ',)[0];
+    const [state,] = stat.slice(stat.lastIndexOf(')',) + 2,)
+      .split(' ',);
     return state !== 'Z';
   }
   catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+    // The kernel reports a program number it has no process for as either code, depending on the lookup.
+    if (['ENOENT', 'ESRCH',].includes((error as NodeJS.ErrnoException).code ?? '',))
       return false;
     throw error;
   }
@@ -225,25 +277,14 @@ await describe({
          How long the call took.
          */
         const elapsed = performance.now() - started;
-        try {
-          expect(result.exitCode,).toBe(0,);
-          expect(result.stdout,).toBe('kept\n',);
-          expect(elapsed,).toBeLessThan(1_000,);
-        }
-        finally {
-          /**
-           Program number of the process the hook left behind, when it named one.
-           */
-          const survivor = Number((await readFile(pidFile, 'utf8',)).trim(),);
-          try {
-            process.kill(survivor, 'SIGKILL',);
-          }
-          catch (error: unknown) {
-            // The process is gone already, which is what the cleanup is for.
-            if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
-              throw error;
-          }
-        }
+        /**
+         Program number of the process the hook left behind.
+         */
+        const survivor = Number((await readFile(pidFile, 'utf8',)).trim(),);
+        await endProcess({ pid: survivor, },);
+        expect(result.exitCode,).toBe(0,);
+        expect(result.stdout,).toBe('kept\n',);
+        expect(elapsed,).toBeLessThan(1_000,);
       },
     },),
     it({
@@ -270,22 +311,14 @@ await describe({
          */
         const background = Number((await readFile(pidFile, 'utf8',)).trim(),);
         /**
-         Whether the process the deadline should have ended can still run.
+         Whether the process the deadline should have ended ended within the test's bound.
          */
-        const stillRunning = await canStillRun({ pid: background, },);
-        try {
-          expect(stillRunning,).toBe(false,);
-        }
-        finally {
-          try {
-            process.kill(background, 'SIGKILL',);
-          }
-          catch (error: unknown) {
-            // A process the deadline ended is gone already.
-            if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
-              throw error;
-          }
-        }
+        const ended = await endsWithin({
+          pid: background,
+          milliseconds: 2_000,
+        },);
+        await endProcess({ pid: background, },);
+        expect(ended,).toBe(true,);
       },
     },),
     it({

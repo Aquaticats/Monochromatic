@@ -139,6 +139,11 @@ Automatic partial routes now use the same source-mark validation and nft ingress
 routes.
 
 Separate automatic tunnels use separate policy tables.
+The choice of a free table and the `ip rule` rules that name it happen together under the global allocation
+lock,
+so a table one start has chosen is already named in the kernel before another start looks for a free one.
+A start that finds another lifecycle allocating fails its step with the conflict and rolls back,
+and the rollback removes only what that start made.
 When their allowed prefixes overlap,
 policy-rule priority chooses the first table before longest-prefix matching can compare routes across tunnels.
 Use explicit routing ownership when simultaneous overlapping automatic tunnels must preserve cross-interface
@@ -578,6 +583,10 @@ and reports the signal and the step that did not run:
 The up was interrupted by SIGINT before it could install the routes and rules, so it is rolled back: what this up already created is being removed.
 ```
 
+A signal that arrives while the last step runs is answered after that step:
+the rollback runs,
+and the error names the signal and the step that ran,
+so an `up` never reports success after a person asked it to stop.
 Without those handlers the signal's default action ends the process at once,
 before any rollback,
 and whatever the up had already created stayed behind.
@@ -608,18 +617,33 @@ which is where it has certainly stopped making progress;
 the error names the hook and the limit,
 so a hook that legitimately needs longer can be changed.
 
-The deadline also bounds the wait for a command's output.
+A command's own exit ends the wait for it, not the close of its pipes.
 A command that exits while a process it started still holds its standard output or standard error open,
 as `sh -c 'something &'` does,
-never reports the close of its pipes,
-so the read ends are closed at the deadline and the call answers then.
-That command did exit,
-and its own status is what the call reports:
+reports its exit at once and keeps the output it wrote;
+the read ends are closed a hundred milliseconds after the exit,
+which is where the output already written has arrived
+(measured on the host of the review: 64 KiB took 0 to 4 ms after the exit),
+and anything the other process writes later is not waited for.
+A hook is the one command that leads its own process group,
+so the hook deadline ends the shell together with every process the hook started:
+a `PostUp` that waits for a daemon it started does not leave that daemon running when its bound passes.
+A command the program runs itself keeps the caller's process group,
+so a person's interrupt reaches it as before.
+A hook that exits is not a timeout:
 a timeout is claimed only for a command the deadline ended,
 because reporting one for a hook that already succeeded would run a rollback for nothing.
-The output the command wrote before it exited is kept,
-a line says that a process it left behind held its output open,
-and anything that process writes later is not waited for.
+
+The operation locks under `/run/wg-quicker` have bounds of their own.
+A claim waits at most ten seconds for its holder's readiness line,
+where the holder answered in 16 to 18 ms over ten measured rounds,
+with one round at 309 ms while the host was busy;
+a holder that does not answer by then is killed,
+and the step fails with the lock path and the bound in its words.
+Releasing a lock waits two seconds for the holder to end after `SIGTERM` and two more after `SIGKILL`,
+where it ended within a millisecond when measured;
+a holder that outlasts the kill is reported with its program number and the lock path,
+so the record of a lock that is still held names what holds it.
 
 ## Taking the tunnel down
 
@@ -1003,6 +1027,13 @@ because a tunnel brought up behind the block would carry nothing,
 and a `down` of an interface that is already gone fails even though it tolerates a missing interface,
 because the network stays blocked.
 The rollback of a failed `up` does not use this order and does not block.
+It also removes only what that `up` made.
+Each thing a start creates is recorded as it creates it,
+the link after `ip link add` succeeded and the endpoint allowance, the DNS settings, the policy rules,
+the bypass routing, the kill switch and the application watcher before the command that makes each one.
+A start that made nothing, because it lost the race for an interface's link,
+removes nothing at all,
+so a failed `up` never takes down the link, the policy rules or the kill switch of an `up` that succeeded.
 
 A program that cannot be started fails its step with a `CommandSpawnError` that names the program and the system's reason,
 for example a host without `wg`:
@@ -1119,7 +1150,7 @@ verbatim:
 as before this branch.
 
 So `up` throws a `WatcherMissingError` from the exemption step,
-the rollback of `up` removes what the earlier steps did,
+the rollback of `up` removes what that up made and nothing another start made,
 and the message names the locations searched,
 the build command `mise run //package/wg/cli-quicker-exempt:build`,
 and the option of installing the program where sudo's `secure_path` finds it.
@@ -1134,6 +1165,18 @@ a found program is run once;
 and any other failing step is rolled back and rethrown.
 The real `up` needs root,
 so only this sequence is covered here.
+
+A watcher that does start is waited for under a bound measured on the registration event.
+The start waits up to ten seconds for the watcher to write its identity record,
+and a cold start that takes a second and a half is accepted
+(measured: 999 to 1489 ms over eight rounds in a container capped to a fifth of one processor,
+and 2104 and 2309 ms on the loaded host of the review).
+The bound is a deadline, not a count of short sleeps,
+because how long a cold start takes is set by the machine and not by the number of probes.
+A watcher that has not registered by then has failed:
+its process group is ended,
+a group whose members have all exited counts as gone,
+and the start rolls back.
 
 ### Every method, one union
 
@@ -1544,6 +1587,10 @@ so a live process at that pid with another start time belongs to another group.
 The record that names the watcher (`<state>.watcher.json`) is written to a temporary file
 beside it and renamed over it,
 so a kill can leave the whole record or none of it and never half of one.
+That temporary file is named after the program number of the watcher that writes it,
+and a watcher killed between the write and the rename leaves it behind;
+the next watcher the kernel gives that number removes the stale file before writing its own,
+instead of failing its registration on a file an earlier start left.
 A record that holds no identity is a fragment of a watcher that was killed while an earlier build wrote it in place,
 and no watcher of it runs.
 `down` and `up` therefore move such a fragment aside instead of refusing for ever:

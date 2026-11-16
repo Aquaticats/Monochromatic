@@ -20,12 +20,12 @@ import {
 } from './tunnel-bypass-watcher-sidecar.ts';
 import { identityOrNone, } from './tunnel-bypass-watch-record.ts';
 import {
-  PROCESS_WAIT_ATTEMPTS,
-  PROCESS_WAIT_DELAY_MS,
   signalWatcherProcessGroup,
   stopLeftoverGroup,
   waitForWatcherStop,
   WATCHER_PATH,
+  WATCHER_STARTUP_DEADLINE_MILLISECONDS,
+  WATCHER_STARTUP_POLL_MILLISECONDS,
   watcherIsRunning,
 } from './tunnel-bypass-watch-process-group.ts';
 import { startSentinelOrReport, } from './bypass-watch-sentinel-launch.ts';
@@ -248,10 +248,11 @@ export async function startBypassWatcher(
   if ((pid === undefined) || (pid <= 0))
     throw new BypassRouteError('Bypass route watcher did not receive a positive PID.',);
   /**
-   Bounded readiness cursor.
+   When the readiness wait started,
+   which is what its bound is measured from.
    */
-  const cursor = { attempt: 0, };
-  while (cursor.attempt < PROCESS_WAIT_ATTEMPTS) {
+  const waitingSince = performance.now();
+  while ((performance.now() - waitingSince) < WATCHER_STARTUP_DEADLINE_MILLISECONDS) {
     /**
      First spawn failure when detached child could not start.
      */
@@ -276,8 +277,7 @@ export async function startBypassWatcher(
     if (watcher.exitCode !== null)
       throw new BypassRouteError(`Bypass route watcher exited during startup with ${String(watcher.exitCode,)}.`,);
     // oxlint-disable-next-line eslint/no-await-in-loop -- Bounded readiness wait avoids busy spin.
-    await wait(PROCESS_WAIT_DELAY_MS,);
-    cursor.attempt += 1;
+    await wait(WATCHER_STARTUP_POLL_MILLISECONDS,);
   }
   /**
    Timed-out child process checked before signaling.

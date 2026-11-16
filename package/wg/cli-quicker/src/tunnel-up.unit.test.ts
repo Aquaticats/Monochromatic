@@ -222,37 +222,39 @@ await describe({
          */
         const rolledBack = { ran: false, };
         /**
-         What the up threw,
-         absent when it did not throw.
+         What the up threw, which is a stand-in error when it returned instead.
          */
-        const thrown = await bringUp({
-          exemptMark: 100,
-          steps: {
-            addLink: step('addLink',),
-            runPreUp: step('runPreUp',),
-            applyPeerConfig: step('applyPeerConfig',),
-            allowEndpoints: step('allowEndpoints',),
-            addAddressesAndBringUp: step('addAddressesAndBringUp',),
-            setDns: step('setDns',),
-            setupRoutes: step('setupRoutes',),
-            startExemptions: step('startExemptions',),
-            runPostUp: step('runPostUp',),
-          },
-          rollback: () => {
-            rolledBack.ran = true;
-            events.push('rollback',);
-            return Promise.resolve();
-          },
-          interruption,
-        },).then(
-          () => undefined,
-          (error: unknown) => error,
-        );
+        const answered = { thrown: new Error('the up returned'), };
+        try {
+          await bringUp({
+            exemptMark: 100,
+            steps: {
+              addLink: step('addLink',),
+              runPreUp: step('runPreUp',),
+              applyPeerConfig: step('applyPeerConfig',),
+              allowEndpoints: step('allowEndpoints',),
+              addAddressesAndBringUp: step('addAddressesAndBringUp',),
+              setDns: step('setDns',),
+              setupRoutes: step('setupRoutes',),
+              startExemptions: step('startExemptions',),
+              runPostUp: step('runPostUp',),
+            },
+            rollback: () => {
+              rolledBack.ran = true;
+              events.push('rollback',);
+              return Promise.resolve();
+            },
+            interruption,
+          },);
+        }
+        catch (error) {
+          answered.thrown = Error.isError(error,) ? error : new Error(String(error,),);
+        }
         expect(rolledBack.ran,).toBe(true,);
         expect(events.at(-2),).toBe('runPostUp',);
         expect(events.at(-1),).toBe('rollback',);
-        expect((thrown as Error).name,).toBe('UpInterruptedError',);
-        expect((thrown as UpInterruptedError).step,).toBe('run the post-up hooks',);
+        expect(answered.thrown.name,).toBe('UpInterruptedError',);
+        expect((answered.thrown as UpInterruptedError).step,).toBe('run the post-up hooks',);
       },
     },),
   ],

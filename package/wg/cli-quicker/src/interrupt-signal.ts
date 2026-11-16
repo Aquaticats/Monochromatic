@@ -37,6 +37,17 @@ export type UpInterruption = {
   readonly beforeStep: (step: string,) => void;
 
   /**
+   Refuses the up when a signal arrived while its last step ran.
+
+   The last step has no following boundary,
+   so without this check an interrupt that arrives during it is never consulted
+   and the up reports success with its tunnel up.
+
+   @param step - What the up was doing when the signal arrived.
+   */
+  readonly afterLastStep: (step: string,) => void;
+
+  /**
    The refusal to report after a step failed.
 
    An interrupted step usually fails because the signal ended the command it ran,
@@ -57,7 +68,8 @@ export type UpInterruption = {
 
 /**
  Watches for the signals that end an up,
- and ends the sequence at the next step boundary.
+ and ends the sequence at the next step boundary,
+ or after the last step when the signal arrived while it ran.
 
  A signal's default action ends the process without a JavaScript exception,
  so the catch that rolls a failed up back never runs;
@@ -136,16 +148,40 @@ export function watchForInterruption(): UpInterruption & Disposable {
       step,
     },);
   }
+  /**
+   The refusal for a step that ran to its end after the signal arrived.
+
+   @param step - What the up was doing.
+
+   @returns The refusal.
+   */
+  function duringStep(step: string,): UpInterruptedError {
+    return new UpInterruptedError({
+      signal: last.signal,
+      step,
+      during: true,
+    },);
+  }
   return {
     beforeStep: function beforeStep(step: string,): void {
       if (arrived.count === 0)
         return;
       throw refusal(step,);
     },
+    afterLastStep: function afterLastStep(step: string,): void {
+      if (arrived.count === 0)
+        return;
+      // The step ran to its end, so the refusal says the signal arrived while it ran.
+      throw duringStep(step,);
+    },
     insteadOfStepFailure: function insteadOfStepFailure(
       step: string,
       failure: unknown,
     ): unknown {
+      // A refusal the watch already built names what it knows,
+      // and rebuilding it here would say the up stopped before a step that did run.
+      if (failure instanceof UpInterruptedError)
+        return failure;
       if (arrived.count === 0)
         return failure;
       return refusal(step,);
