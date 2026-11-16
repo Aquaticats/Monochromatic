@@ -42,6 +42,10 @@
  said nothing. The second is `SILENT_ENDING_SECONDS`: the operation they are in is ended and the agent is told. Both are options of
  the run (`--silent-seconds` and `--silent-end-seconds`), and `driver-constants.ts` carries the measurement each value comes from.
 
+ The two times are independent, and either may be stated below the other: the ending is asked at its own time whether the notice
+ has been written or not, so a person who sets `--silent-end-seconds` below `--silent-seconds` gets the ending when it is set for.
+ The notice, when its own time has come, is written either way.
+
  The silence is written down once per stretch, not once per look: a line every look would bury the feed it is meant to explain.
 
  ## Which call is which
@@ -58,6 +62,9 @@
  none gets the stated time. A call beside a peer with a longer bound waits for that peer, because the end is of the operation and
  takes the peer with it; an unbounded call beside a two-hour one is therefore ended after two hours.
 
+ The message that follows names every call the abort ended: the calls the driver had seen in flight when it asked, and every call
+ that ended after that moment, because work already queued can start while the abort is on the wire and the same abort ends it.
+
  ## A long honest command, and a hang
 
  The driver cannot tell them apart from silence and does not pretend to: a whole-suite run that prints nothing looks like a hang,
@@ -73,7 +80,9 @@
 
  ## What a failed recovery leaves the run with
 
- Each step of ending one answers three ways: `done`, `refused`, or `unanswered`. Pi refusing any step is an answer of no, and the
+ Each step of ending one answers three ways: `done`, `refused`, or `unanswered`. A message Pi took into a turn leaves the run up
+ until a settle after that message: an accepted prompt is not a turn that has happened, and the settle the abort produced is not
+ one the agent read anything by. Pi refusing any step is an answer of no, and the
  run ends `prompt-rejected`. A step nobody answers is neither a yes nor a no, and the run ends `silent-command-unanswered`: its
  agent was never told what became of its command, so no reader may take it for a run that finished its turn. A session that does
  not settle after the abort is never sent the message at all, because a session still at work is not one whose next turn is the
@@ -96,12 +105,13 @@ import type {
 } from './driver-types.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import type { WorkWaitedFor, } from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
 
 /**
  Where the driver stands with the silence of one run, kept for as long as the watch of that run lasts.
  */
-export type SilenceWaitedFor = {
+export type SilenceWaitedFor = Pick<WorkWaitedFor, 'wokenAtSettle'> & {
   /**
    When the stretch of silence that has been written down started at, or nothing while no line is owed.
 
@@ -475,6 +485,44 @@ function refusedByPi(answer: CommandAnswer,): boolean {
 }
 
 /**
+ Keeps one entry per call, so a call the driver had seen in flight and that the abort then ended is named once.
+
+ A call Pi gave an identifier is that identifier. Without one, the tool and the arguments Pi reported are all there is to tell two
+ calls apart, and two calls of one tool with the same arguments name one entry, which is the most that can be known of them.
+
+ @param commands - the calls to name, in the order they are named
+ 
+ @returns the calls, one per call
+
+ @example
+ ```ts
+ const named = namedOnce([first, second, first],);
+ ```
+ */
+function namedOnce(commands: readonly SilentCommand[],): readonly SilentCommand[] {
+  /**
+   The calls already named, by what tells one from another.
+   */
+  const seen = new Set<string>();
+  return commands.filter(function isNew(command,) {
+    /**
+     What tells this call from another. Without an identifier it is the tool and the arguments Pi reported, which is every fact
+     there is about the call.
+     */
+    const identity = command.toolCallId
+      ?? `${command.tool}:${preview({
+        value: command.args,
+        length: FEED_PREVIEW_CHARACTERS.toolArguments,
+      },)}`;
+    if (seen.has(identity,)) {
+      return false;
+    }
+    seen.add(identity,);
+    return true;
+  },);
+}
+
+/**
  Ends the operation a silence is sitting in, the way the wall clock ends one, and sends the agent a message of its own saying what
  was ended, after how long, and that a command which may run long needs a bound of its own.
 
@@ -485,26 +533,36 @@ function refusedByPi(answer: CommandAnswer,): boolean {
 
  @param watch - watch request
 
- @param commands - every command in flight in the operation to end
+ @param commands - every command the driver saw in flight before it asked for the operation to end
 
  @param silentMilliseconds - how long the run has said nothing
+
+ @param waited - where the driver stands with this run's silence, which this fills with the turn a message is owed
 
  @returns why the run cannot go on, or that it goes on
 
  @example
  ```ts
- const after = await endWhatSaidNothing({ watch, commands, silentMilliseconds, },);
+ const after = await endWhatSaidNothing({ watch, commands, silentMilliseconds, waited, },);
  ```
  */
 async function endWhatSaidNothing({
   watch,
   commands,
   silentMilliseconds,
+  waited,
 }: {
   readonly watch: WatchRequest;
   readonly commands: readonly SilentCommand[];
-  readonly silentMilliseconds: number
+  readonly silentMilliseconds: number;
+  readonly waited: SilenceWaitedFor
 },): Promise<RunProgress> {
+  /**
+   When the abort was asked for, on the run's own clock: a call that starts while it is on the wire ends after this moment, so it
+   is work the same abort ended and the message has to name it too.
+   */
+  const askedAtMilliseconds = watch.record
+    .elapsedMilliseconds();
   /**
    Pi's answer to the abort, which ends the operation in flight and every command with it.
    */
@@ -513,6 +571,14 @@ async function endWhatSaidNothing({
       command: { type: 'abort', },
       deadline: watch.deadline,
     },);
+  /**
+   Every command this abort ended: the ones the driver had seen in flight, and any that started while the abort was on the wire.
+   */
+  const endedByTheAbort = namedOnce([
+    ...commands,
+    ...watch.record
+      .commandsEndedSince(askedAtMilliseconds,),
+  ],);
   /**
    What that step got.
    */
@@ -524,6 +590,11 @@ async function endWhatSaidNothing({
   const settled = (abort === 'done') && (!watch.record
     .isRunning());
   /**
+   How many turns Pi had settled when the message is about to go, which is what a turn answering it is counted from.
+   */
+  const settledBefore = watch.record
+    .settledCount();
+  /**
    What the agent is told, which arrives as a turn of its own: this is asked only of a session the abort left idle, because a
    prompt to a busy one is refused before it is ever the agent's.
    */
@@ -533,7 +604,7 @@ async function endWhatSaidNothing({
         command: {
           type: 'prompt',
           message: endedCommandMessageOf({
-            commands,
+            commands: endedByTheAbort,
             silentMilliseconds,
           },),
         },
@@ -544,6 +615,20 @@ async function endWhatSaidNothing({
    What the message step got, when it was asked.
    */
   const message = (told === undefined) ? undefined : answerOf({ answer: told, },);
+  /**
+   What Pi said it did with the message, when it answered one.
+   */
+  const disposition = ((told === undefined) || (told.ending !== 'answered'))
+    ? undefined
+    : fieldsOf(told.record
+      .data)
+      .disposition;
+  // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles: an accepted prompt is not
+  // a turn that has happened, and a run that ended here would stop before the agent read why its commands went. One Pi only handled
+  // is never answered by a turn, so nothing is owed for it.
+  if ((message === 'done') && (disposition !== 'handled')) {
+    waited.wokenAtSettle = settledBefore;
+  }
   /**
    Why a step that was asked did not go through, in the words the summary carries.
    */
@@ -562,7 +647,7 @@ async function endWhatSaidNothing({
   watch.record
     .noteSilenceEnded({
       silentMilliseconds,
-      commands: keptCommands({ commands, }),
+      commands: keptCommands({ commands: endedByTheAbort, }),
       abort,
       settled,
       ...((message === undefined) ? {} : { message, }),
@@ -635,38 +720,18 @@ export async function aSilenceInTheRun({
   readonly waited: SilenceWaitedFor
 },): Promise<RunProgress> {
   /**
-   The first stated time, in milliseconds.
-   */
-  const noticeMilliseconds = watch.options
-    .silentSeconds
-    * MILLISECONDS_PER_SECOND;
-  /**
    How long the run has said nothing.
    */
   const silentMilliseconds = watch.record
     .silentMilliseconds();
-  if (silentMilliseconds < noticeMilliseconds) {
-    return 'still-running';
-  }
   /**
    Every call the run is sitting in, which is more than one when a tool started another or Pi started two at once.
    */
   const commands = watch.record
     .commandsInFlight();
-  /**
-   When this stretch of silence started at.
-   */
-  const startedAt = watch.record
-    .silenceStartedAt();
-  if (waited.noticedAt !== startedAt) {
-    noticeTheSilence({
-      watch,
-      commands,
-      silentMilliseconds,
-      startedAt,
-      waited,
-    },);
-  }
+  // The two stated times are independent, and a person may set either below the other. The ending is asked first, so a stated
+  // ending time takes effect at the time it states whatever the notice time is; a notice whose own time has come is written
+  // either way, and the ending's line names every call it ended.
   /**
    Whether this silence is past the point where the driver ends the operation every call in flight shares.
    */
@@ -678,6 +743,26 @@ export async function aSilenceInTheRun({
     graceSeconds: SILENT_BOUND_GRACE_SECONDS,
     commands,
   },);
+  /**
+   The first stated time, in milliseconds.
+   */
+  const noticeMilliseconds = watch.options
+    .silentSeconds
+    * MILLISECONDS_PER_SECOND;
+  /**
+   When this stretch of silence started at.
+   */
+  const startedAt = watch.record
+    .silenceStartedAt();
+  if ((silentMilliseconds >= noticeMilliseconds) && (waited.noticedAt !== startedAt)) {
+    noticeTheSilence({
+      watch,
+      commands,
+      silentMilliseconds,
+      startedAt,
+      waited,
+    },);
+  }
   if (!dueToEnd) {
     return 'still-running';
   }
@@ -685,5 +770,6 @@ export async function aSilenceInTheRun({
     watch,
     commands,
     silentMilliseconds,
+    waited,
   },);
 }

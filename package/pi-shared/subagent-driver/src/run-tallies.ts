@@ -22,6 +22,14 @@ import {
 import { declaredBoundOf, } from './a-command-that-says-nothing.ts';
 
 /**
+ How many calls that ended are kept for the driver to name.
+
+ One operation-wide abort ends what is in flight, and a call that starts while the abort is on the wire ends in that same window, so
+ the few calls kept are every call one abort can end, with room to spare.
+ */
+const ENDED_CALLS_KEPT = 8;
+
+/**
  The dialog methods that wait for an answer; the other interface methods need none.
  */
 const DIALOG_METHODS: ReadonlySet<string> = new Set([
@@ -62,6 +70,13 @@ export type RunTallies = {
    run is sitting in none.
    */
   readonly commandsInFlight: () => readonly SilentCommand[];
+
+  /**
+   The calls that ended at or after a moment of the run, newest last, each with how long it had run when it ended. A driver naming
+   the work an operation-wide abort ended asks from the moment it asked for that abort, because a call that starts while the abort
+   is on the wire ends after it.
+   */
+  readonly commandsEndedSince: (endedAfterMilliseconds: number) => readonly SilentCommand[];
 };
 
 /**
@@ -107,7 +122,22 @@ export function startRunTallies({
     readonly args: unknown;
     readonly sinceMilliseconds: number
   }[] = [];
+  /**
+   The calls that ended, newest last, kept to at most `ENDED_CALLS_KEPT`.
+   */
+  const ended: {
+    readonly call: SilentCommand;
+    readonly endedAtMilliseconds: number
+  }[] = [];
   return {
+    commandsEndedSince: function commandsEndedSince(endedAfterMilliseconds,) {
+      return ended.filter(function endedAfter(entry,) {
+        return entry.endedAtMilliseconds >= endedAfterMilliseconds;
+      },)
+        .map(function callOf(entry,) {
+          return entry.call;
+        },);
+    },
     commandsInFlight: function commandsInFlightOfRun() {
       return inFlight.map(function running(started,) {
         return {
@@ -186,10 +216,35 @@ export function startRunTallies({
           return entry.tool === tool;
         },)
         : named;
-      if (startedAt !== (-1)) {
-        inFlight.splice(
-          startedAt,
-          1,
+      /**
+       The call this ends, when the driver saw it start.
+       */
+      const started = (startedAt === (-1)) ? undefined : inFlight.splice(
+        startedAt,
+        1,
+      )[0];
+      if (started !== undefined) {
+        /**
+         When it ended, on the run's clock, which is what a driver naming an abort's work reads.
+         */
+        const endedAtMilliseconds = millisecondsSoFar();
+        ended.push({
+          call: {
+            ...((started.toolCallId === '') ? {} : { toolCallId: started.toolCallId, }),
+            tool: started.tool,
+            args: started.args,
+            milliseconds: endedAtMilliseconds - started.sinceMilliseconds,
+            ...declaredBoundOf(started.args,),
+          },
+          endedAtMilliseconds,
+        },);
+        // A run may make thousands of calls, and only the last few are the work one abort can have ended.
+        ended.splice(
+          0,
+          Math.max(
+            0,
+            ended.length - ENDED_CALLS_KEPT,
+          ),
         );
       }
       note({

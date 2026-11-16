@@ -258,6 +258,8 @@ export function startRecordOfPiRun({
       return activity.at;
     },
     commandsInFlight: observed.commandsInFlight,
+    commandsEndedSince: observed.commandsEndedSince,
+    elapsedMilliseconds: millisecondsSoFar,
     noteSilence: function noteSilence(silence,) {
       // A silence the driver writes down is still a silence: counting this line as activity would keep the next one from ever being
       // due, and the code the ended command waits behind would never run.

@@ -89,6 +89,11 @@ export type ObservedPiRun = {
    run is sitting in none.
    */
   readonly commandsInFlight: () => readonly SilentCommand[];
+
+  /**
+   The calls that ended at or after a moment of the run, newest last.
+   */
+  readonly commandsEndedSince: (endedAfterMilliseconds: number) => readonly SilentCommand[];
   readonly observe: (observation: EventObservation,) => void;
 
   /**
@@ -415,6 +420,7 @@ export function startObservingPiRun({
     toolErrors: tallies.toolErrors,
     dialogs: tallies.dialogs,
     commandsInFlight: tallies.commandsInFlight,
+    commandsEndedSince: tallies.commandsEndedSince,
     observe,
     countPromptHandled: function countPromptHandled() {
       state.settled += 1;

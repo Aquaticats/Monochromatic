@@ -639,6 +639,20 @@ export type RecordOfPiRun = {
   readonly commandsInFlight: () => readonly SilentCommand[];
 
   /**
+   The calls that ended at or after a moment of the run, newest last, each with how long it had run when it ended.
+
+   A driver that has to name the work an operation-wide abort ended asks from the moment it asked for that abort: the calls in
+   flight then are only part of it, because a call that starts while the abort is on the wire ends in that same window.
+   */
+  readonly commandsEndedSince: (endedAfterMilliseconds: number) => readonly SilentCommand[];
+
+  /**
+   How long the run has lasted, on the clock its feed lines and its calls are measured by, so a driver takes the moment it asks
+   from the same clock in a test as in a run.
+   */
+  readonly elapsedMilliseconds: () => number;
+
+  /**
    Writes one feed line and one summary entry for a stretch in which the run said nothing, without counting it as activity: a
    silence the driver writes down is still a silence, so counting it would keep the next line from ever being due.
    */

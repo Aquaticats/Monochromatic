@@ -940,12 +940,17 @@ each written as `--name=value`:
   is.
   The line names every command in flight and how long each has said nothing,
   and ends nothing.
+  The two stated times are independent:
+  a notice time set above the ending time stops nothing,
+  because the ending is asked at its own time whether the notice has been written or not.
 - `--silent-end-seconds`:
   how long a command that says nothing is given before the driver ends the operation it is in,
   one hour by default.
   The operation is due only when every command in flight has outlived what it declared:
   the stated time where it declared none,
   and the bound it gave the bash tool's `timeout` a minute past that bound where it declared one.
+  It is due at that time whether or not the notice time has come,
+  so a person who sets this below `--silent-seconds` gets the ending when it is set for.
   The section "A command that says nothing" states what both values come from,
   what the agent is told,
   and which end a recovery that fails leaves the run with.
@@ -1394,9 +1399,17 @@ Both the feed's line for the ending and the summary name each call by its identi
 Past that time the driver sends `abort`,
 then reads the run's own records for the settle,
 and then sends the agent a message of its own:
-which commands were in flight,
-each with the bound it declared and how long it had run,
-how long the run had said nothing,
+which commands the abort ended,
+each with the bound it declared and how long it had run.
+That list is what the driver had seen in flight when it asked,
+plus every call that ended after the ask:
+already queued work can start while the abort is on the wire,
+and the same operation-wide abort ends it too,
+so leaving it out would tell the agent that only part of its work was stopped.
+The list is one entry per call,
+matched by the identifier Pi gives it,
+or by the tool and its arguments where Pi gave none.
+The message goes on to say how long the run had said nothing,
 that every command ended with the operation,
 and that a command which may run long needs a bound of its own.
 
@@ -1411,7 +1424,12 @@ The run's end follows from those answers:
 - abort `done`,
   `settled` true,
   message `done`:
-  the run goes on in the turn that message started.
+  the run goes on in the turn that message started,
+  and stays up until a settle after that message arrives.
+  An answer that took the message is not a turn that has happened:
+  the `done` a message gets says Pi accepted it,
+  and a run that ended `idle` on the abort's own settle would stop before the agent read why its commands went,
+  so the run is kept to its wall clock when the turn never comes.
 - abort `done`,
   message `refused`:
   the run ends `prompt-rejected`,

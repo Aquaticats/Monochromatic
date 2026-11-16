@@ -419,14 +419,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
    */
   const retry: RetryWaiting = {};
   /**
-   The work this run left running, once the driver has seen it and is waiting for it to end; nothing until then.
+   What the run may still be owed a reply for: the work it left running, and the silence it is sitting in. Both keep the settle a
+   message of the driver's is owed, so one object carries that answer whichever of them sent the message.
    */
-  const waited: WorkWaitedFor = {};
-  /**
-   Where the watch stands with the silence of the run, so one stretch of it is written down once and a command that has been ended
-   is not ended again.
-   */
-  const silence: SilenceWaitedFor = {};
+  const waited: WorkWaitedFor & SilenceWaitedFor = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -459,7 +455,7 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
      */
     const afterSilence = await aSilenceInTheRun({
       watch,
-      waited: silence,
+      waited,
     },);
     if (afterSilence !== 'still-running') {
       return afterSilence;
