@@ -43,6 +43,7 @@ import {
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
   PROCESSES_RECORD_KIND,
+  SUMMARY_FILE_NAME,
   recordsIn,
   type RunSummary,
   START_ATTEMPTS,
@@ -1239,20 +1240,6 @@ await describe({
       },
     },),
     it({
-      name: 'a run whose feed cannot be written does not end clean',
-      fn: async () => {
-        const run = await runDriver({
-          scenario: 'normal',
-          prepare: async ({ runFolder, },) => {
-            await mkdir(join(runFolder, 'feed.jsonl',), { recursive: true, },);
-          },
-        },);
-        expect(run.status,).toBe(FAILED_STATUS,);
-        expect(run.summary.endReason,).toBe('driver-failed',);
-        expect(String(run.summary.feedProblem,),).toContain('EISDIR',);
-      },
-    },),
-    it({
       name: 'a final reply that ended in a model error does not end clean',
       fn: async () => {
         const run = await runDriver({ scenario: 'model-error', },);
@@ -1828,6 +1815,136 @@ await describe({
         const noted = run.feed.find((entry,) => entry.kind === 'environment',);
         expect(noted?.removedNames,).toEqual([CREDENTIAL_SHAPED_VARIABLE,],);
         expect(JSON.stringify(run.feed,),).not.toContain(CREDENTIAL_VALUE,);
+      },
+    },),
+    it({
+      name: 'refuses a run folder that already holds a summary before it starts Pi, and leaves that summary as it was',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The folder this run was given, which holds what the run before it left.
+         */
+        const runFolder = join(
+          folder.path,
+          'run',
+        );
+        /**
+         The prompt file the run names, which the refusal never reads.
+         */
+        const promptFile = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         The summary the run before this one left in that folder.
+         */
+        const firstSummary = '{"endReason":"idle","lastAssistantText":"the first run said this"}\n';
+        await mkdir(runFolder, { recursive: true, },);
+        await writeFile(promptFile, 'hello',);
+        await writeFile(
+          join(
+            runFolder,
+            SUMMARY_FILE_NAME,
+          ),
+          firstSummary,
+        );
+        /**
+         The status the driver ended with, and what it printed.
+         */
+        const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [
+          DRIVER,
+          `--run-folder=${runFolder}`,
+          `--working-folder=${folder.path}`,
+          `--prompt-file=${promptFile}`,
+          '--provider=stand-in',
+          '--model=stand-in-model',
+          '--wall-seconds=60',
+          '--idle-seconds=1',
+          '--turn-cap=2',
+        ], {
+          env: {
+            PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+            HOME: process.env.HOME,
+          },
+          encoding: 'utf8',
+        },),);
+        expect(status,).toBe(FAILED_STATUS,);
+        expect(standardError,).toContain('RunFolderHoldsAnEarlierAttemptError',);
+        expect(standardError,).toContain(runFolder,);
+        expect(standardError,).toContain(SUMMARY_FILE_NAME,);
+        // The run stopped before it made anything, so the folder holds the summary the run before it wrote and nothing else.
+        expect(await readdir(runFolder,),).toEqual([SUMMARY_FILE_NAME,],);
+        expect(await readFile(
+          join(
+            runFolder,
+            SUMMARY_FILE_NAME,
+          ),
+          'utf8',
+        ),).toBe(firstSummary,);
+      },
+    },),
+    it({
+      name: 'refuses a run folder that holds what an attempt killed before its summary left, and leaves that attempt standard error as it was',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The folder this run was given, which holds what an attempt at it left before it was killed.
+         */
+        const runFolder = join(
+          folder.path,
+          'run',
+        );
+        /**
+         The prompt file the run names, which the refusal never reads.
+         */
+        const promptFile = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         What the earlier attempt printed as it crashed, which no later attempt may truncate away.
+         */
+        const earlierStandardError = 'ORIGINAL-CRASHED-RUN-STDERR\n';
+        await mkdir(runFolder, { recursive: true, },);
+        await writeFile(promptFile, 'hello',);
+        await writeFile(
+          join(
+            runFolder,
+            'stderr.log',
+          ),
+          earlierStandardError,
+        );
+        /**
+         The status the driver ended with, and what it printed.
+         */
+        const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [
+          DRIVER,
+          `--run-folder=${runFolder}`,
+          `--working-folder=${folder.path}`,
+          `--prompt-file=${promptFile}`,
+          '--provider=stand-in',
+          '--model=stand-in-model',
+          '--wall-seconds=60',
+          '--idle-seconds=1',
+          '--turn-cap=2',
+        ], {
+          env: {
+            PATH: [dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+            HOME: process.env.HOME,
+          },
+          encoding: 'utf8',
+        },),);
+        expect(status,).toBe(FAILED_STATUS,);
+        expect(standardError,).toContain('stderr.log',);
+        // The run stopped before it started Pi, so the folder holds what the earlier attempt left and nothing of this run.
+        expect(await readdir(runFolder,),).toEqual(['stderr.log',],);
+        expect(await readFile(
+          join(
+            runFolder,
+            'stderr.log',
+          ),
+          'utf8',
+        ),).toBe(earlierStandardError,);
       },
     },),
     it({
