@@ -167,6 +167,28 @@ fn names_a_record_write(name: &str, record: &str) -> bool {
 }
 
 /// What:
+///  What the proof of a stage folder's contents found,
+/// and which directories it read to find it.
+/// Why:
+///   The answer is written down with the times of those directories
+/// (`worktree_copy_stage_intended_entries.rs`),
+/// so the next command can tell whether the answer can still hold without reading one entry:
+/// a directory whose times moved on means an entry was added to it or removed from it,
+/// at any depth.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StageContent = { unexplained?: string; examined: string[] };
+/// ```
+struct StageContent {
+    /// The first entry no record of the copy explains, in the words the person reads.
+    unexplained: Option<String>,
+    /// The directories the proof read, relative to the stage container,
+    /// the container itself as the empty path.
+    examined: Vec<PathBuf>,
+}
+
+/// What:
 ///  The first entry of a stage folder that the wrapper's own writing does not explain,
 /// at any depth,
 /// or nothing when every entry is one this wrapper makes there.
@@ -188,10 +210,11 @@ fn names_a_record_write(name: &str, record: &str) -> bool {
 /// ```ts
 /// const unexplained = firstEntryTheWrappersWritingDoesNotExplain(container);
 /// ```
-fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Option<String>, WorktreeCopyError> {
+fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<StageContent, WorktreeCopyError> {
+    let mut examined: Vec<PathBuf> = vec![PathBuf::new()];
     let listing = match std::fs::read_dir(container) {
         Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(StageContent { unexplained: None, examined }),
         Err(error) => return Err(raw_failure(&error)),
     };
     let mut names: Vec<String> = Vec::new();
@@ -201,23 +224,29 @@ fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Opti
     names.sort();
     for name in names {
         if !names_a_top_level_entry_the_wrapper_writes(name.as_str()) {
-            return Ok(Some(format!("it holds {name}, which the wrapper's writing does not hold there")));
+            return Ok(StageContent { unexplained: Some(format!("it holds {name}, which the wrapper's writing does not hold there")), examined });
         }
     }
     let payload: PathBuf = container.join(PAYLOAD_NAME);
     match std::fs::symlink_metadata(payload.as_path()) {
         Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(StageContent { unexplained: None, examined }),
         Err(error) => return Err(raw_failure(&error)),
     }
+    examined.push(PathBuf::from(PAYLOAD_NAME));
     let holds_nothing: bool = std::fs::read_dir(payload.as_path()).is_ok_and(|mut found: std::fs::ReadDir| { return found.next().is_none(); });
     if holds_nothing {
-        return Ok(None);
+        return Ok(StageContent { unexplained: None, examined });
     }
     let Some(allowed) = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container) else {
-        return Ok(Some(format!("it holds {PAYLOAD_NAME}/, and nothing says what the copy was writing into it")));
+        return Ok(StageContent { unexplained: Some(format!("it holds {PAYLOAD_NAME}/, and nothing says what the copy was writing into it")), examined });
     };
-    return first_entry_the_payload_may_not_hold(payload.as_path(), allowed);
+    let (unexplained, walked): (Option<String>, Vec<PathBuf>) = first_entry_the_payload_may_not_hold(payload.as_path(), allowed)?;
+    // The walk's own paths are below the payload, so they are named from the container here.
+    for directory in walked {
+        examined.push(PathBuf::from(PAYLOAD_NAME).join(directory));
+    }
+    return Ok(StageContent { unexplained, examined });
 }
 
 /// What:
@@ -238,19 +267,21 @@ fn an_entry_the_wrappers_stage_does_not_explain(container: &Path) -> Result<Opti
 /// ```ts
 /// const foreign = firstEntryThePayloadMayNotHold(payload, allowed); // undefined when every entry is the copy's
 /// ```
-pub(crate) fn first_entry_the_payload_may_not_hold(payload: &Path, allowed: std::collections::HashSet<Vec<u8>>) -> Result<Option<String>, WorktreeCopyError> {
-    use std::os::unix::ffi::OsStrExt as _;
+pub(crate) fn first_entry_the_payload_may_not_hold(payload: &Path, allowed: std::collections::HashSet<Vec<u8>>) -> Result<(Option<String>, Vec<PathBuf>), WorktreeCopyError> {
+    use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
     let mut pending: Vec<(PathBuf, Vec<u8>)> = vec![(payload.to_path_buf(), Vec::new())];
+    let mut read: Vec<PathBuf> = Vec::new();
     while let Some((directory, relative)) = pending.pop() {
         let listing: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
             Ok(listing) => listing,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Ok(Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice())))),
+            Err(error) => return Ok((Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice()))), read)),
         };
+        read.push(PathBuf::from(std::ffi::OsString::from_vec(relative.clone())));
         for found in listing {
             let entry: std::fs::DirEntry = match found {
                 Ok(entry) => entry,
-                Err(error) => return Ok(Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice())))),
+                Err(error) => return Ok((Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(relative.as_slice()))), read)),
             };
             let name: std::ffi::OsString = entry.file_name();
             let mut below: Vec<u8> = relative.clone();
@@ -259,22 +290,25 @@ pub(crate) fn first_entry_the_payload_may_not_hold(payload: &Path, allowed: std:
             }
             below.extend_from_slice(name.as_os_str().as_bytes());
             if !allowed.contains(&below) {
-                return Ok(Some(format!(
-                    "it holds {PAYLOAD_NAME}/{}, and nothing in the copy's own record names that path",
-                    crate::worktree_copy_repository_path::shown_repository_path(below.as_slice())
-                )));
+                return Ok((
+                    Some(format!(
+                        "it holds {PAYLOAD_NAME}/{}, and nothing in the copy's own record names that path",
+                        crate::worktree_copy_repository_path::shown_repository_path(below.as_slice())
+                    )),
+                    read,
+                ));
             }
             let is_directory: bool = match std::fs::symlink_metadata(entry.path().as_path()) {
                 Ok(metadata) => metadata.is_dir(),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => return Ok(Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(below.as_slice())))),
+                Err(error) => return Ok((Some(format!("nothing shows what stands below {} ({error})", crate::worktree_copy_repository_path::shown_repository_path(below.as_slice()))), read)),
             };
             if is_directory {
                 pending.push((entry.path(), below));
             }
         }
     }
-    return Ok(None);
+    return Ok((None, read));
 }
 
 /// What:
@@ -767,9 +801,10 @@ pub fn reap_judged_stages(
                             notices.push(kept_copy_stage_words(container.as_path(), reason.as_str()));
                             continue;
                         }
-                        match an_entry_the_wrappers_stage_does_not_explain(container.as_path())? {
+                        let content: StageContent = an_entry_the_wrappers_stage_does_not_explain(container.as_path())?;
+                        match content.unexplained {
                             Some(reason) => {
-                                if let Err(error) = crate::worktree_copy_stage_intended_entries::record_the_stage_was_kept(claim.as_path(), container.as_path(), reason.as_str()) {
+                                if let Err(error) = crate::worktree_copy_stage_intended_entries::record_the_stage_was_kept(claim.as_path(), container.as_path(), reason.as_str(), content.examined.as_slice()) {
                                     debug(TAG, format!("the reason {} was kept could not be written ({}); the next command examines it again", container.display(), error.0).as_str());
                                 }
                                 notices.push(kept_copy_stage_words(container.as_path(), reason.as_str()));
@@ -802,6 +837,7 @@ pub fn reap_judged_stages(
             remove_made(claim.as_path())?;
             remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
+            remove_file_if_present(crate::worktree_copy_stage_intended_entries::kept_record_beside(claim.as_path()).as_path())?;
             remove_file_if_present(claim.as_path())?;
         }
     }

@@ -3191,7 +3191,7 @@ fn measure_what_proving_a_payload_costs() {
         // The proof: the record, then the walk of the payload.
         let proof_started: std::time::Instant = std::time::Instant::now();
         let listed = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container.as_path()).expect("the record");
-        let unexplained: Option<String> = crate::worktree_copy_stage_claim_reaping::first_entry_the_payload_may_not_hold(payload.as_path(), listed).expect("the walk");
+        let (unexplained, _read): (Option<String>, Vec<PathBuf>) = crate::worktree_copy_stage_claim_reaping::first_entry_the_payload_may_not_hold(payload.as_path(), listed).expect("the walk");
         proof.push(proof_started.elapsed().as_micros());
         assert_eq!(unexplained, None, "every entry is the copy's own");
         // The same proof again, as the control for the spread.
@@ -3207,7 +3207,55 @@ fn measure_what_proving_a_payload_costs() {
         crate::worktree_copy_stage_intended_entries::record_intended_entries(container.as_path(), entries.as_slice()).expect("the record");
         recorded.push(write_started.elapsed().as_micros());
     }
-    for (arm, samples) in [("the top level only", top), ("the record and the walk", proof), ("the walk again", again), ("writing the record", recorded)] {
+    // A command in a repository with a kept stage: the record believed, and the record stale, so the walk runs.
+    let examined: Vec<PathBuf> = {
+        let allowed = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container.as_path()).expect("the record");
+        let (unexplained, read) = crate::worktree_copy_stage_claim_reaping::first_entry_the_payload_may_not_hold(payload.as_path(), allowed).expect("the walk");
+        assert!(unexplained.is_none(), "this payload is the copy's own");
+        let mut examined: Vec<PathBuf> = vec![PathBuf::new()];
+        for directory in read {
+            examined.push(PathBuf::from(crate::worktree_copy_stage::PAYLOAD_NAME).join(directory));
+        }
+        examined
+    };
+    crate::worktree_copy_stage_intended_entries::record_the_stage_was_kept(claim.path.as_path(), container.as_path(), "it holds nothing of the wrapper's", examined.as_slice()).expect("the record");
+    let mut believed: Vec<u128> = Vec::new();
+    let mut stale: Vec<u128> = Vec::new();
+    let mut believed_again: Vec<u128> = Vec::new();
+    for sample in 0..RELEASE_ARMS {
+        let believed_started: std::time::Instant = std::time::Instant::now();
+        let answered: Option<String> = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.path.as_path(), container.as_path());
+        believed.push(believed_started.elapsed().as_micros());
+        assert!(answered.is_some(), "the record answers while the payload does not change");
+        // The stale arm: one entry added to a directory the record named, so the record does not answer and the walk
+        // is made. Its own change is undone at once, so the next sample starts from the same state.
+        let changed_directory: PathBuf = payload.join("ignored/pkg0");
+        let added: PathBuf = changed_directory.join(format!("measured-{sample}.js"));
+        std::fs::write(added.as_path(), b"module.exports = 1;\n").expect("a new entry");
+        let stale_started: std::time::Instant = std::time::Instant::now();
+        let refused: Option<String> = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.path.as_path(), container.as_path());
+        let allowed = crate::worktree_copy_stage_intended_entries::entries_the_payload_may_hold(container.as_path()).expect("the record");
+        let _ = crate::worktree_copy_stage_claim_reaping::first_entry_the_payload_may_not_hold(payload.as_path(), allowed).expect("the walk");
+        stale.push(stale_started.elapsed().as_micros());
+        assert_eq!(refused, None, "the record is stale while an entry it did not name stands");
+        std::fs::remove_file(added.as_path()).expect("the measurement's entry goes");
+        // The folder changed twice, so the command that keeps it again writes the record again; the next command
+        // reads that one, which is the arm below.
+        crate::worktree_copy_stage_intended_entries::record_the_stage_was_kept(claim.path.as_path(), container.as_path(), "it holds nothing of the wrapper's", examined.as_slice()).expect("the record written again");
+        let again_started: std::time::Instant = std::time::Instant::now();
+        let answered_again: Option<String> = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.path.as_path(), container.as_path());
+        believed_again.push(again_started.elapsed().as_micros());
+        assert!(answered_again.is_some(), "the record written again answers");
+    }
+    for (arm, samples) in [
+        ("the top level only", top),
+        ("the record and the walk", proof),
+        ("the walk again", again),
+        ("writing the record", recorded),
+        ("a kept stage, record believed", believed),
+        ("a kept stage, record stale, then the walk", stale),
+        ("a kept stage, record believed again", believed_again),
+    ] {
         let (middle, p99, largest) = spread_of(samples);
         println!("{arm} over {MEASURED_PAYLOAD_ENTRIES} entries: median {middle} us, p99 {p99} us, max {largest} us");
     }
@@ -3228,18 +3276,46 @@ fn a_kept_stage_is_examined_once_and_its_reason_reused() {
     let first: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the first pass keeps it");
     let reason: String = first.iter().find(|notice: &&String| { return notice.contains("was not changed"); }).expect("the line that says why").clone();
     assert!(reason.contains("payload/ignored/pkg/notes.txt"), "{first:?}");
-    // The payload cannot be listed from here on, so any walk would say so instead of naming the file.
-    std::fs::set_permissions(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path(), std::fs::Permissions::from_mode(0o000)).expect("unlistable payload");
+    // The record is what answers the second pass: the reader it goes through names the same file, and the reaping
+    // prints exactly that without deciding anything itself. A directory the walk read that moved on makes it stale.
+    let believed: Option<String> = crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.path.as_path(), container.as_path());
+    assert!(believed.clone().is_some_and(|text: String| { return text.contains("payload/ignored/pkg/notes.txt"); }), "the record answers for a folder that did not change: {believed:?}");
+    assert!(kept_record_stamps_every_directory_it_read(claim.path.as_path()));
     let second: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the second pass goes on");
-    std::fs::set_permissions(container.join(crate::worktree_copy_stage::PAYLOAD_NAME).as_path(), std::fs::Permissions::from_mode(0o700)).expect("listable again");
     assert_eq!(second, vec![reason.clone()], "the same reason, from the record and not from a walk: {second:?}");
-    // A payload whose entries changed is examined again, and the answer is the new one.
+    // A payload whose entries changed is examined again, and the answer is the new one: the record no longer answers,
+    // and the walk names the entry that was not there when it was written.
     std::fs::write(container.join("payload/ignored/pkg/second.txt"), b"a person's only copy").expect("another file");
+    assert_eq!(
+        crate::worktree_copy_stage_intended_entries::reason_the_stage_was_kept(claim.path.as_path(), container.as_path()),
+        None,
+        "the record is stale once an entry was added to a directory it named"
+    );
     let third: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the third pass examines it again");
-    assert!(third.iter().any(|notice: &String| { return notice.contains("was not changed"); }), "{third:?}");
+    assert!(third.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("notes.txt"); }), "{third:?}");
     make_removable(container.as_path());
     remove(root.as_path());
 }
+
+/// What:
+///  Whether the record of why a stage was kept names the directories the walk read,
+/// and not the payload alone.
+/// Why:
+///   The whole defect was that one directory's times were taken for the payload's;
+/// a record that names `payload` and the directory of the file is what makes a change below a subfolder visible.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = readFileSync(keptRecordBeside(claim)).split('\n').filter((line) => line.startsWith('directory='));
+/// expect(names.length).toBeGreaterThan(1);
+/// ```
+fn kept_record_stamps_every_directory_it_read(claim: &Path) -> bool {
+    let record: PathBuf = crate::worktree_copy_stage_intended_entries::kept_record_beside(claim);
+    let text: String = std::fs::read_to_string(record.as_path()).expect("the record");
+    let stamped: usize = text.lines().filter(|line: &&str| { return line.starts_with("directory="); }).count();
+    return stamped > 1 && text.contains(crate::path_bytes_in_records::hex_of_bytes(b"ignored/pkg").as_str());
+}
+
 /// A change below a subfolder of the payload makes the kept record stale,
 /// so removing the person's nested file lets the next command settle the folder,
 /// which is the way out the line gives them.

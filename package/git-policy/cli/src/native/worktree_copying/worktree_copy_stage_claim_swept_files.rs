@@ -60,6 +60,11 @@ pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<
 /// must not lose it,
 /// because the folder would then be taken for a copy's own and removed with anything a person put in it,
 /// and the notice the person reads would name no file of theirs.
+/// The same sweep removes the record that says why a stage was kept (`<identifier>.kept`)
+/// once no claim of that name stands:
+/// it is the wrapper's own bookkeeping and names no folder that is not then settled,
+/// and a release that removed a kept stage without it left one behind for each such stage,
+/// which this removes on the next command.
 /// The sweep names only records,
 /// leaves every other file of the journal root alone,
 /// and a file a live writer is renaming is never
@@ -84,6 +89,14 @@ pub(crate) fn remove_records_nothing_claims(root: &Path) -> Result<bool, Worktre
     for listed in listing {
         let path: PathBuf = listed.map_err(raw_failure_of)?.path();
         let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        // The reason a stage was kept names a claim's folder and nothing on its own: with no claim beside it, it is
+        // litter, and a release without the fix that removes it left exactly that (see the note below).
+        if let Some(identifier) = name.strip_suffix(crate::worktree_copy_stage_intended_entries::KEPT_SUFFIX) {
+            if !root.join(format!("{identifier}.stage")).exists() {
+                unclaimed.push(path);
+            }
+            continue;
+        }
         let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else { continue };
         if root.join(format!("{identifier}.stage")).exists() {
             continue;

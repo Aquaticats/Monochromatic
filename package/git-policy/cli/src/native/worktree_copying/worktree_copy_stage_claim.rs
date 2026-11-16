@@ -203,8 +203,24 @@ impl StageClaim {
             remove_file_if_present(record)?;
         }
         remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
+        remove_file_if_present(self.reason_the_stage_was_kept_record().as_path())?;
         remove_file_if_present(self.path.as_path())?;
         return Ok(());
+    }
+
+    /// What:
+    ///  The record that says why this claim's stage was kept,
+    /// beside the claim.
+    /// Why:
+    ///   It is the wrapper's own bookkeeping and it names a folder that is settled with this claim,
+    /// so it goes with the claim and leaves no litter in the journal root.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const kept = claim.withExtension('.kept');
+    /// ```
+    fn reason_the_stage_was_kept_record(&self) -> PathBuf {
+        return crate::worktree_copy_stage_intended_entries::kept_record_beside(self.path.as_path());
     }
 
     /// What:
@@ -391,6 +407,7 @@ impl StageClaim {
             remove_file_if_present(record)?;
         }
         remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
+        remove_file_if_present(self.reason_the_stage_was_kept_record().as_path())?;
         remove_file_if_present(self.path.as_path())?;
         if let Some(parent) = self.path.parent() {
             sync_directory(parent).map_err(raw_failure_of)?;
