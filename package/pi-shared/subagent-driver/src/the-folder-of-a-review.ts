@@ -11,10 +11,15 @@
  @module
  */
 
+import type { Dirent, } from 'node:fs';
 import {
   mkdir,
   readdir,
 } from 'node:fs/promises';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { isThere, } from './newest-finished-run-of-a-name.ts';
 import {
@@ -28,6 +33,11 @@ import { recordIn, } from './the-record-of-a-review-folder.ts';
  The code the operating system gives a path that already exists.
  */
 const EXISTS_CODE = 'EEXIST';
+
+/**
+ The code the operating system gives a path that is not there.
+ */
+const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The review name one generation of a change keeps.
@@ -160,8 +170,16 @@ export async function takeTheNextReviewFolder({
   readonly review: string;
   readonly folder: string
 }> {
-  await mkdir(
+  /**
+   The folder the first generation keeps, whose parent must exist before an exclusive create can be tried in it: a change name may
+   hold a slash, so the parent may be more than the reviews folder.
+   */
+  const firstFolder = reviewFolderOf({
     reviewsFolder,
+    review,
+  },);
+  await mkdir(
+    dirname(firstFolder,),
     { recursive: true, },
   );
   /* oxlint-disable eslint/no-await-in-loop -- one name is tried, and if another start made it the next name is tried; there is no
@@ -198,6 +216,87 @@ export async function takeTheNextReviewFolder({
 }
 
 /**
+ Lists a folder, or says it holds nothing when it is not there.
+
+ @param folder - the folder to list
+
+ @returns its entries, or none when the folder disappeared
+
+ @example
+ ```ts
+ const entries = await entriesIn({ folder: '/reviews/a', },);
+ ```
+ */
+async function entriesIn({ folder, }: { readonly folder: string },): Promise<readonly Dirent[]> {
+  try {
+    return await readdir(
+      folder,
+      { withFileTypes: true, },
+    );
+  }
+  catch (error) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
+ Reads every folder below a root, as names relative to it, without recursion.
+
+ A reviews folder that is not there has no folders below it, which is a first start rather than a failure; a folder that disappears
+ between two listings is left out.
+
+ @param root - the folder to walk
+
+ @returns every folder below it, as relative names
+
+ @example
+ ```ts
+ const folders = await theFoldersBelow({ root: '/reviews', },);
+ ```
+ */
+async function theFoldersBelow({ root, }: { readonly root: string },): Promise<readonly string[]> {
+  /**
+   The folders found so far.
+   */
+  const folders: string[] = [];
+  /**
+   The folders still to list, each a name relative to the root.
+   */
+  const toList: string[] = [''];
+  /* oxlint-disable eslint/no-await-in-loop -- one folder is listed, then the next, a stack at a time; each listing is a separate
+     directory and none may be taken at once. See doc/lint/sequential-awaits.md. */
+  while (toList.length > 0) {
+    /**
+     The folder to list, as a name relative to the root.
+     */
+    const relative = toList.pop() ?? '';
+    /**
+     What that folder holds, or nothing when it disappeared between two listings.
+     */
+    const entries = await entriesIn({ folder: join(
+      root,
+      relative,
+    ), },);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      /**
+       The folder's name, relative to the root.
+       */
+      const name = (relative === '') ? entry.name : `${relative}/${entry.name}`;
+      folders.push(name,);
+      toList.push(name,);
+    }
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return folders;
+}
+
+/**
  Finds the newest review of a branch among the folders of one change name, when one wrote its review file.
 
  A folder belongs to this branch only when its record names the branch: a folder of another change whose name is a generation name is
@@ -227,15 +326,9 @@ export async function theReviewOfABranch({
   readonly branch: string;
 },): Promise<string | typeof NO_REVIEWED_FOLDER> {
   /**
-   The entries the reviews folder holds, each a folder a review may keep.
+   The folders below the reviews folder, as names relative to it, which include nested change names.
    */
-  const entries = (await readdir(
-    reviewsFolder,
-    { withFileTypes: true, },
-  ))
-    .filter(function isAFolder(entry,) {
-      return entry.isDirectory();
-    },);
+  const folders = await theFoldersBelow({ root: reviewsFolder, },);
   /**
    The names that are generations of this change, newest first.
    */
@@ -243,19 +336,19 @@ export async function theReviewOfABranch({
     readonly name: string;
     readonly generation: number
   }[] = [];
-  for (const entry of entries) {
+  for (const name of folders) {
     /**
      Which generation of this change this folder's name is.
      */
     const generation = generationInAName({
       review,
-      name: entry.name,
+      name,
     },);
     if ((typeof generation) !== 'number') {
       continue;
     }
     generations.push({
-      name: entry.name,
+      name,
       generation,
     },);
   }

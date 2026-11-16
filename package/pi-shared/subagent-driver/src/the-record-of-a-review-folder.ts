@@ -8,6 +8,12 @@
  @module
  */
 
+import { randomUUID, } from 'node:crypto';
+import {
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { readFileOrNothing, } from './finished-worktrees.ts';
 import { isRecord, } from './read-pi-fields.ts';
 
@@ -75,6 +81,35 @@ export async function recordIn({
 }
 
 /**
+ The answer for text that is not a whole JSON document: a symbol, so no parsed value is taken for it.
+ */
+const NOT_JSON: unique symbol = Symbol('Text is not a whole JSON document');
+
+/**
+ Reads the JSON a record's text holds, or says the text was cut off before it was whole.
+
+ @param shown - the text
+
+ @returns the parsed value, or the answer for text that is not whole JSON
+
+ @example
+ ```ts
+ const parsed = parsedIn({ shown: '{"commit":"abc"}', },);
+ ```
+ */
+function parsedIn({ shown, }: { readonly shown: string },): unknown {
+  try {
+    return JSON.parse(shown,);
+  }
+  catch (error) {
+    if (error instanceof SyntaxError) {
+      return NOT_JSON;
+    }
+    throw error;
+  }
+}
+
+/**
  Reads a record from the text it was written as.
 
  A file that cannot be read as a record is treated as no record: only this package writes it, and a folder whose record cannot be
@@ -91,9 +126,12 @@ export async function recordIn({
  */
 function recordOf({ shown, }: { readonly shown: string },): ReviewFolderRecord | typeof NO_RECORD {
   /**
-   The record, of any shape.
+   The record, of any shape, or no record when the text was cut off before it was whole.
    */
-  const kept: unknown = JSON.parse(shown,);
+  const kept = parsedIn({ shown, },);
+  if (kept === NOT_JSON) {
+    return NO_RECORD;
+  }
   if (!isRecord(kept,)) {
     return NO_RECORD;
   }
@@ -151,4 +189,50 @@ export function recordTextOf(record: ReviewFolderRecord,): string {
     undefined,
     2,
   )}\n`;
+}
+
+/**
+ Writes a record where a folder keeps it, whole or not at all.
+
+ The text is written to a file of this start's own beside the record and renamed into its place: a reader sees the record that was
+ there or the whole new one, and a start killed while writing leaves a temporary file no reader takes for the record.
+
+ @param recordFile - the file the record is kept in
+
+ @param record - the record to keep
+
+ @example
+ ```ts
+ await writeRecordIn({ recordFile: '/reviews/a/the-record-of-this-review.json', record },);
+ ```
+ */
+export async function writeRecordIn({
+  recordFile,
+  record,
+}: {
+  readonly recordFile: string;
+  readonly record: ReviewFolderRecord;
+},): Promise<void> {
+  /**
+   A file of this start's own, beside the record, which no other start writes.
+   */
+  const temporary = `${recordFile}.${String(process.pid,)}.${randomUUID()}.tmp`;
+  await writeFile(
+    temporary,
+    recordTextOf(record,),
+    'utf8',
+  );
+  try {
+    await rename(
+      temporary,
+      recordFile,
+    );
+  }
+  catch (error) {
+    await rm(
+      temporary,
+      { force: true, },
+    );
+    throw error;
+  }
 }

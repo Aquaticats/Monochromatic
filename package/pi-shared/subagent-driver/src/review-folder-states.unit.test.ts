@@ -90,6 +90,31 @@ function branchOf({ name, }: { readonly name: string },): string {
 }
 
 /**
+ Says whether a text is a whole JSON document already, which a cut can be when it stops just before trailing whitespace.
+
+ @param text - the text to read
+
+ @returns whether it is whole JSON
+
+ @example
+ ```ts
+ const whole = isWholeJson({ text: '{"commit":"abc"}', },);
+ ```
+ */
+function isWholeJson({ text, }: { readonly text: string },): boolean {
+  try {
+    JSON.parse(text,);
+    return true;
+  }
+  catch (error) {
+    if (error instanceof SyntaxError) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
  The whole record of one change, as a start leaves it.
  */
 function recordTextOfAChange({ name, }: { readonly name: string },): string {
@@ -187,12 +212,12 @@ async function rowsOfOneState({
   }
   if (!readThrew) {
     if ((state === 'record-whole') || (state === 'review-written')) {
-      if (typeof read === 'symbol') {
+      if ((typeof read) === 'symbol') {
         note('recordIn', 'said no record for a whole record',);
       }
     }
     else if (read !== NO_RECORD) {
-      note('recordIn', `answered ${String(read,)} where no record is the only answer`,);
+      note('recordIn', 'found a record where no record is the only answer',);
     }
   }
   /**
@@ -320,7 +345,7 @@ async function rowsOfOneBatch({
         async wait() {},
       },
     },);
-    lines = started.lines;
+    ({ lines, } = started);
   }
   catch (error) {
     failed.push(`${name} / ${state} / startReviews: threw ${String(error,)}`,);
@@ -366,12 +391,28 @@ await describe({
             const branch = branchOf({ name, },);
             const whole = recordTextOfAChange({ name, },);
             const failed: string[] = [];
+            /* oxlint-disable eslint/no-await-in-loop -- one cut is written, read and looked up, then the next; each row is the
+               state of one byte boundary. See doc/lint/sequential-awaits.md. */
             for (let length = 1; length < whole.length; length += 1) {
               await mkdir(dirname(recordFile,), { recursive: true, },);
-              await writeFile(recordFile, whole.slice(0, length,), 'utf8',);
+              /**
+               The text a kill leaves when it stops after this many bytes.
+               */
+              const cut = whole.slice(0, length,);
+              await writeFile(recordFile, cut, 'utf8',);
+              /**
+               Whether the cut happens to be a whole JSON document already, which is a whole record and not a torn one.
+               */
+              const wholeAlready = isWholeJson({ text: cut, },);
               try {
-                if ((await recordIn({ recordFile, },)) !== NO_RECORD) {
-                  failed.push(`${name} / cut at ${String(length,)}: recordIn found a record`,);
+                /**
+                 What the record reader made of the cut.
+                 */
+                const read = await recordIn({ recordFile, },);
+                if (wholeAlready ? ((typeof read) === 'symbol') : (read !== NO_RECORD)) {
+                  failed.push(
+                    `${name} / cut at ${String(length,)}: recordIn ${wholeAlready ? 'said no record for a whole document' : 'found a record where no record is the only answer'}`,
+                  );
                 }
               }
               catch (error) {
@@ -386,6 +427,7 @@ await describe({
                 failed.push(`${name} / cut at ${String(length,)}: theReviewOfABranch threw ${String(error,)}`,);
               }
             }
+            /* oxlint-enable eslint/no-await-in-loop */
             expect(failed.join('\n',),).toBe('',);
           },
         },);

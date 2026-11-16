@@ -43,7 +43,7 @@ import {
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
 import { takeTheNextReviewFolder, } from './the-folder-of-a-review.ts';
-import { recordTextOf, } from './the-record-of-a-review-folder.ts';
+import { writeRecordIn, } from './the-record-of-a-review-folder.ts';
 
 /**
  Writes the diff, the brief and the reproductions folder of one review.
@@ -132,21 +132,20 @@ export async function writeReviewBrief({
    The review name this start's folder carries, which its run, branch and unit also carry.
    */
   const chosen = taken.review;
-  await writeFile(
-    recordFileOfAReview({
+  await writeRecordIn({
+    recordFile: recordFileOfAReview({
       reviewsFolder,
       review: chosen,
     },),
-    recordTextOf({
+    record: {
       ...((branch === undefined) ? {} : { branch, }),
       commit,
       ranges,
       source,
       claimedAt: new Date()
         .toISOString(),
-    },),
-    'utf8',
-  );
+    },
+  },);
   /**
    The file the diff is written to.
    */
