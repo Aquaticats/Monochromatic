@@ -326,13 +326,13 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         let age: Duration = age_of(&lock);
         // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
         //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
-        let marked: Option<crate::service_index_marker::Marked> = marker_of(&lock);
-        let running: bool = matches!(marked.as_ref(), Some(marked) if holder_is_running(marked.holder.as_ref()));
+        let marking: Option<crate::service_index_marker::Marked> = marker_of(&lock);
+        let running: bool = matches!(marking.as_ref(), Some(marked) if holder_is_running(marked.holder.as_ref()));
         if age >= UNASKABLE_HOLD_AGE && !running {
             // A marker whose holder can be shown neither alive nor gone is the state the owner decided on 2026-11-16: the
             //  record stays, and past this age the line names the record, its owner, its age and the exact command that
             //  removes it, which is what a person needs to clear a lock no command will reclaim.
-            let unclear: Option<(i64, String)> = match marked.as_ref().and_then(|marked| marked.holder.clone()) {
+            let unclear: Option<(i64, String)> = match marking.as_ref().and_then(|marked| { return marked.holder.clone(); }) {
                 Some(holder) if holder_state(Some(&holder)) == HolderState::Unknown => Some(holder),
                 _ => None,
             };

@@ -584,10 +584,8 @@ fn a_marker_whose_boot_or_namespace_is_written_another_way_is_still_gone_by_its_
             wrong.push(format!("{what}: the marker text {text:?} was answered {read:?}, and {expected:?} is what a free number gives"));
         }
         let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
-        if expected == HolderState::Gone {
-            if outcome != Reclaimed::Removed || lock.exists() {
-                wrong.push(format!("{what}: the lock of a maker whose number no process has was {outcome:?}, and it exists afterwards: {}", lock.exists()));
-            }
+        if expected == HolderState::Gone && (outcome != Reclaimed::Removed || lock.exists()) {
+            wrong.push(format!("{what}: the lock of a maker whose number no process has was {outcome:?}, and it exists afterwards: {}", lock.exists()));
         }
         remove(_root.as_path());
     }

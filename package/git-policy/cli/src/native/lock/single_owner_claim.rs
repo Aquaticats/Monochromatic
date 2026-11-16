@@ -377,11 +377,10 @@ fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateE
 /// aRecordThatCannotBeTold(path, pid, birth, why)
 /// ```
 fn a_record_that_cannot_be_told(path: &Path, pid: i64, birth: &str, why: String) -> String {
-    let age: std::time::Duration = std::fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-        .and_then(|modified| std::time::SystemTime::now().duration_since(modified).ok())
-        .unwrap_or(std::time::Duration::ZERO);
+    let age: std::time::Duration = match std::fs::metadata(path).and_then(|metadata| { return metadata.modified(); }) {
+        Ok(modified) => std::time::SystemTime::now().duration_since(modified).unwrap_or(std::time::Duration::ZERO),
+        Err(_unreadable) => std::time::Duration::ZERO,
+    };
     return format!(
         "monochromatic-git-policy-cli: the claim record {} names process {pid} with the birth {birth}, and {why}. Nothing was changed. The record is \
          {} seconds old, counted from its own time on this host's clock. Look at it: when no monochromatic-git-policy-cli command is running on this item, \

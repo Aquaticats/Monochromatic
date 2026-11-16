@@ -414,8 +414,9 @@ pub const HELD_HOLDER_UNCLEAR_AFTER: std::time::Duration = crate::wait_ceilings:
 ///   The record's own modification time is the only age there is,
 /// and a time in the future says nothing rather than something wrong.
 fn a_record_s_age(record: &Path) -> std::time::Duration {
-    let Ok(modified) = std::fs::metadata(record).and_then(|metadata| metadata.modified()) else {
-        return std::time::Duration::ZERO;
+    let modified: std::time::SystemTime = match std::fs::metadata(record).and_then(|metadata| { return metadata.modified(); }) {
+        Ok(modified) => modified,
+        Err(_unreadable) => return std::time::Duration::ZERO,
     };
     return std::time::SystemTime::now().duration_since(modified).unwrap_or(std::time::Duration::ZERO);
 }
