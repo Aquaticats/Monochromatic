@@ -368,6 +368,13 @@ mod merge_notice;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// Commits that change a thousand files:
+/// edits,
+/// new files,
+/// deletions and renames each land real Git's tree.
+#[path = "binary_large_commit_tests.rs"]
+mod large_commit;
+
 /// The commit forms real Git refuses,
 /// each refused with Git's own status and words.
 #[path = "binary_commit_form_refusal_tests.rs"]

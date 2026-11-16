@@ -20,7 +20,8 @@ use crate::index_byte_search::is_slash;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{ObjectKind, from_hex, name_length};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{FlatEntry, TreeEntry, flatten_pair, flatten_tree, is_tree_mode, parse_commit, parse_tree};
+use crate::repo_read_tree::{FlatEntry, TREE_DEPTH_LIMIT, TreeEntry, flatten_pair, flatten_tree, is_tree_mode, parse_commit, parse_tree};
+use std::collections::BTreeMap;
 
 /// The root tree of the commit named by `hex`,
 /// or of the tree it names.
@@ -55,57 +56,99 @@ fn same_path(later: &mut FlatEntry, earlier: &mut FlatEntry) -> bool {
     return later.path == earlier.path;
 }
 
-/// The files of the tree at `name` or below it,
-/// with their paths from the top:
-/// nothing when the name is absent,
-/// the one entry
-/// when it is a file.
-fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
-    let components: Vec<&[u8]> = name.split(is_slash).collect();
-    let mut tree: Vec<u8> = root.to_vec();
-    for (position, component) in components.iter().enumerate() {
-        let entries: Vec<TreeEntry> = entries_of(database, tree.as_slice(), format)?;
-        let mut matching: Option<TreeEntry> = None;
-        for entry in entries {
-            if entry.name.as_slice() == *component {
-                matching = Some(entry);
-                break;
-            }
-        }
-        let Some(found) = matching else {
-            return Some(Vec::new());
-        };
-        let last: bool = position + 1 == components.len();
-        if !last {
-            if !is_tree_mode(found.mode) {
-                return Some(Vec::new());
-            }
-            tree = found.id;
-            continue;
-        }
-        if !is_tree_mode(found.mode) {
-            return Some(vec![FlatEntry { path: name.to_vec(), mode: found.mode, id: found.id }]);
-        }
-        let below: Vec<FlatEntry> = flatten_tree(database, found.id.as_slice(), format)?;
-        let mut prefixed: Vec<FlatEntry> = Vec::new();
-        for entry in below {
-            let mut path: Vec<u8> = name.to_vec();
-            path.push(b'/');
-            path.extend_from_slice(entry.path.as_slice());
-            prefixed.push(FlatEntry { path, mode: entry.mode, id: entry.id });
-        }
-        return Some(prefixed);
+/// The first path component of `name` at `offset`, and where that component's children begin.
+/// Why:
+///  One walk of a tree answers every name below it, so a component is read where it starts
+/// and the rest of the name is read in the tree that component names.
+fn component_at(name: &[u8], offset: usize) -> (&[u8], usize) {
+    if offset >= name.len() {
+        return (&[], name.len());
     }
-    return Some(Vec::new());
+    let rest: &[u8] = &name[offset..];
+    let Some(at) = rest.iter().position(is_slash) else {
+        return (rest, name.len());
+    };
+    return (&rest[..at], offset + at + 1);
+}
+
+/// The files at or below every name in `names`, read from one tree:
+/// each tree object is read once, not once for every name that passes through it.
+/// Why:
+///  A reset of a commit that changed `N` files names `N` paths, and walking the root and a directory
+/// for each of them reads the same tree objects `N` times; the walk here groups the names by their
+/// next component, so a landing of 20,000 changed files reads 201 trees rather than 40,000.
+/// `offset` is where the component below `prefix` starts in each name, and every name in `names`
+/// shares the bytes before it.
+fn entries_at_many(
+    database: &ObjectDatabase,
+    tree: &[u8],
+    names: &[Vec<u8>],
+    offset: usize,
+    format: ObjectFormat,
+    prefix: &mut Vec<u8>,
+    found: &mut Vec<FlatEntry>,
+    depth: usize,
+) -> Option<()> {
+    if names.is_empty() {
+        return Some(());
+    }
+    if depth > TREE_DEPTH_LIMIT {
+        return None;
+    }
+    let entries: Vec<TreeEntry> = entries_of(database, tree, format)?;
+    let by_name: BTreeMap<&[u8], &TreeEntry> = entries.iter().map(|entry| (entry.name.as_slice(), entry)).collect();
+    let mut position: usize = 0;
+    while position < names.len() {
+        let (component, children): (&[u8], usize) = component_at(names[position].as_slice(), offset);
+        let mut group_end: usize = position + 1;
+        while group_end < names.len() && component_at(names[group_end].as_slice(), offset).0 == component {
+            group_end += 1;
+        }
+        // An exact name sorts before every name below it, so the first of a group says whether the group names the
+        // entry itself or only paths below it.
+        let names_below: bool = children < names[position].len();
+        if let Some(entry) = by_name.get(component) {
+            let mark: usize = prefix.len();
+            prefix.extend_from_slice(component);
+            if is_tree_mode(entry.mode) {
+                if names_below {
+                    prefix.push(b'/');
+                    entries_at_many(database, entry.id.as_slice(), &names[position..group_end], children, format, prefix, found, depth + 1)?;
+                } else {
+                    // The name is the directory itself: every path below it is selected.
+                    let below: Vec<FlatEntry> = flatten_tree(database, entry.id.as_slice(), format)?;
+                    for below_entry in below {
+                        let mut path: Vec<u8> = prefix.clone();
+                        path.push(b'/');
+                        path.extend_from_slice(below_entry.path.as_slice());
+                        found.push(FlatEntry { path, mode: below_entry.mode, id: below_entry.id });
+                    }
+                }
+            } else if !names_below {
+                found.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id.clone() });
+            }
+            prefix.truncate(mark);
+        }
+        position = group_end;
+    }
+    return Some(());
 }
 
 /// The tree's files at or below each of `names`,
 /// sorted by path without repeats.
+/// Why:
+///  The names are sorted and deduplicated once, so the walk can group them by component
+/// without keeping a map of every path.
+///  A name that ends in a slash names the empty path below a directory, which selects nothing,
+/// as the component walk found no entry for it; it is dropped here rather than read as its directory.
 pub fn tree_entries_at(database: &ObjectDatabase, root: &[u8], names: &[Vec<u8>], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
+    let mut ordered: Vec<Vec<u8>> = names.to_vec();
+    ordered.retain(|name| name.last() != Some(&b'/'));
+    ordered.sort_unstable();
+    ordered.dedup();
     let mut found: Vec<FlatEntry> = Vec::new();
-    for name in names {
-        found.extend(entries_at(database, root, name.as_slice(), format)?);
-    }
+    let mut prefix: Vec<u8> = Vec::new();
+    entries_at_many(database, root, ordered.as_slice(), 0, format, &mut prefix, &mut found, 0)?;
     found.sort_by(by_path);
     found.dedup_by(same_path);
     return Some(found);

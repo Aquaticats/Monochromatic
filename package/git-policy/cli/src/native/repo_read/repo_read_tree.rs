@@ -27,8 +27,8 @@ use crate::repo_read_odb::ObjectDatabase;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// The deepest tree nesting the flattener follows.
-const TREE_DEPTH_LIMIT: usize = 256;
+/// The deepest tree nesting the flattener and the named-entry walk follow.
+pub const TREE_DEPTH_LIMIT: usize = 256;
 
 /// The most entries a flat list may hold before the reader declines.
 const FLAT_ENTRY_LIMIT: usize = 4_000_000;

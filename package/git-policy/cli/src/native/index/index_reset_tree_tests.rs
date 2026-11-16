@@ -42,7 +42,7 @@ fn entries_at_names_equal_ls_tree() {
     let (root, repo, _first, second) = history("index-reset-tree-entries");
     let database = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1).expect("database");
     let tree: Vec<u8> = root_tree(&database, second.as_str(), ObjectFormat::Sha1).expect("tree");
-    let names: Vec<Vec<u8>> = vec![b"a".to_vec(), b"d".to_vec(), b"l".to_vec(), b"missing".to_vec(), b"d/n/m".to_vec(), b"a/not-a-directory".to_vec()];
+    let names: Vec<Vec<u8>> = vec![b"a".to_vec(), b"d".to_vec(), b"d/".to_vec(), b"d//n".to_vec(), b"l".to_vec(), b"missing".to_vec(), b"d/n/m".to_vec(), b"a/not-a-directory".to_vec()];
     let found: Vec<FlatEntry> = tree_entries_at(&database, tree.as_slice(), names.as_slice(), ObjectFormat::Sha1).expect("entries");
     let listing: String = git_text(repo.as_path(), &["ls-tree", "-r", second.as_str(), "--", "a", "d", "l"]);
     let expected: Vec<String> = listing.lines().map(|line| { return line.to_string(); }).collect();
@@ -83,5 +83,48 @@ fn a_commit_or_a_tree_names_a_root_tree() {
     assert_eq!(root_tree(&database, tree_hex.as_str(), ObjectFormat::Sha1), Some(from_commit));
     let blob_hex: String = git_text(repo.as_path(), &["rev-parse", format!("{second}:a").as_str()]);
     assert_eq!(root_tree(&database, blob_hex.as_str(), ObjectFormat::Sha1), None);
+    remove(root.as_path());
+}
+
+/// One walk of a tree answers many names,
+/// and reads each tree object once:
+/// a hundred names below ten directories cost the root and the ten directories,
+/// never a walk from the root for every name.
+/// Why:
+///  This is the shape a landing of thousands of paths pays for
+/// (`index_reset_file.rs` asks this for every commit's paths),
+/// and a count of object reads is independent of this machine's speed.
+/// The hundred-name walk cost two hundred tree reads before this control existed,
+/// which is the failure the count would show.
+#[test]
+fn one_walk_reads_each_tree_once_for_many_names() {
+    let root: PathBuf = fixture("index-reset-tree-once");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let directories: usize = 10;
+    let per_directory: usize = 10;
+    let mut names: Vec<Vec<u8>> = Vec::new();
+    for directory in 0..directories {
+        for file in 0..per_directory {
+            let path: String = format!("d{directory}/f{file}");
+            let full: PathBuf = repo.join(path.as_str());
+            std::fs::create_dir_all(full.parent().expect("parent")).expect("directories");
+            std::fs::write(full, format!("{directory} {file}\n")).expect("write");
+            names.push(path.into_bytes());
+        }
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let database = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1).expect("database");
+    let tree: Vec<u8> = root_tree(&database, commit.as_str(), ObjectFormat::Sha1).expect("tree");
+    let before: u64 = crate::repo_read_odb::loose_looks();
+    let found: Vec<FlatEntry> = tree_entries_at(&database, tree.as_slice(), names.as_slice(), ObjectFormat::Sha1).expect("entries");
+    let looks: u64 = crate::repo_read_odb::loose_looks() - before;
+    assert_eq!(found.len(), directories * per_directory, "every named file is found");
+    assert!(
+        looks <= u64::try_from(directories + 1).expect("small count"),
+        "the root and the {directories} directories are read once each, not once for every name: {looks} tree reads for {} names",
+        names.len()
+    );
     remove(root.as_path());
 }

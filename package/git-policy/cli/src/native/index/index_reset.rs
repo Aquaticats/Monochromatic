@@ -58,11 +58,21 @@ fn index_mode(mode: u32) -> u32 {
 
 /// Whether the path is one a literal pathspec `name` selects:
 /// the name itself or anything below it.
-fn selected(path: &[u8], names: &[Vec<u8>]) -> bool {
-    for name in names {
-        if path == name.as_slice() || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/')) {
+/// Why:
+///  Asking every name for every index entry costs entries times names, which is what made a landing of
+/// 20,000 changed files spend seconds in a question whose answer is a lookup; the names are sorted once,
+/// so the path itself and each directory above it are found by binary search.
+fn selected(path: &[u8], names: &[&[u8]]) -> bool {
+    if names.binary_search(&path).is_ok() {
+        return true;
+    }
+    let mut end: usize = path.len();
+    while let Some(slash) = path[..end].iter().rposition(|byte| *byte == b'/') {
+        let ancestor: &[u8] = &path[..slash];
+        if names.binary_search(&ancestor).is_ok() {
             return true;
         }
+        end = slash;
     }
     return false;
 }
@@ -279,12 +289,14 @@ pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry],
     }
     prepare_extensions(index, settings)?;
     // The paths that differ, in path order: each is in the tree, the index or both.
+    let mut ordered: Vec<&[u8]> = names.iter().map(|name| name.as_slice()).collect();
+    ordered.sort_unstable();
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for entry in tree {
         paths.push(entry.path.clone());
     }
     for entry in &index.entries {
-        if selected(entry.path.as_slice(), names) {
+        if selected(entry.path.as_slice(), ordered.as_slice()) {
             paths.push(entry.path.clone());
         }
     }
