@@ -161,8 +161,18 @@ In the order a run that names no model of its own takes them:
   2026-11-11:
   "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
-  20 runs of Kimi K3.1 Pro flex,
-  taken only by a run that names that model.
+  Kimi K3.1 Pro flex,
+  taken only by a run that names that model,
+  closed to new runs since 2026-11-15 while it keeps its limit of 20 (the room it returns to).
+  The owner,
+  2026-11-15:
+  "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+  Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish.
+  Anyway, I'll probably figure out something better in the next week."
+  The runs already on it are still counted there and left to end,
+  and a run that names its model gets no room while it is closed.
+  `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens it for one command.
 - `qwen-token-plan`:
   5 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
@@ -192,8 +202,10 @@ and any number above zero is the room it takes again.
 ```sh
 # reopen OpenCode Go once the owner says the week has reset
 PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
-# close Neuralwatt's Kimi flex pool for the day
-PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --counts-only
+# reopen Neuralwatt's Kimi flex pool, which the owner closed on 2026-11-15, for one command
+PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20 start-pi-run-when-a-pool-has-room --counts-only
+# close the qwen plan's `qwen4-max-preview` pool for the day
+PI_RUNS_POOL_LIMITS=qwen-token-plan=0 start-pi-run-when-a-pool-has-room --counts-only
 ```
 
 A pair naming no pool,
@@ -1333,6 +1345,135 @@ so they are worth one check before trusting the rule:
 in the environment that carried 38 credential-shaped variables,
 neither carrier held any of those values,
 compared rather than printed.
+
+## What is masked before it reaches the model
+
+The environment rule above bounds what a command inherits.
+It does not bound what a command can print,
+and a tool result is sent to the model whole:
+on 2026-11-14 at 09:11:15 a run ran `mise env 2>&1 | head -3`
+and the answer held a credential of `.env.local.json`.
+So every value of this machine's secret environment is masked before it reaches the model,
+and the run's own files are read back for a value a tool printed.
+
+Four sources,
+and why these:
+the checkout's `.env.local.json`,
+read through `@monochromatic-dev/env-local-json-core`,
+because the rules file bans printing it and it declares the repository's secret environment;
+Pi's own `~/.pi/agent/auth.json` and
+`~/.pi/agent/models.json`,
+because they hold provider keys in clear and the rules file names both;
+the shell start-up files
+(`~/.bashrc`,
+`~/.bash_profile`,
+`~/.profile`),
+because a token exported for a terminal lives there and `sed -n '40,70p' ~/.bashrc` was one leak;
+and the driver's own environment's credential-named variables,
+because `environment-without-credentials.ts` takes them out of Pi's environment
+while an ancestor process still holds them,
+which is what `tr '\0' '\n' < /proc/$pid/environ` reads.
+The age identity that decrypts the store is read too,
+because it is the one key that opens every other value.
+
+The values are read once in the driver's own process.
+Nothing writes them to disk,
+logs them,
+summarises them,
+or puts them in an error message,
+and they are never in Pi's environment (a command would inherit it)
+nor on Pi's command line (every process could read it).
+They travel on a descriptor the driver opens for Pi and names in
+`MONOCHROMATIC_SECRET_VALUE_DESCRIPTOR`,
+and the extension reads it once while it loads and closes it
+(`src/secret-value-masking-extension.ts`).
+
+The extension the driver loads with `--extension` masks them in three places:
+`tool_result`,
+which fires after a tool ran and before Pi ends the call and keeps the tool result message
+(`dist/core/agent-session.js:403` in Pi 1.5.2),
+so a value never reaches the model,
+Pi's session file,
+or the run's feed;
+and `context_with_system`,
+which fires before every model request with the whole transcript,
+so a value an earlier session already held is masked on its way out when a run resumes one;
+and `message_end`,
+which fires before Pi keeps a message in its session,
+so the first prompt, a steer, an inbox note, an assistant message with its tool calls and every other message are masked
+before the session file holds them.
+That last hook is also what keeps Pi's compaction and branch-summary requests free of values:
+both build their own text from the session and run no context hook.
+
+The driver masks what it writes as well:
+one boundary for every line of `feed.jsonl`,
+one for `summary.json`,
+and one on the way into `stderr.log`.
+The session file Pi wrote is masked once the run is over,
+which is the one boundary the entry kinds no hook reaches pass,
+an entry an extension wrote among them.
+`doc/troubleshooting/secret-values-reaching-a-model.md` lists every place a value could be written or sent
+and the point before it that masks.
+
+What the mask is applied to is the data Pi serialises,
+not the object it came in:
+the value goes through Pi's own serialisation once,
+the text is masked,
+and Pi gets plain data back.
+That is one answer for a key,
+a `toJSON` method,
+a getter and a cycle,
+and a value that cannot be serialised,
+whose masking throws,
+or whose masked form is not the same shape of data is not handed on at all:
+the result is withheld whole,
+says it has no details,
+and the reader is told why.
+
+An agent reads a marker that names where the value came from,
+`[masked secret value of MISE_GITHUB_TOKEN]`,
+and goes on without it.
+The masking covers the value itself,
+the value as JSON escapes it,
+as a URL percent-encodes it,
+and as base64 encodes it (both alphabets, padded and unpadded).
+It does not cover a container the value was encoded inside
+(base64 of a whole file, hex, gzip, base64 wrapped at column 76)
+nor a value shorter than eight characters,
+and Pi's compaction and branch summarization build their request from the session without running
+`context_with_system`
+(`dist/core/compaction/compaction.js:524`),
+so a value that an old session already held could travel inside one.
+
+A file a run replaces is replaced only when the caller can say the file's writer is gone:
+a session a run resumes is never replaced at all, but masked into a copy Pi resumes,
+and a session at rest is replaced only after Pi's leaving was confirmed.
+Every place a value is kept has three answers:
+covered,
+not there,
+and could not.
+A store,
+Pi's own credential file,
+a shell start-up file,
+an age identity the machine declares,
+or a session a run resumes that is there and cannot be read stops the run before Pi starts;
+a session that still holds a value when the run is over ends it as `session-unmasked`,
+with the summary saying where the value is.
+
+A store that is there and cannot be read stops the run before Pi starts,
+with a `SecretEnvironmentUnreadableError` naming the cause and no value,
+because a run whose values this code does not know would show them to a model.
+A checkout with no store is not that case:
+it declares no secret environment,
+and the other sources are read as usual.
+Pi's command list is the readiness check:
+the extension registers a command whose description holds how many values it armed with,
+and a Pi that answers a list without it is sent no prompt,
+ending the run as `masking-not-armed`.
+
+Pi keeps the whole text of a truncated tool output in a file under its temporary folder,
+and the extension rewrites that file too,
+so a value masked in what the model reads is not left in what Pi wrote.
 
 A provider credential still reaches Pi,
 which is why no provider key is on the allow list:

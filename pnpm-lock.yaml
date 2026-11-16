@@ -310,8 +310,8 @@ catalogs:
       specifier: '>=1.0.34'
       version: 1.0.34
     nano-spawn:
-      specifier: '>=2.1.0'
-      version: 2.1.0
+      specifier: '>=3.0.0'
+      version: 3.0.0
     opentype.js:
       specifier: '>=2.0.0'
       version: 2.0.0
@@ -340,8 +340,8 @@ catalogs:
       specifier: '>=3.29.5'
       version: 3.29.5
     quick-lru:
-      specifier: '>=7.3.0'
-      version: 7.3.0
+      specifier: '>=8.0.0'
+      version: 8.0.0
     rehype-autolink-headings:
       specifier: '>=7.1.0'
       version: 7.1.0
@@ -589,7 +589,7 @@ importers:
         version: 2.0.8
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       oxlint:
         specifier: 'catalog:'
         version: 1.93.0(oxlint-tsgolint@7.0.2007)
@@ -900,7 +900,7 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -967,7 +967,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -1367,7 +1367,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       string-dedent:
         specifier: 'catalog:'
         version: 3.0.2
@@ -1433,7 +1433,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
 
   package/config/typescript:
     devDependencies:
@@ -1528,7 +1528,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
 
   package/css/core-edit:
     dependencies:
@@ -1667,7 +1667,7 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       p-limit:
         specifier: 'catalog:'
         version: 7.3.3
@@ -1707,7 +1707,7 @@ importers:
         version: link:../../toml-edit/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
@@ -1726,7 +1726,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
@@ -1801,7 +1801,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       yaml:
         specifier: 'catalog:'
         version: 3.0.0-2
@@ -1941,7 +1941,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
 
   package/dsh-plugin/advisor:
     dependencies:
@@ -2395,7 +2395,7 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -2484,7 +2484,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
 
   package/git-clone-size/cli:
     dependencies:
@@ -2517,7 +2517,7 @@ importers:
         version: 1.3.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -2603,7 +2603,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -2926,7 +2926,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -2981,7 +2981,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -3075,7 +3075,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -3152,7 +3152,7 @@ importers:
         version: 1.3.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       string-dedent:
         specifier: 'catalog:'
         version: 3.0.2
@@ -3195,7 +3195,7 @@ importers:
         version: link:../../or-throw/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
@@ -3232,7 +3232,7 @@ importers:
         version: 1.3.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       p-limit:
         specifier: 'catalog:'
         version: 7.3.3
@@ -3352,7 +3352,7 @@ importers:
         version: 1.3.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       type-fest:
         specifier: 'catalog:'
         version: 5.10.0
@@ -3432,7 +3432,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -3509,7 +3509,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
 
   package/oxlint-plugin/prefer-readonly-parameter-type:
     dependencies:
@@ -3549,7 +3549,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       rolldown:
         specifier: 'catalog:'
         version: 1.3.2
@@ -3641,7 +3641,7 @@ importers:
         version: link:../../fs-path/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       string-dedent:
         specifier: 'catalog:'
         version: 3.0.2
@@ -4344,7 +4344,16 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
+      '@monochromatic-dev/env-local-json-core':
+        specifier: workspace:*
+        version: link:../../env-local-json/core
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
     devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.5.2(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4525,7 +4534,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -4640,7 +4649,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
 
   package/search-fetch/cli:
     dependencies:
@@ -4671,7 +4680,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -4698,7 +4707,7 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       type-fest:
         specifier: 'catalog:'
         version: 5.10.0
@@ -4765,7 +4774,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -4856,7 +4865,7 @@ importers:
         version: 0.5.0
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       rehype-autolink-headings:
         specifier: 'catalog:'
         version: 7.1.0
@@ -5191,7 +5200,7 @@ importers:
         version: link:../core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -5400,7 +5409,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       rolldown:
         specifier: 'catalog:'
         version: 1.3.2
@@ -5648,7 +5657,7 @@ importers:
         version: link:../typography
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -6197,7 +6206,7 @@ importers:
         version: link:../typography
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -6288,7 +6297,7 @@ importers:
         version: link:../typography
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -7380,7 +7389,7 @@ importers:
         version: link:../typography
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/async-time-core':
         specifier: workspace:*
@@ -7532,7 +7541,7 @@ importers:
         version: link:../typography
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -8070,7 +8079,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       opentype.js:
         specifier: 'catalog:'
         version: 2.0.0
@@ -8531,7 +8540,7 @@ importers:
         version: 4.10.2
       quick-lru:
         specifier: 'catalog:'
-        version: 7.3.0
+        version: 8.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -8555,7 +8564,7 @@ importers:
         version: link:../../logger/core
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -8589,7 +8598,7 @@ importers:
         version: 1.3.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       type-fest:
         specifier: 'catalog:'
         version: 5.10.0
@@ -8803,7 +8812,7 @@ importers:
         version: 26.6.6
       nano-spawn:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 3.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -10575,8 +10584,8 @@ packages:
   earcut@2.2.4:
     resolution: {integrity: sha512-/pjZsA1b4RPHbeWZQn66SWS8nZZWLQQ23oE3Eam7aroEFGEvwKAsJfZ9ytiEMycfzXWpca4FA9QIOehf7PocBQ==, tarball: https://registry.npmjs.org/earcut/-/earcut-2.2.4.tgz}
 
-  electron-to-chromium@1.5.485:
-    resolution: {integrity: sha512-m3uadzR0Z+sR19HGWgfxoZcKv9hE/edVM9OZ+FJ4wNRyfuFtkwZJIDoehEty5sisYVwmge8lKV1tenWOyClVgw==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.485.tgz}
+  electron-to-chromium@1.5.486:
+    resolution: {integrity: sha512-rpybw4Ac4ak/An6G1Me2+61xzwobowDGyuJe71QHHOVpkZv4fPVobsLl7WH6zHSKusAMpaHxGKTpOvpy7+r3dQ==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.486.tgz}
 
   electron@45.3.2:
     resolution: {integrity: sha512-bPO0MMvJCdKdPfXgd3ES8zupu+ocr6XmSuRGwyZazTiigTz8jE7rwukSkck0iomS6UZeFuCwzu0uanMD/D34uw==, tarball: https://registry.npmjs.org/electron/-/electron-45.3.2.tgz}
@@ -11193,9 +11202,9 @@ packages:
     resolution: {integrity: sha512-gSrprq0fJ3EiOErzjdIZrjysVVmJ4uu1QWfCDss5LypA5OXvrMje5Ym5z6V6RLyJ2eF87lasX7t6a0AnFvZblg==, tarball: https://registry.npmjs.org/mute-stream/-/mute-stream-4.0.0.tgz}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
-  nano-spawn@2.1.0:
-    resolution: {integrity: sha512-yTW+2okrElHiH4fsiz/+/zc0EDo9BDDoC3iKk8dpv1GeRc9nUWzUZHx6TofMWErchhUQR8hY9/Eu1Uja9x1nqA==, tarball: https://registry.npmjs.org/nano-spawn/-/nano-spawn-2.1.0.tgz}
-    engines: {node: '>=20.17'}
+  nano-spawn@3.0.0:
+    resolution: {integrity: sha512-b5ex7XqP35eAVjOhf71GdDXI7a9l6jKIC4fYA26f0UVUOl5TCemJm2WyqF70nfAJF9wyq7T3EfWjVC9HBfjAow==, tarball: https://registry.npmjs.org/nano-spawn/-/nano-spawn-3.0.0.tgz}
+    engines: {node: '>=22'}
 
   nanoid@6.0.2:
     resolution: {integrity: sha512-hIvVOb9Qr1p/9CNNLOe0OlWvgx/ziTsVwKN/GDSsuArN2K0wDiafP3s0SWmsm7o2BdnyS8Z9Z64NFBUbn6ziBg==, tarball: https://registry.npmjs.org/nanoid/-/nanoid-6.0.2.tgz}
@@ -11383,9 +11392,9 @@ packages:
   pure-rand@8.4.2:
     resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==, tarball: https://registry.npmjs.org/pure-rand/-/pure-rand-8.4.2.tgz}
 
-  quick-lru@7.3.0:
-    resolution: {integrity: sha512-k9lSsjl36EJdK7I06v7APZCbyGT2vMTsYSRX1Q2nbYmnkBqgUhRkAuzH08Ciotteu/PLJmIF2+tti7o3C/ts2g==, tarball: https://registry.npmjs.org/quick-lru/-/quick-lru-7.3.0.tgz}
-    engines: {node: '>=18'}
+  quick-lru@8.0.0:
+    resolution: {integrity: sha512-wuV1TowawrTfnwGvYbjYE1vwKAO0yO0rcEgHz0y9/Lz+v79WqQtRLLpLYYCZJY/tacCb9zVDMDJCJ04DKVZgfg==, tarball: https://registry.npmjs.org/quick-lru/-/quick-lru-8.0.0.tgz}
+    engines: {node: '>=22'}
 
   quickjs-wasi@3.6.2:
     resolution: {integrity: sha512-FCqGtGOrMgzUiIrMNMA2YnsOxCNwo31dzqXvclXUC6xeT35NJLKXQJsvbeCTjvoFAwZgEAPg8U6+KAPDGXn8Mg==, tarball: https://registry.npmjs.org/quickjs-wasi/-/quickjs-wasi-3.6.2.tgz}
@@ -13445,7 +13454,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.11.37
       caniuse-lite: 1.0.30001826
-      electron-to-chromium: 1.5.485
+      electron-to-chromium: 1.5.486
       node-releases: 2.0.64
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
@@ -13556,7 +13565,7 @@ snapshots:
 
   earcut@2.2.4: {}
 
-  electron-to-chromium@1.5.485: {}
+  electron-to-chromium@1.5.486: {}
 
   electron@45.3.2:
     dependencies:
@@ -14497,7 +14506,7 @@ snapshots:
 
   mute-stream@4.0.0: {}
 
-  nano-spawn@2.1.0: {}
+  nano-spawn@3.0.0: {}
 
   nanoid@6.0.2: {}
 
@@ -14651,7 +14660,7 @@ snapshots:
 
   pure-rand@8.4.2: {}
 
-  quick-lru@7.3.0: {}
+  quick-lru@8.0.0: {}
 
   quickjs-wasi@3.6.2: {}
 

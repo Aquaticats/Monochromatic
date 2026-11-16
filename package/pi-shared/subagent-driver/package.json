@@ -41,9 +41,12 @@
     "put-ended-reviews-back-at-the-head-of-a-queue": "dist/final/node/put-ended-reviews-back-at-the-head-of-a-queue.mjs"
   },
   "dependencies": {
-    "@monochromatic-dev/caught-value-core": "workspace:*"
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/env-local-json-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
