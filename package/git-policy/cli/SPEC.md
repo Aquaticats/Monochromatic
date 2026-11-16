@@ -2768,6 +2768,12 @@ The allowance is one deadline and not a count of tries,
 because a count of tries cannot bound the time a copy of a large tree
 takes;
 `CLI_GIT_ADD_OWN_WORK_SECONDS` sets it for one command.
+Two things after the worktree is whole are outside it:
+a copy the allowance stops after real Git made the
+worktree is a failed copy the next command settles,
+and the package repair keeps one ceiling per tool,
+so neither can leave a worktree
+half made and neither is bounded by the allowance.
 The record of an add that owes an ignored-state copy lives from before real Git runs until that copy's journal names
 its stage:
 the rung that took the claim hands it to the copy instead of releasing it,
