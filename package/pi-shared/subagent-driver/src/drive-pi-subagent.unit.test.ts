@@ -898,10 +898,9 @@ await describe({
           'edit',
           'secret-value-masking',
         ],);
-        expect(run.summary.sessionStats,).toEqual({
-          sessionFile: 'stand-in-session.jsonl',
-          cost: 0.5,
-        },);
+        // The stand-in makes a session file of its own at its start, as Pi does for a fresh run, so the statistics name that file.
+        expect(run.summary.sessionStats,).toMatchObject({ cost: 0.5, },);
+        expect(String((run.summary.sessionStats as { readonly sessionFile?: string }).sessionFile,),).toContain('stand-in-session-',);
       },
     },),
     it({
@@ -1968,7 +1967,6 @@ await describe({
           environment: {
             ENV_LOCAL_JSON_PATH: store.storePath,
             SOPS_AGE_KEY_FILE: store.identityPath,
-            STAND_IN_PI_SESSION_FILE: sessionFile,
           },
         },);
         expect(run.summary.endReason,).toBe('idle',);
@@ -2079,21 +2077,19 @@ await describe({
       },
     },),
     it({
-      name: 'does not end clean when the session a run leaves still holds a value',
+      name: 'leaves a session file this run cannot show is its own, and ends saying where the value still is',
       fn: async () => {
         await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
         await using sessionFolder = await makeFolder();
         /**
-         The session Pi reports, holding a value no hook of this run would have seen.
+         A session file that was there before this run started, holding a value no hook of this run would have seen: another
+         run's file, or one an earlier run left, which this run does not rewrite however Pi names it.
          */
         const sessionFile = join(sessionFolder.path, 'session.jsonl',);
         await writeFile(
           sessionFile,
           `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`,
         );
-        // The folder takes no new file for as long as this scope lasts, so the masked text cannot be put beside the session.
-        await using writable = await refuseNewFiles({ folder: sessionFolder.path, },);
-        void writable;
         const run = await runDriver({
           scenario: 'normal',
           extraPathEntries: folderOfSops(),
@@ -2140,13 +2136,13 @@ await describe({
         await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
         await using sessionFolder = await makeFolder();
         /**
-         The session file Pi will name, which holds a value no hook of this run would have seen.
+         The session file the run's own Pi makes when it starts, which it fills with an entry no hook of this run sees.
          */
         const sessionFile = join(sessionFolder.path, 'session.jsonl',);
-        await writeFile(
-          sessionFile,
-          `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`,
-        );
+        /**
+         The entry that stand-in Pi writes into its own session as it starts, which an extension could have written too.
+         */
+        const writtenByPi = `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`;
         const run = await runDriver({
           scenario: 'normal',
           extraPathEntries: folderOfSops(),
@@ -2154,6 +2150,7 @@ await describe({
             ENV_LOCAL_JSON_PATH: store.storePath,
             SOPS_AGE_KEY_FILE: store.identityPath,
             STAND_IN_PI_SESSION_FILE: sessionFile,
+            STAND_IN_PI_SESSION_CONTENT: writtenByPi,
           },
         },);
         expect(run.summary.endReason,).toBe('idle',);

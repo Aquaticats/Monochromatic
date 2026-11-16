@@ -29,6 +29,7 @@ export {
 } from './secret-value-masking.ts';
 export { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 export {
+  isAFileThisRunMayRewrite,
   reportedSessionFile,
   type SessionFileThisRunMayRewrite,
   type SessionFileToMaskAtRest,

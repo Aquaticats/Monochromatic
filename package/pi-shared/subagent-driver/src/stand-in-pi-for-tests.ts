@@ -9,11 +9,13 @@
 
 import { spawn, } from 'node:child_process';
 import { close, } from 'node:fs';
+import { randomUUID, } from 'node:crypto';
 import {
   appendFile,
   readFile,
   writeFile,
 } from 'node:fs/promises';
+import { join, } from 'node:path';
 import process, {
   argv,
   env,
@@ -25,7 +27,9 @@ import process, {
 import { createInterface, } from 'node:readline';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
-import { NESTED_RUN_VARIABLE, } from './driver-constants.ts';
+import { ordinaryAnswersOf, } from './ordinary-answers-of-a-stand-in-pi.ts';
+import { sessionAnswerOf, } from './session-answers-of-a-stand-in-pi.ts';
+import { logTheNamesOfWhatPiCouldRead, } from './what-a-stand-in-pi-logs-about-its-names.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import type { PiRecord, } from './driver-types.ts';
 import { isRecord, } from './read-pi-fields.ts';
@@ -98,38 +102,39 @@ const closeDescriptor = promisify(close,);
 const sessionArgumentAt = argv.indexOf('--session',);
 
 /**
- That session, when the run named one, or the file this stand-in reports for a session of its own.
+ The session Pi keeps: the one the run handed it, or one this stand-in makes for itself at its own start, as Pi makes a new session
+ file for a fresh run.
  */
-const sessionFile = (sessionArgumentAt === (-1)) ? env.STAND_IN_PI_SESSION_FILE : argv[sessionArgumentAt + 1];
+const sessionFile = (sessionArgumentAt === (-1))
+  ? (env.STAND_IN_PI_SESSION_FILE
+    ?? join(
+      env.TMPDIR ?? env.HOME
+        ?? process.cwd(),
+      `stand-in-session-${randomUUID()}.jsonl`,
+    ))
+  : argv[sessionArgumentAt + 1];
+
+// A fresh run's session file is made by its Pi, during the run, holding whatever the fixture says Pi's own session already held.
+if ((sessionArgumentAt === (-1)) && (sessionFile !== undefined)) {
+  try {
+    await writeFile(
+      sessionFile,
+      env.STAND_IN_PI_SESSION_CONTENT ?? '',
+      { flag: 'wx', },
+    );
+  }
+  catch (error) {
+    // A file that is already there is the fixture's own, which this start keeps rather than writes.
+    if (!(Error.isError(error,) && (errorCodeOf(error,) === 'EEXIST'))) {
+      throw error;
+    }
+  }
+}
 
 /**
- What Pi answers each ordinary command with, so a run's state, its command names and its statistics all have shapes to read.
+ What Pi answers each ordinary command with, named by the session file this start keeps.
  */
-const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord>([
-  [
-    'get_state',
-    {
-      model: { id: 'stand-in-model', },
-      thinkingLevel: 'xhigh',
-      // Pi's own `get_state` answer names the session file it keeps, which is where this run's masking finds it at rest.
-      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
-    },
-  ],
-  [
-    'get_commands',
-    { commands: [
-      { name: 'bash', },
-      { name: 'edit', },
-    ], },
-  ],
-  [
-    'get_session_stats',
-    {
-      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
-      cost: 0.5,
-    },
-  ],
-]);
+const ORDINARY_ANSWERS = ordinaryAnswersOf({ sessionFile: sessionFile ?? 'stand-in-session.jsonl', },);
 
 /**
  Counts this start among the starts of one run, in a file the several stand-in processes of one run share.
@@ -339,38 +344,27 @@ async function actOnCommand({
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
     exit(CRASH_STATUS,);
   }
-  // A Pi that reports a session file it was never given: a file another run keeps, which this run may not rewrite. It is the shape
-  // of a misreporting or compromised peer, and the driver has to leave that file alone and say so.
-  if ((scenario === 'reports-another-session') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
-    answer({
-      id: parsed.id,
-      data: {
-        ...(ORDINARY_ANSWERS.get(parsed.type,) ?? {}),
-        sessionFile: env.STAND_IN_PI_REPORTED_SESSION ?? 'stand-in-reported-session.jsonl',
-      },
-    },);
-    return;
-  }
-  // A Pi whose own answers name no session file at all, which is what makes a run fall back to a path of its own choice.
-  if ((scenario === 'sessionless') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
-    /**
-     Everything that answer holds, less the session file.
-     */
-    const {
-      sessionFile: _unreported,
-      ...rest
-    } = ORDINARY_ANSWERS.get(parsed.type,) ?? {};
-    answer({
-      id: parsed.id,
-      data: rest,
-    },);
-    return;
-  }
-  if ((parsed.type === 'get_session_stats') && (scenario === 'statless')) {
+  /**
+   What a scenario about the session file Pi names answers this command with.
+   */
+  const sessionAnswer = sessionAnswerOf({
+    type: parsed.type,
+    scenario,
+    ordinary: ORDINARY_ANSWERS.get(String(parsed.type,),) ?? {},
+    reported: env.STAND_IN_PI_REPORTED_SESSION ?? 'stand-in-reported-session.jsonl',
+  },);
+  if ('noData' in sessionAnswer) {
     emit({
       type: 'response',
       id: parsed.id,
       success: true,
+    },);
+    return;
+  }
+  if ('answer' in sessionAnswer) {
+    answer({
+      id: parsed.id,
+      data: sessionAnswer.answer,
     },);
     return;
   }
@@ -380,32 +374,15 @@ async function actOnCommand({
   },);
 }
 
-await appendFile(
-  log,
-  `arguments ${JSON.stringify(argv.slice(2,),)}\n`,
-);
-await appendFile(
-  log,
-  `nested ${env[NESTED_RUN_VARIABLE] ?? 'unset'}\n`,
-);
-// Names only: a test learns what Pi's commands could read without any value reaching a log, and so a model provider.
-await appendFile(
-  log,
-  `environment-names ${JSON.stringify(Object.keys(env,)
-    .toSorted(),)}\n`,
-);
 /**
  What this stand-in's Pi armed, read before any scenario runs so the descriptor is closed before a tool could inherit it.
  */
 const masking: StandInMasking = armTheStandInMasking({ scenario, },);
-// Names only, and how many: a test learns that the driver handed values over without a value reaching a log or a model provider.
-await appendFile(
+await logTheNamesOfWhatPiCouldRead({
   log,
-  `secret-value-names ${JSON.stringify(masking.values
-    .map(function nameOf(value,) {
-    return value.name;
-  },),)}\n`,
-);
+  argumentsOfTheStart: argv.slice(2,),
+  values: masking.values,
+},);
 /**
  Whether the session Pi was handed holds an armed value as Pi starts, which is a yes or a no and never a value.
  */
