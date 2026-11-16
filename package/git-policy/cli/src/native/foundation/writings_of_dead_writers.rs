@@ -77,8 +77,8 @@ pub fn remove_writings_of_dead_writers(published: &Path) {
     for entry in listing.flatten() {
         let file = entry.file_name();
         let Some(text) = file.to_str() else { continue };
-        let Some(rest) = text.strip_prefix(prefix.as_str()) else { continue };
-        let Some(rest) = rest.strip_suffix(WRITING_ENDING) else { continue };
+        let Some(after_the_name) = text.strip_prefix(prefix.as_str()) else { continue };
+        let Some(rest) = after_the_name.strip_suffix(WRITING_ENDING) else { continue };
         let mut parts = rest.split('.');
         // The name carries the writer's number and its birth identity, so the proof is about that process and not about a number.
         let (Some(pid_text), Some(identity)) = (parts.next(), parts.next()) else { continue };
@@ -148,10 +148,8 @@ mod tests {
     fn the_file_of_a_writer_that_is_gone_is_collected() {
         let root: std::path::PathBuf = folder("dead-writer");
         let published: std::path::PathBuf = root.join("note");
-        // A name the writers' own function makes, with a writer that has ended.
-        let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a writer that ends");
-        let ended_pid: u32 = ended.id();
-        let _waited = ended.wait().expect("the writer ends");
+        // A name the writers' own function makes, for a number no process has: the writer is proved gone, and no child is started.
+        let ended_pid: u32 = 999_999;
         let dead: std::path::PathBuf = published.with_file_name(format!("note.{ended_pid}.linux:000000.1{WRITING_ENDING}"));
         std::fs::write(&dead, b"half").expect("the file a killed writer left");
         write_atomically(published.as_path(), "whole\n").expect("the next write");

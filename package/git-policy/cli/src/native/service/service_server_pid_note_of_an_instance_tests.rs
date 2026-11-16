@@ -165,9 +165,8 @@ fn two_claimers_at_once_leave_one_owner() {
 fn the_private_file_a_killed_claimer_left_is_collected_by_a_later_claim() {
     let root = folder("claimer-writings");
     let note = path(root.as_path(), "3f9a");
-    let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a claimer that ends");
-    let ended_pid: u32 = ended.id();
-    let _waited = ended.wait().expect("the claimer ends");
+    // A number no process has: the claimer is proved gone, and no child is started.
+    let ended_pid: u32 = 999_999;
     let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.pid.{ended_pid}.linux:000000.1.writing"));
     std::fs::write(&dead, b"1234 linux:000000\n").expect("the file a killed claimer left");
     claim(note.as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("a later claim");

@@ -127,9 +127,12 @@ pub fn session_of(named_runtime_directory: Option<&Path>, runtime_dir: &Path, bu
 /// a bus address written with a `..` part or through a link named another session,
 /// so a real session's journals, scratch and retry plans were moved into a directory a logout clears
 /// (the sixth review of issue 6293, finding 5).
-/// A path the file system cannot resolve is not proven to be the other,
-/// so only the text decides there,
-/// and that answer never widens the boundary.
+/// A path the file system refuses to resolve is another place:
+/// a bus socket that is not there is not in this runtime directory,
+/// and the specification calls a bus socket outside it another session's.
+/// A resolution that gave no answer **in time** is not proof of either,
+/// and only that case answers "not proven",
+/// which keeps the account's state directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,11 +170,13 @@ fn same_place_within(left: &Path, right: &Path, ceiling: std::time::Duration) ->
     });
     return match resolved {
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran((Ok(at_the_first), Ok(at_the_second))) => Some(at_the_first == at_the_second),
-        // What: A path the file system refuses to resolve (a link that loops, a folder that is gone) is no answer at all.
-        // Why:  The doc says a path that cannot be resolved is not proven to be the other;
-        // saying "another place" instead moved a real session's durable records into storage a logout clears
-        // (the eighth review of issue 6293, finding 6).
-        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(_) => None,
+        // What: A path the file system refuses to resolve is another place.
+        // Why:  A bus socket whose folder cannot be resolved (a link that loops, a folder that is gone) is not in this
+        // runtime directory: the specification calls a bus socket outside it another session's, and a socket that is not
+        // there is the plainest case of that. A resolution that gave no answer **in time** is the other case and is handled
+        // above: it is no proof either way, and "not proven" keeps the account's state directory
+        // (the eighth review of issue 6293, findings 5 and 6).
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(_) => Some(false),
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart
         | crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => None,
     };

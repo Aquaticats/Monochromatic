@@ -510,9 +510,8 @@ mod notes_written_atomically_tests {
         let _stale = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.as_path()).expect("fixture folder");
         let note: std::path::PathBuf = note_path(root.as_path(), "3f9a");
-        let mut ended: std::process::Child = std::process::Command::new("/bin/sleep").arg("0").spawn().expect("a writer that ends");
-        let ended_pid: u32 = ended.id();
-        let _waited = ended.wait().expect("the writer ends");
+        // A number no process has: the writer is proved gone, and no child is started.
+        let ended_pid: u32 = 999_999;
         let dead: std::path::PathBuf = note.with_file_name(format!("3f9a.git-dir.{ended_pid}.linux:000000.1.writing"));
         std::fs::create_dir_all(root.join(NOTES_FOLDER)).expect("the notes folder");
         std::fs::write(&dead, b"half").expect("the file a killed writer left");
