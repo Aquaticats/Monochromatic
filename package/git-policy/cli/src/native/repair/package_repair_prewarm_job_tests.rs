@@ -56,11 +56,14 @@ fn a_maker_that_is_gone() -> crate::worktree_copy_owner::CopyOwner {
 /// ```
 fn a_leftover_of_a_filling_that_is_gone(usual: &Path) -> PathBuf {
     let leftover: PathBuf = PathBuf::from(format!("{}.{}.1", usual.display(), a_maker_that_is_gone().token()));
+    // What: The mark is written before the name it stands for, which is the order a filling always writes them in.
+    // Why:  btrfs lists a directory's entries in the order they were made, so a control that made the directory first
+    //       tested the one order the code never makes, and passed while a killed filling's copy stayed for ever
+    //       (the review of `04b80a66cb`, half two, finding 1).
+    super::note_that_a_filling_made(leftover.as_path()).expect("the mark a filling writes");
     std::fs::create_dir_all(leftover.join("left-by-a-filling-that-is-gone")).expect("the staging name a filling left");
     std::fs::write(leftover.join("left-by-a-filling-that-is-gone/a-file"), b"what it cloned").expect("a file it cloned");
     std::fs::create_dir_all(super::target_of(leftover.as_path()).as_path()).expect("the clean's target");
-    // A filling that made the name wrote the mark beside it, which is what a later filling's removal rests on.
-    super::note_that_a_filling_made(leftover.as_path()).expect("the mark a filling writes");
     return leftover;
 }
 
@@ -1253,5 +1256,114 @@ fn a_kill_between_the_move_and_the_record_leaves_the_state_staged_for_ever() {
     assert!(staging.exists() && super::a_filling_made_this(staging.as_path()), "the copied state stays staged and marked, and nothing finishes or undoes it");
     let _ = super::remove_if_any(staging.as_path());
     let _ = super::remove_if_any(super::marker_of_the_staging(staging.as_path()).as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  A killed filling's staging copy is removed although the mark beside it is listed, and read, first.
+/// Why:
+///   The mark is always written before the name it stands for, and a directory on btrfs lists its entries in the order they
+///   were made, so the mark is the first entry a sweep meets. A sweep that removed the mark in one pass and then looked for it
+///   as the proof for the directory left the whole copy for ever
+///   (the review of `04b80a66cb`, half two, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = aLeftoverOfAFillingThatIsGone(usual()); expect(readdir(usual.parent()).includes(basename(left) + '.made')).toBe(true);
+/// sweep(usual()); expect(exists(left)).toBe(false); expect(exists(left + '.target')).toBe(false); expect(exists(left + '.made')).toBe(false)
+/// ```
+#[test]
+fn a_leftover_whose_mark_is_listed_first_is_still_removed() {
+    let root: PathBuf = fixture("prewarm-leftover-mark-first");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.as_path()).expect("a build directory");
+    let usual: PathBuf = staging_of(destination.as_path());
+    let leftover: PathBuf = a_leftover_of_a_filling_that_is_gone(usual.as_path());
+    let mark: PathBuf = super::marker_of_the_staging(leftover.as_path());
+    // The order this control stands on: a filling writes the mark before the name, and the listing keeps that order.
+    let listing: Vec<String> = std::fs::read_dir(usual.parent().expect("the folder both names sit in"))
+        .expect("the folder")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    let mark_at: Option<usize> = listing.iter().position(|name: &String| return *name == mark.file_name().expect("the mark's name").to_string_lossy());
+    let copy_at: Option<usize> = listing.iter().position(|name: &String| return *name == leftover.file_name().expect("the copy's name").to_string_lossy());
+    eprintln!("MEASURE listing {listing:?}");
+    assert!(mark_at.is_some() && copy_at.is_some(), "both halves are in the listing: {listing:?}");
+    // The state the sweep must recognise, before it is asked to: a mark this filling wrote and a maker that is gone.
+    assert!(super::a_filling_made_this(leftover.as_path()), "the mark beside the leftover is the one this filling writes");
+    let maker = super::the_maker_at_the_end_of(leftover.file_name().expect("the copy's name")).expect("the maker in the copy's name");
+    assert!(
+        matches!(crate::worktree_copy_owner::token_owner_is_dead(Some(maker.token().as_str()), leftover.as_path()), Ok(true)),
+        "the maker of this leftover is dead: {}",
+        maker.token()
+    );
+    super::remove_the_leftovers_of_makers_that_are_gone(usual.as_path());
+    assert!(!leftover.exists(), "the staging copy of a filling that is gone stayed although its mark was listed first");
+    assert!(!super::target_of(leftover.as_path()).exists(), "the clean's target of a filling that is gone stayed");
+    assert!(!mark.exists(), "the mark of a filling that is gone stayed");
+    remove(root.as_path());
+}
+
+/// What:
+///  The clean's target whose staging name is gone is removed with the mark, not left beside nothing.
+/// Why:
+///   The target lives only while its staging name does, and the publish renames the staging name away before the target is
+///   given back: a kill between the two leaves the target with nothing beside it, and a sweep that removed a target only
+///   through the staging directory's own branch left it for ever (the review of `04b80a66cb`, half two, finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plant(`${usual}.${deadMaker}.1`); rm -rf that; sweep(usual()); expect(exists(targetOf(that))).toBe(false)
+/// ```
+#[test]
+fn a_target_whose_staging_name_is_gone_is_removed() {
+    let root: PathBuf = fixture("prewarm-orphan-target");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.as_path()).expect("a build directory");
+    let usual: PathBuf = staging_of(destination.as_path());
+    let leftover: PathBuf = a_leftover_of_a_filling_that_is_gone(usual.as_path());
+    // The publish renamed the staging name away; the target and the mark are what a kill before the give-back left.
+    super::remove_if_any(leftover.as_path()).expect("the publish takes the staging name away");
+    let target: PathBuf = super::target_of(leftover.as_path());
+    assert!(target.exists(), "the target of a filling that is gone is there, as the kill leaves it");
+    super::remove_the_leftovers_of_makers_that_are_gone(usual.as_path());
+    assert!(!target.exists(), "the clean's target was left beside a staging name that is gone");
+    assert!(!super::marker_of_the_staging(leftover.as_path()).exists(), "the mark was left beside a staged name that is gone");
+    remove(root.as_path());
+}
+
+/// What:
+///  A build directory whose name holds a byte that is not UTF-8 is moved aside and given back at the same bytes.
+/// Why:
+///   The staged name is built out of the usual name: building it through the displayed form writes U+FFFD where the byte
+///   was, the record names a path the wrapper then refuses, and the worktree's build directory stays moved away for ever
+///   (the review of `04b80a66cb`, half two, finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const to = dir + '/build-\xff'; mkdir(to); const staged = stageTheWorktreesOwnState(to).staged; expect(staged.name).toBe(osName(to) + suffix); expect(stagedStateIsOurs(to, staged)).toBe(true)
+/// ```
+#[test]
+fn a_build_directory_whose_name_is_not_utf8_is_staged_under_its_own_bytes() {
+    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    let root: PathBuf = fixture("prewarm-name-not-utf8");
+    let mut bytes: Vec<u8> = root.join("build-").as_os_str().as_bytes().to_vec();
+    // A byte no valid UTF-8 sequence can hold, which Linux allows in a name.
+    bytes.push(0xFF);
+    let destination: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(bytes));
+    std::fs::create_dir_all(destination.as_path()).expect("a build directory whose name is not UTF-8");
+    let opened: super::Staged = super::stage_the_worktrees_own_state(destination.as_path(), None).expect("the move");
+    let super::Staged::Staged(staged) = opened else {
+        panic!("the copied state of a name that is not UTF-8 was not moved at all");
+    };
+    assert!(
+        super::staged_state_is_ours(destination.as_path(), staged.as_path()),
+        "the staged name {} is not the usual name plus this maker, so the wrapper refuses its own state and the build directory stays moved away",
+        staged.display()
+    );
+    assert!(!destination.exists(), "the copied state moved aside, as the add moves it");
+    let _ = super::remove_if_any(staged.as_path());
+    let _ = super::remove_if_any(super::marker_of_the_staging(staged.as_path()).as_path());
     remove(root.as_path());
 }

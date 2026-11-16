@@ -47,7 +47,7 @@ use crate::package_repair_tree_clone::{Cloned, clone_tree_awaiting};
 use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 use crate::work_item::WorkItem;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -170,7 +170,12 @@ fn a_staging_name_of_this_runs_own(usual: &Path) -> Result<PathBuf, String> {
         Err(refusal) => return Err(format!("this process cannot name itself, so nothing beside {} was filled ({})", usual.display(), refusal.0)),
     };
     let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    let named: OsString = format!("{}.{}.{:x}", usual.display(), owner.token(), since_the_epoch.as_nanos()).into();
+    // What: The name is built out of the usual name's own bytes, never out of its displayed form.
+    // Why:  `Path::display` writes a byte that is not UTF-8 as U+FFFD, so the name a record carries would no longer be
+    //       the usual name plus this maker: the filling refused its own state, the copy was never given back, and the
+    //       worktree's build directory stayed moved away (the review of `04b80a66cb`, half two, finding 3).
+    let mut named: OsString = usual.as_os_str().to_os_string();
+    named.push(format!(".{}.{:x}", owner.token(), since_the_epoch.as_nanos()));
     return Ok(PathBuf::from(named));
 }
 
@@ -227,7 +232,8 @@ fn the_maker_of_this_workspaces_name(name: &std::ffi::OsStr, usual_name: &std::f
 }
 
 /// What:
-///  Remove the staging names and the clean's targets of this workspace whose maker is gone.
+///  Remove the staging names, the clean's targets and the marks of this workspace whose maker is gone,
+///  deciding each pair from what is present rather than from the order the directory lists its entries in.
 /// Why:
 ///   A filling that was killed leaves the name it made, and only a maker that is gone leaves it to be cleaned.
 /// A name whose maker lives is that filling's and is left exactly as it is, and so is every name no filling of this
@@ -235,33 +241,49 @@ fn the_maker_of_this_workspaces_name(name: &std::ffi::OsStr, usual_name: &std::f
 /// makes and nothing removes ("never discard user data").
 /// The question is the package's own liveness question (`worktree_copy_owner::token_owner_is_dead`), which answers
 /// "not dead" for a maker the platform will not report on, so nothing is removed on a guess.
+///  The mark is always written before the name it stands for, and a directory on btrfs lists its entries in the order
+///  they were made, so the mark is read first: a pass that decided each entry alone removed the mark and then found no
+///  proof for the directory beside it, and a killed filling's whole copy stayed for ever
+///  (the review of `04b80a66cb`, half two, finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const name of readdir(parent)) if (makerOf(name)?.isDead()) { rm(`${name}`, {recursive:true, force:true}); rm(`${name}.target`, ...) }
+/// const present = new Set(readdir(parent));
+/// for (const name of present) if (!present.has(name.replace(/\.made$|\.target$/, '')) && makerOf(name)?.isDead()) remove(name);
+/// for (const base of present) if (makerOf(base)?.isDead() && present.has(`${base}.made`)) { remove(base); remove(`${base}.target`); remove(`${base}.made`) }
 /// ```
 fn remove_the_leftovers_of_makers_that_are_gone(usual: &Path) {
     let (Some(parent), Some(usual_name)) = (usual.parent(), usual.file_name()) else { return };
-    let Ok(entries) = std::fs::read_dir(parent) else { return };
-    for entry in entries.flatten() {
-        let name: OsString = entry.file_name();
-        // What: A mark whose staged name is not there is a move that never happened, and it is cleared by the same rule.
-        // Why:  The mark is written before the state moves, so a kill between the two leaves it beside nothing, and nothing
-        //       else reads a mark whose state is gone.
-        if let Some(state) = name.to_str().and_then(|text: &str| return text.strip_suffix(STAGED_MARKER_SUFFIX)) {
-            let Some(maker) = the_maker_of_this_workspaces_name(std::ffi::OsStr::new(state), usual_name) else { continue };
-            let path: PathBuf = entry.path();
-            let dead: bool = matches!(crate::worktree_copy_owner::token_owner_is_dead(Some(maker.token().as_str()), path.as_path()), Ok(true));
-            if !dead {
-                continue;
-            }
-            if let Err(reason) = remove_if_any(path.as_path()) {
-                debug(TAG, format!("{reason}; the mark of a move that never happened stays for the next filling").as_str());
-            }
+    let Ok(entries) = region_entries_of(parent) else { return };
+    let present: std::collections::HashSet<OsString> = entries.iter().map(|(name, _path)| return name.clone()).collect();
+    for (name, path) in entries.iter() {
+        let Some(text) = name.to_str() else { continue };
+        let Some(state) = text.strip_suffix(STAGED_MARKER_SUFFIX).or_else(|| return text.strip_suffix(TARGET_SUFFIX)) else { continue };
+        // What: A mark or a target whose own name is not there is the other half of a pair that never completed.
+        // Why:  The mark is written before the move and the target lives only while its staging name does, so a kill between
+        //       either two leaves this half beside nothing, and nothing else reads it (the review of `04b80a66cb`, C4).
+        // What: The half's own name is the name it stands for, as many bytes as the stripped part is long.
+        // Why:  Cutting by the suffix's length instead leaves the mark matching nothing, so the pass removes the mark and
+        //       then finds no proof for the copy beside it, which is the very leak this order exists to close.
+        let state_name: OsString = name_without_the_last_bytes(name, state.len());
+        if present.contains(&state_name) {
             continue;
         }
+        let Some(maker) = the_maker_of_this_workspaces_name(OsStr::new(state), usual_name) else { continue };
+        let dead: bool = matches!(crate::worktree_copy_owner::token_owner_is_dead(Some(maker.token().as_str()), path.as_path()), Ok(true));
+        if !dead {
+            continue;
+        }
+        if let Err(reason) = remove_if_any(path.as_path()) {
+            debug(TAG, format!("{reason}; one half of a pair a filling that is gone left stays for the next filling").as_str());
+        }
+    }
+    for (name, path) in entries.iter() {
         let Some(maker) = the_maker_of_this_workspaces_name(name.as_ref(), usual_name) else { continue };
-        let path: PathBuf = entry.path();
+        // A name that carries either half's own suffix is that half, and the pair is decided at the name it stands for.
+        if name.to_str().is_some_and(|text: &str| return text.ends_with(STAGED_MARKER_SUFFIX) || text.ends_with(TARGET_SUFFIX)) {
+            continue;
+        }
         // Only a name a filling marked is the wrapper's to remove; a name that merely looks right is somebody's.
         if !a_filling_made_this(path.as_path()) {
             continue;
@@ -280,6 +302,41 @@ fn remove_the_leftovers_of_makers_that_are_gone(usual: &Path) {
             debug(TAG, format!("{reason}; the mark of a filling that is gone stays for the next filling").as_str());
         }
     }
+}
+
+/// What:
+///  Every entry of `directory` as its own name and its path,
+///  read once so the pass that removes pairs sees one listing and not two.
+/// Why:
+///  A pair is decided from whether both halves are present, and two listings could disagree about that: the order the
+///  directory lists its entries in must not decide what is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const regionEntriesOf = (dir) => readdirSync(dir).map((name) => [name, join(dir, name)]);
+/// ```
+fn region_entries_of(directory: &Path) -> std::io::Result<Vec<(OsString, PathBuf)>> {
+    let mut found: Vec<(OsString, PathBuf)> = Vec::new();
+    for entry in std::fs::read_dir(directory)?.flatten() {
+        found.push((entry.file_name(), entry.path()));
+    }
+    return Ok(found);
+}
+
+/// What:
+///  `name` cut down to its first `keep` bytes.
+/// Why:
+///  A mark's name is the staged name and one suffix, and cutting by bytes keeps every byte of the staged name,
+///  including one that is not UTF-8, which the pass must match against the listing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nameWithoutTheLastBytes = (name, keep) => Buffer.from(name).subarray(0, keep).toString();
+/// ```
+fn name_without_the_last_bytes(name: &OsStr, keep: usize) -> OsString {
+    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    let bytes: &[u8] = name.as_bytes();
+    return OsString::from_vec(bytes.get(..keep).unwrap_or(bytes).to_vec());
 }
 
 /// What:
