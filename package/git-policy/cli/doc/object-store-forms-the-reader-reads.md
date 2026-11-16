@@ -120,11 +120,9 @@ caller asks Git.
 ## What the change cost
 
 Three rounds of the unforced removal of a clean worktree,
-alternating the build before and after the
-change,
+alternating the build before and after the change,
 in a repository whose objects are all in one pack (10,173 objects,
-910,996 bytes under
-`objects/pack`,
+910,996 bytes under `objects/pack`,
 10,001 tracked files;
 `git count-objects -v` reports `count: 0`,
 `in-pack: 10173`,
@@ -132,22 +130,24 @@ in a repository whose objects are all in one pack (10,173 objects,
 `size-pack: 849`):
 
 - before:
-  458.8,
-  476.8,
-  532.6 ms
+  472.3,
+  472.7,
+  418.7 ms
 - after:
-  459.0,
-  419.0,
-  466.2 ms
+  511.0,
+  438.5,
+  395.6 ms
 - real Git as the control arm:
-  360.1,
-  365.8,
-  381.3 ms
+  336.8,
+  310.3,
+  294.8 ms
 
-The mean ratio of after to before is 0.916,
-and the run-to-run spread of one arm is wider than the
-difference,
-so hashing each object against its name costs nothing measurable at this size.
+The ratio of after to before is 1.082,
+0.928 and 0.945 by round,
+and 0.986 over the three,
+so the difference between the arms is inside the spread each arm shows by itself
+(the host's load average was about 10 while this ran).
+Hashing each object against the name it was asked for costs nothing measurable at this size.
 
 ## What reads this store
 
