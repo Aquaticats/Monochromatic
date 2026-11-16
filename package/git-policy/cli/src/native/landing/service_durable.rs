@@ -209,7 +209,7 @@ async fn background(mut jobs: UnboundedReceiver<Job>) {
                         Ok(()) => break,
                         Err(error) => {
                             crate::service_warn!("the background sync of a landing's records got no place yet ({error}), so it waits for one and is tried again");
-                            std::thread::sleep(crate::wait_ceilings::PLACE_WAIT_CEILING);
+                            tokio::time::sleep(crate::wait_ceilings::PLACE_WAIT_CEILING).await;
                             // The batch is this task's own, so the same records are asked for again: a job that ran nothing
                             //  touched nothing.
                             continue;

@@ -58,7 +58,7 @@ use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use crate::service_work_handlers_replanning_and_acceptance::{Replanning, SLOW_KINDS, Wake, WorkHandlers, work_directory};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use std::future::Future;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -217,9 +217,10 @@ async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(look
 /// for await (const wake of inbox) { busy.add(1); let left = [wake, ...drain(inbox)]; while (left.length) { left = await lookOnce(housekeeping, left) } busy.sub(1) }
 /// ```
 async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) {
-    // The repositories whose look is still running beside this lane, one entry each, so a second look at one of them is not
-    //  started while the first still holds its claims.
-    let looking: Arc<tokio::sync::Mutex<std::collections::HashSet<PathBuf>>> = Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
+    // The repositories whose look is still running beside this lane, one flag each, so a second look at one of them is not
+    //  started while the first still holds its claims. The flags are the lane's own map; the running look holds only its
+    //  own flag, so nothing locks.
+    let mut looking: std::collections::HashMap<PathBuf, Arc<AtomicBool>> = std::collections::HashMap::new();
     loop {
         let Some(first) = inbox.recv().await else { return };
         // The count is this frame's until the looks it covers end, and a look that panicked gives it back too.
@@ -254,8 +255,8 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 //  its own task: the ceiling ends the lane's wait, never the work's claim on its record, and a repository
                 //  whose look is still running is not looked at again until it ends.
                 let ceiling: Duration = crate::wait_ceilings::lane_look_ceiling();
-                let looking_at_the_same_one: bool = looking.lock().await.contains(&git_dir);
-                if looking_at_the_same_one {
+                let still_looking_from_before: Arc<AtomicBool> = Arc::clone(looking.entry(git_dir.clone()).or_insert_with(|| return Arc::new(AtomicBool::new(false))));
+                if still_looking_from_before.load(Ordering::SeqCst) {
                     crate::service_log!(
                         "the look at {} is still running from an earlier round, so it is left to finish and looked at again after {:?}; the records it claimed stay with it",
                         git_dir.display(),
@@ -270,14 +271,13 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 }
                 let round: GitHandlers = handlers.for_round(keys);
                 let directory: PathBuf = git_dir.clone();
-                let still_looking: Arc<tokio::sync::Mutex<std::collections::HashSet<PathBuf>>> = Arc::clone(&looking);
+                let marking: Arc<AtomicBool> = Arc::clone(&still_looking_from_before);
                 let (told, heard) = tokio::sync::oneshot::channel::<Option<Duration>>();
-                {
-                    looking.lock().await.insert(git_dir.clone());
-                }
+                // The flag says a look at this repository runs, and the look's own task is what clears it, whichever way it ends.
+                marking.store(true, Ordering::SeqCst);
                 let running: tokio::task::JoinHandle<()> = tokio::spawn(async move {
                     let answer: Option<Duration> = drain_the_slow_work_awaiting(directory.as_path(), &round, housekeeping, lease).await;
-                    still_looking.lock().await.remove(&directory);
+                    marking.store(false, Ordering::SeqCst);
                     let _sent: Result<(), Option<Duration>> = told.send(answer);
                 });
                 let the_look = async {
