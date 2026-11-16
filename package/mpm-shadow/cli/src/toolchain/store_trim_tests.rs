@@ -39,7 +39,7 @@ use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, judged_of_tree, record_
 use crate::toolchain::context::{Context, Host};
 use crate::toolchain::fakes::{FakeHttp, FakeRunner};
 use crate::toolchain::fixtures::{sample_lock, sample_scope_on_disk};
-use crate::toolchain::runner::{Ceiling, ProcessRunner, RunOutcome, RunRequest, Runner};
+use crate::toolchain::runner::Ceiling;
 use crate::toolchain::scope::{EnvMap, Scope, global_scope};
 use crate::toolchain::store_path_holders::{StoreHolders, held_reason, holders_of};
 use crate::test_scratch::scratch;
@@ -2427,7 +2427,7 @@ fn run_trim(scope: &Scope, env: &EnvMap, runner: &FakeRunner) {
 #[test]
 fn reproduction_cargo_package_id_cannot_escape_the_store() {
     let (_directory, scope, env) = sample_scope_on_disk();
-    let env = immediate_trim_env(&env);
+    let bounds_env = immediate_trim_env(&env);
     let runner = FakeRunner::new();
     let outside = scope.toolchain_root.parent().expect("store parent").join("outside");
     let user_data = outside.join("old").join("user-data.txt");
@@ -2440,7 +2440,7 @@ fn reproduction_cargo_package_id_cannot_escape_the_store() {
     )
     .expect("write lock with escaping package id");
 
-    run_trim(&scope, &env, &runner);
+    run_trim(&scope, &bounds_env, &runner);
 
     assert!(
         user_data.exists(),
@@ -2452,10 +2452,10 @@ fn reproduction_cargo_package_id_cannot_escape_the_store() {
 #[test]
 fn reproduction_disappearing_current_lock_keeps_the_loaded_pin() {
     let (_directory, scope, env) = sample_scope_on_disk();
-    let env = immediate_trim_env(&env);
+    let bounds_env = immediate_trim_env(&env);
     let runner = FakeRunner::new();
     let locked = sample_lock();
-    let node = locked.tools.iter().find(|tool| tool.declaration.id == "node").expect("sample node");
+    let node = locked.tools.iter().find(|tool| return tool.declaration.id == "node").expect("sample node");
     let user_data = scope.toolchain_root.join("node").join(&node.version).join("user-data.txt");
     std::fs::create_dir_all(user_data.parent().expect("version parent")).expect("make pinned version");
     std::fs::write(&user_data, b"the version loaded from the current lock").expect("write pinned data");
@@ -2473,7 +2473,7 @@ fn reproduction_disappearing_current_lock_keeps_the_loaded_pin() {
     std::fs::remove_file(&scope.lock_file).expect("remove the current lock after Context was loaded");
     let http = FakeHttp::new();
     let host = Host::current();
-    let context = Context { scope: &scope, env: &env, runner: &runner, http: &http, host: &host, tools: &locked.tools };
+    let context = Context { scope: &scope, env: &bounds_env, runner: &runner, http: &http, host: &host, tools: &locked.tools };
     trim_after_install_with(&context, &[("unrelated".to_string(), "1".to_string())], Some(StoreHolders::default()));
 
     assert!(
