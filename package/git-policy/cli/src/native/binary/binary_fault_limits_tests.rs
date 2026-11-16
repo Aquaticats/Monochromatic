@@ -1104,6 +1104,48 @@ fn a_case_reads_a_service_log_only_after_the_copy_of_its_stream_ended_or_says_it
     remove_settled(&fixture);
 }
 
+/// What:
+///  A service's own bytes are what a failure carries:
+///  a byte that is not text does not take the log's valid lines away.
+/// Why:
+///  A service writes bytes on its standard error, not text,
+/// and the copy of that stream keeps them as they came;
+/// so a reading that decodes the file as text from its first byte answers nothing at all once one line holds a byte no text
+/// has,
+/// and a person reading a failure then loses every line that did mean something
+/// (the review of 2026-11-15 reproduced one byte taking a whole 31-byte log away).
+#[test]
+fn a_service_log_with_a_byte_that_is_not_utf8_keeps_its_valid_lines() {
+    let fixture: Fixture = fixture("service-log-not-utf8");
+    let written: &[u8] = b"the limited attempt refused a step\n\xff\nthe limited attempt kept the commit\n";
+    std::fs::write(fixture.root.join(super::support::SERVICE_LOG_FILE), written).expect("a log whose one line holds a byte that is not text");
+    let held: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
+    assert!(held.contains("the limited attempt refused a step"), "the line before the byte that is not text is kept: {held}");
+    assert!(held.contains("the limited attempt kept the commit"), "the line after it is kept too: {held}");
+    assert!(held.contains('\u{fffd}'), "the byte that is not text is carried by the character that says so: {held}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A service log that cannot be read at all is said to be unread, and is never handed back as a log that holds nothing.
+/// Why:
+///  An empty reading says the service wrote nothing, which would be a fact about the service;
+/// a reading that failed says a fact about the reading,
+/// and a person told the one when the other is true looks for a service that said nothing instead of a log the control
+/// could not open.
+///  A directory where the log's file would be cannot be read on any account, whether the control runs as its owner or as
+/// root inside the gate's container, which permission bits would not be.
+#[test]
+fn a_service_log_that_cannot_be_read_is_said_to_be_unread() {
+    let fixture: Fixture = fixture("service-log-unreadable");
+    std::fs::create_dir(fixture.root.join(super::support::SERVICE_LOG_FILE)).expect("a log that cannot be read");
+    let held: String = the_service_log_of(&fixture, super::support::SERVICE_LOG_END_BOUND);
+    assert!(!held.is_empty(), "a log that cannot be read is not handed back as an empty log");
+    assert!(held.contains("could not be read"), "the reading says the log could not be read: {held}");
+    assert!(held.contains(super::support::SERVICE_LOG_FILE), "the reading names the file it could not read: {held}");
+    remove_settled(&fixture);
+}
+
 /// How long one wait for the log's copies is let run in the controls that hold a copy open:
 /// short, because the copy they hold cannot end in it,
 /// and long enough that the delay a thread's release takes is not most of it.
