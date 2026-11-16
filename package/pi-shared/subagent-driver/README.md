@@ -1290,7 +1290,9 @@ or in the provider's own store.
 `turn-cap`,
 `wall-clock`,
 `driver-failed`,
-`model-error` and `pi-not-stopped` exit non-zero after writing the summary.
+`model-error`,
+`pi-not-stopped`,
+`masking-not-armed` and `session-unmasked` exit non-zero after writing the summary.
 
 `idle` means the agent ended its turn with nothing of its own still running.
 An agent that ends its turn while a build it started still compiles has not finished its task,
