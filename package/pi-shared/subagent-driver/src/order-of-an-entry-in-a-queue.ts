@@ -16,10 +16,16 @@
 const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
 /**
- How many digits one key may take before a put refuses to find a place between two keys, which only a queue that has been parted at one
- place more times than a queue of runs will ever be.
+ How many digits one key may take before a put refuses to find a place between two keys.
+
+ A put at the head of a queue whose head is never taken parts the space below the first key, and a key grows by one digit about every five
+ such puts, because each halves the room left and a digit has log2(36) of them. Measured with the review's own property script on this
+ machine: the 1284th put at such a head threw while this bound was 256. At 2048 digits the same head takes about ten thousand puts before
+ the bound is reached, and a digit is one byte of an entry's own file.
+
+ A queue whose head is taken as often as entries are added never grows a key past one digit, which is what a queue of runs does.
  */
-const LONGEST_ORDER = 256;
+export const LONGEST_ORDER = 2_048;
 
 /**
  The key the middle of a whole queue is placed at: the digit that leaves as much room before it as after it.

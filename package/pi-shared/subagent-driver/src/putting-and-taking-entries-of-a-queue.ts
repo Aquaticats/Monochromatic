@@ -29,6 +29,13 @@ import {
   queueIdOf,
 } from './queue-of-runs.ts';
 import {
+  NO_CLAIM_ON_THAT_ENTRY,
+  claimAnEntryOfAQueue,
+  giveBackTheClaim,
+  theClaimOn,
+} from './claiming-an-entry-of-a-queue.ts';
+import { readTheQueueThatMayNotBeThere, } from './reading-a-queue-a-kill-left.ts';
+import {
   readQueueOfRuns,
   readTheEntryAt,
   writeAnEntryOfAQueue,
@@ -117,9 +124,9 @@ export async function putAQueueEntryIn({
   readonly count: number;
 }> {
   /**
-   The queue as it stands.
+   The queue as it stands, which a queue folder that is not there yet holds nothing.
    */
-  const entries = await readQueueOfRuns({ queueFolder, },);
+  const entries = await readTheQueueThatMayNotBeThere({ queueFolder, },);
   /**
    Where the entry goes and the key it is written at.
    */
@@ -152,29 +159,40 @@ export async function putAQueueEntryIn({
  Takes the entry of one name out of the queue, and answers it.
 
  The entry's file is renamed aside first and read from there, so the entry answered is the one the rename moved, and an entry a person
- queued under that name a moment later is left where it is.
+ queued under that name a moment later is left where it is. It is removed only after the caller has taken it (see
+ {@link discardTheEntryTaken}), so a command whose reader went away leaves the entry where a person can find it.
+
+ An entry a filling is starting is refused rather than taken: the person would otherwise hold a copy of an entry already running, and could
+ queue it a second time. `--force` takes it anyway, which a person needs when a filling died holding a claim.
 
  @param queueFolder - the queue's folder
 
  @param name - the entry's name
 
- @returns the entries taken out, and the entries the queue holds afterwards
+ @param force - whether an entry a filling holds a claim on is taken anyway
+
+ @returns the entries taken out, where each was left aside, and the entries the queue holds afterwards
 
  @throws QueueFileError when the queue cannot be read, or the entry taken aside holds no entry, which leaves it there for a person
 
+ @throws AnotherFillingHoldsTheEntryError when a filling holds a claim on the entry and `force` is not given
+
  @example
  ```ts
- const { taken, entries } = await takeAQueueEntryOut({ queueFolder: '/runs/q', name: 'a' });
+ const { taken, asides, entries } = await takeAQueueEntryOut({ queueFolder: '/runs/q', name: 'a' });
  ```
  */
 export async function takeAQueueEntryOut({
   queueFolder,
   name,
+  force = false,
 }: {
   readonly queueFolder: string;
   readonly name: string;
+  readonly force?: boolean;
 },): Promise<{
   readonly taken: readonly QueueRecord[];
+  readonly asides: readonly string[];
   readonly entries: readonly QueueRecord[];
 }> {
   /**
@@ -184,8 +202,26 @@ export async function takeAQueueEntryOut({
     queueFolder,
     name,
   },);
+  if (!force) {
+    /**
+     The claim a filling holds on the entry, or that it holds none.
+     */
+    const claimed = await theClaimOn({
+      queueFolder,
+      name,
+    },);
+    if (claimed !== NO_CLAIM_ON_THAT_ENTRY) {
+      throw new AnotherFillingHoldsTheEntryError(
+        `${name} is being started by the filling of process ${String(claimed.claim
+          .pid,)} since ${claimed.claim
+            .at}, so it is not taken: `
+          + 'the person would hold a copy of an entry that is already running. Take it with --force when that filling is gone, and the '
+          + 'entry it is starting is left to the settlement.',
+      );
+    }
+  }
   /**
-   Where the entry is renamed to while it is read.
+   Where the entry is renamed to while it is read, and stays until the caller takes it.
    */
   const aside = aNameTakenAside({ path: file, },);
   try {
@@ -199,6 +235,7 @@ export async function takeAQueueEntryOut({
     if (errorCodeOf(error,) === MISSING_PATH_CODE) {
       return {
         taken: [],
+        asides: [],
         entries: await readQueueOfRuns({ queueFolder, },),
       };
     }
@@ -208,14 +245,48 @@ export async function takeAQueueEntryOut({
    The entry the rename moved, which is the one that was there.
    */
   const entry = await readTheEntryAt({ path: aside, },);
-  await rm(
-    aside,
-    { force: true, },
-  );
   return {
     taken: [entry,],
+    asides: [aside,],
     entries: await readQueueOfRuns({ queueFolder, },),
   };
+}
+
+/**
+ Discards one entry a take left aside, once the caller has taken it.
+
+ A command that could not show the entry it took keeps the file, so the entry is still somewhere a person can read: nothing is taken out of
+ a queue before the person has seen it.
+
+ @param aside - the path a take left its entry at
+
+ @throws QueueFileError when the file cannot be removed
+
+ @example
+ ```ts
+ await discardTheEntryTaken({ aside: '/runs/q/.being-taken-a.json-1-2' });
+ ```
+ */
+export async function discardTheEntryTaken({ aside, }: { readonly aside: string },): Promise<void> {
+  try {
+    await rm(
+      aside,
+      { force: true, },
+    );
+  }
+  catch (error) {
+    throw new QueueFileError(`the entry taken aside at ${aside} cannot be removed: ${String(error,)}`,);
+  }
+}
+
+/**
+ A filling holds a claim on the entry a person asked to take, so taking it would hand the person an entry that is already running.
+ */
+export class AnotherFillingHoldsTheEntryError extends QueueFileError {
+  /**
+   The name printed with the message.
+   */
+  override readonly name: string = 'AnotherFillingHoldsTheEntryError';
 }
 
 /**
@@ -269,33 +340,144 @@ export async function moveAQueueEntryTo({
   if (entry === undefined) {
     return { count: entries.length, };
   }
+  // The entry is claimed while its place changes, which is the one thing that keeps a filling from starting it meanwhile: a filling's
+  // claim and this one are the same link, so one of the two wins. A move that renamed a snapshot back over an entry a filling had already
+  // started put that entry back into the queue and started it a second time.
   /**
-   The entries without it, which is the queue its new place is counted in.
+   What taking a claim on the entry answered.
    */
-  const rest = entries.filter(function isAnother(
-    _,
-    place,
-  ) {
-    return place !== from;
-  },);
-  /**
-   Where it lands and the key it is written at.
-   */
-  const place = aPlaceFor({
-    entries: rest,
-    position,
-  },);
-  await writeAnEntryOfAQueue({
+  const claimed = await claimAnEntryOfAQueue({
     queueFolder,
-    entry: {
-      ...entry,
-      [ORDER_FIELD]: place.order,
-    },
-    replace: true,
+    record: entry,
+    now: Date.now,
   },);
-  return {
-    from,
-    to: place.at,
-    count: rest.length + 1,
-  };
+  if (claimed.kind !== 'claimed') {
+    return { count: entries.length, };
+  }
+  /**
+   What moving the entry answered, or what ended the move before it answered.
+   */
+  const outcome = await theEntryMovedWithTheClaimHeld({
+    queueFolder,
+    name,
+    position,
+    claimed,
+  },);
+  // The claim goes whatever the move answered: a claim left by a live process keeps an entry where no filling starts it.
+  await giveBackTheClaim({
+    queueFolder,
+    name,
+    token: claimed.claim
+      .token,
+  },);
+  if ('problem' in outcome) {
+    throw outcome.problem;
+  }
+  return outcome.moved;
+}
+
+/**
+ Moves one entry whose claim this caller holds, and answers where it landed.
+
+ @param queueFolder - the queue's folder
+
+ @param name - the entry's name
+
+ @param position - where it goes, counted from the head
+
+ @param claimed - the claim this caller holds on it
+
+ @returns where it landed, or what ended the move before it answered
+
+ @example
+ ```ts
+ const outcome = await theEntryMovedWithTheClaimHeld({ queueFolder, name, position, claimed });
+ ```
+ */
+async function theEntryMovedWithTheClaimHeld({
+  queueFolder,
+  name,
+  position,
+  claimed,
+}: {
+  readonly queueFolder: string;
+  readonly name: string;
+  readonly position: number;
+  readonly claimed: { readonly queueId: string };
+},): Promise<
+  | { readonly moved: {
+    readonly from: number;
+    readonly to: number;
+    readonly count: number
+  } }
+    | { readonly problem: unknown }
+  > {
+  try {
+    /**
+     The queue as it stands once this move holds the entry, which is the queue the new place is counted in.
+     */
+    const now = await readQueueOfRuns({ queueFolder, },);
+    /**
+     Where the entry stands now, or minus one when it left the queue while the claim was being taken.
+     */
+    const at = now.findIndex(function isThisOne(other,) {
+      return (other.name === name) && (queueIdOf({ record: other, },) === claimed.queueId);
+    },);
+    if (at === (-1)) {
+      return { moved: {
+        from: 0,
+        to: 0,
+        count: now.length
+      }, };
+    }
+    /**
+     The entries without it, which is the queue its new place is counted in.
+     */
+    const rest = now.filter(function isAnother(
+      _,
+      place,
+    ) {
+      return place !== at;
+    },);
+    /**
+     Where it lands and the key it is written at.
+     */
+    const place = aPlaceFor({
+      entries: rest,
+      position,
+    },);
+    /**
+     The entry as the queue holds it now, which is the one this move holds a claim on.
+     */
+    const held = now[at];
+    if (held === undefined) {
+      return { moved: {
+        from: 0,
+        to: 0,
+        count: now.length
+      }, };
+    }
+    /**
+     The entry as it is written, which keeps the identity its claim was taken on.
+     */
+    const written: QueueRecord = {
+      ...held,
+      [ORDER_FIELD]: place.order,
+    };
+    await writeAnEntryOfAQueue({
+      queueFolder,
+      entry: written,
+      replace: true,
+    },);
+    return {
+      moved: {
+        from: at,
+        to: place.at,
+        count: rest.length + 1,
+      },
+    };
+  }
+  catch (problem) {
+    return { problem, };
+  }
 }

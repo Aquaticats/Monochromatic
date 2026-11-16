@@ -10,6 +10,7 @@
 
 import { appendFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { anEscapedName, } from './names-a-queue-gives-its-things.ts';
 
 /**
  Reports one line on standard error, which is where a command's own notes go rather than into its answer.
@@ -56,11 +57,11 @@ export async function keepFailedOutput({
   readonly report: (line: string) => void;
 }): Promise<{ readonly keptAt?: string }> {
   /**
-   The file this run's failed attempts are kept in.
+   The file this run's failed attempts are kept in, named from the entry's name escaped for a file name.
    */
   const file = join(
     runsFolder,
-    `${name}-start-failure.log`,
+    `${anEscapedName({ name, },)}-start-failure.log`,
   );
   try {
     await appendFile(

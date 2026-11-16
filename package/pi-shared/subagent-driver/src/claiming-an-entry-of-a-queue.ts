@@ -35,7 +35,13 @@ import {
   entryFileOf,
   queueIdOf,
 } from './queue-of-runs.ts';
+import {
+  aClaimGivenBackOnlyIfOurs,
+  anEntryRemovedOnlyIfTheAttempt,
+} from './a-claim-taken-and-given-back.ts';
+import { startedAtOf, } from './where-a-claims-holder-is-now.ts';
 import { aClaimOf, } from './places-and-names-of-a-queue-folder.ts';
+import { aUnitNameOf, } from './names-a-queue-gives-its-things.ts';
 import { readTheClaimsOnAQueue, } from './reading-the-claims-beside-a-queue.ts';
 import {
   NO_ENTRY_OF_THAT_NAME,
@@ -47,11 +53,6 @@ import {
  Characters in the stamp a batch list's name begins with, up to the second: `2026-11-14T09:21:14`.
  */
 const STAMP_CHARACTERS = 19;
-
-/**
- How many characters of an entry's name go into the batch list's file name, which also becomes its unit's name.
- */
-const NAME_CHARACTERS_IN_A_FILE = 60;
 
 /**
  The extension of the batch list a start writes, which its unit's output file is named from.
@@ -144,13 +145,13 @@ export function namesOfAnAttemptIn({
     );
   /**
    The list's path, beside the runs, named after the attempt and the entry.
+
+   The entry's part of the name is escaped for both a file name and a unit name (`aUnitNameOf`), so the list is inside the runs folder
+   whatever the name holds, and the unit the manager lists can be read back to this list and to the entry's name.
    */
   const batchFile = join(
     runsFolder,
-    `batch-${stamp}-${claim.token}-queue-entry-${name.slice(
-      0,
-      NAME_CHARACTERS_IN_A_FILE,
-    )}${LIST_EXTENSION}`,
+    `batch-${stamp}-${claim.token}-${aUnitNameOf({ name, },)}${LIST_EXTENSION}`,
   );
   return {
     batchFile,
@@ -301,12 +302,18 @@ export async function claimAnEntryOfAQueue({
    */
   const queueId = anIdentityOf({ record, },);
   /**
+   When this filling's own process started, which is what a later pass reads to tell its claim from a claim whose process number was given
+   to another process.
+   */
+  const holder = await startedAtOf({ pid: process.pid, },);
+  /**
    The claim this filling takes, whose token names the one start attempt.
    */
   const claim: QueueClaim = {
     token: randomUUID(),
     pid: process.pid,
     at: new Date(now(),).toISOString(),
+    ...((holder.kind === 'there') ? { startedAt: holder.startedAt, } : {}),
   };
   try {
     await mkdir(
@@ -342,13 +349,11 @@ export async function claimAnEntryOfAQueue({
   },))) {
     // The entry this claim is on is gone, or the queue holds another entry of that name now: the claim is given back, so nothing is
     // started for an entry this filling did not read.
-    await rm(
-      claimFileOf({
-        queueFolder,
-        name: record.name,
-      },),
-      { force: true, },
-    );
+    await aClaimGivenBackOnlyIfOurs({
+      queueFolder,
+      name: record.name,
+      token: claim.token,
+    },);
     return (await readTheEntryNamed({
       queueFolder,
       name: record.name,
@@ -388,37 +393,36 @@ export async function completeTheClaim({
   queueFolder,
   name,
   queueId,
+  token,
 }: {
   readonly queueFolder: string;
   readonly name: string;
   readonly queueId: string;
+  readonly token?: string;
 },): Promise<{
   readonly removed: boolean;
   readonly claimWasHeld: boolean;
 }> {
   /**
-   Whether the queue still held this attempt's entry, which is the entry this step takes out.
+   Whether the entry was this attempt's and is now out of the queue, which the rename aside decides.
    */
-  const held = await theQueueHoldsThisAttempt({
+  const removed = await anEntryRemovedOnlyIfTheAttempt({
     queueFolder,
     name,
     queueId,
   },);
-  if (held) {
-    await rm(
-      entryFileOf({
+  return {
+    removed,
+    claimWasHeld: (token === undefined)
+      ? await aClaimGivenBack({
         queueFolder,
         name,
+      },)
+      : await aClaimGivenBackOnlyIfOurs({
+        queueFolder,
+        name,
+        token,
       },),
-      { force: true, },
-    );
-  }
-  return {
-    removed: held,
-    claimWasHeld: await aClaimGivenBack({
-      queueFolder,
-      name,
-    },),
   };
 }
 
@@ -441,14 +445,22 @@ export async function completeTheClaim({
 export async function giveBackTheClaim({
   queueFolder,
   name,
+  token,
 }: {
   readonly queueFolder: string;
   readonly name: string;
+  readonly token?: string;
 },): Promise<boolean> {
-  return await aClaimGivenBack({
-    queueFolder,
-    name,
-  },);
+  return (token === undefined)
+    ? await aClaimGivenBack({
+      queueFolder,
+      name,
+    },)
+    : await aClaimGivenBackOnlyIfOurs({
+      queueFolder,
+      name,
+      token,
+    },);
 }
 
 /**

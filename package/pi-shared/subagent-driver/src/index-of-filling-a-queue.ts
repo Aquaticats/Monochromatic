@@ -26,6 +26,7 @@ export {
   QueueFileError,
   aFreshQueueId,
   anEntryFileName,
+  anEntryNameInAFileName,
   claimFileOf,
   claimedFolderOf,
   entryFileOf,
@@ -41,6 +42,14 @@ export {
   ordersOfAPlace,
 } from './order-of-an-entry-in-a-queue.ts';
 export {
+  LONGEST_ESCAPED_NAME,
+  QueueNameError,
+  aNameInAnEscapedName,
+  aUnitNameOf,
+  anEscapedName,
+  anEntryNameInAUnitName,
+} from './names-a-queue-gives-its-things.ts';
+export {
   aClaimOf,
   aNameTakenAside,
   aPlaceFor,
@@ -49,6 +58,10 @@ export {
   aClaimIn,
   readTheClaimsOnAQueue,
 } from './reading-the-claims-beside-a-queue.ts';
+export {
+  readTheQueueReportingProblems,
+  readTheQueueThatMayNotBeThere,
+} from './reading-a-queue-a-kill-left.ts';
 export {
   NO_ENTRY_OF_THAT_NAME,
   aFileLaidDown,
@@ -68,14 +81,32 @@ export {
   theClaimOn,
 } from './claiming-an-entry-of-a-queue.ts';
 export {
+  AnotherFillingHoldsTheEntryError,
+  discardTheEntryTaken,
   moveAQueueEntryTo,
   putAQueueEntryIn,
   takeAQueueEntryOut,
 } from './putting-and-taking-entries-of-a-queue.ts';
 export {
+  aClaimGivenBackOnlyIfOurs,
+  aClaimRemovedOnlyIfItSays,
+  anEntryRemovedOnlyIfTheAttempt,
+  theIdentityQueued,
+} from './a-claim-taken-and-given-back.ts';
+export {
+  type HolderOfAClaim,
+  processIsThere,
+  startedAtOf,
+  theHolderOfAClaim,
+} from './where-a-claims-holder-is-now.ts';
+export {
+  HALF_WRITTEN_FILE_AGE_MILLISECONDS,
+  halfWrittenFilesSwept,
   settleTheQueueAfterAKill,
 } from './settling-the-queue-after-a-kill.ts';
 export {
+  BEING_CARRIED_ENDING,
+  CARRIED_ENDING,
   CONVERTED_QUEUE_ENDING,
   type ConvertedAQueue,
   convertAQueueFileIntoAFolder,

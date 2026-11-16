@@ -54,6 +54,7 @@ import type {
   QueueClaim,
   QueueRecord,
 } from './queue-of-runs.ts';
+import { readQueueOfRuns, } from './reading-and-writing-the-folder-a-queue-is.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import {
   setAsideAnEntryOfAQueue,
@@ -263,6 +264,38 @@ async function putEndedReviewsBackThisRound(): Promise<void> {
 }
 
 /**
+ What one round of filling answered, or what ended it before it answered.
+ */
+type ARound =
+  | { readonly answered: Awaited<ReturnType<typeof fillFreePlacesFromAQueue>> }
+    | { readonly threw: unknown };
+
+/**
+ Runs one round of filling, and answers what it said or what ended it.
+
+ @param fill - how to fill, which the caller gives as its own closure
+
+ @returns what the round answered, or what ended it
+
+ @example
+ ```ts
+ const round = await aRoundOf({ fill: function fill() { return fillFreePlacesFromAQueue({ request, seams }); } });
+ ```
+ */
+async function aRoundOf({
+  fill,
+}: {
+  readonly fill: () => Promise<Awaited<ReturnType<typeof fillFreePlacesFromAQueue>>>;
+},): Promise<ARound> {
+  try {
+    return { answered: await fill(), };
+  }
+  catch (threw) {
+    return { threw, };
+  }
+}
+
+/**
  What this filling has last started and last said, which each round keeps for the next.
  */
 const fillingSoFar: {
@@ -300,47 +333,67 @@ for (;;) {
   if (options.putBackEndedReviews) {
     await putEndedReviewsBackThisRound();
   }
-  try {
-    /**
-     What one round of filling answered.
-     */
-    const outcome = await fillFreePlacesFromAQueue({
-      request: {
-        queueFolder: options.queueFolder,
-        runsFolder: options.runsFolder,
-        level: options.level,
-        startsAtMost: options.startsAtMost,
-      },
-      seams: {
-        runsGoing,
-        freeSpace: freeSpaceNow,
-        start: startAndKeep,
-        setAside: function setAside({
-          record,
-          failure,
-          queueId,
-        },) {
-          return setAsideAnEntryOfAQueue({
-            queueFolder: options.queueFolder,
-            runsFolder: options.runsFolder,
-            record,
-            queueId,
-            reason: failure.reason,
-            ...(failure.keptOutputAt === undefined ? {} : { keptOutputAt: failure.keptOutputAt, }),
-            now: Date.now,
-          },);
+  /**
+   What one round answered, or that the round itself threw.
+   */
+  const round = await aRoundOf({
+    fill: function fill() {
+      return fillFreePlacesFromAQueue({
+        request: {
+          queueFolder: options.queueFolder,
+          runsFolder: options.runsFolder,
+          level: options.level,
+          startsAtMost: options.startsAtMost,
         },
-        wait,
-        report: reportOnStandardOutput,
-      },
-    },);
+        seams: {
+          runsGoing,
+          freeSpace: freeSpaceNow,
+          start: startAndKeep,
+          setAside: function setAside({
+            record,
+            failure,
+            queueId,
+          },) {
+            return setAsideAnEntryOfAQueue({
+              queueFolder: options.queueFolder,
+              runsFolder: options.runsFolder,
+              record,
+              queueId,
+              reason: failure.reason,
+              ...(failure.keptOutputAt === undefined ? {} : { keptOutputAt: failure.keptOutputAt, }),
+              now: Date.now,
+            },);
+          },
+          wait,
+          report: reportOnStandardOutput,
+        },
+      },);
+    },
+  },);
+  if ('answered' in round) {
     /**
      The entries the round started, in the order it started them.
      */
-    const { started: startedThisRound, } = outcome;
+    const { started: startedThisRound, } = round.answered;
     if (startedThisRound.length > 0) {
       fillingSoFar.lastStartedAt = Date.now();
     }
+  }
+  else {
+    // One failed round must not end the filling: the round after it asks again.
+    reportOnStandardError(`${new Date().toISOString()} a round failed and the filling goes on: ${String(round.threw,)}\n`,);
+  }
+  // The notice is looked for whatever the round answered, and after a round that threw as well: a filling that stopped starting because
+  // every round fails is the one a person most needs told about, and the notice was skipped for as long as it sat inside the round's own
+  // `try`.
+  try {
+    /**
+     The entries the queue holds now, which a round that threw could not report.
+     */
+    const standing = ('answered' in round)
+      ? round.answered
+        .left
+      : (await readQueueOfRuns({ queueFolder: options.queueFolder, },)).length;
     /**
      What the look for a stalled filling answered.
      */
@@ -348,10 +401,16 @@ for (;;) {
       look: {
         lastStartedAt: fillingSoFar.lastStartedAt,
         now: Date.now(),
-        entriesStanding: outcome.left,
-        placesFree: outcome.placesFreeAtTheStart,
+        entriesStanding: standing,
+        placesFree: ('answered' in round) ? round.answered
+          .placesFreeAtTheStart : options.level,
         queueFolder: options.queueFolder,
-        ...(outcome.stoppedBecause === undefined ? {} : { stoppedBecause: outcome.stoppedBecause, }),
+        ...(('answered' in round) && (round.answered
+          .stoppedBecause
+          !== undefined)
+          ? { stoppedBecause: round.answered
+            .stoppedBecause, }
+          : {}),
         ...((fillingSoFar.lastNoticedAt === 0) ? {} : { lastNoticedAt: fillingSoFar.lastNoticedAt, }),
         notify: notifyOnTheDesktop,
         report: reportOnStandardOutput,
@@ -364,8 +423,8 @@ for (;;) {
     fillingSoFar.lastNoticedAt = lastNoticedAt ?? 0;
   }
   catch (error) {
-    // One failed round must not end the filling: the round after it asks again.
-    reportOnStandardError(`${new Date().toISOString()} a round failed and the filling goes on: ${String(error,)}\n`,);
+    // A notice that failed must not end the filling either: the round after it asks again.
+    reportOnStandardError(`${new Date().toISOString()} the look for a stalled filling failed and the filling goes on: ${String(error,)}\n`,);
   }
   if (options.once || ((Date.now() + options.roundMilliseconds) > stopAskingAt)) {
     break;

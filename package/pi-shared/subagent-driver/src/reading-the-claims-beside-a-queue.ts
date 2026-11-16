@@ -115,6 +115,13 @@ export function aClaimIn({
   ) {
     throw new QueueFileError(`${path} names no token, process number and time for the attempt, so which filling started that entry is unknown`,);
   }
+  /**
+   The moment the holder's process started, which a claim of an earlier build does not name.
+   */
+  const startedAt: unknown = Reflect.get(
+    claim,
+    'startedAt',
+  );
   return {
     name,
     queueId,
@@ -122,6 +129,7 @@ export function aClaimIn({
       token,
       pid,
       at,
+      ...(((typeof startedAt) === 'string') && (startedAt !== '') ? { startedAt, } : {}),
     },
   };
 }

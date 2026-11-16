@@ -81,31 +81,128 @@ export function aPlaceFor({
     entries.length,
   );
   /**
-   The key of the entry before it, when one stands there.
+   The key of the entry before the place, when one stands there.
    */
   /**
    The entry before the place, when one stands there.
    */
   const before = (at > 0) ? entries[at - 1] : undefined;
   /**
-   The key of the entry before the place, when one stands there.
+   The key it holds, which the new entry must come after.
    */
-  const lower = (before === undefined) ? undefined : orderKeyOf({ entry: before, },);
+  const lower = (before === undefined) ? NO_ENTRY_AFTER : orderKeyOf({ entry: before, },);
   /**
-   The entry after the place, when one stands there.
+   The key the new entry must come before: the first key strictly greater than the lower one, which skips entries that hold the very
+   key the new entry is placed after.
+
+   Two entries can hold one key only in a queue written before puts kept their keys apart, and a new entry placed between them must land
+   after that whole run of them rather than between two of them, which the key cannot express.
    */
-  const after = (at < entries.length) ? entries[at] : undefined;
+  const upper = theFirstKeyAfter({
+    entries,
+    at,
+    lower,
+  },);
   /**
-   The key of the entry after the place, when one stands there.
+   The key between the two, which is the one this entry is written at.
    */
-  const upper = (after === undefined) ? undefined : orderKeyOf({ entry: after, },);
+  const order = anOrderForAPlace({
+    ...(lower === NO_ENTRY_AFTER ? {} : { lower, }),
+    ...(upper === NO_ENTRY_AFTER ? {} : { upper, }),
+  },);
+  // A key another entry already holds is one a later put could not be placed between, so the key is parted once more until it is the
+  // queue's own: the entry lands after the run of entries that hold the key it was given.
   return {
     at,
-    order: anOrderForAPlace({
-      ...(lower === undefined ? {} : { lower, }),
-      ...(upper === undefined ? {} : { upper, }),
+    order: anUnheldKey({
+      order,
+      entries,
     },),
   };
+}
+
+/**
+ Reads the first key at or after one place that is greater than a key, which is the entry a put must come before.
+
+ @param entries - the queue
+
+ @param at - the place the put is made at
+
+ @param lower - the key the put comes after, or nothing when it goes at the head
+
+ @returns the key to come before, or nothing when the put goes at the tail
+
+ @example
+ ```ts
+ const upper = theFirstKeyAfter({ entries, at: 0, lower: 'i' });
+ ```
+ */
+function theFirstKeyAfter({
+  entries,
+  at,
+  lower,
+}: {
+  readonly entries: readonly QueueRecord[];
+  readonly at: number;
+  readonly lower?: string | typeof NO_ENTRY_AFTER;
+}): string | typeof NO_ENTRY_AFTER {
+  for (const entry of entries.slice(at,)) {
+    /**
+     The key of this entry.
+     */
+    const key = orderKeyOf({ entry, },);
+    if ((lower === undefined) || (lower === NO_ENTRY_AFTER)
+      || (key > lower)) {
+      return key;
+    }
+  }
+  return NO_ENTRY_AFTER;
+}
+
+/**
+ There is no entry after that place, so the put goes at the queue's tail.
+
+ */
+export const NO_ENTRY_AFTER: unique symbol = Symbol('that place is the queue at its tail',);
+
+/**
+ Reads a key no entry of the queue holds, by parting the key given once more for every entry that holds it.
+
+ A key two entries hold is one a later put cannot be placed inside, because the key is the place: parting it puts the new entry after
+ every entry that holds the key it started from, which is the place the caller asked for.
+
+ @param order - the key the queue would write
+
+ @param entries - the entries the queue holds
+
+ @returns a key no entry holds, which sorts after or at the same place as the key given
+
+ @example
+ ```ts
+ const order = anUnheldKey({ order: 'ii', entries });
+ ```
+ */
+function anUnheldKey({
+  order,
+  entries,
+}: {
+  readonly order: string;
+  readonly entries: readonly QueueRecord[];
+},): string {
+  /**
+   The keys the queue holds.
+   */
+  const held = new Set(entries.map(function keyOf(entry,) {
+    return orderKeyOf({ entry, },);
+  },),);
+  /**
+   The key to write, parted for as long as another entry holds it.
+   */
+  let order2 = order;
+  while (held.has(order2,)) {
+    order2 = anOrderForAPlace({ lower: order2, },);
+  }
+  return order2;
 }
 
 /**

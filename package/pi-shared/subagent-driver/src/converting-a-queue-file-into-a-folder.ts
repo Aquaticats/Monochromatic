@@ -14,9 +14,13 @@
  */
 
 import {
+  appendFile,
   readFile,
   rename,
+  rm,
 } from 'node:fs/promises';
+import { errorCodeOf, } from './error-code-of.ts';
+import { isThere, } from './newest-finished-run-of-a-name.ts';
 import { shapeOfAQueueEntry, } from './entry-of-a-queue.ts';
 import {
   aFreshQueueId,
@@ -34,9 +38,24 @@ import {
 import { ordersOfAPlace, } from './order-of-an-entry-in-a-queue.ts';
 
 /**
+ The code the operating system gives a path that is not there.
+ */
+const MISSING_PATH_CODE = 'ENOENT';
+
+/**
  The ending the array file is renamed to when the changeover is done, so what became the folder is still there to read.
  */
 export const CONVERTED_QUEUE_ENDING = '.converted';
+
+/**
+ The ending the array is held under while it is being carried, which a run that was killed leaves for the next run to finish.
+ */
+export const BEING_CARRIED_ENDING = '.converting';
+
+/**
+ The ending of the file that records the names a changeover has already written into the folder.
+ */
+export const CARRIED_ENDING = '.converting-carried';
 
 /**
  What one changeover did.
@@ -151,11 +170,23 @@ async function whatOneQueueFileHolds({ queueFile, }: { readonly queueFile: strin
 }
 
 /**
- Carries one queue array file into a queue folder, and renames the array aside when every entry of it is in the folder.
+ Carries one queue array file into a queue folder, and answers what it carried.
+
+ The array is renamed to `<file>.converting` **first**, and the folder is built from that file. A queue that another command adds to has
+ therefore either been renamed already and its last entry carried, or not renamed and not carried at all: nothing written into the array
+ between a read and a rename can be lost.
+
+ Every entry is recorded by name in `<file>.converting-carried` as it is written, and a run after a kill passes over the names already
+ recorded. That is what keeps a re-run from queueing again an entry a filling started while the changeover was unfinished.
+
+The array is renamed to `<file>.converted-<stamp>` at the end, a name no earlier changeover holds, so a changeover never writes over the
+copy an earlier one kept.
 
  @param queueFile - the array file's path
 
  @param queueFolder - the folder to carry it into
+
+ @param now - the clock the stamp of the kept array is read from
 
  @returns what the changeover did
 
@@ -164,20 +195,72 @@ async function whatOneQueueFileHolds({ queueFile, }: { readonly queueFile: strin
 
  @example
  ```ts
- const done = await convertAQueueFileIntoAFolder({ queueFile: '/runs/queue.json', queueFolder: '/runs/queue' });
+ const done = await convertAQueueFileIntoAFolder({ queueFile: '/runs/queue.json', queueFolder: '/runs/queue', now: Date.now });
  ```
  */
 export async function convertAQueueFileIntoAFolder({
   queueFile,
   queueFolder,
+  now = Date.now,
 }: {
   readonly queueFile: string;
   readonly queueFolder: string;
+  readonly now?: () => number;
 },): Promise<ConvertedAQueue> {
+  /**
+   Where the array is while it is carried, which a run that was killed left behind.
+   */
+  const beingCarried = `${queueFile}${BEING_CARRIED_ENDING}`;
+  /**
+   Where the names already carried are recorded, one per line.
+   */
+  const carried = `${queueFile}${CARRIED_ENDING}`;
+  if (!(await isThere(beingCarried,))) {
+    // The rename comes before anything is read, so the array a changeover carries is the array as it stands at that one step.
+    try {
+      await rename(
+        queueFile,
+        beingCarried,
+      );
+    }
+    catch (error) {
+      if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
+        throw new QueueFileError(`the queue at ${queueFile} cannot be taken for the changeover: ${String(error,)}`,);
+      }
+      // Nothing to carry, and nothing of an earlier changeover left: there is no array to change over.
+      if (!(await isThere(carried,))) {
+        throw new QueueFileError(
+          `the queue file ${queueFile} is not there, and neither is a changeover of it left unfinished, so there is nothing to carry into ${
+             queueFolder}`,
+        );
+      }
+    }
+  }
   /**
    The entries the array holds, in its order.
    */
-  const entries = await entriesOfAQueueFile({ queueFile, },);
+  const entries = await entriesOfAQueueFile({ queueFile: beingCarried, },);
+  /**
+   The names an earlier run of this changeover already wrote into the folder.
+   */
+  /**
+   The names an earlier run of this changeover already wrote, read one line each.
+   */
+  const recorded = new Set<string>();
+  if (await isThere(carried,)) {
+    /**
+     What the file recording the names holds.
+     */
+    const lines = await readFile(
+      carried,
+      'utf8',
+    );
+    for (const line of lines.split('\n',)) {
+      if (line !== '') {
+        recorded.add(line,);
+      }
+    }
+  }
   /**
    The places a queue of this length is written at, which is the array's own order.
    */
@@ -188,6 +271,11 @@ export async function convertAQueueFileIntoAFolder({
   const alreadyThere: string[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one entry at a time, and the folder is read for each of them */
   for (const [place, entry,] of entries.entries()) {
+    if (recorded.has(entry.name,)) {
+      // An earlier run of this changeover wrote this entry, and a filling may have started it since: it is never queued a second time.
+      alreadyThere.push(entry.name,);
+      continue;
+    }
     /**
      The entry the folder holds under that name, or that it holds none.
      */
@@ -198,6 +286,10 @@ export async function convertAQueueFileIntoAFolder({
     if (held !== NO_ENTRY_OF_THAT_NAME) {
       if (theFieldsOfAnEntry({ entry: held, },) === theFieldsOfAnEntry({ entry, },)) {
         alreadyThere.push(entry.name,);
+        await appendFile(
+          carried,
+          `${entry.name}\n`,
+        );
         continue;
       }
       throw new QueueFileError(
@@ -220,20 +312,31 @@ export async function convertAQueueFileIntoAFolder({
     if (!written) {
       throw new QueueFileError(
         `an entry named ${entry.name} was queued in ${queueFolder} while the changeover ran, so nothing more was carried over: `
-          + 'the array is still where it was, and running this again passes over what is already there',
+          + 'the array is still held as being carried, and running this again passes over what is already there',
       );
     }
+    // The name is recorded once the entry is in the folder, so a run after a kill at any step passes over exactly what it wrote.
+    await appendFile(
+      carried,
+      `${entry.name}\n`,
+    );
   }
   /* oxlint-enable eslint/no-await-in-loop */
-  // Every entry of the array is in the folder, so the array is renamed aside: a kill before this leaves the array, which this command
-  // reads again and passes over, and a kill after it leaves the folder.
   /**
-   Where the array is renamed to.
+   Where the array is kept once every entry of it is in the folder, which no earlier changeover holds.
    */
-  const arrayKeptAt = `${queueFile}${CONVERTED_QUEUE_ENDING}`;
+  const arrayKeptAt = `${queueFile}${CONVERTED_QUEUE_ENDING}-${new Date(now(),).toISOString()
+    .replaceAll(
+      ':',
+      '',
+    )}`;
   await rename(
-    queueFile,
+    beingCarried,
     arrayKeptAt,
+  );
+  await rm(
+    carried,
+    { force: true, },
   );
   return {
     entries: entries.length - alreadyThere.length,

@@ -26,9 +26,15 @@ import { completeTheClaim, } from './claiming-an-entry-of-a-queue.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   isQueueRecord,
+  anEntryNameInAFileName,
   QUEUE_ID_FIELD,
   type QueueRecord,
+  queueIdOf,
 } from './queue-of-runs.ts';
+import {
+  NO_NAME_IN_AN_ESCAPED_FORM,
+  anEscapedName,
+} from './names-a-queue-gives-its-things.ts';
 import { readQueueOfRuns, } from './reading-and-writing-the-folder-a-queue-is.ts';
 
 /**
@@ -114,7 +120,7 @@ export function setAsideFileOf({
 },): string {
   return join(
     runsFolder,
-    `${name}${SET_ASIDE_FILE_SUFFIX}`,
+    `${anEscapedName({ name, },)}${SET_ASIDE_FILE_SUFFIX}`,
   );
 }
 
@@ -189,23 +195,23 @@ export function setAsideRecordIn({
 }
 
 /**
- Writes one entry's set-aside record, through a file beside it that is renamed over it.
+ Writes one entry's set-aside record, through a file beside it that is renamed over it, and never over another entry's only copy.
 
- The caller holds the queue's lock: a record is state of its entry, and writing one outside a held step is how a put-back could
- delete the record of a set-aside a filling was still committing, losing the entry. Every command of this package writes a record
- through `setAsideAnEntryOfAQueue`, which holds the step.
+ A name may be queued again once its earlier entry has gone, and the earlier entry's record is then the only copy of what that entry was
+ asked to do. Writing the new entry's record straight over it would lose that copy, so a record holding another entry is renamed to a name
+ of its own first, which a person and this package's own reader both still find, and the new record takes the plain name.
 
  @param runsFolder - folder the driver writes its runs into
 
  @param record - what the record says
 
- @returns the record's path
+ @returns the record's path, and where a record of another entry was kept, when one was there
 
  @throws SetAsideRecordError when the record cannot be written
 
  @example
  ```ts
- await writeSetAsideRecord({ runsFolder: '/runs', record });
+ const { file } = await writeSetAsideRecord({ runsFolder: '/runs', record });
  ```
  */
 export async function writeSetAsideRecord({
@@ -214,13 +220,25 @@ export async function writeSetAsideRecord({
 }: {
   readonly runsFolder: string;
   readonly record: SetAsideRecord;
-},): Promise<string> {
+},): Promise<{
+  readonly file: string;
+  readonly keptTheEarlierRecordAt?: string;
+}> {
   /**
    The record's path.
    */
   const file = setAsideFileOf({
     runsFolder,
     name: record.name,
+  },);
+  /**
+   Where a record of another entry of that name was kept, or that the name held none.
+   */
+  const kept = await anotherEntrysRecordKept({
+    runsFolder,
+    name: record.name,
+    record,
+    file,
   },);
   /**
    The file written beside it and renamed over it.
@@ -239,11 +257,79 @@ export async function writeSetAsideRecord({
       beside,
       file,
     );
-    return file;
+    return {
+      file,
+      ...(('keptAt' in kept) ? { keptTheEarlierRecordAt: kept.keptAt, } : {}),
+    };
   }
   catch (error) {
     throw new SetAsideRecordError(`the set-aside record of ${record.name} cannot be written at ${file}: ${String(error,)}`,);
   }
+}
+
+/**
+ Keeps a record of another entry that stands under the same name, so that writing this entry's record never destroys it.
+
+ A name may be queued again once its earlier entry has gone, and that entry's record is then its only copy: it is renamed to a name of its
+ own, which a person still finds, rather than written over.
+
+ @param runsFolder - folder the driver writes its runs into
+
+ @param name - the entry's name
+
+ @param record - the record about to be written
+
+ @param file - the path that record takes
+
+ @returns where the earlier record was kept, or that this name held no other entry's record
+
+ @throws SetAsideRecordError when the record there cannot be read or renamed
+
+ @example
+ ```ts
+ const kept = await anotherEntrysRecordKept({ runsFolder: '/runs', name: 'a', record, file: '/runs/a-set-aside.json' });
+ ```
+ */
+async function anotherEntrysRecordKept({
+  runsFolder,
+  name,
+  record,
+  file,
+}: {
+  readonly runsFolder: string;
+  readonly name: string;
+  readonly record: SetAsideRecord;
+  readonly file: string;
+},): Promise<{ readonly keptAt: string } | { readonly none: true }> {
+  /**
+   The record already beside the runs under that name, when there is one.
+   */
+  const earlier = await setAsideRecordOf({
+    runsFolder,
+    name,
+  },);
+  if (
+    (earlier === NO_SET_ASIDE_RECORD)
+      || (queueIdOf({ record: earlier.entry, },) === queueIdOf({ record: record.entry, },))
+  ) {
+    return { none: true, };
+  }
+  /**
+   The identity the earlier record's entry carries, which names the file it is kept in.
+   */
+  const earlierId = queueIdOf({ record: earlier.entry, },);
+  /**
+   Where the earlier entry's only copy is kept.
+   */
+  const keptAt = `${file.slice(
+    0,
+    -SET_ASIDE_FILE_SUFFIX.length,
+  )}-set-aside-${((typeof earlierId) === 'string') ? earlierId : 'no-identity'}${SET_ASIDE_FILE_SUFFIX}`;
+  await rename(
+    file,
+    keptAt,
+  );
+  return { keptAt, };
 }
 
 /**
@@ -322,15 +408,25 @@ export async function setAsideRecordsIn({ runsFolder, }: { readonly runsFolder: 
     return isASetAsideRecordFile({ file: name, },);
   },)) {
     /**
+     The entry's name the file's name was written from.
+     */
+    const name = anEntryNameInAFileName({
+      fileName: `${file.slice(
+        0,
+        -SET_ASIDE_FILE_SUFFIX.length,
+      )}.json`,
+    },);
+    if (name === NO_NAME_IN_AN_ESCAPED_FORM) {
+      // A file named with a suffix this package writes but holding no name of its own is a person's file: it is left alone.
+      continue;
+    }
+    /**
      The record of the file just listed.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one record after another, each with its own error naming its own file
     const record = await setAsideRecordOf({
       runsFolder,
-      name: file.slice(
-        0,
-        -SET_ASIDE_FILE_SUFFIX.length,
-      ),
+      name,
     },);
     if (record !== NO_SET_ASIDE_RECORD) {
       records.push(record,);
@@ -342,8 +438,9 @@ export async function setAsideRecordsIn({ runsFolder, }: { readonly runsFolder: 
 /**
  Deletes one entry's set-aside record.
 
- The caller holds the queue's lock and decides on the queue inside that step: a removal made on a snapshot of the queue is how a
- second filling deleted the record of a set-aside a first was still committing.
+ A caller decides on the queue's own state just before it calls this, and the record belongs to the entry that decision was about: the
+ settlement removes one only after it has taken the entry out of the queue, and a put-back removes one only after the entry is queued
+ again.
 
  @param runsFolder - folder the driver writes its runs into
 
@@ -482,7 +579,7 @@ export async function setAsideAnEntryOfAQueue({
   /**
    The record's path.
    */
-  const file = await writeSetAsideRecord({
+  const written = await writeSetAsideRecord({
     runsFolder,
     record: {
       name: record.name,
@@ -495,6 +592,10 @@ export async function setAsideAnEntryOfAQueue({
       ...((keptOutputAt === undefined) ? {} : { keptOutputAt, }),
     },
   },);
+  /**
+   The record's path.
+   */
+  const {file} = written;
   await completeTheClaim({
     queueFolder,
     name: record.name,

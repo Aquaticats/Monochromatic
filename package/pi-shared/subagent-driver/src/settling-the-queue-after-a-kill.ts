@@ -13,20 +13,31 @@
  @module
  */
 
-import { rm, } from 'node:fs/promises';
-import { errorCodeOf, } from './error-code-of.ts';
 import {
-  entryFileOf,
+  readdir,
+  rm,
+  stat,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
+import {
+  aClaimRemovedOnlyIfItSays,
+  anEntryRemovedOnlyIfTheAttempt,
+} from './a-claim-taken-and-given-back.ts';
+import { theHolderOfAClaim, } from './where-a-claims-holder-is-now.ts';
+import {
+  type ANameInAFolder,
+  claimedFolderOf,
   NO_QUEUE_ID,
+  QueueFileError,
   type QueueRecord,
-  claimFileOf,
   queueIdOf,
 } from './queue-of-runs.ts';
 import { startOfAnAttemptTookEffect, } from './claiming-an-entry-of-a-queue.ts';
 import { readTheClaimsOnAQueue, } from './reading-the-claims-beside-a-queue.ts';
+import { readTheQueueReportingProblems, } from './reading-a-queue-a-kill-left.ts';
 import {
   NO_ENTRY_OF_THAT_NAME,
-  readQueueOfRuns,
   readTheEntryNamed,
 } from './reading-and-writing-the-folder-a-queue-is.ts';
 import {
@@ -34,37 +45,6 @@ import {
   removeSetAsideRecord,
   setAsideRecordOf,
 } from './set-aside-entry.ts';
-
-/**
- The code the operating system gives one process's number when no process of the account has it.
- */
-const NO_SUCH_PROCESS_CODE = 'ESRCH';
-
-/**
- Says whether the process a claim names is still there.
-
- @param pid - the process number the claim names
-
- @returns whether it is there, which a process this account may not signal counts as
-
- @example
- ```ts
- const there = processIsThere({ pid: 1 });
- ```
- */
-function processIsThere({ pid, }: { readonly pid: number },): boolean {
-  try {
-    process.kill(
-      pid,
-      0,
-    );
-    return true;
-  }
-  catch (error) {
-    // A process number this account may not signal still names a live process, so only "no such process" says the holder is gone.
-    return errorCodeOf(error,) !== NO_SUCH_PROCESS_CODE;
-  }
-}
 
 /**
  Settles each set-aside record whose name the queue holds, comparing identities rather than names.
@@ -100,7 +80,10 @@ async function recordsSettled({
    */
   const claims = await readTheClaimsOnAQueue({ queueFolder, },);
   /* oxlint-disable eslint/no-await-in-loop -- one entry after another, and each record is its own file */
-  for (const entry of await readQueueOfRuns({ queueFolder, },)) {
+  for (const entry of await readTheQueueReportingProblems({
+    queueFolder,
+    report,
+  },)) {
     /**
      The entry's identity, which every put writes.
      */
@@ -126,18 +109,31 @@ async function recordsSettled({
       report(`${at} ${entry.name}: the set-aside record beside the runs holds an entry other than the one the queue holds under that name, so it is left as it is; putting it back or removing it is a person's to do\n`,);
       continue;
     }
-    if (claims.some(function isOnThisAttempt(claim,) {
+    /**
+     The claim on this very entry, when a filling holds one.
+     */
+    const claimed = claims.find(function isOnThisAttempt(claim,) {
       return (claim.name === entry.name) && (claim.queueId === queueId);
-    },)) {
+    },);
+    if (claimed !== undefined) {
       // The record's own entry is queued and claimed: the set-aside wrote the record and was killed before its entry left the queue, so
-      // this finishes it. The record stays, because it is the entry's copy.
-      await rm(
-        entryFileOf({
-          queueFolder,
-          name: entry.name,
-        },),
-        { force: true, },
-      );
+      // this finishes it. The claim goes first, only while it is still that attempt, so no live filling takes the entry over between the
+      // two steps; the record stays, because it is the entry's copy.
+      await aClaimRemovedOnlyIfItSays({
+        queueFolder,
+        name: entry.name,
+        holds: function isTheClaimRead(other,) {
+          return other.claim
+            .token
+            === claimed.claim
+              .token;
+        },
+      },);
+      await anEntryRemovedOnlyIfTheAttempt({
+        queueFolder,
+        name: entry.name,
+        queueId,
+      },);
       report(`${at} ${entry.name}: its set-aside wrote the record and was killed before the entry left the queue, so the set-aside is finished and the record stands\n`,);
       continue;
     }
@@ -150,7 +146,10 @@ async function recordsSettled({
     report(`${at} ${entry.name}: its set-aside record was still there after its entry was put back into the queue, so the record is dropped and the entry stands\n`,);
   }
   /* oxlint-enable eslint/no-await-in-loop */
-  return await readQueueOfRuns({ queueFolder, },);
+  return await readTheQueueReportingProblems({
+    queueFolder,
+    report,
+  },);
 }
 
 /**
@@ -182,19 +181,40 @@ async function claimsCleared({
    When the lines are said.
    */
   const at = new Date().toISOString();
+  /* oxlint-disable eslint/no-await-in-loop -- one claim after another, each read and decided on its own, which is what makes each
+     decision one step on one file. See doc/lint/sequential-awaits.md. */
   for (const held of await readTheClaimsOnAQueue({ queueFolder, },)) {
-    if (processIsThere({ pid: held.claim
-      .pid, },)) {
+    /**
+     What the process the claim names says about the holder: that it is there, that it has gone, or that its number now belongs to a
+     process that started at another moment.
+     */
+    const holder = await theHolderOfAClaim({ claim: held, },);
+    if (holder.kind === 'there') {
+      continue;
+    }
+    if (holder.kind === 'unreadable') {
+      // A holder this caller cannot judge is one it must not take a claim from: the entry waits, and the line says what stopped it.
+      report(`${at} ${held.name}: the filling that claimed it cannot be judged gone, so its claim stands: ${holder.reason}\n`,);
       continue;
     }
     /**
-     The claim's file.
+     Whether the claim was still the one this pass read, once it is removed only while it says so.
      */
-    const claimFile = claimFileOf({
+    const removed = await aClaimRemovedOnlyIfItSays({
       queueFolder,
       name: held.name,
+      holds: function isTheClaimRead(claim,) {
+        return (claim.claim
+          .token
+          === held.claim
+            .token) && (claim.queueId === held.queueId);
+      },
     },);
-    /* oxlint-disable eslint/no-await-in-loop -- one claim after another, each with its own attempt's evidence */
+    if (!removed) {
+      // Another filling linked its own claim on that entry between this pass's read and this step, so the claim it holds is left alone.
+      report(`${at} ${held.name}: the filling that held the claim this pass read is gone, but another filling claimed it meanwhile, so that claim stands\n`,);
+      continue;
+    }
     /**
      The entry the queue holds under that name now, or that it holds none.
      */
@@ -204,12 +224,8 @@ async function claimsCleared({
     },);
     if ((entry === NO_ENTRY_OF_THAT_NAME) || (queueIdOf({ record: entry, },) !== held.queueId)) {
       // The entry this claim was taken on has left the queue, or the queue holds another entry of that name now: either way nothing is
-      // left to start or to give back, and the claim is cleared.
-      await rm(
-        claimFile,
-        { force: true, },
-      );
-      report(`${at} ${held.name}: the queue no longer holds the entry its claim names, so the claim is cleared\n`,);
+      // left to start, and the claim is already gone.
+      report(`${at} ${held.name}: the queue no longer holds the entry its claim named, so the claim is cleared\n`,);
       continue;
     }
     if (await startOfAnAttemptTookEffect({
@@ -217,28 +233,21 @@ async function claimsCleared({
       name: held.name,
       claim: held.claim,
     },)) {
-      await rm(
-        entryFileOf({
-          queueFolder,
-          name: held.name,
-        },),
-        { force: true, },
-      );
-      await rm(
-        claimFile,
-        { force: true, },
-      );
+      await anEntryRemovedOnlyIfTheAttempt({
+        queueFolder,
+        name: held.name,
+        queueId: held.queueId,
+      },);
       report(`${at} ${held.name}: the filling that claimed it died after its start took effect, so it is taken out of the queue and never started again\n`,);
       continue;
     }
-    await rm(
-      claimFile,
-      { force: true, },
-    );
     report(`${at} ${held.name}: the filling that claimed it died before its start took effect, so the claim is given back and the entry stands for the next pass\n`,);
-    /* oxlint-enable eslint/no-await-in-loop */
   }
-  return await readQueueOfRuns({ queueFolder, },);
+  /* oxlint-enable eslint/no-await-in-loop */
+  return await readTheQueueReportingProblems({
+    queueFolder,
+    report,
+  },);
 }
 
 /**
@@ -277,9 +286,113 @@ export async function settleTheQueueAfterAKill({
     runsFolder,
     report,
   },);
-  return (await claimsCleared({
+  /**
+   The entries the queue holds once the claims of fillings that are gone are cleared.
+   */
+  const left = await claimsCleared({
     queueFolder,
     runsFolder,
     report,
-  },)).length;
+  },);
+  await halfWrittenFilesSwept({
+    queueFolder,
+    report,
+  },);
+  return left.length;
+}
+
+/**
+ How old a file a command was writing or taking aside must be before a pass removes it.
+
+ A step on one file is milliseconds, and the file written beside a name lives for that step alone (measured: a put is about 2 ms on a queue
+ of seventy entries). An hour is far past any step, so a file that old belongs to a command that will never finish it, while one younger may
+ belong to a command that is still running and is left alone.
+ */
+export const HALF_WRITTEN_FILE_AGE_MILLISECONDS = 3_600_000;
+
+/**
+ Removes the files a killed command left on its way to a name, in the queue's folder and in the folder its claims live in.
+
+ A file whose name begins with a dot is never an entry and never a claim: it is a file a command wrote on its way to one, which a command
+ killed at that step would otherwise leave for ever. Nothing else in the folder is touched.
+
+ @param queueFolder - the queue's folder
+
+ @param report - where the pass says what it removed, one line each
+
+ @param now - the clock the age of a file is read from
+
+ @returns how many files it removed
+
+ @example
+ ```ts
+ const removed = await halfWrittenFilesSwept({ queueFolder: '/runs/q', report: () => {} });
+ ```
+ */
+export async function halfWrittenFilesSwept({
+  queueFolder,
+  report,
+  now = Date.now,
+}: {
+  readonly queueFolder: string;
+  readonly report: (line: string) => void;
+  readonly now?: () => number;
+},): Promise<number> {
+  /**
+   How many files were removed.
+   */
+  let removed = 0;
+  /* oxlint-disable eslint/no-await-in-loop -- one folder after another, and one file after another inside it, each read for its own
+     reason. See doc/lint/sequential-awaits.md. */
+  for (const folder of [
+    queueFolder,
+    claimedFolderOf({ queueFolder, },),
+  ]) {
+    /**
+     What the folder holds, or nothing when it is not there.
+     */
+    let held: readonly ANameInAFolder[] = [];
+    try {
+      held = await readdir(
+        folder,
+        { withFileTypes: true, },
+      );
+    }
+    catch (error) {
+      // A claims folder nothing has claimed in is not there, which is not a failure to sweep.
+      if (String(error,)
+        .includes('ENOENT',)) {
+        continue;
+      }
+      throw new QueueFileError(`the folder ${folder} cannot be read to sweep what a kill left: ${String(error,)}`,);
+    }
+    for (const name of held) {
+      if ((!name.isFile()) || (!name.name
+        .startsWith('.',))) {
+        continue;
+      }
+      /**
+       The file's path.
+       */
+      const path = join(
+        folder,
+        name.name,
+      );
+      /**
+       How long ago the file was last written.
+       */
+      const age = now() - (await stat(path,)).mtimeMs;
+      if (age < HALF_WRITTEN_FILE_AGE_MILLISECONDS) {
+        continue;
+      }
+      await rm(
+        path,
+        { force: true, },
+      );
+      removed += 1;
+      report(`${new Date(now(),).toISOString()} ${path} was written ${String(Math.round(age / MILLISECONDS_PER_SECOND,),)} s ago by a command that never finished, so it is removed\n`,);
+    }
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+  return removed;
 }

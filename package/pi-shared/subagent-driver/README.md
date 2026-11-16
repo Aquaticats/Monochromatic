@@ -528,18 +528,15 @@ because a unit has no terminal.
 
 ## Filling the free places from a queue
 
-A queue file is one JSON array of entries, in the order they are to start,
+A queue is a folder of one file per entry, in the order they are to start,
 and the filling starts them in that order while the level it is given leaves places free.
 An entry whose start fails is taken out of the way at that failure,
 and the entry behind it starts in the same pass.
 
-The queue file is read whole and written whole through a file beside it that is renamed over it,
-so a reader never meets half a queue.
-Every decision this package acts on is made inside one held step of the queue's lock:
-the queue is read there, the decision is made on that read, and the queue and any set-aside record the decision governs
-are written before the step ends.
-Two commands at once therefore cannot both read before either writes and drop one another's entry,
-and no command can decide on one of the two files while another is writing the other.
+There is no lock over the queue. Every change is one atomic step on one file:
+a link that refuses a name already taken, a rename over a name, or a rename aside that is read and then removed.
+Two commands at once therefore change two entries at once and neither loses the other's work,
+and one entry is started by one filling only, because the claim on it is a file linked into a name only one filling can link.
 
 ### A folder, one file per entry
 
@@ -690,7 +687,7 @@ and the two are told apart by the step that refused:
   and the pass stops rather than starting a later entry into the place the earlier one waits for.
   The next round tries it again.
 
-A record is written **before** its entry leaves the queue, both inside one held step of the queue's lock.
+A record is written **before** its entry leaves the queue, each of the two one atomic step on one file.
 A kill between the two therefore leaves the entry in both places,
 which loses nothing:
 the record holds the entry whole, and the next pass's recovery finishes the set-aside by removing the entry it names.
@@ -753,16 +750,16 @@ while the pass that started the next entry did so within two minutes of the bloc
 Each command takes the same queue file and the same entry shapes the coordinator's scratch scripts used,
 so a caller changes over with one command:
 
-- the eight-hour loop: `mise run //package/pi-shared/subagent-driver:fill-free-places-from-a-queue -- --queue=<file> --level=<n> --seconds=<n>`
+- the eight-hour loop: `mise run //package/pi-shared/subagent-driver:fill-free-places-from-a-queue -- --queue=<folder> --level=<n> --seconds=<n>`
   (a filling unit starts it the same way it started the scratch loop);
 - one pass that starts at most *n*: the same command with `--once --starts-a-round=<n>`;
 - the next single entry: the same command with `--once --starts-a-round=1`;
-- put one entry at a position: `put-an-entry-into-a-queue --queue=<file> --entry='<json>' --position=<n>`;
-- take one entry out by name: `take-an-entry-out-of-a-queue --queue=<file> --name=<name>`;
-- move one entry to a position: `move-an-entry-of-a-queue --queue=<file> --name=<name> --position=<n>`;
-- put the rate-limited reviews back: `put-ended-reviews-back-at-the-head-of-a-queue --queue=<file>`;
+- put one entry at a position: `put-an-entry-into-a-queue --queue=<folder> --entry='<json>' --position=<n>`;
+- take one entry out by name: `take-an-entry-out-of-a-queue --queue=<folder> --name=<name>`;
+- move one entry to a position: `move-an-entry-of-a-queue --queue=<folder> --name=<name> --position=<n>`;
+- put the rate-limited reviews back: `put-ended-reviews-back-at-the-head-of-a-queue --queue=<folder>`;
 - read what is set aside: `list-the-entries-a-queue-set-aside`;
-- put one set-aside entry back: `put-a-set-aside-entry-back-into-a-queue --queue=<file> --name=<name>`.
+- put one set-aside entry back: `put-a-set-aside-entry-back-into-a-queue --queue=<folder> --name=<name>`.
 
 ## Reviewing a change
 

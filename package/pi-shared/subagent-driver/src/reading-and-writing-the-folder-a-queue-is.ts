@@ -157,7 +157,7 @@ export const NO_ENTRY_OF_THAT_NAME: unique symbol = Symbol('the queue holds no e
  const entry = await anEntryAt({ path: '/runs/q/a.json', missingIsNone: false });
  ```
  */
-async function anEntryAt({
+export async function anEntryAt({
   path,
   missingIsNone,
 }: {
@@ -299,13 +299,12 @@ export async function readQueueOfRuns({ queueFolder, }: { readonly queueFolder: 
         queueFolder,
         file,
       ),
-      missingIsNone: false,
+      // A file the folder listed and this read cannot find is one another command took out in between, which is a definite state and
+      // not a failure to read: a whole-queue read must not refuse because a filling completed an entry while it ran.
+      missingIsNone: true,
     },);
     if (read === NO_ENTRY_OF_THAT_NAME) {
-      throw new QueueFileError(`${join(
-        queueFolder,
-        file,
-      )} is not there, though the folder listed it`,);
+      continue;
     }
     /**
      The entry the file holds.
@@ -335,10 +334,13 @@ export async function readQueueOfRuns({ queueFolder, }: { readonly queueFolder: 
     if (one.order !== other.order) {
       return one.order < other.order ? (-1) : 1;
     }
+    // Two names are compared by their own characters, which is one total order: two names that differ anywhere at all differ here, while
+    // a locale's order can count two different names as one (`'é'` and `'e'` with a combining mark, for instance), leaving them in the
+    // order the folder listed them.
     return one.entry
       .name
-      .localeCompare(other.entry
-        .name,);
+      < other.entry
+        .name ? (-1) : 1;
   },)
     .map(function theEntryOf(one,) {
       return one.entry;

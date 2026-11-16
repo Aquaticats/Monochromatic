@@ -79,6 +79,11 @@ const ROUNDS = 20;
  */
 type AQueueInAThrowawayFolder = {
   /**
+   The folder everything lives in.
+   */
+  readonly path: string;
+
+  /**
    The queue's folder.
    */
   readonly queueFolder: string;
@@ -127,6 +132,7 @@ async function aQueueOf(entries: readonly QueueRecord[],): Promise<AQueueInAThro
     entries,
   },);
   return {
+    path,
     queueFolder,
     runsFolder,
     async [Symbol.asyncDispose]() {
@@ -644,6 +650,7 @@ await describe({
               readonly homes: number;
               readonly claims: number;
             }[] = [];
+            await using walkFolder = await aQueueOf([],);
             for (const command of CHANGING_COMMANDS) {
               /**
                The entry the queue of this command's walk holds: a put writes `a`, so its queue holds another name.
@@ -750,10 +757,11 @@ await describe({
             expect(rows.filter(function wasKilled(row,) {
               return row.signal === 'SIGKILL';
             },).length,).toBeGreaterThan(rows.length / 2,);
+            // The rows are written inside this test's own throwaway folder, which is removed with it: a fixed name under the shared
+            // scratch root is what two suites at once write over, and what one of them leaves behind.
             await writeFile(
-              join(scratchRoot(), 'pi-queue-folder-walk-rows.json',),
-              `${JSON.stringify(rows, undefined, 2,)}
-`,
+              join(walkFolder.path, 'the-walk-rows.json',),
+              `${JSON.stringify(rows, undefined, 2,)}\n`,
             );
           },
         },),

@@ -15,10 +15,18 @@
 import { randomUUID, } from 'node:crypto';
 import { join, } from 'node:path';
 import {
+  NO_NAME_IN_AN_ESCAPED_FORM,
+  aNameInAnEscapedName,
+  anEscapedName,
+} from './names-a-queue-gives-its-things.ts';
+import { QueueFileError, } from './queue-file-error.ts';
+import {
   anOrderBetween,
   anOrderIn,
   type NOT_AN_ORDER,
 } from './order-of-an-entry-in-a-queue.ts';
+
+export { QueueFileError, } from './queue-file-error.ts';
 
 /**
  One name in a folder, as reading the folder reports it: the name, and whether it is a file.
@@ -44,16 +52,6 @@ export type ANameInAFolder = {
  field; this module only knows that every entry is an object with a name.
  */
 export type QueueRecord = Readonly<Record<string, unknown> & { readonly name: string }>;
-
-/**
- A queue folder, or one entry in it, that cannot be read as a queue.
- */
-export class QueueFileError extends Error {
-  /**
-   The name printed with the message.
-   */
-  override readonly name = 'QueueFileError';
-}
 
 /**
  The field holding an entry's place in the queue, which the put that writes the entry decides and which no entry shape reads.
@@ -121,6 +119,15 @@ export type QueueClaim = {
    When the claim was taken, as ISO 8601.
    */
   readonly at: string;
+
+  /**
+   The moment the holder's process started, as the kernel counts it, which is what tells the holder from a process that was given its
+   number after it died.
+
+   Absent in a claim written before this field was recorded, which is what a queue of an earlier build may hold: such a claim is treated as
+   a holder that may be alive, so an entry waits for a person rather than being started a second time.
+   */
+  readonly startedAt?: string;
 };
 
 /**
@@ -220,14 +227,16 @@ export function orderOf({ record, }: { readonly record: QueueRecord },): string 
 }
 
 /**
- Reads the name a file gives one entry, which is the entry's name written so that it is one file's name and no other entry's.
+ Reads the name a file gives one entry, which is the entry's name escaped for a file name and then its ending.
 
- A name is spelled with percent escapes for every character that is not safe in a file name, which keeps two names two file names and
- keeps a name from reaching outside the folder. The name itself is inside the file, so nothing has to be decoded to read an entry.
+ The escaping is the one `names-a-queue-gives-its-things.ts` writes, so this name and a unit's name are the same text with different parts
+ around it, and either can be read back to the entry's name.
 
  @param name - the entry's name
 
  @returns the file's name, with its ending
+
+ @throws QueueNameError when the name is no Unicode, or would outgrow the longest name a queue writes
 
  @example
  ```ts
@@ -235,12 +244,31 @@ export function orderOf({ record, }: { readonly record: QueueRecord },): string 
  ```
  */
 export function anEntryFileName({ name, }: { readonly name: string },): string {
-  /**
-   The name as a file name, where only the characters a file name may carry unescaped stay as they are.
-   */
-  const escaped = encodeURIComponent(name,);
-  // A name that begins with a dot would be a hidden file, and `..` would escape the folder, so the first dot is escaped.
-  return `${escaped.startsWith('.' as string,) ? `%2E${escaped.slice(1,)}` : escaped}${ENTRY_FILE_ENDING}`;
+  return `${anEscapedName({ name, },)}${ENTRY_FILE_ENDING}`;
+}
+
+/**
+ Reads the name an entry's file was written from, which is the inverse of {@link anEntryFileName}.
+
+ @param fileName - the file's name, with its ending
+
+ @returns the entry's name, or nothing when the file is not one of a queue's entries
+
+ @example
+ ```ts
+ const name = anEntryNameInAFileName({ fileName: 'review-a.json' });
+ ```
+ */
+export function anEntryNameInAFileName({ fileName, }: { readonly fileName: string },): string | typeof NO_NAME_IN_AN_ESCAPED_FORM {
+  if (!fileName.endsWith(ENTRY_FILE_ENDING,)) {
+    return NO_NAME_IN_AN_ESCAPED_FORM;
+  }
+  return aNameInAnEscapedName({
+    escaped: fileName.slice(
+      0,
+      -ENTRY_FILE_ENDING.length,
+    ),
+  },);
 }
 
 /**

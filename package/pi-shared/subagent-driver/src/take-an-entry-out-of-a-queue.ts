@@ -17,14 +17,22 @@ import {
   queueFolderIn,
   queueRefusalOf,
 } from './parse-queue-of-runs-options.ts';
-import { takeAQueueEntryOut, } from './putting-and-taking-entries-of-a-queue.ts';
+import {
+  takeAQueueEntryOut,
+  discardTheEntryTaken,
+} from './putting-and-taking-entries-of-a-queue.ts';
 import { readQueueOfRuns, } from './reading-and-writing-the-folder-a-queue-is.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
  */
-const USAGE = 'take-an-entry-out-of-a-queue --queue=<folder> --name=<name>';
+const USAGE = 'take-an-entry-out-of-a-queue --queue=<folder> --name=<name> [--force]';
+
+/**
+ The word that takes an entry a filling holds a claim on anyway.
+ */
+const FORCE_WORD = '--force';
 
 /**
  A command line the command cannot use.
@@ -106,11 +114,13 @@ try {
     words,
   },);
   /**
-   The entries taken out, and the queue as it stands afterwards.
+   The entries taken out, where each was left aside, and the queue as it stands afterwards.
    */
   const taken = await takeAQueueEntryOut({
     queueFolder,
     name,
+    force: commandLine
+      .includes(FORCE_WORD,),
   },);
   if (taken.taken
     .length
@@ -123,9 +133,15 @@ try {
       .write(`no entry named ${name} is in the queue of ${String(queue.length,)}; nothing changed\n`,);
   }
   else {
+    // The entry is printed before it is discarded, and a pipe that has gone keeps it: an entry is never taken out of a queue before the
+    // person has been shown it. A write that fails throws here, the `catch` below answers it, and the aside file stays where it is.
     process.stdout
       .write(`took out ${JSON.stringify(taken.taken,)}; ${String(taken.entries
         .length,)} entries left\n`,);
+    for (const aside of taken.asides) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one file per entry taken, which is one entry
+      await discardTheEntryTaken({ aside, },);
+    }
   }
 }
 catch (error) {

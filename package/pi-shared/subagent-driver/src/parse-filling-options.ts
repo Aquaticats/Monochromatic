@@ -22,7 +22,7 @@ import { BATCH_DEFAULT_DEADLINE_SECONDS, } from './batch-list.ts';
 /**
  The filling's command line, for the error message.
  */
-export const FILLING_USAGE: string = 'fill-free-places-from-a-queue --queue=<file> --level=<n> [--runs-folder=<folder>] '
+export const FILLING_USAGE: string = 'fill-free-places-from-a-queue --queue=<folder> --level=<n> [--runs-folder=<folder>] '
   + '[--reviews-folder=<folder>] [--checkout-folder=<folder>] [--starts-a-round=<n>] '
   + '[--seconds=<n>] [--round-seconds=<n>] [--deadline-seconds=<n>] [--once] [--without-putting-ended-reviews-back]';
 

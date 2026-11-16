@@ -30,7 +30,11 @@ import {
   newestAttemptThatWroteASummary,
   runFolderOf,
 } from './attempts-of-a-review-run.ts';
-import type { QueueRecord, } from './queue-of-runs.ts';
+import {
+  aFreshQueueId,
+  QUEUE_ID_FIELD,
+  type QueueRecord,
+} from './queue-of-runs.ts';
 import {
   readQueueOfRuns,
   writeAnEntryOfAQueue,
@@ -354,6 +358,8 @@ async function reviewsPutBack({
     const entry: QueueRecord = {
       ...candidate.entry,
       order: place.order,
+      // An entry a filling starts must carry the identity the claim matches on, so the entry this step writes mints one as every put does.
+      [QUEUE_ID_FIELD]: aFreshQueueId(),
     };
     // oxlint-disable-next-line eslint/no-await-in-loop -- one write per review, and a name taken meanwhile ends this one
     if (!(await writeAnEntryOfAQueue({
