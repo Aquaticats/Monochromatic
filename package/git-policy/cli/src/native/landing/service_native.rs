@@ -1013,14 +1013,22 @@ fn the_tree_the_named_paths_take(input: &BuildInput<'_>, commit_args: &[OsString
         return None;
     }
     let base_revision: String = crate::capture_invocation::base_revision(input.capture);
-    let pathspecs: Vec<OsString> = region.pathspecs.iter().map(|at| { return commit_args[*at].clone(); }).collect();
+    let mut pathspecs: Vec<OsString> = Vec::with_capacity(region.pathspecs.len());
+    for at in &region.pathspecs {
+        pathspecs.push(commit_args[*at].clone());
+    }
     // A pathspec file is read where the preparation read it, and is never written here: its snapshot of standard input
     //  was taken once, and writing it again would replace the person's list with nothing.
-    let pathspec_file: Option<PathBuf> = region.pathspec_from_file.map(|value| {
+    let mut pathspec_file: Option<PathBuf> = None;
+    if let Some(value) = region.pathspec_from_file {
         let named: PathBuf =
             PathBuf::from(crate::path_bytes::os_from_path_bytes(crate::command_options_query::value_bytes(commit_args, value)));
-        return crate::service_prepare_changes_config_and_pathspec_steps::the_pathspec_file_at(input.scratch, input.cwd, named.as_path());
-    });
+        pathspec_file = Some(crate::service_prepare_changes_config_and_pathspec_steps::the_pathspec_file_at(
+            input.scratch,
+            input.cwd,
+            named.as_path(),
+        ));
+    }
     let indexes: crate::private_index_request::CaptureIndexes = crate::private_index_request::CaptureIndexes {
         captured_index: input.scratch.join(crate::service_prepare::THE_POLICIES_CAPTURE),
         commit_index: input.scratch.join(NAMED_PATHS_INDEX),
