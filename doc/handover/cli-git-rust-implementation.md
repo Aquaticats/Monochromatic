@@ -39633,7 +39633,7 @@ Reviews and audits move from Kimi to Claude Sonnet (the owner's message of about
 - **A slip of this session's:** the pool-closing subagent was started while twenty Pi units were going, one agent over the cap, before the filling level was lowered. No run was stopped; the count falls back under the cap as Pi runs end.
 - Two queued reviews cannot be started by any route yet: the cargo-shadow control at `e6e6c21726` (the package's brief writer answers "nothing to review", its one changed code file being read as a test) joins the tests-only ranges that wait for the brief writer for tests.
 
-The session stood in a question dialog for ten hours and twenty minutes (written here at 2026-11-16T10:24-05:00):
+The session stood in a question dialog for ten hours and twenty minutes (written here at 2026-11-16T10:20:24-05:00; an earlier wording of this line gave a time four minutes ahead of the clock):
 
 - **What happened.** At about 23:55 on 2026-11-15 this session's last message left two choices in prose for the owner, who had written "going back to sleep now". The stop hook required them to be put through the question tool, the session did so, and the dialog stood until the owner answered at about 10:17 on 2026-11-16.
   While it stood the session read nothing and started nothing: 59 runs ended unread, pass 57 ended at 02:42 with nobody to merge it, the filling unit ran out at about 07:46 and from then nothing was started (9 Pi units were going at 10:18), the drive probe ended at 01:14 and the rotation watch died at about the same time on a `systemctl` that did not answer.
@@ -39642,7 +39642,13 @@ The session stood in a question dialog for ten hours and twenty minutes (written
   The open LFS audit of `0.6.1-alpha.14`: **"Sonnet, current code (Recommended)"**: it is run as a Sonnet audit of the LFS path in today's `main`.
 - **The cap is 18 since 2026-11-16T10:18-05:00, by the recorded rule.** The probe at level 20 ended at 01:14:05 on two readings in a row over five seconds on the repository's drive, with sixteen agent units going; a new probe runs at 18. The filling unit runs at 15, leaving three places for Sonnet reviews.
   Sixteen is fewer than either cap, so the count of agents did not make that stall; what did is not established (the daily update and the snapshot cleanup run at that hour, and were the cause the night before).
-- **The last run from before the masking merge has ended** (read at 10:19:41; five were left at 00:16 when the watch died). What follows from it is the owner's rotation, with the qualification recorded in round twenty.
+- **The last run from before the masking merge has ended** (read at 10:19:41; five were left at 00:16 when the watch died). All eleven Pi units going at 10:20 have the record in their feed that their masking was armed.
+  Asked at about 10:23 how to rotate, with the qualification of round twenty in the question itself (a run going at the rotation does not know the new values) and four courses (let the going runs end first, stop them, rotate with them going, not now), the owner answered **"Not now"**.
+  So nothing is rotated, starts go on, and the sessions the scan names stay untouched and unresumed. The question is asked again when the owner is at the keyboard at a quieter moment; nothing is done toward a rotation before that.
+- **Integration pass 57 answers "not fit" (ended 02:42 on 2026-11-16, read at 10:22), so nothing was merged and no release was made.** With the empty-tree fix at `3882e11ddf` merged, 13 of `main`'s own binary controls pass on `main` and fail:
+  `git commit --message=unrelated -- x.txt` while a merge, a revert or a cherry-pick is unfinished ends 0 on `main` and is refused at the tip, `HEAD` unchanged. That is an ordinary commit with every option spelled out, a regression, and not the abbreviated-option case the owner decided to merge anyway.
+  The rest held (the branch's 42 own controls, the guards, the library suite 7,966 of 7,966, the review's narrowing pair). The pass's branch stands at `fe26edc9cb` for whoever fixes it. `main` and the installed `0.6.1-alpha.44` still carry the empty-tree window.
+  The author's later tip `b92347ebd3` had its review on Kimi at 23:46 (20 of 20 files, two reproduced); the author gets both.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
