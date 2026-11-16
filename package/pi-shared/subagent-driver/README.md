@@ -689,6 +689,34 @@ each entry is handed to a unit of its own,
 and a failure after that point belongs to that batch,
 whose output file beside its list and whose run's summary hold what happened.
 
+That is the edge of what this queue can promise about a start, and it is stated here rather than closed by a guess:
+
+- Once the batch's launcher has made its unit, the entry is out of the queue and the launcher owns it.
+  A launcher that then fails,
+  on a branch already in use,
+  a worktree folder that already exists,
+  a name that is already going,
+  or a retry deadline that passes,
+  writes its failure to `<runs>`'s `<name>-start-failure.log` and its unit's `.out`,
+  and nothing of this queue reads either:
+  putting the entry back on its own would start a paid run a second time whenever the batch had in fact started.
+  So a person reads that file and puts the entry back with `put-an-entry-into-a-queue` or
+  `put-a-set-aside-entry-back-into-a-queue`.
+  Closing this needs the batch to write a record this queue reads, which is a change of design.
+- A filling killed in the moment between the manager accepting its unit
+  and anything on disk saying so leaves a claim whose attempt wrote no output file,
+  so the next pass gives the claim back and starts the entry again,
+  which can be two units for one entry.
+  The window is the manager's own delay between accepting a unit and opening its output,
+  it is milliseconds on an idle machine and wider on a loaded one,
+  and nothing in the queue can tell it from a start that never happened.
+  A person who sees two `launch-*` units for one entry stops one of them, with `systemctl --user stop`.
+- A claim whose filling is alive is never taken from it,
+  and a claim whose filling is gone is given back only when its attempt's unit wrote nothing.
+  The claim's holder is read from its process number and from the moment that process started,
+  so a number given to another process after its holder died is not taken for the holder;
+  the one thing this cannot tell is a number reused by a process that started in the same clock tick.
+
 ### A failure of the entry, and a failure of the machine
 
 An entry's start fails either because of the entry or because of the machine,
