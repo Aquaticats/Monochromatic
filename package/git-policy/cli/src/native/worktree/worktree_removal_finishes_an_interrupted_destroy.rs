@@ -36,7 +36,7 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
 use crate::plain_file::read_plain_file;
-use crate::process_identity::process_birth_identity;
+use crate::process_identity::{is_birth_identity, process_birth_identity};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
 use crate::worktree_removal_interrupted_destroy::{DestroyRecord, RECORD_FOLDER, RECORD_LIMIT, forget_destroy, read_record};
@@ -65,6 +65,12 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 ///  finish.
 /// A process number alone can be reused,
 /// so the birth identity written beside it decides.
+///  A birth in a spelling this reader cannot compare decides nothing either,
+///  and the record counts as one whose command runs:
+///  the record is written in the one spelling,
+///  so a second one came from a writer that is not this release (an older release,
+///  another tool,
+///  a damaged file).
 ///  A record of a leaving a removal renamed aside is read the same way and for the same reason:
 ///  that command writes the record before the rename,
 ///  so a command that decided in that window would drop the only record of a directory about to appear.
@@ -78,6 +84,9 @@ pub(crate) fn owner_may_be_running(owner: Option<&String>) -> bool {
     let Some((spelled_pid, identity)) = spelled.split_once(':') else { return true };
     let Ok(pid) = spelled_pid.parse::<i64>() else { return true };
     return match process_birth_identity(pid) {
+        // The number is taken, and only a birth this reader can compare tells the recorded owner from the program that
+        //  has the number now.
+        Ok(Some(_)) if !is_birth_identity(identity) => true,
         Ok(Some(now)) => now == identity,
         Ok(None) => false,
         Err(error) => {

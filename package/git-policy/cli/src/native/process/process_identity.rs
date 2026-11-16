@@ -182,6 +182,33 @@ fn is_kernel_tick(text: &str) -> bool {
 }
 
 /// What:
+///  Whether `birth` names this platform's start tick somewhere other than the start of the text the kernel's spelling
+///  needs it to be:
+///  behind the whitespace a field padder puts before a field,
+///  or behind the tag in another case.
+/// Why:
+///   The tag names this platform,
+///  and a name read without regard to case is the same name;
+///  a text that carries it anywhere but at the start of the one spelling names this platform's start tick and cannot be
+///  compared with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesTheTickAnotherWay(' linux:8423337') // true
+/// namesTheTickAnotherWay('LINUX:8423337') // true
+/// namesTheTickAnotherWay('linux:8423337') // false, the one spelling
+/// namesTheTickAnotherWay('gone') // false, a text with no tag at all
+/// ```
+#[cfg(target_os = "linux")]
+fn names_the_start_tick_another_way(birth: &str) -> bool {
+    let after_whitespace: &str = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); });
+    let Some(head) = after_whitespace.get(..LINUX_IDENTITY_PREFIX.len()) else {
+        return false;
+    };
+    return head.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX);
+}
+
+/// What:
 ///  Whether `birth` is a birth identity in the one spelling this platform writes it:
 ///  on Linux,
 ///  `linux:` and the kernel's start tick;
@@ -196,21 +223,25 @@ fn is_kernel_tick(text: &str) -> bool {
 ///  a text that names something else is compared as the text it is,
 ///  as this reader always did,
 ///  because macOS and Windows have no grammar here that this reader could respell.
+///  Every reader of a record of a live process goes through this one answer:
+///  the mark of an `index.lock`,
+///  the owner token of a worktree copy,
+///  the owner of a commit transaction,
+///  and the owner and attempt records of a worktree removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// isBirthIdentity('linux:8423337') // true
 /// isBirthIdentity('linux:08423337') // false, the same tick written with a leading zero
 /// isBirthIdentity(' linux:8423337') // false, the same tick behind a space
+/// isBirthIdentity('LINUX:8423337') // false, the same tick behind the tag in capitals
 /// isBirthIdentity('gone') // true, a text this reader has no grammar for
 /// ```
 pub(crate) fn is_birth_identity(birth: &str) -> bool {
     #[cfg(target_os = "linux")]
     {
         let Some(tick) = birth.strip_prefix(LINUX_IDENTITY_PREFIX) else {
-            // A birth that carries this platform's start tick behind a space names it too, in another spelling.
-            let named_behind_space: bool = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); }).starts_with(LINUX_IDENTITY_PREFIX);
-            return !named_behind_space;
+            return !names_the_start_tick_another_way(birth);
         };
         return is_kernel_tick(tick);
     }

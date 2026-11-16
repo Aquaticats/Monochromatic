@@ -17,7 +17,7 @@
 
 use super::{ATTEMPTS, GITDIR_HEX_PREFIX, TAG, files_of, name_of, path_bytes};
 use crate::diagnostic_log::warn;
-use crate::process_identity::process_birth_identity;
+use crate::process_identity::{is_birth_identity, process_birth_identity};
 use std::path::{Path, PathBuf};
 /// What a Git directory,
 /// the process that took a snapshot,
@@ -67,7 +67,11 @@ pub(super) fn attempt_may_be_running(snapshot: &Path) -> bool {
 }
 
 /// Whether the command that wrote one attempt file may still be running;
-/// a file that cannot be understood counts as running.
+/// a file that cannot be understood counts as running,
+/// and so does one whose birth is spelled another way than this reader can compare:
+/// the file is written in the one spelling,
+/// so a second one came from a writer that is not this release,
+/// and a snapshot taken for a command that may still run is kept.
 fn attempt_file_may_be_running(path: &Path) -> bool {
     let Ok(pid) = name_of(path).parse::<i64>() else { return false };
     // A plain file, so a name that holds a named pipe counts as a command that may still be running rather than a wait
@@ -79,6 +83,9 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
         return true;
     }
     return match process_birth_identity(pid) {
+        // The number is taken, and only a birth this reader can compare tells the recorded command from the program that
+        //  has the number now.
+        Ok(Some(_)) if !is_birth_identity(recorded.as_str()) => true,
         Ok(Some(now)) => now == recorded,
         Ok(None) => false,
         Err(error) => {

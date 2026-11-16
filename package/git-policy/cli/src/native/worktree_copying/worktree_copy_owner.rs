@@ -28,7 +28,7 @@
 //! ```
 
 use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::process_identity::{current_birth_identity, is_birth_identity, process_birth_identity};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use std::path::Path;
 
@@ -242,7 +242,21 @@ impl CopyOwner {
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
         match process_birth_identity(self.pid).map_err(raw_failure_of)? {
-            Some(current) => return Ok(current == self.birth_identity),
+            Some(current) => {
+                // What: The number is taken, and only a birth this reader can compare tells the recorded owner from the
+                //       program that has the number now.
+                // Why:  The wrapper writes the one spelling,
+                //       so a record in another one was written by a writer that is not this release (an older release, another
+                //       tool, a damaged file). Read as another process it takes what a running command holds: its journal, its
+                //       stage claim, its owed copy and the private index a prediction reads. A spelling this reader cannot
+                //       compare is no proof of a dead owner, so the owner counts as one that may still run and the item stays
+                //       (`is_birth_identity`, the answer the lock's mark is read by). The cost is an item whose owner ended
+                //       and wrote another spelling: it stays until a person removes it.
+                if !is_birth_identity(self.birth_identity.as_str()) {
+                    return Ok(true);
+                }
+                return Ok(current == self.birth_identity);
+            }
             None => return Ok(false),
         }
     }
@@ -259,6 +273,8 @@ impl CopyOwner {
 /// and an owner the
 ///  platform will not report on is not proven dead,
 /// so its item is kept rather than taken.
+/// A record whose birth is another spelling of one the platform can report names a process this reader cannot
+///  compare, so it is not proven dead either and its item stays.
 /// An owner of another namespace whose item
 ///  is older than the patience is neither:
 /// the command stops (owner,

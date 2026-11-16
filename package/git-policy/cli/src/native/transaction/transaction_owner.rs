@@ -22,7 +22,7 @@ use crate::json_record::{
 };
 /// Birth identities and the existence probe.
 use crate::process_identity::{
-    ProcessIdentityError, current_birth_identity, process_birth_identity,
+    ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity,
 };
 /// The namespace an owner record names and the rule for an owner of another one.
 use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
@@ -73,7 +73,11 @@ pub struct TransactionOwner {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OwnerLiveness {
-    /// The PID names the original process.
+    /// The PID names the original process,
+    /// or nothing proves it names another one:
+    /// a record whose birth is spelled another way than this reader can compare
+    ///  counts as its owner's,
+    /// because a record in one spelling proves nothing about another.
     Alive,
     /// The process exited or its PID was reused.
     Dead,
@@ -227,6 +231,17 @@ fn process_exists(pid: i64) -> Result<bool, OwnerLivenessError> {
 ///   An exited process,
 ///  a zombie,
 ///  or a younger process reusing the PID is a dead owner.
+///  A birth in a spelling this reader cannot compare is no proof of a dead one:
+///  the wrapper writes the one spelling,
+///  so a second one was written by a writer that is not this release (an older release,
+///  another tool,
+///  a damaged file),
+///  and read as another process it settles a merge that runs:
+///  the record goes,
+///  the refs that keep its commit go,
+///  its kept copies are put back or removed beside its paths,
+///  and its branch is read as one nobody is working on.
+///  Such an owner counts as one that may still run (`is_birth_identity`, the answer the lock's mark is read by).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -240,6 +255,9 @@ pub fn classify_transaction_owner(
         return Ok(OwnerLiveness::Dead);
     }
     match process_birth_identity(owner_pid).map_err(OwnerLivenessError::Identity)? {
+        // The number is taken, and only a birth this reader can compare tells the recorded owner from the program that
+        //  has the number now.
+        Some(_) if !is_birth_identity(owner_identity) => return Ok(OwnerLiveness::Alive),
         Some(current) if current == owner_identity => return Ok(OwnerLiveness::Alive),
         Some(_) | None => return Ok(OwnerLiveness::Dead),
     }
