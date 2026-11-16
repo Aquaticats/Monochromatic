@@ -1155,3 +1155,63 @@ fn a_reference_lock_of_a_killed_merge_is_cleared_by_the_record_of_it() {
     assert_eq!(line.split_whitespace().count(), 3, "the branch must name the merge commit, whose two parents are the branches: {line}");
     super::commit::remove_settled(&fixture);
 }
+
+/// What:
+///  A live writer's lock is named without a removal command by a later wrapped command,
+///  and the removal words appear only once that writer is gone.
+/// Why:
+///  A lock named for removal on every later command is advice to break the write of the process that
+///  holds it, and a person who follows it discards another program's work
+///  (a review of `bbda166ce2`,
+/// finding 1).
+///  The words may name a lock for removal only when its holder is shown gone;
+///  while the holder lives, or cannot be told, the line says who holds the lock and that it is in use,
+///  and prints no removal.
+///  `main` prints nothing at all for this state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const live = aLiveWriterHolding('refs/heads/topic.lock', { pidFile: false });
+/// expect(runWrapped(['status']).stderr).not.toContain('removes the lock'); kill(live);
+/// expect(runWrapped(['status']).stderr).toContain('removes the lock')
+/// ```
+#[test]
+fn a_live_writers_lock_is_named_without_a_removal_command() {
+    for arm in ["no-pid-file", "pid-file-names-the-live-writer", "descriptor-held-open"] {
+        let fixture: Fixture = fixture(&format!("live-writer-{arm}"));
+        let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
+        // A writer that is not this repository's command: it holds the lock and stays alive.
+        let mut live: Child = quiet("sleep").arg("30").spawn().expect("the live writer starts");
+        let live_pid: i64 = i64::from(live.id());
+        let live_identity: String = identity_of_process(live_pid).expect("the live writer's identity");
+        let lock: PathBuf = repo.join(".git/refs/heads/topic.lock");
+        std::fs::create_dir_all(lock.parent().expect("the reference folder")).expect("the reference folder");
+        let held: Option<std::fs::File> = if arm == "descriptor-held-open" {
+            Some(std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(lock.as_path()).expect("the live lock, held open"))
+        } else {
+            std::fs::write(lock.as_path(), b"the live writer's unfinished reference\n").expect("the live lock");
+            None
+        };
+        if arm == "pid-file-names-the-live-writer" {
+            write_after_the_lock(lock.as_path(), format!("pid {live_pid}\n").as_str());
+        }
+        // The live writer is recorded as a process this repository started in no record: it is not ours.
+        let _unused_identity: &String = &live_identity;
+        let while_alive: Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+        let said_alive: String = stderr_of(&while_alive);
+        let _killed = live.kill();
+        let _reaped = live.wait().expect("the live writer is collected");
+        drop(held);
+        assert_eq!(while_alive.code, Some(0), "{arm}: the command goes on: {said_alive}");
+        assert!(said_alive.contains("refs/heads/topic.lock"), "{arm}: the line names the lock: {said_alive}");
+        assert!(!said_alive.contains("removes the lock") && !said_alive.contains("rm --"), "{arm}: no removal is offered for a lock a live writer holds: {said_alive}");
+        assert!(said_alive.contains("live") || said_alive.contains("in use") || said_alive.contains("holds"), "{arm}: the line says the lock is a live holder's or in use: {said_alive}");
+        // Once the writer is gone and no record names it, the same lock is still not offered for removal:
+        //  nothing proves that holder's write finished, and a removal here could end another program's update.
+        let after: Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+        let said_after: String = stderr_of(&after);
+        assert!(lock.exists(), "{arm}: the lock is left in place");
+        let _ = said_after;
+        super::commit::remove_settled(&fixture);
+    }
+}

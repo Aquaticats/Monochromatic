@@ -257,7 +257,7 @@ pub fn blocker_words(evidence: &Evidence) -> String {
 
 /// The sentence that ends a dead owner's line when the lock is left where it is,
 /// which is what every command but a merge does.
-pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was left in place. If no other program is using this repository, removing the file lets the command run";
+pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was left in place. If no other program is using this repository, remove the lock and the PID file beside it together, so that the next Git writes its own number in its own file and lets the command run";
 
 /// The consequence a caller passes when its ending already states what happens to the lock.
 /// Why:

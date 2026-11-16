@@ -386,9 +386,20 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String), folder: (u6
     name_the_path(records.as_path(), digest.as_str(), lock, holder)?;
     let name: String = pin_name(digest.as_str(), folder, file, holder)?;
     let pin: PathBuf = records.join(name.as_str());
-    // A file of a killed run of this very take, or a planted one, goes first: this name belongs to this one take.
-    let _removed = std::fs::remove_file(pin.as_path());
-    std::fs::hard_link(lock, pin.as_path()).ok()?;
+    // What: The pin is published by one link, and a writer that finds the name taken keeps the file that is there.
+    // Why:  Two writers can publish one take: a watcher that is late and the caller that waited for it.
+    //       A removal first would take away the other writer's pin for the instant between the removal and the link,
+    //       and a kill there leaves the lock with no record at all (a review of `bbda166ce2`, finding 6).
+    //       The name is the take's own: the path's digest with the file's device and inode and the Git's number and
+    //       identity, so a file already there is this same take's record, or the litter of a killed run of it.
+    //       A file there that is not the file this take made is litter of another file's name and is removed once.
+    if std::fs::hard_link(lock, pin.as_path()).is_err() {
+        let existing: Option<LockMetadata> = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok().flatten();
+        if !matches!(existing, Some(there) if (there.device, there.inode) == file) {
+            let _litter = std::fs::remove_file(pin.as_path());
+            std::fs::hard_link(lock, pin.as_path()).ok()?;
+        }
+    }
     let linked: Option<LockMetadata> = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok().flatten();
     // What: A control reaches here, with the pin made reachable under its own name and the record complete, to act as
     //       another command whose pass sweeps the folder at this instant.
@@ -667,6 +678,56 @@ pub fn holder_numbers_that_stand(common_dir: &Path) -> Vec<i64> {
     numbers.sort_unstable();
     numbers.dedup();
     return numbers;
+}
+
+/// What:
+///  The locks of `candidates` that a record of this repository already pins,
+///  read with one look at the records folder.
+/// Why:
+///  A caller that publishes the records a late watcher owed needs to know which takes already have one,
+///  and asking that of each lock in turn reads the whole folder once per lock:
+///  with a few hundred held locks that is a few hundred directory reads on the path a person waits on
+///  (a review of `bbda166ce2`,
+///  finding 4).
+///  One look groups the pins by the path digest their names begin with, and each candidate then costs one stat of
+///  its own file and one of the pin that names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// locksARecordPins(commonDir, candidates) // [path, …] of the candidates a pin holds the inode of
+/// ```
+pub fn locks_a_record_pins(common_dir: &Path, candidates: &[PathBuf]) -> Vec<PathBuf> {
+    let folder: PathBuf = folder_of(common_dir);
+    let mut by_digest: std::collections::HashMap<String, Vec<PathBuf>> = std::collections::HashMap::new();
+    let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
+        return Vec::new();
+    };
+    for entry in entries.flatten() {
+        let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
+        let Some((digest, rest)) = name.split_once('.') else {
+            continue;
+        };
+        if !rest.ends_with(HOLD_SUFFIX) {
+            continue;
+        }
+        by_digest.entry(digest.to_owned()).or_default().push(entry.path());
+    }
+    let mut pinned: Vec<PathBuf> = Vec::new();
+    for lock in candidates {
+        let digest: String = digest_of_path(lock.as_path());
+        let Some(pins) = by_digest.get(digest.as_str()) else {
+            continue;
+        };
+        let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(lock.as_path()) else {
+            continue;
+        };
+        if pins.iter().any(|pin| {
+            return matches!(crate::index_lock_evidence::read_lock_metadata(pin.as_path()), Ok(Some(held)) if held.device == standing.device && held.inode == standing.inode);
+        }) {
+            pinned.push(lock.clone());
+        }
+    }
+    return pinned;
 }
 
 /// What:

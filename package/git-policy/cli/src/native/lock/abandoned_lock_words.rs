@@ -126,22 +126,20 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
         // Why:  That is the state a person makes by removing a killed Git's lock alone: the stale PID file stays, a later
         //       Git takes the name and writes none, and nothing here may remove it (`PidFile::Older`).
         crate::stale_ref_lock_found::PidFile::Older(found) => *found,
-        // What: A lock with no PID file beside it is named too, and with the command that clears it.
+        // What: A lock with no PID file beside it is named, and no removal is offered.
         // Why:  Git writes a PID file only for a lock it created, so a Git killed between the two files leaves a lock
-        //       nothing names, and a live foreign writer's lock cannot be told from it: the project's record says such a
-        //       lock is reported with the command that clears it (`SPEC.md`, "The rule: a lock is removed only on a
-        //       proof about its holder"; a review of `412fb03192`, finding 1).
-        //       A lock is left to the person, not deleted on a guess, and the person is told what is known.
+        //       nothing names, and a live foreign writer's lock cannot be told from it. The project's record says such a
+        //       lock is left; a removal may be offered only when the holder is shown gone, and with no file naming a
+        //       holder nothing shows that (a review of `412fb03192`, finding 1; a review of `bbda166ce2`, finding 1).
         crate::stale_ref_lock_found::PidFile::Absent => {
             let held: bool = crate::abandoned_lock_proving::a_writer_holds_it_open(lock);
             let why: &str = match held {
-                true => "which no PID file beside it names and which a program holds open for writing now, so its name may not go",
+                true => "which no PID file beside it names and which a program holds open for writing now, so the lock is in use",
                 false => "which no PID file beside it names, so nothing shows who holds it: Git writes that file only for a lock it made, and a Git killed before writing it leaves none, which a live writer's lock cannot be told from",
             };
             return Some(format!(
-                "monochromatic-git-policy-cli: {}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a lock this table cannot tie to a process. If no program is using this repository, the lock was left by a program that was killed or has ended, and this command removes the lock: {}\n",
-                lock.display(),
-                removal_command(lock)
+                "monochromatic-git-policy-cli: {}, {why}, so nothing was removed and no removal is offered: a lock whose holder lives or cannot be told is someone's write, and removing it could end that write. A Git in another PID namespace, or one on another machine that shares this repository, writes a lock this table cannot tie to a process.\n",
+                lock.display()
             ));
         }
     };
@@ -153,7 +151,7 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
     //       names a process which has ended; removing both files keeps that from happening
     //       (a review of `675771e759`, finding 4).
     let pid_file_stands: bool = !matches!(standing, crate::stale_ref_lock_found::PidFile::Absent);
-    let why: &str = match (standing, live, recorded, held) {
+    let why: &str = match (&standing, live, recorded, held) {
         // Nothing is claimed about a live number: the lock may be that program's, and its own command ends by itself.
         (_, true, _, _) => "which a live process has now, so nothing here proves the lock is not its own write",
         // The record proves its writer gone, and the PID file still cannot be pinned to this lock.
@@ -174,11 +172,25 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
     };
     let clearing: String = removal_command(lock);
     let what_it_removes: &str = match pid_file_stands {
-        true => "this command removes the lock and the PID file beside it, so that the next Git writes its own number in its own file",
-        false => "this command removes the lock",
+        true => "remove the lock and the PID file beside it together, so that the next Git writes its own number in its own file",
+        false => "remove the lock",
     };
-    return Some(format!(
-        "monochromatic-git-policy-cli: {}, whose PID file names {pid}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a number this table has never had. If no program is using this repository, the lock was left by a program that was killed or has ended, and {what_it_removes}: {clearing}\n",
-        lock.display()
-    ));
+    // What: A removal is offered only when the holder is shown gone; a live holder's lock is named as in use.
+    // Why:  A removal printed for a lock a live process holds is advice to break that process's write, and a person who
+    //       follows it discards another program's work (a review of `bbda166ce2`, finding 1).
+    //       So the line says who holds the lock and that it is in use while the number is live, a program holds the file
+    //       open, or the records place the holder out of reach, and it prints no command then.
+    let the_holder_is_gone: bool = matches!(
+        standing,
+        crate::stale_ref_lock_found::PidFile::Names(_) | crate::stale_ref_lock_found::PidFile::Unproven(_)
+    ) && crate::lock_holder_record_reads::proved_gone_writer(common_dir, pid).is_some();
+    let ending: String = match the_holder_is_gone {
+        true => format!(
+            "so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a number this table has never had. If no program is using this repository, the lock was left by a program that was killed or has ended, and {what_it_removes}: {clearing}"
+        ),
+        false => String::from(
+            "so nothing was removed and no removal is offered: a lock whose holder lives or cannot be told is someone's write, and removing it could end that write"
+        ),
+    };
+    return Some(format!("monochromatic-git-policy-cli: {}, whose PID file names {pid}, {why}, {ending}.\n", lock.display()));
 }

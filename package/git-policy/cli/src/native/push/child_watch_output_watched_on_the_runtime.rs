@@ -259,8 +259,15 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     watch.end();
     // The watcher's last look is taken now that the step's Git has ended, so a record of its last take exists before the
     //  command can be killed. A step the command stopped waiting for keeps its watcher, which ends with the child.
+    //  The wait and the caller's publication are blocking work, so they run as a blocking job: this is a task of the
+    //  runtime, and a blocking call on a worker stops the tasks that would end a wait
+    //  (`doc/planning/git-policy-cli-full-tokio.md`, "no blocking call on a runtime worker";
+    //  a review of `bbda166ce2`, finding 4).
     if let Some(watcher) = binder {
-        watcher.finish();
+        let _finished = crate::blocking_job::run_blocking_job(move || {
+            watcher.finish();
+        })
+        .await;
     }
     // Nobody will read what a step that was left running writes from here on, and it is held in memory until the step ends.
     if left_running
