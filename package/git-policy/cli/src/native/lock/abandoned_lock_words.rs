@@ -126,7 +126,24 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
         // Why:  That is the state a person makes by removing a killed Git's lock alone: the stale PID file stays, a later
         //       Git takes the name and writes none, and nothing here may remove it (`PidFile::Older`).
         crate::stale_ref_lock_found::PidFile::Older(found) => *found,
-        crate::stale_ref_lock_found::PidFile::Absent => return None,
+        // What: A lock with no PID file beside it is named too, and with the command that clears it.
+        // Why:  Git writes a PID file only for a lock it created, so a Git killed between the two files leaves a lock
+        //       nothing names, and a live foreign writer's lock cannot be told from it: the project's record says such a
+        //       lock is reported with the command that clears it (`SPEC.md`, "The rule: a lock is removed only on a
+        //       proof about its holder"; a review of `412fb03192`, finding 1).
+        //       A lock is left to the person, not deleted on a guess, and the person is told what is known.
+        crate::stale_ref_lock_found::PidFile::Absent => {
+            let held: bool = crate::abandoned_lock_proving::a_writer_holds_it_open(lock);
+            let why: &str = match held {
+                true => "which no PID file beside it names and which a program holds open for writing now, so its name may not go",
+                false => "which no PID file beside it names, so nothing shows who holds it: Git writes that file only for a lock it made, and a Git killed before writing it leaves none, which a live writer's lock cannot be told from",
+            };
+            return Some(format!(
+                "monochromatic-git-policy-cli: {}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a lock this table cannot tie to a process. If no program is using this repository, the lock was left by a program that was killed or has ended, and this command removes the lock: {}\n",
+                lock.display(),
+                removal_command(lock)
+            ));
+        }
     };
     let recorded: bool = !identities_recorded(common_dir, pid).is_empty();
     let live: bool = matches!(crate::process_identity::process_birth_identity(pid), Ok(Some(_running)));

@@ -324,15 +324,7 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if !same_file(lock, &file).unwrap_or(false) || marker_of_file(&file).is_some() {
         return None;
     }
-    // The PID file, where it stands, must still name the process the judgement acted on; without one the pin is the
-    //  proof, as it is for a lock whose Git was killed before it wrote the file and for a clearance killed after
-    //  unlinking it.
-    let named_now: Option<i32> = crate::stopped_git_locks::pid_named_by(pid_file.as_path());
-    let the_pid_file_agrees: bool = match named_now {
-        Some(number) => number == i32::try_from(pid).ok()?,
-        None => !pid_file.exists(),
-    };
-    if !the_pid_file_agrees {
+    if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
     // What: A removal that acts on a record reads that record once more, here, against the lock it is about to remove.
@@ -343,33 +335,30 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if evidence == Evidence::Binding && crate::lock_bindings::of(common_dir, lock).is_none() {
         return None;
     }
-    // What: The PID file goes first, while the lock still stands and its name is still taken.
-    // Why:  The file belongs to whoever holds the lock, and while the lock stands nothing else can take the path:
-    //       Git creates a lock by exclusive creation and writes its PID file only for a lock it made.
-    //       Removed after the lock's name was freed, it was the cleaner's to delete on the strength of what it saw
-    //       before, and a Git that took the freed name in between found it there, wrote none of its own, and was left
-    //       with no holder evidence at all
-    //       (a review of `6c2272132b`,
-    //       finding 2).
-    //       The file is still only removed when it is the very file that was judged, so one another command replaced
-    //       between the look above and this removal stays.
-    //       A run killed between these two removals leaves a lock with no PID file: the pin of the record that licensed
-    //       the removal explains it, and a lock with no record and no PID file is kept as it always was.
-    //       A PID file left with no lock beside it, by a Git killed between renaming its lock over its target and
-    //       removing this file, is not this removal's business: Git tolerates it, and the sentence about a lock that is
-    //       kept names it (`abandoned_lock_words.rs`); the next Git to take that path inherits it and writes none, so a
-    //       lock made there afterwards is cleared only by the proof that does not need a PID file.
-    // The file is read once more here, and goes only when it is still one file that names the number the judgement
-    //  acted on: a file another program replaced between that reading and this one stays.
-    if matches!(read_lock_metadata(pid_file.as_path()), Ok(Some(still)) if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) == Some(i32::try_from(pid).ok()?) && still.inode != 0)
+    // What: The lock goes first, and the PID file after it, and only while no lock stands at the path again.
+    // Why:  A clearance is re-enterable: after a kill at any of its steps the next command must either meet no lock or
+    //       meet one it can prove. Removing the PID file first left, after a kill between the two removals, a lock with
+    //       neither a PID file nor a usable record, which no later command could prove (a review of `412fb03192`,
+    //       finding 3).
+    //       Removing it after the lock's name is free would delete the evidence of a Git that took the freed name in
+    //       between: Git finds the PID file and writes none of its own (a review of `6c2272132b`, finding 2).
+    //       So the file goes only when it is still the very file that was judged and no lock stands at the path now:
+    //       an act that refuses when what it looked at has changed.
+    //       A PID file left standing with no lock beside it is Git's own tolerated state, and the sentence about a lock
+    //       that is kept names it (`abandoned_lock_words.rs`); the next Git to take that path inherits it and writes none,
+    //       so a lock it takes later is unproven and left and reported, as the record says.
+    let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> = read_lock_metadata(pid_file.as_path()).ok().flatten();
+    std::fs::remove_file(lock).ok()?;
+    // A control reaches here to act as a Git that takes the freed name at this instant.
+    crate::service_fault::reach(UNLINKED_THE_LOCK);
+    if !lock.exists()
+        && let Some(judged_pid_file) = pid_file_judged
+        && matches!(read_lock_metadata(pid_file.as_path()), Ok(Some(still)) if still.device == judged_pid_file.device && still.inode == judged_pid_file.inode && still.ctime_ms == judged_pid_file.ctime_ms)
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
     }
     // A control reaches here to act as the process killed at this step of the clearance.
     crate::service_fault::reach(AFTER_THE_PID_FILE_IS_UNLINKED);
-    std::fs::remove_file(lock).ok()?;
-    // A control reaches here to act as a Git that takes the freed name at this instant.
-    crate::service_fault::reach(UNLINKED_THE_LOCK);
     // The record of this lock goes with it: the one file, named for the take it belongs to, so a record another command
     //  wrote for a later lock at this path is never it.
     if let Some(recorded) = record.as_ref() {
@@ -421,18 +410,9 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
 /// ```
 fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64, Evidence, crate::lock_bindings::Written)> {
     for bound in crate::lock_bindings::bindings_of(common_dir, lock) {
-        // What: The PID file, where it stands, must name the process the record names; without one the record stands.
-        // Why:  A lock's Git can be killed between creating the lock and writing the PID file, and a clearance can be
-        //       killed between unlinking that file and unlinking the lock: in both states the pin and this repository's
-        //       record of the child's start are the proof, and the file is not there to be asked
-        //       (a review of `0fe1e01e9f`,
-        //       findings 1 and 2).
-        let named: Option<i32> = crate::stopped_git_locks::pid_named_by(pid_file);
-        let the_pid_file_agrees: bool = match named {
-            Some(number) => number == i32::try_from(bound.pid).unwrap_or(i32::MIN),
-            None => !pid_file.exists(),
-        };
-        if !the_pid_file_agrees {
+        // The PID file beside the lock must name the process the record names: it is what ties the record to this
+        //  lock's writer, and a lock whose PID file is gone is one the record cannot be used for.
+        if crate::stopped_git_locks::pid_named_by(pid_file) != Some(i32::try_from(bound.pid).unwrap_or(i32::MIN)) {
             continue;
         }
         if crate::service_index_identity::holder_state(Some(&(bound.pid, bound.identity.clone()))) != crate::service_index_identity::HolderState::Gone {

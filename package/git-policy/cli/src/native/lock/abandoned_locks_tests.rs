@@ -302,31 +302,35 @@ fn a_record_a_standing_binding_names_survives_the_sweep_of_a_walk_it_is_not_in()
 }
 
 /// What:
-///  A PID file a new holder inherited is not removed after the lock's name is freed,
-///  and a lock a new holder takes at a freed name keeps a PID file naming that holder.
+///  A Git that takes a freed name while the old PID file stands keeps that file,
+///  and nothing here removes it:
+///  its own take is unproven, left, and named to the person.
 /// Why:
-///  The pass used to record the old PID file's metadata, unlink the old lock,
-///  and then unlink that file if it still had the recorded metadata.
-///  A Git that takes the freed name while the PID file still stands writes no PID file of its own,
-///  so the file kept the recorded metadata and was removed:
-///  the new holder was left with no PID file,
-///  no creation of one for the watch to bind,
-///  and a lock that nothing could prove after a kill
-///  (a review of `6c2272132b`,
-/// finding 2).
+///  The clearance unlinks the lock first and the PID file after it, and only while no lock stands at the
+///  path again (a review of `412fb03192`,
+/// finding 3).
+///  A Git that takes the freed name in that window finds the PID file and writes none of its own
+///  (`lockfile.c:121-123`,
+///  Git 2.56.0),
+///  so the file it keeps names an earlier holder and nothing here may remove it: doing so would take the
+///  only evidence a later clearance could ever have
+///  (a review of `6c2272132b`, finding 2).
+///  Its own lock is then unproven, which is the record's answer: left, and reported with the command that
+///  clears it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// at(UNLINKED_THE_LOCK, () => takeTheFreedNameWritingOnlyALock()); expect(pidFileNames(newHolder)).toBe(true)
+/// at(UNLINKED_THE_LOCK, () => takeTheFreedNameWritingOnlyALock());
+/// expect(pidFileName).toBe(theOldHolder); expect(clearOne(newLock)).toBeUndefined(); expect(pass.unexplained).toContain(theLock)
 /// ```
 #[test]
-fn a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder() {
+fn a_git_that_takes_a_freed_name_keeps_the_pid_file_and_is_unproven() {
     let common: std::path::PathBuf = crate::test_support::fixture("abandoned-locks-inherited-pid-file");
     let lock: std::path::PathBuf = common.join("index.lock");
     let (old_pid, old_identity) = a_dead_holder();
     std::fs::write(lock.as_path(), b"the old Git's unfinished index\n").expect("the old lock");
     plant_the_two_records_of_a_killed_update(common.as_path(), lock.as_path(), old_pid, old_identity.as_str());
-    // A second, live Git takes the freed name; it writes its own PID file only when none stands, as Git does.
+    // A second Git takes the freed name and writes no PID file, because the old one still stands.
     let mut new_holder: std::process::Child = std::process::Command::new("sleep")
         .arg("30")
         .stdin(std::process::Stdio::null())
@@ -334,18 +338,11 @@ fn a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("the new holder starts");
-    let new_pid: i64 = i64::from(new_holder.id());
-    let new_identity: String = crate::lock_holder_records::identity_of_process(new_pid).expect("the new holder's identity");
     let hook_lock: std::path::PathBuf = lock.clone();
-    let hook_pid: i64 = new_pid;
     crate::service_fault::hooks::set(
         crate::abandoned_lock_proving::UNLINKED_THE_LOCK,
         std::rc::Rc::new(move || {
             std::fs::write(hook_lock.as_path(), b"the new Git's unfinished index\n").expect("the new lock");
-            let pid_file: std::path::PathBuf = crate::stale_ref_lock_walk::pid_file_beside(hook_lock.as_path());
-            if !pid_file.exists() {
-                std::fs::write(pid_file.as_path(), format!("pid {hook_pid}\n")).expect("the new Git's own PID file");
-            }
         }),
     );
     let first = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
@@ -353,48 +350,15 @@ fn a_lock_that_takes_a_freed_name_keeps_a_pid_file_naming_its_own_holder() {
     let named_by_the_pid_file = crate::stopped_git_locks::pid_named_by(crate::stale_ref_lock_walk::pid_file_beside(lock.as_path()).as_path());
     let _killed = new_holder.kill();
     let _reaped = new_holder.wait();
-    // The new holder is killed while it holds the lock; its own record and the file it wrote explain it.
-    //  This volume gives two files written microseconds apart one birth stamp most of the time, so the order the
-    //  PID-file proof asks for is made, as a file system of a finer clock would give it: the control states the hard
-    //  case of the branch rather than the machine's luck.
-    write_the_pid_file_after_the_lock(lock.as_path(), new_pid);
-    let holders: std::path::PathBuf = crate::lock_holder_records::folder_of(common.as_path());
-    std::fs::create_dir_all(holders.as_path()).expect("the record folder");
-    std::fs::write(holders.join("a-new-holder-record"), crate::lock_holder_records::record_text(&[("child", new_pid, new_identity)])).expect("the new holder's record");
-    let second = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    // The new holder is killed while it holds the lock; its take has no PID file of its own and no record.
+    let pass = super::clear_abandoned_locks(std::slice::from_ref(&common));
+    let after = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
     let stands: bool = lock.exists();
+    let named: bool = pass.unexplained.iter().any(|line| { return line.contains("index.lock"); });
     crate::test_support::remove(common.as_path());
     assert!(matches!(first, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding), "the old binding clears the old lock: {first:?}");
-    assert_eq!(named_by_the_pid_file, i32::try_from(new_pid).ok(), "the new lock keeps a PID file naming its own holder");
-    assert!(second.is_some(), "after the new holder is killed its lock is provable and removable: {second:?}");
-    assert!(!stands, "the new holder's lock is gone after the second clearance");
-}
-
-/// What:
-///  Make the PID file beside `lock` name `pid` with a birth time strictly after the lock's.
-/// Why:
-///  The PID-file proof needs the order of the two births, and this volume gives two files written
-///  microseconds apart one stamp most of the time;
-///  a control that means to see that proof states the order instead of waiting for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (let attempt = 0; attempt < 100; attempt++) { rm(pidFile); await sleep(2); write(pidFile); if (born(pidFile) > born(lock)) return }
-/// ```
-fn write_the_pid_file_after_the_lock(lock: &Path, pid: i64) {
-    let pid_file: std::path::PathBuf = crate::stale_ref_lock_walk::pid_file_beside(lock);
-    let began: std::time::Instant = std::time::Instant::now();
-    loop {
-        let _ = std::fs::remove_file(pid_file.as_path());
-        std::thread::sleep(std::time::Duration::from_millis(2));
-        std::fs::write(pid_file.as_path(), format!("pid {pid}\n")).expect("the PID file");
-        let lock_born = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
-        let pid_born = std::fs::symlink_metadata(pid_file.as_path()).ok().and_then(|metadata| { return metadata.created().ok(); });
-        if let (Some(lock_at), Some(pid_at)) = (lock_born, pid_born)
-            && pid_at > lock_at
-        {
-            return;
-        }
-        assert!(began.elapsed() < std::time::Duration::from_secs(5), "this file system cannot show that {} was born after {}", pid_file.display(), lock.display());
-    }
+    assert_eq!(named_by_the_pid_file, i32::try_from(old_pid).ok(), "the new holder keeps the PID file it found, which names the earlier holder");
+    assert!(after.is_none(), "nothing proves the new holder's take: {after:?}");
+    assert!(stands, "the new holder's lock is left in place");
+    assert!(named, "the pass names it, with the command that clears it: {pass:?}");
 }

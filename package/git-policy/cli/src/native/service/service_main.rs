@@ -251,6 +251,42 @@ fn git_is_wrapper(git: &std::path::Path) -> bool {
 /// ```ts
 /// process.exitCode = await runService(options)
 /// ```
+/// What:
+///  Remember the repository of the worktree this service is for,
+///  and the directories its Gits run in,
+///  so the watch and the record of a child's start are enabled in this process.
+/// Why:
+///  `remember` was called only by a client command's coordinated forward,
+///  and this process never enters that path:
+///  its landings reached the watched-step code with nothing remembered,
+///  started Git without a watcher,
+///  and wrote no record of the children they started,
+///  so a service killed while one of its steps held a reference lock left a lock nothing could prove
+///  (a review of `412fb03192`,
+/// finding 4).
+///  One call enables both, from the worktree the manager named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberRepository(commonDir); recordThisProcess(commonDir); lockWatch.remember({ commonDir, roots: rootsOf(gitDir) })
+/// ```
+pub fn remember_the_worktree_of_this_service(git_dir: &std::path::Path) {
+    let common: PathBuf = crate::git_directory_roots::common_dir_for(git_dir);
+    crate::lock_holder_records::remember_repository(common.as_path());
+    crate::lock_holder_records::record_this_process(common.as_path());
+    crate::lock_watch::remember(Some(crate::lock_watch::Watched { common_dir: common, roots: crate::abandoned_locks::roots_of_git_directory(git_dir) }));
+}
+
+/// What:
+///  Start the service the arguments describe,
+///  or refuse with the reason a person reads.
+/// Why:
+///  This is the process the manager starts, and it does its own setup before it serves anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runService(argv) // an exit code
+/// ```
 pub fn run(arguments: &[String]) -> i32 {
     // Every Git the service starts (landing, index, push, upkeep) runs with hooks off, as the wrapper's own starts do: a hook
     //  named by a repository's configuration is the person's, run by their own Git, never by the service.
@@ -293,7 +329,12 @@ pub fn run(arguments: &[String]) -> i32 {
                 let _served_nothing = stop_own_socket_when_the_worktree_is_gone(name, journal.as_path());
                 return EXIT_NOTHING_TO_SERVE;
             }
-            OwnWorktree::Served(git_dir) => own_git_dir = Some(git_dir),
+            OwnWorktree::Served(git_dir) => {
+                // The worktree this unit serves is the one its Gits run in: the watch and the record of a child's start
+                //  are enabled here, before any landing starts a Git.
+                remember_the_worktree_of_this_service(git_dir.as_path());
+                own_git_dir = Some(git_dir);
+            }
             OwnWorktree::Unmapped => {}
         }
     }

@@ -10404,38 +10404,42 @@ The list of what the watch reports, and what it does with each:
   and a writer whose temporary a sweep took away makes it again rather than leave a standing lock
   with no record.
 
-#### The evidence is what the wrapper saw
+#### The evidence is the file Git wrote for its lock, and never the sight of a creation
 
-A process can be killed at any instruction,
-and a commit is never failed for a reason of the wrapper's own,
-so what the next command needs must already be there when the kill lands:
-the record of a take the wrapper watched,
-the record of the child that made it,
-and a clearance that can be entered again.
-Four rules follow from that, and each is built in one place:
+A watch reports that a name was created in a folder and never who created it.
+Another program's Git, another command's Git, and a foreign writer may create the same name while the
+watched child lives,
+so the sight of a creation proves nothing about whose lock it is,
+and a record written from the sight alone pinned a live foreign writer's lock under the watched child's
+number and deleted it (a review of `412fb03192`,
+finding 1).
+What proves the take is the file Git writes for the lock it made:
+the PID file beside the name, created **after** it, naming the watched child
+(`Tracker::locks_taken`, `lock_bindings::write`, `bound_holder`).
+A lock with no PID file is therefore **unproven**,
+which is the project's own answer:
+such a lock is reported with the command that clears it, and a live foreign writer's lock cannot be told
+from it (`SPEC.md`, "The rule: a lock is removed only on a proof about its holder").
 
-- **What the wrapper saw is the evidence, not what Git wrote beside the lock.**
-  The watcher saw a watched child create a lock;
-  that sight, bound to the child's identity, is written whether or not Git got as far as its PID file,
-  and that record, with the proof that the child is gone, clears the lock.
-  The PID file is a second witness where it stands and is never required
-  (`Tracker::locks_taken`, `lock_bindings::write`, `bound_holder`).
+The rest of what a kill at any instruction needs follows from that, and each is built in one place:
+
 - **Every watched start leaves a start record.**
-  One function starts a watched Git and records the child,
-  and its awaiting face does the same, so no runner can watch without recording
-  (`lock_watch::start_a_watched_git`, `start_a_watched_git_awaiting`).
+  One function starts a watched Git and records the child, and its awaiting face does the same, so no
+  runner can watch without recording (`lock_watch::start_a_watched_git`,
+  `start_a_watched_git_awaiting`).
 - **A clearance is re-enterable.**
-  It removes the PID file while the lock still holds the path,
-  then the lock, then the record,
-  and what a kill at any of those steps leaves is cleared by the next command:
-  a lock that stands with its binding and no PID file is explained by the binding.
+  It unlinks the **lock first**, then the PID file, and the PID file only while it is still the very file
+  that was judged and no lock stands at the path again:
+  a kill after the lock's unlink leaves nothing to clear,
+  a kill before it leaves a lock the record or the PID file still proves,
+  and a Git that took the freed name in that window keeps the PID file it found, because removing it
+  would take the only evidence a later clearance could have.
 - **No count drops a lock silently.**
-  The list one run reports is bounded by the names it follows,
-  and never by a count of locks.
+  The list one run reports is bounded by the names it follows, and never by a count of locks.
 
-The controls that make this a property rather than four fixes are
-`a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command_clears`
-and the four above it, and each row below names the control that states it where one does.
+The rows below name the control that states each, and two windows are stated with them: a kill before the
+asynchronous pin is written leaves a lock whose PID file the birth order cannot tie to it, and a lock
+found by reading a folder is known and never bound.
 
 #### What looks, and what acts on it later
 
@@ -10505,13 +10509,12 @@ and the row that changed names the control that states it.
   Controls: `a_lock_made_with_its_new_folder_is_known_and_never_bound`,
   `a_lock_that_stands_when_the_watch_opens_is_known_and_never_bound`.)*
 - **The events, then the pin** (`Tracker::locks_taken` then `lock_bindings::write`):
-  the write is an act that refuses when what was looked at has changed:
-  the folder's identity, the file standing at the path, and the PID file's number, where one stands,
-  are all re-read at the write and once more after the link.
-  *(This row changed: a lock without a PID file was not a take at all, so a Git killed inside that
-  window left a lock nothing could prove.
-  Controls: `a_lock_its_git_left_without_a_pid_file_is_bound_by_the_sight_and_cleared`,
-  `the_sight_of_a_lock_is_the_evidence_and_the_pid_file_is_a_second_witness`.)*
+  a lock is a take only with the PID file Git wrote after it, naming the child,
+  and the write is an act that refuses when what was looked at has changed:
+  the folder's identity, the file standing at the path, and the PID file's number are all re-read at the
+  write and once more after the link.
+  *(Control: `a_lock_counts_only_with_the_pid_file_git_wrote_for_it`;
+  the negative arm is `a_live_foreign_writers_lock_is_not_bound_to_the_watched_child_and_stands`.)*
 - **A clearance's steps and the record the next command needs** (`clear_one`):
   a clearance is **re-enterable**: the PID file goes while the lock still holds its path,
   then the lock, then the record, and the state after any of those steps is one the binding explains,

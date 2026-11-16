@@ -810,39 +810,57 @@ fn folder_named(path: &Path) -> (u64, u64) {
 }
 
 /// What:
-///  The state a clearance leaves when the process is killed after it unlinked the PID file
-///  and before it unlinked the lock is cleared by the next command,
-///  through the binding that explains it.
+///  A clearance that is killed after it unlinked the lock leaves no lock behind,
+///  on either proof it can rest on, so the next command meets nothing to prove.
 /// Why:
-///  The clearance removes the PID file first, while the lock still holds its name (a review of
-///  `6c2272132b`, finding 2);
-///  a process can be killed at any instruction, so the state after that unlink is a lock that
-///  stands with its binding and no PID file.
-///  The proof then required the PID file to name the bound process,
-///  so the binding explained nothing and the lock stayed for good
-///  (a review of `0fe1e01e9f`,
-/// finding 2).
-///  A clearance is re-enterable: what remains after a kill at any of its steps is cleared by the
-///  next command.
+///  A clearance is re-enterable only if a kill at any of its steps leaves either no lock or one the next
+///  command can prove.
+///  The clearance used to unlink the PID file first, so a kill between its two removals left a lock with
+///  no PID file and nothing else, which no later command could prove
+///  (a review of `412fb03192`,
+/// finding 3).
+///  The lock now goes first and the PID file after it, and only while no lock stands at the path again,
+///  so a kill after the lock's removal leaves nothing to clear.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lock = plantBoundLock(); rm(pidFile); expect(clearOne(lock)).toBeDefined()
+/// for (const proof of ['pid-file', 'binding']) { const lock = plantAbandoned(proof); at(UNLINKED_THE_LOCK, …);
+///   expect(lock.exists() === false || clearOne(lock) !== undefined).toBe(true) }
 /// ```
 #[test]
-fn a_clearance_killed_after_its_pid_file_unlink_is_finished_by_the_next_command() {
-    let common_dir: PathBuf = a_git_directory("bound-after-the-pid-file-went");
-    let (pid, identity) = dead_holder();
-    plant_bound(common_dir.as_path(), "index.lock", pid, identity.as_str());
-    let lock: PathBuf = common_dir.join("index.lock");
-    let pid_file: PathBuf = pid_file_beside(lock.as_path());
-    assert!(pid_file.exists(), "the plant writes the PID file a killed Git leaves");
-    std::fs::remove_file(pid_file.as_path()).expect("the killed clearance had unlinked the PID file");
-    let clearance = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
-        return crate::abandoned_lock_proving::clear_one(lock.as_path(), common_dir.as_path());
-    });
-    let stands: bool = lock.exists();
-    remove(common_dir.as_path());
-    assert!(matches!(clearance, Some(ref found) if found.evidence == Evidence::Binding), "the binding explains the lock without a PID file: {clearance:?}");
-    assert!(!stands, "the next command's clearance finishes what the killed one began");
+fn a_clearance_killed_after_unlinking_the_lock_leaves_nothing_to_prove() {
+    for proof in ["pid-file", "binding"] {
+        let common_dir: PathBuf = a_git_directory(&format!("bound-lock-first-{proof}"));
+        let (pid, identity) = dead_holder();
+        if proof == "pid-file" {
+            // No binding: the PID file's birth order is the proof, made here as a file system of a finer clock would.
+            let lock: PathBuf = common_dir.join("index.lock");
+            std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
+            crate::lock_birth_times::tests::write_after_the_lock(lock.as_path(), format!("pid {pid}\n").as_str());
+            let holders: PathBuf = crate::lock_holder_records::folder_of(common_dir.as_path());
+            std::fs::create_dir_all(holders.as_path()).expect("the record folder");
+            std::fs::write(holders.join("a-child-record"), crate::lock_holder_records::record_text(&[("child", pid, identity.clone())])).expect("the child record");
+        } else {
+            plant_bound(common_dir.as_path(), "index.lock", pid, identity.as_str());
+        }
+        let lock: PathBuf = common_dir.join("index.lock");
+        let reached: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+        let reached_by_the_hook: std::rc::Rc<std::cell::Cell<bool>> = reached.clone();
+        crate::service_fault::hooks::set(
+            crate::abandoned_lock_proving::UNLINKED_THE_LOCK,
+            std::rc::Rc::new(move || {
+                reached_by_the_hook.set(true);
+            }),
+        );
+        // The plant gives the PID file a birth after the lock's, so the PID-file proof applies: the coil's own order is
+        //  the proof here, and no coarse clock is put over it.
+        let first = crate::abandoned_lock_proving::clear_one(lock.as_path(), common_dir.as_path());
+        crate::service_fault::hooks::clear();
+        let stands: bool = lock.exists();
+        let after = crate::abandoned_lock_proving::clear_one(lock.as_path(), common_dir.as_path());
+        remove(common_dir.as_path());
+        assert!(reached.get(), "{proof}: the control reached the instant after the lock's unlink");
+        assert!(first.is_some(), "{proof}: the clearance acted on its own proof: {first:?}");
+        assert!(!stands, "{proof}: a kill after the lock's unlink leaves no lock: {after:?}");
+    }
 }

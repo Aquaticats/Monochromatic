@@ -177,3 +177,44 @@ const FEWEST_WORKERS_OF_A_MULTI_THREAD_RUNTIME: usize = 2;
 fn the_workers_cap_of_the_service_keeps_it_a_multi_thread_runtime() {
     const { assert!(SERVICE_WORKER_CAP >= FEWEST_WORKERS_OF_A_MULTI_THREAD_RUNTIME) };
 }
+
+/// What:
+///  A service for a worktree remembers that worktree,
+///  so its landings watch their Gits and record the children they start.
+/// Why:
+///  The service never entered the client's coordinated forward, which was the only caller of `remember`:
+///  its watched-step code ran with nothing remembered,
+///  started Git unwatched, and wrote no record of a child's start,
+///  so a service killed while a step held a reference lock left a lock nothing could prove
+///  (a review of `412fb03192`,
+/// finding 4).
+///  This control states the one call that enables both, and the two things it enables:
+///  a watched start and a child's record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rememberTheWorktreeOfThisService(gitDir); expect(lockWatch.remembered()).toEqual({commonDir, roots});
+/// startAWatchedGit(command); expect(childRecordNames(theChild)).toBe(true)
+/// ```
+#[test]
+fn a_service_for_a_worktree_remembers_it_for_the_watch() {
+    let repository: std::path::PathBuf = crate::test_support::repository(&crate::test_support::fixture("service-remembers-its-worktree"), "repo");
+    let common: std::path::PathBuf = repository.join(".git");
+    crate::lock_watch::remember(None);
+    super::remember_the_worktree_of_this_service(common.as_path());
+    let remembered: Option<crate::lock_watch::Watched> = crate::lock_watch::remembered();
+    let mut command: std::process::Command = std::process::Command::new("/bin/true");
+    let started = crate::lock_watch::start_a_watched_git(&mut command);
+    let child: std::process::Child = started.expect("a watched start runs").0;
+    let pid: i64 = i64::from(child.id());
+    let mut child: std::process::Child = child;
+    let _waited = child.wait().expect("the child is collected");
+    let recorded: bool = !crate::lock_holder_record_reads::identities_recorded(common.as_path(), pid).is_empty();
+    crate::lock_watch::remember(None);
+    let fixture_root: std::path::PathBuf = repository.parent().expect("the fixture root").to_path_buf();
+    crate::test_support::remove(fixture_root.as_path());
+    let watched: Option<crate::lock_watch::Watched> = remembered.clone();
+    assert!(watched.is_some(), "a service remembers the worktree it serves: {watched:?}");
+    assert_eq!(watched.as_ref().map(|about| { return about.common_dir.clone(); }), Some(common.clone()), "the common directory is the one the service serves");
+    assert!(recorded, "a Git the service starts is recorded, so a lock it leaves can be proved");
+}

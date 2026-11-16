@@ -57,13 +57,16 @@
 //!  and a lock with neither is kept
 //!  (a review of `6c2272132b`,
 //! finding 3).
-//!  What the wrapper saw is the evidence, and not what Git wrote beside the lock:
-//!  a lock this run saw a watched child create is that child's take,
-//!  bound to the child's identity and written whether or not Git got as far as its PID file,
-//!  and the file Git writes after the lock is a second witness where it stands.
-//!  A Git killed between the two files therefore leaves a lock the next command clears
-//!  (a review of `0fe1e01e9f`,
+//!  A watch reports that a name was created and never who created it,
+//!  so the sight of a creation proves nothing:
+//!  another program's Git can create the same name while the watched child lives,
+//!  and a record written from the sight alone deleted a live foreign writer's lock
+//!  (a review of `412fb03192`,
 //! finding 1).
+//!  What proves the take is the file Git writes for the lock it made,
+//!  created after the lock and naming this child,
+//!  and a lock without one is unproven: it is left and reported with the command that clears it
+//!  (`SPEC.md`, "The rule: a lock is removed only on a proof about its holder").
 //!  No count drops a standing take:
 //!  the list is bounded by the names one run follows and never by a count of locks.
 //!  The runners that start a Git for this repository's state, and what each one writes:
@@ -159,6 +162,51 @@ const MOST_NAMES: usize = 1024;
 ///  The bit is one the kernel's own masks do not use
 ///  (`inotify(7)` stops at `IN_ISDIR`).
 pub const FOUND_BY_READING: u32 = 0x8000_0000;
+
+/// How long one folder's read takes while a control says so,
+///  which stands in for a directory on a file system that does not answer.
+/// Why:
+///  The walk of the watched roots reads folders before Git is spawned, and a read that never answers
+///  would hold the command before any of its bounded machinery is entered
+///  (a review of `412fb03192`,
+/// finding 5).
+///  A control cannot make a real file system stop answering, so it makes each read take a while and
+///  states that the opening of the watch is waited for no longer than its ceiling.
+///  It is one value for the process, because the walk now runs on a thread of its own and a control on
+///  the caller's thread must reach it.
+///  Never part of the release executable, and inert unless a control sets it.
+#[cfg(test)]
+static A_FOLDER_READ_TAKES_FOR_THE_PROCESS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Does nothing in the release executable.
+#[cfg(not(test))]
+fn a_folder_read_takes_for_this_thread() -> Option<std::time::Duration> {
+    return None;
+}
+
+/// How long one folder's read takes, when a control says so.
+#[cfg(test)]
+fn a_folder_read_takes_for_this_thread() -> Option<std::time::Duration> {
+    return match A_FOLDER_READ_TAKES_FOR_THE_PROCESS.load(std::sync::atomic::Ordering::Acquire) {
+        0 => None,
+        nanoseconds => Some(std::time::Duration::from_nanos(nanoseconds)),
+    };
+}
+
+/// What:
+///  Make every folder's read take `takes` while a control runs.
+/// Why:
+///  The seam above, named so a control does not write the atomic itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aFolderReadTakes(50_ms) // and None to end it
+/// ```
+#[cfg(test)]
+pub(crate) fn a_folder_read_takes(takes: Option<std::time::Duration>) {
+    let nanoseconds: u64 = takes.map(|how_long| { return u64::try_from(how_long.as_nanos()).unwrap_or(u64::MAX); }).unwrap_or(0);
+    A_FOLDER_READ_TAKES_FOR_THE_PROCESS.store(nanoseconds, std::sync::atomic::Ordering::Release);
+}
 
 /// The most events one drain reads,
 /// four times the most names a run follows.
@@ -526,31 +574,32 @@ impl Tracker {
     }
 
     /// What:
-    ///  The locks a child of this process took,
+    ///  The locks a child of this process provably took,
     ///  each with the file its creation left at the path.
     /// Why:
-    ///  What the wrapper saw is the evidence, and not what Git wrote beside the lock:
-    ///  this run saw the child create the name, the name still refers to the file that was created,
-    ///  and nothing removed it since,
-    ///  and that sight, bound to the child's identity, is what clears the lock once the child is gone.
-    ///  Git can be killed between creating its lock and writing the PID file beside it
-    ///  (`lockfile.c:182-184`,
-    /// Git 2.56.0),
-    ///  and a rule that required the PID file left exactly that lock with no record and no proof, for good
-    ///  (a review of `0fe1e01e9f`,
+    ///  A watch reports that a name was created in a folder and never who created it,
+    ///  so the sight alone says nothing:
+    ///  another program's Git can create the same name while this child lives,
+    ///  and a record written from the sight alone pinned a live foreign writer's lock under this child's
+    ///  number (a review of `412fb03192`,
     /// finding 1).
-    ///  The PID file, where it stands, is a second witness:
-    ///  it names the Git that took the lock, so one that names another process is that process's lock and
-    ///  is not returned.
-    ///  A name that stood before this watch began has no creation here and is never returned:
+    ///  What proves the take is what Git writes for the lock it made:
+    ///  the PID file beside the name, created **after** it, naming this child
+    ///  (`lockfile.c:182-184`, Git 2.56.0).
+    ///  A name whose PID file was created before the lock is an earlier holder's,
+    ///  and one whose lock was removed and made again is not the file that was created and is not returned.
+    ///  A lock with no PID file is therefore unproven, which is the project's own answer:
+    ///  such a lock is reported with the command that clears it, and a live foreign writer's lock cannot be
+    ///  told from it (`SPEC.md`, "The rule: a lock is removed only on a proof about its holder").
+    ///  A name that stood before this watch began has no creation here and is never returned either:
     ///  it is reported as found by reading and bound to no child (`was_found_by_reading`).
     ///  No count drops a standing take:
     ///  the list is bounded by the names one run follows (`MOST_NAMES`),
-    ///  and a take the run saw and the bound would leave out is a lock nothing could ever prove again.
+    ///  and a take the run saw and a bound would leave out is a lock nothing could ever prove again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// locksTaken(childPid) // [lockPath, …] where the PID file’s number is the child’s
+    /// locksTaken(childPid) // [lockPath, …] where the PID file’s number is the child’s and it was written after the lock
     /// ```
     pub fn locks_taken(&self, child_pid: i64) -> Vec<PathBuf> {
         if self.unprovable {
@@ -558,17 +607,18 @@ impl Tracker {
         }
         let mut locks: Vec<PathBuf> = Vec::new();
         for ((directory, name), standing) in &self.names {
-            let Some(_created) = standing.created else { continue };
+            let Some(created) = standing.created else { continue };
             if standing.removed || !is_a_lock_name(name) {
                 continue;
             }
+            let pid_name: std::ffi::OsString = pid_name_of(name);
+            let Some(pid_standing) = self.names.get(&(directory.clone(), pid_name)) else { continue };
+            let Some(pid_created) = pid_standing.created else { continue };
+            if pid_standing.removed || pid_created <= created {
+                continue;
+            }
             let lock: PathBuf = directory.join(name);
-            // What: The PID file beside the lock, where it stands, is a second witness and must name this child.
-            // Why:  The sight of the creation is the evidence (see the function's text), and the PID file is what Git
-            //       writes after it for the lock it made, so a PID file that names another process is another Git's and
-            //       the sight is not this child's.
-            let pid_file: PathBuf = pid_file_beside(lock.as_path());
-            if pid_file.exists() && pid_named_by(pid_file.as_path()) != Some(i32::try_from(child_pid).unwrap_or(i32::MIN)) {
+            if pid_named_by(pid_file_beside(lock.as_path()).as_path()) != Some(i32::try_from(child_pid).unwrap_or(i32::MIN)) {
                 continue;
             }
             locks.push(lock);
@@ -576,6 +626,22 @@ impl Tracker {
         locks.sort();
         return locks;
     }
+}
+
+/// What:
+///  The name of the PID file Git writes beside the lock called `name`.
+/// Why:
+///  Git names it after the lock with `.lock` replaced by `~pid.lock`,
+///  so the pair is found from the lock's own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// name.replace(/\.lock$/, '~pid.lock')
+/// ```
+fn pid_name_of(name: &std::ffi::OsStr) -> std::ffi::OsString {
+    let text: std::borrow::Cow<'_, str> = name.to_string_lossy();
+    let base: &str = text.strip_suffix(LOCK_SUFFIX).unwrap_or(text.as_ref());
+    return std::ffi::OsString::from(format!("{base}{PID_INFIX}"));
 }
 
 /// What:
@@ -771,6 +837,10 @@ impl Watch {
         let mut pending: std::collections::VecDeque<(PathBuf, usize)> = std::collections::VecDeque::new();
         pending.push_back((directory.to_path_buf(), 0));
         while let Some((folder, depth)) = pending.pop_front() {
+            // A control makes one read take a while, standing in for a file system that does not answer.
+            if let Some(pause) = a_folder_read_takes_for_this_thread() {
+                std::thread::sleep(pause);
+            }
             if self.watch_one(folder.as_path()) && depth < MOST_WATCH_DEPTH {
                 let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
                     continue;
@@ -1145,8 +1215,80 @@ impl Drop for Watch {
 /// ```
 pub fn watch_before_starting() -> Option<(Watch, Watched)> {
     let watched: Watched = remembered()?;
-    let watch: Watch = Watch::over(watched.roots.as_slice())?;
-    return Some((watch, watched));
+    return open_the_watch_within_its_ceiling(watched);
+}
+
+/// How long the walk of the watched roots is waited for before the command goes on without a watch.
+/// Why:
+///  The walk reads folder after folder before Git is spawned, and a directory on a file system that does
+///  not answer would hold the command before any of its bounded machinery is entered
+///  (a review of `412fb03192`,
+/// finding 5;
+/// `doc/planning/cli-git-no-unbounded-waits.md`).
+///  The number is measured rather than chosen: five walks of this repository's own common Git directory
+///  (more than three thousand folders, of which the bound watches the first thousand) took 565 ms cold and
+///  then 237 ms, 238 ms, 243 ms and 240 ms on this machine
+///  (`keep/round-six/the-walk-of-this-repository-measured.log`),
+///  so this ceiling is three and a half times the slowest of them:
+///  room for a slow disk, and an end to a walk that does not answer.
+///  A watch the ceiling leaves unopened costs the record and never the command:
+///  the lock it might have explained keeps the proof and the report it had before the watch existed.
+pub const A_WATCH_IS_OPENED_WITHIN: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// What:
+///  Walk the watched roots on a thread of its own,
+///  and hand back the watch only if the walk finished within `A_WATCH_IS_OPENED_WITHIN`.
+/// Why:
+///  A read that does not answer cannot be ended,
+///  so the only way to keep "nothing should ever wait forever" is not to wait for it:
+///  the walk runs where it can be left,
+///  and the command goes on without a watch when the ceiling comes,
+///  which is the state every command was in before the watch existed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const opened = await withTimeout(walkThread(roots), A_WATCH_IS_OPENED_WITHIN); return opened ?? undefined
+/// ```
+fn open_the_watch_within_its_ceiling(watched: Watched) -> Option<(Watch, Watched)> {
+    let (opened, collected) = std::sync::mpsc::channel::<Option<Watch>>();
+    let roots: Vec<PathBuf> = watched.roots.clone();
+    let thread: std::io::Result<std::thread::JoinHandle<()>> = std::thread::Builder::new()
+        .name(String::from("cli-git-watch-open"))
+        .spawn(move || {
+            let watch: Option<Watch> = Watch::over(roots.as_slice());
+            let _sent = opened.send(watch);
+        });
+    let Ok(thread) = thread else {
+        return None;
+    };
+    return match collected.recv_timeout(A_WATCH_IS_OPENED_WITHIN) {
+        Ok(Some(watch)) => Some((watch, watched)),
+        _other => {
+            // The walk is left to end on its own thread, where it holds no worker and no command; what it finds is
+            //  dropped with it.
+            let _left = thread;
+            None
+        }
+    };
+}
+
+/// What:
+///  `watch_before_starting` for a caller that is a task of the runtime:
+///  the same bounded walk, run as a blocking job, so no worker waits on a folder.
+/// Why:
+///  A blocking call on a runtime worker stops the tasks that would end a wait
+///  (`doc/planning/git-policy-cli-full-tokio.md`, "no blocking call on a runtime worker"),
+///  and the walk reads folders.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = await runBlockingJob(() => walkWithin(A_WATCH_IS_OPENED_WITHIN));
+/// ```
+pub async fn watch_before_starting_awaiting() -> Option<(Watch, Watched)> {
+    let watched: Watched = remembered()?;
+    let opened: Result<Option<(Watch, Watched)>, crate::blocking_job::BlockingJobError> =
+        crate::blocking_job::run_blocking_job(move || { return open_the_watch_within_its_ceiling(watched); }).await;
+    return opened.ok().flatten();
 }
 
 /// What:

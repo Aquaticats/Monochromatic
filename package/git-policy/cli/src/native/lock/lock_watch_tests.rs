@@ -94,65 +94,55 @@ fn a_pid_file_created_after_its_lock_is_that_locks_holder() {
 }
 
 /// What:
-///  What the watch saw is the evidence, and not the order in which Git wrote the two files:
-///  a lock this run saw created is that child's take,
-///  and the PID file beside it, where it stands, is a second witness that must name the same child.
+///  A lock counts only with the PID file Git writes for it, created after it:
+///  a PID file that stood before the watch began proves nothing about the lock beside it,
+///  and a lock made after its PID file is not that PID file's take.
 /// Why:
-///  The rule this control used to state was that the PID file's creation had to come after the lock's,
-///  and a Git killed between creating its lock and writing that file then left a lock nothing could ever
-///  prove and no commit could pass
-///  (a review of `0fe1e01e9f`,
+///  A watch reports a creation and never who created it, so the sight alone names nobody:
+///  a live foreign writer's lock cannot be told from the watched child's on the sight alone
+///  (a review of `412fb03192`,
 /// finding 1).
-///  The wrapper watched the child create the lock;
-///  that sight, bound to the child's identity, is the evidence.
-///  The file Git writes after the lock is a second witness where it stands:
-///  a PID file naming another process is that process's lock and is not returned,
-///  and one the watch saw created before this lock is an earlier take's, which changes nothing about whose
-///  this take is.
+///  What proves the take is the file Git writes for the lock it made (`lockfile.c:121-123`,
+/// Git 2.56.0):
+///  the PID file names the Git, and only a PID file written after the lock can be that lock's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// withLockAndPidFile(42); tracker.feed([created(lock)]); locksTaken(42) // [lock]
-/// tracker.feed([created(pidFile), created(lock)]); locksTaken(42) // [lock]
-/// withLockAndPidFile(99); tracker.feed([created(lock)]); locksTaken(42) // []
+/// withLockAndPidFile(42); tracker.feed([created(lock)]); locksTaken(42) // []
+/// tracker.feed([created(pidFile), created(lock)]); locksTaken(42) // []
+/// tracker.feed([created(lock), created(pidFile)]); locksTaken(42) // [lock]
 /// ```
 #[test]
-fn the_sight_of_a_lock_is_the_evidence_and_the_pid_file_is_a_second_witness() {
-    let (directory, lock) = with_lock_and_pid_file("watch-sight-is-the-evidence", 42);
+fn a_lock_counts_only_with_the_pid_file_git_wrote_for_it() {
+    let (directory, lock) = with_lock_and_pid_file("watch-stale-pid-file", 42);
     let mut already_there: Tracker = Tracker::new();
     already_there.feed(&[created(directory.as_path(), "index.lock")]);
-    assert_eq!(already_there.locks_taken(42), vec![lock.clone()], "a lock the watch saw created is this child's, and the standing PID file names it");
+    assert!(already_there.locks_taken(42).is_empty(), "a lock with no PID file is unproven, and a live foreign writer's lock cannot be told from it");
     let mut before_the_lock: Tracker = Tracker::new();
     before_the_lock.feed(&[created(directory.as_path(), "index~pid.lock"), created(directory.as_path(), "index.lock")]);
-    assert_eq!(before_the_lock.locks_taken(42), vec![lock.clone()], "the order the two names were written in does not change whose the lock is");
+    assert!(before_the_lock.locks_taken(42).is_empty(), "a PID file written before the lock is an earlier holder's");
+    let mut the_take: Tracker = Tracker::new();
+    the_take.feed(&[created(directory.as_path(), "index.lock"), created(directory.as_path(), "index~pid.lock")]);
+    assert_eq!(the_take.locks_taken(42), vec![lock.clone()], "the PID file Git wrote after the lock names this child, so the lock is its take");
     remove(directory.as_path());
-    let (other, other_lock) = with_lock_and_pid_file("watch-second-witness-disagrees", 99);
-    let mut disagreements: Tracker = Tracker::new();
-    disagreements.feed(&[created(other.as_path(), "index.lock")]);
-    assert!(disagreements.locks_taken(42).is_empty(), "a PID file that names another process is that process's lock: {other_lock:?}");
-    remove(other.as_path());
 }
 
 /// What:
-///  A lock removed and made again under the same name is the take whose creation stands,
-///  and the record of the take that ended is the one taken away.
+///  A lock removed and made again under the same name is not the take its PID file was written for.
 /// Why:
-///  Two takes of one path in one run are two files,
-///  and the second creation is what stands now:
-///  it is the child's take, and the record of it names the second file, because a record names the take it
-///  belongs to and not the path.
-///  What this control used to state was that a second lock after a PID file was nobody's,
-///  which left the second file with no record and no proof
-///  (a review of `0fe1e01e9f`,
-///  finding 1, and the invariant it states).
+///  This is a person clearing a dead holder's lock and a later Git taking the name:
+///  the PID file stays, and the events say the name was given to a second file after it.
+///  The second file's take has no PID file written after it, so nothing proves it and no record names it
+///  (a review of `412fb03192`,
+/// and the record of `SPEC.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// feed([created(lock), created(pidFile), removed(lock), created(lock)]); locksTaken(child) // [lock]
+/// feed([created(lock), created(pidFile), removed(lock), created(lock)]); locksTaken(child) // []
 /// ```
 #[test]
-fn a_lock_made_again_is_the_take_whose_creation_stands() {
-    let (directory, lock) = with_lock_and_pid_file("watch-lock-remade", 42);
+fn a_lock_made_again_after_its_pid_file_is_not_that_pid_files_take() {
+    let (directory, _lock) = with_lock_and_pid_file("watch-lock-remade", 42);
     let mut tracker: Tracker = Tracker::new();
     tracker.feed(&[
         created(directory.as_path(), "index.lock"),
@@ -160,7 +150,7 @@ fn a_lock_made_again_is_the_take_whose_creation_stands() {
         removed(directory.as_path(), "index.lock"),
         created(directory.as_path(), "index.lock"),
     ]);
-    assert_eq!(tracker.locks_taken(42), vec![lock.clone()], "the creation that stands is the child's take");
+    assert!(tracker.locks_taken(42).is_empty(), "the PID file stands from an earlier take, and nothing shows whose the lock standing now is");
     remove(directory.as_path());
 }
 
@@ -1251,28 +1241,33 @@ impl crate::forwarding::ChildStarted for RecordTheChild {
 }
 
 /// What:
-///  A lock whose Git was killed between creating it and writing its PID file is bound by the sight of it,
-///  and the next command clears it and a commit lands.
+///  A lock whose Git was killed between creating it and writing its PID file is unproven:
+///  no record names it, the pass leaves it, and the person is told which lock it is and what clears it.
 /// Why:
-///  The watched Git creates `index.lock` and is killed before `index~pid.lock` is written;
-///  the binder required a PID file, so no record was written,
-///  and the next command had neither a record nor a PID file to prove the holder gone:
-///  the lock stayed for good and every commit after it failed
-///  (a review of `0fe1e01e9f`,
-/// finding 1).
-///  What the wrapper saw is the evidence, not what Git wrote beside the lock.
+///  A watch reports that a name was created and never who created it,
+///  so a record written from the sight alone would name a live foreign writer's lock as this child's
+///  (a review of `412fb03192`,
+///  finding 1).
+///  The project's record settles the state:
+///  a holder killed between creating the lock and its PID file leaves a lock nothing proves, and a live
+///  foreign writer's lock cannot be told from it, so it is left and reported with the command that clears
+///  it (`SPEC.md`, "The rule: a lock is removed only on a proof about its holder").
+///  The commit that needs the lock fails until a person clears it, which is the record's answer and not
+///  this module's to overwrite.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const child = runWatched(fakeGitTakingOnlyALock()); await until(bindingsOf(indexLock).length);
-/// expect(clearOne(indexLock, {births: 'coarse'})).toBeDefined(); expect(git(['commit', '-m', 'next']).status).toBe(0)
+/// runWatched(fakeGitTakingOnlyALock()); expect(bindingsOf(indexLock)).toEqual([]);
+/// const pass = clearAbandonedLocks([common]); expect(pass.unexplained).toContain(namesTheLock);
+/// expect(git(['commit', '-m', 'next']).status).not.toBe(0)
 /// ```
 #[test]
-fn a_lock_its_git_left_without_a_pid_file_is_bound_by_the_sight_and_cleared() {
+fn a_lock_its_git_left_without_a_pid_file_is_unproven_left_and_reported() {
     let directory: PathBuf = crate::test_support::fixture("watch-lock-without-a-pid-file");
     let repository: PathBuf = crate::test_support::repository(directory.as_path(), "repo");
     let common: PathBuf = repository.join(".git");
-    std::fs::write(repository.join("staged.txt"), "a change the next commit lands\n").expect("a staged change");
+    std::fs::write(repository.join("staged.txt"), "a change the next commit lands
+").expect("a staged change");
     let _added = crate::test_support::git(repository.as_path(), &["add", "staged.txt"]);
     crate::lock_holder_records::remember_repository(common.as_path());
     crate::lock_holder_records::record_this_process(common.as_path());
@@ -1284,6 +1279,8 @@ fn a_lock_its_git_left_without_a_pid_file_is_bound_by_the_sight_and_cleared() {
     crate::lock_watch::remember(None);
     let lock: PathBuf = common.join("index.lock");
     let bindings: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+    let pass = crate::abandoned_locks::clear_abandoned_locks(std::slice::from_ref(&common));
+    let named: bool = pass.unexplained.iter().any(|line| { return line.contains("index.lock"); });
     let clearance = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
         return crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
     });
@@ -1292,10 +1289,11 @@ fn a_lock_its_git_left_without_a_pid_file_is_bound_by_the_sight_and_cleared() {
     let landed: bool = commit.status.success();
     crate::test_support::remove(directory.as_path());
     assert_eq!(outcome, crate::forwarding::ChildOutcome::Signaled(9), "the control's Git dies by its own kill");
-    assert!(!bindings.is_empty(), "the sight of the lock is the evidence, so a record names it though no PID file was written");
-    assert!(matches!(clearance, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding), "the next command clears the lock by that record: {clearance:?}");
-    assert!(!stands, "the lock is gone after the next command");
-    assert!(landed, "the commit after it lands: {}", String::from_utf8_lossy(commit.stderr.as_slice()));
+    assert!(bindings.is_empty(), "no record may name a lock whose only evidence is the sight of its creation: {bindings:?}");
+    assert!(clearance.is_none(), "the record's proof answers nothing for a lock with no PID file: {clearance:?}");
+    assert!(stands, "the lock is left in place");
+    assert!(named, "the pass reports the lock it will not clear, with the command that clears it: {pass:?}");
+    assert!(!landed, "the commit that needs the lock fails until a person clears it");
 }
 
 /// What:
@@ -1387,18 +1385,34 @@ fn a_git_the_bounded_runner_started_records_its_child() {
     assert!(landed, "the commit after it lands: {}", String::from_utf8_lossy(commit.stderr.as_slice()));
 }
 
-/// The steps of taking a lock and of clearing one, by the name a control passes to the helper below.
+/// What a person meets after one step of the walk.
 /// Why:
-///  A process can be killed at any instruction, so each step of a take and each step of a clearance is
-///  one row of the walk control: the state after each must be one the next command clears
-///  (a review of `0fe1e01e9f`,
-/// and the invariant it states).
-const WALK_STEPS: [&str; 5] = [
-    "after-the-lock",
-    "after-the-pid-file",
-    "after-the-pid-file-unlink",
-    "after-the-lock-unlink",
-    "after-the-record",
+///  A process can be killed at any instruction, and the project's record says what the next command may
+///  do about what is left: it clears a lock it can prove, and it leaves and reports one it cannot.
+///  So each row of the walk states which of the two it is
+///  (a review of `412fb03192`,
+/// and `SPEC.md`, "The rule: a lock is removed only on a proof about its holder").
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WhatTheNextCommandMeets {
+    /// The lock is provable, so the next command clears it and a commit lands.
+    Cleared,
+    /// Nothing proves the lock, so the next command leaves it, names it, and the commit waits for a person.
+    LeftAndReported,
+}
+
+/// The steps of taking a lock and of clearing one, by the name a control passes to the helper below,
+/// with what the next command must do after each.
+/// Why:
+///  A take has two steps (the lock, then the PID file Git writes for it) and a clearance three (the lock,
+///  the PID file, the record), and a kill at each is one row.
+///  The row without a PID file is the record's own: the lock is unproven and left, because a watch cannot
+///  say who created a file.
+const WALK_STEPS: [(&str, WhatTheNextCommandMeets); 5] = [
+    ("after-the-lock", WhatTheNextCommandMeets::LeftAndReported),
+    ("after-the-pid-file", WhatTheNextCommandMeets::Cleared),
+    ("after-the-lock-unlink", WhatTheNextCommandMeets::Cleared),
+    ("after-the-pid-file-unlink", WhatTheNextCommandMeets::Cleared),
+    ("after-the-record", WhatTheNextCommandMeets::Cleared),
 ];
 
 /// The variable that names the step the helper below takes, and the fixture it takes it in.
@@ -1472,27 +1486,67 @@ fn a_step_of_a_take_or_a_clearance_is_killed_for_the_walk_control() {
 }
 
 /// What:
-///  Kill a process at each step of taking a lock and at each step of clearing one,
-///  and require that the next command clears what is left and that a commit lands.
+///  Plant four live foreign writers' locks in the watched tree:
+///  without a PID file and with one, and with the descriptor closed and held open.
 /// Why:
-///  This is the property the four fixes are one statement of:
-///  a commit is never failed for a reason of the wrapper's own,
-///  a process can be killed at any instruction,
-///  and what the wrapper saw is the evidence.
-///  The steps are the whole of a take (the lock, then its PID file) and the whole of a clearance
-///  (the PID file, the lock, the record), and the next command is the pass every command runs.
+///  A test for code that removes must show a thing it may remove and a thing it may not.
+///  A creation the watch reports carries no creator, so the second arm of every row is that another
+///  program's live lock of the same name stands after the next command
+///  (a review of `412fb03192`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const step of walkSteps()) { runTheStepInAChildKilledAt(step); clearAbandonedLocks([common]);
-///   expect(indexLock).not.toExist(); expect(git(['commit', '-m', 'next']).status).toBe(0) }
+/// plantFourForeignLocks(gitDir) // [path, heldDescriptor]
+/// ```
+fn plant_live_foreign_locks(common: &Path, fixture: &Path) -> (Vec<PathBuf>, Vec<std::fs::File>, Child) {
+    let foreign: Child = Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("the foreign writer starts");
+    let foreign_pid: i64 = i64::from(foreign.id());
+    let mut paths: Vec<PathBuf> = Vec::new();
+    let mut held: Vec<std::fs::File> = Vec::new();
+    for shape in ["plain", "pid-file", "descriptor-open", "descriptor-open-pid-file"] {
+        let namespace: PathBuf = common.join("refs/heads").join(format!("foreign-{shape}"));
+        std::fs::create_dir_all(namespace.as_path()).expect("the foreign namespace");
+        let lock: PathBuf = namespace.join("topic.lock");
+        if shape.contains("descriptor-open") {
+            held.push(std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(lock.as_path()).expect("the foreign lock, held open"));
+        } else {
+            std::fs::write(lock.as_path(), b"the foreign writer's unfinished reference\n").expect("the foreign lock, closed");
+        }
+        if shape.contains("pid-file") {
+            std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {foreign_pid}\n")).expect("the foreign writer's PID file");
+        }
+        paths.push(lock);
+    }
+    let _ = fixture;
+    return (paths, held, foreign);
+}
+
+/// What:
+///  Kill a process at each step of taking a lock and at each step of clearing one,
+///  with a live foreign writer's locks beside it,
+///  and require what the record says of each row: the next command clears a provable lock and a commit
+///  lands, and a lock nothing proves is left, named, with the commit waiting for a person.
+/// Why:
+///  This is the property, both ways: a commit is never failed for a reason of the wrapper's own where the
+///  wrapper can prove the holder gone, and a lock nothing proves is never deleted
+///  (a review of `412fb03192`,
+/// findings 1 and 3;
+/// `SPEC.md`, "The rule: a lock is removed only on a proof about its holder").
+///  The second arm is the foreign writer's: its locks must stand after every row.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [step, meets] of walkSteps()) { const foreign = plantLiveForeignLocks(); const pass = runTheStepInAChild(step);
+///   clearAbandonedLocks([common]); for (const lock of foreign) expect(lock).toExist();
+///   if (meets === Cleared) expect(git(['commit', '-m', 'next']).status).toBe(0) else expect(pass.unexplained).toContain(theLock) }
 /// ```
 #[test]
 fn a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command_clears() {
     let root: PathBuf = crate::test_support::fixture("walk-a-kill-at-each-step");
     let helper: PathBuf = crate::test_support::this_test_binary().expect("the test binary's own path");
     let mut rows: Vec<String> = Vec::new();
-    for step in WALK_STEPS {
+    for (step, meets) in WALK_STEPS {
         let fixture: PathBuf = root.join(step);
         std::fs::create_dir_all(fixture.as_path()).expect("the step's fixture");
         let ran = std::process::Command::new(helper.as_path())
@@ -1506,21 +1560,181 @@ fn a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command
             .output()
             .expect("the step's own process");
         let common: PathBuf = fixture.join("repo").join(".git");
-        // The next command: the pass every command makes, from a fresh process.
-        let _outcome = crate::abandoned_locks::clear_abandoned_locks(std::slice::from_ref(&common));
+        // The second arm: live writers that are not the watched child, in the same tree.
+        let (foreign, held, mut foreign_child) = plant_live_foreign_locks(common.as_path(), fixture.as_path());
+        let pass = crate::abandoned_locks::clear_abandoned_locks(std::slice::from_ref(&common));
         let lock: PathBuf = common.join("index.lock");
         let stands: bool = lock.exists();
+        let named: bool = pass.unexplained.iter().any(|line| { return line.contains("index.lock"); });
         let commit = crate::test_support::git_output(fixture.join("repo").as_path(), &["commit", "--quiet", "--message", "next"]);
+        let landed: bool = commit.status.success();
+        let foreign_bound: Vec<PathBuf> = foreign.iter().filter(|path| { return !lock_bindings::bindings_of(common.as_path(), path.as_path()).is_empty(); }).cloned().collect();
+        let foreign_gone: Vec<PathBuf> = foreign.iter().filter(|path| { return !path.exists(); }).cloned().collect();
+        drop(held);
+        let _killed = foreign_child.kill();
+        let _reaped = foreign_child.wait();
         rows.push(format!(
-            "{step}: step status={:?} signal={:?}; lock stands={stands}; commit status={:?}; step said={:?}",
+            "{step} ({meets:?}): step status={:?}; lock stands={stands}; reported={named}; commit status={:?}; foreign gone={foreign_gone:?}; foreign bound={foreign_bound:?}",
             ran.status.code(),
-            std::os::unix::process::ExitStatusExt::signal(&ran.status),
-            commit.status.code(),
-            String::from_utf8_lossy(ran.stderr.as_slice()).lines().filter(|line| { return line.contains("panicked") || line.contains("walk step"); }).collect::<Vec<&str>>()
+            commit.status.code()
         ));
-        assert!(!stands, "{step}: the next command clears the lock: {}", rows.last().expect("the row just written"));
-        assert!(commit.status.success(), "{step}: the commit after it lands: {}", rows.last().expect("the row just written"));
+        let row: &str = rows.last().expect("the row just written");
+        assert!(foreign_gone.is_empty(), "{step}: no live foreign writer's lock may be removed: {row}");
+        assert!(foreign_bound.is_empty(), "{step}: no record may name a live foreign writer's lock: {row}");
+        match meets {
+            WhatTheNextCommandMeets::Cleared => {
+                assert!(!stands, "{step}: the next command clears the lock: {row}");
+                assert!(landed, "{step}: the commit after it lands: {row}");
+            }
+            WhatTheNextCommandMeets::LeftAndReported => {
+                assert!(stands, "{step}: a lock nothing proves is left: {row}");
+                assert!(named, "{step}: the pass names the lock it leaves, with the command that clears it: {row}");
+                assert!(!landed, "{step}: the commit that needs it waits for a person: {row}");
+            }
+        }
     }
     crate::test_support::remove(root.as_path());
     let _walk = rows;
+}
+
+/// What:
+///  A live writer that is not the watched child keeps its lock,
+///  with a PID file and without one, with its descriptor open and closed,
+///  and no record names it as the watched child's.
+/// Why:
+///  A directory watch reports a creation and carries no creator:
+///  another program's Git creates `index.lock`, closes the descriptor, writes no PID file and stays
+///  alive, and nothing in the event says whose file it is.
+///  A binder that took the sight for proof pinned that foreign lock under the watched child's
+///  number, and the pass then proved the child gone, got the lease because the foreign writer held no
+///  descriptor, and deleted a live writer's lock
+///  (a review of `412fb03192`,
+/// finding 1).
+///  The project's record settles the state: a lock with no PID file is unproven, and a foreign writer
+///  that writes none is left and reported (`SPEC.md`,
+/// "The rule: a lock is removed only on a proof about its holder").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchChild(); foreignCreates(lock); await until(…); expect(bindingsOf(lock)).toEqual([])
+/// kill(watchedChild); expect(clearOne(lock)).toBeUndefined(); expect(lock).toExist()
+/// ```
+#[test]
+fn a_live_foreign_writers_lock_is_not_bound_to_the_watched_child_and_stands() {
+    for arm in ["no-pid-file", "pid-file-names-the-writer", "descriptor-open", "pid-file-and-descriptor-open"] {
+        let common: PathBuf = a_watched_git_directory(&format!("watch-foreign-{arm}"));
+        crate::lock_holder_records::remember_repository(common.as_path());
+        crate::lock_holder_records::record_this_process(common.as_path());
+        let mut watched: Child = Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("the watched child starts");
+        crate::lock_holder_records::note_child_started(watched.id());
+        let (watch, about): (Watch, Watched) = watch_before_starting().expect("the production watch opens");
+        let binder = crate::lock_watch::bind_while_the_caller_waits(Some((watch, about)), watched.id()).expect("the binder starts");
+        let mut foreign: Child = Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("the foreign writer starts");
+        let foreign_pid: i64 = i64::from(foreign.id());
+        let lock: PathBuf = common.join("index.lock");
+        let keeps_the_descriptor: bool = arm.contains("descriptor");
+        let held: Option<std::fs::File> = if keeps_the_descriptor {
+            Some(std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(lock.as_path()).expect("the foreign lock, held open"))
+        } else {
+            std::fs::write(lock.as_path(), b"the foreign writer's unfinished index\n").expect("the foreign lock, closed");
+            None
+        };
+        if arm.contains("pid-file") {
+            std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {foreign_pid}\n")).expect("the foreign writer's PID file");
+        }
+        // A moment for the watcher to read the creation and write whatever it makes of it.
+        let _waited: bool = bound_within(Duration::from_millis(500), common.as_path(), lock.as_path());
+        let bound: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+        let _killed = watched.kill();
+        let _reaped = watched.wait().expect("the watched child is collected");
+        binder.finish();
+        let clearance = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+        let foreign_alive: bool = crate::lock_holder_records::identity_of_process(foreign_pid).is_some();
+        let stands: bool = lock.exists();
+        drop(held);
+        let _killed = foreign.kill();
+        let _reaped = foreign.wait().expect("the foreign writer is collected");
+        let _link = common;
+        assert!(foreign_alive, "{arm}: the foreign writer ran through the pass");
+        assert!(bound.is_empty(), "{arm}: no record may name a live foreign writer's lock as the watched child's: {bound:?}");
+        assert!(clearance.is_none(), "{arm}: nothing may prove that lock gone: {clearance:?}");
+        assert!(stands, "{arm}: the foreign writer's lock must still stand");
+    }
+}
+
+/// What:
+///  The opening of the watch is waited for no longer than its ceiling,
+///  and a walk that does not answer costs the record and never the command.
+/// Why:
+///  The walk of the watched roots reads folder after folder before Git is spawned, with no deadline:
+///  a directory on a file system that does not answer would hold the command before any of its bounded
+///  machinery is entered, which is the one place the project's "nothing should ever wait forever" was
+///  not kept (a review of `412fb03192`,
+/// finding 5).
+///  A control cannot make a real file system stop answering, so it makes each folder's read take a while
+///  and states what the command does with a walk that is still running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// A_FOLDER_READ_TAKES = 50_ms; const began = now(); const opened = watchBeforeStarting();
+/// expect(opened).toBeUndefined(); expect(now() - began).toBeLessThan(2 * CEILING + 50ms)
+/// ```
+#[test]
+fn the_opening_of_the_watch_is_waited_for_no_longer_than_its_ceiling() {
+    let directory: PathBuf = crate::test_support::fixture("watch-a-read-that-does-not-answer");
+    for index in 0..60 {
+        std::fs::create_dir_all(directory.join(format!("refs/heads/n-{index}"))).expect("the folders a walk reads");
+    }
+    crate::lock_watch::remember(Some(Watched { common_dir: directory.clone(), roots: vec![directory.clone()] }));
+    crate::lock_watch::a_folder_read_takes(Some(Duration::from_millis(50)));
+    let began: Instant = Instant::now();
+    let opened: Option<(Watch, Watched)> = watch_before_starting();
+    let waited: Duration = began.elapsed();
+    crate::lock_watch::a_folder_read_takes(None);
+    crate::lock_watch::remember(None);
+    remove(directory.as_path());
+    assert!(opened.is_none(), "a walk that has not finished by the ceiling gives no watch, so the command goes on");
+    assert!(
+        waited < crate::lock_watch::A_WATCH_IS_OPENED_WITHIN * 2,
+        "the command must not wait for the walk past its ceiling: it waited {waited:?}"
+    );
+}
+
+/// What:
+///  A caller on the runtime gets the same ceiling,
+///  and the walk runs off the runtime's worker.
+/// Why:
+///  The awaiting face used to do the synchronous walk on a worker,
+///  which is a blocking call where the runtime's workers must only await
+///  (`doc/planning/git-policy-cli-full-tokio.md`, "no blocking call on a runtime worker";
+///  a review of `412fb03192`,
+/// finding 5).
+///  The walk now runs as a blocking job, and the control states the thread it ran on is not the caller's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// A_FOLDER_READ_TAKES = 50_ms; const worker = threadId(); const opened = await startAwaiting(command);
+/// expect(opened[1] === undefined).toBe(true); expect(theWalkThread).not.toBe(worker)
+/// ```
+#[test]
+fn the_awaiting_face_opens_the_watch_off_the_worker() {
+    let directory: PathBuf = crate::test_support::fixture("watch-awaiting-a-read-that-does-not-answer");
+    for index in 0..60 {
+        std::fs::create_dir_all(directory.join(format!("refs/heads/n-{index}"))).expect("the folders a walk reads");
+    }
+    crate::lock_watch::remember(Some(Watched { common_dir: directory.clone(), roots: vec![directory.clone()] }));
+    crate::lock_watch::a_folder_read_takes(Some(Duration::from_millis(50)));
+    let ran = crate::lazy_runtime::run_on_runtime(async {
+        let mut command: Command = Command::new("/bin/true");
+        let began: Instant = Instant::now();
+        let started = crate::child_watch_output_watched_on_the_runtime::start_a_watched_git_awaiting(&mut command).await;
+        let waited: Duration = began.elapsed();
+        return (started.is_ok(), waited);
+    })
+    .expect("the runtime runs the start");
+    crate::lock_watch::a_folder_read_takes(None);
+    crate::lock_watch::remember(None);
+    remove(directory.as_path());
+    let (_ran, waited): (bool, Duration) = ran;
+    assert!(waited < crate::lock_watch::A_WATCH_IS_OPENED_WITHIN * 2, "the awaiting face waits no longer than the ceiling: it waited {waited:?}");
 }

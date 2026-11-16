@@ -400,15 +400,13 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String), folder: (u6
         let _unlinked = std::fs::remove_file(pin.as_path());
         return None;
     }
-    // The second look: the PID file, where it stands, must name the Git this record names. A take that finished here
+    // The second look: the PID file beside the lock must name the Git this record names. A take that finished here
     //  took its PID file with it, and another Git's PID file names another process, so either way this record would name
     //  a Git that does not hold the file it pins.
-    //  A lock whose Git was killed between creating it and writing the PID file has no PID file at all, and the record
-    //  of it is written from the sight of the creation, so the absence of the file records nothing
-    //  (a review of `0fe1e01e9f`,
-    //  finding 1).
-    let pid_file: PathBuf = pid_file_beside(lock);
-    if pid_file.exists() && crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(holder.0).ok()?) {
+    //  A lock with no PID file is unproven and no record is written for it: the sight of its creation does not say who
+    //  made it (`SPEC.md`, "The rule: a lock is removed only on a proof about its holder";
+    //  a review of `412fb03192`, finding 1).
+    if crate::stopped_git_locks::pid_named_by(pid_file_beside(lock).as_path()) != Some(i32::try_from(holder.0).ok()?) {
         let _unlinked = std::fs::remove_file(pin.as_path());
         return None;
     }
