@@ -303,7 +303,8 @@ fn a_live_holders_text_spelled_another_way_is_never_proven_gone() {
 }
 
 /// The birth of a process that never ran:
-/// A boot ID of a boot that has ended, which is no boot of this host.
+/// A boot ID of a boot that has ended,
+/// which is no boot of this host.
 const AN_ENDED_BOOT: &str = "0123456789abcdef0123456789abcdef";
 
 /// The birth of a process that never ran:
@@ -340,11 +341,14 @@ enum Required {
 /// What the boot part of a holder text holds,
 /// which is the one proof of an end that stands apart from the birth.
 enum BootState {
-    /// This host's boot ID, as this program writes it.
+    /// This host's boot ID,
+    /// as this program writes it.
     ThisBoot,
-    /// A boot ID of a boot that has ended, which ends every process in it.
+    /// A boot ID of a boot that has ended,
+    /// which ends every process in it.
     AnEndedBoot,
-    /// This host's boot ID in the spelling the kernel prints, with its dashes.
+    /// This host's boot ID in the spelling the kernel prints,
+    /// with its dashes.
     ThisBootDashed,
     /// A text that names no boot ID at all.
     Unreadable,
@@ -352,24 +356,29 @@ enum BootState {
     Absent,
 }
 
-/// The process number a holder text names, and which process has it now,
+/// The process number a holder text names,
+/// and which process has it now,
 /// which is the other proof of an end that stands apart from the birth.
 enum NumberState {
     /// A number no process has.
     Free,
     /// The number of the process that wrote the record.
     TheWriter,
-    /// The number of a later process, which the recorded birth is not.
+    /// The number of a later process,
+    /// which the recorded birth is not.
     ALaterProcess,
 }
 
 /// What the birth part of a holder text holds.
 enum BirthState {
-    /// The birth of the record, in the spelling this program writes.
+    /// The birth of the record,
+    /// in the spelling this program writes.
     Written,
-    /// That birth in another spelling: a leading zero on its start tick.
+    /// That birth in another spelling:
+    /// a leading zero on its start tick.
     Respelled,
-    /// That birth with padding before the colon of its tag, which is the same tag in another spelling.
+    /// That birth with padding before the colon of its tag,
+    /// which is the same tag in another spelling.
     PaddedTag,
     /// Nothing but a space.
     Blank,
@@ -380,7 +389,8 @@ enum BirthState {
 }
 
 /// One row of the identity table:
-/// the three parts of a holder text, and the answer the rule owes that state.
+/// the three parts of a holder text,
+/// and the answer the rule owes that state.
 /// Why:
 ///  A row states the boot and the number,
 /// which are the proofs that stand apart from the birth,
@@ -394,7 +404,8 @@ struct Row {
     due: Required,
 }
 
-/// The birth `birth` with a space between its tag and the colon, which is the same tag in another spelling.
+/// The birth `birth` with a space between its tag and the colon,
+/// which is the same tag in another spelling.
 /// Why:
 ///   A field that was padded on the left of a colon names the same tag,
 /// and a reader that compared it with the kernel's text would read another process.
@@ -444,7 +455,8 @@ fn holder_text_of(row: &Row, live_birth: &str, free: i64, own: i64) -> String {
 /// and only where the number names a process do the boot and the birth decide,
 ///  where a part this reader cannot compare answers unknown and keeps the record.
 ///  A boot part this reader cannot read is no end and hides no end:
-/// the number's own proof still stands, which is what a holder proven dead by its absent number needs.
+/// the number's own proof still stands,
+/// which is what a holder proven dead by its absent number needs.
 ///  The birth spellings include the ones a person or a program produces without changing the value:
 /// a leading zero on the start tick,
 /// padding before the tag's colon,

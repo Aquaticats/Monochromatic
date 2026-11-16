@@ -271,12 +271,14 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 /// and only where a process has the number does the birth decide,
 ///  because that is the one place a birth is compared with anything.
 ///  A boot part this reader cannot read is neither an end nor a hiding place for one:
-/// the number's own proof still stands, which is what a command proven dead by its absent number needs.
+/// the number's own proof still stands,
+/// which is what a command proven dead by its absent number needs.
 ///  Where the number names a process,
 /// the boot and the birth must both be spellings this reader can compare:
 /// a boot it cannot place leaves open that the number belongs to another boot or machine,
 /// and a birth it cannot compare says nothing about that process.
-/// A record that names no boot is settled by a number that answers nothing, and by nothing else.
+/// A record that names no boot is settled by a number that answers nothing,
+/// and by nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

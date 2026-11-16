@@ -163,10 +163,12 @@ const LINUX_START_FIELD_INDEX: usize = 19;
 /// The prefix every Linux birth identity carries before its start tick.
 pub(crate) const LINUX_IDENTITY_PREFIX: &str = "linux:";
 
-/// The bytes of the tag's letters in `LINUX_IDENTITY_PREFIX`, which its colon ends.
+/// The bytes of the tag's letters in `LINUX_IDENTITY_PREFIX`,
+/// which its colon ends.
 /// Why:
 ///   A reader that asks whether a text names this platform's tag at all must look at the letters and not at the
-/// colon, because padding before the colon is one of the spellings it must recognise as this platform's.
+/// colon,
+/// because padding before the colon is one of the spellings it must recognise as this platform's.
 #[cfg(target_os = "linux")]
 const LINUX_TAG_LETTERS: usize = LINUX_IDENTITY_PREFIX.len() - 1;
 
@@ -189,7 +191,8 @@ fn is_kernel_tick(text: &str) -> bool {
 }
 
 /// What:
-///  What a recorded birth text is, read the way this platform writes a birth:
+///  What a recorded birth text is,
+/// read the way this platform writes a birth:
 ///  the one spelling this program writes,
 ///  this platform's tag in another spelling,
 ///  nothing at all,
@@ -223,15 +226,22 @@ fn is_kernel_tick(text: &str) -> bool {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BirthText {
-    /// The one spelling this program writes, which a reader can compare with the process table:
-    /// on Linux, this platform's tag and the kernel's start tick;
-    /// on a platform whose inspector prints its own words, any text with something in it.
+    /// The one spelling this program writes,
+    /// which a reader can compare with the process table:
+    /// on Linux,
+    /// this platform's tag and the kernel's start tick;
+    /// on a platform whose inspector prints its own words,
+    /// any text with something in it.
     Written,
-    /// This platform's tag with padding before its colon, in another case, or behind a space,
+    /// This platform's tag with padding before its colon,
+    /// in another case,
+    /// or behind a space,
     /// or a tick with a leading zero or a space:
-    /// the same value in another spelling, which no comparison can use.
+    /// the same value in another spelling,
+    /// which no comparison can use.
     Respelled,
-    /// Nothing but whitespace, which names no value at all.
+    /// Nothing but whitespace,
+    /// which names no value at all.
     Blank,
 }
 
@@ -244,7 +254,9 @@ impl BirthText {
 
 /// The reading of `birth` this platform means.
 /// Why:
-///   One reader of a birth, used by every comparison, so that no caller can spell the rule differently.
+///   One reader of a birth,
+/// used by every comparison,
+/// so that no caller can spell the rule differently.
 pub(crate) fn birth_text(birth: &str) -> BirthText {
     // The text with the padding a field may carry taken off, which is what a reader asks for when it compares the value.
     let content: &str = birth.trim_start();
