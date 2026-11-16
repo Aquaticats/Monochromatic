@@ -765,10 +765,9 @@ await describe({
           counts: new Map(),
           freeSpaceBytes: folder.freeSpaceBytes,
         },);
-        expect(closed.stdout.trim(),).toContain(`${NEURALWATT_KIMI_FLEX.name} 0/0`,);
-        expect(closed.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(OPENCODE_GO.limit,)}`,);
-        // The pool the owner reopened has room, and all of the room its own limit gives it: were the table to close it again, the
-        // counts above would read `0/0` and pass as though the pool were open.
+        expect(closed.stdout.trim(),).toContain(`${NEURALWATT_KIMI_FLEX.name} 0/${String(CLOSED_POOL_LIMIT,)}`,);
+        // The pool the owner reopened has room, and all of the room its own limit gives it: were the table to close it again, a
+        // counts entry read as `0/0` would pass as though the pool were open.
         expect(roomIn(OPENCODE_GO,),).toBeGreaterThan(CLOSED_POOL_LIMIT,);
         expect(roomIn(OPENCODE_GO,),).toBe(OPENCODE_GO.limit,);
         /**
@@ -782,11 +781,11 @@ await describe({
         const reopened = await runTheGate({
           folder,
           words: ['--counts-only', '--runs-folder=/nowhere',],
-          poolLimits: `${NEURALWATT_KIMI_FLEX.name}=${String(reopenedRoom,)},${OPENCODE_GO.name}=0`,
+          poolLimits: `${NEURALWATT_KIMI_FLEX.name}=${String(reopenedRoom,)},${OPENCODE_GO.name}=${String(CLOSED_POOL_LIMIT,)}`,
         },);
         expect(reopened.status,).toBe(0,);
         expect(reopened.stdout.trim(),).toContain(`${NEURALWATT_KIMI_FLEX.name} 0/${String(reopenedRoom,)}`,);
-        expect(reopened.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/0`,);
+        expect(reopened.stdout.trim(),).toContain(`${OPENCODE_GO.name} 0/${String(CLOSED_POOL_LIMIT,)}`,);
         /**
          What a limits setting the gate cannot read answers with, so a mistyped pool name is never counted as a closed pool.
          */

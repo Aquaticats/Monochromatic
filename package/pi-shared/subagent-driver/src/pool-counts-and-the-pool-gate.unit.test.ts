@@ -14,6 +14,7 @@ import {
 import {
   ALREADY_RUNNING_EXIT_STATUS,
   BYTES_IN_A_GIBIBYTE,
+  CLOSED_POOL_LIMIT,
   type FreeSpace,
   FREE_SPACE_FLOOR_BYTES,
   type GateOutcome,
@@ -624,7 +625,7 @@ await describe({
             expect(firstDefaultPoolWithRoom({
               tallies: talliesOf({
                 runs: [],
-                pools: poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },),
+                pools: poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, CLOSED_POOL_LIMIT],]), },),
               },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
           },
@@ -672,7 +673,7 @@ await describe({
             const asItShips = PROVIDER_POOLS.find(function isKimiFlex(pool,) {
               return pool.name === NEURALWATT_KIMI_FLEX.name;
             },) ?? NEURALWATT_KIMI_FLEX;
-            expect(roomIn(asItShips,),).toBe(0,);
+            expect(roomIn(asItShips,),).toBe(CLOSED_POOL_LIMIT,);
             /**
              The same pool with the room a caller gives it, which is another open pool's own limit rather than a number written
              down here.
@@ -694,21 +695,21 @@ await describe({
             /**
              That pool with a caller's zero, which says who closed it.
              */
-            const spent = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },)
+            const spent = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, CLOSED_POOL_LIMIT],]), },)
               .find(function isOpencodeGo(pool,) {
                 return pool.name === OPENCODE_GO.name;
               },) ?? OPENCODE_GO;
-            expect(roomIn(spent,),).toBe(0,);
+            expect(roomIn(spent,),).toBe(CLOSED_POOL_LIMIT,);
             expect(poolTakesNoNewRun({ pool: spent, },),).toBe(true,);
             expect(spent.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
             /**
              A pool a caller closed, which keeps the room it returns to and says who closed it.
              */
-            const closed = poolsWithTheseLimits({ limits: new Map([[NEURALWATT_STANDARD.name, 0],]), },)
+            const closed = poolsWithTheseLimits({ limits: new Map([[NEURALWATT_STANDARD.name, CLOSED_POOL_LIMIT],]), },)
               .find(function isStandard(pool,) {
                 return pool.name === NEURALWATT_STANDARD.name;
               },) ?? NEURALWATT_STANDARD;
-            expect(roomIn(closed,),).toBe(0,);
+            expect(roomIn(closed,),).toBe(CLOSED_POOL_LIMIT,);
             expect(closed.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
             /**
              A pool the caller named nothing about.
@@ -758,7 +759,7 @@ await describe({
              The pools with the qwen 4 pool closed by a caller, as a coordinator closes a pool whose week is spent.
              */
             const pools = poolsWithTheseLimits({
-              limits: limitsIn({ listed: `${QWEN_PLAN_QWEN4_MAX_PREVIEW.name}=0`, },),
+              limits: limitsIn({ listed: `${QWEN_PLAN_QWEN4_MAX_PREVIEW.name}=${String(CLOSED_POOL_LIMIT,)}`, },),
             },);
             /**
              The pool the run's own words name, which is the pool the caller closed.
@@ -879,7 +880,7 @@ await describe({
             expect(shipped.counts.get(NEURALWATT_KIMI_FLEX.name,),).toBe(going.length,);
             expect(typeof NEURALWATT_KIMI_FLEX.closed?.reason,).toBe('string',);
             expect(NEURALWATT_KIMI_FLEX.limit,).toBeGreaterThan(0,);
-            expect(roomIn(NEURALWATT_KIMI_FLEX,),).toBe(0,);
+            expect(roomIn(NEURALWATT_KIMI_FLEX,),).toBe(CLOSED_POOL_LIMIT,);
             /**
              The same table with the limit named by a caller through the variable, which is how one command reopens the pool.
              */

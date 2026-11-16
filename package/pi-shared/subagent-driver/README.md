@@ -154,8 +154,8 @@ In the order a run that names no model of its own takes them:
   medians of 3,034 ms and 5,492 ms over its two runs,
   against 57,612 ms to 71,746 ms over eleven flex runs)
   has one and then two runs on a pool of twenty places,
-  so it says nothing of this pool's speed with thirteen going or near its weekly limit;
-  the factor stays, and is set from a reading taken with more runs going.
+  so it does not measure this pool's speed under its load:
+  the factor stays at 2 until a reading with more runs going sets it.
   `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again,
   and default runs then go to `neuralwatt-flex`.
 - `neuralwatt`:
