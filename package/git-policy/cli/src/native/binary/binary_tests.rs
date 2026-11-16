@@ -199,6 +199,11 @@ mod discard_pathspec_mode_axis;
 #[path = "binary_discard_option_axis_tests.rs"]
 mod discard_option_axis;
 
+/// The recursive forms over a submodule holding an edit, a clean one,
+/// and the same edit with the recursion turned off.
+#[path = "binary_discard_submodule_axis_tests.rs"]
+mod discard_submodule_axis;
+
 /// The remote settings every worktree of a repository shares:
 /// refused from a linked worktree,
 /// unchanged in the main checkout,
