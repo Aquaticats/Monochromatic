@@ -1094,7 +1094,7 @@ fn a_record_that_names_a_folder_the_wrapper_did_not_stage_is_refused_and_nothing
 
 /// What:
 ///  A record whose staged path is spelled exactly as one of this workspace's maker names,
-///  but which the wrapper never made, is refused and left exactly as it is.
+///  but which the wrapper never made, is left exactly as it is, and its record is finished.
 /// Why:
 ///  The name shape is a string, and a record can spell it: what may be removed is something the wrapper itself made and
 ///  can recognise, and a directory a record merely names is not it (the review of `da9c767270`, finding 1).
@@ -1104,7 +1104,7 @@ fn a_record_that_names_a_folder_the_wrapper_did_not_stage_is_refused_and_nothing
 /// const victim = `${stagingOf(to)}.1~linux:1~.1`; mkdir(victim); expect(fillOne({to: existing, stagedIn: victim})).toBe('refused'); expect(exists(victim)).toBe(true)
 /// ```
 #[test]
-fn a_record_that_spells_a_maker_name_is_refused_and_nothing_is_removed() {
+fn a_record_that_spells_a_maker_name_removes_nothing_and_finishes_its_record() {
     let root: PathBuf = fixture("prewarm-record-spells-a-maker-name");
     let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
     std::fs::create_dir_all(entry.to.as_path()).expect("the build directory a build made");
@@ -1114,7 +1114,7 @@ fn a_record_that_spells_a_maker_name_is_refused_and_nothing_is_removed() {
     std::fs::write(theirs.as_path(), b"a person's data").expect("the person's file");
     let recorded: PrewarmEntry = PrewarmEntry { staged_in: Some(victim.clone()), from: None, ..entry.clone() };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &recorded);
-    assert!(filled.is_err(), "a record that spells a maker name over a folder the wrapper did not make is refused: {filled:?}");
+    assert!(matches!(filled, Ok(Filled::Kept)), "a record that spells a maker name over a folder the wrapper did not make is neither removed nor retried for ever: {filled:?}");
     assert_eq!(std::fs::read(theirs.as_path()).expect("the person's file is still there"), b"a person's data", "a record removed a folder the wrapper never made");
     remove(root.as_path());
 }

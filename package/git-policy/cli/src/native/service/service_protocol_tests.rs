@@ -99,6 +99,7 @@ fn service_messages_round_trip() {
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
         ServiceMessage::Position { number: 3, of: 7 },
         ServiceMessage::Heartbeat,
+        ServiceMessage::Taken,
         ServiceMessage::Withdrawn { id: String::from("x") },
         ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true, landing: None },
         ServiceMessage::Landed {

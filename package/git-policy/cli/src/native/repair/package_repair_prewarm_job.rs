@@ -664,9 +664,8 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     {
         if staged.exists() {
             crate::service_error!(
-                "monochromatic-git-policy-cli: {} holds the copied build state a prewarm moved aside, and this wrapper cannot prove it staged it, so it was left there and the record is finished; the worktree's next build compiles afresh. If it is the prewarm's, remove it: rm -rf -- {}",
-                staged.display(),
-                crate::shell_quote::shell_quote(staged.as_os_str().as_encoded_bytes())
+                "monochromatic-git-policy-cli: the prewarm record names {}, and this wrapper cannot prove it staged anything there, so it was left exactly as it is found and the record is finished; the worktree's next build compiles afresh, and nothing of that directory was read, published or removed",
+                staged.display()
             );
         }
         return Ok(Filled::Kept);

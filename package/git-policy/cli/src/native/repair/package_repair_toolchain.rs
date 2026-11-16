@@ -439,7 +439,7 @@ fn birth_read_from_a_name(written: &str) -> Option<String> {
         return None;
     }
     let mut bytes: Vec<u8> = Vec::with_capacity(written.len() / 2);
-    for pair in written.as_bytes().chunks_exact(2) {
+    for pair in written.as_bytes().as_chunks::<2>().0 {
         let text: &str = std::str::from_utf8(pair).ok()?;
         bytes.push(u8::from_str_radix(text, 16).ok()?);
     }
@@ -528,7 +528,7 @@ fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
         debug(TAG, format!("this pass's own birth could not be read, so {} is left for the next pass", record.display()).as_str());
         return None;
     };
-    let Some(aside) = a_name_only_this_pass_writes(record, birth_written_in_a_name(birth.as_str()).as_str()) else { return None };
+    let aside: PathBuf = a_name_only_this_pass_writes(record, birth_written_in_a_name(birth.as_str()).as_str())?;
     match std::fs::rename(record, aside.as_path()) {
         Ok(()) => {}
         Err(error) => {
