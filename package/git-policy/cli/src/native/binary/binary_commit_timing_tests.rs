@@ -1195,19 +1195,96 @@ fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {
     remove_settled(&fixture);
 }
 
+/// The most one entry's datagram may hold:
+/// a Unix datagram is at most sixty-four kilobytes,
+/// and the service cuts a message long before that.
+const ENTRY_BYTES: usize = 65_536;
+
+/// How long the stand-in's reading thread waits for one entry before it looks at whether it should end.
+/// A service writes its entries within milliseconds of the event,
+/// and a control then reads them at its own pace,
+/// so the wait only decides how soon the thread notices that the stand-in is gone.
+const READING_PAUSE: Duration = Duration::from_millis(200);
+
+/// What:
+///  A stand-in for the journal's socket,
+/// its reading thread,
+/// and every entry it has taken.
+/// Why:
+///   The service sends one datagram per entry and never waits for it,
+/// and an entry that finds no room goes to standard error with a `<priority>` prefix
+/// (`journald_native::Sink::deliver`),
+/// so a stand-in that nothing reads is a queue that fills.
+/// On a machine slow enough the entries of one commit filled it,
+/// and the service's next entry,
+/// the one its upkeep wrote, stood on the error stream where these controls assert nothing would
+/// (the gate of 2026-11-15T06:00-05:00, and the same control on the image of the gate before it).
+///  The thread reads for as long as the stand-in exists,
+/// so the queue always has room and a control reads what the thread took at its own pace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class NativeJournal { taken = []; thread = readForEver(socket, this.taken); received(until) { while (!until(this.taken) && waiting) sleep(5); return this.taken } }
+/// ```
+struct NativeJournal {
+    /// Every entry the stand-in has taken, oldest first, as the `NAME=value` maps the protocol writes.
+    taken: std::sync::Arc<std::sync::Mutex<Vec<std::collections::BTreeMap<String, String>>>>,
+    /// Whether the reading thread should end, which its control asks for by dropping the stand-in.
+    ending: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The thread that reads the socket, joined when the stand-in is dropped.
+    reader: Option<std::thread::JoinHandle<()>>,
+}
+
+impl NativeJournal {
+    /// What:
+    ///  The entries the stand-in has taken so far,
+    ///  waiting up to the control's patience for them to satisfy `until`.
+    /// Why:
+    ///   The reading thread takes an entry when the service sends it,
+    /// so a control waits for the entries it means to read rather than for the socket to answer,
+    ///  and a wait that ends without them answers what was taken so the failure names it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const entries = journal.received((found) => found.some((entry) => entry.MESSAGE.startsWith('answered ')));
+    /// ```
+    fn received(&self, until: impl Fn(&[std::collections::BTreeMap<String, String>]) -> bool) -> Vec<std::collections::BTreeMap<String, String>> {
+        let began: Instant = Instant::now();
+        loop {
+            let found: Vec<std::collections::BTreeMap<String, String>> = self.taken.lock().expect("the entries the stand-in took").clone();
+            if until(found.as_slice()) || began.elapsed() >= PATIENCE {
+                return found;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+}
+
+/// The thread ends only when its control says so, and the socket goes with it,
+/// which is what frees the abstract name for the control that asks a service to find nobody.
+impl Drop for NativeJournal {
+    fn drop(&mut self) {
+        self.ending.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Some(reader) = self.reader.take() {
+            let _ended = reader.join();
+        }
+    }
+}
+
 /// A receiving socket on a fresh abstract name standing for the journal,
+/// read by a thread of its own,
 /// and the settings that make a service started with
 /// its standard error in `places.log` believe the log is the journal's stream:
 /// `$JOURNAL_STREAM` names the log's device and
 /// inode,
 /// and the test-only variable names the receiver.
-fn native_journal(places: &Places, name: &str) -> (std::os::unix::net::UnixDatagram, Vec<(&'static str, String)>) {
+fn native_journal(places: &Places, name: &str) -> (NativeJournal, Vec<(&'static str, String)>) {
     use std::os::linux::net::SocketAddrExt;
     use std::os::unix::fs::MetadataExt;
     let abstract_name: String = format!("cli-git-test-journal-binary-{}-{name}", std::process::id());
     let address = std::os::unix::net::SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
     let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
-    receiver.set_read_timeout(Some(Duration::from_millis(200))).expect("a read timeout");
+    receiver.set_read_timeout(Some(READING_PAUSE)).expect("a read timeout");
     // The service opens the log in append mode when it starts; the file exists once created here.
     std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("the log");
     let log = std::fs::metadata(&places.log).expect("log metadata");
@@ -1215,24 +1292,43 @@ fn native_journal(places: &Places, name: &str) -> (std::os::unix::net::UnixDatag
         (git_policy_cli::journald_native::STREAM_VARIABLE, format!("{}:{}", log.dev(), log.ino())),
         (git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{abstract_name}")),
     ];
-    return (receiver, environment);
+    let taken: std::sync::Arc<std::sync::Mutex<Vec<std::collections::BTreeMap<String, String>>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let ending: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reader: std::thread::JoinHandle<()> = read_the_entries(receiver, std::sync::Arc::clone(&taken), std::sync::Arc::clone(&ending));
+    return (NativeJournal { taken, ending, reader: Some(reader) }, environment);
 }
 
-/// Every entry the stand-in has received so far,
-/// as `NAME=value` maps,
-/// waiting up to `patience` for the first and a moment
-/// for the rest.
-fn entries_received(receiver: &std::os::unix::net::UnixDatagram, until: impl Fn(&[std::collections::BTreeMap<String, String>]) -> bool) -> Vec<std::collections::BTreeMap<String, String>> {
-    let began: Instant = Instant::now();
-    let mut found: Vec<std::collections::BTreeMap<String, String>> = Vec::new();
-    let mut buffer: Vec<u8> = vec![0; 65_536];
-    while !until(found.as_slice()) && began.elapsed() < PATIENCE {
-        if let Ok(length) = receiver.recv(buffer.as_mut_slice()) {
+/// What:
+///  The thread that reads one datagram at a time into `taken` for as long as `ending` is unset.
+/// Why:
+///   A queue nothing reads is a queue that fills,
+/// and the entry that then finds no room goes to the error stream;
+/// reading here is what keeps room for every entry the service sends,
+///  however slow the machine is.
+/// An entry the socket has no room for in this control's own buffer would be cut,
+/// which `ENTRY_BYTES` is above for every message the service sends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (!ending) { const bytes = socket.recv(); if (bytes) taken.push(parseEntry(bytes)); }
+/// ```
+fn read_the_entries(
+    receiver: std::os::unix::net::UnixDatagram,
+    taken: std::sync::Arc<std::sync::Mutex<Vec<std::collections::BTreeMap<String, String>>>>,
+    ending: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> std::thread::JoinHandle<()> {
+    return std::thread::spawn(move || {
+        let mut buffer: Vec<u8> = vec![0; ENTRY_BYTES];
+        while !ending.load(std::sync::atomic::Ordering::SeqCst) {
+            let Ok(length) = receiver.recv(buffer.as_mut_slice()) else { continue };
             let text: String = String::from_utf8_lossy(&buffer[..length]).into_owned();
-            found.push(text.lines().filter_map(|line| { return line.split_once('=').map(|(name, value)| { return (name.to_string(), value.to_string()); }); }).collect());
+            let entry: std::collections::BTreeMap<String, String> = text
+                .lines()
+                .filter_map(|line| { return line.split_once('=').map(|(name, value)| { return (name.to_string(), value.to_string()); }); })
+                .collect();
+            taken.lock().expect("the entries the stand-in took").push(entry);
         }
-    }
-    return found;
+    });
 }
 
 /// A service whose standard error is the journal sends its entries on the native socket with a priority and fields,
@@ -1247,13 +1343,13 @@ fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_re
     let name: String = format!("timing-native-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let (receiver, environment) = native_journal(&places, "send");
+    let (journal, environment) = native_journal(&places, "send");
     let before: u128 = git_policy_cli::service_timing::wall_millis();
     let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()], environment.as_slice());
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
     let after: u128 = git_policy_cli::service_timing::wall_millis();
-    let entries = entries_received(&receiver, |found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }); });
+    let entries = journal.received(|found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }); });
     let record: serde_json::Value = records(&repo).remove(0);
     let answered = entries.iter().find(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }).expect("an answered entry");
     assert_eq!(Some(answered["CLI_GIT_REQUEST_ID"].as_str()), record["requestId"].as_str(), "the key that joins the client's record to the service's entry");
@@ -1280,7 +1376,7 @@ fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
     let fixture: Fixture = fixture("timing-native-signal");
     let name: String = format!("timing-native-signal-{}", std::process::id());
     let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/native-signal.sock"), log: fixture.root.join("native-signal.log") };
-    let (receiver, environment) = native_journal(&places, "signal");
+    let (journal, environment) = native_journal(&places, "signal");
     let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
     let before: u128 = git_policy_cli::service_timing::wall_millis();
@@ -1288,7 +1384,7 @@ fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
     assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
     let status = exit_of(&mut service, PATIENCE);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
-    let entries = entries_received(&receiver, |found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }); });
+    let entries = journal.received(|found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }); });
     let exit = entries.iter().find(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }).expect("an exiting entry");
     assert!(exit["MESSAGE"].starts_with(format!("exiting reason=signal-{} ", libc::SIGTERM).as_str()), "{exit:?}");
     assert_eq!(exit["PRIORITY"], "6");
@@ -1308,9 +1404,9 @@ fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority
     let fixture: Fixture = fixture("timing-native-gone");
     let name: String = format!("timing-native-gone-{}", std::process::id());
     let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/gone.sock"), log: fixture.root.join("gone.log") };
-    let (receiver, mut environment) = native_journal(&places, "gone");
-    drop(receiver);
-    // The abstract name is free again once the receiver is gone, so the service finds nobody to send to.
+    let (journal, mut environment) = native_journal(&places, "gone");
+    // The abstract name is free again once the stand-in and its reading thread are gone, so the service finds nobody to send to.
+    drop(journal);
     environment.retain(|(variable, _)| { return *variable != git_policy_cli::journald_native::TEST_SOCKET_VARIABLE; });
     environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{}", std::process::id())));
     let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());

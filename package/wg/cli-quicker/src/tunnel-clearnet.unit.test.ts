@@ -157,6 +157,29 @@ async function emptyRuntimeDirectory(): Promise<EmptyRuntimeDirectory> {
   };
 }
 
+/**
+ Reads what a call throws.
+
+ @param run - Call expected to throw.
+
+ @returns The thrown value,
+ or nothing when it did not throw.
+
+ @example
+ ```ts
+ await thrownBy({ run: () => Promise.reject(new Error('x')) });
+ ```
+ */
+async function thrownBy({ run, }: { readonly run: () => unknown; },): Promise<unknown> {
+  try {
+    await run();
+    return undefined;
+  }
+  catch (error) {
+    return error;
+  }
+}
+
 await describe({
   name: readClearnet.name,
   children: [
@@ -244,23 +267,27 @@ await describe({
         /**
          Failure of the state reader.
          */
-        const stateFailure = await readClearnet({
-          interfaceName: STATE.interfaceName,
-          readState: () => Promise.reject(new Error('state unreadable',),),
-          tools: listingTools({ asked: [], },),
-        },).then((): undefined => undefined, (error: unknown) => error,);
+        const stateFailure = await thrownBy({
+          run: () => readClearnet({
+            interfaceName: STATE.interfaceName,
+            readState: () => Promise.reject(new Error('state unreadable',),),
+            tools: listingTools({ asked: [], },),
+          },),
+        },);
         expect(String(stateFailure,),).toContain('state unreadable',);
         /**
          Failure of the rule listing.
          */
-        const listFailure = await readClearnet({
-          interfaceName: STATE.interfaceName,
-          readState: () => Promise.resolve(STATE,),
-          tools: {
-            ...listingTools({ asked: [], },),
-            list: () => Promise.reject(new Error('ip rule show failed',),),
-          },
-        },).then((): undefined => undefined, (error: unknown) => error,);
+        const listFailure = await thrownBy({
+          run: () => readClearnet({
+            interfaceName: STATE.interfaceName,
+            readState: () => Promise.resolve(STATE,),
+            tools: {
+              ...listingTools({ asked: [], },),
+              list: () => Promise.reject(new Error('ip rule show failed',),),
+            },
+          },),
+        },);
         expect(String(listFailure,),).toContain('ip rule show failed',);
       },
     },),
