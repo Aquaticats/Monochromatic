@@ -72,3 +72,50 @@ fn a_stream_nobody_drains_holds_no_caller() {
     drop(reader);
     drop(filled);
 }
+
+/// What:
+///  A line handed when the queue is full is answered as dropped,
+///  counted,
+///  and never written from the caller's own thread.
+/// Why:
+///  The queue's only caller (`service_timing::log_entry`) wrote such a line straight to standard error with a blocking
+///  writer, which waits for the reader for as long as the reader does not read: the queue's bound was thrown away on the
+///  line that found no room in it (the review of 2026-11-14,
+///  `change-reviews/git-policy-cli-five-library-controls-after-merging-main-the-guards-are-true-again`).
+///  This control fills the queue behind a stream nobody drains and then asks the caller for one more line: the answer is
+///  `Dropped` and the count names it, so a command's own thread has nothing to wait in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(logEntry('info', 'one line too many', [])).toBe('dropped'); expect(droppedSoFar()).toBe(before + 1);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_line_the_queue_cannot_hold_is_answered_as_dropped_instead_of_written() {
+    let capacity: usize = one_pipe_s_holding();
+    let (reader, writer) = std::io::pipe().expect("a pipe");
+    // The stream is full before the thread is given it, so the thread's first write is the one that waits.
+    let mut filled: Box<dyn Write + Send> = Box::new(writer.try_clone().expect("a second write end"));
+    let block: Vec<u8> = vec![b'.'; capacity];
+    filled.write_all(block.as_slice()).expect("the stream fills");
+    give_the_thread(Box::new(writer));
+    // Twice the queue's length, so every slot is taken whatever the thread had already taken, and the next line is the one
+    //  that finds no room.
+    let lines: usize = QUEUED_LINES.saturating_mul(2);
+    for index in 0..lines {
+        let _taken = hand(format!("a log line that nobody reads {index}\n").as_str());
+    }
+    let before: u64 = dropped_so_far();
+    let answered: crate::journald_native::Delivery =
+        crate::service_timing::log_entry(crate::journald_native::Priority::Info, "one line too many", &[]);
+    let after: u64 = dropped_so_far();
+    // The stream is closed, so the waiting thread finds it closed instead of standing in a write for the life of this process.
+    drop(reader);
+    drop(filled);
+    assert_eq!(
+        answered,
+        crate::journald_native::Delivery::Dropped,
+        "a line the queue cannot hold is dropped and counted, not written from the caller's thread"
+    );
+    assert_eq!(after, before.saturating_add(1), "the line that found no room is counted once");
+}

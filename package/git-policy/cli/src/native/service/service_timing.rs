@@ -698,13 +698,13 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     }
     // The wrapper's own standard error, where a person reads it, is written by a thread of its own, for the same reason: a
     //  command that waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12
-    //  (`service_log_lines_off_the_calling_thread.rs`). A line the queue cannot hold is written here instead, because the
-    //  wrapper's own stream, unlike a landing's, is the one worth waiting for.
-    return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) {
-        Delivery::Stderr
-    } else {
-        sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr())
-    };
+    //  (`service_log_lines_off_the_calling_thread.rs`). A line the queue cannot hold is dropped rather than written here, and
+    //  the queue counted it: a write from this thread would wait for room in a stream that has just refused to take any
+    //  (the wait this whole arrangement exists to remove), and it would land in the middle of whatever the queue's own thread
+    //  is writing. The next line the queue's thread gets through says how many were dropped before it, so a gap in a person's
+    //  log is a gap that log states; a stream that never takes another byte states nothing, and the count then lives only in
+    //  this process.
+    return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) { Delivery::Stderr } else { Delivery::Dropped };
 }
 
 /// What:

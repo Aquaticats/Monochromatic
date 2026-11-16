@@ -363,6 +363,7 @@ pub enum Delivery {
     Stderr,
     /// Nowhere:
     /// the journal's socket refused it and standard error had no room,
+    /// or the wrapper's queue of lines for its own standard error was full,
     /// so the entry was dropped and counted.
     Dropped,
 }

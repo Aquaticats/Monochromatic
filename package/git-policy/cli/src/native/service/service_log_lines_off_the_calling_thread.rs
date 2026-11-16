@@ -24,6 +24,12 @@
 //!  The stream's own file description is shared,
 //! so the thread writes to the same descriptor the caller would have written to,
 //! and nothing about where the lines go changes.
+//!  It writes through the descriptor rather than through `std::io::stderr()`:
+//! that handle is one lock for the whole process,
+//! held for as long as a write takes,
+//! and this thread may wait inside a write for as long as the reader takes,
+//! so a command's own next write to standard error would wait for this thread's
+//! with no end (`standard_error_descriptor.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -99,8 +105,9 @@ fn start_the_queue() -> &'static (Mutex<Queue>, Condvar) {
             Mutex::new(Queue { lines: VecDeque::new(), dropped: 0, writer: None }),
             Condvar::new(),
         )));
-        // The thread holds the queue for as long as this process runs; a failure to start it leaves the lines uncounted,
-        // which is the one state this file cannot report, so the process says it once and goes on writing by hand.
+        // The thread holds the queue for as long as this process runs; a failure to start it leaves the queue undrained,
+        // which is the one state this file cannot report, so the process says it once and every line past the queue's bound
+        // is then dropped with no line to carry the count.
         let spawned = std::thread::Builder::new().name(String::from("service log lines")).spawn(move || {
             write_every_line(started);
         });
@@ -146,8 +153,11 @@ fn write_every_line(started: &'static (Mutex<Queue>, Condvar)) {
             let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             match held.writer.take() {
                 Some(writer) => writer,
-                // No control owns the stream, so the lines are this process's own standard error.
-                None => Box::new(std::io::stderr()),
+                // No control owns the stream, so the lines are this process's own standard error. The descriptor itself, not
+                //  `std::io::stderr()`: that handle is one lock for the process, this thread may wait inside a write for as long
+                //  as the reader takes, and the command's own next write to standard error would then wait for this thread's
+                //  with no end.
+                None => Box::new(crate::standard_error_descriptor::StandardErrorDescriptor),
             }
         };
         // The stream may wait as long as it likes; the result is dropped because a closed log is no reason to lose the work it describes.
