@@ -39917,6 +39917,18 @@ Round eighteen (asked and answered between 21:03 and 21:05, written here at 2026
 - The fix for the empty-tree commit (`3882e11ddf`), if its author's measurement confirms that an abbreviated `git commit --amen` is refused with its index intact: **"Merge anyway; the fix follows (Recommended)"**.
 - The push of a branch another worktree shows, when a path still holds the old content after the whole wait: **"Stop the command, as built (Recommended)"**. The question held for that author's report is hereby asked and closed.
 
+Round nineteen (asked and answered at about 22:24, written here at 2026-11-15T22:26-05:00), on the review of the credential masking at `2f303f1bc9`:
+
+- The review passed eleven arrangements of store and environment (143 checks over tool results, session files, transcripts, feeds and kept files), a kill at every step of a rewrite, and two runs at once beside a foreign file;
+  it reproduced six things that each need an unusual set-up, and called both points of the narrow line "not shown" on them.
+  Asked whether those six hold the merge, the owner chose **"Merge now; fix three after (Recommended)"**.
+  So: the branch is merged, a canary run is started, the names-only scan is made, and the list of names goes to the owner for the rotation.
+  The author then fixes three in one more run: a value under eight characters in the environment for a name whose store value is long leaves the long one unmasked;
+  a declared name ending in `_FILE` with different long values in store and environment leaves the environment's unmasked;
+  a session file that Pi itself reports is masked without a proof that this run made it.
+  The other three become stated limits in the package's docs: a tool result whose `details` throws when read keeps its text;
+  a result with a cycle is withheld while its full-output file keeps the value; a full-output file in a folder that cannot be written stays as it was.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
