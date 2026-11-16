@@ -16,7 +16,7 @@ use crate::held_commit_record::{Held, write};
 use crate::push_failure_notice::{PushOutcome, notice_directory, orphaned_push_failures, record_push_failure};
 use crate::shadow_pool::pool_root_for;
 use crate::service_work::Verdict;
-use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, remove, repository, shown_notices};
+use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, remove, repository, shown_notices, spawn_owned};
 use crate::worktree_added_by_the_wrapper::record;
 use crate::worktree_clean::check_clean;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_before, registrations_of};
@@ -927,6 +927,98 @@ fn a_landed_worktree_whose_file_is_held_open_from_elsewhere_stays() {
         "the reason names the process and what it holds"
     );
     assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
+///  A landed worktree a process of this machine is working in stays when the process table could not be listed,
+///  and the line says what could not be read.
+/// Why:
+///  A table nobody can list hides every process it holds, and the reader answered "nothing works there" for it,
+///  so the sweep removed a worktree with a live process working inside it.
+///  The permission is the only difference between this state and the one the control beside it names.
+///  The helper really works in the worktree,
+///  which the kernel's own answer about its working folder shows.
+#[test]
+fn a_landed_worktree_with_a_process_inside_stays_when_its_process_table_cannot_be_listed() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let landed: Landed = a_repository_with_a_worktree("landed-table-unlistable");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let mut worker: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("120").current_dir(landed.worktree.as_path()))
+        .expect("a helper working in the worktree");
+    assert_eq!(
+        std::fs::read_link(format!("/proc/{}/cwd", worker.id())).expect("the helper's own working folder"),
+        landed.worktree,
+        "the helper really works in the worktree"
+    );
+    let table: PathBuf = a_table_with_one_process(&landed, worker.id(), Some(landed.worktree.as_path()), 1_000, 100);
+    std::fs::set_permissions(table.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a table this account may not list");
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let before: String = head_of(landed.main.as_path());
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+    let _ended = worker.kill();
+    let _waited = worker.wait();
+    std::fs::set_permissions(table.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the table is listable again");
+    assert!(sweep.removed.is_empty() && sweep.handed_over.is_empty(), "nothing is removed while a process works in the worktree: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(
+        sweep.kept[0].why.contains("nothing proves no process is working in it"),
+        "the reason says nothing proves the worktree is empty: {}",
+        sweep.kept[0].why
+    );
+    assert!(
+        sweep.kept[0].why.contains(table.display().to_string().as_str()),
+        "the reason names the table that could not be read: {}",
+        sweep.kept[0].why
+    );
+    assert!(landed.worktree.exists(), "the worktree a process is working in stands");
+}
+
+/// What:
+///  A landed worktree a process of this machine is working in stays when the process table is not there at all.
+/// Why:
+///  A machine whose table cannot be found holds processes nobody looked at,
+///  and the reader answered "nothing works there" for it,
+///  so the sweep removed a worktree with a live process working inside it.
+///  A table that is not there is the state `/proc` is in on a host whose process file system did not mount,
+///  and it is named beside a table that could not be listed because the two are one failure with two causes.
+#[test]
+fn a_landed_worktree_with_a_process_inside_stays_when_its_process_table_is_not_there() {
+    let landed: Landed = a_repository_with_a_worktree("landed-table-absent");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let mut worker: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("120").current_dir(landed.worktree.as_path()))
+        .expect("a helper working in the worktree");
+    assert_eq!(
+        std::fs::read_link(format!("/proc/{}/cwd", worker.id())).expect("the helper's own working folder"),
+        landed.worktree,
+        "the helper really works in the worktree"
+    );
+    let table: PathBuf = landed.root.join("no-such-table");
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let before: String = head_of(landed.main.as_path());
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+    let _ended = worker.kill();
+    let _waited = worker.wait();
+    assert!(sweep.removed.is_empty() && sweep.handed_over.is_empty(), "nothing is removed while a process works in the worktree: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(
+        sweep.kept[0].why.contains("nothing proves no process is working in it"),
+        "the reason says nothing proves the worktree is empty: {}",
+        sweep.kept[0].why
+    );
+    assert!(
+        sweep.kept[0].why.contains(table.display().to_string().as_str()),
+        "the reason names the table that is not there: {}",
+        sweep.kept[0].why
+    );
+    assert!(landed.worktree.exists(), "the worktree a process is working in stands");
 }
 
 /// What:
