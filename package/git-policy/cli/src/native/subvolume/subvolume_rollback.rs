@@ -602,6 +602,13 @@ pub fn remove_old_tree_seamed(
     after_pinned: &mut dyn FnMut(),
 ) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
+    // The record of what the old tree held is the only thing that can tell a file written there since the migration from one
+    //  the migration carried; without it the deletion has nothing to ask, and the person is offered both ways on.
+    if refusals.is_empty()
+        && let Some(refusal) = no_record_of_the_old_tree(run, accept_the_unrecorded_old_tree)
+    {
+        refusals.push(refusal);
+    }
     let old_path: PathBuf = run.layout.old_path.clone();
     let mut pinned: Option<PinnedRoot> = None;
     if refusals.is_empty() {

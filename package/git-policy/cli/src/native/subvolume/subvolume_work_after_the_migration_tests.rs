@@ -380,6 +380,35 @@ fn work_a_migration_that_fails_under_the_lock_leaves_no_index_lock() {
 }
 
 /// What:
+///  A checkout whose record of the old tree is gone is refused, and both ways on are named:
+///  the flag that deletes the old tree as it stands on the person's word, and deleting it by hand.
+/// Why:
+///   Without the record nothing can tell a file written into the old tree since the migration from one the migration
+///  carried,
+///  and keeping nearly the whole old tree beside the checkout would hide that from the person.
+///  The flag is the person's answer, and the refusal is only useful if it says so.
+#[test]
+fn work_a_checkout_without_a_record_is_refused_and_both_ways_on_are_named() {
+    let (parent, root) = checkout_with_worktree("work-no-record");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (migrated, migrated_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migrated, DONE, "{migrated_said}");
+    let layout: Layout = layout_of(root.as_path()).expect("layout");
+    std::fs::remove_file(layout.old_tree_record_path.as_path()).expect("the record is gone");
+    let (refused, said) = run(&platform, &remove_old_arguments(), root.as_path());
+    println!("removal code {refused}; output: {said}");
+    assert_eq!(refused, REFUSED, "a deletion nothing has a record of is refused: {said}");
+    assert!(said.contains("--accept-the-unrecorded-old-tree"), "and the flag that goes on is named: {said}");
+    assert!(said.contains("rm -rf"), "and so is deleting it by hand: {said}");
+    assert!(layout.old_path.exists(), "nothing was deleted");
+    let accepting: MigrateArguments = MigrateArguments { accept_the_unrecorded_old_tree: true, ..remove_old_arguments() };
+    let (done, done_said) = run(&platform, &accepting, root.as_path());
+    assert_eq!(done, DONE, "the person's word deletes the old tree as it stands: {done_said}");
+    assert!(!layout.old_path.exists(), "the old tree is deleted");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  The review, finding 5, as a stated limit rather than a closed window:
 ///  a write made into the old tree after the deletion's last look at its entry,
 ///  and before that entry is unlinked, is lost.
