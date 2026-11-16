@@ -13,17 +13,30 @@
  read from the code spans the brief writes every range in: two spans beside each other are two ranges, with nothing removed from
  inside either. Text no code span holds is read best effort, one word per range, because a reference cannot contain a space.
 
- A wanted line counts only where it stands as the message's own text, which `statementLinesIn` reads through CommonMark's fenced code
- blocks, block quotes and indented code blocks: a message that quotes the brief's header as an example has not written it.
+ A wanted line counts only where a renderer shows it as the message's own paragraph or heading, at any depth of list items, and
+ never inside a code block, a block quote or an HTML block: a message that quotes the brief's header as an example has not written it,
+ whether it quotes it at the top level or inside a list item.
 
  @module
  */
 
+import type {
+  Root,
+  RootContent,
+} from 'mdast';
+import remarkParse from 'remark-parse';
+import { unified, } from 'unified';
 import { codeSpansIn, } from './markdown-code-spans.ts';
 import {
   REVIEW_COMPLETE_LINE,
   REVIEW_IN_PROGRESS_LINE,
 } from './review-completion-lines.ts';
+
+/**
+ The parser that decides where a line of a message stands: CommonMark, through `remark-parse` on `unified`.
+ */
+const STATEMENT_PARSER = unified()
+  .use(remarkParse,);
 
 /**
  The label the line that names the ranges a review read begins with, as the brief writes it.
@@ -431,161 +444,57 @@ function rangesStatedIn(text: string,): readonly string[] {
 }
 
 /**
- The characters a fenced code block is made of, either of which opens and closes one.
+ The node types of a message whose lines a renderer does not show as the review's own paragraph: a code block, which is fenced or
+ indented, a block quote, and an HTML block.
  */
-const FENCE_CHARACTERS: ReadonlySet<string> = new Set<string>([
-  '`',
-  '~',
+const NODE_TYPES_THAT_QUOTE: ReadonlySet<string> = new Set<string>([
+  'code',
+  'blockquote',
+  'html',
 ]);
 
 /**
- How many of a fence's characters a fenced block is made of at least.
+ A value whose properties are readonly at every depth, which is the projection this reader needs of a tree the parser hands out
+ writable. `package/translation-repair/document-structure/src/readonly-data.ts` holds the same projection for its own trees.
  */
-const FENCE_LENGTH = 3;
-
-/**
- How many spaces a line may begin with before it is an indented code block.
- */
-const INDENTED_CODE_SPACES = 4;
-
-/**
- How many spaces a block quote's marker may follow, and a fenced block's fence or an indented block's first character.
- */
-const SPACES_BEFORE_A_MARKER = 3;
-
-/**
- One line of a message, read as what it is in CommonMark.
- */
-type ReadLine =
-  | {
-    /**
-     The line begins a fenced code block, or closes one.
-     */
-    readonly kind: 'fence';
-
-    /**
-     The character its fence is made of.
-     */
-    readonly character: string;
-
-    /**
-     How many of that character its fence holds.
-     */
-    readonly length: number;
-
-    /**
-     Whether nothing but spaces follows the fence, which is what closing one takes.
-     */
-    readonly restIsBlank: boolean;
-  }
-    | {
-      /**
-       The line is no fence.
-       */
-      readonly kind: 'no-fence';
-    };
-
-/**
- Writes what a line is as far as fenced code blocks go.
-
- @param line - one line of a message
-
- @returns the fence it opens or closes, or that it is no fence
-
- @example
- ```ts
- const read = lineReadAsAFence('```text');
- ```
- */
-function lineReadAsAFence(line: string,): ReadLine {
-  /**
-   How many spaces the line begins with.
-   */
-  const spaces = leadingSpacesIn(line,);
-  if (spaces > SPACES_BEFORE_A_MARKER) {
-    return { kind: 'no-fence', };
-  }
-  /**
-   The character the line's marker is made of, when it is one a fence is made of.
-   */
-  const character = line.charAt(spaces,);
-  if (!FENCE_CHARACTERS.has(character,)) {
-    return { kind: 'no-fence', };
-  }
-  for (let at = spaces; line.charAt(at,) === character; at += 1) {
-    /**
-     How many of the character the run under this step holds.
-     */
-    const length = (at - spaces) + 1;
-    if (length >= FENCE_LENGTH) {
-      return {
-        kind: 'fence',
-        character,
-        length,
-        restIsBlank: line.slice(at + 1,)
-          .trim()
-          === '',
-      };
-    }
-  }
-  return { kind: 'no-fence', };
+type DeepReadonlyData<Value,> = Value extends object ? {
+  readonly [Key in keyof Value]: DeepReadonlyData<Value[Key]>;
 }
+  : Value;
 
 /**
- Reads how many spaces a line begins with.
-
- @param line - one line of a message
-
- @returns the number of spaces before its first other character
-
- @example
- ```ts
- const spaces = leadingSpacesIn('    indented');
- ```
+ A node of the message's syntax tree, read and never written.
  */
-function leadingSpacesIn(line: string,): number {
-  for (let at = 0; at < line.length; at += 1) {
-    if (line.charAt(at,) !== ' ') {
-      return at;
-    }
-  }
-  return line.length;
-}
+type ANodeOfTheMessage = DeepReadonlyData<Root | RootContent>;
 
 /**
- Says whether a line stands as the message's own text: a paragraph line or a list item, which is a line that is no block quote, no
- fence and no indented code block.
-
- @param line - one line of a message
-
- @returns whether the line is the message's own text
-
- @example
- ```ts
- const counts = standsAsItsOwnText('Ranges reviewed: `main...fix/a`');
- ```
+ A node that holds other nodes.
  */
-function standsAsItsOwnText(line: string,): boolean {
-  if (line.startsWith('\t',)) {
-    return false;
-  }
+type ANodeThatHoldsOthers = ANodeOfTheMessage & {
   /**
-   How many spaces the line begins with.
+   The nodes it holds.
    */
-  const spaces = leadingSpacesIn(line,);
-  if (spaces >= INDENTED_CODE_SPACES) {
-    return false;
-  }
-  return line.charAt(spaces,) !== '>';
-}
+  readonly children: readonly ANodeOfTheMessage[];
+};
 
 /**
- Reads the lines of a message that stand as its own text.
+ The node types whose own source is the message's own text: a paragraph and a heading.
+ */
+const NODE_TYPES_THAT_ARE_THE_MESSAGE: ReadonlySet<string> = new Set<string>([
+  'paragraph',
+  'heading',
+]);
 
- A wanted line counts only where it stands as the message's own text: a paragraph line or a list item. It does not count inside a
- fenced code block, whose lines are quoted from elsewhere and run from a fence of three or more backticks or tildes to the next
- fence of the same character and at least that length; nor inside a block quote, whose lines begin with `>`; nor inside an indented
- code block, whose lines begin with four spaces or a tab. A fence nothing closes runs to the end of the message, as CommonMark says.
+/**
+ Reads the lines of a message that stand as its own text, through the CommonMark parser the workspace already holds.
+
+ A wanted line counts only where a renderer shows it as the message's own paragraph: a paragraph or a heading, inside whatever list
+ item or block quote holds it. It does not count inside a fenced or an indented code block, inside a block quote or inside an HTML
+ block, at any depth of containers, so a message that quotes the brief's header as an example has not written it. The parser
+ decides that, not a reader of lines: `src/a-review-statement-lines.ts` has met the fence a list item holds, and a line reader meets
+ the next container CommonMark has the same way.
+
+ The parser is `remark-parse`, on `unified`, which the workspace's catalog already holds.
 
  @param shown - the message or file to read
 
@@ -598,43 +507,72 @@ function standsAsItsOwnText(line: string,): boolean {
  */
 export function statementLinesIn({ shown, }: { readonly shown: string },): readonly string[] {
   /**
-   The fence that is open, and what closes it.
+   The message's syntax tree.
    */
-  const fence = {
-    open: false,
-    character: '',
-    length: 0,
-  };
+  const tree = STATEMENT_PARSER.parse(shown,);
   /**
    The lines that stand as the message's own text.
    */
   const lines: string[] = [];
-  for (const line of shown.split('\n',)) {
+  /**
+   The nodes still to read, in the order the message stands them.
+   */
+  const toRead: ANodeOfTheMessage[] = [tree,];
+  while (toRead.length > 0) {
     /**
-     What this line is as far as fences go.
+     The next node.
      */
-    const read = lineReadAsAFence(line,);
-    if (fence.open) {
-      // A line inside a fence is quoted text, whether or not it closes the fence.
-      if ((read.kind === 'fence') && (read.character === fence.character)
-        && (read.length >= fence.length)
-        && read.restIsBlank) {
-        fence.open = false;
+    const node = toRead.pop();
+    if (node === undefined) {
+      continue;
+    }
+    if (NODE_TYPES_THAT_QUOTE.has(node.type,)) {
+      continue;
+    }
+    if (NODE_TYPES_THAT_ARE_THE_MESSAGE.has(node.type,)) {
+      /**
+       Where the node's own source starts.
+       */
+      const start = node.position
+        ?.start
+        .offset;
+      /**
+       Where the node's own source ends.
+       */
+      const end = node.position
+        ?.end
+        .offset;
+      if ((start !== undefined) && (end !== undefined)) {
+        lines.push(...shown.slice(
+          start,
+          end,
+        )
+          .split('\n',),);
       }
       continue;
     }
-    if (read.kind === 'fence') {
-      fence.open = true;
-      fence.character = read.character;
-      fence.length = read.length;
-      continue;
+    if (isANodeWithChildren(node,)) {
+      // The stack reads the last pushed first, so the children go on it backwards.
+      toRead.push(...[...node.children,].toReversed(),);
     }
-    if (!standsAsItsOwnText(line,)) {
-      continue;
-    }
-    lines.push(line,);
   }
   return lines;
+}
+
+/**
+ Says whether a node holds other nodes, which is the one thing this reader needs of the tree.
+
+ @param node - the node to read
+
+ @returns whether it holds children
+
+ @example
+ ```ts
+ const holds = isANodeWithChildren({ type: 'root', children: [], },);
+ ```
+ */
+function isANodeWithChildren(node: ANodeOfTheMessage,): node is ANodeThatHoldsOthers {
+  return 'children' in node;
 }
 
 /**

@@ -632,12 +632,14 @@ so a check that refused the mark would refuse every honest review.
 A review whose file still carries the line that opens one whose runs are going was killed mid-work,
 and its file does not cover its change.
 
-A wanted line counts only where it stands as the message's own text: a paragraph line or a list item.
-It does not count inside a fenced code block, which runs from a fence of three or more backticks or tildes to a fence of the same
-character and at least that length, nor inside a block quote, whose lines begin with `>`, nor inside an indented code block, whose
-lines begin with four spaces or a tab.
-`src/a-review-statement-lines.ts` states that grammar once and every line of the statement is read through it,
-so a message that quotes the brief's header as an example is not read as having written it.
+A wanted line counts only where a renderer shows it as the message's own paragraph or heading,
+inside whatever list item holds it, at any depth of containers.
+It does not count inside a fenced code block, an indented code block, a block quote or an HTML block,
+so a message that quotes the brief's header as an example is not read as having written it,
+whether it quotes it at the top level or inside a list item.
+`src/a-review-statement-lines.ts` reads the message through CommonMark's own parser,
+`remark-parse` on `unified` from the workspace catalog,
+and states that grammar once, so every line of the statement is read through it.
 
 The ranges of that statement are read from the code spans the brief writes them in,
 so a branch whose name holds a comma, a semicolon, an underscore, a backtick or a non-breaking space

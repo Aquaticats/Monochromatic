@@ -35,13 +35,16 @@
   },
   "dependencies": {
     "@monochromatic-dev/env-local-json-core": "workspace:*",
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "remark-parse": "catalog:",
+    "unified": "catalog:"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },

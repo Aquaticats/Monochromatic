@@ -214,7 +214,7 @@ const A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS = 5_000;
  records under `$HOME/temp/agent/change-reviews`, measured 2026-11-16, is 802 bytes, and a record of 64 KiB is not one this
  package wrote.
  */
-const THE_LARGEST_RECORD_A_REVIEW_GETS_BYTES = 64 * 1024;
+const THE_LARGEST_RECORD_A_REVIEW_GETS_BYTES = 64 * 1_024;
 
 /**
  One kind of thing a record's path can be, and what a review whose record is that is answered as.
@@ -898,79 +898,80 @@ await describe({
     },),
     describe({
       name: 'a record of every kind of thing its path can be',
-      children: recordKinds()
-        .map(function oneKindAnswered(kind,) {
-          return it({
-            name: `answers a review whose record is ${kind.name} within ${String(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,)} milliseconds`,
-            fn: async () => {
-              await using folder = await makeFolder();
+      children: [
+        ...recordKinds()
+          .map(function oneKindAnswered(kind,) {
+            return it({
+              name: `answers a review whose record is ${kind.name} within ${String(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,)} milliseconds`,
+              fn: async () => {
+                await using folder = await makeFolder();
               /**
                The review's name.
                */
-              const review = 'a-round-1';
+                const review = 'a-round-1';
               /**
                The folder that holds one folder per review, and the review's own.
                */
-              const reviewFolder = join(folder.path, 'reviews',);
+                const reviewFolder = join(folder.path, 'reviews',);
               /**
                The review's own folder, with its file and its record.
                */
-              const folderOfReview = join(reviewFolder, review,);
-              await mkdir(folderOfReview, { recursive: true, },);
-              await writeFile(
-                join(folderOfReview, 'review.md',),
-                reviewOfAChange({
-                  ranges: theRangesGiven(),
-                  filesRead: theFilesGiven().length,
-                  filesListed: theFilesGiven().length,
-                },),
-                'utf8',
-              );
+                const folderOfReview = join(reviewFolder, review,);
+                await mkdir(folderOfReview, { recursive: true, },);
+                await writeFile(
+                  join(folderOfReview, 'review.md',),
+                  reviewOfAChange({
+                    ranges: theRangesGiven(),
+                    filesRead: theFilesGiven().length,
+                    filesListed: theFilesGiven().length,
+                  },),
+                  'utf8',
+                );
               /**
                The record's path and the record this package writes.
                */
-              const recordPath = join(folderOfReview, 'what-the-review-read.json',);
+                const recordPath = join(folderOfReview, 'what-the-review-read.json',);
               /**
                The record this package writes, before the kind replaces it.
                */
-              const recordText = `${JSON.stringify({
+                const recordText = `${JSON.stringify({
                 review,
                 commit: 'abc123',
                 ranges: theRangesGiven(),
                 source: 'package/a/src',
                 files: theFilesGiven(),
               }, undefined, 2)}\n`;
-              await writeFile(recordPath, recordText, 'utf8',);
-              await kind.replace({
-                recordPath,
-                recordText,
-                folder: folderOfReview,
-              },);
+                await writeFile(recordPath, recordText, 'utf8',);
+                await kind.replace({
+                  recordPath,
+                  recordText,
+                  folder: folderOfReview,
+                },);
               /**
                When the answer was asked for.
                */
-              const started = Date.now();
+                const started = Date.now();
               /**
                What the command answered, which this test kills if it has not answered within its bound.
                */
-              const ended = runSaveReviewCommand({
-                reviewFolder,
-                runsFolder: join(folder.path, 'runs',),
-                review,
-              },);
-              expect(Date.now() - started,).toBeLessThan(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,);
-              if (kind.expectation === 'does-not-cover') {
-                expect(ended.stdout,).toContain(`${review}: has its review.md, and whether it covers its change cannot be told`,);
-                expect(ended.status,).toBe(1,);
-              }
-              else {
-                expect(ended.stdout,).toContain(`${review}: has its review.md, which states the ranges it was given`,);
-                expect(ended.status,).toBe(0,);
-              }
-            },
-          },);
-        },)
-        .concat(recordKinds()
+                const ended = runSaveReviewCommand({
+                  reviewFolder,
+                  runsFolder: join(folder.path, 'runs',),
+                  review,
+                },);
+                expect(Date.now() - started,).toBeLessThan(A_RECORD_IS_ANSWERED_WITHIN_MILLISECONDS,);
+                if (kind.expectation === 'does-not-cover') {
+                  expect(ended.stdout,).toContain(`${review}: has its review.md, and whether it covers its change cannot be told`,);
+                  expect(ended.status,).toBe(1,);
+                }
+                else {
+                  expect(ended.stdout,).toContain(`${review}: has its review.md, which states the ranges it was given`,);
+                  expect(ended.status,).toBe(0,);
+                }
+              },
+            },);
+          },),
+        ...recordKinds()
           .map(function oneKindJudgedAfter(kind,) {
             return it({
               name: `judges the review after one whose record is ${kind.name}`,
@@ -985,6 +986,7 @@ await describe({
                  */
                 const reviewFolder = join(folder.path, 'reviews',);
                 await mkdir(reviewFolder, { recursive: true, },);
+                /* oxlint-disable eslint/no-await-in-loop -- one review after another, because each is written into its own folder and the save reads them in the order a run would write them. */
                 for (const review of reviews) {
                   /**
                    That review's own folder.
@@ -1012,6 +1014,7 @@ await describe({
                     'utf8',
                   );
                 }
+                /* oxlint-enable eslint/no-await-in-loop */
                 /**
                  The first review's own folder and record.
                  */
@@ -1047,7 +1050,8 @@ await describe({
                 }
               },
             },);
-          },)),
+          },),
+      ],
     },),
     describe({
       name: 'the command that saves a review',

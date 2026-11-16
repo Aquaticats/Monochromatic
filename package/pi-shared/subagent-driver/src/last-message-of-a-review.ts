@@ -29,11 +29,7 @@ import {
   readingFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
-import {
-  type ReviewReading,
-  ReviewReadingError,
-  readingIn,
-} from './material-of-a-review.ts';
+import { readTheRecordOfAReview, } from './a-record-a-review-was-given.ts';
 import {
   type ReviewCoverage,
   answerOfAReview,
@@ -280,41 +276,6 @@ function sessionFileOfARun({
 }
 
 /**
- Reads what a review recorded it read, or nothing when the record is not there or cannot be read as one.
-
- @param file - the file the record was written to
-
- @returns the reading, or nothing at all when nothing readable is kept there
-
- @example
- ```ts
- const read = await readingIfReadable('/reviews/a/what-the-review-read.json');
- ```
- */
-async function readingIfReadable(file: string,): Promise<{ readonly reading?: ReviewReading }> {
-  try {
-    return {
-      reading: readingIn({
-        shown: await readFile(
-          file,
-          'utf8',
-        ),
-        file,
-      },),
-    };
-  }
-  catch (error) {
-    // A review whose record is missing, or cannot be read as one, gives nothing to judge its own file against; the line the
-    // caller prints says so rather than ending the command that reads several reviews.
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof ReviewReadingError)
-      || (error instanceof SyntaxError)) {
-      return {};
-    }
-    throw error;
-  }
-}
-
-/**
  Reads a review's own file against the record beside it, and answers the line that says what the review covered.
 
  @param review - the review's name
@@ -363,7 +324,7 @@ async function reviewAsRead({
       'utf8',
     ),
     readingFile,
-    ...(await readingIfReadable(readingFile,)),
+    ...(await readTheRecordOfAReview({ file: readingFile, },)),
   },);
   return {
     review,

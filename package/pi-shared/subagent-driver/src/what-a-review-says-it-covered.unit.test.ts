@@ -332,7 +332,8 @@ const CONTAINERS: readonly AContainer[] = [
   {
     name: 'an ordered list item padded with a tab',
     firstMarker: '1.\t',
-    continuation: '   ',
+    // A tab after `1.` reaches the fourth column, so the item's content and its continuation stand four spaces in.
+    continuation: '    ',
     own: true,
   },
   {
@@ -374,10 +375,10 @@ function insideEveryContainer({
   readonly nesting: readonly AContainer[];
   readonly lines: readonly string[];
 },): readonly string[] {
-  return nesting.reduceRight(function inside(inside, container,) {
+  return nesting.reduceRight(function wrapped(content, container,) {
     return insideOneContainer({
       container,
-      lines: inside,
+      lines: content,
     },);
   }, lines,);
 }
@@ -408,7 +409,7 @@ type AContainerRow = {
 function theStatementLines(): readonly string[] {
   return [
     REVIEW_COMPLETE_LINE,
-    `Ranges reviewed: \`${theRangesGiven().join('\`, \`',)}\``,
+    `Ranges reviewed: \`${theRangesGiven().join('`, `',)}\``,
     `Files read in full: ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)}`,
   ];
 }

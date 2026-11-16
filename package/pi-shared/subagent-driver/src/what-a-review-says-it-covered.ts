@@ -263,6 +263,8 @@ function sameRanges({
 
  @param readingFile - the file the record is read from, which a message names when nothing can be told
 
+ @param readingProblem - why nothing readable is kept there, when the reader found a reason, such as a path that is no regular file
+
  @returns what the review is answered as
 
  @example
@@ -274,10 +276,12 @@ export function coverageOfAReview({
   shown,
   reading,
   readingFile,
+  readingProblem,
 }: {
   readonly shown: string;
   readonly reading?: ReviewReading;
   readonly readingFile: string;
+  readonly readingProblem?: string;
 }): ReviewCoverage {
   /**
    What the review's own file says about whether its work is done, which is read first: a file its reviewer was killed before
@@ -293,7 +297,9 @@ export function coverageOfAReview({
   if (reading === undefined) {
     return {
       kind: 'cannot-be-told',
-      why: `nothing kept in ${readingFile} can be read as what this review was given`,
+      why: `nothing kept in ${readingFile} can be read as what this review was given${
+        (readingProblem === undefined) ? '' : ` (${readingProblem})`
+      }`,
     };
   }
   // A record written before this statement was asked for names no file its brief listed, and the review it belongs to holds no
@@ -418,6 +424,8 @@ function sentenceOfCoverage({ coverage, }: { readonly coverage: ReviewCoverage }
 
  @param readingFile - the file the record is read from, which a message names when nothing can be told
 
+ @param readingProblem - why nothing readable is kept there, when the reader found a reason
+
  @returns the review's coverage, the words for it, and whether it covers its change
 
  @example
@@ -429,10 +437,12 @@ export function answerOfAReview({
   shown,
   reading,
   readingFile,
+  readingProblem,
 }: {
   readonly shown: string;
   readonly reading?: ReviewReading;
   readonly readingFile: string;
+  readonly readingProblem?: string;
 }): ReviewAnswer {
   /**
    What the review's own file says.
@@ -441,6 +451,7 @@ export function answerOfAReview({
     shown,
     readingFile,
     ...((reading === undefined) ? {} : { reading, }),
+    ...((readingProblem === undefined) ? {} : { readingProblem, }),
   },);
   return {
     coverage,
