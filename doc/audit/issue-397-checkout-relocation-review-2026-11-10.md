@@ -78,7 +78,8 @@ A copied tree therefore keeps writing to the source repository's administration.
 
 - The `translation-repair` nested worktree the issue names is gone.
   The class of nested worktree it stands for remains.
-- `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`.
+- `package/desktop-daemon/hall-monitor` is now `package-paused/hall-monitor/daemon`
+  (renamed to `package/hall-monitor/daemon` on 2026-10-29 and paused 2026-11-16).
 - `package/figma/kiwi/src/verify.ts` derives its export directory from `homedir()`,
   so "hardcodes one user's directory" no longer holds,
   though the data still lives outside the repository.

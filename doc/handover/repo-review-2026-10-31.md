@@ -15,6 +15,7 @@
 > `package/build/css` is now `package/css/cli` (2026-10-29 `592d78b143`).
 > `package/module/translation-repair` is now split across the 36 packages under
 > `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `package/hall-monitor/daemon` is now `package-paused/hall-monitor/daemon` (2026-11-16).
 
 ## Task (user instructions)
 

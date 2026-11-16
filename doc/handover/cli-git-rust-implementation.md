@@ -1524,7 +1524,6 @@ the tests removing their own `rn-*-0` and `rt-*-0` folders, and the binary tests
 
 **Owed from the owner's answers and not started** (each a run or an act of its own; the four named as started are no longer owed):
 the `rn-*-0` and `rt-*-0` folders older than a day deleted and the tests made to clean up;
-`hall-monitor` moved to `package-paused`;
 `monochromatic-lint --fix` following oxlint's;
 the IDE's wrap tests moved to the CSS rule;
 images of containers exited for 24 hours removed by cargo-shadow's cleanup;

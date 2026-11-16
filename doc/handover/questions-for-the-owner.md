@@ -308,12 +308,6 @@ Each record is cited so the context is one read away.
   or by treating known scratch roots like a repository root.
   Neither is built.
   Is either wanted?
-- `package/hall-monitor/daemon` fails its own `lint:oxlint` on `test-import(require-eventual-artifact)`,
-  two findings before and four now that it has the tests issue 1297 asked for.
-  The rule needs an import from a built artifact,
-  and that package has none.
-  Should it gain a `dist` build,
-  or an exemption?
 - `mpm-shadow` launcher records named a folder carrying the version,
   so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
   The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
