@@ -419,3 +419,7 @@ pub fn subject_of(message: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 #[path = "repo_read_tree_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "repo_read_tree_store_forms_tests.rs"]
+mod store_forms_tests;
