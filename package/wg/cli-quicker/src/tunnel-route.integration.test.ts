@@ -314,7 +314,7 @@ const activated = await runFixtureCli({
   configPath,
 },);
 assert.equal(activated.exitCode, 0, activated.stderr,);
-assert.ok(activated.stderr.includes(`Config for ${configPath} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox, Firefox Nightly, ChatGPT, Interpreter, Qure, and OdyTTY will use the tunnel.`,),);
+assert.ok(activated.stderr.includes(`Config for ${configPath} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox, Firefox Nightly, ChatGPT, Interpreter, Qure, OdyTTY and Pi will use the tunnel.`,),);
 assert.ok(activated.stderr.includes('Add `ExemptMark = 100` under `[Interface]`',),);
 /**
  Positive interface fwmark naming policy table.

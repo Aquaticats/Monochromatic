@@ -34,7 +34,7 @@ use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
-use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
+use crate::service_runtime_build_report::{EXIT_NO_WORKER, no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
@@ -242,7 +242,7 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
     };
     if start_what_the_service_cannot_serve_without("the after-commit work", work).is_none() {
         crate::service_error!("{}", no_worker_words("the after-commit work"));
-        std::process::exit(4);
+        std::process::exit(EXIT_NO_WORKER);
     }
 }
 

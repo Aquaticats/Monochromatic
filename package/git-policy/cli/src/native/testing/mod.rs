@@ -27,6 +27,11 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// Which folder a runtime directory stands in, and the runtime directory built to a length inside it;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod runtime_directory_folders;
+
 /// The size the platform lets one command-line argument or one environment string reach,
 /// for controls that prove a value cannot travel that way;
 /// never part of the release executable.
