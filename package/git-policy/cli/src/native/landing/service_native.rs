@@ -280,7 +280,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptureTaken).map_err(|error| {
             return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
         })?;
-        asked_for = the_commit_that_was_asked_for(input, commit_args.as_slice(), kept.as_deref());
+        asked_for = the_commit_that_was_asked_for(input, commit_args.as_slice(), kept.as_deref(), carry_conclusion);
         // What: A control may hold the commit at this instant, with what it asked for known and no shadow yet taken
         //       (`transaction_phase.rs`, `Phase::CommitCaptured`).
         // Why:  A scratch that goes here has not been read by any Git start of the build, and no other instant of a build
@@ -717,12 +717,20 @@ fn the_form_of_the_commit(arguments: &[OsString]) -> TheFormOfTheCommit {
 /// ```ts
 /// const parents = amends ? undefined : [base, ...mergeHeadLines(gitDir)];
 /// ```
-fn expected_parents_of(input: &BuildInput<'_>) -> Asked<Vec<String>> {
+fn expected_parents_of(input: &BuildInput<'_>, carries_the_conclusion: bool) -> Asked<Vec<String>> {
     let mut parents: Vec<String> = Vec::new();
     if let crate::transaction_journal::Base::Commit(base) = &input.capture.base {
         parents.push(base.clone());
     }
+    // What: The commits the real merge state names are parents only when this build carries that state into the shadow.
+    // Why:  A commit that names paths while a merge is unfinished carries none of it (`carry_conclusion` in
+    //       `build_with_git`), and real Git builds an ordinary commit from such a command with the captured base alone,
+    //       leaving the merge open. Appending the real `MERGE_HEAD` there asked for a parent the commit could never have,
+    //       and refused a valid commit (the tenth review's second finding; integration pass 57's thirteen controls).
     let merge_head: PathBuf = input.capture.layout.git_dir.join("MERGE_HEAD");
+    if !carries_the_conclusion {
+        return Asked::Known(parents);
+    }
     // What: A `MERGE_HEAD` that cannot be read is a parent list nobody can name, and never a merge's absence.
     // Why:  A merge whose real `MERGE_HEAD` went unread would be expected as a one-parent commit and accepted as one,
     //       which is the commit the sixth review found a merge's shadow could become (`conclusion_cleanup.rs`).
@@ -756,7 +764,12 @@ fn expected_parents_of(input: &BuildInput<'_>) -> Asked<Vec<String>> {
 /// ```ts
 /// const asked = { parents, tree: writeTree(capturedIndex) };
 /// ```
-fn the_commit_that_was_asked_for(input: &BuildInput<'_>, commit_args: &[OsString], kept: Result<&[u8], &std::io::Error>) -> AskedForCommit {
+fn the_commit_that_was_asked_for(
+    input: &BuildInput<'_>,
+    commit_args: &[OsString],
+    kept: Result<&[u8], &std::io::Error>,
+    carries_the_conclusion: bool,
+) -> AskedForCommit {
     let form: TheFormOfTheCommit = the_form_of_the_commit(commit_args);
     // What: Each form says for itself what tree and what parents its commit must have.
     // Why:  The forms differ, and a shared branch of a boolean once said "no tree to hold" for `--fixup=amend:`,
@@ -765,7 +778,7 @@ fn the_commit_that_was_asked_for(input: &BuildInput<'_>, commit_args: &[OsString
         TheFormOfTheCommit::AmendsTheLastCommit => {
             Asked::LeftOut("an amend's parents are the amended commit's, and this command has not read it")
         }
-        TheFormOfTheCommit::CarriesTheIndex | TheFormOfTheCommit::CarriesTheRewordedTree => expected_parents_of(input),
+        TheFormOfTheCommit::CarriesTheIndex | TheFormOfTheCommit::CarriesTheRewordedTree => expected_parents_of(input, carries_the_conclusion),
         TheFormOfTheCommit::GitRefusesIt => Asked::LeftOut("the line is not one Git accepts, so no commit is built from it"),
     };
     if form == TheFormOfTheCommit::GitRefusesIt {
@@ -852,16 +865,70 @@ fn rebuild_the_private_index(input: &BuildInput<'_>) -> Result<(), String> {
         commit_index: input.commit_index.to_path_buf(),
         object_directory: object_directory.clone(),
     };
-    let tree: String = crate::service_replay::captured_tree(input.context, input.cwd, captured.as_path(), object_directory.as_path())
-        .map_err(|stop| { return format!("{stop:?}"); })?;
-    return crate::commit_index::initialize_retry_index(
-        input.context,
-        input.cwd,
-        input.capture.layout.real_index_path.as_path(),
-        &indexes,
-        tree.as_str(),
-    )
-    .map_err(|error| { return error.to_string(); });
+    let base_revision: String = crate::capture_invocation::base_revision(input.capture);
+    let selection: crate::commit_index::IndexSelection<'_> = crate::commit_index::IndexSelection {
+        mode: input.mode,
+        pathspecs: input.pathspecs,
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: input.selected_privately,
+        stage_tracked_changes: input.staged_all,
+        base_revision: base_revision.as_str(),
+    };
+    match input.mode {
+        // What: A commit of named paths is rebuilt from the base the commit is made on and the named paths' worktree
+        //       bytes, which is exactly what the preparation builds for that form.
+        // Why:  The policies' capture is the whole real index, and rebuilding from it landed work the command did not name
+        //       (the tenth review's first finding). The named paths are the command's own, and the base is the commit the
+        //       wrapper announced.
+        crate::transaction_journal::TransactionMode::ExplicitPath => {
+            if input.pathspecs.is_empty() {
+                return Err(String::from(
+                    "the paths this commit names come from a pathspec file and cannot be restated, so the private index cannot be rebuilt",
+                ));
+            }
+            crate::commit_index::initialize_retry_index(
+                input.context,
+                input.cwd,
+                input.capture.layout.real_index_path.as_path(),
+                &indexes,
+                base_revision.as_str(),
+            )
+            .map_err(|error| { return error.to_string(); })?;
+            crate::commit_selection_staging::add_selected_paths(
+                input.context,
+                input.cwd,
+                input.capture.layout.repository_root.as_path(),
+                &indexes,
+                &selection,
+            )
+            .map_err(|failure| { return format!("{failure:?}"); })?;
+            return Ok(());
+        }
+        // What: An index commit's private index is the person's index as the policies captured it, with `-a`'s staging
+        //       applied when the command asked for it.
+        // Why:  That is the index the preparation wrote, so the commit built from it is the one the command asked for.
+        crate::transaction_journal::TransactionMode::Index => {
+            if input.selected_privately {
+                return Err(String::from(
+                    "an --include, --patch or --interactive selection cannot be restated, so the private index cannot be rebuilt",
+                ));
+            }
+            std::fs::copy(captured.as_path(), input.commit_index).map_err(|error| { return error.to_string(); })?;
+            if input.staged_all {
+                let request: crate::transaction_git::GitRequest = crate::private_index_request::indexed_request(
+                    input.context,
+                    input.cwd,
+                    &["add", "--update", "--", ":/"],
+                    Some(input.commit_index),
+                    Some(object_directory.as_path()),
+                )
+                .own_pathspecs();
+                crate::transaction_git::run_git_checked(input.context, &request).map_err(|failure| { return failure.to_string(); })?;
+            }
+            return Ok(());
+        }
+    }
 }
 
 /// What:
