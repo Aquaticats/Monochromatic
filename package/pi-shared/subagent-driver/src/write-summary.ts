@@ -166,7 +166,7 @@ export function earlierAttemptProblemOf({
  */
 async function recordsInTheRunFolderOf({ runFolder, }: { readonly runFolder: string },): Promise<readonly string[]> {
   try {
-    return (await readdir(runFolder,)).sort();
+    return (await readdir(runFolder,)).toSorted();
   }
   catch (error) {
     // A folder that is not there holds nothing, which is what a run folder made for this run looks like before the run makes it.
