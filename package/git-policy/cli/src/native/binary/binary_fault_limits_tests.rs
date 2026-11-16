@@ -171,6 +171,20 @@ struct Case {
     service_end: Option<ServiceEnd>,
 }
 
+/// What:
+///  Whether the limit a case was given is one under which a commit works.
+/// Why:
+///  The search for the smallest such limit and the case above the boundary both ask this one question,
+/// so the rule it holds is written once;
+/// and the answer is the repository's own state:
+/// the branch holds one commit more than it did before the limited attempt,
+/// which neither a line a service wrote nor the wrapper's exit can stand for.
+///  The second fact of a working commit, that its command returned success,
+/// comes with the control below (`a_case_that_lands_its_commit_while_its_command_failed_...`).
+fn a_commit_works(case: &Case) -> bool {
+    return case.landed;
+}
+
 /// One commit with `service` limits on the commit service and `wrapper` limits on the wrapper,
 /// then the pressure ends (and,
 /// when
@@ -398,11 +412,88 @@ fn sweep(label: &str, values: &[u64], limits_for: fn(u64) -> (Vec<Limit>, Vec<Li
     return (landed.load(Ordering::SeqCst), refused.load(Ordering::SeqCst));
 }
 
-/// Whether a commit lands with this side limited to `value`,
-/// for the search for the smallest value that lets it land.
+/// Whether a commit works with this side limited to `value`,
+/// for the search for the smallest value under which a commit works.
 fn lands_with(label: &str, value: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> bool {
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(value);
-    return run_case(format!("{label}-probe-{value}").as_str(), service.as_slice(), wrapper.as_slice(), true, false, None).landed;
+    return a_commit_works(&run_case(format!("{label}-probe-{value}").as_str(), service.as_slice(), wrapper.as_slice(), true, false, None));
+}
+
+/// How an exit status of `1` is written in the wait status that `ExitStatusExt::from_raw` takes:
+/// the exit code stands in the byte above the low eight bits,
+/// and the low eight bits are the signal's place,
+/// which is zero for a process that exited by itself.
+const EXIT_ONE_AS_A_WAIT_STATUS: i32 = 1 << 8;
+
+/// What:
+///  A case that no command made, for the controls of the rules this file holds a case to.
+/// Why:
+///  Those rules are about the two facts a case carries apart,
+/// and a real case shows them only where a limit happens to produce them:
+/// no limit this host's searches tried has produced a commit that landed while its command returned failure
+/// (measured 2026-11-15 at 42 to 56 MiB, recorded in `doc/handover/cli-git-rust-implementation.md`),
+/// so a control of that rule needs a case that carries the facts without a command, and the numbers here only name a
+///  stand-in.
+fn a_stand_in_case(landed: bool, returned_success: bool) -> Case {
+    let (commits_before, commits_after): (&str, &str) = if landed { ("1", "2") } else { ("1", "1") };
+    return Case {
+        landed,
+        returned_success,
+        commits_before: String::from(commits_before),
+        commits_after: String::from(commits_after),
+        status: std::process::ExitStatus::from_raw(if returned_success { 0 } else { EXIT_ONE_AS_A_WAIT_STATUS }),
+        stderr: String::from("a stand-in command's standard error"),
+        verdict: Ok(()),
+        limited_log: String::from("a stand-in limited log"),
+        recovery_log: String::from("a stand-in recovery log"),
+        service_end: None,
+    };
+}
+
+/// What:
+///  A stand-in case that landed its commit while its command returned failure is not a limit under which a commit works,
+///  neither for the search that finds the smallest such limit nor for the assertion above the boundary.
+/// Why:
+///  The wrapper's own rule is that a commit never fails,
+/// and a branch that moved while the command said it did not is that rule broken in the one way a person cannot miss:
+/// the commit is there and the command claimed failure.
+/// A control that counted such a case as a working commit would pass on the very outcome the control exists to catch.
+///  The assertion above the boundary is held to the same rule by calling it here,
+/// because it is the place a person reads when the case it judges is not one where a commit works.
+#[test]
+fn a_case_that_lands_its_commit_while_its_command_failed_is_not_one_where_a_commit_works() {
+    assert!(a_commit_works(&a_stand_in_case(true, true)), "a commit that landed through a command that returned success is one where a commit works");
+    let failed_ending: Case = a_stand_in_case(true, false);
+    assert!(
+        !a_commit_works(&failed_ending),
+        "a commit landed and its command ended with {}, and that was counted as a limit under which a commit works, so the search would answer that limit and the case above the boundary would pass on it",
+        failed_ending.status
+    );
+    assert!(!a_commit_works(&a_stand_in_case(false, true)), "a command that returned success without a commit is not one where a commit works");
+    assert!(!a_commit_works(&a_stand_in_case(false, false)), "neither fact holds, so no commit works here");
+    // The assertion above the boundary is asked the same question, for the case that fails the rule and for the one that
+    //  holds it. A panic is what it raises, and its words are what a person reads, so they are read here and not printed.
+    let lands_at: u64 = mebibytes_of_the_search_step_and_one_thread_pair();
+    let room: u64 = lands_at.saturating_mul(2);
+    let printed = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let refused: std::thread::Result<()> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_the_commit_above_the_boundary_works(&a_stand_in_case(true, false), room, lands_at);
+    }));
+    let accepted: std::thread::Result<()> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_the_commit_above_the_boundary_works(&a_stand_in_case(true, true), room, lands_at);
+    }));
+    std::panic::set_hook(printed);
+    let said: String = match refused {
+        Ok(()) => panic!("the assertion above the boundary accepted a commit that landed while its command returned failure"),
+        Err(payload) => match payload.downcast_ref::<String>() {
+            Some(text) => text.clone(),
+            None => payload.downcast_ref::<&str>().map_or_else(|| { return String::from("(a panic with no text)"); }, |text| { return (*text).to_string(); }),
+        },
+    };
+    assert!(said.contains("returned success: false"), "the message says which of the two facts failed: {said}");
+    assert!(said.contains("standard error said"), "the message carries the wrapper's own words: {said}");
+    assert!(accepted.is_ok(), "a commit that landed through a command that returned success is the case above the boundary this control needs");
 }
 
 /// The wrapper keeps `value` descriptors.
@@ -1181,6 +1272,32 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
 }
 
 /// What:
+///  Fails, with the two facts apart, when the case above the boundary is not one where a commit works under the limit it
+///  was given.
+/// Why:
+///  The case above the boundary carries the landing this control exists for,
+/// so a case there that no commit landed in fails here and is not counted as one more refusal of the sweep:
+/// the totals below would hide it while any case of the sweep landed.
+///  The message says what happened in the two facts apart:
+/// the branch, which is the commit,
+/// and the wrapper, which is its own ending and words;
+/// each service log is under its own label, so the recovery's landing cannot be read as the limited attempt's.
+fn assert_the_commit_above_the_boundary_works(above: &Case, room: u64, lands_at: u64) {
+    assert!(
+        above.landed,
+        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and the commits on the repository's branch were {} before the limited attempt and {} after it, before the recovery ran; the wrapper ended {} and its standard error said: {}
+what the limited attempt's service wrote: {}
+what the service wrote while the recovery ran, whose commit is not the one this case is about: {}",
+        above.commits_before,
+        above.commits_after,
+        above.status,
+        above.stderr,
+        above.limited_log,
+        above.recovery_log
+    );
+}
+
+/// What:
 ///  An address space of each size on the wrapper,
 ///  from the smallest under which a commit lands downward (sizes in mebibytes),
 ///  and one limit above that smallest:
@@ -1216,23 +1333,7 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
     let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true, None);
     assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
-    // The case above the boundary carries the landing, so a case that lands no commit there fails here and is not counted
-    //  as one more refusal of the sweep: the totals below would hide it while any case of the sweep landed.
-    //  The message says what happened in the two facts apart: the branch, which is the commit, and the wrapper, which is
-    //  its own ending and words; each service log is under its own label, so the recovery's landing cannot be read as the
-    //  limited attempt's.
-    assert!(
-        above.landed,
-        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and the commits on the repository's branch were {} before the limited attempt and {} after it, before the recovery ran; the wrapper ended {} and its standard error said: {}
-what the limited attempt's service wrote: {}
-what the service wrote while the recovery ran, whose commit is not the one this case is about: {}",
-        above.commits_before,
-        above.commits_after,
-        above.status,
-        above.stderr,
-        above.limited_log,
-        above.recovery_log
-    );
+    assert_the_commit_above_the_boundary_works(&above, room, lands_at);
     let landed: usize = swept_landed + usize::from(above.landed);
     let refused: usize = swept_refused + usize::from(!above.landed);
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
