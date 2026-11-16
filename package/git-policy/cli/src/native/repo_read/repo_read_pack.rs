@@ -460,8 +460,10 @@ impl Pack {
     /// so a ceiling of this reader's own would refuse a tree Git reads.
     ///  The walk keeps a stack of its own instead of recursing,
     /// and it ends on three proofs:
-    /// an entry it has already looked at ends the walk (a chain that comes back to itself),
-    /// a length past the number of entries the pack holds ends it (a chain the pack cannot hold),
+    /// every delta states a base at a lower offset,
+    ///  so a walk only ends,
+    /// and a distance of zero ends it at once (a chain that would come back to its own entry);
+    /// a walk past the number of entries the pack states it holds ends it (a chain the pack cannot hold);
     /// and an offset outside the pack ends it.
     ///
     /// In TS you'd write (pseudocode):
@@ -499,19 +501,16 @@ impl Pack {
     fn rebuild(&self, offset: u64, by_name: &dyn BaseByName) -> Option<RawObject> {
         // Each frame: the entry's own offset, where its delta begins, and how many bytes the delta holds.
         let mut frames: Vec<(u64, u64, usize)> = Vec::new();
-        let mut visited: Vec<u64> = Vec::new();
+        let mut walked: u64 = 0;
         let mut at: u64 = offset;
         let mut base: RawObject = loop {
             if let Some(kept) = self.cache.borrow().get(&at) {
                 break kept.clone();
             }
-            if visited.contains(&at) {
-                return None;
-            }
-            visited.push(at);
-            // Every entry of the walk is a distinct entry of the pack, and the pack states how many it holds:
+            // Every entry of the walk is an entry of the pack, and the pack states how many it holds:
             // a walk longer than that is a chain no pack of this size can hold.
-            if visited.len() as u64 > self.count {
+            walked += 1;
+            if walked > self.count {
                 return None;
             }
             if at < 12 || at >= self.data_length {
@@ -525,6 +524,10 @@ impl Pack {
                 Entry::Base { kind, size } => break self.base_object(kind, at.checked_add(header)?, size)?,
                 Entry::OfsDelta { distance, size } => {
                     frames.push((at, at.checked_add(header)?, size));
+                    if distance == 0 {
+                        // A base at the delta's own offset is a chain that never ends; Git's own index refuses it too.
+                        return None;
+                    }
                     at = at.checked_sub(distance)?;
                 }
                 Entry::RefDelta { name, size } => {
