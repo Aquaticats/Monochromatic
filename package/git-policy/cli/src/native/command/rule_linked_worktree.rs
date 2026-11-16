@@ -46,6 +46,7 @@ use crate::command_discard::{
     Discard, abort_discard, checkout_discard, checkout_index_reading, move_reading, read_tree_discard,
     remove_reading, restore_reading, skip_discard, switch_discard,
 };
+use crate::command_checkout_index_table::{CHECKOUT_INDEX_IGNORE_SKIP_WORKTREE_BITS, CHECKOUT_INDEX_TABLE};
 use crate::command_checkout_table::{CHECKOUT_TABLE, IGNORE_SKIP_WORKTREE_BITS};
 use crate::command_options::{DEFAULT_MODE, OptionError, OptionErrorKind, parse_options};
 use crate::command_options_query::is_enabled;
@@ -382,22 +383,31 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
         // What:
         //  Which edits a form that writes paths replaces, the one a `skip-worktree` mark hides included.
         // Why:
-        //  The written paths are the question, not the form that names them:
-        //  a tree written over named paths replaces the file the mark names
+        //  Two words decide it, and either one is enough.
+        //  The written paths are one: a tree written over named paths replaces the file the mark names
         //  (`checkout <tree> -- <path>`, `restore --source <tree> -- <path>`, and either of them with
         //  `--pathspec-from-file=<file>`), and a forced `mv` replaces the destination that way too,
         //  while a whole-tree write, an index write, a `read-tree` and a `checkout-index` keep it
         //  (each measured on this host with native Git 2.56.0, 2026-11-15).
-        //  A form that names no tree path answers the plain question.
-        //  `--ignore-skip-worktree-bits` is the person telling Git to ignore the mark, and Git then writes the file
-        //  the mark named, which is their own decision.
-        GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree | GuardedCommand::Move => {
+        //  `--ignore-skip-worktree-bits` is the other: it tells Git to write the entries the marks hide,
+        //  whichever form carries it, so `checkout-index -f --ignore-skip-worktree-bits -a`,
+        //  `checkout --ignore-skip-worktree-bits -- <path>` and `restore --ignore-skip-worktree-bits -- <path>`
+        //  each replace the edit the mark hides
+        //  (measured on this host with native Git 2.56.0, 2026-11-16, and the axis of every option of every
+        //  guarded table walks it).
+        //  Asking the mark here is not going beyond Git: the command writes the file,
+        //  and the person's edit in it is gone either way, so the guard refuses and the hatch runs it as typed.
+        GuardedCommand::CheckoutPaths
+        | GuardedCommand::RestoreWorktree
+        | GuardedCommand::Move
+        | GuardedCommand::CheckoutIndex => {
             let written: Option<crate::command_written_paths::WrittenPaths> =
                 crate::command_written_paths::written_paths(command, region);
             let writes_a_marked_edit: bool = written
                 .as_ref()
-                .is_some_and(crate::command_written_paths::writes_over_an_edit_a_mark_hides);
-            if writes_a_marked_edit && !ignores_skip_worktree_bits(command, region) {
+                .is_some_and(crate::command_written_paths::writes_over_an_edit_a_mark_hides)
+                || ignores_skip_worktree_bits(command, region);
+            if writes_a_marked_edit {
                 return Some(DirtyQuestion::Worktree(DirtyScope::TrackedAndSkipWorktreeEdits));
             }
             return Some(DirtyQuestion::Worktree(DirtyScope::Tracked));
@@ -445,15 +455,18 @@ fn reaches_a_skipped_edit(region: &[OsString]) -> bool {
 }
 
 /// What:
-///  Whether a `checkout` or `restore` region tells Git to ignore the `skip-worktree` mark.
+///  Whether a `checkout`, `restore` or `checkout-index` region tells Git to write the entries a
+///  `skip-worktree` mark hides.
 /// Why:
-///  `--ignore-skip-worktree-bits` is the person asking for the file the mark hides to be written,
-///  so the mark is no loss that form causes;
-///  refusing then would go beyond what Git does.
+///  `--ignore-skip-worktree-bits` makes Git write those files,
+///  so the edit the mark hides is one the form replaces and the guard has to refuse it;
+///  a reading that treated the option as the person asking for the loss let three forms write over an
+///  edit without a refusal
+///  (the ninth review's first finding, `reproduced for all three forms`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ignores = (region) => region.some((word) => word === '--ignore-skip-worktree-bits');
+/// const ignores = (region) => region.includes('--ignore-skip-worktree-bits');
 /// ```
 fn ignores_skip_worktree_bits(command: GuardedCommand, region: &[OsString]) -> bool {
     // The flag is a row of each command's own table, so a file named `--ignore-skip-worktree-bits` is that
@@ -463,7 +476,12 @@ fn ignores_skip_worktree_bits(command: GuardedCommand, region: &[OsString]) -> b
         GuardedCommand::RestoreWorktree | GuardedCommand::RestoreStaged => {
             parse_options(region, RESTORE_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, RESTORE_IGNORE_SKIP_WORKTREE_BITS))
         }
-        _ => parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, IGNORE_SKIP_WORKTREE_BITS)),
+        GuardedCommand::CheckoutIndex => {
+            parse_options(region, CHECKOUT_INDEX_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, CHECKOUT_INDEX_IGNORE_SKIP_WORKTREE_BITS))
+        }
+        _ => {
+            parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok().map(|parsed| return is_enabled(&parsed, IGNORE_SKIP_WORKTREE_BITS))
+        }
     };
     return enabled.unwrap_or(false);
 }

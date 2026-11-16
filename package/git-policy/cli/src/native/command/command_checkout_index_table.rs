@@ -47,6 +47,10 @@ pub const CHECKOUT_INDEX_STAGE: u16 = 4;
 /// `--stdin`:
 ///  the paths come from standard input, which the guard cannot read before Git does.
 pub const CHECKOUT_INDEX_STDIN: u16 = 5;
+/// `--ignore-skip-worktree-bits`:
+///  Git writes the entries a `skip-worktree` mark hides,
+///  so the edit such a mark keeps out of the status is one this form replaces.
+pub const CHECKOUT_INDEX_IGNORE_SKIP_WORKTREE_BITS: u16 = 6;
 
 /// What:
 ///  The rows of `git checkout-index`.
@@ -63,7 +67,7 @@ pub const CHECKOUT_INDEX_STDIN: u16 = 5;
 /// ```
 pub const CHECKOUT_INDEX_TABLE: &[OptionSpec] = &[
     row(CHECKOUT_INDEX_ALL, Some(b'a'), Some("all"), Arity::None, true),
-    row(UNREAD, None, Some("ignore-skip-worktree-bits"), Arity::None, true),
+    row(CHECKOUT_INDEX_IGNORE_SKIP_WORKTREE_BITS, None, Some("ignore-skip-worktree-bits"), Arity::None, true),
     row(CHECKOUT_INDEX_FORCE, Some(b'f'), Some("force"), Arity::None, true),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
     row(UNREAD, Some(b'n'), Some("no-create"), Arity::None, true),
