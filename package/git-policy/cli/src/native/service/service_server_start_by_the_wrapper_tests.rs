@@ -319,7 +319,7 @@ fn a_scope_that_made_nothing_answer_ends_its_own_service_and_no_other() {
     std::fs::write(note.as_path(), format!("{service_pid} {service_identity}\n")).expect("the service's own note");
     // The stranger: another process group, whose leader's number is what the seam reports as the scope's leader.
     let mut stranger: std::process::Child = a_process_group_of_this_controls_own("the stranger");
-    let stranger_pid: i32 = i32::try_from(stranger.id()).expect("a process number");
+    let _stranger_pid: i32 = i32::try_from(stranger.id()).expect("a process number");
     // The greeting: once the service this control wrote the note for is gone, a server binds the address and greets, so the
     // control cannot wait out the start's own bound, and a scope that never ends its service is named by a deadline here.
     let greeted_socket: PathBuf = socket.clone();

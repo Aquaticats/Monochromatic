@@ -187,9 +187,9 @@ struct Case {
 ///  [Max address space unlimited]`): the note is the fact that names it.
 fn limited_and_served(fixture: &Fixture, repo: &Path) -> (Vec<i32>, Option<i32>) {
     let started = fixture.service.lock().expect("the fixture's service lock");
-    let Some(started) = started.as_ref() else { return (Vec::new(), None) };
-    let limited: Vec<i32> = started.process_ids().into_iter().map(|pid| { return i32::try_from(pid).unwrap_or(0); }).collect();
-    let runtime: PathBuf = started.runtime.clone();
+    let Some(serving) = started.as_ref() else { return (Vec::new(), None) };
+    let limited: Vec<i32> = serving.process_ids().into_iter().map(|pid| { return i32::try_from(pid).unwrap_or(0); }).collect();
+    let runtime: PathBuf = serving.runtime.clone();
     drop(started);
     let directory: PathBuf = git_policy_cli::service_socket_directory_only_this_account_may_open::path(runtime.as_path());
     let instance: String = git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
@@ -226,7 +226,7 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     };
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let recovery_log: String = the_log_of_the_recovery(&limited_log, &the_service_log_of(&fixture));
-    let (limited_pids, served_by): (Vec<i32>, Option<i32>) = limited_and_served(&fixture, repo.as_path());
+    let served_by: Option<i32> = limited_and_served(&fixture, repo.as_path()).1;
     let status: std::process::ExitStatus = output.status;
     let stderr: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     remove_settled(&fixture);
@@ -966,19 +966,19 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let watched: std::sync::Arc<std::sync::Mutex<Vec<i32>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let watching: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
     let watcher: std::thread::JoinHandle<()> = {
-        let note: PathBuf = note.clone();
-        let watched: std::sync::Arc<std::sync::Mutex<Vec<i32>>> = std::sync::Arc::clone(&watched);
-        let watching: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&watching);
+        let watched_note: PathBuf = note.clone();
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<i32>>> = std::sync::Arc::clone(&watched);
+        let running: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&watching);
         std::thread::spawn(move || {
-            while watching.load(std::sync::atomic::Ordering::SeqCst) {
-                if let Some(server) = git_policy_cli::service_server_pid_note_of_an_instance::read(note.as_path())
-                    && !watched.lock().expect("the limited services").contains(&server.pid)
+            while running.load(std::sync::atomic::Ordering::SeqCst) {
+                if let Some(server) = git_policy_cli::service_server_pid_note_of_an_instance::read(watched_note.as_path())
+                    && !seen.lock().expect("the limited services").contains(&server.pid)
                 {
                     let reserve_mebibytes: u64 = git_policy_cli::runtime_plan::ADDRESS_SPACE_RESERVE_BYTES / MEBIBYTE;
                     if let Some(limit) = mapped_mebibytes(u32::try_from(server.pid).unwrap_or(0)).checked_add(reserve_mebibytes) {
-                        let limit: u64 = limit * step / MEMORY_STEPS * MEBIBYTE;
-                        if LimitKind::AddressSpace.lift_for(u32::try_from(server.pid).unwrap_or(0), limit, hard).is_ok() {
-                            watched.lock().expect("the limited services").push(server.pid);
+                        let lowered: u64 = limit * step / MEMORY_STEPS * MEBIBYTE;
+                        if LimitKind::AddressSpace.lift_for(u32::try_from(server.pid).unwrap_or(0), lowered, hard).is_ok() {
+                            seen.lock().expect("the limited services").push(server.pid);
                         }
                     }
                 }
@@ -1137,8 +1137,8 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     };
     assert!(
         !case.landed || case.served_by != ended_pid,
-        "the commit landed through the service that ended before it accepted a connection: served by {:?}, which ended as {:?}; the commits were {} before the limited attempt and {} after it; the wrapper ended {} and its standard error said: {}",
-        case.served_by, ended_pid, case.commits_before, case.commits_after, case.status, case.stderr
+        "the commit landed through the service that ended before it accepted a connection: served by {:?}, which ended as {:?}; the commits were {} before the limited attempt and {} after it; the wrapper ended {}, returned success {}, and its standard error said: {}",
+        case.served_by, ended_pid, case.commits_before, case.commits_after, case.status, case.returned_success, case.stderr
     );
     assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
 }

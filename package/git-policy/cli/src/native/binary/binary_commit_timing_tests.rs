@@ -1410,8 +1410,8 @@ fn a_service_whose_error_is_a_file_keeps_its_exit_beside_the_journal_entry() {
     // The journal stands in as a socket, and standard error is the file: `JOURNAL_STREAM` names no file, so the sink is not
     //  on the journal's stream and writes the plain copy beside its datagram.
     let (journal, environment) = native_journal(&places, "both");
-    let environment: Vec<(&'static str, String)> = environment.into_iter().filter(|(variable, _)| { return *variable != git_policy_cli::journald_native::STREAM_VARIABLE; }).collect();
-    let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
+    let without_the_stream: Vec<(&'static str, String)> = environment.into_iter().filter(|(variable, _)| { return *variable != git_policy_cli::journald_native::STREAM_VARIABLE; }).collect();
+    let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], without_the_stream.as_slice());
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
     // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
     assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
