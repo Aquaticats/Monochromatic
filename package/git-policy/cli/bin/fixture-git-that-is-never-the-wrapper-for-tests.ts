@@ -35,16 +35,35 @@ export const fixtureGitProgram = '/usr/bin/git';
 const systemGitPath = '/usr/bin:/bin';
 
 /**
- The variables a fixture's git commands run with, so no user configuration decides what a fixture's commit does.
+ The variables a fixture's git commands run with, built here rather than taken from the caller's environment.
+
+ Git reads its repository, its index, its object store, its configuration, its identity, its dates and the programs it
+ starts from the environment, so an environment passed whole to a fixture command lets the caller move the command into
+ another checkout, redirect its objects or its index, replace its identity or fail its commit with a date Git cannot
+ read. A test process started from a Git hook, a rebase or an editor has exactly those variables set, and the folders it
+ names are not the fixture's. A list of the names to remove cannot be complete, because the next Git release may read a
+ further one, so this builds the environment instead: what the system Git needs to run, and nothing of the caller's.
+
+ What Git needs for a local fixture, measured with nothing else set on this host: `PATH` for the programs Git starts,
+ which are the system ones and never a directory a wrapper is installed in; the two switches that read no configuration
+ outside the fixture, so neither `~/.gitconfig` nor the system's is consulted and no `HOME` is needed; the two that stop
+ a prompt, because nothing here may wait for a person; and the locale, so the sentences a failing control quotes are the
+ English ones. The commit identity, the dates and the repository itself come from the fixture's own arguments and folder.
+
+ A future caller that needs a variable of the caller's environment has to add it here, where a reader sees what a
+ fixture command depends on.
 
  @returns the environment of one fixture git command
  */
 function fixtureGitEnvironment(): NodeJS.ProcessEnv {
   return {
-    ...process.env,
     PATH: systemGitPath,
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_ASKPASS: '',
+    LANG: 'C',
+    LC_ALL: 'C',
   };
 }
 
