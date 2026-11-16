@@ -149,7 +149,12 @@ pub struct LandingBoard {
     /// The place this service took in its journal,
     /// which is what tells it whether any other service may land a request of the same journal
     /// (`service_journal_holders.rs`).
-    place: Option<crate::service_journal_holders::HeldPlace>,
+    /// Lock kept:
+    ///  the place this service holds in its journal,
+    ///  which is taken once after the acceptor starts and read by a withdrawal's answer:
+    ///  the landing thread writes it and connection threads read it,
+    ///  and no storage is touched under the lock.
+    place: std::sync::Mutex<Option<Arc<crate::service_journal_holders::HeldPlace>>>,
     /// Lock kept:
     ///  the requests the landing thread has taken for the group it is landing and what the queue waited in when it
     ///  took them,
@@ -301,17 +306,75 @@ impl LandingBoard {
     /// a step it names describes a thread that no longer runs,
     /// and nothing of this board's own memory outlives the service either.
     pub fn new(journal: PathBuf, slow_after: Duration) -> Arc<Self> {
-        let directory: PathBuf = journal.join(DIRECTORY);
-        let _removed = std::fs::remove_dir_all(directory.as_path());
-        let _made = std::fs::create_dir_all(directory.as_path());
-        let place: Option<crate::service_journal_holders::HeldPlace> = crate::service_journal_holders::take_ones_place(journal.as_path());
+        // What: A board is made with no storage reached at all.
+        // Why:  It is made before the acceptor starts, and a journal that stops answering in a read or a write there
+        //       would keep every client from being greeted at all
+        //       (the fourth review of this branch, finding 3). The places and the directory of the step record are taken
+        //       by `take_its_place_within`, after the acceptor runs.
         return Arc::new(Self {
             slow_after,
-            journal,
-            directory,
-            place,
+            journal: journal.clone(),
+            directory: journal.join(DIRECTORY),
+            place: std::sync::Mutex::new(None),
             held: std::sync::Mutex::new(TheLandingsOwn { loop_begun: false, starting: None, group: Vec::new(), last: None, withdrawals: Vec::new() }),
         });
+    }
+
+    /// What:
+    ///  A board of a control that serves:
+    ///  it takes its place at once, as a service does after its acceptor starts.
+    /// Why:
+    ///  The service takes its place after its acceptor (`take_its_place_within`),
+    /// and a control that asks what a *serving* board answers needs one that holds it;
+    /// a control of the reviewed state — a board with no place — calls `new` and leaves it so.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const board = LandingBoard.aBoardThatTookItsPlace(journal, slowAfter);
+    /// ```
+    #[cfg(test)]
+    pub fn a_board_that_took_its_place(journal: PathBuf, slow_after: Duration) -> Arc<Self> {
+        let board: Arc<Self> = Self::new(journal, slow_after);
+        assert!(board.take_its_place_within(Duration::from_secs(5)), "a control's board takes its place in its journal");
+        return board;
+    }
+
+    /// What:
+    ///  Takes this service's place in its journal, and makes the directory of the step record,
+    ///  awaiting both no longer than `ceiling` on a thread of their own,
+    ///  and says whether the place was taken.
+    /// Why:
+    ///   The place is a write and a rename of the journal's drive,
+    /// and it must stand after the acceptor started and under a bound of its own,
+    /// because the landing thread is the one thread that lands and answers:
+    /// a journal that stops answering there holds no client's greeting
+    /// (`work_within`, and the fourth review of this branch, finding 3).
+    ///  A place that gave no answer within the ceiling is no place, and a service with none lands nothing
+    /// (`begin_group`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const taken = board.takeItsPlaceWithin(ceiling); // boolean
+    /// ```
+    pub fn take_its_place_within(&self, ceiling: Duration) -> bool {
+        let journal: PathBuf = self.journal.clone();
+        let directory: PathBuf = self.directory.clone();
+        // What: The directory of the step record and the place are written inside the bound, on its own line.
+        // Why:  The scan that keeps the service's state off the landing thread reads one line for a bound
+        //       (`source_guard/blocking_code_off_the_runtime_rules_tests.rs`), so the bound and the write are one.
+        let taken: Option<Option<crate::service_journal_holders::HeldPlace>> = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || { let _removed = std::fs::remove_dir_all(directory.as_path()); let _made = std::fs::create_dir_all(directory.as_path()); return crate::service_journal_holders::take_ones_place(journal.as_path()); });
+        let Some(place) = taken else {
+            crate::service_warn!(
+                "the place of this service in its journal gave no answer within {ceiling:?}, so this service lands nothing: its journal may be on storage that stopped answering"
+            );
+            return false;
+        };
+        let Some(taken_place) = place else {
+            crate::service_warn!("this service took no place in its journal, so it lands nothing: without one it cannot tell whether another service would land a request it answers about");
+            return false;
+        };
+        *self.place.lock().expect("the place this service holds") = Some(Arc::new(taken_place));
+        return true;
     }
 
     /// What:
@@ -456,9 +519,15 @@ impl LandingBoard {
                 admission.dropped.push(id.clone());
                 owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
             }
-            // The reviewed answer: a service that took no place of its own still lands on its own word.
-            if self.place.is_none() && false {
+            // What: A service that took no place of its own lands nothing.
+            // Why:  It cannot tell whether another service took a place and confirmed a withdrawal for this request,
+            //       so its own memory is not evidence that the request may still land
+            //       (the fourth review of this branch, finding 1):
+            //       the requests are answered with a failure that says so.
+            if !self.holds_its_place() {
+                owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
                 admission.refused.push(id.clone());
+                continue;
             }
         }
         return admission;
@@ -481,17 +550,28 @@ impl LandingBoard {
     /// Whether this service took a place of its own in its journal,
     /// which is what lets it land a request without another service contradicting it.
     pub fn holds_its_place(&self) -> bool {
-        return self.place.is_some();
+        return self.place.lock().expect("the place this service holds").is_some();
     }
 
     pub fn may_promise_a_request_never_lands(&self) -> bool {
         // What: A service that holds no place of its own promises nothing.
         // Why:  A place it could not take is "could not tell", and that is never the best case
         //       (the third review of this branch, finding 1).
-        let Some(place) = self.place.as_ref() else {
+        let held: Option<Arc<crate::service_journal_holders::HeldPlace>> = self.place.lock().expect("the place this service holds").clone();
+        let Some(place) = held else {
             return false;
         };
-        return crate::service_journal_holders::holders(self.journal.as_path(), place) == crate::service_journal_holders::Holders::Alone;
+        // What: The places are read on a thread of their own, under a bound, and no promise is made at it.
+        // Why:  This runs on the landing thread, the one thread that lands and answers: a read there that storage holds
+        //       stops every commit behind it (`work_within`, and the fourth review of this branch, finding 2).
+        //       At the ceiling nothing was read in time, and a service that could not read its places promises nothing.
+        let journal: PathBuf = self.journal.clone();
+        let answer: Option<crate::service_journal_holders::Holders> =
+            crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::HOLDERS_ANSWER_CEILING, move || { return crate::service_journal_holders::holders(journal.as_path(), place.as_ref()); });
+        return match answer {
+            Some(crate::service_journal_holders::Holders::Alone) => true,
+            Some(crate::service_journal_holders::Holders::Shared | crate::service_journal_holders::Holders::Unknown) | None => false,
+        };
     }
 
     /// What:

@@ -665,6 +665,26 @@ pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 ///  reported with whatever the landing thread was inside.
 pub const A_QUEUE_WAIT_NAMED_AFTER: Duration = Duration::from_secs(5);
 
+/// How long a service may take to write its place in its journal before it serves no commit at all.
+/// Why:
+///  The place is a small file, flushed and renamed, on the journal's drive,
+/// and it is written after the acceptor started so that a journal that stops answering never keeps a client from being
+/// greeted.
+///  A service with no place lands nothing (it cannot tell whether another service confirmed a withdrawal for a request
+/// it holds), so this bound decides whether the service can serve at all: five seconds is the floor of the bound a
+/// person's commit has (`SPEC.md`), which is the longest a start may take before the first commit is late anyway.
+pub const THE_PLACE_TAKEN_CEILING: Duration = Duration::from_secs(5);
+
+/// How long the service may wait for the places in its journal when a client asks whether a request it does not hold can
+/// never land.
+/// Why:
+///  That answer is asked on the landing thread, the one thread that lands and answers,
+/// so a journal that stops answering in it holds every commit behind it.
+///  The places are a listing of a handful of names and a few short files, which on a hot journal costs microseconds;
+///  fifty milliseconds is the longest wait this answer may cost a person, and at it the service answers that it cannot
+///  tell, which is what makes no promise.
+pub const HOLDERS_ANSWER_CEILING: Duration = Duration::from_millis(50);
+
 /// How long one step of the service's start may take before the journal names it and how long it took.
 /// Why:
 ///   A start reads and removes records of the service's state directory before it reads its queue,

@@ -98,6 +98,40 @@ const BLOCKING_HELPERS: &[&str] = &[
     "read_regular_file(",
 ];
 
+/// The calls on the service's own state that the landing thread or the service's start makes,
+/// each of which may wait on storage and therefore belongs inside a bounded helper
+/// (`work_within`, `work_awaited_within_a_ceiling`, `off_the_workers`, a pool call):
+/// a place in the journal, the reading of the places, and the writing of the service's own records.
+/// Why:
+///  A read or a write there stands on the one thread that lands and answers, or in front of the accept loop,
+/// and a journal that stops answering then holds every commit
+///  (the fourth review of this branch, findings 2 and 3: the places were read with no deadline on the landing thread and
+/// written before the acceptor).
+///  The list names what this branch's own service state is reached by, so a call that comes back unbounded is named;
+///  a storage call it does not know about is what the guard cannot see.
+const SERVICE_STATE_CALLS: &[&str] = &[
+    "service_journal_holders::take_ones_place(",
+    "service_journal_holders::holders(",
+    "service_journal_holders::holders_beside(",
+];
+
+/// The bounded runners a service-state call may sit inside:
+/// a job of the blocking pool, or work on a thread of its own awaited under a ceiling.
+/// Why:
+///  The rule reads one line, so the bound that excuses a call is the one written beside it;
+/// a closure whose brace is on another line is what the pool-call reading of this scan already follows for tasks.
+const BOUNDED_RUNNERS: &[&str] = &[
+    "work_within(",
+    "work_within_reporting(",
+    "work_awaited_within_a_ceiling::",
+    "off_the_workers(",
+    "run_a_job_once_awaited_no_longer_than(",
+    "run_a_slow_job_once_awaited_no_longer_than(",
+    "run_a_slow_job_within_the_budget(",
+    "run_blocking_job(",
+    "run_blocking_job_within_the_budget(",
+];
+
 /// The waits that block the thread they run on until something else moves,
 /// which on a worker is the task that would move it.
 pub(super) const BLOCKING_WAITS: &[&str] = &["recv_timeout(", "thread::sleep(", "park_timeout(", "thread::park(", "futex::wait(", "Condvar"];
@@ -201,6 +235,19 @@ pub(super) const RULES: &[Rule] = &[
             return line.contains("block_in_place");
         },
     },
+    Rule {
+        id: "service-state-call-outside-a-bound",
+        reason: "calls the service's own state where storage can hold it: on the one thread that lands and answers, or \
+                 before the accept loop, a journal that stops answering holds every commit; a bounded helper runs it \
+                 off that path (`work_within`, `work_awaited_within_a_ceiling`, `off_the_workers`, a pool call)",
+        place: Place::Everywhere,
+        matches: |line, _joined| {
+            if holds_any(line, BOUNDED_RUNNERS) {
+                return false;
+            }
+            return holds_any(line, SERVICE_STATE_CALLS);
+        },
+    },
 ];
 
 /// One justified exception:
@@ -234,7 +281,6 @@ pub(super) struct Allowed {
 ///  (the third review of this branch, finding 4).
 pub(super) const REACHED_FROM_A_TASK_KNOWN: &[&str] = &[
     "landing/landed_summary.rs",
-    "landing/landing_state_carried_by_its_task.rs",
     "landing/maintenance_run.rs",
     "landing/service_amend.rs",
     "landing/service_branch_shows.rs",
@@ -256,7 +302,6 @@ pub(super) const REACHED_FROM_A_TASK_KNOWN: &[&str] = &[
     "landing/service_work_drains_a_snapshot_ahead.rs",
     "landing/service_work_drains_awaiting.rs",
     "landing/service_work_handlers_replanning_and_acceptance.rs",
-    "landing/service_work_items_side_by_side.rs",
     "landing/service_work_run_round.rs",
     "landing/service_work_settling_a_verdict.rs",
     "landing/service_work_slow_lane.rs",

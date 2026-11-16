@@ -956,7 +956,7 @@ fn every_listed_exception_still_matches_code() {
 /// so a rule that stopped matching would fail here.
 #[test]
 fn each_rule_fires_on_its_own_forbidden_text() {
-    let samples: [(&str, &str); 9] = [
+    let samples: [(&str, &str); 10] = [
         ("thread-start", "let started = std::thread::Builder::new().spawn(move || work());"),
         ("blocking-sleep", "std::thread::sleep(POLL_PAUSE);"),
         ("unretried-start", "let output = command.output();"),
@@ -966,6 +966,7 @@ fn each_rule_fires_on_its_own_forbidden_text() {
         ("blocking-helper-on-a-task", "let (retries, watch) = restored_within(ceiling, plan, watch, instance);"),
         ("plain-tokio-fs", "let metadata = tokio::fs::metadata(path).await;"),
         ("block-in-place", "let value = tokio::task::block_in_place(|| read_it());"),
+        ("service-state-call-outside-a-bound", "let places = crate::service_journal_holders::holders(journal.as_path(), place.as_ref());"),
     ];
     for (id, sample) in samples {
         let rule: &Rule = RULES

@@ -161,15 +161,15 @@ fn a_place_that_is_a_pipe_is_answered_within_a_bound() {
         let _sent = answered.send(holders_beside(journal_for_the_reader.as_path(), mine_for_the_reader.as_path()));
     });
     let waited: Result<Holders, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(Duration::from_secs(5));
-    // The pipe is let go of whatever the answer was, so a failing run leaves no thread behind.
-    {
-        use std::io::Write as _;
-        let mut release: std::fs::File = std::fs::OpenOptions::new().write(true).open(pipe.as_path()).expect("open the pipe's writing end");
-        let _written = release.write_all(b"");
-    }
+    // What: The pipe is taken away whatever the answer was.
+    // Why:  Opening its writing end would wait for a reader that this control never keeps, and a control that hung
+    //       there would hide the very answer it measures.
+    let _removed = std::fs::remove_file(pipe.as_path());
     let answer: Holders = waited.expect("the places are answered without waiting for a writer");
     asking.join().expect("the asking thread ends");
-    assert_eq!(answer, Holders::Unknown, "a name that is not a record of a service is not evidence that the caller is alone");
-    let _removed = std::fs::remove_file(pipe.as_path());
+    // What: A name that is no record is no place, and the caller's own is the only one.
+    // Why:  Every place is written whole under a staging name and given its final name in one step, so a pipe under a
+    //       place name is another program's and never a service that is being written now.
+    assert_eq!(answer, Holders::Alone, "a pipe under a place name is no place, and the caller's own is the only one");
     drop(mine);
 }

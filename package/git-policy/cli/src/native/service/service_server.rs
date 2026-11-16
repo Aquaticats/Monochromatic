@@ -48,7 +48,7 @@ use crate::service_server_own_worktree_question::own_worktree_gone_now;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
-use crate::service_protocol::{RELEASE, ServiceMessage};
+use crate::service_protocol::{FailureCode, RELEASE, ServiceMessage};
 use std::collections::HashMap;
 use std::os::unix::net::UnixListener;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -182,6 +182,11 @@ pub struct ServeSettings {
     /// `LANDING_WATCH_NOTE_CEILING`);
     /// a control shortens it.
     pub note_ceiling: Duration,
+    /// How long this service waits for its place in its journal before it serves no commit at all
+    /// (`wait_ceilings.rs`,
+    /// `THE_PLACE_TAKEN_CEILING`);
+    /// a control shortens it.
+    pub holds_its_place_ceiling: Duration,
     /// The Git directory of the worktree whose units are this service's,
     /// as its note or its journal named it when the service started,
     /// and nothing when it was not there or could not be told.
@@ -213,6 +218,7 @@ impl ServeSettings {
             stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
             place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
             note_ceiling: crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING,
+            holds_its_place_ceiling: crate::wait_ceilings::THE_PLACE_TAKEN_CEILING,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             journal_restore_ceiling: START_CEILING,
@@ -405,6 +411,14 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             own_git_dir: settings.own_git_dir.clone(),
         },
     );
+    // What: This service's place in its journal is taken here, after the acceptor started, under a ceiling of its own.
+    // Why:  The place is a write and a rename of the journal's drive, and the acceptor must run before it:
+    //       a journal that stops answering there keeps no client from being greeted
+    //       (`LandingBoard::take_its_place_within`, and the fourth review of this branch, finding 3).
+    //       A place that gave no answer, or that could not be taken, is a service that lands nothing: it answers each
+    //       commit with a failure and says why in the journal, rather than landing a request another service may have
+    //       confirmed a withdrawal for.
+    board.take_its_place_within(settings.holds_its_place_ceiling);
     // What: The plan and the watch are read in the task that runs the after-commit work, never before a commit can land.
     // Why:  Only that work uses them, and a request that arrives meanwhile waits in the queue (`service_server.rs`, the steps
     //       below): a reading of the service's state directory is one of the steps that had no reason to be waited for.
@@ -596,12 +610,21 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             for id in &admission.dropped {
                 crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
             }
-            // A dropped request is not answered here, because its client was told; the rest are landed.
-            // Nothing can keep a request out of its group any more: the claim and the withdrawal are one decision under one
-            //  lock, so no drive stands between them (`service_busy.rs`, `begin_group`).
+            // What: A request this service will not land is answered with a failure that names why, and never with silence.
+            // Why:  A service that took no place in its journal cannot tell whether another service confirmed a withdrawal
+            //       for this request, so it lands nothing (`service_busy.rs`, `begin_group`);
+            //       the person is told the service cannot serve this commit, and running it again meets the service the
+            //       manager starts next.
+            for (request, stream, _) in &queued_group {
+                if admission.refused.contains(&request.id) {
+                    crate::service_warn!("refused the request {} because this service holds no place in its journal", request.id);
+                    stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable });
+                }
+            }
+            // A dropped or refused request is not landed here; the rest are.
             let mut admitted: Vec<Queued> = Vec::new();
             for queued in queued_group {
-                if admission.dropped.contains(&queued.0.id) {
+                if admission.dropped.contains(&queued.0.id) || admission.refused.contains(&queued.0.id) {
                     continue;
                 }
                 admitted.push(queued);

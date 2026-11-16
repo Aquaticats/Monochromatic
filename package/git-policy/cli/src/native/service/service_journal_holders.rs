@@ -189,6 +189,16 @@ pub fn take_ones_place(journal: &Path) -> Option<HeldPlace> {
     return None;
 }
 
+/// The text of one place,
+/// read through an open that answers at once when the name is not a regular file,
+/// and nothing when it cannot be read.
+fn place_text(path: &Path) -> Option<String> {
+    let mut file: std::fs::File = crate::private_storage::open_regular_file(path).ok()?;
+    let mut text: String = String::new();
+    std::io::Read::read_to_string(&mut file, &mut text).ok()?;
+    return Some(text);
+}
+
 /// What:
 ///  How many services write `journal`, by the places in it,
 ///  with the places of processes that are gone removed as they are found.
@@ -228,12 +238,10 @@ pub fn holders(journal: &Path, mine: &HeldPlace) -> Holders {
         if extension != Some(PLACE_EXTENSION) {
             continue;
         }
-        let text: String = match std::fs::read_to_string(path.as_path()) {
-            Ok(text) => text,
-            // The record went between the listing and the read: the service that ends now left nothing.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(_unreadable) => return Holders::Unknown,
-        };
+        // What: A place is read with an open that answers at once when the name is a pipe nobody writes to.
+        // Why:  A plain read of a pipe waits in the kernel for a writer, and this answer is asked on the landing thread
+        //       (`private_storage::open_regular_file`, and the fourth review of this branch, finding 2).
+        let Some(text) = place_text(path.as_path()) else { continue };
         match holder_is_live(text.as_str()) {
             Holders::Alone => {
                 live += 1;
@@ -304,7 +312,10 @@ pub fn holders_beside(journal: &Path, mine: &Path) -> Holders {
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLACE_EXTENSION) {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        // What: A place is read with an open that answers at once when the name is a pipe nobody writes to.
+        // Why:  `std::fs::read_to_string` waits in the kernel for a writer, and this answer is asked on the landing
+        //       thread (`private_storage::open_regular_file`, and the fourth review of this branch, finding 2).
+        let Some(text) = place_text(path.as_path()) else { continue };
         if holder_is_live(text.as_str()) == Holders::Alone {
             live += 1;
             if path == mine {

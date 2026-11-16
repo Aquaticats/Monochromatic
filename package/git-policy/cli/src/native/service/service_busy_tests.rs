@@ -17,7 +17,7 @@ const NEVER: Duration = Duration::from_secs(3600);
 const A_MOMENT: Duration = Duration::from_millis(20);
 
 fn board_stuck_after(slow_after: Duration) -> Arc<LandingBoard> {
-    return LandingBoard::new(crate::test_support::fixture("service-busy-board").join("journal-that-does-not-exist"), slow_after);
+    return LandingBoard::a_board_that_took_its_place(crate::test_support::fixture("service-busy-board").join("journal-that-does-not-exist"), slow_after);
 }
 
 fn board() -> Arc<LandingBoard> {
@@ -163,10 +163,10 @@ fn an_identity_that_is_not_a_plain_name_is_never_answered_early() {
 #[test]
 fn a_new_board_removes_what_an_earlier_service_left() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-restart").join("journal");
-    let first: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+    let first: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
     assert_eq!(first.begin_group(&ids(&["old"])), GroupAdmission::default());
     assert!(first.is_in_flight("old"));
-    let second: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    let second: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal, AT_ONCE);
     assert!(!second.is_in_flight("old"));
 }
 
@@ -263,7 +263,7 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
 fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-two-withdrawers").join("journal");
-        let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let record: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
         use_on_this_thread(Arc::clone(&record));
         let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
         std::thread::sleep(A_MOMENT);
@@ -314,7 +314,7 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         use std::os::unix::fs::PermissionsExt;
         let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-journal-fails").join("journal");
-        let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let record: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
         use_on_this_thread(Arc::clone(&record));
         let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
         std::thread::sleep(A_MOMENT);
@@ -394,7 +394,7 @@ fn an_admission_and_a_decision_need_no_file_of_the_record() {
 fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-retention").join("journal");
-        let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+        let record: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal, AT_ONCE);
         use_on_this_thread(Arc::clone(&record));
         let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
         std::thread::sleep(A_MOMENT);
@@ -420,7 +420,7 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
 fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
-        let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+        let record: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal, AT_ONCE);
         use_on_this_thread(Arc::clone(&record));
         let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
         std::thread::sleep(A_MOMENT);
@@ -580,8 +580,8 @@ fn a_second_service_of_one_journal_never_confirms_a_withdrawal_it_does_not_hold(
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-two-services").join("journal");
         // Both services are alive before either takes the request, as during a service handover or a development run.
-        let landing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
-        let withdrawing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let landing: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
+        let withdrawing: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
         use_on_this_thread(Arc::clone(&landing));
         let _step = enter_step(String::from("git update-ref --stdin in /repo"));
         std::thread::sleep(A_MOMENT);
@@ -622,13 +622,15 @@ fn a_service_with_no_place_of_its_own_never_promises_a_request_will_not_land() {
         let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-no-place-of-its-own").join("journal");
         std::fs::create_dir_all(journal.as_path()).expect("the journal");
         // The first service takes the only place there can be for now.
-        let landing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let landing: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
         let services: std::path::PathBuf = journal.join("services");
         // What: A services directory that can be read and not written, as a full or read-only journal leaves it.
         // Why:  This is the state in which a service that starts now cannot take a place of its own.
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o500)).expect("refuse new places");
+        // This one cannot take its place, which is what the control is about.
         let without_a_place: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        assert!(!without_a_place.take_its_place_within(Duration::from_secs(5)), "the second service took no place");
         std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore the fixture");
         assert!(!without_a_place.may_promise_a_request_never_lands(), "a service with no place of its own cannot promise anything");
         // A request it does not hold, while the other service is inside a write, is left to the landing thread.
@@ -663,8 +665,12 @@ fn a_service_that_took_no_place_of_its_own_lands_nothing() {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o500)).expect("refuse new places");
         let unregistered: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        // The service takes its place after its acceptor starts (`take_its_place_within`), and this one cannot.
+        let within: Duration = Duration::from_secs(5);
+        assert!(!unregistered.take_its_place_within(within), "the first service took no place");
         std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o700)).expect("permit the next place");
-        let withdrawing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let withdrawing: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), AT_ONCE);
+        assert!(withdrawing.take_its_place_within(within), "the second service took its own");
         assert!(!unregistered.holds_its_place(), "the first service took no place");
         assert!(withdrawing.holds_its_place(), "the second service took its own");
         use_on_this_thread(Arc::clone(&withdrawing));

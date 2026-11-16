@@ -37,7 +37,7 @@ fn finished(journal: &Path) -> usize {
 #[test]
 fn the_removal_leaves_the_newest_records_and_takes_the_rest() {
     let journal: PathBuf = journal_with("prune-old-records", DONE_RETAINED + 3);
-    let board: Arc<LandingBoard> = LandingBoard::new(journal.clone(), Duration::from_secs(60));
+    let board: Arc<LandingBoard> = LandingBoard::a_board_that_took_its_place(journal.clone(), Duration::from_secs(60));
     prune_old_records_where_the_loop_stands(journal.clone(), board);
     assert_eq!(finished(journal.as_path()), DONE_RETAINED, "the newest records stay and the rest go");
 }

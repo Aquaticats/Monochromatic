@@ -344,7 +344,7 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
         let world: World = world("service-hung-write-open-batch");
         let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
         land_with_failed_index(&world, 1, &[landed]);
-        let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
+        let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::a_board_that_took_its_place(world.context.journal.clone(), Duration::ZERO);
         crate::service_busy_step_record_on_this_thread::use_on_this_thread(std::sync::Arc::clone(&board));
         assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
         let _step = crate::service_busy_step_record_on_this_thread::enter_step(String::from("git update-ref --stdin in /repo"));

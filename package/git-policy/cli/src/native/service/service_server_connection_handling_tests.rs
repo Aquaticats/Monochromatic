@@ -33,6 +33,9 @@ fn shared_in(name: &str) -> (ConnectionShared, UnboundedReceiver<Job>) {
     let journal: PathBuf = crate::test_support::fixture(name);
     let (queue, jobs) = unbounded_channel::<Job>();
     let (work, _wakes) = unbounded_channel::<Wake>();
+    // What: The board of a connection control holds no place unless its control takes one.
+    // Why:  A place is taken on a thread of its own, and the controls of a system that refuses every thread cannot have
+    // one; a control that asks what a serving board says takes its place itself (`a_board_that_took_its_place`).
     let board: Arc<LandingBoard> = LandingBoard::new(journal, Duration::from_secs(60));
     let shared: ConnectionShared = ConnectionShared {
         queue,
@@ -741,6 +744,8 @@ fn a_request_the_landing_thread_has_taken_is_never_told_it_was_not() {
     let bound: Duration = crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER;
     let past: Instant = Instant::now().checked_sub(bound * 2).expect("a moment past the bound");
     // What the board holds while the landing goes on: the request is its own, and no write of it is recorded as stuck.
+    // The board takes its place, as a serving service does after its acceptor.
+    assert!(shared.board.take_its_place_within(Duration::from_secs(5)), "the control's board takes its place");
     assert_eq!(shared.board.begin_group(&[String::from("taken-request")]), crate::service_busy::GroupAdmission::default());
     let (told, key) = note_from_the_board(&shared.board, Some("taken-request"), Some(past), None);
     let Some(ServiceMessage::Waiting { text }) = told else { panic!("a waiting client is told something: {told:?}") };
