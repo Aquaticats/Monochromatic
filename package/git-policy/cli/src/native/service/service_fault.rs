@@ -95,7 +95,11 @@ pub const LOCK_MARKED_UNSYNCED: &str = "lock-marked-unsynced";
 /// ```
 pub fn reach(point: &str) {
     #[cfg(test)]
-    hooks::run(point);
+    {
+        hooks::run(point);
+        // A point a control holds on whichever thread reaches it, for a point reached off the control's own thread.
+        hooks::run_on_any_thread(point);
+    }
     if matches!(std::env::var(FAULT_VARIABLE), Ok(armed) if armed == point) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]

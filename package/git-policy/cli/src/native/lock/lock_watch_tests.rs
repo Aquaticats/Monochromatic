@@ -1785,3 +1785,167 @@ pub(crate) fn a_folder_read_may_take_a_while() {
     };
     std::thread::sleep(takes);
 }
+
+/// What:
+///  A caller whose wait outlasted the watcher publishes the take's record itself,
+///  before `finish` returns, on a volume where the order of births proves nothing.
+/// Why:
+///  The watcher had seen the lock and its PID file and was late at the pin;
+///  `finish` waited its bound, dropped the answer and returned, so the record was missing when the
+///  command could be killed, and a later command had only the birth order, which this volume does not
+///  prove (a review of `8c97544dfa`,
+/// finding 1).
+///  The caller has just collected the child and knows it has ended, so it writes that record itself with
+///  the same function the watcher uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hold(theBinderAt(BEFORE_A_TAKE_IS_PINNED)); child.wait(); binder.finish();
+/// expect(bindingsOf(indexLock)).not.toEqual([]); expect(clearOne(indexLock, 'coarse')).toBeDefined()
+/// ```
+#[test]
+fn a_finish_that_outlasted_the_binder_still_leaves_the_record() {
+    let root: PathBuf = crate::test_support::fixture("watch-finish-outlasted-the-binder");
+    let repository: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let common: PathBuf = repository.join(".git");
+    std::fs::write(repository.join("staged.txt"), "a change the next commit lands\n").expect("a staged change");
+    let _added = crate::test_support::git(repository.as_path(), &["add", "staged.txt"]);
+    crate::lock_holder_records::remember_repository(common.as_path());
+    crate::lock_holder_records::record_this_process(common.as_path());
+    crate::lock_watch::remember(Some(Watched { common_dir: common.clone(), roots: vec![common.clone()] }));
+    let (watch, about): (Watch, Watched) = watch_before_starting().expect("the production watch opens");
+    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(BEFORE_A_TAKE_IS_PINNED);
+    let mut child: Child = a_child_that_takes_the_lock(common.as_path(), "exit 0");
+    crate::lock_holder_records::note_child_started(child.id());
+    let binder = crate::lock_watch::bind_while_the_caller_waits(Some((watch, about)), child.id()).expect("the production binder starts");
+    reached.blocking_recv().expect("the binder reached the instruction immediately before the pin");
+    let _waited = child.wait().expect("the child ends and leaves its lock and PID file");
+    binder.finish();
+    let lock: PathBuf = common.join("index.lock");
+    let bound: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+    let clearance = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+        return crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    });
+    let stands: bool = lock.exists();
+    let commit = crate::test_support::git_output(repository.as_path(), &["commit", "--quiet", "--message", "next"]);
+    let landed: bool = commit.status.success();
+    let _released = let_go.send(());
+    crate::lock_watch::remember(None);
+    crate::test_support::remove(root.as_path());
+    assert!(!bound.is_empty(), "finish returned with no record for the take the watcher had seen");
+    assert!(matches!(clearance, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding), "the next command clears the lock by that record: {clearance:?}");
+    assert!(!stands, "the lock is gone after the next command");
+    assert!(landed, "the commit after it lands: {}", String::from_utf8_lossy(commit.stderr.as_slice()));
+}
+
+/// The variable that names the kill point of the finish walk, and the fixture it is taken in.
+const FINISH_WALK_POINT_VARIABLE: &str = "CLI_GIT_TEST_FINISH_WALK_POINT";
+const FINISH_WALK_FIXTURE_VARIABLE: &str = "CLI_GIT_TEST_FINISH_WALK_FIXTURE";
+
+/// What:
+///  Take the finish walk's step in a process of its own, killed at the named point.
+/// Why:
+///  The walk kills the wrapper between the child's end and the record; a copy of this test binary is the
+///  process that dies, as it is for the lock walk.
+///  Nothing happens when the variable is absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const point = process.env.CLI_GIT_TEST_FINISH_WALK_POINT; if (!point) return; runUntilKilledAt(point)
+/// ```
+#[test]
+fn a_step_of_the_finish_walk_is_killed_for_the_control() {
+    let Some(named) = std::env::var_os(FINISH_WALK_POINT_VARIABLE) else {
+        return;
+    };
+    let point: String = named.to_string_lossy().into_owned();
+    let root: PathBuf = PathBuf::from(std::env::var_os(FINISH_WALK_FIXTURE_VARIABLE).expect("the walk's fixture"));
+    let repository: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let common: PathBuf = repository.join(".git");
+    std::fs::write(repository.join("staged.txt"), "a change the next commit lands\n").expect("a staged change");
+    let _added = crate::test_support::git(repository.as_path(), &["add", "staged.txt"]);
+    crate::lock_holder_records::remember_repository(common.as_path());
+    crate::lock_holder_records::record_this_process(common.as_path());
+    crate::lock_watch::remember(Some(Watched { common_dir: common.clone(), roots: vec![common.clone()] }));
+    let (watch, about): (Watch, Watched) = watch_before_starting().expect("the production watch opens");
+    // The watcher is held at the instruction immediately before the pin, as slow storage or a late thread would leave it:
+    //  without this hold the watcher publishes the record and the point below is not the one under test.
+    let (reached, _let_go) = crate::service_fault::hooks::hold_the_point(BEFORE_A_TAKE_IS_PINNED);
+    let mut child: Child = a_child_that_takes_the_lock(common.as_path(), "exit 0");
+    crate::lock_holder_records::note_child_started(child.id());
+    let binder = crate::lock_watch::bind_while_the_caller_waits(Some((watch, about)), child.id()).expect("the production binder starts");
+    reached.blocking_recv().expect("the watcher reached the instruction immediately before the pin");
+    let _waited = child.wait().expect("the child ends and leaves its lock and PID file");
+    // SAFETY: `_exit` takes one number and touches no memory; the control ends this step's process at the point.
+    crate::service_fault::hooks::set(
+        match point.as_str() {
+            "a-finish-outlasted-the-binder" => crate::lock_watch::A_FINISH_OUTLASTED_THE_BINDER,
+            "after-the-caller-published" => crate::lock_watch::AFTER_THE_CALLER_PUBLISHED,
+            other => panic!("unknown finish walk point {other}"),
+        },
+        std::rc::Rc::new(|| { unsafe { libc::_exit(7) } }),
+    );
+    binder.finish();
+    panic!("the wrapper was not killed at the finish walk's point");
+}
+
+/// What:
+///  The wrapper killed at each instruction between the child's end and the record:
+///  what the next command meets, and what a person reads.
+/// Why:
+///  A process can be killed at any instruction, and the two instructions that matter here are the end of
+///  the caller's bounded wait and the end of its own publication
+///  (a review of `8c97544dfa`).
+///  A kill before the publication leaves a lock the watcher saw with no record:
+///  the next command has only the order of births, so on this volume it keeps the lock and names it.
+///  A kill after it leaves the record, so the next command clears the lock and the commit lands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const point of ['a-finish-outlasted-the-binder', 'after-the-caller-published']) { killTheWrapperAt(point);
+///   clearAbandonedLocks([common]); expect(point === after ? cleared : reported) }
+/// ```
+#[test]
+fn a_kill_between_the_childs_end_and_the_record_leaves_what_the_next_command_can_prove() {
+    for point in ["a-finish-outlasted-the-binder", "after-the-caller-published"] {
+        let root: PathBuf = crate::test_support::fixture(&format!("finish-walk-{point}"));
+        std::fs::create_dir_all(root.as_path()).expect("the fixture root");
+        let helper: PathBuf = crate::test_support::this_test_binary().expect("the test binary's own path");
+        let ran = std::process::Command::new(helper.as_path())
+            .args(["lock::lock_watch_tests::a_step_of_the_finish_walk_is_killed_for_the_control", "--exact", "--test-threads=1"])
+            .env(FINISH_WALK_POINT_VARIABLE, point)
+            .env(FINISH_WALK_FIXTURE_VARIABLE, root.as_path())
+            .env("CLI_GIT_TEST_ROOT", root.join("unit-fixtures"))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("the step's own process");
+        let repository: PathBuf = root.join("repo");
+        let common: PathBuf = repository.join(".git");
+        let lock: PathBuf = common.join("index.lock");
+        // The record, if any, is read before the pass: the pass takes the record away with the lock it clears.
+        let bound: bool = !lock_bindings::bindings_of(common.as_path(), lock.as_path()).is_empty();
+        // This volume's clock gives the lock and its PID file one birth stamp most of the time, so the walk states
+        //  the hard case: the order of the two births proves nothing.
+        let pass = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+            return crate::abandoned_locks::clear_abandoned_locks(std::slice::from_ref(&common));
+        });
+        let stands: bool = lock.exists();
+        let named_lock: bool = pass.unexplained.iter().any(|line| { return line.contains("index.lock"); });
+        let commit = crate::test_support::git_output(repository.as_path(), &["commit", "--quiet", "--message", "next"]);
+        let row = format!("{point}: step status={:?}; lock stands={stands}; reported={named_lock}; bound={bound}; commit status={:?}", ran.status.code(), commit.status.code());
+        crate::test_support::remove(root.as_path());
+        assert_eq!(ran.status.code(), Some(7), "{point}: the step's process died at the named instruction: {row}");
+        if point == "a-finish-outlasted-the-binder" {
+            assert!(stands, "{point}: a kill before the caller published leaves the lock: {row}");
+            assert!(!bound, "{point}: and no record names it: {row}");
+            assert!(named_lock, "{point}: the pass names the lock it cannot clear, with the command that clears it: {row}");
+            assert!(!commit.status.success(), "{point}: the commit that needs it waits for a person: {row}");
+        } else {
+            assert!(bound, "{point}: a kill after the caller published leaves the record: {row}");
+            assert!(!stands, "{point}: so the next command clears the lock: {row}");
+            assert!(commit.status.success(), "{point}: and the commit after it lands: {row}");
+        }
+    }
+}
