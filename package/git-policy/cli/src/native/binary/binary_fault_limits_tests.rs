@@ -1055,7 +1055,7 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     match case.service_end {
         Some(ServiceEnd::Ended(status)) => assert_eq!(
             status.code(),
-            Some(git_policy_cli::service_main::EXIT_NO_WORKER),
+            Some(git_policy_cli::service_runtime_build_report::EXIT_NO_WORKER),
             "the service at {below} MiB must end by itself with the status the program gives a service that cannot run a task it cannot serve without, and it ended with {status}; what it wrote explains it: {}",
             case.limited_log
         ),
