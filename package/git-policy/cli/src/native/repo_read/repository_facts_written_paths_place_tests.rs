@@ -27,6 +27,9 @@
 
 /// The reading under test, the forms it answers for, and the fixture helpers.
 use crate::command_test_support::{fixture, git, git_status, remove};
+use crate::command_checkout_index_table::CHECKOUT_INDEX_TABLE;
+use crate::command_discard::READ_TREE_TABLE;
+use crate::command_options::{Arity, OptionSpec};
 use crate::command_written_paths::written_paths;
 use crate::repo_read::repository_facts::{GitFacts, git_facts};
 /// The trait whose question this walk asks the provider.
@@ -43,6 +46,8 @@ const USER_DATA: &str = "USER DATA";
 
 /// The absolute paths one row's fixture gives the row.
 struct Places {
+    /// The fixture directory holding the worktree and everything beside it.
+    root: PathBuf,
     /// The repository's worktree root.
     repo: PathBuf,
     /// A directory outside the worktree, holding files a person's data stands in.
@@ -195,6 +200,13 @@ fn fixture_for(index: usize) -> Places {
         "outa.txt",
         "outsub/deep.txt",
         "out-in/a.txt",
+        // The names a prefix spelled without a separator glues an index path to: `--prefix=out` and
+        //  `a.txt` write `outa.txt`, `--prefix=.` and `a.txt` write `.a.txt`, and `--prefix=..` writes
+        //  `..a.txt` (measured on this host with native Git 2.56.0, 2026-11-16).
+        ".a.txt",
+        "..a.txt",
+        "linka.txt",
+        "dot/a.txt",
     ] {
         let path: PathBuf = repo.join(relative);
         if let Some(parent) = path.parent() {
@@ -210,6 +222,9 @@ fn fixture_for(index: usize) -> Places {
     // One link leaves the worktree and one stays inside it.
     std::os::unix::fs::symlink(outside.as_path(), repo.join("link-out")).expect("a link outside");
     std::os::unix::fs::symlink("sub", repo.join("link-in")).expect("a link inside");
+    // A link whose name a prefix continues: `--prefix=link` and `a.txt` write `linka.txt`, and the link
+    //  itself is not touched.
+    std::os::unix::fs::symlink("sub", repo.join("link")).expect("a link a prefix continues");
     // The links a person made at a name a form writes: the destination of a forced move,
     //  each pointing at a file the index holds, a file it does not, nothing at all, and a place
     //  outside the worktree,
@@ -221,7 +236,84 @@ fn fixture_for(index: usize) -> Places {
     std::os::unix::fs::symlink("../outside/a.txt", repo.join("dest-outside.txt")).expect("a link outside the worktree");
     std::fs::create_dir_all(repo.join("outlink")).expect("a directory a prefix names");
     std::os::unix::fs::symlink("../b.txt", repo.join("outlink/a.txt")).expect("a link at a prefixed path");
-    return Places { repo, outside };
+    return Places { root: repo.parent().expect("the fixture's directory").to_path_buf(), repo, outside };
+}
+
+/// What:
+///  Every spelling of a destination as text: with and without a trailing separator,
+///  ending inside a file name, a parent, a link, and a place outside the worktree.
+///  `&Places` borrows the fixture's own absolute paths.
+/// Why:
+///  The two shapes Git reads differently are a prefix that names a folder and one that continues a
+///  name, and a link stands where both can land.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// destinationSpellings(places).map(([, text]) => text) === ['out/', 'out', '.', './', '..', 'link/', 'link', ...]
+/// ```
+fn destination_spellings(places: &Places) -> Vec<(&'static str, String)> {
+    let outside: String = places.outside.display().to_string();
+    return vec![
+        ("with a separator", String::from("out/")),
+        ("without a separator", String::from("out")),
+        ("a dot", String::from(".")),
+        ("a dot and a separator", String::from("./")),
+        ("a parent", String::from("..")),
+        ("through a link with a separator", String::from("link/")),
+        ("through a link without a separator", String::from("link")),
+        ("absolute outside with a separator", format!("{outside}/")),
+        ("absolute outside without a separator", outside),
+        ("parent-relative outside", String::from("../outside/")),
+    ];
+}
+
+/// What:
+///  Every guarded subcommand whose written paths are read below a prefix, with its table,
+///  the words before that option and the words after it.
+/// Why:
+///  The prefix is the one option in the guarded tables that names a destination Git glues a path to,
+///  so both subcommands that carry it are walked with every value-taking row of their own table,
+///  generated from the tables rather than listed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// prefixedForms() === [['checkout-index', CheckoutIndex, CHECKOUT_INDEX_TABLE, ['-f'], ['-a']], ['read-tree', ReadTree, READ_TREE_TABLE, ['-u'], ['other']]];
+/// ```
+fn prefixed_forms() -> Vec<(&'static str, GuardedCommand, &'static [OptionSpec], &'static [&'static str], &'static [&'static str])> {
+    return vec![
+        ("checkout-index", GuardedCommand::CheckoutIndex, CHECKOUT_INDEX_TABLE, &["-f"], &["-a"]),
+        ("read-tree", GuardedCommand::ReadTree, READ_TREE_TABLE, &["-u"], &["other"]),
+    ];
+}
+
+/// One table row's long name, for a row's label.
+fn spec_long(spec: &OptionSpec) -> String {
+    return match spec.long {
+        Some(long) => String::from(long),
+        None => match spec.short {
+            Some(letter) => format!("-{}", char::from(letter)),
+            None => String::from("?"),
+        },
+    };
+}
+
+/// What:
+///  One table row spelled with a value: the attached form for a long name,
+///  and the long name with the value in the token after it for a short one.
+///  Nothing for a row whose value Git refuses to read as a destination.
+/// Why:
+///  A short option's attached spelling takes no `=`, so the value is the next token there;
+///  and a row that takes no value is not a destination at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spelledWithAValue({ long: 'prefix', arity: 'required' }, 'out/') === ['--prefix=out/'];
+/// ```
+fn spelled_with_a_value(spec: &OptionSpec, value: &str) -> Option<Vec<String>> {
+    return match spec.long {
+        Some(long) => Some(vec![format!("--{long}={value}")]),
+        None => spec.short.map(|letter| return vec![format!("-{}", char::from(letter)), String::from(value)]),
+    };
 }
 
 /// One row, named so that no row's label carries a fixture's own paths.
@@ -362,6 +454,47 @@ fn row_specs(places: &Places) -> Vec<Row> {
         vec![String::from("-f"), String::from("-a")],
         repo,
     ));
+    // What:
+    //  Every option of the guarded commands that takes a value Git reads as a destination,
+    //  crossed with every spelling of a destination as text.
+    // Why:
+    //  Git glues the option's text to each path and reads the pair as one name,
+    //  so a prefix that does not end with a separator continues the path's own name:
+    //  `checkout-index -f --prefix=. -a` writes `.a.txt`, `--prefix=out -a` writes `outa.txt`, and
+    //  `--prefix=link` writes `linka.txt` while the link itself is untouched
+    //  (measured on this host with native Git 2.56.0, 2026-11-16).
+    //  A guard that reads the prefix as a folder checks another file and lets the write through,
+    //  which is the tenth review's first finding.
+    //  The rows come from the tables the guard parses, so an option a newer Git adds is walked in
+    //  each of its spellings, and every spelling of a destination is taken from one list rather than
+    //  written out per row.
+    for (kind, spelling) in destination_spellings(places) {
+        for (subcommand, command, table, base, tail) in prefixed_forms() {
+            for spec in table.iter().filter(|spec| return spec.arity != Arity::None) {
+                let Some(option) = spelled_with_a_value(spec, spelling.as_str()) else {
+                    continue;
+                };
+                let mut words: Vec<String> = base.iter().map(|word| return String::from(*word)).collect();
+                words.extend(option);
+                words.extend(tail.iter().map(|word| return String::from(*word)));
+                rows.push(row(
+                    format!("{subcommand} {base:?} {} <{kind}> {tail:?}", spec_long(spec)),
+                    subcommand,
+                    command,
+                    words,
+                    repo,
+                ));
+            }
+        }
+        // A forced move names its destination as a word, so the same spellings are walked there too.
+        rows.push(row(
+            format!("mv -f <relative a.txt> <{kind}> destination"),
+            "mv",
+            GuardedCommand::Move,
+            vec![String::from("-f"), String::from("a.txt"), spelling],
+            repo,
+        ));
+    }
     // The same words from a directory below the root, where a relative word means another place.
     for (kind, spelling) in [("relative below", String::from("b.txt")), ("parent below", String::from("../b.txt")), ("dot below", String::from("./b.txt"))] {
         rows.push(row(
@@ -406,13 +539,11 @@ fn every_row_names_the_place_of_a_file_git_writes() {
         let row: Row = row_specs(&places).into_iter().nth(number).unwrap_or_else(|| panic!("row {number} is missing"));
         assert_eq!(&row.label, label, "the rows shift between fixtures");
         let guarded: Result<Vec<String>, String> = guard_names(row.directory.as_path(), row.command, row.words.as_slice());
-        let mut before: BTreeMap<PathBuf, Held> = snapshot(places.repo.as_path());
-        before.extend(snapshot(places.outside.as_path()));
+        let mut before: BTreeMap<PathBuf, Held> = snapshot(places.root.as_path());
         let mut arguments: Vec<&str> = vec![row.word];
         arguments.extend(row.words.iter().map(String::as_str));
         let observed: std::process::Output = git_status(row.directory.as_path(), arguments.as_slice());
-        let mut after: BTreeMap<PathBuf, Held> = snapshot(places.repo.as_path());
-        after.extend(snapshot(places.outside.as_path()));
+        let mut after: BTreeMap<PathBuf, Held> = snapshot(places.root.as_path());
         let lost: Vec<PathBuf> = files_a_person_lost(&before, &after);
         match guarded {
             // A word the guard cannot place stops the command in production, so the file Git alone would have
