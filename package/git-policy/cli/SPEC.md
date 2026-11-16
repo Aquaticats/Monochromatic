@@ -4765,6 +4765,16 @@ of which the two that rewrite link layouts in place are the service's work whene
   (the answers a wake gives are in "Every wait has a bound");
   a wake the service did not read is the same work for this add as a service that could not be reached,
   and the add relinks the worktree itself rather than tell the person a service holds what it never read.
+  Whoever relinks a worktree takes the record first, by the queue's own claim:
+  the rename out of `pending`, which only one consumer of the directory wins,
+  so the add and the service never run the two installers over one `node_modules`
+  (the review of 2026-11-13,
+  finding 1).
+  The add keeps its claim fresh while the tools run, with the renewal the service uses,
+  and settles it as `done` afterwards;
+  a claim whose holder is killed is requeued by its lease and the service relinks the worktree then,
+  so a killed add delays the relinking by up to `CLAIM_LEASE` and never loses it
+  (`src/native/repair/package_repair_relink_claim.rs`).
   A hand-over no service took keeps its record queued until the add's own run has finished,
   and takes it back then:
   a record removed first would leave nothing to recover the repair from after a kill,
