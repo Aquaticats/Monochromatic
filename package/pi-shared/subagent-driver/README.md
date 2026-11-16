@@ -409,46 +409,118 @@ one wrote twenty new files and four edits there over fifty minutes while its own
 because its brief named main-checkout paths to read and nothing stopped the same paths from being written.
 
 What this confinement does not reach,
-measured on 2026-11-16 with a stand-in unit of this package and a review of it,
-so that nobody takes it for more than it is.
-A run with a worktree can still move another branch's ref.
+measured on 2026-11-16 and 2026-11-17 with stand-in units of this package and two reviews of it,
+each with the write that shows it,
+so that nobody takes the confinement for more than it is.
+Each of these is a hole `main` has too,
+and wider,
+because `main` confines nothing.
+
+A run with a worktree can move,
+delete or write the root of its repository's Git directory.
 Git writes a ref by renaming a lock file in the folder that holds it,
 so a run that may write its own branch may write `refs/heads` with it,
-and a folder list cannot say "this branch and no other".
-Measured:
-`git update-ref refs/heads/main <older commit>` inside the unit ends zero,
-and `main` moves.
+and a folder list cannot say "this branch and no other":
+`git update-ref refs/heads/main <commit>`,
+`git branch -f` and `git update-ref -d refs/heads/main` all work,
+and deleting `main` leaves a checkout that reads "No commits yet on main".
 Protecting `refs/heads/main` itself as a read-only path does not stop it,
 because the rename replaces the file.
-A run that works in the checkout itself writes no Git folder at all,
-so its refs stay where they are.
+The same folder's root stays writable for Git's own housekeeping,
+so a run can write `index.lock`,
+`MERGE_HEAD`,
+`ORIG_HEAD`,
+`rebase-merge/`,
+`refs/replace/<sha>`,
+`objects/info/alternates` and `logs/HEAD` there;
+a planted `index.lock` makes the owner's next `git commit` in the checkout fail,
+and a planted replace ref changes what `git log` shows for a commit.
+A plain `git commit` run in the checkout can land on `main` when the index needs no rewrite,
+which is the shape of the incident this branch was made for.
+
+A run can write its repository's configuration.
+`git push -u`,
+`git branch --set-upstream-to` and `git switch -c x origin/y` record the upstream there,
+and with the file read-only they ended zero having recorded nothing,
+which is worse than a refusal,
+so the file is writable and a run may add settings to it,
+`core.fsmonitor` and `core.hooksPath` among them.
+The `HEAD`,
+the index and the hooks stay read-only,
+so a hook named in the configuration is not there to run;
+a program named as a file monitor is.
+
+A run may write its worktree's `.git` file,
+which names where its Git directory is.
+The launcher runs `git status` in the worktree after the run ends,
+and a file monitor or a filter the run configured can be what that command then runs,
+as the launcher rather than inside the unit.
+
 The checkout's `.cache` stays writable and holds the programs this session runs.
 This repository's tools install their launchers there,
 and a tool that makes the folder itself would be refused without the grant.
+It stays writable in the `--branch=none` mode too.
 Measured:
 a real `mise run …:build` and `…:lint:types` pass with `.cache` read-only,
 so the grant is wider than the build needs.
-A run could still overwrite `<checkout>/.cache/toolchain-bin/<tool>`,
+A run could overwrite `<checkout>/.cache/toolchain-bin/<tool>`,
 and a session that runs that tool afterwards runs the run's text.
-A run can ask the user manager for a transient unit and that unit is not confined.
+
+A run can ask the user manager for a transient unit,
+and that unit is not confined.
 A `systemd-run --user --unit=<name> …` started inside the unit is a service,
 which the manager starts in the host's mount namespace,
 so it can write anywhere its user can,
 the checkout included,
 from a run with a worktree and from a run without one.
 A scope stays in the caller's namespace and is confined as the run is.
-This is a limit of confining one unit:
+This cannot be closed from inside the unit:
 the manager is outside it,
 and a run needs the manager for the scopes every brief asks of it.
 Measured:
 the file an inner service wrote into the checkout was there afterwards.
+
+`podman` does not work inside the unit.
+Any path property makes the unit run in a user namespace of its own that maps one uid,
+because the manager can only mount inside a namespace it owns,
+and that namespace cannot hand `newuidmap` the subuid range rootless containers need:
+`podman unshare`,
+`podman run` and `newuidmap` all end with `write to uid_map failed: Operation not permitted`.
+`PrivateUsers=`,
+`ProtectSystem=` and `PrivateMounts=` change none of that,
+and dropping the path properties
+gives the containers back and the confinement up.
+The project's rule that work which may exhaust the host goes into `podman run` is therefore not kept by a run
+inside this unit;
+the owner decides which of the two gives.
+
+`link()` and `rename()` between two writable folders,
+and between one of them and anything else,
+end `EXDEV`.
+Each writable folder is its own bind mount,
+so a cross-mount link or rename is refused where `main` allows it;
+`cp --reflink=always` and `mv` (which falls back to a copy) still work.
+No tool of this repository was found to break on it:
+a commit,
+merge,
+rebase,
+stash,
+`gc`,
+`repack`,
+a
+`pnpm install` and a Cargo build all ran inside the unit.
+A write to `HEAD` or the index is refused with `Device or resource busy` where a plain write is refused with
+`Read-only file system`,
+because those two are single-file bind mounts.
+
 Filesystem calls before any unit exists are not all bounded.
-Reading a folder as the file system names it and reading an ordinary file are bounded.
+Reading a folder as the file system names it and reading an ordinary file are bounded;
 `access`,
 `stat`,
 `mkdir`,
 `readdir` and `writeFile` on the paths a start reads before it asks for the unit are not,
 so a filesystem that stops answering can still stop a start there.
+
 A run's driver is given a path systemd would expand only if the unit did not say otherwise,
 and the unit now says otherwise:
 it carries `--expand-environment=no`,

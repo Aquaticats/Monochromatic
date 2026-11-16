@@ -274,8 +274,10 @@ the unit a run runs in is started with the main checkout mounted read-only,
 and everything under it is refused by the operating system,
 except the folders a run must write.
 A write a run makes there ends at once with `Read-only file system`,
-and a rename or a delete ends the same way,
 and the agent sees that message and the path it named.
+A write to the checkout's `HEAD` or its index ends with `Device or resource busy` instead,
+because those two are single-file mounts,
+and a rename or a delete of either ends the same way.
 A command that was only meant to read a path a brief named writes nothing,
 and a brief that names a main-checkout path to read does not let the same path be written.
 
@@ -284,7 +286,10 @@ so the work still gets done:
 
 - the run's own worktree;
 - the Git directories its commits and its pushes write:
-  the worktree's own Git directory and the one every worktree of the repository shares;
+  the worktree's own Git directory,
+the one every worktree of the repository shares,
+  and its configuration,
+which `git push -u` and `git branch --set-upstream-to` record an upstream in;
 - the checkout's `.cache`,
   which this repository's tools install their launchers and guards into;
 - the run's own folder,
@@ -292,10 +297,45 @@ so the work still gets done:
 
 A run started with `--branch=none`,
 which works in the checkout itself rather than in a worktree,
-gets no writable worktree:
+gets no writable worktree and no writable Git folder:
 it can read the checkout and run its tools,
-and it cannot change a file of it.
-A run that has to change code therefore needs a branch and a worktree.
+and it cannot change a file of it,
+except the checkout's `.cache`,
+which stays writable in that mode too.
+
+What the read-only mount does not cover,
+measured on 2026-11-16,
+so that nobody plans work on the strength of it:
+
+- A run with a worktree can move or delete any branch of its repository,
+  and can write at the root of the shared Git directory
+  (`index.lock`,
+`MERGE_HEAD`,
+`refs/replace/<sha>`,
+`objects/info/alternates`,
+`logs/HEAD`).
+  A branch,
+a `git push -u` and a `git branch -f` are yours to use;
+  moving another branch is not what a brief should ask for.
+- A run can add settings to its repository's configuration,
+  so a later `git` in that repository may run a file monitor it named.
+- A run can ask the user manager for a transient unit
+  (`systemd-run --user --unit=<name> …`),
+  and that unit is not confined:
+  it can write the main checkout.
+  A `--scope` stays confined,
+which is what a long command of a brief should use.
+- `podman` does not work inside the unit:
+  rootless containers need a user-namespace range the unit's own namespace does not have,
+  so `podman run` and `podman unshare` end with `write to uid_map failed: Operation not permitted`.
+  A command that needs a container runs outside the unit,
+  which no brief should ask for.
+- `link()` and `rename()` between two writable folders,
+or between one and anywhere else,
+  end `EXDEV`;
+  copy instead (`cp`,
+`mv`),
+which works.
 
 ## Committing
 
