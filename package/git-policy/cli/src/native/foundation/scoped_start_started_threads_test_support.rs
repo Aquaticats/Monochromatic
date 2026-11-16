@@ -37,7 +37,8 @@ use std::sync::PoisonError;
 static RUNNING: Mutex<usize> = Mutex::new(0);
 
 /// What:
-///  One started thread, counted from the moment it starts until this value is dropped.
+///  One started thread,
+/// counted from the moment it starts until this value is dropped.
 /// Why:
 ///  The value is built before the thread starts and carried into it,
 ///  so a start the system refuses drops it on the spot and leaves no count behind,

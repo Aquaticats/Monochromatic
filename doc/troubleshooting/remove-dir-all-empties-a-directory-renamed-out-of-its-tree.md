@@ -121,6 +121,48 @@ so a link could not be
 verified.
 The quotes are from the installed toolchain's own copy of the file.
 
+## A fixture the test process removes under its own writer
+
+A second shape reaches the same `DirectoryNotEmpty`:
+the tree is a test fixture,
+and a thread of the test process itself adds an entry to it while the removal walks it.
+The added entry sits in a directory the removal has already listed,
+so the final `unlinkat(..., AT_REMOVEDIR)` of that directory fails with `ENOTEMPTY`,
+which `ignore_notfound` does not swallow.
+
+Measured in `package/git-policy/cli` on 2026-11-15.
+`land_group` starts three jobs through `spawn_named`
+(`foundation/scoped_start.rs`),
+and none belongs to the caller:
+the pool fill,
+the repository scratch collection,
+and the shadow draw
+(`service/service_server_land_group.rs`).
+A control that stands in for the service's landing loop calls `land_group` and then removes its fixture,
+and the draw makes `<repository>/.git/monochromatic-git-policy-cli-shadow-drawn`
+after `land_group` returned.
+A thread named `shadow-pool-dra` was still running when the control's body ended
+and made fourteen entries under that folder 8.3 ms later.
+The same control failed 8 of 10 runs in the gate's container and met the writer in 1 of 20 rounds on the host,
+at `remove only the fixture: Os { code: 39, kind: DirectoryNotEmpty }`.
+
+A removal a control makes therefore waits for the threads this process started to end
+before it hands the tree to `remove_dir_all`:
+`testing/test_support.rs`,
+`remove`,
+which reads the count `foundation/scoped_start_started_threads_test_support.rs` keeps.
+A started thread lowers that count after its last write,
+and a start the system refuses lowers it on the spot,
+so a removal that has seen zero cannot meet a writer.
+After that wait the same control passed 10 of 10 runs in the container and 10 of 10 runs on the host,
+which is the order of the control's own test,
+`testing::test_support::tests::a_fixture_is_removed_after_the_threads_this_process_started_have_ended`.
+`settle_fixture`,
+the teardown that runs when the test thread ends,
+does not make this wait:
+it retries the removal for five seconds,
+which turns the same meeting into a fixture left behind rather than a failed control.
+
 ## Verification
 
 Version under test:

@@ -53,7 +53,8 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
 
 /// How long a control gives the removal to return inside while a thread this process started is held.
 /// Why:
-///   A removal that waits at all cannot return before that thread is let go, however slowly the host runs;
+///   A removal that waits at all cannot return before that thread is let go,
+/// however slowly the host runs;
 /// a removal that does not wait returns in microseconds.
 /// Four of the looks its wait makes is far above the microseconds and far below a second (`WAIT_LOOK_EVERY`).
 const WHILE_A_WRITER_IS_HELD: std::time::Duration = std::time::Duration::from_millis(200);
@@ -65,14 +66,16 @@ const SETTLING: std::time::Duration = std::time::Duration::from_secs(30);
 ///  A fixture is removed only after the threads this process started have ended.
 /// Why:
 ///   A job `spawn_named` starts belongs to no caller:
-///  the service starts the pool fill, the repository scratch collection and the draw beside a landing and returns
+///  the service starts the pool fill,
+/// the repository scratch collection and the draw beside a landing and returns
 ///  (`service_server_land_group.rs`),
 ///  and the draw makes `monochromatic-git-policy-cli-shadow-drawn` under the repository's Git directory
 ///  after that caller returned.
 ///  It is what left
 ///  `a_landed_commit_holds_its_push_where_no_round_runs_it` panicking at
 ///  `remove only the fixture: Os { code: 39, kind: DirectoryNotEmpty }` in the gate of 2026-11-14.
-///  The writer here is held, so "while a thread this process started runs" is a state and not a duration.
+///  The writer here is held,
+/// so "while a thread this process started runs" is a state and not a duration.
 #[test]
 fn a_fixture_is_removed_after_the_threads_this_process_started_have_ended() {
     let root: PathBuf = fixture("guard-writer");
