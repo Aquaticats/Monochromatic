@@ -1701,6 +1701,13 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   `worktree_copying/worktree_copy_journal_removal.rs` line 445 falls back to `std::fs::remove_dir_all(path)`.
   The fourth is in code only the branch has (`note_that_a_filling_made` and `a_filling_made_this` do not occur in `main`'s `package_repair_prewarm_job.rs`).
 - **The service logs of a control under a limit**, fresh run ended at 22:09 at `b0f446fe7b` (four files, test support). Review queued at 22:11:00.
+- **Checkout migration** (`28254ad188`, whole range, 15 of 15 files): three things reproduced, two of which lose a person's bytes.
+  A write to the source after its last check publishes the old bytes, with nothing recorded as left out; a parked destination file rewritten to the same size and timestamp is removed as superseded;
+  a later pass that is interrupted cuts the earlier passes' uncarried entries out of the durable record.
+  The names the findings turn on (`unchanged_since`, `source_path_still_names`, `self.recorded`) occur nowhere under `main`'s `subvolume/` folder (searched, no hit), so by name this code came with the branch;
+  whether `main` does the same under other names is what the author is asked to show. Fourth run queued at 22:15:10, twelfth in the queue.
+- **Two authors ended, reviews queued at 22:14:35:** copy owner and transaction owner spelled another way (`b029539d9b`, seven code files);
+  the branch that keeps a Pi run out of the main checkout, sixth run (`b3c4479719`, sixteen code files; sixth in the queue, since until it is in `main` every run can write there).
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
