@@ -1693,7 +1693,16 @@ the review of the branch that keeps a Pi run out of the main checkout (`0aaf6a11
   (`~/temp/agent/gate/keep/fuzz-sidecar-type-check-on-main-with-pass-55-in-2026-11-15T1959.txt`).
 - The string after `PNPR_SECRET=` that no tracked file holds: no commit on any ref adds or removes it;
   it stands eighteen times in one Claude Code transcript last written 2026-09-17, beside `PNPR_PUBLIC_URL` and `RUST_LOG` on the same lines.
-  Whether it equals a value in the secret store now is being compared in memory as this is written.
+  Compared in memory with the 45 values the repository's environment holds now: equal to none.
+  So by these three readings it is not the secret in use; the store's own `PNPR_SECRET` stays on the rotation list as before.
+- Test leftovers at the top of `~/temp/agent`: of 3,670 `rn-*-0` and `rt-*-0` folders, 1,830 older than a day with no process inside were deleted at about 20:05;
+  1,840 stay (changed within a day, or a process works inside). Lists: `~/temp/agent/test-leftover-runtime-folders-deleted-2026-11-15/keep/`.
+- The masking's author, whose fifth run is going, got a note at 20:05:49 with the narrow line and what it means for each of the four findings it is answering
+  (`~/temp/agent/notes-to-send/note-for-the-masking-author-the-line-at-which-masking-is-finished-2026-11-15T2010.md`; the file's name runs five minutes ahead of the clock it was written by).
+- Two more authors queued at 20:07:20: the branch that keeps a Pi run out of the main checkout (`0aaf6a11d7`, sixth run, seventh in the queue:
+  its review reproduced four: the wait for the dependency unit gives up after 30 seconds and Pi starts while the install runs; a failed install is printed and ignored;
+  a run based at a bare repository cannot commit; every successful file read leaves its timer alive)
+  and cargo-shadow's two tests (`f0c4ca0150`, second run, fifteenth).
 
 **Owed from the owner's answers and not started** (each a run or an act of its own):
 the `rn-*-0` and `rt-*-0` folders older than a day deleted and the tests made to clean up;
