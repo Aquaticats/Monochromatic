@@ -7,6 +7,7 @@ import type { BypassProto, } from './tunnel-bypass-types.ts';
 import {
   BLOCKED_IPV4_RANGES,
   BLOCKED_IPV6_RANGES,
+  PUBLIC_IPV6_EXCEPTIONS,
 } from './host-address.data.ts';
 
 /**
@@ -282,6 +283,9 @@ function inRange(
  and multicast answers are refused:
  a hostile or broken answer must not route local traffic through the bypass table.
 
+ An address {@link PUBLIC_IPV6_EXCEPTIONS} lists is public even though a blocked range contains it:
+ the IANA registry answers those sub-blocks of `2001::/23` as globally reachable on their own rows.
+
  @param family - Address family flag.
 
  @param address - Normalized address.
@@ -302,7 +306,28 @@ export function isPublicAddress(
     readonly address: string;
   },
 ): boolean {
-  return !(family === '-4' ? BLOCKED_IPV4_RANGES : BLOCKED_IPV6_RANGES).some(function blocks(range,): boolean {
+  if (family === '-4') {
+    return !BLOCKED_IPV4_RANGES.some(function blocks(range,): boolean {
+      return inRange({
+        family,
+        address,
+        range,
+      },);
+    },);
+  }
+  /**
+   Whether a blocked IPv6 range contains the address.
+   */
+  const blocked = BLOCKED_IPV6_RANGES.some(function blocks(range,): boolean {
+    return inRange({
+      family,
+      address,
+      range,
+    },);
+  },);
+  if (!blocked)
+    return true;
+  return PUBLIC_IPV6_EXCEPTIONS.some(function isException(range,): boolean {
     return inRange({
       family,
       address,
