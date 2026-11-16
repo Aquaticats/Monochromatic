@@ -11,10 +11,8 @@ use super::*;
 use crate::repo_read_layout::read_layout_with;
 use crate::repo_read_query::{Answer, Query, answer_with};
 use crate::repo_read_query::tests::scope;
-use crate::test_support::{REAL_GIT, fixture, git, git_output, remove, repository};
-use std::io::Write;
+use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, fixture, git, git_output, real_git_within, remove, repository};
 use std::path::PathBuf;
-use std::process::Stdio;
 
 /// The malformed spellings the sweep tries for every documented key:
 /// a word no type reads,
@@ -73,27 +71,27 @@ fn shapes(head: &str) -> Vec<Shape> {
 }
 
 /// What real Git prints and returns for a shape.
+///  Every query of this control runs under the bound a control gives its fixture Git,
+/// so a Git that never answers ends this control with a verdict that names the shape and the bound
+/// instead of holding the suite.
 fn real(repo: &Path, shape: &Shape) -> (Vec<u8>, Vec<u8>, Option<i32>) {
-    let mut child = std::process::Command::new(REAL_GIT)
-        .current_dir(repo)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("HOME", repo.join("no-home"))
-        .args(&shape.0)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Git");
-    let mut stdin = child.stdin.take().expect("stdin");
-    if let Some(input) = &shape.1 {
-        stdin.write_all(input.as_slice()).expect("input");
-    }
-    drop(stdin);
-    let output = child.wait_with_output().expect("output");
-    return (output.stdout, output.stderr, output.status.code());
+    let words: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
+    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), Some(repo), &hermetic_environment(repo), words.as_slice(), shape.1.as_deref(), FIXTURE_GIT_BOUND);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the query {:?} did not answer within {} s: the bound ended it", shape.0, FIXTURE_GIT_BOUND.as_secs());
+    assert!(!answer.held_open, "the query {:?} ended, and a descendant of it still holds its output", shape.0);
+    return (answer.output.stdout, answer.output.stderr, answer.output.status.code());
+}
+
+/// The environment every real-Git query of this control runs with:
+///  no system or global configuration,
+/// and a home inside the repository, so nothing of the account's own reaches a fixture.
+fn hermetic_environment(repo: &Path) -> Vec<(OsString, OsString)> {
+    return vec![
+        (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+        (OsString::from("HOME"), repo.join("no-home").into_os_string()),
+    ];
 }
 
 /// What the readers answer for a shape.
@@ -306,6 +304,111 @@ fn malformed_values_git_rejects_make_the_readers_decline() {
     trial.finish();
 }
 
+/// `index.maxPathLen` is a number Git reads before any command of the release that types it,
+///  and this host's Git is older than that release,
+/// so the sweep below cannot reach the key here at all:
+///  this control states what the table must hold,
+/// and the sweep is what holds the table equal to the Gate's Git.
+///  A number of more than nine digits is not one the proof reads at all,
+/// so its largest accepted spelling stays under Git's own maximum and the rest is left to Git.
+#[test]
+fn index_max_path_len_is_a_number_git_reads_before_any_command() {
+    let one_past_the_maximum: String = (i64::from(i32::MAX) + 1).to_string();
+    for refused in [Some(b"maybe".as_slice()), None, Some(b""), Some(b"-0"), Some(b"-0k"), Some(b"-1"), Some(b"99999999999999999999"), Some(b"~no-such-user-here/x"), Some(one_past_the_maximum.as_bytes())] {
+        assert!(!entry_is_accepted("index.maxpathlen", refused), "{refused:?}");
+    }
+    for accepted in [Some(b"0".as_slice()), Some(b"3"), Some(b"3k"), Some(b"999999999")] {
+        assert!(entry_is_accepted("index.maxpathlen", accepted), "{accepted:?}");
+    }
+}
+
+/// The spellings every numeric key is swept with:
+///  a minus and a plus on zero,
+/// zero itself,
+/// a space on either side of it,
+/// a base the number reader does not read,
+/// a unit suffix on each signed spelling,
+/// no value at all,
+/// and two numbers past 64 bits.
+const EDGE_SPELLINGS: [Option<&str>; 14] = [Some("-0"), Some("+0"), Some("0"), Some(" 0"), Some("0 "), Some("0x10"), Some("010"), Some("0k"), Some("-0k"), Some("+0k"), Some(""), None, Some("99999999999999999999"), Some("18446744073709551616")];
+
+/// Whether one kind reads a number,
+///  and so is swept for the edge spellings of one.
+fn is_numeric_kind(kind: Kind) -> bool {
+    return matches!(kind, Kind::Integer { .. } | Kind::IntegerOrBoolean | Kind::Abbreviation);
+}
+
+/// The key as the configuration parser hands it to the table:
+///  the section and the name in lower case,
+/// and the subsection as it was written
+///  (`parse_config_text` in `repo_read_config_text.rs`).
+/// Why:
+///  `git help --config` prints some keys with capitals,
+/// so a lookup with that spelling would find no kind and skip the key entirely.
+fn canonical_key(key: &str) -> String {
+    let Some((section, rest)) = key.split_once('.') else {
+        return key.to_ascii_lowercase();
+    };
+    return match rest.rsplit_once('.') {
+        Some((subsection, name)) => format!("{}.{}.{}", section.to_ascii_lowercase(), subsection, name.to_ascii_lowercase()),
+        None => format!("{}.{}", section.to_ascii_lowercase(), rest.to_ascii_lowercase()),
+    };
+}
+
+/// The spellings one numeric kind is swept with:
+///  the shared edges,
+/// and a number one past each bound the kind states.
+fn edge_spellings(kind: Kind) -> Vec<Option<String>> {
+    let mut spellings: Vec<Option<String>> = EDGE_SPELLINGS.iter().map(|spelling| { return spelling.map(str::to_string); }).collect();
+    if let Kind::Integer { low, high } = kind {
+        spellings.push(Some((high + 1).to_string()));
+        spellings.push(Some((low - 1).to_string()));
+    }
+    return spellings;
+}
+
+/// Every key whose kind reads a number takes each spelling at the edge of one either by making the readers decline
+/// or by leaving Git to answer:
+///  no repository Git refuses is answered in process.
+///
+/// The rule held here: a kind whose lower bound is zero or more is an unsigned number to Git,
+/// and Git refuses every spelling of an unsigned number that carries a minus sign,
+/// even when the number it stands for is zero
+///  (`git_parse_unsigned` in `parse.c` of the Git under test,
+/// which refuses the sign before it reads the digits),
+/// so such a spelling is declined and Git words the failure.
+#[test]
+fn every_edge_spelling_of_a_numeric_key_is_declined_or_answered_by_git() {
+    let trial = Trial::new("repo-read-typed-edges");
+    let shape: &Shape = trial.shapes.iter().find(|shape| { return shape.0.first().is_some_and(|word| { return *word == "ls-files"; }); }).expect("the listing shape");
+    let mut keys: Vec<(String, Kind)> = Vec::new();
+    for key in documented_keys() {
+        let Some(kind) = kind_of(canonical_key(key.as_str()).as_str()) else {
+            continue;
+        };
+        if is_numeric_kind(kind) {
+            keys.push((key, kind));
+        }
+    }
+    assert!(keys.len() > 5, "git help --config listed {} numeric keys", keys.len());
+    let mut failures: Vec<String> = Vec::new();
+    for (key, kind) in keys {
+        for spelling in edge_spellings(kind) {
+            trial.configure(config_text(key.as_str(), spelling.as_deref()).as_str());
+            let Some(answer) = ours(trial.root.as_path(), trial.repo.as_path(), shape) else {
+                continue;
+            };
+            let (_stdout, stderr, code) = real(trial.repo.as_path(), shape);
+            if code != Some(0) {
+                failures.push(format!("{key} = {spelling:?}: the readers answered {:?} where Git exits {code:?}: {}", String::from_utf8_lossy(&answer.stdout), String::from_utf8_lossy(&stderr)));
+            }
+        }
+    }
+    trial.configure("");
+    assert!(failures.is_empty(), "{} spellings of a numeric key are answered where Git refuses them: {failures:#?}", failures.len());
+    trial.finish();
+}
+
 /// Every word and number the proof accepts is one real Git runs silently with on every shape,
 /// and the readers keep answering.
 #[test]
@@ -416,22 +519,24 @@ fn numbers_are_read_only_when_decimal_and_small() {
 const MONITOR_ON: &str = "[core]\n\tfsmonitor = true\n";
 
 /// Real Git in `repo` with `global` as the user's configuration file,
-/// and nothing else of the user's environment.
+/// and nothing else of the user's environment,
+///  run under the bound a control gives its fixture Git.
 fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::Output {
     // The monitor daemon changes to the home directory when it starts,
     // so the home must exist.
     let home: PathBuf = repo.with_file_name("monitor-home");
     std::fs::create_dir_all(&home).expect("home");
-    return std::process::Command::new(REAL_GIT)
-        .current_dir(repo)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", global)
-        .env("HOME", home)
-        .args(arguments)
-        .output()
-        .expect("Git");
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (OsString::from("GIT_CONFIG_GLOBAL"), global.as_os_str().to_os_string()),
+        (OsString::from("HOME"), home.into_os_string()),
+    ];
+    let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
+    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), Some(repo), environment.as_slice(), words.as_slice(), None, FIXTURE_GIT_BOUND);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the query {arguments:?} did not answer within {} s: the bound ended it", FIXTURE_GIT_BOUND.as_secs());
+    assert!(!answer.held_open, "the query {arguments:?} ended, and a descendant of it still holds its output");
+    return answer.output;
 }
 
 /// Stops the monitor daemon a test started in `repo`,
