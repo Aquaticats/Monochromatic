@@ -309,3 +309,35 @@ fn the_location_follows_the_environment() {
     assert_eq!(cache_directory(&[pair("HOME", "")]), None);
     assert_eq!(cache_directory(&[]), None);
 }
+
+/// What:
+///  The cache folder loses the staging files a killed write left,
+///  and keeps the one a writer that is still there is about to rename.
+/// Why:
+///   A write publishes an entry by a rename,
+/// so a kill between the two leaves a file nothing names in the user's cache folder for ever;
+/// the file's name carries the process writing it,
+/// which is the only proof a sweep can have that no rename is coming.
+#[test]
+fn the_cache_folder_loses_what_a_killed_write_left_and_keeps_a_live_writers_file() {
+    let root: PathBuf = fixture("cache-temporaries");
+    let cache: PathBuf = cache_in(root.as_path());
+    std::fs::create_dir_all(cache.as_path()).expect("cache directory");
+    // A process number no process of this machine has: the writer of that file is provably gone.
+    let gone: u64 = 4_000_000_000;
+    let dead: PathBuf = cache.join(format!("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.{gone}-0.tmp"));
+    std::fs::write(&dead, "the text of a version").expect("the staging file of a killed write");
+    let live: PathBuf = crate::temporary_file_of_a_writer::name_of(cache.join("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f1").as_path());
+    std::fs::write(&live, "the text of a version").expect("the staging file of this process");
+    // A staging file of the release before this one names no writer, so only its age can remove it.
+    let earlier: PathBuf = cache.join(".tmp-0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f2");
+    std::fs::write(&earlier, "the text of a version").expect("a staging file of the release before this one");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - crate::service_journal::TEMPORARY_GRACE - std::time::Duration::from_secs(60);
+    std::fs::File::options().append(true).open(&earlier).and_then(|file| { return file.set_modified(long_ago); }).expect("aged");
+    // The write that follows is the sweep: the identity of the host Git, asked for by the version check.
+    plant(cache.as_path(), Path::new(REAL_GIT), "git version 2.56.0\n");
+    assert!(!dead.exists(), "the staging file of a writer that is gone is removed");
+    assert!(!earlier.exists(), "and so is one of a release that named no writer, once it is old");
+    assert!(live.exists(), "the staging file of a writer that is still there is left alone");
+    remove(root.as_path());
+}

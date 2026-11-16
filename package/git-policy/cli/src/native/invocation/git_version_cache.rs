@@ -310,7 +310,15 @@ pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str
             return;
         }
     };
-    let temporary: PathBuf = directory.join(format!(".tmp-{unique}"));
+    // A write cut off before its rename leaves a file nothing names, so the sweep of this folder runs before the write and
+    //  removes what a dead writer left (`temporary_file_of_a_writer.rs`).
+    let swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(directory, crate::service_journal::TEMPORARY_GRACE);
+    if swept.removed > 0 {
+        debug(TAG, format!("removed {} temporary file(s) a killed write of the cache left", swept.removed).as_str());
+    }
+    // The writer's number is part of the name, so the sweep proves it gone before it removes the file; the random identifier
+    //  keeps two writes of this process apart.
+    let temporary: PathBuf = crate::temporary_file_of_a_writer::name_of(directory.join(unique.as_str()).as_path());
     let tag: String = file_tag(kind);
     let mut bytes: Vec<u8> = Vec::with_capacity(tag.len() + identity.text.len() + 1 + text.len());
     bytes.extend_from_slice(tag.as_bytes());
@@ -321,6 +329,7 @@ pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str
         debug(TAG, format!("could not write {}: {error}", temporary.display()).as_str());
         return;
     }
+    crate::service_fault::reach(crate::service_fault::BEFORE_A_CACHE_RENAME);
     if let Err(error) = std::fs::rename(&temporary, cache_file(directory, identity, kind)) {
         debug(TAG, format!("could not publish the cache file: {error}").as_str());
         if let Err(removal) = std::fs::remove_file(&temporary) {

@@ -52,10 +52,15 @@ pub const CLAIM_EXTENSION: &str = "claim";
 /// never read as an intent.
 pub const SCRATCH_EXTENSION: &str = "scratch";
 
-/// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it.
+/// How old a file of no writer must be before a listing treats it as the remains of a killed write and removes it.
 /// A write takes
 ///  milliseconds;
 /// the grace covers a writer stalled on a slow disk or a loaded host.
+/// A temporary of this release carries its writer's process number,
+/// so it is judged by that and never by this age
+/// (`temporary_file_of_a_writer.rs`);
+/// this is the age of a claim, which names no writer,
+/// and of a temporary the release before this one wrote.
 /// Measured:
 /// the longest journal write step of
 ///  1,302 landings in the service journal (`journal_ms`,
@@ -221,12 +226,14 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
 /// await writeIntent(dir, intent) // the intent's lines and its clock reading, synced, renamed, and the directory synced
 /// ```
 pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
-    let temporary: PathBuf = batch_path(dir, intent.seq, TEMPORARY_EXTENSION);
+    let target: PathBuf = batch_path(dir, intent.seq, OPEN_EXTENSION);
+    let temporary: PathBuf = crate::temporary_file_of_a_writer::name_of(target.as_path());
     let mut file: File = File::create(&temporary)?;
     let text: String = format!("{}{}", intent_text(intent), crate::service_journal_record_age::stamp_line(&crate::claim_time::ClaimTime::read()));
     file.write_all(text.as_bytes())?;
     crate::service_durable::flush_file(&file, "intent-file")?;
-    fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
+    crate::service_fault::reach(crate::service_fault::BEFORE_AN_INTENT_RENAME);
+    fs::rename(&temporary, target)?;
     return crate::service_durable::flush_directory(dir, "intent-dir");
 }
 
@@ -250,11 +257,13 @@ pub const INDEXED_EXTENSION: &str = "indexed";
 /// await markIndexed(dir, seq, newCommit)
 /// ```
 pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
-    let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
+    let target: PathBuf = batch_path(dir, seq, INDEXED_EXTENSION);
+    let temporary: PathBuf = crate::temporary_file_of_a_writer::name_of(target.as_path());
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{new}\n").as_bytes())?;
     crate::service_durable::flush_file(&file, "indexed-file")?;
-    fs::rename(&temporary, batch_path(dir, seq, INDEXED_EXTENSION))?;
+    crate::service_fault::reach(crate::service_fault::BEFORE_AN_INTENT_RENAME);
+    fs::rename(&temporary, target)?;
     crate::service_fault::note("indexed-recorded");
     return crate::service_durable::flush_directory(dir, "indexed-dir");
 }
@@ -287,10 +296,12 @@ pub const CONCLUSION_COPY_EXTENSION: &str = "cleanup";
 /// await writeStart(dir, seq, witness)
 /// ```
 pub fn write_start(dir: &Path, seq: u64, witness: &IndexWitness) -> std::io::Result<()> {
-    let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
+    let target: PathBuf = batch_path(dir, seq, START_EXTENSION);
+    let temporary: PathBuf = crate::temporary_file_of_a_writer::name_of(target.as_path());
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{}\n", encode(witness)).as_bytes())?;
-    return fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION));
+    crate::service_fault::reach(crate::service_fault::BEFORE_AN_INTENT_RENAME);
+    return fs::rename(&temporary, target);
 }
 
 /// What a batch's start record says.
@@ -386,12 +397,37 @@ pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
 }
 
 /// What:
-///  Whether a leftover temporary or claim file is old enough to be the remains of a write that was killed.
+///  Whether a leftover temporary or claim file is the remains of a write that was killed.
 /// Why:
 ///  `list_intents` removes only such files;
-/// a younger one may be another instance's write in progress.
-/// A file whose age cannot be
-///  read is not abandoned.
+/// a live one may be another instance's write in progress,
+///  and removing it would fail that instance's rename or hand its number to a second landing.
+/// A temporary of this release names its writer,
+///  so the kernel's answer that no such process exists is what proves it left;
+/// a claim and a temporary of an earlier release name no writer,
+///  so only their age is left to judge,
+/// and a file whose age cannot be read is not abandoned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isThisFilesRemains(entry, path) // the writer is gone, or the file names none and is old
+/// ```
+fn is_this_files_remains(entry: &fs::DirEntry, path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
+    // A claim says whose landing holds the number by being there, so its age is all it can say about who holds it.
+    if path.extension().and_then(std::ffi::OsStr::to_str) == Some(CLAIM_EXTENSION) {
+        return is_abandoned(entry);
+    }
+    return crate::temporary_file_of_a_writer::is_abandoned(name, entry.metadata().and_then(|metadata| { return metadata.modified(); }), TEMPORARY_GRACE);
+}
+
+/// What:
+///  Whether a leftover file is old enough to be the remains of a write that was killed.
+/// Why:
+///  `list_intents` removes the claim files of a landing that was killed, which name no writer;
+/// a younger one may be another instance's landing in progress.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -511,9 +547,9 @@ fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned
         let path: PathBuf = entry.path();
         match path.extension().and_then(std::ffi::OsStr::to_str) {
             Some(TEMPORARY_EXTENSION | CLAIM_EXTENSION) => {
-                // Only the remains of a write or a landing that was killed: a younger file may be another instance's write in
-                //  progress, and removing it would fail that instance's rename or hand its number to a second landing.
-                let abandoned: bool = remove_abandoned && is_abandoned(&entry);
+                // Only the remains of a write or a landing that was killed: a live writer's file is the one whose process this
+                //  release names in it, and a claim or a file of an earlier release is judged by its age.
+                let abandoned: bool = remove_abandoned && is_this_files_remains(&entry, &path);
                 if abandoned {
                     let _removed = fs::remove_file(&path);
                 }

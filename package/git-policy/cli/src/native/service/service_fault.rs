@@ -56,6 +56,40 @@ pub const PRESTAGE_STAGED: &str = "prestage-staged";
 ///  name it carries.
 pub const PRESTAGE_FLUSHED: &str = "prestage-flushed";
 
+/// The instant a write of the version cache has put the whole cache file under its temporary name and before the rename
+///  publishes it.
+/// Why:
+///   A kill here is the one a kill at any instruction makes:
+///  the record is never published,
+///  so the next start of the wrapper asks Git again and the sweep of that folder finds the write's remains
+///  (`git_version_cache.rs`,
+/// `temporary_file_of_a_writer.rs`).
+pub const BEFORE_A_CACHE_RENAME: &str = "before-a-cache-rename";
+
+/// The instant a write of a unit file or the link beside it has put the whole file under its temporary name and before
+///  the rename publishes it.
+/// Why:
+///   The manager reads the unit files of a worktree,
+///  so a kill here leaves a file in the manager's own directory that nothing else names,
+///  and the next provisioning of that worktree sweeps it
+///  (`service_provision_unit_file_ownership_and_writes.rs`).
+pub const BEFORE_A_UNIT_RENAME: &str = "before-a-unit-rename";
+
+/// The instant a batch's record has been written whole and synced under its temporary name and before the rename
+///  publishes it.
+/// Why:
+///   This is the write a batch's durability rests on,
+/// and a kill here leaves a temporary the next service's listing proves abandoned and removes
+///  (`service_journal.rs`).
+pub const BEFORE_AN_INTENT_RENAME: &str = "before-an-intent-rename";
+
+/// The instant a private record has been written whole under its staging name and before the rename publishes it.
+/// Why:
+///   Every record this package keeps for itself is published this way,
+///  so a kill here leaves a staging file in the record's folder, which the next write of that folder sweeps
+///  (`private_storage.rs`).
+pub const BEFORE_A_RECORD_RENAME: &str = "before-a-record-rename";
+
 /// The instant in the wrapper after the post-commit gate promoted a landed commit's held push into `pending`,
 /// and before the wake that would run it:
 /// a kill here leaves a push record nothing was told about,

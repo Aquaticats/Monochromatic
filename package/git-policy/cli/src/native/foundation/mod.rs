@@ -76,6 +76,11 @@ pub mod path_bytes_in_records;
 /// with the spelling each reader of it takes.
 pub mod ref_name;
 
+/// The temporary file a write of a record makes before its rename,
+/// named after the process writing it,
+/// and the sweep of those a killed write left.
+pub mod temporary_file_of_a_writer;
+
 /// How many workers independent items may use together,
 /// from the CPUs allowed,
 /// the memory free and a measured ceiling.

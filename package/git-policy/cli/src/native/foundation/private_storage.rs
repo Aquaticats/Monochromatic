@@ -193,7 +193,7 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 /// hidden,
 /// unique,
 /// private (mode `0600`),
-/// named `.<name>.<random>.partial`.
+/// named `.<name>.<random>.<pid>.partial`,
 /// Why:
 ///   Recovery finds records by their exact names,
 /// so a staging file never looks like one;
@@ -205,7 +205,7 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await open(join(dirname(path), `.${basename(path)}.${random()}.partial`), O_CREAT | O_EXCL | O_RDWR, 0o600);
+/// await open(join(dirname(path), `.${basename(path)}.${random()}.${process.pid}.partial`), O_CREAT | O_EXCL | O_RDWR, 0o600);
 /// ```
 pub(super) fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
     let Some(name) = path.file_name() else {
@@ -224,9 +224,13 @@ pub(super) fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTemp
     };
     // The file is made by `exclusive_options` (exclusive, no-follow, mode 0600) and handed to the crate, which names it and removes
     //  it when dropped; the crate's own file-making call wraps the system error with the staging path, which hides the error code.
+    // A write cut off before its publish leaves its staging file behind, so the folder loses what a dead writer left before
+    //  this write puts its own there; a live writer's file is never touched.
+    let _swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(directory, crate::service_journal::TEMPORARY_GRACE);
     return tempfile::Builder::new()
         .prefix(prefix.as_os_str())
-        .suffix(".partial")
+        // The process writing it ends the name before the suffix, so a sweep can prove a write abandoned.
+        .suffix(format!(".{}.partial", std::process::id()).as_str())
         .make_in(directory, open_exclusively);
 }
 
@@ -430,6 +434,7 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
     protect_when_asked(staged.path(), mode)?;
     #[cfg(test)]
     AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
+    crate::service_fault::reach(crate::service_fault::BEFORE_A_RECORD_RENAME);
     #[cfg(test)]
     let outcome: Result<File, tempfile::PersistError> = if THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(std::cell::Cell::get) {
         Err(tempfile::PersistError { error: std::io::Error::from_raw_os_error(libc::ENOTSUP), file: staged })

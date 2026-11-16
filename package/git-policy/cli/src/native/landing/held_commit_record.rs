@@ -42,10 +42,6 @@ pub const FOLDER: &str = "monochromatic-git-policy-cli/held-commits";
 /// The end of a record's name.
 pub const HELD_EXTENSION: &str = "held";
 
-/// The end of the name a record is staged under;
-/// never read as one.
-const TEMPORARY_EXTENSION: &str = "tmp";
-
 /// How many bytes of one record this reads.
 /// Why:
 ///   A record holds a handful of fields,
@@ -347,7 +343,10 @@ fn read_ref(text: &str) -> Option<crate::ref_name::RefName> {
 pub fn write(git_dir: &Path, held: &Held) -> std::io::Result<()> {
     let folder: PathBuf = directory_of(git_dir);
     crate::private_storage::create_private_directory_all(folder.as_path())?;
-    let staged: PathBuf = folder.join(format!("{}.{TEMPORARY_EXTENSION}", held.seq));
+    // The write's own process is part of the name it is staged under, so a kill between the write and the rename leaves a file
+    //  the next write of this folder proves abandoned and removes.
+    let staged: PathBuf = crate::temporary_file_of_a_writer::name_of(path_of(git_dir, held.seq).as_path());
+    let _swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(folder.as_path(), crate::service_journal::TEMPORARY_GRACE);
     let _stale = std::fs::remove_file(staged.as_path());
     crate::private_storage::write_private_file(staged.as_path(), text(held).as_bytes())?;
     let record: PathBuf = path_of(git_dir, held.seq);

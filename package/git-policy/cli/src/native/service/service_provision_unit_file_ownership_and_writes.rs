@@ -27,9 +27,10 @@ pub const OWN_MARKERS: [&str; 4] =
 /// Writes `text` to `path` through a temporary file and a rename,
 /// so a reader sees the old file or the new one whole.
 pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
-    let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let temporary: PathBuf = path.with_extension(format!("tmp-{}-{number}", std::process::id()));
+    sweep_beside(path);
+    let temporary: PathBuf = crate::temporary_file_of_a_writer::name_of(path);
     std::fs::write(&temporary, text.as_bytes())?;
+    crate::service_fault::reach(crate::service_fault::BEFORE_A_UNIT_RENAME);
     let renamed: std::io::Result<()> = std::fs::rename(&temporary, path);
     if renamed.is_err() {
         let _removed = std::fs::remove_file(&temporary);
@@ -37,7 +38,28 @@ pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     return renamed;
 }
 
-pub(crate) static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// What:
+///  Removes the temporaries a killed write left in the folder of `path`,
+///  before the write that follows puts its own there.
+/// Why:
+///   A unit file, the link beside it and the note that names them are written through a temporary and a rename,
+///  so a process killed between the two leaves a file in the manager's own directory that nothing else names;
+///  the folder is the manager's, so only a temporary whose writer the kernel proves gone is removed,
+///  and a live writer's own file is never touched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweepBeside(path) // the folder of path loses what a dead writer left
+/// ```
+fn sweep_beside(path: &Path) {
+    let Some(folder) = path.parent() else {
+        return;
+    };
+    let swept: crate::temporary_file_of_a_writer::Swept = crate::temporary_file_of_a_writer::sweep_temporaries(folder, crate::service_journal::TEMPORARY_GRACE);
+    if swept.removed > 0 {
+        crate::service_log!("removed {} temporary file(s) a killed write of a unit left in {}", swept.removed, folder.display());
+    }
+}
 
 /// What:
 ///  Makes `path` a link to `target` through a temporary link and a rename,
@@ -50,10 +72,11 @@ pub(crate) static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::a
 /// which a link to a link would not
 ///  (`symlink` refuses a name that exists).
 pub(crate) fn link_atomically(path: &Path, target: &Path) -> std::io::Result<()> {
-    let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let temporary: PathBuf = path.with_extension(format!("linktmp-{}-{number}", std::process::id()));
+    sweep_beside(path);
+    let temporary: PathBuf = crate::temporary_file_of_a_writer::name_of(path);
     let _stale = std::fs::remove_file(&temporary);
     std::os::unix::fs::symlink(target, &temporary)?;
+    crate::service_fault::reach(crate::service_fault::BEFORE_A_UNIT_RENAME);
     let renamed: std::io::Result<()> = std::fs::rename(&temporary, path);
     if renamed.is_err() {
         let _removed = std::fs::remove_file(&temporary);

@@ -159,3 +159,29 @@ fn a_staging_file_that_cannot_be_made_reports_the_plain_system_error() {
     assert_eq!(error.to_string(), "No such file or directory (os error 2)");
     remove(root.as_path());
 }
+
+/// What:
+///  The folder of a private record loses the staging file a killed write left,
+///  and keeps the one a writer that is still there holds.
+/// Why:
+///   Every record this package keeps for itself is staged beside its name and published by a rename,
+/// so a kill between the two leaves a file nothing names;
+/// the staging file's name ends with the process writing it,
+/// which is the only proof a sweep can have that no rename is coming.
+#[cfg(unix)]
+#[test]
+fn a_record_writes_folder_loses_what_a_killed_write_left_and_keeps_a_live_writers_file() {
+    let root: PathBuf = fixture("publish-staging-swept");
+    let record: PathBuf = root.join("7.record");
+    // A process number no process of this machine has: the writer of that file is provably gone.
+    let gone: u64 = 4_000_000_000;
+    let dead: PathBuf = root.join(format!(".7.record.1a2b3c4d.{gone}.partial"));
+    std::fs::write(&dead, "a record of a landed push").expect("the staging file of a killed write");
+    let live: PathBuf = root.join(format!(".7.record.1a2b3c4e.{}.partial", std::process::id()));
+    std::fs::write(&live, "a record of a landed push").expect("the staging file of this process");
+    write_private_file(record.as_path(), b"the record").expect("the record is published");
+    assert!(!dead.exists(), "the staging file of a writer that is gone is removed");
+    assert!(live.exists(), "the staging file of a writer that is still there is left alone");
+    assert_eq!(std::fs::read(&record).expect("the record"), b"the record".to_vec());
+    remove(root.as_path());
+}

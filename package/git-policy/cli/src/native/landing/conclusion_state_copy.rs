@@ -98,7 +98,7 @@ pub fn keep(cleanup: &Cleanup, journal: &Path, seq: u64, repository: &Path) -> O
     // The copy is built beside its name and renamed onto it, so a copy that failed half way never takes the name the cleanup
     //  reads, and a landing that could not keep everything is a landing that kept nothing.
     let kept: PathBuf = path_of(journal, seq);
-    let staging: PathBuf = journal.join(format!("{seq}.{COPY_EXTENSION}.tmp"));
+    let staging: PathBuf = crate::temporary_file_of_a_writer::name_of(kept.as_path());
     let _stale: std::io::Result<()> = remove_tree(staging.as_path());
     if let Some(failed) = copy_into(cleanup, journal, seq, staging.as_path(), repository) {
         let _gone: std::io::Result<()> = remove_tree(staging.as_path());

@@ -1640,3 +1640,33 @@ fn a_shared_earlier_socket_file_without_unit_files_retires_the_service_at_its_ow
     remove(machine.root.as_path());
 }
 //endregion
+
+/// What:
+///  The manager's own unit directory loses the staging files a killed provisioning left,
+///  and keeps the one a writer that is still there is about to rename,
+///  including the names the release before this one wrote.
+/// Why:
+///   A unit file and the link beside it are staged and renamed,
+/// so a kill between the two leaves a file in the directory the manager reads for ever;
+/// the file's name carries the process writing it,
+/// which is the only proof a sweep can have that no rename is coming.
+#[test]
+fn a_unit_directory_loses_what_a_killed_provisioning_left_and_keeps_a_live_writers_file() {
+    let machine: Machine = machine("provision-staging-swept");
+    let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(directory.as_path()).expect("the unit directory");
+    // A process number no process of this machine has: the writer of that file is provably gone.
+    let gone: u32 = 4_000_000_000;
+    let dead: PathBuf = directory.join(format!("monochromatic-git-policy-cli@{INSTANCE}.socket.tmp-{gone}-0"));
+    std::fs::write(&dead, "[Unit]\n").expect("the staging file of a killed write");
+    let dead_link: PathBuf = directory.join(format!("service.linktmp-{gone}-0"));
+    std::fs::write(&dead_link, "[Unit]\n").expect("the staging link of a killed write");
+    let live: PathBuf = directory.join(format!("monochromatic-git-policy-cli@{INSTANCE}.service.tmp-{}-1", std::process::id()));
+    std::fs::write(&live, "[Unit]\n").expect("the staging file of this process");
+    let (name, text) = unit_texts(&machine.host).into_iter().next().expect("a unit text");
+    crate::service_provision_unit_file_ownership_and_writes::write_atomically(directory.join(name).as_path(), text.as_str()).expect("the unit is written");
+    assert!(!dead.exists(), "the staging file of a writer that is gone is removed");
+    assert!(!dead_link.exists(), "and so is the staging link");
+    assert!(live.exists(), "the staging file of a writer that is still there is left alone");
+    remove(machine.root.as_path());
+}
