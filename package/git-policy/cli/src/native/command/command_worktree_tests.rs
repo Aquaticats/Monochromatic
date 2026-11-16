@@ -12,8 +12,10 @@
 //! ```
 
 /// The fact under test and the real-Git fixture helpers.
-use super::changes_worktree_registrations;
+use super::{WorktreeRemoval, changes_worktree_registrations, worktree_removal};
 use crate::command_test_support::os_arguments;
+/// The owned operating-system text a removal's directory is held in.
+use std::ffi::OsString;
 use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::path::PathBuf;
 use std::process::Output;
@@ -26,6 +28,9 @@ fn only_the_first_word_selects_the_action() {
         vec!["add", "../topic"],
         vec!["add", "-b", "topic", "../topic"],
         vec!["move", "a", "b"],
+        vec!["move", "a", "b", "--force"],
+        vec!["move", "--force", "a", "b"],
+        vec!["add", "../topic", "--quiet"],
         vec!["add", "--", "list"],
     ] {
         assert!(
@@ -92,4 +97,33 @@ fn real_git_reads_the_word_after_worktree() {
         assert!(!root.join("two").exists(), "{arguments:?}");
     }
     remove(root.as_path());
+}
+
+/// What:
+///  An option written after the directory is still the option the audit reads,
+///  and the directory it names is the same one.
+/// Why:
+///   Git's `parse_options` reads the whole argument list,
+///  so `git worktree remove <path> --force` is the forced removal of that path, spelled the other way round;
+///  the record the audit writes must say that, and the reading of the same command by the guard did not
+///  (a review of `d351b65746`, finding 1).
+#[test]
+fn an_option_after_the_directory_is_the_same_removal() {
+    for values in [vec!["remove", "topic", "--force"], vec!["remove", "--force", "topic"], vec!["remove", "topic", "-f"]] {
+        assert_eq!(
+            worktree_removal(os_arguments(values.as_slice()).as_slice()),
+            Some(WorktreeRemoval { target: OsString::from("topic"), force: true }),
+            "{values:?}"
+        );
+    }
+    assert_eq!(
+        worktree_removal(os_arguments(&["remove", "topic", "--no-force"]).as_slice()),
+        Some(WorktreeRemoval { target: OsString::from("topic"), force: false }),
+        "and the negated form carries no force"
+    );
+    assert_eq!(
+        worktree_removal(os_arguments(&["remove", "--", "topic", "--force"]).as_slice()),
+        Some(WorktreeRemoval { target: OsString::from("topic"), force: false }),
+        "a word after `--` is a directory, so the option there is never read as one"
+    );
 }

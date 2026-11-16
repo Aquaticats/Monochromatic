@@ -28,21 +28,10 @@
 //! ```
 
 use crate::worktree_registration_proof::read_record_here;
+use std::ffi::OsString;
+use std::os::unix::ffi::OsStringExt;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-/// One registration of the repository,
-/// as the sweep needs it.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Registration {
-    /// The administrative directory.
-    pub(crate) admin: PathBuf,
-    /// The worktree root the registration names.
-    pub(crate) worktree: PathBuf,
-    /// The branch its `HEAD` names,
-    /// as a full ref name.
-    pub(crate) branch: String,
-}
 
 /// One registration of the repository,
 /// with the branch its `HEAD` names when it names one.
@@ -70,31 +59,6 @@ pub(crate) struct RegisteredWorktree {
 }
 
 /// What:
-///  Every linked worktree the repository registers,
-///  with the branch each one has checked out.
-/// Why:
-///   The registrations are the only list of worktrees this repository owns,
-///  and each one's `HEAD` names its branch without a Git start:
-///  a file read decides which candidates exist,
-///  and Git runs only for a branch that landed.
-///  A worktree on a detached `HEAD` names no branch,
-///  so it is no candidate:
-///  nothing can land on a branch it does not have.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const registered = registrationsOf(commonDir); // throws the reason
-/// ```
-pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, String> {
-    let mut found: Vec<Registration> = Vec::new();
-    for one in registered_worktrees(common_dir)? {
-        let Some(branch) = one.branch else { continue };
-        found.push(Registration { admin: one.admin, worktree: one.worktree, branch });
-    }
-    return Ok(found);
-}
-
-/// What:
 ///  Every registration of the repository,
 ///  in one listing of its `worktrees` folder,
 ///  with the branch each one's `HEAD` names when it names one.
@@ -109,7 +73,7 @@ pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, S
 /// ```ts
 /// const registered = registeredWorktrees(commonDir); // throws the reason
 /// ```
-fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
+pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
     let folder: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,
@@ -119,7 +83,9 @@ fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, St
     let mut found: Vec<RegisteredWorktree> = Vec::new();
     for entry in listing.flatten() {
         let admin: PathBuf = entry.path();
-        let Some(worktree) = registered_worktree(admin.as_path()) else {
+        // A registration whose record cannot be read is no candidate of the sweep, which removes what it can identify;
+        // a removal that takes registrations with it asks `registrations_a_removal_takes` instead.
+        let Ok(Some(worktree)) = registered_worktree(admin.as_path()) else {
             continue;
         };
         let branch: Option<String> = head_branch(admin.as_path());
@@ -128,14 +94,94 @@ fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, St
     return Ok(found);
 }
 
-/// The worktree root a registration's `gitdir` file names,
-/// when that root is still a directory.
-fn registered_worktree(admin: &Path) -> Option<PathBuf> {
-    let text: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").ok()?;
-    let recorded: PathBuf = PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
+/// What:
+///  The worktree root a registration's `gitdir` file names,
+///  when that root is still a directory,
+///  or the reason the record this decides by cannot be read.
+/// Why:
+///   A removal takes the registrations inside the worktree it removes,
+///  so a registration whose record cannot be read may be one of them:
+///  the reason is what makes that removal stop,
+///  while a sweep that only removes what it can identify skips it
+///  (a review of `5a2bd4bb6c`, finding 3).
+///  A root that is no longer a directory is no `None` of the same kind:
+///  a registration Git prunes names nothing a removal deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function registeredWorktree(admin: string): string | undefined; // throws the reason
+/// ```
+fn registered_worktree(admin: &Path) -> Result<Option<PathBuf>, String> {
+    let text: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").map_err(|refusal| return refusal.into_words())?;
+    // A path is bytes: a worktree whose name is not UTF-8 is a worktree like any other, and decoding the record lossily
+    // named a path that does not exist, so the registration read as one Git had pruned
+    // (a review of `dfd6fab13e`, finding 2).
+    let recorded: PathBuf = PathBuf::from(OsString::from_vec(text.trim_ascii_end().to_vec()));
     let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
-    let root: PathBuf = std::fs::canonicalize(pointer.parent()?).ok()?;
-    return root.is_dir().then_some(root);
+    let Some(parent) = pointer.parent() else {
+        return Err(format!("the record in {} names no directory", admin.join("gitdir").display()));
+    };
+    return match std::fs::canonicalize(parent) {
+        Ok(root) => Ok(root.is_dir().then_some(root)),
+        // A worktree that is gone is a registration Git prunes, and nothing a removal deletes.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) if error.raw_os_error() == Some(libc::ENOTDIR) => Ok(None),
+        // Anything else is a registration this program cannot follow, and it may name a worktree inside the one being
+        // removed: the reason, not a guess that it is gone.
+        Err(error) => Err(format!("the worktree {} names cannot be resolved ({error})", parent.display())),
+    };
+}
+
+/// What:
+///  The registrations a removal of `outer` takes with it,
+///  or the reason one of them cannot be read.
+/// Why:
+///   A removal of a worktree deletes every registration whose worktree stands inside it,
+///  with their checkouts and their own Git directories,
+///  so the question about Git work must reach all of them:
+///  the listing is read strictly, and one `gitdir` that cannot be read is the reason nothing is removed,
+///  because it may name a worktree inside the one being removed
+///  (a review of `5a2bd4bb6c`, finding 3).
+///  A registration whose worktree is no longer a directory names nothing a removal deletes,
+///  and one that names a path outside `outer` is the sweep's and the typed guard's business, not this question's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const inside = registrationsARemovalTakes(commonDir, outer); // throws the reason
+/// ```
+///
+/// # Errors
+///
+/// The words for a `worktrees` folder that cannot be listed,
+/// and for a record that is there and cannot be read.
+pub(crate) fn registrations_a_removal_takes(common_dir: &Path, outer: &Path) -> Result<Vec<RegisteredWorktree>, String> {
+    let folder: PathBuf = common_dir.join("worktrees");
+    let listing = match std::fs::read_dir(folder.as_path()) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", folder.display())),
+    };
+    let mut inside: Vec<RegisteredWorktree> = Vec::new();
+    for entry in listing.flatten() {
+        let admin: PathBuf = entry.path();
+        match registered_worktree(admin.as_path()) {
+            Ok(Some(worktree)) => {
+                if worktree != outer && worktree.starts_with(outer) {
+                    let branch: Option<String> = head_branch(admin.as_path());
+                    inside.push(RegisteredWorktree { admin, worktree, branch });
+                }
+            }
+            // A registration that names no directory any more is a record Git prunes, and no worktree of this removal.
+            Ok(None) => continue,
+            Err(reason) => {
+                return Err(format!(
+                    "the registration in {} cannot be read ({reason}), and it may name a worktree inside the one being removed",
+                    admin.display()
+                ));
+            }
+        }
+    }
+    return Ok(inside);
 }
 
 /// What:
@@ -184,7 +230,7 @@ impl RegisteredBefore {
     /// ```ts
     /// before.holds(registration) // boolean
     /// ```
-    pub(crate) fn holds(&self, one: &Registration) -> bool {
+    pub(crate) fn holds(&self, one: &RegisteredWorktree) -> bool {
         return self.admins.contains(&one.admin);
     }
 }

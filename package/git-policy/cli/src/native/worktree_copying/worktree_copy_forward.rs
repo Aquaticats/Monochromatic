@@ -69,6 +69,10 @@ pub struct CopyFacts {
     /// read from the words whether or not the ladder serves the form,
     /// so a plainly run add prints no line a quiet one would suppress.
     pub quiet: bool,
+    /// Whether this invocation carries the opt-out of `linked-worktree-only`,
+    /// which the guard of a removal that would take Git work stands down for,
+    /// answered once by `wrapper_controls::worktree_removal_escaped`.
+    pub removal_escaped: bool,
 }
 
 /// What:
@@ -411,7 +415,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None });
+    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None, escaped_by_the_person: facts.removal_escaped });
     match outcome {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace => {

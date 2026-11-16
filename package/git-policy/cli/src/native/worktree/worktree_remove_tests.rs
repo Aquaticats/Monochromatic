@@ -24,7 +24,7 @@ fn forced_plan_for(target: &Path) -> RemovePlan {
 /// the removal ran to its end.
 fn served_plan(repo: &Path, plan: &RemovePlan) -> bool {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None }) == RemoveOutcome::Removed;
+    return remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false }) == RemoveOutcome::Removed;
 }
 
 /// Whether the wrapper served the removal of `target` typed as its real path.
@@ -154,7 +154,7 @@ fn btrfs_a_worktree_holding_a_nested_subvolume_is_removed_around_it() {
     let (repo, worktree, inner) = a_worktree_holding_a_nested_worktree(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, and a tree holding a volume is never Git's, so it refuses and changes nothing.
         assert!(matches!(outcome, RemoveOutcome::Refused(_)), "it was {outcome:?}");
@@ -285,7 +285,7 @@ fn btrfs_a_worktree_added_between_the_walk_and_the_destroy_is_left_and_the_rest_
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&outer);
     let operations = PlantedAtTheHandOver { repo: repo.as_path(), folder: planted.as_path(), branch: "inner", planted: std::cell::Cell::new(false) };
-    let outcome: RemoveOutcome = remove_with(&operations, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_with(&operations, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     let RemoveOutcome::RemovedAround(left) = outcome else { panic!("the worktree is removed around the worktree that appeared, but it was {outcome:?}") };
     assert_eq!(left.len(), 1, "the report names the one volume: {left:?}");
     assert_eq!(left[0].path, std::fs::canonicalize(planted.as_path()).expect("canonical"), "the worktree that appeared is what was left");
@@ -416,7 +416,7 @@ fn btrfs_a_subvolume_of_the_persons_own_in_the_git_directory_refuses_before_the_
     std::fs::write(foreign.join("notes.txt"), b"what I was in the middle of\n").expect("a file the person wrote");
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, so the removal is Git's and nothing of the wrapper's runs.
         assert_eq!(outcome, RemoveOutcome::LeftToGit);
@@ -628,7 +628,7 @@ fn btrfs_a_volume_gone_when_the_pass_ends_leaves_the_around_routes_own_ending() 
         std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
         std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
     });
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     crate::subvolume_remove_listing_test_support::stop_acting();
     let ended: String = format!("{outcome:?}");
     assert!(
@@ -662,7 +662,7 @@ fn btrfs_a_volume_gone_when_the_pass_ends_ends_the_same_way_in_a_plain_directory
         std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
         std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
     });
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     crate::subvolume_remove_listing_test_support::stop_acting();
     let ended: String = format!("{outcome:?}");
     assert!(
@@ -790,7 +790,7 @@ fn btrfs_a_destroy_here_after_a_refused_hand_over_ends_as_its_own_ending() {
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_with(&HandOverRefused, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_with(&HandOverRefused, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     let ended: String = format!("{outcome:?}");
     assert!(ended.starts_with("DestroyedInPlace"), "the removal tells a destroy here apart from a hand-over: {ended}");
     assert!(!worktree.exists(), "the files are gone when the command returns");
@@ -831,7 +831,7 @@ fn btrfs_a_resume_writes_no_warning_that_its_pass_is_not_recorded() {
         std::fs::remove_file(worktree.join(tracked)).expect("an entry the pass removed");
     }
     let _ = crate::diagnostic_log::take_lines_written();
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     let written: String = crate::diagnostic_log::take_lines_written().join("\n");
     assert!(matches!(outcome, RemoveOutcome::RemovedAround(_)), "the resume finishes the removal: {outcome:?}");
     assert!(!written.contains("is not recorded"), "and says nothing about a pass that is not recorded, because the record stands: {written}");

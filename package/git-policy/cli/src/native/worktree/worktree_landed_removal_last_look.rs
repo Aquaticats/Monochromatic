@@ -24,7 +24,7 @@
 //! new NothingNewWouldGoWithIt({ commonDir, registration }).ask();
 //! ```
 
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredWorktree, registered_worktrees};
 use crate::worktree_removal_rescue::snapshot_one;
 use crate::worktree_removal_second_look::{nested_worktree_reason, worktrees_inside};
 use crate::worktree_remove::LastLook;
@@ -66,7 +66,7 @@ pub(super) struct NothingNewWouldGoWithIt<'a> {
     /// The common Git directory the removal works in.
     pub(super) common_dir: &'a Path,
     /// The registration the removal takes.
-    pub(super) one: &'a Registration,
+    pub(super) one: &'a RegisteredWorktree,
 }
 
 impl LastLook for NothingNewWouldGoWithIt<'_> {
@@ -97,16 +97,16 @@ impl LastLook for NothingNewWouldGoWithIt<'_> {
 /// ```ts
 /// nothingNewWouldGoWithIt(place, registration) // throws the sentence a person reads
 /// ```
-pub(super) fn nothing_new_would_go_with_it(common_dir: &Path, one: &Registration) -> Result<(), String> {
+pub(super) fn nothing_new_would_go_with_it(common_dir: &Path, one: &RegisteredWorktree) -> Result<(), String> {
     let unsaved: Vec<String> = snapshot_one(common_dir, one.admin.as_path());
     if !unsaved.is_empty() {
         return Err(unsaved_records_reason(one.admin.as_path(), unsaved.as_slice()));
     }
-    let registered_now: Vec<Registration> = match registrations_of(common_dir) {
+    let registered_now: Vec<RegisteredWorktree> = match registered_worktrees(common_dir) {
         Ok(found) => found,
         Err(reason) => return Err(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
     };
-    let inside_now: Vec<&Registration> = worktrees_inside(one.worktree.as_path(), registered_now.as_slice());
+    let inside_now: Vec<&RegisteredWorktree> = worktrees_inside(one.worktree.as_path(), registered_now.as_slice());
     if !inside_now.is_empty() {
         return Err(nested_worktree_reason(inside_now.as_slice()));
     }

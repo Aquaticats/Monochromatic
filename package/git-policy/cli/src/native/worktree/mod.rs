@@ -46,6 +46,23 @@ pub mod worktree_removal_rescue;
 /// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
 pub mod worktree_removal_held_commits;
 
+/// The commits a removal would leave named by nothing,
+/// which keep the worktree.
+pub mod worktree_removal_keeps_git_work;
+
+/// The edits a mark keeps Git from noticing,
+/// which keep the worktree.
+pub mod worktree_removal_hidden_edits;
+
+/// The Git work a typed removal would destroy,
+/// asked before any route the wrapper sends that command by,
+/// and the words both guards print.
+pub mod worktree_removal_typed_git_work;
+
+/// What a removal deletes besides the files Git tracks,
+/// in the words of its line.
+pub mod worktree_removal_takes;
+
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
 #[cfg(unix)]
@@ -120,6 +137,14 @@ pub mod worktree_remove_notices;
 /// the record a killed pass leaves, the continuation that record proves, and the pass.
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
+
+/// The worktrees one removal takes:
+///  the one it names and every worktree registered inside it.
+pub mod worktree_removal_worktrees_it_takes;
+
+/// The path Git itself resolves a worktree's name to,
+/// and the comparison it makes between two paths.
+pub mod worktree_path_as_git_resolves_it;
 
 pub mod worktree_remove_registry;
 

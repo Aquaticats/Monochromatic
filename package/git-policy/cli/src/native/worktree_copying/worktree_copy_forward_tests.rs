@@ -111,6 +111,7 @@ fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {
         add_plan: None,
         remove_plan: None,
         quiet: false,
+        removal_escaped: false,
     };
     let created: ForwardedRun = run_forwarded_git(
         Path::new(REAL_GIT),
@@ -166,6 +167,7 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
         add_plan: None,
         remove_plan: None,
         quiet: false,
+        removal_escaped: false,
     };
     match run_forwarded_git(
         Path::new("/nonexistent/git"),
@@ -201,6 +203,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         add_plan: None,
         remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
         quiet: false,
+        removal_escaped: false,
     };
     let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
@@ -254,6 +257,7 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         add_plan: None,
         remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
         quiet: false,
+        removal_escaped: false,
     };
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
         Path::new(REAL_GIT),
@@ -334,6 +338,7 @@ fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
         add_plan: Some(AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
         remove_plan: None,
         quiet: false,
+        removal_escaped: false,
     };
     let mut overlay: Vec<(OsString, OsString)> = isolated_overlay();
     overlay.push((OsString::from("PATH"), OsString::from(format!("{}:/usr/bin:/bin", filters.display()))));
@@ -401,6 +406,7 @@ fn a_persons_own_read_tree_is_not_ended_at_the_ladder_ceiling() {
         add_plan: None,
         remove_plan: None,
         quiet: false,
+        removal_escaped: false,
     };
     CEILING_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<Duration>>| slot.set(Some(Duration::ZERO)));
     let run: ForwardedRun = run_forwarded_git(
@@ -498,6 +504,7 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
         add_plan: Some(crate::worktree_add_plan::AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
         remove_plan: None,
         quiet: false,
+        removal_escaped: false,
     };
     let made: ForwardedRun = run_forwarded_git(
         Path::new(REAL_GIT),

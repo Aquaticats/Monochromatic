@@ -53,6 +53,7 @@ use crate::wrapped_command::{WrappedOutcome, run_wrapped_command};
 use crate::wrapper_controls::{Controls, no_controls, strip_global_controls};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::worktree_copy_forward::run_forwarded_git;
+use crate::wrapper_controls::worktree_removal_escaped;
 use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -315,6 +316,7 @@ fn plan_with_real_git(
                     stderr,
                     environment,
                     copy_bypassed,
+                    worktree_removal_escaped(&stripped.controls),
                     &mut checks,
                 ),
                 environment,

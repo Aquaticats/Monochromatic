@@ -1043,7 +1043,7 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
         Err(reason) => return Verdict::Retry(reason),
     };
     let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
-    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
+    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None, escaped_by_the_person: false };
     match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
         RemoveOutcome::Removed => {
             // The record that says which worktree a half-done removal of this id was belongs to that removal, and the
@@ -1108,7 +1108,7 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
 /// keepTheWorktree(item, target, registration, why): Verdict
 /// ```
 fn keep_the_worktree(item: &WorkItem, target: &Path, registration: &Path, why: &str, kept_commits: &[String]) -> Verdict {
-    let branch: String = branch_of_registration(registration).unwrap_or_else(|| return String::from("a head with no branch"));
+    let branch: String = branch_of_registration(registration).unwrap_or_else(|| return String::from(crate::worktree_kept_notices::NO_BRANCH));
     // A commit a reference lock held reached a reference of this repository before anything was read here, and a person
     //  who reads why their worktree stayed should read that too.
     let said: String = match kept_commits.is_empty() {

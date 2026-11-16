@@ -2929,7 +2929,9 @@ an interrupted or failed add keeps naming the same worktree and stage in every c
 runs the recovery,
 until the person finishes or removes it.
 
-`git worktree remove <directory>` with at most one `-f`/`--force` and a non-empty directory name,
+`git worktree remove <directory>` with the force Git's own table reads,
+wherever in the words it stands,
+and a non-empty directory name,
 for an unlocked linked worktree
 that is a subvolume root,
 clean unless the person forced the removal,
@@ -3029,6 +3031,29 @@ worktree changed.
 
 The wrapper serves the removal only when real Git would remove the same directory,
 with the same force:
+- The words are read as Git's `parse_options` reads them (`src/native/worktree/worktree_remove_plan.rs`,
+  `removal_shape`):
+  every word before a `--` that starts with a hyphen is an option,
+  a `--` ends the options,
+  the words that are not options are its arguments,
+  and the command removes a worktree only when exactly one of them stands,
+  wherever among the options it stands.
+  A word that asks for the usage,
+  any other count of arguments,
+  and an empty argument are the answers Git gives with its usage,
+  which remove nothing,
+  so those words stay Git's.
+  A word this program does not read is refused rather than called a non-removal,
+  because an option a later Git adds could be one it accepts without a force,
+  and the refusal names the word it stopped at.
+  The force is Git's `-f` and `--force`,
+  at every length of either name that still names it alone,
+  in a cluster of `f`s,
+  and with the `no-` prefix that turns it off;
+  the last spelling of it in the words is the one Git keeps.
+  The walk in `worktree_remove_plan_tests.rs` holds every spelling of that option in every position
+  against real Git,
+  and the property it holds is that Git removes the worktree if and only if the wrapper reads a removal.
 - The worktree is registered in the repository the command runs in:
   its administrative directory is one of that
   repository's `worktrees/<id>`,
@@ -3203,12 +3228,83 @@ A worktree whose branch a merge landed is removed by those same routes,
  that it is unlocked,
  that no operation is unfinished in it,
  that nothing works inside it,
- that every ignored file it holds is one the worktree the merge ran in also holds,
+ that no worktree this repository registers lies inside it,
+ that every ignored entry it holds is one the worktree the merge ran in also holds
+ (a whole ignored directory as one entry,
+ which is not read below that),
+ that no object is named only by the worktree's own state,
+ that no edit to a tracked file hides behind a mark Git does not see through,
  and that the records of its own Git directory are copied,
  and then it records the removal and returns.
+An object stranded by a removal is one that a name dying with the worktree holds and that nothing outliving it
+ reaches
+ (`src/native/worktree/worktree_removal_keeps_git_work.rs`),
+ and the object is of any kind Git keeps:
+ a commit,
+ an annotated tag with its own message,
+ a tree,
+ or a blob.
+The names that die are the worktree's detached `HEAD`,
+ each reference under `refs/worktree/`,
+ `refs/bisect/` or `refs/rewritten/`,
+ each log in the worktree's own Git directory
+ (a reflog line can name a tag as well as a commit),
+ and each record of an operation that stopped there
+ (`FETCH_HEAD`,
+ `ORIG_HEAD`,
+ the rebase and merge records).
+A reference dies holding the object it names itself,
+ not the commit a tag peels to,
+ so the refusal names the tag a person made and its remedy keeps the tag and what it tags.
+Git answers the question:
+ one `git rev-list --objects` takes every dying name as a tip and every surviving reference as an exclusion,
+ and the surviving logs join the exclusions only when that answer is not empty,
+ so the log files are read only where the references leave something unanswered.
+A surviving reflog is only a file Git itself reads as one, and only the lines of it Git reads:
+a regular file below the common `logs` directory whose own name Git's ref name rule takes
+ (`check_refname_format` with an allowance for a one-level name, which is what Git's reflog iterator asks of each file
+ it walks, `refs/files-backend.c`),
+ with each line of the shape Git writes and reads (`old new name <email> time zone`, ending in its newline;
+ unsaid by Git is anything else, so a line Git skips is no proof here either).
+A lock file is an update that was never renamed into place, and a killed Git leaves one behind:
+reading `logs/HEAD.lock` as a reflog made a detached worktree's only name for its commit look reachable from a name that
+outlives the worktree, and the collection that followed destroyed the commit
+ (a review of `09fd2138d7`).
+The control of this rule plants every shape a folder can hold without being a name
+ (`binary/binary_worktree_removal_git_work_escape_tests.rs`,
+ `a_file_git_does_not_read_as_a_name_authorizes_no_removal`),
+ and each row requires the refusal and the commit after `git gc --prune=now`.
+An object a surviving name reaches,
+ or one an object a surviving name reaches was built on,
+ is not stranded.
+Every worktree this repository registers inside the candidate is asked the same question,
+ detached `HEAD` included,
+ because the removal takes that worktree's own Git directory with the outer one.
+An edit behind `assume-unchanged` or `skip-worktree` is found by comparing the file's bytes with the blob its
+ index entry names,
+ in process and under the attributes the real Git would apply
+ (`src/native/worktree/worktree_removal_hidden_edits.rs`),
+ because Git's own answer to `status` reads the mark and sees nothing.
+A worktree either of those keeps stays,
+ and the person's own unforced `git worktree remove` refuses it with `git worktree remove --force` named as
+ the way through,
+ which runs as Git runs it and deletes the same set.
+What the removal deletes besides the files Git tracks is named in the line that reports it
+ (`src/native/worktree/worktree_removal_takes.rs`):
+ each ignored directory,
+ and every Git repository found by walking those directories,
+ with the tip of every branch it holds,
+ because the owner's decision of 2026-11-12T13:04:14-05:00 lets both go and says each thing that goes is
+ logged.
+A removal deletes an ignored folder with what it holds, a Git repository included,
+ and the line that reports the removal says that a repository went and which branches it held
+ (the owner's decision of 2026-11-15, "Delete as ignored", keeps that literal:
+ the nested repository goes with the worktree and the deletion is logged).
  The service proves that same list again immediately before it destroys anything
  (`src/native/worktree/worktree_removal_second_look.rs`):
  the registrations are read again,
+ the worktree's own `HEAD` and the references it keeps are read
+ (a commit made on a detached `HEAD` after the hand-over is a commit no reference holds),
  the lock and the marks are looked for again,
  the process table is read again,
  the ignored files are compared again with the worktree the sweep names beside the registration
@@ -3216,6 +3312,7 @@ A worktree whose branch a merge landed is removed by those same routes,
  so a removal takes that record with the registration and needs no cleanup of its own),
  the records of the worktree's own Git directory are copied again,
  the record that this program made the worktree is read again,
+ the edits a mark hides are compared by content again,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
  the worktree's own Git directory goes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
@@ -11358,6 +11455,22 @@ so no event is an exception.
   A shell alias (`!...`) is run by Git's shell,
   which finds real Git's own `git` first on `PATH`,
   so the command inside it runs with the options Git gives that shell and not with these.
+  Every `!` alias is forwarded to real Git as it is
+  (the owner's decision of 2026-11-15, "Forward them unguarded"): it is not judged, refused, or asked for an opt-out,
+  and every alias keeps working.
+  The hole that decision accepts, stated here where a person meets the guard:
+  **a shell alias that runs a removal of a worktree is not looked at.**
+  Nothing of the wrapper can stand inside that shell: it never starts itself as a shim and never writes shell text
+  (`doc/planning/cli-git-no-self-invocation.md`,
+  the owner's "We should never invoke ourselves recursively"),
+  and a text a shell runs cannot be read to the end, because a shell can build the words another way
+  (`action=remove; git worktree $action`, a substitution, a function, `eval`, a second alias).
+  So a worktree a `!` alias removes goes with the edit a mark hides and the commit only its `HEAD` names,
+  and the person who means to keep them runs the removal itself, where the guard is.
+  An alias that is no shell alias (a plain word list Git expands itself) is not what the decision is about:
+  its expanded words are judged as words typed are,
+  and an alias value that runs a program by absolute path (`alias.x=/usr/bin/git worktree remove`)
+  runs that program with no wrapper in between.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
   repository configures and the wrapper reads `core.hooksPath` and `core.fsmonitor` that way (the commit warning,

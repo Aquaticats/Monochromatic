@@ -234,6 +234,233 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
 }
 
 /// What:
+/// What:
+///  One worktree of Git's own list for the repository,
+///  as Git prints it.
+/// Why:
+///   Git answers `find_worktree` from its own list (`worktree.c`),
+///  so the paths a guard compares a typed name against are read from Git itself:
+///  a reader of the same records can spell a path another way,
+///  and a guard that compares against its own spelling names no worktree where Git names one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ListedWorktree = { path: Uint8Array; main: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListedWorktree {
+    /// The path Git printed for the worktree,
+    /// bytes and all,
+    /// as its own list holds it.
+    pub path: Vec<u8>,
+    /// Whether Git calls it the repository's main working tree,
+    /// which no removal of a worktree takes.
+    pub main: bool,
+}
+
+/// What:
+///  The worktree one `git worktree remove` operand names,
+///  by Git's own answer.
+/// Why:
+///   A removal goes on to real Git only when the worktree it names is one this program can judge or
+///  hand Git as the worktree it judged,
+///  so the answer is one worktree or the reason there is none:
+///  the main working tree is the one Git refuses,
+///  and it is answered as itself rather than as no answer,
+///  because the person's word then gets the sentence about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OperandWorktree = { kind: 'linked', path: string } | { kind: 'main', path: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OperandWorktree {
+    /// A linked worktree of the repository,
+    /// by its own resolved path.
+    Linked(PathBuf),
+    /// The repository's main working tree,
+    /// by its own resolved path.
+    Main(PathBuf),
+}
+
+/// What:
+///  Every worktree Git lists for the repository,
+///  in Git's own order,
+///  which puts the main one first.
+/// Why:
+///   The list is Git's own answer to which worktrees its `worktree remove` may act on,
+///  and its own order is where the main working tree stands
+///  (`get_worktrees_internal` puts it first and `list` sorts only the rest,
+///  in `worktree.c` and `builtin-worktree.c`).
+///  A listing that cannot be read is the reason rather than an empty list,
+///  because an empty list would name no worktree for a removal that does have one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function listedByGit(context, commonDir): ListedWorktree[]; // throws the reason
+/// ```
+fn listed_by_git(context: &crate::transaction_git::GitContext, common_dir: &Path, answers_with: &[OsString]) -> Result<Vec<ListedWorktree>, String> {
+    // `-z` keeps a path with a newline or a quote in it one record, and porcelain keeps the format Git documents.
+    // It starts in the common Git directory, which the caller's `-C` chain already reached, and carries the caller's
+    // configuration options and no option that moves it: a forwarded relative `-C` failed here
+    // (a review of `8858f843ee`, finding 4).
+    let mut arguments: Vec<OsString> = answers_with.to_vec();
+    arguments.extend(["worktree", "list", "--porcelain", "-z"].map(OsString::from));
+    let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest { without_prefix: true, ..crate::transaction_git::GitRequest::new(common_dir, arguments.as_slice()) };
+    let output = match crate::transaction_git::run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(format!("Git cannot list the worktrees of this repository ({error})")),
+    };
+    if output.code != Some(0) {
+        return Err(format!(
+            "Git cannot list the worktrees of this repository ({})",
+            String::from_utf8_lossy(output.stderr.as_slice()).trim()
+        ));
+    }
+    return Ok(worktrees_of_a_git_listing(output.stdout.as_slice()));
+}
+
+/// What:
+///  The worktrees of one `git worktree list --porcelain -z` answer.
+/// Why:
+///   Each worktree is one record of NUL-terminated lines,
+///  the first line of which is `worktree <path>`,
+///  and the first record of the answer is the main working tree
+///  (`show_worktree_porcelain` in `builtin-worktree.c`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreesOfAGitListing(bytes: Uint8Array): ListedWorktree[];
+/// ```
+pub fn worktrees_of_a_git_listing(bytes: &[u8]) -> Vec<ListedWorktree> {
+    let mut listed: Vec<ListedWorktree> = Vec::new();
+    for field in bytes.split(|byte| return *byte == 0) {
+        let Some(spelled) = field.strip_prefix(b"worktree ") else { continue };
+        listed.push(ListedWorktree { path: spelled.to_vec(), main: listed.is_empty() });
+    }
+    return listed;
+}
+
+/// What:
+///  The worktree Git's own `git worktree remove <operand>` picks for `operand`,
+///  or the reason this cannot be told.
+/// Why:
+///  Git resolves the operand in two steps (`find_worktree` in `worktree.c`, Git 2.56.0):
+///  first the whole operand as the last components of a listed path,
+///  meeting at a directory boundary,
+///  answered only when exactly one listed path ends in it;
+///  then the operand joined to the command's prefix,
+///  resolved as Git resolves a path,
+///  and compared as Git compares paths with each listed path resolved the same way.
+///  Both comparisons fold ASCII case exactly when the repository sets `core.ignorecase`
+///  (`fspathcmp` in `dir.c`),
+///  and the paths are Git's own, from `git worktree list`,
+///  so the answer is the worktree the command itself names.
+///  Anything else is the reason:
+///  a name Git's own resolution cannot resolve,
+///  a name no listed worktree answers,
+///  and a name two of them answer.
+///  Nothing here answers "Git will refuse":
+///  a removal goes to real Git only once it was judged, and the path it hands Git is the answer below
+///  (`worktree_removal_typed_git_work.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gitWorktreeForOperand({ context, commonDir, operand, start, foldCase }): OperandWorktree; // throws the reason
+/// ```
+///
+/// # Errors
+///
+/// The words for a listing that cannot be read,
+/// for a name Git's own resolution cannot resolve,
+/// for a name no listed worktree answers,
+/// and for a name two listed worktrees answer.
+pub fn git_worktree_for_operand(
+    context: &crate::transaction_git::GitContext,
+    common_dir: &Path,
+    operand: &OsStr,
+    start: &Path,
+    fold_case: bool,
+    answers_with: &[OsString],
+) -> Result<OperandWorktree, String> {
+    let listed: Vec<ListedWorktree> = listed_by_git(context, common_dir, answers_with)?;
+    // Git's first step: the whole operand as the last components of a listed path, at a directory boundary.
+    let mut by_suffix: Vec<&ListedWorktree> = Vec::new();
+    for one in &listed {
+        let Some(at) = last_components_start(one.path.as_slice(), operand.as_bytes()) else { continue };
+        let tail: &[u8] = &one.path[at..];
+        let same: bool = match fold_case {
+            true => tail.eq_ignore_ascii_case(operand.as_bytes()),
+            false => tail.eq(operand.as_bytes()),
+        };
+        if same {
+            by_suffix.push(one);
+        }
+    }
+    if by_suffix.len() == 1 {
+        return resolved_operand(by_suffix[0]);
+    }
+    // Two listed paths ending in the name is no answer here, as it is none to Git: `find_worktree` falls to the
+    // resolved path for both no match and more than one.
+    let joined: PathBuf = match Path::new(operand).is_absolute() {
+        true => PathBuf::from(operand),
+        false => start.join(operand),
+    };
+    let resolved: PathBuf = match crate::worktree_path_as_git_resolves_it::git_real_path(joined.as_path()) {
+        Some(found) => found,
+        None => {
+            return Err(format!(
+                "Git's own resolution of the name {} names no path: a component before the last one is not there, a separator follows a last component that is not there, or links lead back to themselves",
+                joined.display()
+            ));
+        }
+    };
+    let mut by_path: Option<&ListedWorktree> = None;
+    for one in &listed {
+        let spelled: &Path = Path::new(OsStr::from_bytes(one.path.as_slice()));
+        let Some(theirs) = crate::worktree_path_as_git_resolves_it::git_real_path(spelled) else { continue };
+        if !crate::worktree_path_as_git_resolves_it::the_same_path(&theirs, &resolved, fold_case) {
+            continue;
+        }
+        if by_path.is_some() {
+            return Err(format!(
+                "more than one worktree of this repository resolves to {}, so which one Git picks is its list's order and nothing this program can read",
+                resolved.display()
+            ));
+        }
+        by_path = Some(one);
+    }
+    return match by_path {
+        Some(only) => resolved_operand(only),
+        None => Err(format!("no worktree of this repository resolves from the name {}", joined.display())),
+    };
+}
+
+/// What:
+///  One listed worktree as the answer for an operand,
+///  by the path Git itself resolves it to.
+/// Why:
+///   The path handed to real Git in place of the operand is this one,
+///  so the worktree this program judged and the worktree Git removes are one thing by construction
+///  rather than by two resolutions agreeing.
+///  A listed path Git cannot resolve is the reason:
+///  its parent is not there, or a link on the way loops.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolvedOperand(listed: ListedWorktree): OperandWorktree; // throws the reason
+/// ```
+fn resolved_operand(listed: &ListedWorktree) -> Result<OperandWorktree, String> {
+    let spelled: &Path = Path::new(OsStr::from_bytes(listed.path.as_slice()));
+    let Some(resolved) = crate::worktree_path_as_git_resolves_it::git_real_path(spelled) else {
+        return Err(format!("the worktree Git lists as {} cannot be resolved to a path", spelled.display()));
+    };
+    return Ok(match listed.main {
+        true => OperandWorktree::Main(resolved),
+        false => OperandWorktree::Linked(resolved),
+    });
+}
+/// What:
 ///  The registration of `target` in the repository whose common Git directory is `common_dir`,
 /// when it is a linked worktree of that repository.
 /// Why:

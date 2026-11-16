@@ -103,6 +103,16 @@ pub struct ResolvedCommand {
     ///  environment Git gives it,
     ///  which a substituted argument vector would lose.
     pub shell_command: Option<Vec<OsString>>,
+    /// What:
+    ///  The alias value's own text,
+    ///  after the `!`, when Git hands it to its shell.
+    /// Why:
+    ///   A shell command this crate cannot read as one plain Git command line may still name a removal of a worktree,
+    ///  and a guard has to decide about an alias it cannot read rather than forward it blind:
+    ///  the text is what tells the two apart
+    ///  (a review of `dfd6fab13e`, finding 1).
+    ///  It is never forwarded: Git runs the shell with the environment it gives it.
+    pub shell_value: Option<Vec<u8>>,
 }
 
 /// Methods over a resolved command.
@@ -205,7 +215,7 @@ pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString) 
 /// ({ args, subcommandIndex, subcommand, route })
 /// ```
 fn resolved(arguments: &[OsString], layout: &GlobalLayout, route: Route) -> ResolvedCommand {
-    return resolved_with_shell_command(arguments, layout, route, None);
+    return resolved_with_shell_command(arguments, layout, route, None, None);
 }
 
 /// What:
@@ -225,6 +235,7 @@ fn resolved_with_shell_command(
     layout: &GlobalLayout,
     route: Route,
     shell_command: Option<Vec<OsString>>,
+    shell_value: Option<Vec<u8>>,
 ) -> ResolvedCommand {
     let subcommand: Option<OsString> = if layout.outcome == GlobalOutcome::Command {
         arguments.get(layout.prefix_len).cloned()
@@ -237,6 +248,7 @@ fn resolved_with_shell_command(
         subcommand,
         route,
         shell_command,
+        shell_value,
     };
 }
 
@@ -399,7 +411,7 @@ fn resolve_command(
                 process_globals.as_slice(),
                 current_directory,
             );
-            return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command);
+            return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command, Some(value.get(1..).unwrap_or(&[]).to_vec()));
         }
         let Some(words) = split_alias_command(value.as_slice()) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
@@ -519,8 +531,10 @@ fn shell_command_of(
         inherited_globals,
         current_directory,
     );
-    // Only a built-in this crate already read is handed on, and only when no global option stands before it.
-    if !nested.is_builtin() || nested.subcommand_index != 0 {
+    // Only a built-in this crate already read is handed on. Its own global options stay in the words: an inner `-C`,
+    // `-c`, `--git-dir` or `--work-tree` changes where and how the removal runs, and a reading that stopped at the first
+    // global option forwarded the alias blind (a review of `dfd6fab13e`, finding 1).
+    if !nested.is_builtin() {
         return None;
     }
     return Some(nested.arguments);

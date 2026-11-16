@@ -12,7 +12,7 @@ use super::*;
 use crate::fs_beneath::handle_path;
 use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
 use crate::push_failure_notice_words::PushOutcome;
-use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
+use crate::test_support::{age, fixture, git, git_context, git_output, git_text, remove, repository};
 use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy_with_owner, record_destroyed};
 use std::cell::RefCell;
 use std::ffi::OsString;
@@ -140,7 +140,7 @@ fn forced_plan_named(target: &Path, operand: &str) -> RemovePlan {
 /// Run the removal of `plan` in the repository `repo` on the stand-in.
 fn run(stand: &Stand, repo: &Path, plan: &RemovePlan) -> RemoveOutcome {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return remove_with(stand, &RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None });
+    return remove_with(stand, &RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
 }
 
 /// The administrative directory of the worktree registered at `worktree` in `repo`.
@@ -1050,5 +1050,98 @@ fn a_removal_marks_its_record_before_it_calls_the_destroy() {
     }));
     let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
     assert!(marked.get(), "the record says the files leave the path before the call starts, but it did not: {outcome:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit only the worktree's `HEAD` names, made while the proof of cleanliness runs,
+///  keeps the worktree.
+/// Why:
+///  The proof starts Git and walks every tracked file,
+///  and a commit made on a detached `HEAD` while it runs is Git work the destroy would leave named by nothing.
+///  The question is therefore asked again where the destroy is decided,
+///  and this hook is that window: the stand's proof runs its action after the real proof succeeded
+///  (a review of `9e6c8619a9`, finding 2).
+#[test]
+fn a_commit_made_during_the_proof_of_cleanliness_keeps_the_worktree() {
+    let root: PathBuf = fixture("remove-guard-late-commit");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let at: PathBuf = worktree.clone();
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        std::fs::write(at.join("more.txt"), b"more work\n").expect("a file in the worktree");
+        git(at.as_path(), &["checkout", "--quiet", "--detach"]);
+        git(at.as_path(), &["add", "more.txt"]);
+        git(at.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    }));
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    match &outcome {
+        RemoveOutcome::Refused(words) => assert!(words.contains("detached HEAD"), "the refusal names the commit's holder: {words}"),
+        other => panic!("a commit made during the proof keeps the worktree, but the removal answered {other:?}"),
+    }
+    assert!(worktree.join("more.txt").is_file(), "the commit's file is still there");
+    assert!(worktree.exists(), "and so is the worktree");
+    remove(root.as_path());
+}
+
+/// What:
+///  An edit hidden behind a mark, made while the proof of cleanliness runs,
+///  keeps the worktree.
+/// Why:
+///  The mark hides the edit from every command of Git,
+///  so the proof of cleanliness cannot see it,
+///  and the destroy would delete it unless the question is asked again where the destroy is decided
+///  (a review of `9e6c8619a9`, finding 2).
+#[test]
+fn a_hidden_edit_made_during_the_proof_of_cleanliness_keeps_the_worktree() {
+    let root: PathBuf = fixture("remove-guard-late-hidden-edit");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let at: PathBuf = worktree.clone();
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        git(at.as_path(), &["update-index", "--assume-unchanged", "tracked.txt"]);
+        std::fs::write(at.join("tracked.txt"), b"my edit, only here\n").expect("a hidden edit");
+    }));
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    match &outcome {
+        RemoveOutcome::Refused(words) => assert!(words.contains("tracked.txt"), "the refusal names the file: {words}"),
+        other => panic!("a hidden edit made during the proof keeps the worktree, but the removal answered {other:?}"),
+    }
+    assert_eq!(std::fs::read(worktree.join("tracked.txt")).expect("the edit is still there"), b"my edit, only here\n");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit only the worktree's `HEAD` reflog names keeps the worktree,
+///  before the destroy and after it.
+/// Why:
+///  A person who commits on a detached `HEAD` and then resets is left with a clean worktree,
+///  and that reflog is the only thing that names the commit:
+///  the destroy deletes it with the worktree's own Git directory,
+///  and `git gc --prune=now` then takes the commit
+///  (a review of `e615fb599b`, finding 1, reproduced through the built wrapper).
+#[test]
+fn a_commit_only_the_reflog_names_keeps_the_worktree() {
+    let root: PathBuf = fixture("remove-guard-reflog-only");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    std::fs::write(worktree.join("more.txt"), b"more work\n").expect("a file in the worktree");
+    git(worktree.as_path(), &["checkout", "--quiet", "--detach"]);
+    git(worktree.as_path(), &["add", "more.txt"]);
+    git(worktree.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    let reset_away: String = git_text(worktree.as_path(), &["rev-parse", "HEAD"]);
+    git(worktree.as_path(), &["reset", "--hard", "topic"]);
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    match &outcome {
+        RemoveOutcome::Refused(words) => {
+            assert!(words.contains("its HEAD reflog"), "the refusal names the reflog: {words}");
+            assert!(words.contains(&reset_away[..12]), "and the commit it holds: {words}");
+        }
+        other => panic!("a commit only the reflog names keeps the worktree, but the removal answered {other:?}"),
+    }
+    assert!(worktree.exists(), "and so is the worktree");
     remove(root.as_path());
 }

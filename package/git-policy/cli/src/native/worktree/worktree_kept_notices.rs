@@ -61,6 +61,12 @@ const RECORD_SUFFIX: &str = ".txt";
 /// The prefix every line this program prints carries.
 const PREFIX: &str = "monochromatic-git-policy-cli: ";
 
+/// The branch a worktree's record names when its `HEAD` is on none.
+/// Why:
+///   A worktree a person detached has no branch to name,
+///  and a notice that read "of branch a head with no branch" named the absence as if it were a branch.
+pub const NO_BRANCH: &str = "a head with no branch";
+
 /// What:
 ///  The directory that holds the records of a repository.
 /// Why:
@@ -107,10 +113,15 @@ fn record_name(worktree: &Path) -> String {
 /// ```
 fn words_of(worktree: &Path, branch: &str, why: &str) -> String {
     let quoted: String = shell_quote(worktree.as_os_str().as_encoded_bytes());
+    // A detached `HEAD` names no branch, and a notice that read "of branch a head with no branch" named the absence as if
+    // it were one.
+    let which: String = match branch == NO_BRANCH {
+        true => String::from("after its branch landed, and its HEAD is on no branch now"),
+        false => format!("of branch {branch} in place though its branch landed"),
+    };
     return format!(
-        "{PREFIX}the commit service left the worktree {} of branch {} in place though its branch landed: {}. Remove it with `git worktree remove {quoted}` when nothing there is yours.",
+        "{PREFIX}the commit service left the worktree {} {which}: {}. Remove it with `git worktree remove {quoted}` when nothing there is yours.",
         worktree.display(),
-        branch,
         trim_reason(why)
     );
 }
