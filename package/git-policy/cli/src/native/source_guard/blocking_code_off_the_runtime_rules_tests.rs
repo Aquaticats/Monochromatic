@@ -43,7 +43,7 @@ pub(super) struct Rule {
 }
 
 /// Whether `line` holds any of `needles`.
-fn holds_any(line: &str, needles: &[&str]) -> bool {
+pub(super) fn holds_any(line: &str, needles: &[&str]) -> bool {
     return needles.iter().any(|needle| {
         return line.contains(needle);
     });
@@ -53,7 +53,7 @@ fn holds_any(line: &str, needles: &[&str]) -> bool {
 /// a lock,
 /// a remote mount or a FUSE mount,
 /// and so never belong on a worker.
-const STORAGE_CALLS: &[&str] = &[
+pub(super) const STORAGE_CALLS: &[&str] = &[
     "std::fs::read(",
     "std::fs::read_to_string(",
     "std::fs::read_link(",
@@ -100,7 +100,7 @@ const BLOCKING_HELPERS: &[&str] = &[
 
 /// The waits that block the thread they run on until something else moves,
 /// which on a worker is the task that would move it.
-const BLOCKING_WAITS: &[&str] = &["recv_timeout(", "thread::sleep(", "park_timeout(", "thread::park(", "futex::wait(", "Condvar"];
+pub(super) const BLOCKING_WAITS: &[&str] = &["recv_timeout(", "thread::sleep(", "park_timeout(", "thread::park(", "futex::wait(", "Condvar"];
 
 /// The forbidden work.
 pub(super) const RULES: &[Rule] = &[

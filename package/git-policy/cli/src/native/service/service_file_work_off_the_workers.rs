@@ -98,13 +98,13 @@ where
 /// const state = theStateOfARestoreThatGaveNoAnswer(plan, watch, instance); // { retries: unread(plan), watch: unread(watch, instance) }
 /// ```
 pub fn the_state_of_a_restore_that_gave_no_answer(
-    _plan_directory: &std::path::Path,
-    _watch_directory: &std::path::Path,
-    _instance: Option<&str>,
+    plan_directory: &std::path::Path,
+    watch_directory: &std::path::Path,
+    instance: Option<&str>,
 ) -> (crate::push_retry::PushRetries, crate::service_claim_watch::ClaimWatch) {
     return (
-        crate::push_retry::PushRetries::unread_from_environment(std::path::Path::new("")),
-        crate::service_claim_watch::ClaimWatch::unread(std::path::Path::new(""), None),
+        crate::push_retry::PushRetries::unread_from_environment(plan_directory),
+        crate::service_claim_watch::ClaimWatch::unread(watch_directory, instance),
     );
 }
 

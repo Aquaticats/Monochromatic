@@ -30,6 +30,7 @@
 //! ```
 
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, create_private_directory_all};
+use std::time::Duration;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -48,6 +49,23 @@ pub(crate) const IN_THE_PLACE_AFTER_HALF_OF_IT: &str = "in-the-place-after-half-
 
 /// The extension of one place.
 const PLACE_EXTENSION: &str = "service";
+
+/// The extension of a place that is being written,
+/// which no reader counts as a place.
+const STAGING_EXTENSION: &str = "service-staging";
+
+/// How long a staging name, or a place of an earlier build that names no process, may stand before a reader takes it
+/// away:
+/// a place is written in one small write and one flush, so anything older than this was left by a process that is gone.
+///  It is the lease a claim of this service takes (`CLAIM_LEASE`), the longest this service lets its own record stand
+/// unread.
+const LEFT_OVER_FOR: Duration = Duration::from_secs(120);
+
+/// The staging name of the place that will be `path`:
+/// the same name with the staging extension.
+fn beside_the_final_name(path: &Path) -> PathBuf {
+    return path.with_extension(STAGING_EXTENSION);
+}
 
 /// Numbers the places of one process,
 /// so two boards of one process over one journal are two services and see each other.
@@ -126,22 +144,43 @@ pub fn take_ones_place(journal: &Path) -> Option<HeldPlace> {
     for _attempt in 0..8 {
         let number: u64 = PLACES_TAKEN.fetch_add(1, Ordering::SeqCst);
         let path: PathBuf = directory.join(format!("{pid}-{number}.{PLACE_EXTENSION}"));
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
-            Ok(mut file) => {
-                // A control ends the writer here, which is the instant a kill would leave an empty record.
-                #[cfg(test)]
-                crate::service_fault::hooks::run_on_any_thread(IN_THE_PLACE_AFTER_ITS_FILE);
-                let _written = std::io::Write::write_all(&mut file, format!("{pid}\n{identity}\n").as_bytes());
-                // A control ends the writer here, which is the instant a kill would leave one line of two.
-                #[cfg(test)]
-                crate::service_fault::hooks::run_on_any_thread(IN_THE_PLACE_AFTER_HALF_OF_IT);
-                let _mode = std::fs::set_permissions(path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(PRIVATE_DIRECTORY_MODE));
-                return Some(HeldPlace { path });
-            }
-            // A name another service of this process took between the counter and the open: the next number is tried.
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        // What: The record is written whole under a name of its own and then given its final name in one rename.
+        // Why:  A place made under its final name and filled afterwards is, for a moment, a record nobody can read,
+        //       and a kill makes that moment last for every later service of this journal
+        //       (`doc/planning/cli-git-no-unbounded-waits.md`, and the third review of this branch, finding 2).
+        //       A name that appears in one step is whole when it appears, and a name left over is under the writer's
+        //       own staging name, which no reader counts as a place.
+        let staged: PathBuf = beside_the_final_name(path.as_path());
+        let mut file: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(staged.as_path()) {
+            Ok(file) => file,
+            // A staging name another writer of this process took: the next number is tried.
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
                 crate::service_warn!("the place of this service in its journal could not be taken, so it cannot tell whether it is alone: {error}");
+                return None;
+            }
+        };
+        // A control ends the writer here, which is the instant a kill would leave an empty record.
+        #[cfg(test)]
+        crate::service_fault::hooks::run_on_any_thread(IN_THE_PLACE_AFTER_ITS_FILE);
+        let written: Result<(), std::io::Error> = std::io::Write::write_all(&mut file, format!("{pid}\n{identity}\n").as_bytes());
+        // A control ends the writer here, which is the instant a kill would leave one line of two.
+        #[cfg(test)]
+        crate::service_fault::hooks::run_on_any_thread(IN_THE_PLACE_AFTER_HALF_OF_IT);
+        // The bytes reach the device before the name is published, so the record a reader meets is the record a power
+        // cut would have left or none at all.
+        let forced: Result<(), std::io::Error> = written.and_then(|()| { return file.sync_all(); });
+        let _mode = std::fs::set_permissions(staged.as_path(), std::os::unix::fs::PermissionsExt::from_mode(PRIVATE_DIRECTORY_MODE));
+        drop(file);
+        if forced.is_err() {
+            let _removed = std::fs::remove_file(staged.as_path());
+            continue;
+        }
+        match std::fs::rename(staged.as_path(), path.as_path()) {
+            Ok(()) => return Some(HeldPlace { path }),
+            Err(error) => {
+                let _removed = std::fs::remove_file(staged.as_path());
+                crate::service_warn!("the place of this service in its journal could not be given its name, so it cannot tell whether it is alone: {error}");
                 return None;
             }
         }
@@ -166,19 +205,27 @@ pub fn take_ones_place(journal: &Path) -> Option<HeldPlace> {
 /// ```ts
 /// const holders = servicesOfThisJournal(journal, mine); // 'alone' | 'shared' | 'unknown'
 /// ```
-pub fn holders(journal: &Path, _mine: &HeldPlace) -> Holders {
+pub fn holders(journal: &Path, mine: &HeldPlace) -> Holders {
     let directory: PathBuf = journal.join(PLACES_DIRECTORY);
     let entries = match std::fs::read_dir(directory.as_path()) {
         Ok(entries) => entries,
-        // A journal no service has taken a place in yet holds none.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Holders::Alone,
+        // The caller holds a place, so a journal that holds none is a journal whose directory went: nothing is known.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Holders::Unknown,
         Err(_unreadable) => return Holders::Unknown,
     };
     let mut live: usize = 0;
+    let mut mine_seen: bool = false;
     for entry in entries {
         let Ok(found) = entry else { return Holders::Unknown };
         let path: PathBuf = found.path();
-        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLACE_EXTENSION) {
+        let extension: Option<&str> = path.extension().and_then(std::ffi::OsStr::to_str);
+        if extension == Some(STAGING_EXTENSION) {
+            // A place that was being written and never given its name: it names no service, and it goes once it is older
+            // than any write of a place takes.
+            take_away_when_left_over(path.as_path());
+            continue;
+        }
+        if extension != Some(PLACE_EXTENSION) {
             continue;
         }
         let text: String = match std::fs::read_to_string(path.as_path()) {
@@ -188,50 +235,57 @@ pub fn holders(journal: &Path, _mine: &HeldPlace) -> Holders {
             Err(_unreadable) => return Holders::Unknown,
         };
         match holder_is_live(text.as_str()) {
-            Holders::Alone => live += 1,
+            Holders::Alone => {
+                live += 1;
+                if path == mine.path() {
+                    mine_seen = true;
+                }
+            }
             Holders::Shared => {
                 // The process of that place is gone, so nothing of it can land a request, and its record goes as it is
                 // found so the next reader does not carry it.
                 let _removed = std::fs::remove_file(path.as_path());
             }
-            Holders::Unknown => return Holders::Unknown,
+            Holders::Unknown => {
+                // What: A place that names no process, or names one nothing can be asked about, stands only while it
+                //       could be being written.
+                // Why:  One written by an earlier build of this branch can be torn by a kill, and a record that names
+                //       no process is not evidence of a live service: left for ever it would take early withdrawal away
+                //       from the journal for good. Until the write window has passed it is left, because removing it
+                //       would take a live service's place.
+                if take_away_when_left_over(path.as_path()) {
+                    continue;
+                }
+                return Holders::Unknown;
+            }
         }
     }
-    return if live <= 1 { Holders::Alone } else { Holders::Shared };
+    // What: The caller's own place must be among the live ones.
+    // Why:  `Alone` is the answer every promise rests on, and a journal whose one live place belongs to another service
+    //       is not one the caller may promise anything about.
+    return match (mine_seen, live) {
+        (true, 1) => Holders::Alone,
+        (true, _) => Holders::Shared,
+        (false, _) => Holders::Unknown,
+    };
 }
 
 /// What:
-///  The count of live places alone,
-///  which is what this branch answered before the third review's first finding:
-///  it says `Alone` when at most one live place is there, whoever's it is.
+///  Takes away a record of a place that names no service once it is older than any write of a place takes,
+///  and says whether it did.
 /// Why:
-///  The control of that finding is red while this answer stands,
-/// and the answer itself is the defect: a service that took no place still counted the journal's own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const holders = theCountAlone(journal); // 'alone' when one live place is there, whoever's it is
-/// ```
-pub(crate) fn the_count_alone(journal: &Path) -> Holders {
-    let directory: PathBuf = journal.join(PLACES_DIRECTORY);
-    let entries = match std::fs::read_dir(directory.as_path()) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Holders::Alone,
-        Err(_unreadable) => return Holders::Unknown,
-    };
-    let mut live: usize = 0;
-    for entry in entries {
-        let Ok(found) = entry else { return Holders::Unknown };
-        let path: PathBuf = found.path();
-        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLACE_EXTENSION) {
-            continue;
-        }
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
-        if holder_is_live(text.as_str()) == Holders::Alone {
-            live += 1;
-        }
+///   A record left by a writer that was killed is nobody's, and a record that is still within the write window may be a
+/// live service's own, so only age can tell the two apart
+/// (`LEFT_OVER_FOR`).
+///  The removal is this service's own small write, on a withdrawal's own job.
+fn take_away_when_left_over(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else { return false };
+    let Ok(modified) = metadata.modified() else { return false };
+    let Ok(age) = modified.elapsed() else { return false };
+    if age < LEFT_OVER_FOR {
+        return false;
     }
-    return if live <= 1 { Holders::Alone } else { Holders::Shared };
+    return std::fs::remove_file(path).is_ok();
 }
 
 /// Whether the service whose place holds `text` is still there,

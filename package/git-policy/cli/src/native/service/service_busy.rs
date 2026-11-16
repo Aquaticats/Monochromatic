@@ -475,8 +475,13 @@ impl LandingBoard {
     /// const may = board.mayPromiseARequestNeverLands(); // holders(journal) === 'alone'
     /// ```
     pub fn may_promise_a_request_never_lands(&self) -> bool {
-        let _mine: Option<&crate::service_journal_holders::HeldPlace> = self.place.as_ref();
-        return crate::service_journal_holders::the_count_alone(self.journal.as_path()) == crate::service_journal_holders::Holders::Alone;
+        // What: A service that holds no place of its own promises nothing.
+        // Why:  A place it could not take is "could not tell", and that is never the best case
+        //       (the third review of this branch, finding 1).
+        let Some(place) = self.place.as_ref() else {
+            return false;
+        };
+        return crate::service_journal_holders::holders(self.journal.as_path(), place) == crate::service_journal_holders::Holders::Alone;
     }
 
     /// What:

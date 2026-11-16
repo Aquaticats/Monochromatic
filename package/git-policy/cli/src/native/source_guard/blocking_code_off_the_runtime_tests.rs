@@ -52,7 +52,7 @@ use std::path::Path;
 /// The forbidden work and the justified exceptions.
 #[path = "blocking_code_off_the_runtime_rules_tests.rs"]
 mod rules;
-use rules::{ALLOWED, Allowed, Place, RULES, Rule};
+use rules::{ALLOWED, Allowed, BLOCKING_WAITS, Place, RULES, Rule, STORAGE_CALLS, holds_any};
 
 use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
 
@@ -451,7 +451,14 @@ const POOL_CALLS: &[&str] = &[
     // The service's own door: a job of the pool, awaited under a ceiling (`service_file_work_off_the_workers.rs`).
     "off_the_workers(",
     "run_a_job_once_awaited_no_longer_than(",
+    "run_a_job_awaited_no_longer_than(",
 ];
+
+/// Whether a line names a call that hands work to the blocking pool,
+/// so the closure that follows is off the runtime even when its brace is on a later line.
+fn names_a_pool_call(line: &str) -> bool {
+    return POOL_CALLS.iter().any(|call_name| { return line.contains(call_name); });
+}
 
 /// Whether a line hands a closure to the blocking pool,
 /// so the closure's body is off the runtime.
@@ -542,15 +549,38 @@ fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Functi
     let counts: Vec<(usize, usize)> = braces_outside_literals(joined_text.as_str())?;
     let mut depth: usize = 0;
     let mut pool_from: Option<usize> = None;
+    // What: A pool call whose closure opens on a line after the call itself.
+    // Why:  `run_a_job_once_awaited_no_longer_than(ceiling, move || {` and its longer spellings put the brace on a
+    // line of their own,
+    //  and a closure that was not recognised as the pool's counted its file work as the task's: a guard that read
+    // only the call's own line found 137 tasks whose work was already off the worker.
+    let mut a_pool_body_is_coming: bool = false;
     let mut task_lines: BodyLines = Vec::new();
     for (index, (number, line, joined)) in inside.iter().enumerate() {
         let (opened, closed) = counts.get(index).copied().unwrap_or((0, 0));
         let trimmed: &str = line.trim_start();
+        // What: The signature is not the body.
+        // Why:  It names the function, and a rule that reads a call reads the signature as a call to itself.
+        if index == 0 {
+            depth += opened;
+            depth = depth.saturating_sub(closed);
+            continue;
+        }
         depth += opened;
         depth = depth.saturating_sub(closed);
         let already: bool = pool_from.is_some();
         if !already && opens_a_pool_body(trimmed) {
             pool_from = Some(depth);
+            a_pool_body_is_coming = false;
+            continue;
+        }
+        if !already && !a_pool_body_is_coming && names_a_pool_call(trimmed) {
+            a_pool_body_is_coming = true;
+            continue;
+        }
+        if !already && a_pool_body_is_coming && opened > 0 {
+            pool_from = Some(depth);
+            a_pool_body_is_coming = false;
             continue;
         }
         if already {
@@ -572,10 +602,32 @@ fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Functi
     return Ok(Function { name, is_async, holds_a_command, task_lines });
 }
 
-/// Every `(relative path, rule id, line number)` the rules find in the release sources of `root`.
+/// What:
+///  The rule id of a blocking call reached from a task through the crate's own plain functions.
+/// Why:
+///  A task that calls a plain function which waits on a file holds the worker exactly as if it had written the call
+/// itself,
+///  and the rules that read one line cannot see through the call
+///  (the third review of this branch, finding 4: a `canonicalize` two plain calls below an `async fn`).
+const REACHED_FROM_A_TASK: &str = "blocking-function-on-a-task";
+
+/// What:
+///  Every `(relative path, rule id, line number)` the rules find in the release sources of `root`.
 fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Finding>, String> {
     let mut found: Vec<Finding> = Vec::new();
-    for name in release_sources_in(root, roots)? {
+    let sources: Vec<String> = release_sources_in(root, roots)?;
+    // What: The functions of the whole crate, read once, for the rule that looks through a call.
+    // Why:  That rule needs the body of a function of another file as much as of the same one.
+    let mut every_function: Vec<(String, Function)> = Vec::new();
+    for name in &sources {
+        let text: String = std::fs::read_to_string(root.join(name.as_str()))
+            .map_err(|error| return format!("cannot read {name}: {error}"))?;
+        for function in functions_in(text.as_str()).map_err(|error| return format!("{name}: {error}"))? {
+            every_function.push((name.clone(), function));
+        }
+    }
+    found.extend(through_the_crates_own_functions(every_function.as_slice()));
+    for name in sources {
         let text: String = std::fs::read_to_string(root.join(name.as_str()))
             .map_err(|error| return format!("cannot read {name}: {error}"))?;
         let read: ReadCode = read_the_code_of(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
@@ -623,6 +675,234 @@ fn findings() -> Vec<Finding> {
     return findings_in(&source_root(), &real_roots()).expect("the crate's release sources");
 }
 
+/// What:
+///  The findings of a blocking call reached from an `async` body through the crate's own plain functions,
+///  each as the file of the task, the rule's id and the line of the call in that task.
+/// Why:
+///  A rule that reads one line sees `canonicalize` in a plain function and says nothing about the task three calls
+/// above it,
+///  which is how a `std::fs::canonicalize` reached from an `async fn` passed this scan
+///  (the third review of this branch, finding 4).
+///  A function is blocking when its body reads or writes a file or waits on a thread,
+/// or when it calls one that is, to as many steps as the crate's own calls go.
+///  A closure handed to the blocking pool is off the worker, so a task's lines inside one are not its own.
+fn through_the_crates_own_functions(functions: &[(String, Function)]) -> Vec<Finding> {
+    // What the body of each function calls, by the crate's own names, read once.
+    let mut called_by: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> = std::collections::BTreeMap::new();
+    for (_, function) in functions {
+        let mut called: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for (_, line, joined) in &function.task_lines {
+            for name in names_called(joined.as_str()) {
+                called.insert(name);
+            }
+            let _reads_a_file: bool = holds_any(line, STORAGE_CALLS);
+        }
+        called_by.insert(function.name.as_str(), called);
+    }
+    // What: The names this crate defines once, which are the only ones a call can be followed through.
+    // Why:  `new` names a hundred functions of this crate, and a `X::new(` of one of them is not a call to the
+    //       landing board's, which takes a place in a journal.
+    let mut definitions: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for (_, function) in functions {
+        *definitions.entry(function.name.as_str()).or_default() += 1;
+    }
+    let known: std::collections::BTreeSet<&str> = definitions.iter().filter(|(_, count)| { return **count == 1; }).map(|(name, _)| { return *name; }).collect();
+    // What: The functions that wait on a file themselves, or reach one that does.
+    // Why:  One worklist pass, so the scan stays quick on a crate of thousands of functions.
+    let mut blocking: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    let mut callers_of: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+    for (caller, called) in &called_by {
+        for name in called {
+            if known.contains(*name) {
+                callers_of.entry(name).or_default().push(caller);
+            }
+        }
+    }
+    // What: The functions this crate hands to a job of the blocking pool by name, which are off the worker.
+    // Why:  `run_a_job_awaited_no_longer_than(ceiling, state, read_the_head_file)` names its work as an argument,
+    //       and a closure is not the only shape the pool takes: a function passed this way runs there too, so a file
+    //       wait inside it is not the caller's.
+    let mut off_the_worker: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for (_, function) in functions {
+        for (_, _line, joined) in &function.task_lines {
+            for name in jobs_handed_to_the_pool(joined.as_str()) {
+                off_the_worker.insert(name);
+            }
+        }
+    }
+    let mut waiting: Vec<&str> = Vec::new();
+    for (_, function) in functions {
+        if off_the_worker.contains(function.name.as_str()) || hands_work_to_a_pool(function.name.as_str()) {
+            continue;
+        }
+        let waits: bool = function.task_lines.iter().any(|(_, line, _joined)| {
+            return holds_any(line, STORAGE_CALLS) || holds_any(line, BLOCKING_WAITS);
+        });
+        if waits && !blocking.contains(function.name.as_str()) {
+            blocking.insert(function.name.as_str());
+            waiting.push(function.name.as_str());
+        }
+    }
+    while let Some(found) = waiting.pop() {
+        for caller in callers_of.get(found).map_or_else(Vec::new, |callers| { return callers.clone(); }) {
+            if blocking.insert(caller) {
+                waiting.push(caller);
+            }
+        }
+    }
+    let mut found: Vec<Finding> = Vec::new();
+    for (name, function) in functions {
+        if !function.is_async || !holds_the_service_s_tasks(name.as_str()) {
+            continue;
+        }
+        for (number, _line, joined) in &function.task_lines {
+            let reaches: bool = names_called(joined.as_str()).iter().any(|called| { return blocking.contains(*called); });
+            if reaches {
+                found.push((name.clone(), REACHED_FROM_A_TASK, *number));
+                break;
+            }
+        }
+    }
+    return found;
+}
+
+/// What:
+///  Whether this file holds the service's own tasks:
+/// the modules of the resident service and of the after-commit work.
+/// Why:
+///   The rule that looks through a call is asked of these files,
+/// because they are where the service's tasks are spawned and where a wait on a file stops every client of a service
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+///  and the third review of this branch, finding 4).
+///  The rest of the crate has tasks of its own, on the runtimes of the commands that run them;
+/// a scan of the whole crate by this rule answers a list its owners have to take up one by one,
+/// and that list is reported rather than excused here
+/// (`doc/handover/cli-git-rust-implementation.md`).
+fn holds_the_service_s_tasks(path: &str) -> bool {
+    return path.starts_with("service/") || path.starts_with("landing/");
+}
+
+/// What:
+///  The functions `text` hands to a job of the blocking pool by name:
+/// the bare identifiers in the argument list of one of the pool runners.
+/// Why:
+///  Those functions run off the worker, so a file wait inside one is not one the caller's task bears.
+///  A closure in the same argument list is already off the worker by the rule that drops its lines.
+fn jobs_handed_to_the_pool(text: &str) -> Vec<&str> {
+    let mut handed: Vec<&str> = Vec::new();
+    for runner in POOL_CALLS {
+        let Some(at) = text.find(runner) else { continue };
+        let arguments: &str = &text[at + runner.len()..];
+        let bytes: &[u8] = arguments.as_bytes();
+        let mut position: usize = 0;
+        while position < bytes.len() {
+            let starts_a_name: bool = (bytes[position] as char).is_ascii_alphabetic() || bytes[position] == b'_';
+            if !starts_a_name {
+                position += 1;
+                continue;
+            }
+            let start: usize = position;
+            while position < bytes.len() && ((bytes[position] as char).is_ascii_alphanumeric() || bytes[position] == b'_') {
+                position += 1;
+            }
+            let name: &str = &arguments[start..position];
+            // A bare name is a function passed as the job; one followed by `(` is called here, not handed over.
+            if bytes.get(position) != Some(&b'(') && !is_a_common_word(name) {
+                handed.push(name);
+            }
+        }
+    }
+    return handed;
+}
+
+/// Whether `name` is one of the calls that hand work to the blocking pool,
+/// which is off the worker by what it does and not only by where its closure is.
+fn hands_work_to_a_pool(name: &str) -> bool {
+    return POOL_CALLS.iter().any(|call_name| { return call_name.strip_suffix('(') == Some(name); });
+}
+
+/// Whether `name` is a word of the language rather than a function of this crate,
+/// which an argument list holds as `move`, `true` or `None`.
+fn is_a_common_word(name: &str) -> bool {
+    return matches!(name, "move" | "true" | "false" | "None" | "Some" | "Ok" | "Err" | "async" | "await" | "if" | "let" | "match" | "return" | "mut" | "ref");
+}
+
+/// What:
+///  The names `text` calls,
+///  as one identifier followed by an opening parenthesis and not by another name's letters.
+/// Why:
+///  The rule that looks through a call needs the names a body names once, not every name of the crate against every
+/// line.
+fn names_called(text: &str) -> Vec<&str> {
+    let mut names: Vec<&str> = Vec::new();
+    let bytes: &[u8] = text.as_bytes();
+    let mut at: usize = 0;
+    while at < bytes.len() {
+        let starts_a_name: bool = (bytes[at] as char).is_ascii_alphabetic() || bytes[at] == b'_';
+        if !starts_a_name {
+            at += 1;
+            continue;
+        }
+        let start: usize = at;
+        while at < bytes.len() && ((bytes[at] as char).is_ascii_alphanumeric() || bytes[at] == b'_') {
+            at += 1;
+        }
+        if at < bytes.len() && bytes[at] == b'(' && bytes[start] != b'_' {
+            names.push(&text[start..at]);
+        }
+    }
+    return names;
+}
+
+/// What:
+///  The files whose tasks reach a wait on a file through this crate's own plain functions,
+///  and that this scan therefore reports for their owners.
+/// Why:
+///  The rule that looks through a call finds the class across the crate, and this branch answers it for the files it
+/// changes only:
+///  the rest are tasks of other modules that their owners convert, module by module, as this branch's own service
+///  start, watch note and prune were converted (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+///  The list is a record and not an excuse: a file the rule newly names fails the guard, and a file listed here whose
+///  tasks no longer reach a wait fails it too, so the list can only shrink
+///  (the third review of this branch, finding 4).
+const REACHED_FROM_A_TASK_KNOWN: &[&str] = &[
+    "landing/landed_summary.rs",
+    "landing/landing_state_carried_by_its_task.rs",
+    "landing/maintenance_run.rs",
+    "landing/service_amend.rs",
+    "landing/service_branch_shows.rs",
+    "landing/service_claim_renewal_running.rs",
+    "landing/service_head.rs",
+    "landing/service_land_finish_branch_questions.rs",
+    "landing/service_land_follow_index_reset.rs",
+    "landing/service_land_git_steps_and_import_stream.rs",
+    "landing/service_land_side_reference_write.rs",
+    "landing/service_message.rs",
+    "landing/service_prepare_own_git_steps.rs",
+    "landing/service_replay_capture_order.rs",
+    "landing/service_round.rs",
+    "landing/service_route.rs",
+    "landing/service_scratch_ref_of_a_dropped_batch.rs",
+    "landing/service_work.rs",
+    "landing/service_work_branch_is_gone.rs",
+    "landing/service_work_drain_pending_claims.rs",
+    "landing/service_work_drains_a_snapshot_ahead.rs",
+    "landing/service_work_drains_awaiting.rs",
+    "landing/service_work_handlers_replanning_and_acceptance.rs",
+    "landing/service_work_items_side_by_side.rs",
+    "landing/service_work_run_round.rs",
+    "landing/service_work_settling_a_verdict.rs",
+    "landing/service_work_slow_lane.rs",
+    "landing/service_work_storage_awaited.rs",
+    "service/service_reply.rs",
+    "service/service_review.rs",
+    "service/service_scratch_release_removal.rs",
+    "service/service_server_accept_connections_as_tasks.rs",
+    "service/service_server_connection_handling.rs",
+    "service/service_server_shutdown_after_a_stop.rs",
+    "service/service_server_work_loop_awaiting.rs",
+];
+
 /// The findings no `allowed` entry excuses,
 /// each as a `file:line [rule] reason` text.
 fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
@@ -666,10 +946,39 @@ fn stale(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
 /// starts a child outside the retried start,
 /// or does blocking
 ///  work inside a task,
-/// beyond the listed exceptions.
+/// beyond the listed exceptions,
+/// and the rule that looks through a call finds a task of a file no one has converted yet only where that file is
+/// recorded.
 #[test]
 fn the_release_code_keeps_blocking_work_off_the_runtime() {
-    let unexplained: Vec<String> = unexplained(findings().as_slice(), ALLOWED);
+    let found: Vec<Finding> = findings();
+    let new_files: Vec<String> = found
+        .iter()
+        .filter(|(file, rule, _)| {
+            return *rule == REACHED_FROM_A_TASK && !REACHED_FROM_A_TASK_KNOWN.iter().any(|known| { return known == file; });
+        })
+        .map(|(file, _rule, number)| { return format!("{file}:{number}"); })
+        .collect();
+    assert!(
+        new_files.is_empty(),
+        "a task of this file reaches a wait on a file through a plain function of this crate, on the worker it is polled \
+         on: run it through `service_file_work_off_the_workers.rs`, or record the file in REACHED_FROM_A_TASK_KNOWN with \
+         the owner that converts it:\n{}",
+        new_files.join("\n")
+    );
+    let converted: Vec<String> = REACHED_FROM_A_TASK_KNOWN
+        .iter()
+        .filter(|known| { return !found.iter().any(|(file, rule, _)| { return file == *known && *rule == REACHED_FROM_A_TASK; }); })
+        .map(|known| { return String::from(*known); })
+        .collect();
+    assert!(
+        converted.is_empty(),
+        "these files' tasks reach no wait on a file any more, so they come out of REACHED_FROM_A_TASK_KNOWN:\n{}",
+        converted.join("\n")
+    );
+    // The rule that looks through a call is held to its own list, which says which files its findings stand for.
+    let besides: Vec<Finding> = found.iter().filter(|(_, rule, _)| { return *rule != REACHED_FROM_A_TASK; }).cloned().collect();
+    let unexplained: Vec<String> = unexplained(besides.as_slice(), ALLOWED);
     assert!(
         unexplained.is_empty(),
         "the runtime's workers only await: a thread, a sleeping clock, a child start outside `start_retry` or a blocking \
@@ -683,7 +992,9 @@ fn the_release_code_keeps_blocking_work_off_the_runtime() {
 /// so the list shrinks as the move lands.
 #[test]
 fn every_listed_exception_still_matches_code() {
-    let stale: Vec<String> = stale(findings().as_slice(), ALLOWED);
+    let found: Vec<Finding> = findings();
+    let besides: Vec<Finding> = found.iter().filter(|(_, rule, _)| { return *rule != REACHED_FROM_A_TASK; }).cloned().collect();
+    let stale: Vec<String> = stale(besides.as_slice(), ALLOWED);
     assert!(stale.is_empty(), "remove these entries from ALLOWED, their code is gone:\n{}", stale.join("\n"));
 }
 

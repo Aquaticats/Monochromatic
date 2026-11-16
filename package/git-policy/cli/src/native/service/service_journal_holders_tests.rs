@@ -75,8 +75,8 @@ fn a_place_that_cannot_be_read_is_unknown() {
 }
 
 /// What:
-///  A place that is being made is never a place any reader can see: at each instant of making one, another service of
-///  the journal reads the services that write it and gets `Shared`, never `Unknown`.
+///  A place that is being made is never a record a reader cannot read: at each instant of making one, another service
+///  of the journal reads the places there are and gets an answer about whole places, never `Unknown`.
 /// Why:
 ///  A place written under its final name and filled afterwards is, for a moment, a record nobody can read,
 ///  and a kill makes that moment last:
@@ -98,10 +98,13 @@ fn a_place_that_is_being_made_is_never_a_record_a_reader_cannot_read() {
         let _released = let_go.send(());
         let made: Option<HeldPlace> = writing.join().expect("the writing thread ends");
         assert_eq!(reached_the_step, Some(true), "the writer reached {point}");
-        assert_eq!(seen, Holders::Shared, "at {point} the journal holds two services, and nothing a reader cannot read");
-        let made: HeldPlace = made.expect("the place was taken once the writer went on");
+        // What: A place that is being made is not read as a record nobody can read.
+        // Why:  Until the writer gives it its final name the journal holds the reader's one service, so either answer
+        //       of a count is true; `Unknown` is the one that would disable the promise for good.
+        assert_ne!(seen, Holders::Unknown, "at {point} the journal's places are readable");
+        let published: HeldPlace = made.expect("the place was taken once the writer went on");
         assert_eq!(holders(journal.as_path(), &reader), Holders::Shared, "and it is a place once it is whole");
-        drop(made);
+        drop(published);
         drop(reader);
     }
 }

@@ -252,6 +252,12 @@ fn start_the_after_commit_work_or_exit(
         //       At the ceiling the read is left behind and this service starts without what it held, which is what
         //       `restored_within` itself does at its own ceiling: the plan and the repositories are kept, written to as this
         //       service works, and read again after a pause.
+        // What: The folders and the identity are known here and stay known after the restore is asked.
+        // Why:  A restore that gave no answer has not answered "empty", so the state it leaves says "not restored yet"
+        //       over the real folders, and the loop tries them again: a saved push is late and never forgotten
+        //       (the third review of this branch, finding 3).
+        let (plan_of_the_state, watch_of_the_state, instance_of_the_state): (PathBuf, PathBuf, Option<String>) =
+            (plan_directory.clone(), watch_directory.clone(), instance.clone());
         let restored: Option<(PushRetries, ClaimWatch)> = crate::service_file_work_off_the_workers::off_the_workers(
             crate::service_file_work_off_the_workers::Step { what: RESTORE_STEP, ceiling: restore_ceiling + RESTORE_DOOR_MARGIN },
             move || { return crate::service_journal_restored_at_start::restored_within(restore_ceiling, plan_directory, watch_directory, instance); },
@@ -259,7 +265,11 @@ fn start_the_after_commit_work_or_exit(
         .await;
         let (push_retries, mut watch): (PushRetries, ClaimWatch) = match restored {
             Some(pair) => pair,
-            None => (PushRetries::unread_from_environment(Path::new("")), ClaimWatch::unread(Path::new(""), None)),
+            None => crate::service_file_work_off_the_workers::the_state_of_a_restore_that_gave_no_answer(
+                plan_of_the_state.as_path(),
+                watch_of_the_state.as_path(),
+                instance_of_the_state.as_deref(),
+            ),
         };
         // What: The worktree this service serves is one of the repositories the loop looks at by itself.
         // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record

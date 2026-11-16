@@ -168,6 +168,38 @@ pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
 /// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
 
+/// What:
+///  What writing one note off the workers came to,
+///  so that the task's own bookkeeping needs no file and no path resolution on its worker.
+/// Why:
+///   The instance check and the write are both file work, and both belong in the job
+///  (`service_file_work_off_the_workers.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OneNote = { kind: 'in-memory-only' } | { kind: 'another-instance' } | { kind: 'written'; result: Result<void, string> };
+/// ```
+enum OneNote {
+    /// The watch keeps nothing in a file, so the note is only remembered.
+    InMemoryOnly,
+    /// The directory belongs to another instance and is not kept for a restart.
+    AnotherInstance,
+    /// The write was made, and came to this.
+    Written(Result<(), String>),
+}
+
+/// Writes one note,
+/// off the workers:
+/// the instance check first,
+/// then the note itself.
+fn write_the_note_where_it_belongs(instance: Option<&str>, store: Option<&Path>, git_dir: &Path) -> OneNote {
+    if refused_for_another_instance(instance, git_dir) {
+        return OneNote::AnotherInstance;
+    }
+    let Some(directory) = store else { return OneNote::InMemoryOnly };
+    return OneNote::Written(write_down(directory, git_dir));
+}
+
 /// The words the journal and a waiting client know the write of a watch note by.
 pub const WATCH_NOTE_STEP: &str = "the write of the note of this worktree";
 
@@ -441,28 +473,31 @@ impl ClaimWatch {
                 return;
             }
         }
-        if refused_for_another_instance(self.instance.as_deref(), git_dir) {
-            return;
-        }
-        let Some(directory) = self.store.clone() else {
-            self.known.push(git_dir.to_path_buf());
-            return;
-        };
-        // What: The write goes through the service's one door, so no worker of the runtime waits in it.
-        // Why:  This runs in the after-commit work's task, and with one worker a synchronous write there is every
-        //       client of the service (`service_file_work_off_the_workers.rs`).
+        // What: Every step that reads or writes a file goes through the service's one door, the instance check with them.
+        // Why:  That check resolves the path (`instance_of`, `std::fs::canonicalize`), which waits in the kernel on a
+        //       filesystem that stopped answering; before the hand-off it held the worker this task was polled on, and
+        //       with one worker that is every client of the service
+        //       (`service_file_work_off_the_workers.rs`, and the third review of this branch, finding 4).
         //       At the ceiling the note is left unwritten and the loop goes on: the look for records
         //       (`LOOK_AGAIN_AFTER`) finds them anyway, and the note only saves the service that starts next one pause.
         let beside: PathBuf = git_dir.to_path_buf();
+        let store: Option<PathBuf> = self.store.clone();
+        let instance: Option<String> = self.instance.clone();
         let step: crate::service_file_work_off_the_workers::Step =
             crate::service_file_work_off_the_workers::Step { what: WATCH_NOTE_STEP, ceiling: WATCH_NOTE_WRITE_CEILING };
-        let written: Option<Result<(), String>> =
-            crate::service_file_work_off_the_workers::off_the_workers(step, move || { return write_down(directory.as_path(), beside.as_path()); }).await;
+        let written: Option<OneNote> = crate::service_file_work_off_the_workers::off_the_workers(step, move || {
+            return write_the_note_where_it_belongs(instance.as_deref(), store.as_deref(), beside.as_path());
+        })
+        .await;
         match written {
-            Some(Ok(())) => {
+            Some(OneNote::InMemoryOnly) => {
                 self.known.push(git_dir.to_path_buf());
             }
-            Some(Err(reason)) => {
+            Some(OneNote::AnotherInstance) => {}
+            Some(OneNote::Written(Ok(()))) => {
+                self.known.push(git_dir.to_path_buf());
+            }
+            Some(OneNote::Written(Err(reason))) => {
                 crate::service_warn!("{} could not be kept for a restart, so it is tried again after a pause: {reason}", git_dir.display());
                 self.unwritten.push(git_dir.to_path_buf());
                 self.failures = self.failures.saturating_add(1);
