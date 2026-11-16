@@ -39451,7 +39451,7 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
-### A `worktree add` does not wait on other programs' writes, and the snapshot proof's two rare losses are a stated limit (2026-11-16, answered through the question tool after 15:10:33-05:00)
+### A `worktree add` does not wait on other programs' writes, and the snapshot proof's two rare losses are a stated limit (2026-11-16, answered through the question tool between 15:09:57-05:00 and 15:11:23-05:00)
 
 Asked, with the measurements beside it (16.5 ms an add on an idle drive, 86.6 ms more under another writer's 64 MiB pending, growing with others' pending data),
 whether the wrapper waits for a commit of the file system before every `worktree add` so that no snapshot of a person can be taken for its own,
