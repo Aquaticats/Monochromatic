@@ -22,12 +22,17 @@ import { whatTheCommandAnswered, } from './stand-in-a-queue-commands-for-tests.t
 /**
  The words the program was given: the command, the instruction to stop at, the queue's folder and its runs folder.
  */
-const [command, killAtText, queueFolderText, runsFolderText,] = argv.slice(2,);
+const [commandText, killAtText, queueFolderText, runsFolderText,] = argv.slice(2,);
+
+/**
+ The command to run, which the control always names.
+ */
+const command: string = commandText ?? '';
 
 /**
  The queue's folder, which the control always names.
  */
-const queueFolder = queueFolderText ?? '';
+const queueFolder: string = queueFolderText ?? '';
 
 /**
  The runs folder the command writes its record into, which the control names so that what it writes and what the control reads are one
@@ -82,13 +87,12 @@ function aStep(): void {
  
  @returns nothing
  */
-async function countedWriteFile({
-  path,
-  data,
-}: {
-  readonly path: Parameters<typeof fs.promises.writeFile>[0];
-  readonly data: Parameters<typeof fs.promises.writeFile>[1];
-},): Promise<void> {
+// oxlint-disable-next-line no-restricted-syntax/require-destructured-params -- an fs adapter must take the arguments fs passes
+// positionally, which one destructured object cannot be.
+async function countedWriteFile(
+  path: Parameters<typeof fs.promises.writeFile>[0],
+  data: Parameters<typeof fs.promises.writeFile>[1],
+): Promise<void> {
   aStep();
   await original.writeFile(
     path,
@@ -105,13 +109,8 @@ async function countedWriteFile({
  
  @returns nothing
  */
-async function countedLink({
-  existing,
-  created,
-}: {
-  readonly existing: PathLike;
-  readonly created: PathLike;
-},): Promise<void> {
+// oxlint-disable-next-line no-restricted-syntax/require-destructured-params -- the same reason, for the link.
+async function countedLink(existing: PathLike, created: PathLike,): Promise<void> {
   aStep();
   await original.link(
     existing,
@@ -128,13 +127,8 @@ async function countedLink({
  
  @returns nothing
  */
-async function countedRename({
-  from,
-  to,
-}: {
-  readonly from: PathLike;
-  readonly to: PathLike;
-},): Promise<void> {
+// oxlint-disable-next-line no-restricted-syntax/require-destructured-params -- the same reason, for the rename.
+async function countedRename(from: PathLike, to: PathLike,): Promise<void> {
   aStep();
   await original.rename(
     from,
@@ -149,7 +143,8 @@ async function countedRename({
  
  @returns nothing
  */
-async function countedRemove({ path, }: { readonly path: PathLike },): Promise<void> {
+// oxlint-disable-next-line no-restricted-syntax/require-destructured-params -- the same reason, for the removal.
+async function countedRemove(path: PathLike,): Promise<void> {
   aStep();
   await original.rm(
     path,

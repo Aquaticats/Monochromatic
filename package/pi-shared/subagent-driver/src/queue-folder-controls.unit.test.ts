@@ -414,8 +414,8 @@ async function aCommandKilledAt({
     ? Number(JSON.parse(said,).steps,)
     : 0;
   return {
-    signal: closedSignal,
-    status: closedStatus,
+    signal: String(closed[1] ?? '',),
+    status: Number(closed[0] ?? (-1),),
     printed: line,
     steps,
   };
