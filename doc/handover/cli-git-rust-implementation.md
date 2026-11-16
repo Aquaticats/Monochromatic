@@ -739,25 +739,6 @@ by the rules that already stand:
 Questions kept for the owner's return:
 
 - Added 2026-11-15T17:06:41-05:00,
-  the one that holds the most:
-  `main` and the installed release land a commit with the empty tree,
-  exit 0,
-  when the commit's private index goes from its scratch at a pause
-  (shown on `main` by the fix's author;
-  none seen among the commits of any ref).
-  The branch that closes it for an ordinary commit has had eight reviews,
-  and each found further ways it can still happen or fail
-  (the eighth:
-  `--fixup=amend:`,
-  a damaged reftable store,
-  removals that outlive their claim;
-  read from the code,
-  not run).
-  By the rule in force a wrapper branch goes into a pass only when a review finds no defect in its code that is not a test.
-  Does that hold here,
-  or may a branch go in when it is shown to narrow a way of losing data that `main` has,
-  with what its reviews still find recorded and following?
-- Added 2026-11-15T17:06:41-05:00,
   from the author of the driver's two starts of one run name
   (tip `16166773fb`,
   review queued),
@@ -902,32 +883,6 @@ Questions kept for the owner's return:
   The other reading:
   no word of a fixture service may reach the journal by any road,
   so the panic carries only a summary and the words stay in a file of the fixture.
-
-- Added 2026-11-15T03:06:17-05:00,
-  from the author of the removal guard
-  (branch tip `f8509847f6`,
-  in review),
-  not blocking work:
-  the guard cannot read the working folder of some of this account's own processes
-  (eleven on this machine when it counted:
-  two `ssh-agent`,
-  `kwin_wayland`,
-  `steam`,
-  `ksystemstats`,
-  `polkit-kde-auth`,
-  `zypak-sandbox`,
-  `systemd`,
-  `(sd-pam)`,
-  and two of this repository's programs).
-  The rule it built:
-  a hidden process in the command's own control group or below,
-  or one younger than the worktree,
-  keeps the worktree.
-  That leaves one named miss,
-  a hidden process older than the worktree in another control group.
-  Accept that miss,
-  or refuse every removal while any hidden process exists,
-  which on a desktop with hidden login services refuses every removal?
 
 - Added 2026-11-15T02:49:35-05:00,
   from the author of the push of a branch that is not checked out
@@ -1669,6 +1624,44 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The owner answers three questions; the fix for the commit with the empty tree answers its six claims and has a review under the new merge rule (2026-11-15T19:16:58-05:00)
+
+Not final and not approved:
+what the owner decided, what one author reports, and what the coordinating session queued.
+
+**The owner's three answers** are quoted in "Owner decisions in force", "Answers of the evening":
+a fix that narrows a data-loss window `main` has goes in once it is shown to narrow and its newest built-and-run review reproduced nothing new with the branch;
+the automatic removal's gap for a hidden process older than the worktree is accepted;
+the rule `DQK` is in `AGENTS.md` (`03a7878535`).
+The two questions they answer are gone from "Questions kept for the owner's return".
+
+**The drawn shadow tree, tip `3882e11ddf` (the fix for the commit that lands with the empty tree).**
+The author's ninth run ended at 19:09:40.
+Its report: `keep/report-the-form-table-and-the-removal-that-keeps.md` in the run's scratch folder.
+It committed six controls first (`69277e4ebf`), then six fixes (`22fd58ed87`), merged `main` with `0.6.1-alpha.43` (`a55680a249`), and reports for each claim of the eighth review that its control failed at the tip and that `main` does not have it, the code being this branch's:
+
+- `--fixup=amend:` with a path landed no files; answered by a table of commit forms, each with its own branch.
+  The pathless line the review named is refused by the wrapper's own policy before it reaches the guard.
+- A reftable store whose list names a missing table was called whole; whole is now the list and every table it names.
+- A sweep's claim was released while its removal ran; the claim now travels into the removal's thread.
+- A second attempt used a path whose removal was unfinished; the old tree is renamed aside in one step and the path answered only when free.
+- The two waits on a file system that does not answer: **not produced on this machine**, by the author's word; answered by shape (the question goes through a helper with a ceiling of 50 ms, and a tree nobody could ask about is kept).
+
+Each fix taken out and put back with its failing output; cost against its own earlier tip inside the spread (ratio medians 1.010 and 1.019).
+One binary control fails at its tip, `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`,
+and the author ran it on merged `main` too, where it fails the same way (it is one of the gate's three).
+
+Under the owner's rule this tip needs a review that builds and runs.
+Queued second (19:16:58): `review-git-policy-cli-drawn-shadow-tree-a-table-of-commit-forms-and-a-removal-that-keeps-its-claim`, nineteen files,
+with paragraphs asking for the branch's control run against a wrapper built from `main` and from the tip,
+and for each thing reproduced at the tip whether `main` has it too.
+When that review reproduces nothing new with the branch: a pass for this branch, a release, the gate.
+
+**The accepted gap gets its words.**
+`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md` has the amendment.
+A fresh run to state the rule and the gap in `SPEC.md` and in the comments and messages is queued behind it
+(`~/temp/agent/pi-runs/spec-states-how-the-automatic-worktree-removal-reads-processes-and-the-gap-it-accepts-prompt.md`).
 
 ##### Two follow-up reviews end, one with no defect and one with the miss already kept for the owner; three branches wait for pass 56 (2026-11-15T19:08:31-05:00)
 
@@ -39465,6 +39458,34 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Answers of the evening (2026-11-15, answered between 19:09 and 19:14, written here at 19:16:23-05:00)
+
+Three answers through the question tool,
+each quoted as chosen.
+
+- **"Merge when shown to narrow (Recommended)"**:
+  a fix that narrows a data-loss window `main` already has goes into a pass once
+  a test fails on `main` and passes on the branch,
+  and the newest review that built and ran it reproduced nothing `main` does not also have.
+  What that review still finds stays with the branch's author and follows in later passes.
+  Asked about the commit that lands with the empty tree; the option's words cover any such fix.
+  The session's reading, narrow:
+  a thing a review reproduces at the tip that `main` does not have is new with the branch and holds the merge;
+  a review that built and ran nothing satisfies neither half;
+  the masking of credentials is not under this rule, because "Keep waiting for masking" is the newer answer on that branch alone.
+- **"Accept the gap (Recommended)"**:
+  the automatic removal of a finished worktree keeps the rule it has.
+  A hidden process younger than the worktree keeps it;
+  a hidden process older than the worktree is taken to hold nothing there,
+  and the gap (such a process opening a file in the worktree later) is accepted and said plainly.
+  Recorded in `doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md` beside the rule.
+  Open: `package/git-policy/cli/SPEC.md` does not state the rule or the gap
+  (a search of it for the process reading found no line), which a run of its own adds.
+- **"Add the rule (Recommended)"**:
+  `AGENTS.md` has the rule `DQK` since `03a7878535`:
+  before briefing work on a package, its own `SPEC.md` and `doc/` are searched for the behaviour the task touches,
+  and a brief never contradicts them and quotes the lines that decide.
 
 ### Answers of the afternoon (2026-11-15, asked 14:01, answered about 16:15, written here at 16:22:30-05:00)
 
