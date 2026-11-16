@@ -22,6 +22,15 @@ export type WatchRequest = {
   readonly deadline: number;
 
   /**
+   How many values of this machine's secret environment the driver handed Pi, when the chance to hand them over came.
+
+   Pi reports whether the extension that masks them is loaded by registering a command whose description holds that count, so a
+   run whose Pi comes back without it is a run whose tool results would reach a model unmasked. A caller that starts no Pi of its
+   own, as the tests of the watch do, passes none and the question is not asked.
+   */
+  readonly secretValuesHandedOver?: number;
+
+  /**
    The work this run left running, asked before the run may end as one that finished its turn.
 
    A run that ends its turn while a build it started still compiles is not a run with nothing to do, and a driver that ended

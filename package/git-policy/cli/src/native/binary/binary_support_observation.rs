@@ -249,12 +249,11 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 ///  With the supervisor's message when it ended the command.
 ///  When a process that outlived the child still holds one of its pipes after `PIPE_GRACE`.
 pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
-    let child_id: u32 = child.id();
     let answer: Answer = wait_under_bound(child, None, UNSTATED_BOUND, input);
     // The supervisor ended it:
     // a loop or a deadlock,
     // with the reason and the tasks of the tree in the message.
-    if let Some(message) = super::supervisor::take_kill(child_id) {
+    if let Some(message) = answer.supervisor_message {
         panic!("{message}");
     }
     cleanup();
@@ -298,7 +297,7 @@ pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, 
 ///  one run of a command,
 ///  and the wait for the after-commit work given or refused.
 /// Why:
-///  The two faces differ only in that wait,
+///  The faces differ only in that wait and in the descriptor they hand,
 /// so the bound,
 /// the misuse check and the reading live once.
 ///  The command leads a process group of its own,
@@ -306,6 +305,10 @@ pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, 
 ///  `timeout` makes such a group for itself a moment after it starts (`setpgid` in its own process),
 ///  and this wait makes it before the command runs,
 ///  so the group it ends is one it made.
+///  The line's own `timeout` and this wait keep one value and the same start
+///  (`remaining_of`):
+///  this wait's deadline is the earlier of the two,
+///  and a command its own `timeout` ends at that bound is still the bound's doing (`Ending::AtTheBound`).
 ///
 /// # Panics
 ///  When the command is a commit transaction or a manual page under the shared bound;
@@ -343,8 +346,10 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
     let group: libc::pid_t = libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
     let answer: Answer = wait_under_bound(child, Some(group), bound, input);
     // The supervisor ended it: a loop or a deadlock, and its message names the reason and the tasks of the tree.
-    //  Claimed before the cleanup, which can take longer than the grace in which an unclaimed kill aborts the process.
-    if let Some(message) = super::supervisor::take_kill(child_id) {
+    //  The wait claimed that message before it reaped the command,
+    //  and the cleanup runs after it here, because the cleanup can take longer than the grace in which an
+    //  unclaimed kill aborts the process.
+    if let Some(message) = answer.supervisor_message {
         panic!("{message}");
     }
     if waiting_for_the_after_commit_work && let Some(at) = directory.as_deref() {

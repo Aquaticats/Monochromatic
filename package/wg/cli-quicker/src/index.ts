@@ -23,6 +23,7 @@ import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
 import { runSubcommand, } from './run-subcommand.ts';
+import { printStartNotice, } from './start-notice-terminal.ts';
 import {
   down,
   up,
@@ -79,9 +80,7 @@ else {
       steps: {
         up,
         down,
-        warn: function warnNotice(notice,): void {
-          l.warn(notice,);
-        },
+        printNotice: printStartNotice,
       },
     },);
   }
