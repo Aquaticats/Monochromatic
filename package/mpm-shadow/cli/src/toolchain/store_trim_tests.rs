@@ -1908,3 +1908,18 @@ fn a_version_a_lock_names_after_the_plan_is_not_moved() {
         outcome.lines
     );
 }
+
+/// What:
+/// A span too large for the count's own word saturates at the top, and never reads as no span at all.
+/// Why:
+/// The review of 82531265a7 showed `4294967296h` truncated by `as u32` to zero, so a person's huge age floor became no
+/// floor and every version was old enough to remove.
+#[test]
+fn a_span_larger_than_the_count_holds_saturates() {
+    let huge: Duration = parse_duration("4294967296h").expect("a huge count is still a span");
+    let ordinary: Duration = parse_duration("3h").expect("an ordinary count parses");
+
+    assert!(huge > ordinary, "a huge age floor must never read as no floor: {huge:?}");
+    assert!(huge >= Duration::from_secs(u64::from(u32::MAX)) * 3600 / 3600, "the count saturates: {huge:?}");
+    assert_eq!(parse_duration("0h"), Some(Duration::ZERO), "a zero span is still zero");
+}

@@ -529,9 +529,16 @@ fn wait_until_stopped(child: &mut std::process::Child, bound: Duration) -> Resul
     }
 }
 
+/// What:
 /// The text of both captured streams,
-/// taken as it stands once both ended or `STOPPED_OUTPUT_GRACE` passed.
-fn captured_output(receiver: &std::sync::mpsc::Receiver<(bool, Option<Vec<u8>>)>) -> (String, String) {
+/// and whether both had ended,
+/// once both ended or `STOPPED_OUTPUT_GRACE` passed.
+/// Why:
+/// A program that exits while a child of its own holds the pipe gives a short reading, and a reading taken as it stands
+/// looked like a whole answer: the review of 82531265a7 showed a stand-in `git` whose output stopped after the first
+/// worktree, so a lock the person's tree wrote was never read and its version would have been removed.
+/// So whether the streams ended is answered separately, and a caller that needs the whole answer acts on it.
+fn captured_output(receiver: &std::sync::mpsc::Receiver<(bool, Option<Vec<u8>>)>) -> (String, String, bool) {
     let mut stdout: Vec<u8> = Vec::new();
     let mut stderr: Vec<u8> = Vec::new();
     let mut open: usize = 2;
@@ -550,7 +557,11 @@ fn captured_output(receiver: &std::sync::mpsc::Receiver<(bool, Option<Vec<u8>>)>
             None => open -= 1,
         }
     }
-    return (String::from_utf8_lossy(&stdout).to_string(), String::from_utf8_lossy(&stderr).to_string());
+    return (
+        String::from_utf8_lossy(&stdout).to_string(),
+        String::from_utf8_lossy(&stderr).to_string(),
+        open == 0,
+    );
 }
 
 /// Implements `Runner` for `ProcessRunner`.
@@ -601,7 +612,7 @@ impl Runner for ProcessRunner {
         let out_thread = std::thread::spawn(move || return collect(out, true, out_sender));
         let err_thread = std::thread::spawn(move || return collect(err, false, err_sender));
         let waited: Result<std::process::ExitStatus, Option<String>> = wait_until_stopped(&mut child, request.bound);
-        let (stdout, stderr) = captured_output(&receiver);
+        let (stdout, stderr, whole) = captured_output(&receiver);
         // The reader threads end with their streams; a join here would wait on a pipe another program still holds.
         drop(out_thread);
         drop(err_thread);
@@ -622,6 +633,19 @@ impl Runner for ProcessRunner {
                 return RunOutcome { stdout, stderr: message, code: 1 };
             }
         };
+        if !whole {
+            // What: a program that ended with output still being written is not an answer this call may use.
+            // Why: the reading is a part of what it printed, and every caller here reads a list from it; a list read in
+            // part is a version judged on a lock that was never read.
+            return RunOutcome {
+                stdout,
+                stderr: format!(
+                    "{} ended with its output still being written, so nothing here reads a part of its answer",
+                    request.line()
+                ),
+                code: 1,
+            };
+        }
         return RunOutcome { stdout, stderr, code: exit.code().unwrap_or(1) };
     }
 }

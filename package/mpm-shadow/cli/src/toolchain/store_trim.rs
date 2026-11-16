@@ -270,7 +270,14 @@ pub fn parse_duration(text: &str) -> Option<Duration> {
         ("d", Duration::from_secs(SECONDS_PER_DAY)),
     ] {
         if let Some(number) = trimmed.strip_suffix(suffix) {
-            return number.trim().parse::<u64>().ok().map(|value| return unit.saturating_mul(value as u32));
+            // What: the count is multiplied as a 64-bit value, and a count that saturates keeps its upper end.
+            // Why: the review of 82531265a7 showed `4294967296h` read through `as u32` as zero, so a person's huge age
+            // floor became no floor at all and every version was old enough to remove.
+            return number
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .map(|value| return unit.saturating_mul(u32::try_from(value).unwrap_or(u32::MAX)));
         }
     }
     return trimmed.parse::<u64>().ok().map(Duration::from_secs);

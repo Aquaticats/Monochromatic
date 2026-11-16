@@ -108,8 +108,15 @@ fn a_program_that_leaves_a_child_holding_its_output_does_not_hold_the_runner() {
     // The shell exits at once; the `sleep` it started holds the same output pipes for 30 s.
     let outcome = ProcessRunner.run(&RunRequest::new("sh", &["-c", "sleep 30 & echo out; exit 0"]));
     let took: std::time::Duration = started.elapsed();
-    assert_eq!(outcome.code, 0);
-    assert_eq!(outcome.stdout, "out\n");
+    // What: the answer is not used, because only part of it was read, and the program's exit code is not what says so.
+    // Why: the review of 82531265a7 showed a stand-in `git` that exited while a child held the pipe: the reading stopped
+    // after the first worktree, its lock was never read, and the version that lock named would have been removed.
+    assert_ne!(outcome.code, 0, "a part of an answer was handed back as one: {outcome:?}");
+    assert!(
+        outcome.stderr.contains("still being written"),
+        "the failure says what happened: {outcome:?}"
+    );
+    assert_eq!(outcome.stdout, "out\n", "what the program did write is still there");
     assert!(took < std::time::Duration::from_secs(10), "the runner waited {took:?} on a pipe the program's child holds");
 }
 
