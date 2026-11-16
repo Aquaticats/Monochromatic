@@ -185,6 +185,23 @@ function runsFilling(pools: readonly ProviderPool[],): readonly GoingRun[] {
 }
 
 /**
+ The pools with the Kimi pool reopened at its own limit, the way a caller reopens it for one command with the limits variable,
+ because the shipped table keeps that pool closed.
+
+ @returns the pools, with the Kimi pool open
+
+ @example
+ ```ts
+ const pools = reopenedKimiPool();
+ ```
+ */
+function reopenedKimiPool(): readonly ProviderPool[] {
+  return poolsWithTheseLimits({
+    limits: limitsIn({ listed: `${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`, },),
+  },);
+}
+
+/**
  The pool a run that names no model of its own takes while every pool is empty, read from the pool table rather than written
  down here.
 
@@ -439,13 +456,13 @@ await describe({
           },
         },),
         it({
-          name: 'says the pool the qwen plan replaced, the qwen plan pool the owner took out and the pool whose week is used up take no new run, and the pools that were given room do',
+          name: 'says the pool the qwen plan replaced, the qwen plan pool the owner took out and the Kimi pool the owner closed take no new run, and the pools that were given room do, the one whose week has reset among them',
           fn: async () => {
             expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
-            expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(true,);
             expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(true,);
+            expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(true,);
+            expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_DEEPSEEK_FLEX, },),).toBe(false,);
-            expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, },),).toBe(false,);
           },
         },),
@@ -585,12 +602,26 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order, which reaches Neuralwatt flex first because the qwen plan pool and standard Neuralwatt before it are closed, and skips a pool that takes only its own model',
+          name: 'takes the owner order, which reaches opencode-go first because the qwen plan pool before it is closed, goes on to Neuralwatt flex once opencode-go is full, and skips a pool that takes only its own model',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(OPENCODE_GO,);
             // Runs still going on the pool the owner took out are counted there, and take no room from the pool a new run goes to.
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, NEURALWATT_DEEPSEEK_FLEX.limit,), },),
+              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, OPENCODE_GO.limit,), },),
+            },),).toEqual(OPENCODE_GO,);
+            // The pool the owner prefers is taken until it is full, and only then the next one.
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({ runs: runsIn(OPENCODE_GO, OPENCODE_GO.limit - 1,), },),
+            },),).toEqual(OPENCODE_GO,);
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({ runs: runsIn(OPENCODE_GO, OPENCODE_GO.limit,), },),
+            },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+            // With the preferred pool closed by a caller, as when its week is spent, the next one is taken at once.
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({
+                runs: [],
+                pools: poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },),
+              },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
           },
         },),
@@ -629,25 +660,43 @@ await describe({
       name: poolsWithTheseLimits.name,
       children: [
         it({
-          name: 'opens a pool the owner set aside, closes one a caller set to zero, and leaves every other pool as it ships',
+          name: 'opens a pool the owner closed, closes an open one a caller set to zero, and leaves every other pool as it ships',
           fn: async () => {
             /**
-             The shipped pool the owner set aside.
+             The shipped pool the owner closed.
              */
-            const setAside = PROVIDER_POOLS.find(function isOpencodeGo(pool,) {
-              return pool.name === OPENCODE_GO.name;
-            },) ?? OPENCODE_GO;
+            const setAside = PROVIDER_POOLS.find(function isKimiFlex(pool,) {
+              return pool.name === NEURALWATT_KIMI_FLEX.name;
+            },) ?? NEURALWATT_KIMI_FLEX;
             expect(roomIn(setAside,),).toBe(0,);
             /**
              The same pool with the room a caller gives it, which is another open pool's own limit rather than a number written
              down here.
              */
-            const opened = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, NEURALWATT_DEEPSEEK_FLEX.limit],]), },)
+            const opened = poolsWithTheseLimits({ limits: new Map([[NEURALWATT_KIMI_FLEX.name, NEURALWATT_DEEPSEEK_FLEX.limit],]), },)
+              .find(function isKimiFlex(pool,) {
+                return pool.name === NEURALWATT_KIMI_FLEX.name;
+              },) ?? NEURALWATT_KIMI_FLEX;
+            expect(opened.closed,).toBeUndefined();
+            expect(roomIn(opened,),).toBe(NEURALWATT_DEEPSEEK_FLEX.limit,);
+            /**
+             The pool with a weekly limit, which ships open and which a caller closes when its week is spent.
+             */
+            const shippedOpen = PROVIDER_POOLS.find(function isOpencodeGo(pool,) {
+              return pool.name === OPENCODE_GO.name;
+            },) ?? OPENCODE_GO;
+            expect(roomIn(shippedOpen,),).toBe(OPENCODE_GO.limit,);
+            expect(shippedOpen.closed,).toBeUndefined();
+            /**
+             That pool with a caller's zero, which says who closed it.
+             */
+            const spent = poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },)
               .find(function isOpencodeGo(pool,) {
                 return pool.name === OPENCODE_GO.name;
               },) ?? OPENCODE_GO;
-            expect(opened.closed,).toBeUndefined();
-            expect(roomIn(opened,),).toBe(NEURALWATT_DEEPSEEK_FLEX.limit,);
+            expect(roomIn(spent,),).toBe(0,);
+            expect(poolTakesNoNewRun({ pool: spent, },),).toBe(true,);
+            expect(spent.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
             /**
              A pool a caller closed, which keeps the room it returns to and says who closed it.
              */
@@ -752,13 +801,71 @@ await describe({
         it({
           name: 'keeps a run that names the Kimi model on the Kimi pool while it has room, never moving it to a default pool',
           fn: async () => {
+            /**
+             The Kimi pool as a caller reopens it, because the shipped table closes it and this test needs an open pool that only
+             a run naming its own model takes.
+             */
+            const reopened = reopenedKimiPool();
             expect(poolChoiceFor({
               requested: inPool(NEURALWATT_KIMI_FLEX,),
-              tallies: talliesOf({ runs: [], },),
+              tallies: talliesOf({
+                runs: [],
+                pools: reopened,
+              },),
               resumes: false,
             },),).toEqual({
               destination: 'a-pool',
-              pool: NEURALWATT_KIMI_FLEX,
+              pool: reopened.find(function isTheKimiPool(pool,) {
+                return pool.name === NEURALWATT_KIMI_FLEX.name;
+              },),
+              movesTheRun: false,
+            },);
+          },
+        },),
+        it({
+          name: 'gives no room to a run naming the Kimi model from the shipped table, still counts the runs already on that pool, and gives it its room back when a caller names the limit',
+          fn: async () => {
+            /**
+             The pool the run's own words name, read from the shipped table the way a launcher reads it.
+             */
+            const requested = poolNamed({
+              provider: NEURALWATT_KIMI_FLEX.provider,
+              model: NEURALWATT_KIMI_FLEX.model,
+            },);
+            /**
+             Runs already going on the Kimi pool, as many as its own limit, so the count under test is the limit and no number
+             written down here.
+             */
+            const going = runsIn(NEURALWATT_KIMI_FLEX, NEURALWATT_KIMI_FLEX.limit,);
+            /**
+             What the shipped table counts of those runs.
+             */
+            const shipped = talliesOf({ runs: going, },);
+            expect(poolChoiceFor({
+              requested,
+              tallies: talliesOf({ runs: [], },),
+              resumes: false,
+            },),).toEqual({ destination: 'no-room', },);
+            expect(shipped.counts.get(NEURALWATT_KIMI_FLEX.name,),).toBe(going.length,);
+            expect(typeof NEURALWATT_KIMI_FLEX.closed?.reason,).toBe('string',);
+            expect(NEURALWATT_KIMI_FLEX.limit,).toBeGreaterThan(0,);
+            expect(roomIn(NEURALWATT_KIMI_FLEX,),).toBe(0,);
+            /**
+             The same table with the limit named by a caller through the variable, which is how one command reopens the pool.
+             */
+            const reopened = reopenedKimiPool();
+            expect(poolChoiceFor({
+              requested,
+              tallies: talliesOf({
+                runs: [],
+                pools: reopened,
+              },),
+              resumes: false,
+            },),).toEqual({
+              destination: 'a-pool',
+              pool: reopened.find(function isTheKimiPool(pool,) {
+                return pool.name === NEURALWATT_KIMI_FLEX.name;
+              },),
               movesTheRun: false,
             },);
           },
@@ -785,9 +892,13 @@ await describe({
               tallies: filled,
               resumes: false,
             },),).toEqual({ destination: 'no-room', },);
+            // The shipped table closes the Kimi pool, so the full pool this assertion needs is the one a caller reopens.
             expect(poolChoiceFor({
               requested: inPool(NEURALWATT_KIMI_FLEX,),
-              tallies: talliesOf({ runs: runsIn(NEURALWATT_KIMI_FLEX, NEURALWATT_KIMI_FLEX.limit,), },),
+              tallies: talliesOf({
+                runs: runsIn(NEURALWATT_KIMI_FLEX, NEURALWATT_KIMI_FLEX.limit,),
+                pools: reopenedKimiPool(),
+              },),
               resumes: false,
             },),).toEqual({ destination: 'no-room', },);
           },
