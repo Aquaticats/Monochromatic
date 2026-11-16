@@ -1632,6 +1632,74 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The masking's fifth run ends and its review on the narrow line is queued first; a claim made to the owner about the wg branch is withdrawn (2026-11-15T20:43:37-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **A wrong statement of this session to the owner, withdrawn.**
+  The question on the wg lifecycle branch (`cd83212379`) said the branch "carries fixes for a hook that stalls `up` or `down` for ten minutes and for a concurrent `up` destroying another tunnel".
+  That came from branch names read by a preparing agent and was not checked.
+  The newest review of that very tip (round 274, 2026-11-12, `~/temp/agent/reviews/wg-lifecycle-branch-made-fit-to-merge/review.md`) reproduced six defects on it, among them exactly those two:
+  a second `up` of one interface fails and its rollback deletes the first tunnel's link, rules and kill switch, after which traffic leaves outside the tunnel (F2);
+  two `up` commands of two interfaces share one policy table (F3); the watcher's readiness bound fails a healthy start under load (F6);
+  a hook that backgrounds a child holds the lifecycle for ten minutes (F4); the operation lock has no deadline (F5); a signal during the last `up` step is ignored (F7).
+  No later commit answers them: `cd83212379` (2026-11-11T23:10:20-05:00) is the newest wg branch.
+  The question also called the five never-run tasks ones that "take the live tunnel down and up"; that is said of the deploy steps in the landing report, and the five tasks are tests that their task descriptions place in disposable namespaces:
+  `cli-quicker:test:integration:bypass`, `:block`, `:route`, and `cli-quicker-exempt:test:functional` and `:test:functional:protocols`.
+  The owner answered "You run them now. sudo passwordless." on those statements.
+  What is done on that answer: the five tests are run once a reading of their sources shows they stay inside their namespaces (an agent is reading them, nothing is run yet);
+  the merge is held, and the correction is put to the owner.
+- **Credential masking**, fifth run ended 20:35:41 at `2f303f1bc9`. Per its report: both points of the narrow line shown by controls
+  (every declared value printed as it is gets masked, in five arrangements of store and environment; the caller's session is refused by name and only one module can hand out a file to rewrite);
+  the rename window stated as a limit that no other run's file can lose content by; the continued `export` line kept and reported as beyond the line; limits in one section of the package's troubleshooting doc.
+  Review queued second in the queue at 20:42:46 (36 files), hand-written to the line: the plain case and no damage are answered by building and running, anything else is listed as a limit and does not hold the merge.
+  When that review shows both points: merge, canary start, names-only scan, then the list of names to the owner for the rotation.
+- **Killed-Git lock**, sixth run ended at `8c97544dfa`: the withdrawn sentence is gone and the record's answer is back (a lock with no PID file is left and reported, with the command that clears it);
+  the walk has both arms and four live foreign writers beside every row; per its report `main` has none of the five. Review queued (15 code files).
+- **Add never skips the Cargo repair**, twelfth run ended at `85a9f8523f`: one generated control over every seam, and every directory a filling may remove carries a claim file made with it.
+  Its report repeats, by reading, that `main` has the shapes of findings one to four. Review queued (14 code files).
+- **Push of a branch that is not checked out**, eleventh run ended at `986a82bbab`: the ninth review's four findings answered.
+  The state it leaves for the project is unchanged: a path at the old tip whose write another program's index lock refuses for the whole wait ends in the command being stopped.
+  Review queued (23 files), told that this choice is open and not a finding.
+- **Work record the service settles** (`7e4d5fa34f`, whole range, 5 of 5 files, eleven new tests run): two things reproduced, both in what a message says:
+  a last recovery is reported as work that will run again; a directory that could not be read is reported as a record somebody removed.
+  Author's second run queued at 20:43:31, thirteenth in the queue.
+
+##### Three reviews end with findings and their authors are queued again; the owner's mpm-shadow and cargo-shadow answers are in three waiting briefs (2026-11-15T20:20:57-05:00)
+
+Not final and not approved; written by the coordinating session. Reviews are by Kimi K3.1 Pro while the Qwen quota is dry.
+
+- **Issue 6293** (`12a18711db`, narrow review of five fix commits, the merge's hand-made part and two commits after; 29 of 29 files).
+  The review built the package, ran eleven named modules and took each of the five fixes out to see its control fail; all held.
+  It lists five things, each by reading and none reproduced:
+  a service a manager started can be ended between the check that it is preparing and the act (`service_server_start_by_the_wrapper.rs` lines 227 to 234);
+  the base start can answer `DidNotGreet` after a claim (lines 241 to 253);
+  the note is removed before the after-commit writer has ended on the path where the worktree is gone (`service_main.rs` lines 401 to 405);
+  `*.writing` names are left by a kill or a failed write;
+  `same_place` calls `std::fs::canonicalize` twice with no bound (`service_session_of_the_runtime_directory.rs` lines 133 to 141).
+  Author's eighth run queued at 20:20:53, fourteenth in the queue: a control that produces each first, or the lines that rule it out; whether `main` has each.
+  The adopted order stands: the no-manager branch settles first, and this branch merges its tip only then.
+- **Scan for work a run left running** (`3fd0963ae7`, whole range, 12 of 12 files): three things, two reproduced with the real watch loop and the real record writer.
+  A send that resolves with `{ ending: "silence" }` lets an accepted wake end as `idle`; a record with no birth makes running work vanish from the scan;
+  a process number reused before the feed line is written binds the old answer to the new process.
+  Author's third run queued at 20:19:58, twelfth in the queue. Its brief also carries the owner's answer to the question its own report left open
+  ("A shorter limit, then end as failed"): a run kept by a scan that cannot be read ends as failed after a stated, measured span, with its worktree kept.
+- **Renamed subvolume handed over** (`2e6fe78702`, whole range, 9 of 9 files): one thing, reproduced on a real disposable Btrfs fixture.
+  An attempt file is written before the delete is queued, so a kill between the two, once per remaining attempt, spends the whole budget;
+  the next command then queues nothing and reports attempts no service made. The review found no data loss and no commit made twice.
+  Author's fourth run queued at 20:19:58, tenth in the queue; it also says whether `main` has this.
+- The owner's mpm-shadow and cargo-shadow answers of the evening were appended at 20:12 to the briefs of three authors still waiting in the queue
+  (mpm-shadow removal of old versions, mpm-shadow install that removes no version, cargo-shadow removal of old toolchain folders);
+  the appended texts are kept in `~/temp/agent/notes-to-send/` under names starting `decisions-of-2026-11-15-for-`.
+  Six decisions from those answers are in no run yet, each a task of its own:
+  the launcher refusing an unfinished version with words; a held good copy put back when its install is proven dead;
+  a control group where available with a named exception list; cargo-shadow's own non-zero status when it skipped tests;
+  images of containers exited for 24 hours removed; old-style build folders retired after seven idle days.
+- Round checks at 20:11:35: 20 Pi units going, none silent for twenty minutes, no launcher outlived a run, no process inside an ended run's worktree,
+  six changed files in the main checkout.
+- A script kept for the next rounds: `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/queue-an-author-resume-after-checking-its-session-its-last-run-and-its-prompt.ts`.
+- The agent preparing the last older questions for the owner has not reported.
+
 ##### Pass 56 is queued with the door for diagnostics; sixteen ended runs are read and routed; the firewall and three small removals are done (2026-11-15T20:04:22-05:00)
 
 Not final and not approved:
@@ -1693,9 +1761,27 @@ the review of the branch that keeps a Pi run out of the main checkout (`0aaf6a11
   (`~/temp/agent/gate/keep/fuzz-sidecar-type-check-on-main-with-pass-55-in-2026-11-15T1959.txt`).
 - The string after `PNPR_SECRET=` that no tracked file holds: no commit on any ref adds or removes it;
   it stands eighteen times in one Claude Code transcript last written 2026-09-17, beside `PNPR_PUBLIC_URL` and `RUST_LOG` on the same lines.
-  Whether it equals a value in the secret store now is being compared in memory as this is written.
+  Compared in memory with the 45 values the repository's environment holds now: equal to none.
+  So by these three readings it is not the secret in use; the store's own `PNPR_SECRET` stays on the rotation list as before.
+- Test leftovers at the top of `~/temp/agent`: of 3,670 `rn-*-0` and `rt-*-0` folders, 1,830 older than a day with no process inside were deleted at about 20:05;
+  1,840 stay (changed within a day, or a process works inside). Lists: `~/temp/agent/test-leftover-runtime-folders-deleted-2026-11-15/keep/`.
+- The masking's author, whose fifth run is going, got a note at 20:05:49 with the narrow line and what it means for each of the four findings it is answering
+  (`~/temp/agent/notes-to-send/note-for-the-masking-author-the-line-at-which-masking-is-finished-2026-11-15T2010.md`; the file's name runs five minutes ahead of the clock it was written by).
+- Two more authors queued at 20:07:20: the branch that keeps a Pi run out of the main checkout (`0aaf6a11d7`, sixth run, seventh in the queue:
+  its review reproduced four: the wait for the dependency unit gives up after 30 seconds and Pi starts while the install runs; a failed install is printed and ignored;
+  a run based at a bare repository cannot commit; every successful file read leaves its timer alive)
+  and cargo-shadow's two tests (`f0c4ca0150`, second run, fifteenth).
 
-**Owed from the owner's answers and not started** (each a run or an act of its own):
+**Started from the owner's answers at 20:09:44** (fresh runs queued, positions counted from zero):
+the automatic push of a branch never pushed (10; `SPEC.md` lines 9204 and 9205 already say "pushed to `origin` with `--set-upstream`", so the question had been settled by the record and pass 53's sighting is a defect to find);
+every build of the wrapper on the lock's dated nightly (12);
+`monochromatic-lint --fix` following oxlint's (20);
+`hall-monitor` to `package-paused` (22).
+The four retired rule codes are in the owner's `forbidden-strings.append.local.txt` as section `local-047`.
+Waiting for pass 56 to be in `main`, because they change the files it carries (`testing/runtime_directory_folders.rs`, `testing/test_support.rs`):
+the tests removing their own `rn-*-0` and `rt-*-0` folders, and the binary tests' private fixture root.
+
+**Owed from the owner's answers and not started** (each a run or an act of its own; the four named as started are no longer owed):
 the `rn-*-0` and `rt-*-0` folders older than a day deleted and the tests made to clean up;
 `hall-monitor` moved to `package-paused`;
 `monochromatic-lint --fix` following oxlint's;
@@ -39716,6 +39802,48 @@ Rounds twelve to fourteen, written here at 2026-11-15T19:56:30-05:00:
   That option also carried the blockquote continuation, which the answer does not speak to; it stays as built until asked alone.
 - Four small actions, each ticked: **"Add the four retired codes to your local file"**, **"Keep SSH_AUTH_SOCK blocked"**,
   **"Mount unit's stop succeeds when nothing is mapped"**, **"Remove the dead old-name units and 0.5.34 folder"**.
+
+Rounds fifteen to seventeen (asked between 20:25 and 20:39, written here at 2026-11-15T20:40:01-05:00), the last of the older questions:
+
+- mpm-shadow, an install that finds another command holding the lock of the launchers and links it is about to change:
+  **"Ten seconds, then refuse (Recommended)"**. One number with the archive answer; nothing is written without the lock; the message names the holder.
+  So the stale-launchers branch's `Option<Guard>` (going on without the lock) is not what a merge keeps.
+- Pi driver, the queue of runs: **"Folder, one file per entry (Recommended)"**. The lock file over one JSON file is set aside; the rule on lock-free concurrency decides it.
+  The scratch queue of this session is rewritten with it at the changeover.
+- wg lifecycle branch `cd83212379`, whose five privileged tasks never ran: typed, **"You run them now. sudo passwordless."**
+  So the coordinating session runs the five tasks with `sudo` and merges when they pass.
+- Wrapper, `UNASKABLE_HOLD_AGE`: **"Approve 150 seconds"**, against the session's recommendation of ten minutes. The sentence "awaits the owner's approval" in `SPEC.md` (line 8381) is now out of date.
+- The four libraries' shared test helpers: **"A separate library (Recommended)"** (`disposable-test-folders`).
+- Where the libraries live: **"package/<job>/core-rust (Recommended)"**, crate `monochromatic-<job>`.
+- Their plural names: **"Keep the names, exempt them (Recommended)"**; `doc/planning/singular-dir-name-invariant.md` gets the entries.
+  With these three the plan's open points for the owner are closed (`doc/planning/cli-git-source-layout-target-tree.md`, "Open points for the owner").
+- monochromatic-lint, a line the fixer breaks inside a blockquote: **"Add `>` to the new line (Recommended)"**.
+- The "release-artifact gate" of the umbrella list: **"What exists is the gate (Recommended)"**: the lock's sha256, `native:perf` on the published archive's binary, and the sample commit after an install. No listing check is built.
+
+Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
+
+- Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
+  the author tests whether such a unit still gets its tunnel exemption (a probe put an instanced unit under `app.slice/app-<name>.slice`, where `wg-quicker-exempt` does not look) and names its slice if not.
+- Pi driver, removal of a worktree at a run's end: the proof of who made it is checked where one exists, and today's rules hold where none does (in line with "Remove after a bound").
+- mpm-shadow: a pass from the global scope looks for a repository above its working folder and keeps what it cannot judge ("what the pass cannot see is protected", and "Newest two plus pinned" needs the pins seen);
+  the two-second clock of a removal starts with the pass, as built ("You should (almost) never be waiting."), and the doc's sentence is corrected;
+  claim names it does not recognise get one line per pass with their count and the first path;
+  the two one-hour constants (`DOWNLOAD_IN_USE_FLOOR`, `DEFAULT_PROGRAM_BOUND`) get a measurement beside them, since a shipped limit cites one;
+  the archive prune gets its seam and a control.
+- Queue of runs: a `reviewOfBranch` entry is converted to `reviewOfRange` at the changeover; `--queue` stays required; breaking a dead holder's claim is logged.
+- Wrapper: a watch note naming another repository's directory stays refused (each service touches its own repository only), and `SPEC.md` says so;
+  `SPEC.md` line 14568 (a wait that was removed) and line 14557 (a claim file that "stays") are corrected on the no-manager branch.
+- cargo-shadow: the eighteen hand-made logs and the renamed record under `package/linter/monochromatic-lint/target/verification` stay where the docs cite them, never swept (the README says so already).
+- The fuzzing artifact reference stays as history with one added line saying its bytes are not kept.
+- `doc/handover/cli-git-native-post-landing.md` line 214 ("nothing remains") is corrected: the maintenance files were not mutated.
+- The wrapper's mutation pause stays: the condition the owner set for lifting it (the commit protocol comparison) is not met.
+
+Held and not asked, with the reason:
+
+- The push of a branch that is not checked out, when a path still holds the old tip and another program's index lock blocks the repair for five seconds (stop the command, or let it through with a note):
+  the report it comes from is of 15:16 and a later run of that author is under way, so it is asked on that run's report.
+- Relinking the dangling `node_modules` links counted on 2026-11-08: counted again first, read-only, since the number is a week old.
+- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.
 
 Settled by a recorded rule and therefore not asked, each open to veto:
 the two constants of the push stop and the 5 ms retry of a refused log line are decided by a measurement, since a shipped limit cites one;
