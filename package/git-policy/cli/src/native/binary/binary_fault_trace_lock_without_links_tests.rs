@@ -69,6 +69,21 @@ fn kill_case(point: &str) -> Result<(), String> {
     }
     let lock: PathBuf = repo.join(".git/index.lock");
     if point == LOCK_CREATED_UNMARKED {
+    }
+    if point == LOCK_CREATED_UNMARKED && output.status.code() == Some(0) {
+        // What: This branch's client meets a service that died and commits again through a new one, and that service removes an
+        //       empty lock nothing holds, as the owner's answer of 2026-11-07 says it may ("Service removes it").
+        // Why:  The premise of the rest of this control, a lock left for the person, is not what this branch does when the commit
+        //       lands on its own retry: measured on 2026-11-15, the killed commit exited 0 and the repository held the commit,
+        //       with no lock.
+        if lock.exists() {
+            return Err(format!("{label}: the commit landed through a new service and the empty lock nothing holds stayed"));
+        }
+        let count: String = super::super::commit::git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]);
+        if count.trim() != "2" {
+            return Err(format!("{label}: the commit landed on the retry, so the repository must hold it: {count:?} commits"));
+        }
+    } else if point == LOCK_CREATED_UNMARKED {
         let left: Vec<u8> = std::fs::read(&lock).map_err(|error| { return format!("{label}: the kill between creation and marker leaves the lock: {error}"); })?;
         if !left.is_empty() {
             return Err(format!("{label}: the lock must be without its marker, as plain Git leaves one: {left:?}"));
