@@ -22,7 +22,7 @@
 //!  rebase,
 //!  cherry-pick,
 //!  revert or bisect is in progress,
-//!  no process works inside it,
+//!  no process works inside it as the process read shows,
 //!  every ignored file of it is also in the worktree the merge ran in,
 //!  and Git removes it without `--force`.
 //!  The ignored files are the one hole Git leaves:

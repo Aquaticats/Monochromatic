@@ -1674,12 +1674,14 @@ though it can have opened a file there after the worktree was made.
 The review of 09:20:57 found the same, and it was weighed then:
 `doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`, lines 440 to 460, states the age rule and its cost,
 the other answer refuses every removal on a desktop whose login services hide their tables,
-and which of the two holds is the owner's (kept in "Questions kept for the owner's return", 2026-11-15T03:06:17).
+and the owner answered it on 2026-11-15 with "Accept the gap", recorded in "Answers of the evening"
+and in the amendment of that planning doc,
+so the rule stands and the gap is stated in `SPEC.md`.
 `main` has the rule since pass 54.
 What this tip adds to `main` is one commit of comments in `worktree_process_inside.rs`
 (no changed line of that file is code, by a count of changed lines that do not begin a comment)
 and six lines of its tests.
-Fit for the next pass; the finding changes nothing until the owner answers.
+Fit for the next pass; the finding is the accepted gap, and the owner's answer of 2026-11-15 settles it.
 
 **Pass 56 waits for pass 55, with its reason.**
 Three tips are fit and none changes code the released wrapper runs:
@@ -39686,8 +39688,10 @@ each quoted as chosen.
   a hidden process older than the worktree is taken to hold nothing there,
   and the gap (such a process opening a file in the worktree later) is accepted and said plainly.
   Recorded in `doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md` beside the rule.
-  Open: `package/git-policy/cli/SPEC.md` does not state the rule or the gap
-  (a search of it for the process reading found no line), which a run of its own adds.
+  Stated now: `package/git-policy/cli/SPEC.md` carries the rule and the gap
+  (the passage under "Cheap worktree creation and removal on btrfs, XFS and overlayfs"),
+  and the line the automatic removal prints names the gap,
+  added by the run of its own on `docs/git-policy-cli-spec-states-how-the-automatic-worktree-removal-reads-processes-and-the-gap-it-accepts`.
 - **"Add the rule (Recommended)"**:
   `AGENTS.md` has the rule `DQK` since `03a7878535`:
   before briefing work on a package, its own `SPEC.md` and `doc/` are searched for the behaviour the task touches,

@@ -1265,6 +1265,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    no tracked file is modified or staged there and no untracked file exists.
 
 A worktree that fails one of those is kept and the report says why.
+The condition about a process working in the worktree has a gap,
+ which the owner accepted on 2026-11-15 and which the line the merge prints names:
+a process of this account that hides its working folder or the files it holds open,
+ and whose start the ages read as before the worktree was made,
+ is passed over as holding nothing there,
+ though it may have opened a file or moved into the folder since,
+ and the removal then takes the worktree under it.
+The ages can read a process that started within about ten milliseconds after the folder was made as older than it,
+ and a wall clock stepped back after the folder was made can do the same,
+ which is a comparison a correction on its way narrows.
 A subvolume or a mount point below the worktree's own root that this wrapper did not make is no longer a reason to
  keep it:
 the removal goes around it.
@@ -1397,7 +1407,7 @@ When no kept reference can be written for a commit a reference lock holds,
  running the merge again removes nothing,
  because a branch that already landed makes that merge up to date.
 Nothing is removed in silence,
- and nothing is removed while a person is working in it,
+ and nothing is removed while the process read finds someone working in it,
  or while a worktree of the person's own stands inside it.
 A worktree held by an unfinished merge,
  cherry-pick,
@@ -3369,7 +3379,7 @@ After the branch moved,
  it is not the worktree the merge runs in,
  it is not locked,
  no operation is in progress in it,
- no process works inside it,
+ no process works inside it as the process read shows,
  no subvolume of its own stands below its root,
  and Git would remove it without `--force`.
 Each worktree the merge removes,

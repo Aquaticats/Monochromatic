@@ -891,7 +891,7 @@ fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
 ///    no registered worktree inside it,
 ///    no lock,
 ///    no unfinished operation,
-///    no process working in it,
+///    no process working in it as the process read shows,
 ///    no ignored file the worktree the proof was made from does not hold,
 ///    and every record of its own Git directory copied into a removal snapshot.
 ///

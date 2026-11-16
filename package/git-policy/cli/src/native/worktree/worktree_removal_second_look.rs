@@ -281,8 +281,16 @@ fn bisect_mark_in(admin: &Path) -> Option<String> {
 ///  How long a directory has existed,
 ///  as the filesystem records when it was made.
 /// Why:
-///   A process that hides its working folder can only be working inside a directory that existed when it started,
+///   A process that hides its working folder is taken to hold nothing there when it started before the worktree was made,
 ///  so the worktree's age is what separates the services that start at login from a process this worktree's own work began.
+///  That is a guess at which processes change into a worktree and not a proof:
+///  one that started before the worktree was made can open a file in it or move into it later,
+///  which is the gap the owner accepted (`worktree_process_inside.rs` names it in its module doc).
+///  The age is a difference of two clocks,
+///  both rounded:
+///  a process that started within the clock's resolution after the directory was made can read as older than it,
+///  and a wall clock stepped back after the directory was made can do the same to one that started within the step.
+///  A correction of that comparison is on its way.
 ///  A filesystem that records no birth time says nothing,
 ///  and the hidden process then keeps the worktree.
 ///
