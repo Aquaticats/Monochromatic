@@ -573,6 +573,82 @@ fn remote(fixture: &Fixture, projects: &Path, keep_alive: Option<&str>, hook_sec
     return remote;
 }
 
+/// What:
+///  A bare remote whose `pre-receive` hook records the process numbers it starts,
+/// so a control can say whether they were still running after the push was stopped.
+/// Why:
+///   The pipe tripwire is armed on the command the control runs,
+/// and the push runs inside the fixture's service, which does
+///  not hold that pipe (the review of `41b3ca5e5e` read the hook's descriptors: `0 1 2 5 10 255`, no nine),
+/// so the
+///  tripwire cannot see the processes it exists to see.
+/// A file the hook writes is seen by whoever reads it,
+/// whatever process the push runs in.
+/// `leaves` is the child the hook starts and does not wait for,
+/// whose number is recorded beside its own:
+/// a hook that leaves one is how a cleaned-up push and a leaky one differ.
+fn remote_that_records_its_processes(fixture: &Fixture, projects: &Path, leaves: bool) -> PathBuf {
+    let remote: PathBuf = projects.join("remote.git");
+    git(fixture, projects, &["init", "--bare", "--quiet", remote.to_str().expect("UTF-8")]);
+    git(fixture, remote.as_path(), &["config", "http.receivepack", "true"]);
+    // A child in a session of its own: it leaves the hook's process group and is reparented when the hook ends, so the stop's
+    //  signals reach neither it nor its parent. That is the leak a tripwire has to be able to see, and the review of
+    //  `41b3ca5e5e` found it (its finding 5, which `main` has too).
+    let leftover: &str =
+        if leaves { "setsid sleep 20 & echo \"$!\" >> \"$GIT_DIR/hook-pids\"; " } else { "" };
+    //  Twenty seconds is longer than the check that follows the stop and short enough that the leftover ends by itself: a control
+    //  must not leave a process of its own behind, and this one is a process the stop did not end, so nothing here ends it.
+    let hook: PathBuf = remote.join("hooks").join("pre-receive");
+    std::fs::write(
+        hook.as_path(),
+        format!("#!/bin/sh\nprintf '%s\\n' \"$$\" >> \"$GIT_DIR/hook-pids\"\n{leftover}exec sleep 1000\n"),
+    )
+    .expect("the hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the hook's mode");
+    return remote;
+}
+
+/// What:
+///  The process numbers a remote's hook recorded for itself and what it left.
+/// Why:
+///   A control asks the file rather than a pipe,
+/// because the push runs in the service and not in the command the control
+///  started.
+fn recorded_hook_pids(remote: &Path) -> Vec<i32> {
+    let Ok(text) = std::fs::read_to_string(remote.join("hook-pids")) else {
+        return Vec::new();
+    };
+    let mut pids: Vec<i32> = Vec::new();
+    for line in text.lines() {
+        if let Ok(pid) = line.trim().parse::<i32>() {
+            pids.push(pid);
+        }
+    }
+    return pids;
+}
+
+/// What:
+///  Which of `pids` are still processes of this machine,
+/// by their own records and not by a signal.
+/// Why:
+///   `/proc/<pid>` is gone when the process is gone,
+/// and a zombie of the service would still be shown by `/proc/<pid>/stat`,
+///  which is why the state letter is read too:
+/// a zombie is a process the stop did not collect, and the tripwire says so.
+fn still_alive(pids: &[i32]) -> Vec<i32> {
+    let mut alive: Vec<i32> = Vec::new();
+    for pid in pids {
+        let Ok(text) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            continue;
+        };
+        let after_name: &str = text.rfind(')').and_then(|at| { return text.get(at + 2..); }).unwrap_or_default();
+        if !after_name.starts_with("Z ") {
+            alive.push(*pid);
+        }
+    }
+    return alive;
+}
+
 /// A repository whose `origin` is served by `relay`,
 /// with one staged file whose content is incompressible,
 /// so the pack the push sends is about its size.
@@ -586,7 +662,11 @@ fn world(fixture: &Fixture, relay: &Relay) -> PathBuf {
     let payload: Vec<u8> = (0..PAYLOAD_BYTES)
         .map(|_| {
             state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            return u8::try_from(state >> 33).unwrap_or(0);
+            // The top byte of the state: every byte of this payload is its own, so the pack the push sends is about its size.
+            //  `state >> 33` has thirty-one bits, and `u8::try_from` of it answered zero for every byte, so the first version
+            //  of this payload deflated to 84 bytes and a "slow push" of it landed in 0.19 s (finding 4 of the review of
+            //  `41b3ca5e5e`).
+            return (state >> 56) as u8;
         })
         .collect();
     std::fs::write(repo.join("payload.bin"), payload).expect("the payload");
@@ -807,7 +887,7 @@ fn a_push_to_a_path_whose_hook_never_answers_is_ended_although_the_keepalive_mov
     let payload: Vec<u8> = (0..PAYLOAD_BYTES)
         .map(|_| {
             state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            return u8::try_from(state >> 33).unwrap_or(0);
+            return (state >> 56) as u8;
         })
         .collect();
     std::fs::write(repo.join("payload.bin"), payload).expect("the payload");
@@ -888,6 +968,68 @@ fn a_server_that_reads_the_upload_slowly_is_ended_at_the_connected_window() {
     assert!(relay.counts.read() > 0, "the server read the upload the slow line was carrying");
     drop(relay);
     remove_settled(&root);
+}
+
+/// What:
+///  A slow push that is stopped at its window leaves no process of its hook behind,
+///  and the tripwire says so because it can see one.
+/// Why:
+///   Finding 4 of the review of `41b3ca5e5e`:
+/// the control for a slow push used a payload that deflated to 84 bytes, so it
+///  finished in 0.19 s and could not show what it named,
+/// and its tripwire was a pipe on the command the control runs,
+///  while the push runs in the fixture's service and does not hold that pipe.
+/// Here the payload is a mebibyte of incompressible
+///  bytes,
+/// the server reads eight kilobytes every fifty milliseconds,
+/// so the window ends the push,
+/// and the hook records its
+///  own process number and the child it leaves,
+/// so the control can say whether either outlived the stop.
+/// The second
+///  arm is the tripwire's own control:
+/// a push that is stopped while its hook leaves a child must be reported as leaving
+///  one,
+/// which is what makes the first arm's silence worth reading.
+#[test]
+fn a_slow_push_stopped_at_its_window_leaves_no_process_of_its_hook_behind() {
+    const PAYLOAD_BYTES_FOR_A_SLOW_PUSH: usize = 1024 * 1024;
+    for (leaves, expected_alive) in [(false, false), (true, true)] {
+        let root: Fixture = fixture(if leaves { "push-minimum-rate-slowed-leftover" } else { "push-minimum-rate-slowed" });
+        let projects: PathBuf = root.root.join("projects");
+        std::fs::create_dir(&projects).expect("the projects");
+        let remote_path: PathBuf = remote_that_records_its_processes(&root, projects.as_path(), leaves);
+        // Eight kilobytes every fifty milliseconds is 160 KB/s: a mebibyte takes about 6.5 s, longer than the window, and the
+        //  line carries far more than the floor in every window, so only a push that stopped moving is stopped.
+        let pace: Pace = Pace { read_chunk: 8192, read_pause: Duration::from_millis(50), write_chunk: 65536, write_pause: Duration::ZERO, whole_advertisement: true };
+        let relay: Relay = Relay::start(projects.as_path(), pace);
+        let repo: PathBuf = world(&root, &relay);
+        let payload: Vec<u8> = (0..PAYLOAD_BYTES_FOR_A_SLOW_PUSH)
+            .map(|index: usize| {
+                let mut state: u64 = 0x2545_f491_4f6c_dd1d ^ (index as u64).wrapping_mul(6364136223846793005);
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                return (state >> 56) as u8;
+            })
+            .collect();
+        std::fs::write(repo.join("payload.bin"), payload).expect("the payload that does not compress");
+        git(&root, repo.as_path(), &["add", "--", "payload.bin"]);
+        let (landed, commit, _tripwire): (std::process::Output, String, Tripwire) =
+            commit_and_push(&root, repo.as_path(), FLOOR_BELOW_AN_HONEST_PUSH, WINDOW_SECONDS);
+        let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
+        let pids: Vec<i32> = recorded_hook_pids(remote_path.as_path());
+        assert!(!pids.is_empty(), "the hook ran and recorded its process numbers: {report}");
+        let alive: Vec<i32> = still_alive(pids.as_slice());
+        assert!(landed.status.success(), "the commit itself succeeds: {report}");
+        assert!(report.contains(push_unfinished_words()), "the push was stopped at its window: {report}");
+        assert_eq!(report.contains("limit=connected"), true, "and it names the window: {report}");
+        if expected_alive {
+            assert!(!alive.is_empty(), "the tripwire sees a process of the push that outlived it, so its silence in the other arm means something");
+        } else {
+            assert!(alive.is_empty(), "no process of the stopped push's hook outlived it: {alive:?} still running");
+        }
+        drop(relay);
+        remove_settled(&root);
+    }
 }
 
 /// An honest push on a slow line above the floor is not stopped:
