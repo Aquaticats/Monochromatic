@@ -423,7 +423,6 @@ package/
                               rolldown, tofu, typescript, lfs-r2-worker)
   desktop-app/              Desktop applications (GTK4/Qt/Electron file managers,
                               Slint terminal, Electron infrastructure)
-  desktop-daemon/           Background services (hall-monitor)
   dev-script/               Developer utilities (file-enforcer, catalog-tighten,
                               deps-cube, page-weight, vm-builder, watch-restart)
   figma/                    Figma and Penpot tooling (kiwi parser, to-penpot converter)
@@ -455,7 +454,8 @@ package/
   typeface/                 Custom fonts (aquaticat geometric typeface)
   webapp-productivity/      Productivity apps (done, doodle widget, rss, wc)
 package-paused/             Paused packages (inference-canary, monochromatic stylesheet,
-                              webapp-forge, webapp-search, webapp-edu, editord)
+                              webapp-forge, webapp-search, webapp-edu, hall-monitor,
+                              editord)
 package-deprecated/         Deprecated packages retained for reference
 ```
 
@@ -481,7 +481,7 @@ package-deprecated/         Deprecated packages retained for reference
 - **Runtime**:
   [Node.js](https://nodejs.org/) for TypeScript task and CLI execution.
   Bun stays installed only for explicit Bun islands,
-  such as the hall-monitor standalone compile task and runtime-error fixtures.
+  such as the runtime-error fixtures.
 - **Package manager**:
   [pnpm](https://pnpm.io/) workspaces with catalog dependency management and isolated node_modules
 - **Bundler**:

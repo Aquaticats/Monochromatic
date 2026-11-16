@@ -542,7 +542,7 @@ so they are pinned with `hf download`,
 which the global plan already provides through `pipx:huggingface_hub`.
 They live in `${HOME}/models/Xiaomi-OCR-0-GGUF`,
 inside the `models` directory of the home directory,
-where `package/hall-monitor/daemon/src/analyze/llama.ts` also keeps its GGUF files.
+where the paused `package-paused/hall-monitor/daemon/src/analyze/llama.ts` also keeps its GGUF files.
 Both files match the SHA-256 values that the Hub listed for them at the pinned revision:
 `1e497ff06b91a3d822c543066df3e9ef69c62c5423be09d739dfa1db55630d3a` for the Q4_K_M text model
 and `634d6bc95781ebf4a3f06570a59859fa5082d488db540fd474bc6b4061aec90e` for the BF16 projector.

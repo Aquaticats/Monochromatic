@@ -139,9 +139,6 @@ export const PNPR_EXCLUDED_PACKAGES: Readonly<Record<string, string>> = {
   // Owner decision 2026-09-15 (#543): the hook plugins bundle it and now list it only as a devDependency.
   '@monochromatic-dev/claude-code-plugin-source':
     'exports only TypeScript source, which Node cannot load from node_modules, and no published package depends on it at runtime',
-  // Owner decision 2026-09-15: apps exposing nothing importable are not meant to publish.
-  '@monochromatic-dev/hall-monitor-daemon':
-    'app exposing nothing importable; its build also runs `bun build --compile`, and the publish job installs only node and pnpm',
   // pnpr-publish run 34917976384: rolldown `Could not resolve 'canvg'` from jspdf 4.2.1.
   '@monochromatic-dev/doodle-widget-app':
     'app exposing nothing importable; its client build also cannot resolve the optional `canvg` import inside jspdf',

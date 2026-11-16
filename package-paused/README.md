@@ -50,3 +50,4 @@ Verify with a reverse-dependency search before moving one in.
 - `webapp-edu/` (`paper2vn`)
 - `stylesheet/` (`monochromatic`)
 - `desktop-daemon/editord/`
+- `hall-monitor/` (`daemon`)
