@@ -1273,6 +1273,22 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   In this session's own process, the driver's reader read 38 values (35 from the store, which declares 35 names; the rest from Pi's two files, `.bashrc`, the age identity and the environment),
   and each of the 38, put through the driver's masking inside a sentence, came out as its marker; a made-up string was left as it was. Names and counts alone were printed (`~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/`).
   The filling unit was restarted at level 19 (22:34:03) so that a canary run started from the rehearsal tree keeps the machine at its cap of 20.
+- **Credential masking is in `main` (merge `5470c30f3f`, 2026-11-15T22:41:02-05:00), and every Pi run started since has it armed.**
+  Before `main` moved, a canary run started from the rehearsal tree's own starter (unit `pi-canary-of-the-masking-merge-run-from-the-rehearsal-tree`) read its values
+  (35 from the store, three and one from Pi's two files, one from `.bashrc`, the age identity, one from the unit's environment; none unread), had the masking's command registered in its Pi, was given its prompt,
+  made three tool calls and ended idle with exit 0.
+  The three links `main`'s driver package then lacked (`env-local-json-core`, `ownership-marker-foreign-borrowed`, Pi's own package) were made by hand before the merge, as the install makes them,
+  so that no start could fail between the merge and the install; the merge and `mise exec -- pnpm install --offline --frozen-lockfile` ran in one call, and `git diff` between the rehearsed commit and `main` is empty for the driver and the lock.
+  A second canary through `main`'s own batch starter armed the same counts and ended idle with exit 0.
+  What this does not show: a real value in a real run's tool result (the canaries printed none, by the ban); that rests on the in-process check of all 38 values and on the review's 143 checks with made-up values.
+  What it does not cover: runs started before the merge go on unmasked until they end (17 units were going; the latest wall clock among them allows 2026-11-16T14:38:25-05:00);
+  Claude Code sessions, this one among them, are not Pi runs and are not masked; `mcp-auth.json` is not among the driver's sources.
+  Noticed by reading and given to the author: `free-form-arguments-of-pi.ts` imports Pi's package at run time while `package.json` lists it under `devDependencies`.
+  The author's sixth run (three fixes, three stated limits) was queued at 22:45:21, third in the queue. The names for the rotation, 38, names only: `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/`.
+- **Four more runs read (22:37 to 22:39):** reviews queued at three new tips: the discarding guard after its fourth run (`9b4ab2ed6b`, with the decisions on record appended to its brief), the renamed subvolume handed over (`855f96cc71`), the held-push holder (`86d00f412d`).
+  Add-never-skips (`85a9f8523f`, 14 of 14 files): four reproduced, each a check on a name followed by an act on that name:
+  Cargo given a `/proc/self/fd` path that names Cargo's own process; the mirror fallback cleaning a replacement before finding its claim gone; a directory swapped after its claim is read and removed whole; a marker swapped after its identity check and unlinked.
+  Thirteenth run queued at 22:38:55 with a suggestion of this session's, labelled as such: one object checked and acted on (a held descriptor), and a source guard for these files.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
