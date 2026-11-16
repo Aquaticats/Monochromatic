@@ -404,6 +404,22 @@ fn a_code_fence_inside_a_quotation_is_reported_and_never_broken() {
     assert_eq!(read(output.as_str()), read(source), "{output:?}");
 }
 
+/// The page comparison is not blind in general and is blind to the marker by nature:
+///  moving a paragraph out of a quotation changes what a reader gets,
+///  while a lazy continuation of the same paragraph reads the same as a marked one,
+///  which is why the shape table counts markers as well as comparing the page.
+#[test]
+fn the_page_comparison_sees_a_moved_paragraph_and_not_a_dropped_marker() {
+    assert_ne!(
+        read("> quoted words\n\nplain text\n").page,
+        read("> quoted words\n\n> plain text\n").page
+    );
+    assert_eq!(
+        read("> quoted words\nand a line\n").page,
+        read("> quoted words\n> and a line\n").page
+    );
+}
+
 /// Only the lines the fix inserts carry the copied prefix:
 ///  those get the paragraph's own depth,
 ///  while a line the author already wrote stays byte for byte as written,
