@@ -16,7 +16,7 @@ use crate::work_item::{Claimed, DONE, PENDING, WorkItem, WorkKind, claim_next_of
 use crate::worktree_remove_hand_over::{delete_subvolume_of, removal_item};
 use crate::fs_beneath::open_root;
 use crate::private_storage::write_private_file_unsynced;
-use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, read_the_leaving};
+use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, read_the_leaving, record_a_leaving_with_owner};
 use crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names;
 use crate::worktree_remove_hand_over::{ToldOfHandOver, hand_over_with};
 use std::sync::{Arc, Barrier};
@@ -738,4 +738,104 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
     assert!(!after.queued, "no later command asks for another wake");
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume");
     remove(place.root.as_path());
+}
+
+/// The exit status a command killed at one instruction of the look ends with,
+/// which no other ending of the test binary uses.
+const KILLED_AT_A_STEP: i32 = 77;
+
+/// What:
+///  A command killed at any instruction between proving a leftover and queueing the delete its leaving owes
+///  leaves that delete to be queued by the next command,
+///  whatever the command had spent before it died.
+/// Why:
+///  A process can be killed at any instruction,
+///  and the durable attempt files are the budget that stops a stuck delete from costing a wake on every command.
+///  A budget spent before the act it counts turns that permitted kill into a stall:
+///  the next command finds every attempt spent,
+///  queues nothing,
+///  and says attempts were made that no service ever ran
+/// (`consume_an_attempt`,
+/// `queue_the_delete_of_one_standing_leaving`).
+///  So the control dies at each instruction of that window, once for each attempt the record may cost, and then asks
+///  the next command to queue the delete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const step of [AFTER_THE_PROOF, BEFORE_THE_DELETE_IS_QUEUED]) {
+///   for (const attempt of range(MAX_TRIES)) expect(await killAt(step)).toBe(77);
+///   const answer = queueTheLeavingsARecordNoLongerNames(common);
+///   expect(answer.queued).toBe(true); expect(pendingOf(item).isFile()).toBe(true); expect(answer.said).toEqual([]);
+/// }
+/// ```
+#[test]
+fn a_command_killed_before_the_queued_delete_leaves_the_delete_to_be_queued() {
+    // The child of this same test binary: it dies at the one instruction it was told, and never runs past it.
+    if let Ok(common) = std::env::var("ATTEMPT_CONTROL_COMMON") {
+        let watching: String = std::env::var("ATTEMPT_CONTROL_STEP").expect("the step this child dies at");
+        let watched: String = watching.clone();
+        crate::worktree_attempt_budget_test_support::act_at_each_step(move |step: &str| {
+            if step == watched {
+                // What a command killed at this instruction leaves behind is exactly what ran before it.
+                // SAFETY: `_exit` ends this process at once and reads nothing this program owns.
+                unsafe { libc::_exit(KILLED_AT_A_STEP) };
+            }
+        });
+        let answer: Leavings = queue_the_leavings_a_record_no_longer_names(Path::new(&common));
+        panic!("the child ran past {watching}: queued={} said={:?}", answer.queued, answer.said);
+    }
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("attempt-budget-kills") else { return };
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.place.as_path(), "kept.txt", b"held\n");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    // The state a round that looked before the rename leaves: the leaving record stands and no queue record owes it.
+    record_a_leaving_with_owner(place.common.as_path(), &item, Some("1:ended")).expect("the leaving record of a command that ended");
+    assert!(!owed(&place, &item), "no queue record owes the delete");
+    let executable: PathBuf = std::env::current_exe().expect("this test binary");
+    let steps: [&str; 2] = [crate::worktree_attempt_budget_test_support::AFTER_THE_PROOF, crate::worktree_attempt_budget_test_support::BEFORE_THE_DELETE_IS_QUEUED];
+    for step in steps {
+        // Each instruction is one experiment on the same state: nothing owed and no attempt spent.
+        clear_the_queue_and_the_attempts(&place, &item);
+        for attempt in 1..=MAX_TRIES {
+            let status: std::process::ExitStatus = std::process::Command::new(executable.as_path())
+                .arg("a_command_killed_before_the_queued_delete_leaves_the_delete_to_be_queued")
+                .arg("--nocapture")
+                .env("ATTEMPT_CONTROL_COMMON", place.common.as_path())
+                .env("ATTEMPT_CONTROL_STEP", step)
+                .status()
+                .expect("a child killed at one instruction of the look");
+            assert_eq!(status.code(), Some(KILLED_AT_A_STEP), "attempt {attempt} died at {step}");
+        }
+        let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+        assert!(answer.queued, "after {MAX_TRIES} commands died at {step}, the next command still queues the delete: {:?}", answer.said);
+        assert!(owed(&place, &item), "and a round finds the delete it owes: {}", item.id());
+        assert!(answer.said.is_empty(), "and nothing is said about attempts that queued no delete: {:?}", answer.said);
+    }
+    clear_the_queue_and_the_attempts(&place, &item);
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the control takes the subvolume it made");
+    assert!(!hidden.exists(), "and the directory the name held is gone with it");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  Take away every queue record of one delete and every attempt its leaving has taken,
+///  so a control's next experiment starts from the state a round that looked before the rename left.
+/// Why:
+///   The control runs one experiment per instruction of the window,
+///  and each must begin with nothing owed and nothing spent;
+///  the attempts are what the children are meant to spend, so each experiment begins with none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// clearTheQueueAndTheAttempts(place, item); // no pending record, no leaving-attempts file
+/// ```
+fn clear_the_queue_and_the_attempts(place: &Place, item: &WorkItem) {
+    for state in [PENDING, crate::work_item::CLAIMED, crate::work_item::DONE, crate::work_item::FAILED] {
+        for id in [item.id(), item.id_before_the_branch()] {
+            let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_of(place).as_path(), state).join(id));
+        }
+    }
+    for number in 1..=MAX_TRIES {
+        let attempt: PathBuf = place.common.join(crate::worktree_removal_leaving_that_outlives_its_record::LEAVING_ATTEMPTS_FOLDER).join(format!("{}.{number}", item.id()));
+        let _removed: std::io::Result<()> = std::fs::remove_file(attempt);
+    }
 }

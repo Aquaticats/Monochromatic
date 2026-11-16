@@ -177,6 +177,10 @@ pub mod worktree_removal_leavings_no_record_names;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod worktree_hand_over_test_support;
 
+/// The steps a command can be killed at between proving a leftover and queueing its delete, for a control that dies there.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod worktree_attempt_budget_test_support;
+
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;

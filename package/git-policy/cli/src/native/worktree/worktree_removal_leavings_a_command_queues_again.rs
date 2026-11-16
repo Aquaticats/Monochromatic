@@ -322,10 +322,16 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
         wake_a_pending_delete(common_dir, leaving, target, answer);
         return;
     }
+    // What: The steps a command can be killed at between the proof above and the delete it queues.
+    // Why:  A control kills one command at each of them and proves the next command still queues the delete.
+    #[cfg(test)]
+    crate::worktree_attempt_budget_test_support::reached(crate::worktree_attempt_budget_test_support::AFTER_THE_PROOF);
     if crate::worktree_removal_leaving_that_outlives_its_record::consume_an_attempt(common_dir, leaving.item.id().as_str()).is_none() {
         answer.said.push(attempts_are_spent_line(common_dir, target, leaving.item.id().as_str()));
         return;
     }
+    #[cfg(test)]
+    crate::worktree_attempt_budget_test_support::reached(crate::worktree_attempt_budget_test_support::BEFORE_THE_DELETE_IS_QUEUED);
     if let Err(reason) = queue_the_delete_again(common_dir, leaving) {
         answer.said.push(format!(
             "{SAID} the subvolume a removed worktree was renamed to at {named} still stands there, and the delete that would remove it cannot be queued ({reason}), so `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
