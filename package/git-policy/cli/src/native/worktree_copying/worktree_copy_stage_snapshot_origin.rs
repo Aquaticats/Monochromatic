@@ -1,7 +1,7 @@
 //! What:
 //!  The evidence a command records before it makes a snapshot:
 //! the source subvolume the snapshot is taken from,
-//! and the transaction the filesystem had committed after the last durable write before it.
+//! and the transaction the filesystem had committed when it read them.
 //! Why:
 //!  An object's identity cannot be read before the object exists,
 //! so a kill between the creation of a snapshot and the record of its identity
@@ -21,10 +21,13 @@
 //! and one made before it does not,
 //! so the reaping can keep removing the stage a kill leaves while it can never match a snapshot that stood there
 //!  first.
-//! The recording transaction is the last commit the journal's own directory took part in,
-//! which is the binding record the
-//!  add writes immediately before this rung,
-//! so nothing is committed here that the ladder would not commit anyway.
+//! The recording transaction is one the filesystem has committed when this rung reads it,
+//! which is why that read ends the transaction still running:
+//! a flush of a file and of its directory is not a commit,
+//! and the generation of a subvolume is written only by a commit that copied that subvolume's tree,
+//! so a value read while a transaction still runs can stand below the transaction a snapshot another writer made
+//!  a moment before carries
+//! (measured on 2026-11-16; the numbers are beside `journal_subvolume_after_ending_the_running_transaction`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +35,7 @@
 //! proveCreatedAfterTheRecord(container, origin); // ok, or the reason a person reads
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  The source a snapshot is about to be taken from,
@@ -49,7 +52,7 @@ use std::path::Path;
 pub struct SnapshotOrigin {
     /// The UUID of the source subvolume the snapshot is taken from.
     pub parent: [u8; 16],
-    /// The latest committed transaction the filesystem held when this was read,
+    /// The latest transaction the filesystem had committed when this was read,
     /// which every snapshot made before it has a creation transaction at or below.
     pub after: u64,
 }
@@ -64,16 +67,66 @@ pub struct SnapshotOrigin {
 /// and a folder a kill leaves is
 ///  reported instead of removed,
 /// which is the safe direction.
+/// The transaction is read only after this command has ended the one still running,
+/// because the value the filesystem answers while a transaction runs is not yet the transaction a snapshot made
+///  now must follow (`journal_subvolume_after_ending_the_running_transaction` says why).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function originOfTheSource(sourceRoot: string, commonDir: string): SnapshotOrigin | undefined { try { return { parent: subvolumeInfo(sourceRoot).uuid, after: subvolumeInfo(journalRoot(commonDir)).generation }; } catch { return undefined; } }
+/// function originOfTheSource(sourceRoot: string, commonDir: string): SnapshotOrigin | undefined { try { return { parent: subvolumeInfo(sourceRoot).uuid, after: journalSubvolumeAfterEndingTheRunningTransaction(journalRoot(commonDir)).generation }; } catch { return undefined; } }
 /// ```
 #[cfg(target_os = "linux")]
 pub fn origin_of_the_source(source_root: &Path, common_dir: &Path) -> Option<SnapshotOrigin> {
     let source: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(source_root).ok()?;
-    let journal: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(crate::worktree_copy_journal::journal_root(common_dir).as_path()).ok()?;
+    let journal_root: PathBuf = crate::worktree_copy_journal::journal_root(common_dir);
+    let journal: crate::fs_btrfs_ioctl::SubvolumeInfo = journal_subvolume_after_ending_the_running_transaction(journal_root.as_path())?;
     return Some(SnapshotOrigin { parent: source.uuid, after: journal.generation });
+}
+
+/// What:
+///  The record of the subvolume holding `journal_root`,
+/// read after a commit that subvolume's own directory took part in.
+/// Why:
+///   The generation of a subvolume is written by a commit that copied that subvolume's tree,
+///  and never by a commit that left it alone,
+///  and a flush of a file and of its directory is not a commit at all.
+/// A record this add flushed a moment earlier leaves a transaction still running,
+/// and a snapshot another writer makes in that transaction carries the running transaction,
+/// which stands one above every committed one,
+/// so a generation read then can stand below the transaction of a snapshot made before this command wrote
+///  anything, where a proof that the folder at the stage name was made after the record would accept it.
+/// Ending the transaction here makes the generation the commit's own transaction:
+/// every snapshot made before it carries that transaction or an older one,
+/// and every snapshot made after it carries a later one.
+/// The timestamp below is the cheapest write this command can make into the journal's directory,
+/// and it is what puts that directory's subvolume among the trees the commit copies,
+/// so a subvolume whose tree would otherwise be left alone still answers the commit's transaction.
+/// It costs every add one commit of the whole filesystem:
+/// 17.7 ms at the median beside 6.1 ms for the same write flushed alone,
+/// measured on 2026-11-16 with both arms interleaved fifteen times on this machine's shared filesystem.
+///
+/// These readings are from that machine on 2026-11-16,
+/// over `/var/mnt/encrypted`, whose writers are not this command's:
+/// a commit with nothing to copy answered transaction 353363 and left a subvolume's generation at 353362;
+/// a commit after a file was written into the subvolume answered 353364 and its generation became 353364;
+/// a commit after only the directory's timestamp was written answered 353365 and its generation became 353365;
+/// and the snapshot made next carried 353366.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function journalSubvolumeAfterEndingTheRunningTransaction(journalRoot: string): SubvolumeInfo | undefined { const directory = open(journalRoot); await directory.setModified(now()); syncfs(directory); return subvolumeInfo(journalRoot); }
+/// ```
+#[cfg(target_os = "linux")]
+fn journal_subvolume_after_ending_the_running_transaction(journal_root: &Path) -> Option<crate::fs_btrfs_ioctl::SubvolumeInfo> {
+    use std::os::fd::AsRawFd as _;
+    let directory: std::fs::File = std::fs::File::open(journal_root).ok()?;
+    directory.set_modified(std::time::SystemTime::now()).ok()?;
+    // SAFETY: `directory` holds an open descriptor for the mount `syncfs` is asked about, and the call neither reads nor writes through it.
+    let ended: libc::c_int = unsafe { libc::syncfs(directory.as_raw_fd()) };
+    if ended != 0 {
+        return None;
+    }
+    return crate::fs_btrfs_ioctl::subvolume_info(journal_root).ok();
 }
 
 /// `origin_of_the_source` where btrfs ioctls are not built.

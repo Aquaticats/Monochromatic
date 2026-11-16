@@ -4164,12 +4164,17 @@ That record also names the source the snapshot is taken from,
 in `snapshotParent=<the source subvolume's UUID in lowercase hexadecimal>`,
 and the transaction its creation must follow,
 in `after=<the generation of the subvolume holding the journal directory>`,
-read from the last flushed write before this record,
-which is the binding record the add writes immediately before the snapshot rung,
+read after this command has ended the transaction the filesystem was still running,
 because the filesystem writes both facts into every subvolume itself
 (`BTRFS_IOC_GET_SUBVOL_INFO`):
 the subvolume a snapshot was taken from,
 and the transaction that created it.
+The transaction is ended there because a flush of a file and of its directory is not a commit,
+and the generation of a subvolume is written only by a commit that copied that subvolume's tree,
+so a value read while a transaction still runs can stand below the transaction of a snapshot another writer made a
+moment earlier: a snapshot creation ends a transaction of its own, and the snapshot it makes belongs to that one.
+Ending the transaction makes the generation one this command's snapshot is provably later than,
+and it costs every add one commit of the whole filesystem.
 A later command removes that folder only when it is a btrfs subvolume root,
 taken from the recorded source,
 and created in a transaction later than the recorded one,

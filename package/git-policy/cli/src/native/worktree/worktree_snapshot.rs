@@ -342,8 +342,10 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     // The record comes first, and names the container, the instant, and the source and transaction the snapshot below must
     // follow, while it holds no object yet: the identity of an object cannot be read before it exists, and a kill between
     // the creation below and the record of the identity left a whole snapshot nothing could prove the wrapper made
-    // (`worktree_copy_stage_reaping_proof_and_words.rs`). The binding record this rung wrote a moment ago was flushed, so
-    // the journal's own subvolume carries the last committed transaction, and the snapshot made now is later than it.
+    // (`worktree_copy_stage_reaping_proof_and_words.rs`). The read below ends the filesystem's running transaction itself,
+    // because a flush is not a commit and the generation it answers while one still runs can stand below the transaction of
+    // a snapshot another writer made a moment earlier (`worktree_copy_stage_snapshot_origin.rs`), so the snapshot made now
+    // is provably later than the transaction it records.
     let origin: Option<crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin> =
         crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), source.common_dir.as_path());
     if let Err(error) = crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now(), origin.as_ref()) {
