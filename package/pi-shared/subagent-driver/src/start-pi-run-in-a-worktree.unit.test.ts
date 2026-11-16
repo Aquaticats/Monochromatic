@@ -335,6 +335,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -468,6 +472,10 @@ await describe({
         );
         await mkdir(
           checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          join(checkout, '.git',),
           { recursive: true, },
         );
         await mkdir(
@@ -608,6 +616,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runFolder,
           { recursive: true, },
         );
@@ -625,7 +637,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH.
@@ -757,6 +769,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runFolder,
           { recursive: true, },
         );
@@ -774,7 +790,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH.
@@ -887,6 +903,10 @@ await describe({
           { recursive: true, },
         );
         await mkdir(
+          join(checkout, '.git',),
+          { recursive: true, },
+        );
+        await mkdir(
           runs,
           { recursive: true, },
         );
@@ -897,7 +917,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --absolute-git-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute --git-common-dir'*)\n    printf '%s\\n' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
