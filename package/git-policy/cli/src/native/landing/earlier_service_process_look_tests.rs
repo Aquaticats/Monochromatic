@@ -356,6 +356,12 @@ fn a_relative_journal_word_is_read_in_the_working_folder_of_the_program() {
     with_working_folder(here.as_path(), fixture.as_path());
     let here_held: Option<Holding> = earlier_service_process_hold(look, here.as_path());
     assert_eq!(here_held.map(|holding| { return holding.because; }), Some(Hold::InstanceHelperRuns), "the word names this worktree's earlier journal in the program's own folder");
+    // A working folder the kernel reports as deleted, with a word that names a folder inside it:
+    // everything that word can name went with the folder, so it holds no batch of this worktree.
+    let gone: PathBuf = proc_root_with(&[String::from("/p/monochromatic-git-policy-cli"), String::from("service"), String::from("run"), String::from("--journal"), String::from(EARLIER_JOURNAL_TAIL)]);
+    with_working_folder(gone.as_path(), fixture.join("a-working-folder (deleted)").as_path());
+    let gone_held: Option<Holding> = earlier_service_process_hold(look_of_journals(&[fixture.join(EARLIER_JOURNAL_TAIL)]), gone.as_path());
+    assert!(gone_held.is_none(), "a folder that went with the working folder holds no batch: {gone_held:?}");
     remove(fixture.as_path());
 }
 
@@ -413,5 +419,37 @@ fn a_relative_journal_word_whose_working_folder_cannot_be_read_holds_and_names_w
     assert_eq!((program.pid, program.journal_word_is_relative), (FAKE_PID, true));
     assert!(program.reason.contains("working folder could not be read"), "the cause is said in plain words: {}", program.reason);
     assert!(program.reason.contains("No such file or directory"), "and with what the kernel answered: {}", program.reason);
+    remove(fixture.as_path());
+}
+
+/// What:
+///  A relative word that climbs out of a working folder the kernel reports as deleted is not settled:
+///  it comes back as a program that may be the earlier helper, with the process named.
+/// Why:
+///   A program started with `--journal ../cli-git/service` from a folder that was removed afterwards can still reach the
+///  shared earlier journal, and `/proc/<pid>/cwd` then reads `<folder> (deleted)`.
+/// The file system cannot resolve a
+///  path below a folder that is gone,
+/// so the path it names cannot be compared with this worktree's journals,
+/// and an open
+///  question must not settle a batch a running helper may write.
+/// The kernel's ` (deleted)` marker is stated here as the link's text,
+/// which is what
+///  `read_link` answers for a deleted working folder.
+#[test]
+#[cfg(unix)]
+fn a_relative_journal_word_that_climbs_out_of_a_deleted_working_folder_holds() {
+    let fixture: PathBuf = fixture("look-relative-deleted-folder");
+    let journal: PathBuf = earlier_journal_below(fixture.as_path());
+    let deleted: PathBuf = fixture.join("a-working-folder (deleted)");
+    assert!(!deleted.exists(), "the working folder the kernel reports is gone");
+    let root: PathBuf = proc_root_with(&[String::from("/p/cli-git-native"), String::from("--journal"), format!("../{EARLIER_JOURNAL_TAIL}")]);
+    with_working_folder(root.as_path(), deleted.as_path());
+    let held: Option<Holding> = earlier_service_process_hold(look_of_journals(&[journal]), root.as_path());
+    let Some(holding) = held else { panic!("a word below a deleted working folder cannot be shown to name no journal of this worktree") };
+    assert_eq!(holding.because, Hold::HelperUnsure, "the question stays open: {holding:?}");
+    let Some(program) = holding.program else { panic!("the program that cannot be ruled out is named: {holding:?}") };
+    assert_eq!(program.pid, FAKE_PID);
+    assert!(program.journal_word_is_relative, "the word is relative, and the words say which folder it is read in");
     remove(fixture.as_path());
 }
