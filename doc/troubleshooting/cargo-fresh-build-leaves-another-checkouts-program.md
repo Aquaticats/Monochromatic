@@ -259,8 +259,10 @@ measured 2026-11-16 in a worktree of this repository with `mise exec -- cargo`:
 - the step refuses a caller whose `CARGO_TARGET_DIR` moves the target directory,
    where a bare `cargo build` accepted it and quietly wrote the program elsewhere,
 - a release build needs `--release` in the clean as well as in the build:
-   measured 2026-11-16, `cargo clean --offline --package monochromatic-git-policy-cli` alone left the release units
-   fresh, and `native:build:release` then printed `Finished` in 0.12 s and linked an artifact built from other sources.
+   measured 2026-11-16,
+  `cargo clean --offline --package monochromatic-git-policy-cli` alone left the release units
+   fresh,
+  and `native:build:release` then printed `Finished` in 0.12 s and linked an artifact built from other sources.
    With `--release` it compiled the crate (40.68 s).
 
 A person's own,
