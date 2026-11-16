@@ -28,10 +28,19 @@ fn words(values: &[&str]) -> Vec<OsString> {
 /// with every entry at its paths written over,
 /// and no guess of a remote branch unless `guesses` says `checkout` or `switch` makes one.
 fn tree(revision: Option<&str>, guesses: bool) -> Option<WrittenPaths> {
+    return tree_resolved(revision, guesses, true);
+}
+
+/// The same whole tree,
+/// with the branch preference said outright:
+/// a `checkout` or a `switch` writes the local branch's tip when a branch of the name exists,
+/// and a reset resolves the general way.
+fn tree_resolved(revision: Option<&str>, guesses: bool, prefers_a_local_branch: bool) -> Option<WrittenPaths> {
     return Some(WrittenPaths::Tree {
         revision: revision.map(OsString::from),
         entries: WrittenEntries::EveryEntry,
         guesses_a_remote_branch: guesses,
+        prefers_a_local_branch,
     });
 }
 
@@ -43,6 +52,8 @@ fn tree_of_ignored_entries(revision: Option<&str>) -> Option<WrittenPaths> {
         revision: revision.map(OsString::from),
         entries: WrittenEntries::OnlyIgnored,
         guesses_a_remote_branch: false,
+        // `reset --merge` and `--keep` resolve the general way.
+        prefers_a_local_branch: false,
     });
 }
 
@@ -51,6 +62,8 @@ fn matching(revision: Option<&str>, pathspecs: &[&str]) -> Option<WrittenPaths> 
     return Some(WrittenPaths::MatchingTree {
         revision: revision.map(OsString::from),
         pathspecs: words(pathspecs),
+        // The path forms of `checkout` and `restore --source` prefer their local branch.
+        prefers_a_local_branch: true,
     });
 }
 
@@ -106,9 +119,9 @@ fn a_read_tree_writes_the_trees_it_names_below_its_prefix() {
 #[test]
 fn a_reset_writes_the_tree_it_names() {
     for (values, expected) in [
-        (vec!["--hard"], tree(None, false)),
-        (vec!["--hard", "other"], tree(Some("other"), false)),
-        (vec!["other", "--hard"], tree(Some("other"), false)),
+        (vec!["--hard"], tree_resolved(None, false, false)),
+        (vec!["--hard", "other"], tree_resolved(Some("other"), false, false)),
+        (vec!["other", "--hard"], tree_resolved(Some("other"), false, false)),
         (vec!["--merge", "other"], tree_of_ignored_entries(Some("other"))),
         (vec!["--keep", "other"], tree_of_ignored_entries(Some("other"))),
         (vec!["--soft", "other"], None),
@@ -298,6 +311,7 @@ fn from_a_file(
         nul_separated,
         entries,
         guesses_a_remote_branch: guesses,
+        prefers_a_local_branch: true,
     });
 }
 
@@ -444,6 +458,7 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
             Some(WrittenPaths::MatchingTree {
                 revision: Some(word(b"br-\xff")),
                 pathspecs: vec![word(b"f.txt")],
+                prefers_a_local_branch: true,
             })
         );
     }

@@ -242,6 +242,11 @@ mod discard_submodule_axis;
 #[path = "binary_discard_difference_axis_tests.rs"]
 mod discard_difference_axis;
 
+/// Every spelling of a revision `gitrevisions(7)` documents,
+/// as the revision word of every guarded form that takes one.
+#[path = "binary_discard_revision_axis_tests.rs"]
+mod discard_revision_axis;
+
 /// The remote settings every worktree of a repository shares:
 /// refused from a linked worktree,
 /// unchanged in the main checkout,

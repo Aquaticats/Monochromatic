@@ -29,16 +29,29 @@ use std::path::{Path, PathBuf};
 /// The bytes the person wrote over the branch's own, so a row finds a loss by content.
 const PRECIOUS_BYTES: &[u8] = b"PRECIOUS BYTES\n";
 
+/// The bytes a tracked file holds.
+const TARGET_TEXT: &[u8] = b"committed target\n";
+
+/// The text of the link one row holds, which is the name it points at and not the bytes there:
+///  a file of these bytes hashes to the object the link's own text makes.
+const LINK_TEXT: &[u8] = b"target.txt";
+
 /// The difference one row makes to the tracked entry.
 ///  An `enum` is a closed set of named alternatives.
 #[derive(Clone, Copy)]
 enum Difference {
     /// The content bytes differ from the index's.
     Bytes,
-    /// Only the executable bit differs.
+    /// Only the executable bit differs, added on a file the index holds as plain.
     Mode,
+    /// Git's own executable bit removed from a file the index holds as executable:
+    ///  `chmod 0655` on a `0755` file, where the group and other bits stay set.
+    ModeOwnerRemoved,
     /// A regular file the index holds is a link in the worktree.
     Type,
+    /// A link the index holds, replaced by a regular file whose bytes are the text of what it pointed at,
+    ///  which hashes to the object the link's own text makes.
+    TypeFromALinkToItsTargetsText,
 }
 
 /// How the index hides that difference.
@@ -76,9 +89,9 @@ impl Difference {
     /// The tracked path one row holds.
     fn path(&self) -> &'static str {
         return match self {
-            Difference::Bytes => "a.txt",
-            Difference::Mode => "script.sh",
-            Difference::Type => "a.txt",
+            Difference::Bytes | Difference::Type => "a.txt",
+            Difference::Mode | Difference::ModeOwnerRemoved => "script.sh",
+            Difference::TypeFromALinkToItsTargetsText => "lnk",
         };
     }
 
@@ -86,8 +99,22 @@ impl Difference {
     fn name(&self) -> &'static str {
         return match self {
             Difference::Bytes => "the bytes",
-            Difference::Mode => "the executable bit",
-            Difference::Type => "the type",
+            Difference::Mode => "the executable bit added",
+            Difference::ModeOwnerRemoved => "the owner's executable bit removed",
+            Difference::Type => "a file turned into a link",
+            Difference::TypeFromALinkToItsTargetsText => "a link turned into a file of its target's text",
+        };
+    }
+
+    /// What the index records for this row's path before the person touches it.
+    /// Why:
+    ///  A row about a bit being removed needs the index to hold it,
+    ///  and a row about a link needs a link.
+    fn the_index_holds(&self) -> &'static str {
+        return match self {
+            Difference::ModeOwnerRemoved => "an executable file",
+            Difference::TypeFromALinkToItsTargetsText => "a link",
+            _ => "a plain file",
         };
     }
 }
@@ -102,11 +129,27 @@ fn holds_the_persons_entry(directory: &Path, difference: Difference) -> bool {
     let path: PathBuf = directory.join(difference.path());
     return match difference {
         Difference::Bytes => std::fs::read(path.as_path()).is_ok_and(|bytes| return bytes == PRECIOUS_BYTES),
+        Difference::TypeFromALinkToItsTargetsText => {
+            // The person's file held the link's own text; a regular file of that text is still theirs.
+            std::fs::read(path.as_path()).is_ok_and(|bytes| return bytes == LINK_TEXT)
+        }
         Difference::Mode => {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                std::fs::metadata(path.as_path()).is_ok_and(|metadata| return metadata.permissions().mode() & 0o111 != 0)
+                std::fs::metadata(path.as_path()).is_ok_and(|metadata| return metadata.permissions().mode() & 0o100 != 0)
+            }
+            #[cfg(not(unix))]
+            {
+                false
+            }
+        }
+        Difference::ModeOwnerRemoved => {
+            // Git's own bit is the owner's, so the row asks whether the owner's bit is still set.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::metadata(path.as_path()).is_ok_and(|metadata| return metadata.permissions().mode() & 0o100 == 0)
             }
             #[cfg(not(unix))]
             {
@@ -133,8 +176,21 @@ fn prepared(fixture: &Fixture, name: &str, difference: Difference, mark: Mark) -
     let linked: PathBuf = fixture.root.join(format!("{name}-linked"));
     std::fs::write(repo.join("a.txt"), b"committed a\n").expect("a tracked file");
     std::fs::write(repo.join("script.sh"), b"#!/bin/sh\necho committed\n").expect("a tracked script");
-    std::fs::write(repo.join("target.txt"), b"committed target\n").expect("a tracked target");
+    std::fs::write(repo.join("target.txt"), TARGET_TEXT).expect("a tracked target");
+    if matches!(difference, Difference::ModeOwnerRemoved) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(repo.join("script.sh"), std::fs::Permissions::from_mode(0o755)).expect("the index's own bit");
+        }
+    }
+    if matches!(difference, Difference::TypeFromALinkToItsTargetsText) {
+        std::os::unix::fs::symlink("target.txt", repo.join("lnk")).expect("the index's own link");
+    }
     git(fixture, repo.as_path(), &["add", "--", "a.txt", "script.sh", "target.txt"]);
+    if matches!(difference, Difference::TypeFromALinkToItsTargetsText) {
+        git(fixture, repo.as_path(), &["add", "--", "lnk"]);
+    }
     git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let linked_text: &str = linked.to_str().expect("a fixture path is text");
     git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked_text]);
@@ -147,6 +203,20 @@ fn prepared(fixture: &Fixture, name: &str, difference: Difference, mark: Mark) -
                 use std::os::unix::fs::PermissionsExt;
                 std::fs::set_permissions(linked.join(path), std::fs::Permissions::from_mode(0o755)).expect("the person's bit");
             }
+        }
+        Difference::ModeOwnerRemoved => {
+            // The owner's bit goes and the group's and other's stay, so the mode reads `0655`.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(linked.join(path), std::fs::Permissions::from_mode(0o655)).expect("the person's mode");
+            }
+        }
+        Difference::TypeFromALinkToItsTargetsText => {
+            // The link becomes a regular file holding exactly the text it pointed at, which hashes to the
+            //  object the link's own text makes.
+            std::fs::remove_file(linked.join(path)).expect("the link goes");
+            std::fs::write(linked.join(path), LINK_TEXT).expect("the person's file");
         }
         Difference::Type => {
             std::fs::remove_file(linked.join(path)).expect("the regular file goes");
@@ -180,6 +250,9 @@ fn forms(path: &'static str) -> Vec<Vec<&'static str>> {
         vec!["reset", "--hard", "HEAD"],
         vec!["checkout", "-f", "HEAD", "--", path],
         vec!["read-tree", "--reset", "-u", "HEAD"],
+        // One name and no `--`: Git reads the name as a path rather than a revision, and with this option
+        //  it writes the entry the mark hides (the eleventh review's fifth finding).
+        vec!["checkout", "--ignore-skip-worktree-bits", path],
     ];
 }
 
@@ -226,7 +299,13 @@ fn run(label: &str, difference: Difference, mark: Mark, words: &[&str], wrapped_
 /// ```
 #[test]
 fn every_kind_of_difference_git_reports_is_kept_or_refused() {
-    let kinds: [Difference; 3] = [Difference::Bytes, Difference::Mode, Difference::Type];
+    let kinds: [Difference; 5] = [
+        Difference::Bytes,
+        Difference::Mode,
+        Difference::ModeOwnerRemoved,
+        Difference::Type,
+        Difference::TypeFromALinkToItsTargetsText,
+    ];
     let marks: [Mark; 3] = [Mark::Visible, Mark::AssumeUnchanged, Mark::SkipWorktree];
     let mut rows: usize = 0;
     let mut refused_rows: usize = 0;

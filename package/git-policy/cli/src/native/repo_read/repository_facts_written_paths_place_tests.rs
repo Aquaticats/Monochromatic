@@ -196,6 +196,10 @@ fn fixture_for(index: usize) -> Places {
         "b.txt",
         "sub/precious.txt",
         "ignored/precious.txt",
+        // The files a `read-tree --prefix=<ignored directory>` writes over, which Git writes although its
+        //  ignore rules cover them.
+        "ignored/a.txt",
+        "ignored/sub/deep.txt",
         "out/a.txt",
         "outa.txt",
         "outsub/deep.txt",
@@ -383,6 +387,8 @@ fn row_specs(places: &Places) -> Vec<Row> {
         ("through a link that leaves", String::from("link-out/")),
         ("through a link that stays", String::from("link-in/")),
         ("whose last component is a link", String::from("outlink/")),
+        ("an ignored directory without a separator", String::from("ignored")),
+        ("an ignored directory with one", String::from("ignored/")),
     ];
     for (kind, prefix) in &prefixes {
         // `--prefix` and `--reset` exclude each other (`fatal: Which one? -m, --reset, or --prefix?`),

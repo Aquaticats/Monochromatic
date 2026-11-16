@@ -178,6 +178,7 @@ fn a_whole_worktree_listing_names_entries_above_the_directory_it_runs_in() {
             revision: Some(OsString::from("other")),
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: false,
+            prefers_a_local_branch: false,
         },
     );
     assert_eq!(named, Ok(vec![String::from("top.txt")]), "the entry above the caller is the one in the way");
