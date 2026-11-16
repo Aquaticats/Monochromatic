@@ -956,3 +956,9 @@ mod kept_references;
 /// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
+
+/// A named pipe at a record's name in the work queue,
+/// and what a wrapped command does with it:
+/// held back from the suite while the two reads a command makes open the name rather than refusing it.
+#[path = "binary_work_record_pipe_tests.rs"]
+mod work_record_pipe;
