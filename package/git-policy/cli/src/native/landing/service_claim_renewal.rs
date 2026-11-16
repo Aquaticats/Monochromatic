@@ -55,7 +55,7 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::work_item::{CLAIMED, Claimed, entries_oldest_first_or_the_error, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named};
+use crate::work_item::{CLAIMED, Claimed, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named, the_names_in};
 use crate::work_record_where_it_went::the_claim_directory_could_not_be_read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -198,8 +198,12 @@ impl ClaimNames {
     /// new ClaimNames(Object.groupBy(await readdirOrTheError(claimed), idOfEntry))
     /// ```
     fn listed(work_dir: &Path) -> std::io::Result<ClaimNames> {
+        let reached = the_names_in(work_dir, CLAIMED);
+        if let Some(error) = reached.stopped_by {
+            return Err(error);
+        }
         let mut by_id: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-        for (name, _modified) in entries_oldest_first_or_the_error(work_dir, CLAIMED)? {
+        for (name, _modified) in reached.names {
             by_id.entry(id_of_entry(name.as_str()).to_owned()).or_default().push(name);
         }
         return Ok(ClaimNames { by_id });

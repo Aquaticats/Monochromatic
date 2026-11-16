@@ -157,47 +157,121 @@ pub(crate) fn new_generation() -> Result<String, String> {
 }
 
 /// What:
-///  The names in a state directory with their modification times, oldest first,
-///  or the error that kept the directory from being listed.
+///  The names one walk over a state directory reached, oldest first,
+///  and the error that stopped the walk before the directory's end.
 /// Why:
-///   A queue that is empty and a directory that could not be listed are two different answers,
-/// and a sentence that says a record is nowhere must not be written from the second:
+///   A queue that is empty and one that could not be read to its end are two answers,
+/// and a reader that says where a record is must tell them apart:
 /// "could not tell" is never "none".
-/// The count of listings a control reads is made here, where the reading is,
-/// so the two faces of a listing count once per pass.
+/// The names reached are kept whatever ended the walk,
+/// so a walk that stopped part-way gives the names it has rather than none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// entriesOldestFirstOrTheError(workDir, state) // Result<[name, modified][], Error>
+/// type WhatTheWalkReached = { names: [string, Date][]; stoppedBy: Error | undefined }
 /// ```
-pub(crate) fn entries_oldest_first_or_the_error(work_dir: &Path, state: &str) -> std::io::Result<Vec<(String, SystemTime)>> {
-    #[cfg(test)]
-    count_listing();
-    let mut found: Vec<(String, SystemTime)> = Vec::new();
-    for listed in std::fs::read_dir(state_directory(work_dir, state))? {
-        // An entry the directory refused is a listing that failed, not one that holds fewer names.
-        let entry: std::fs::DirEntry = listed?;
-        // An entry whose time cannot be read counts as the oldest.
-        let modified: SystemTime = match entry.metadata() {
-            Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-            Err(_unreadable) => SystemTime::UNIX_EPOCH,
-        };
-        found.push((entry.file_name().to_string_lossy().into_owned(), modified));
+#[derive(Debug)]
+pub(crate) struct WhatTheWalkReached {
+    /// The names reached, oldest first.
+    pub(crate) names: Vec<(String, SystemTime)>,
+    /// The error that stopped the walk, or nothing when it reached the directory's end.
+    pub(crate) stopped_by: Option<std::io::Error>,
+}
+
+impl WhatTheWalkReached {
+    /// Whether the walk reached the directory's end.
+    pub(crate) fn reached_the_end(&self) -> bool {
+        return self.stopped_by.is_none();
     }
-    found.sort_by(oldest_first);
-    return Ok(found);
+}
+
+/// One entry of a directory as a walk gives it,
+/// or the error the directory gave for it.
+///  An entry whose time cannot be read counts as the oldest,
+/// so a record an earlier release wrote is still the first the queue reaches.
+fn one_entry(listed: std::io::Result<std::fs::DirEntry>) -> std::io::Result<(String, SystemTime)> {
+    let entry: std::fs::DirEntry = listed?;
+    let modified: SystemTime = match entry.metadata() {
+        Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+        Err(_unreadable) => SystemTime::UNIX_EPOCH,
+    };
+    return Ok((entry.file_name().to_string_lossy().into_owned(), modified));
+}
+
+/// What:
+///  The names `entries` reaches, oldest first, and the error that stopped it.
+/// Why:
+///   The stopping is the walk's, so it is read where the walk runs and not by a caller that has
+/// already lost the names the walk reached;
+/// a control hands in a walk of its own through this body.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesReached(entries) // { names, stoppedBy }
+/// ```
+fn names_reached(entries: &mut dyn Iterator<Item = std::io::Result<(String, SystemTime)>>) -> WhatTheWalkReached {
+    let mut names: Vec<(String, SystemTime)> = Vec::new();
+    let mut stopped_by: Option<std::io::Error> = None;
+    for reached in entries {
+        match reached {
+            Ok(entry) => names.push(entry),
+            Err(error) => {
+                stopped_by = Some(error);
+                break;
+            }
+        }
+    }
+    names.sort_by(oldest_first);
+    return WhatTheWalkReached { names, stopped_by };
 }
 
 /// What:
 ///  The names in a state directory with their modification times, oldest first,
-///  and nothing when the directory cannot be listed.
+///  and the error that stopped the walk when it did not reach the end.
 /// Why:
-///  The callers that read a queue to work on it have nothing to do with a directory they cannot list,
-/// and each of them says nothing about it;
-/// a caller that *says* where a record is must take the error itself
-///  (`entries_oldest_first_or_the_error`).
+///  The count of listings a control reads is made here, where the reading is,
+/// so the faces of a listing count once per pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theNamesIn(workDir, state) // { names, stoppedBy }
+/// ```
+pub(crate) fn the_names_in(work_dir: &Path, state: &str) -> WhatTheWalkReached {
+    #[cfg(test)]
+    count_listing();
+    let listed = match std::fs::read_dir(state_directory(work_dir, state)) {
+        Ok(listed) => listed,
+        Err(error) => return WhatTheWalkReached { names: Vec::new(), stopped_by: Some(error) },
+    };
+    let mut entries = listed.map(one_entry);
+    return names_reached(&mut entries);
+}
+
+/// What:
+///  The names in a state directory with their modification times, oldest first.
+/// Why:
+///  The callers that read a queue to work on it have nothing to say about a directory they cannot read,
+/// so a walk that did not reach the end gives them no names today;
+/// a caller that *says* where a record is takes `the_names_in` itself.
 pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
-    return entries_oldest_first_or_the_error(work_dir, state).unwrap_or_default();
+    return the_names_the_work_takes(the_names_in(work_dir, state));
+}
+
+/// What:
+///  The names a caller that only works with the queue takes from a walk.
+/// Why:
+///   One body decides what such a caller sees,
+/// so a control can hand in a walk that stopped part-way and read exactly what the callers would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theNamesTheWorkTakes(reached) // string[]
+/// ```
+fn the_names_the_work_takes(reached: WhatTheWalkReached) -> Vec<(String, SystemTime)> {
+    if !reached.reached_the_end() {
+        return Vec::new();
+    }
+    return reached.names;
 }
 
 #[cfg(test)]
@@ -235,3 +309,8 @@ fn count_listing() {
 pub(crate) fn take_listings() -> usize {
     return LISTINGS.with(std::cell::Cell::take);
 }
+
+/// Controls for the names one walk reaches stay out of the release executable.
+#[cfg(test)]
+#[path = "work_item_state_directories_and_claim_names_tests.rs"]
+mod tests;

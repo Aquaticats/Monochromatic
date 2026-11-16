@@ -36,9 +36,25 @@
 //! ```
 
 use crate::work_item::{
-    CLAIMED, DONE, FAILED, PENDING, RECOVERING, entries_oldest_first_or_the_error, id_of_entry, names_claim, state_directory,
+    CLAIMED, DONE, FAILED, PENDING, RECOVERING, WhatTheWalkReached, id_of_entry, names_claim, state_directory, the_names_in,
 };
 use std::path::{Path, PathBuf};
+
+/// What:
+///  The walk one look makes over a state directory,
+///  given as a value so a control can hand in its own.
+/// Why:
+///   A look is a sequence of walks,
+/// and the states a record moves through are read in an order;
+/// a control that makes a walk stop part-way,
+/// or that lets a move finish between two of the walks,
+/// reads the words the shipped walks would never let it see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AWalkOf = (workDir: string, state: string) => WhatTheWalkReached
+/// ```
+pub(crate) type AWalkOf<'a> = &'a dyn Fn(&Path, &str) -> WhatTheWalkReached;
 
 /// What:
 ///  The sentence that follows a failed move of `id`'s claim:
@@ -60,7 +76,27 @@ use std::path::{Path, PathBuf};
 /// for (const name of namesIn(workDir, 'claimed')) if (sameId(name)) return sameClaim(name, token) ? "still in claimed" : "claimed it again"
 /// ```
 pub(crate) fn words_for_a_move_that_found_nothing(work_dir: &Path, id: &str, token: &str) -> String {
-    return match where_the_record_is(work_dir, id, token) {
+    return words_from(work_dir, id, token, &the_names_in);
+}
+
+/// What:
+///  The same words, read through the walk a control hands in.
+/// Why:
+///   The states of a record are read in an order and each walk can stop part-way;
+/// a control that arranges either reads the sentence here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordsFromTheWalk(workDir, id, token, walk)
+/// ```
+#[cfg(test)]
+pub(crate) fn words_from_the_walk(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>) -> String {
+    return words_from(work_dir, id, token, walk);
+}
+
+/// The body of the words, over the walk `walk`.
+fn words_from(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>) -> String {
+    return match where_the_record_is(work_dir, id, token, walk) {
         Ok(words) => words,
         // A place that could not be read is its own answer, and it is the whole sentence.
         Err(could_not_be_found_out) => could_not_be_found_out,
@@ -154,7 +190,7 @@ fn is_a_record(path: &Path) -> std::io::Result<bool> {
 /// ```ts
 /// function whereTheRecordIs(workDir, id, token): Result<string, string>
 /// ```
-fn where_the_record_is(work_dir: &Path, id: &str, token: &str) -> Result<String, String> {
+fn where_the_record_is(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>) -> Result<String, String> {
     // A work directory that is not there answers every other look with nothing, so it is asked first.
     match is_a_directory(work_dir) {
         Ok(true) => {}
@@ -179,8 +215,11 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str) -> Result<String,
     }
     // The claim's own directory: the file the move was for, or another instance's claim of the same record.
     let mut another: Option<String> = None;
-    let claims = entries_oldest_first_or_the_error(work_dir, CLAIMED).map_err(|error| { return the_claim_directory_could_not_be_read(claimed.as_path(), id, &error); })?;
-    for (name, _modified) in claims {
+    let claims = walk(work_dir, CLAIMED);
+    if let Some(error) = claims.stopped_by.as_ref() {
+        return Err(the_claim_directory_could_not_be_read(claimed.as_path(), id, error));
+    }
+    for (name, _modified) in claims.names {
         if id_of_entry(name.as_str()) != id {
             continue;
         }
@@ -201,9 +240,11 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str) -> Result<String,
     let recovering: PathBuf = state_directory(work_dir, RECOVERING);
     match is_a_directory(recovering.as_path()) {
         Ok(true) => {
-            let taking = entries_oldest_first_or_the_error(work_dir, RECOVERING)
-                .map_err(|error| { return a_directory_that_could_not_be_read(recovering.as_path(), id, &error); })?;
-            for (name, _modified) in taking {
+            let taking = walk(work_dir, RECOVERING);
+            if let Some(error) = taking.stopped_by.as_ref() {
+                return Err(a_directory_that_could_not_be_read(recovering.as_path(), id, error));
+            }
+            for (name, _modified) in taking.names {
                 if id_of_entry(name.as_str()) != id {
                     continue;
                 }
