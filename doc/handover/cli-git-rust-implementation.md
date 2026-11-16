@@ -1681,6 +1681,11 @@ Not final and not approved; written by the coordinating session. Reviews are by 
   Its report notices, by reading and without a run, three things in `worktree/worktree_process_inside.rs` on `main`:
   a process table that cannot be listed answers "nothing works there", so the removal goes on with no proof; paths are compared as text, so a worktree reached through a link or a bind mount reads as elsewhere; a file mapped and then closed is not seen.
   The first is outside the gap the owner accepted. A fresh run is queued at 21:39:47 (fourteenth in the queue) to produce each, fix the first, and argue from the records whether the other two are defects or limits.
+- **Landed removal** (`09fd2138d7`, whole range, 22 of 22 files, against a binary built from that commit): one thing reproduced, and it loses a commit.
+  A reflog lock file (`.git/logs/HEAD.lock`, as a killed Git can leave one) is read as a surviving reflog, so the removal of a detached worktree that alone names a commit is allowed;
+  after `git gc --prune=now` the commit object is gone (`worktree/worktree_removal_keeps_git_work.rs`, lines 682 to 698 and 904 to 925).
+  That file is absent from `main` (`git show main:<path>` answers that the path does not exist), so this is on the unmerged branch only.
+  Author's eighteenth run queued at 21:45:59, tenth in the queue: a generated control over every file under `logs` and `refs` that is not a name, and the same question put to its other proofs.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
