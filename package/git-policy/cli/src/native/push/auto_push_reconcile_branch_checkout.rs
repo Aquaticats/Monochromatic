@@ -317,9 +317,9 @@ async fn bring_the_paths_forward_awaiting(
     to: &str,
     paths: &[Vec<u8>],
 ) -> Result<Vec<String>, SingleFlightError> {
-    // What: only the paths where `from` really has an entry and this checkout holds it, in its index or in its file.
-    // Why:  an absent path is not an entry, so a file the merge added and a person then deleted is not the move's
-    // debris and is never brought back  (a review of this commit, its findings 2 and 3).
+    // What: only the paths this checkout holds an end of the move on, and not one a person changed after it.
+    // Why:  a file the merge added that the person deleted or untracked, or one they edited, is theirs
+    //  (a review of commit `4a2425a378`, its findings 2 and 3).
     let wrote: Vec<Vec<u8>> = crate::auto_push_reconcile_branch_checkout_files::the_paths_the_move_wrote_awaiting(git, from, paths).await?;
     let mut in_the_index: Vec<Vec<u8>> = Vec::new();
     let mut in_the_file_only: Vec<Vec<u8>> = Vec::new();

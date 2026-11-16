@@ -863,7 +863,10 @@ fn a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling() {
         Ok(_) => String::from("the merge was made"),
     };
     assert!(said.contains("was still running at its 2-second ceiling"), "the ceiling that stopped it is named: {said}");
-    assert!(said.contains("Nothing was changed"), "the words say what was not touched: {said}");
+    // The ceiling bounds every query now, so its words say what a read-only query left alone and that a stopped
+    // write is reported as a refused write (a review of commit `4a2425a378`, its finding 7).
+    assert!(said.contains("A read-only query changed nothing"), "the words say what was not touched: {said}");
+    assert!(said.contains("the move's own record is kept"), "and what a stopped write leaves: {said}");
     assert!(waited < std::time::Duration::from_secs(60), "the wait ends at the ceiling and its grace, not never: {waited:?}");
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
     assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), island, "the commit is kept and nothing was committed");
@@ -4114,14 +4117,15 @@ fn a_checkout_a_reset_left_holding_the_old_files_is_brought_to_the_branch() {
     let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
     let mut stderr: Vec<u8> = Vec::new();
     finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
-    assert_eq!(
-        std::fs::read_to_string(taker.join("remote.txt")).expect("remote.txt"),
-        "remote side\n",
-        "the merge's file is written: {}",
-        String::from_utf8_lossy(&stderr)
-    );
-    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "?? local.txt", "and only the person's untracked file is left");
-    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is finished and gone");
+    // What: a file the merge added, absent while the index holds it, is indistinguishable from a deletion the person
+    // made; the repair leaves it and says so.
+    // Why:  the wrapper's record has no claim on what a person did after the move
+    //  (a review of commit `4a2425a378`, its findings 2 and 3).
+    assert!(!taker.join("remote.txt").exists(), "the merge's file is left as the checkout has it: {}", String::from_utf8_lossy(&stderr));
+    let said: String = String::from_utf8_lossy(&stderr).into_owned();
+    assert!(said.contains("remote.txt"), "and the answer names it: {said}");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "D remote.txt\n?? local.txt", "the deletion is still the checkout's");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is told and gone");
     let committed = crate::testing::test_support::git_output(&taker, &["commit", "--quiet", "--all", "--message=commit after the repair"]);
     assert!(!committed.status.success(), "there is nothing left to commit over the merge");
     assert_eq!(text_of(&taker, &["ls-tree", "--name-only", "HEAD", "--", "remote.txt"]), "remote.txt", "so the merge's file stands");
@@ -4203,11 +4207,7 @@ fn a_persons_edit_beside_a_leftover_is_kept_and_named() {
         "the person's own words\n",
         "the person's bytes are untouched"
     );
-    assert_eq!(
-        std::fs::read_to_string(taker.join("added.txt")).expect("added.txt"),
-        "added side\n",
-        "and the move's own leftover is brought to the branch"
-    );
+    assert!(!taker.join("added.txt").exists(), "and the file the merge adds, which this checkout does not have, is left: {}", String::from_utf8_lossy(&stderr));
     let said: String = String::from_utf8_lossy(&stderr).into_owned();
     assert!(said.contains("a.txt there hold a change of your own"), "the answer names the person's path: {said}");
     // The read trims, so the first column's space is not in the answer.
@@ -4238,7 +4238,6 @@ fn a_checkout_that_took_the_branch_before_the_write_and_was_killed_is_finished_b
         let made = git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old_tip.as_str()]);
         assert!(made.status.success(), "the racing worktree is made");
         let _named = git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
-        let _reset = git(&stale, &["reset", "--quiet"]);
         panic!("stand in for a kill before the look after the write");
     });
     let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

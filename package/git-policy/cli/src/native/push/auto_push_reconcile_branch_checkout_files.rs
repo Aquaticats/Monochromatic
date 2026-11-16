@@ -162,21 +162,22 @@ pub(crate) async fn the_paths_the_move_wrote_awaiting(
     tree: &str,
     paths: &[Vec<u8>],
 ) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let arguments: Vec<OsString> = naming(paths, argv(&["ls-tree", "--name-only", "-z", tree, "--"]));
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: format!("ls-tree --name-only -z {tree}"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    let present: Vec<Vec<u8>> = diff_paths(&listed.stdout);
+    // What: a path an end of the move really wrote: the index holds that end's entry exactly, or the file is there
+    // and holds its bytes.
+    // Why:  an absent file is not an entry: a file the merge added and a person then deleted, or untracked with
+    // `git rm --cached`, holds nothing the move wrote, while a file still holding the moved-from bytes is the
+    // move's own leftover and is brought forward
+    //  (a review of commit `4a2425a378`, its findings 2 and 3; commit `cae78e1d7e`, its finding 3).
     let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, tree, paths).await?;
     let in_the_file: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, tree, paths).await?;
     let mut wrote: Vec<Vec<u8>> = Vec::new();
     for path in paths {
-        if present.contains(path) && (in_the_index.contains(path) || in_the_file.contains(path)) {
+        if in_the_index.contains(path) {
+            wrote.push(path.clone());
+            continue;
+        }
+        let present: bool = std::fs::symlink_metadata(git.cwd.join(crate::path_bytes::os_from_path_bytes(path.as_slice()))).is_ok();
+        if present && in_the_file.contains(path) {
             wrote.push(path.clone());
         }
     }
