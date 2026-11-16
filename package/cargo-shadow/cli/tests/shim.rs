@@ -513,6 +513,90 @@ fn ended(end: ChainEnd) -> Output {
     };
 }
 
+//region the helper of this file
+// What the region covers: the two waits the tests above are built on, each with the window its contract has to survive.
+
+/// How long the helper may take to hand back the output of a command that ended at once while one of its descendants kept a pipe.
+/// Why:
+/// The number is a hundred times the work of collecting a few kilobytes, so reaching it means the wait was not bounded at all, and
+/// it is a tenth of the bound the test itself gives the helper, so an unbounded wait cannot read as a slow machine.
+const INHERITED_PIPE_BOUND: Duration = Duration::from_millis(100);
+
+/// A command whose descendant keeps the inherited pipes open long after the command itself ended.
+/// Why:
+/// A reader thread waits for the end of its pipe, not for the end of the command, so this is the window in which a wait for the
+/// output can outlive the run it belongs to.
+#[test]
+fn a_run_whose_child_leaves_a_writer_holding_a_pipe_ends_at_its_bound_and_not_when_that_writer_ends() {
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "sleep 2 & exit 0"]);
+    let started: Instant = Instant::now();
+
+    let output: Output = output_within(&mut command, INHERITED_PIPE_BOUND).expect("the direct shell ends at once");
+
+    let elapsed: Duration = started.elapsed();
+    assert!(output.status.success(), "the direct shell did not end well: {:?}", output.status);
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "the helper handed the output back after {elapsed:?} for a command that ended at once: a writer the command left behind held its pipes, and the helper's bound ended neither the wait nor that writer"
+    );
+}
+
+/// How many times the nested-entry window is tried before the control gives up on making it.
+/// Why:
+/// The entry and the end of a stopped inner shadow can fall in the same poll of the helper, and which of the two a poll sees first is
+/// the window; sixteen tries make the window appear every time it was measured, and the control fails only if none of them shows it.
+const NESTED_ENTRY_ATTEMPTS: usize = 16;
+
+/// A command that enters the launcher at a depth of its own and stops at once, as a second start that leads back does.
+/// Why:
+/// The entry is in the trace before the command exits, so a verdict taken from the poll that saw the exit can report an end and lose
+/// the entry: that is the false pass the `add` control had, where an inner stopped shadow satisfies every remaining assertion.
+#[test]
+fn a_chain_that_entered_the_launcher_again_is_reported_as_nested_even_when_it_ends_at_once() {
+    std::fs::create_dir_all(SCRATCH_ROOT).expect("make the scratch root");
+    let guard: tempfile::TempDir = tempfile::tempdir_in(SCRATCH_ROOT).expect("make a scratch directory");
+    let trace: PathBuf = guard.path().join("count");
+    let mut seen: usize = 0;
+    for _attempt in 0..NESTED_ENTRY_ATTEMPTS {
+        std::fs::remove_file(&trace).ok();
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf 'run 2 spawn\n' >> \"$1\"; printf 'because cargo-shadow was started by cargo-shadow\n' >&2; exit 2", "sh"]);
+        command.arg(&trace);
+
+        match chain_end_within(&mut command, &trace, INHERITED_PIPE_BOUND) {
+            ChainEnd::Nested(_nested) => seen += 1,
+            ChainEnd::Ended(output) => panic!(
+                "the helper reported an end for a chain that entered the launcher at depth two and exited with {:?}: the entry was in the trace and the verdict was taken before the whole trace was read",
+                output.status.code()
+            ),
+            ChainEnd::Hung => panic!("a command that exits at once reached the helper's bound"),
+        }
+    }
+    assert_eq!(seen, NESTED_ENTRY_ATTEMPTS, "the nested entry was reported {seen} times of {NESTED_ENTRY_ATTEMPTS}");
+}
+
+/// The fewest cargo calls a resolving run makes one after another.
+/// Why:
+/// The install step updates (and checks) the lockfile, and then the user's own command runs: two calls at the very least, each of
+/// which the program may allow `CARGO_CALL_SECONDS`.
+const LEAST_SEQUENTIAL_CALLS: u64 = 2;
+
+/// The bound of a whole run covers the cargo calls that run makes one after another.
+/// Why:
+/// The program bounds each cargo call, not the run: a whole-run bound of one call ends a healthy run whose every call met its own
+/// allowance, which is the defect this test guards. It reads the two numbers rather than running two slow cargo calls, so it costs
+/// nothing and cannot itself be slow.
+#[test]
+fn the_bound_of_a_whole_run_covers_the_cargo_calls_it_makes_in_sequence() {
+    assert!(
+        RUN_BOUND >= Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS * LEAST_SEQUENTIAL_CALLS),
+        "the whole run is given {RUN_BOUND:?} where one cargo call alone may take {:?} and a resolving run makes at least {LEAST_SEQUENTIAL_CALLS} calls in sequence",
+        Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS)
+    );
+}
+//endregion
+
 #[test]
 fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied() {
     let world = make_world();
