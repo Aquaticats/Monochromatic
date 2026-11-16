@@ -2783,10 +2783,17 @@ The rule is:
   The wrapper reads the prefix that way, so a file at the name Git writes is guarded.
   A revision keeps its own bytes wherever the wrapper hands it to Git,
   so a branch whose name is not UTF-8 is read as the branch it is and not as another one.
-  A change of mode is your data like a change of bytes: a file whose executable bit differs from the
+  A change of mode is your data like a change of bytes: a file whose owner-execute bit differs from the
   index's is an edit even when an `assume-unchanged` or `skip-worktree` mark keeps it out of
   `git status`,
+  and so is a link you replaced with a regular file, whatever that file's bytes are,
   unless the repository records no file mode (`core.fileMode=false`), where Git keeps your bits.
+  A revision is resolved the way the command resolves it, so `git checkout -f A...B` is the merge base
+  Git writes and a name that is both a tag and a branch means the branch to `checkout`.
+  `git read-tree --prefix=<dir>` names a directory with or without the trailing slash,
+  while `git checkout-index --prefix=<text>` glues the text as written,
+  and a `checkout` carrying `--ignore-skip-worktree-bits` asks the marked edits even when its one word is
+  a path rather than a branch.
   A subtree a form names is read with Git's own pathspec engine, so a pattern reaches what your command
   reaches,
   and the reads the wrapper makes of its own say how their pathspecs are read, so a global

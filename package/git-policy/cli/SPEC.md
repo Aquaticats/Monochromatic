@@ -19442,7 +19442,10 @@ and a form that answers the question itself keeps the mark out of it:
 `--ignore-skip-worktree-bits` is the other way round: it tells Git to write the entries the marks
 hide,
 so the edit is one the form replaces and the guard refuses it,
-whether the option is the reason (a whole-tree or index write carrying it) or the written paths are
+whether the option is the reason (a whole-tree or index write carrying it) or the written paths are,
+and a `checkout` whose single word is a path is one of those forms even though its words look like a
+branch move (`git checkout --ignore-skip-worktree-bits <path>` writes the index's copy over the marked
+edit, the eleventh review's fifth finding)
 (`git checkout-index -f --ignore-skip-worktree-bits -a`,
 `git checkout --ignore-skip-worktree-bits -- a.txt` and
 `git restore --ignore-skip-worktree-bits -- a.txt` each replaced `PRECIOUS EDIT`,
@@ -19468,7 +19471,11 @@ The executable bit is compared as well:
 a file holding the branch's bytes and the person's bit compared equal to a reading that looked at the
 content object alone, and `git restore --source=HEAD` and `git reset --hard` then removed the bit
 (the tenth review's third finding, measured on this host with native Git 2.56.0, 2026-11-16).
-The index's mode travels with the entry, and a bit that differs is an edit.
+The index's kind and mode travel with the entry, and either difference is an edit:
+Git records an executable file by the owner's bit alone, so `chmod 0655` on a `0755` file is a change
+even though its group and other bits stay set (the eleventh review's fourth finding),
+and a link replaced by a regular file is a change of type whatever the file's bytes hash to, which is why
+a file holding the link's own text is still an edit (its sixth finding).
 A repository that records no file mode keeps the worktree's own bits,
 so the question is asked only where a bit differs and only of a repository that reads them:
 with `core.fileMode=false` the bit survived both forms in the same measurement,
@@ -19522,6 +19529,29 @@ because `ls-tree` matches a pathspec literally and refuses its magic:
 `pathspec magic not supported by this command`
 (measured on this host with native Git 2.56.0, 2026-11-16).
 Both readings print the worktree root's own names, so no directory prefix is written before an answer.
+A revision is resolved by Git, and the tree it names is handed to every query as an object id.
+The eleventh review's first two findings, measured on this host with native Git 2.56.0 on 2026-11-16:
+`git checkout -f work...other` writes the merge base's tree while every single-object query refuses that
+spelling (`ls-tree`, `cat-file -t` and `rev-parse --verify` all answer "not a valid object name"),
+and a name that is at once a tag and a branch is the branch's tip to `checkout`, `switch` and
+`restore --source` while `ls-tree` and `rev-parse` take the tag.
+So the word goes to `rev-parse --verify --quiet --end-of-options <word>^{tree}`,
+with `refs/heads/<word>` asked first for the forms that prefer their local branch,
+and the answer is an object id that no spelling and no ambiguity can move:
+the listing (`ls-tree -r --full-tree`) and the `--with-tree` query are given that id.
+A word Git reads as more than one object (a range, a set, an object that is no tree) is refused with the
+opt-out, because the guard cannot name one tree for it.
+`reset` and `read-tree` resolve the general way, as their own commands do.
+The axis `every_documented_revision_spelling_is_read_as_git_reads_it` runs the fourteen spellings
+`gitrevisions(7)` documents against the four guarded forms that take a revision.
+What that costs, measured on this host, 2026-11-16, seven interleaved rounds of the wrapper built before
+the change and after it on one 20,000-file worktree:
+`checkout -f <branch>` 78 to 82 ms (ratio 1.05, 4 ms against the arm's own 17 ms spread),
+`switch -f --detach <branch>` 73 to 78 ms (1.07, 5 against 18),
+`reset --hard HEAD` 255 to 269 ms (1.06, 15 against 18), which needs no resolution at all, and
+`restore --source=<branch> -- <path>` 42 to 66 ms (1.59, 25 against 9),
+the only row whose difference stands outside the spread: two Git starts, the branch question and the tree
+question, on a form whose own work is small enough for them to show.
 The revision handed to `--with-tree` keeps its own bytes,
 because Git resolves the name it is given and a lossy conversion is another name:
 `topic` followed by raw `0xff` became `topic` followed by U+FFFD in that argument,
@@ -19904,6 +19934,10 @@ directory above the worktree, and let Git write over the files it had not looked
 So the part of the prefix before its last name is resolved the way the kernel reads it,
 the last name is kept as text,
 and a prefix that ends with a separator names a folder whose whole resolution is the way.
+`read-tree` is the other way round: its `--prefix` names a directory whether or not the person ended it
+with a separator, so `git read-tree --prefix=ignored-dir -u other` writes `ignored-dir/a.txt` exactly as
+`--prefix=ignored-dir/` does, and the reading adds the separator when the text has none
+(the eleventh review's third finding, measured on this host with native Git 2.56.0, 2026-11-16).
 `mv`'s sources and destination are read from the filesystem there,
 and a source's trailing separators are dropped before the lookup because Git reads `a.txt/` as
 `a.txt` and renames it;
