@@ -199,9 +199,11 @@ pub fn decode(text: &str) -> Option<ClaimRecord> {
     }
     let birth: String = lines.next()?.strip_prefix("birth=")?.to_string();
     let namespace: String = lines.next()?.strip_prefix("namespace=")?.to_string();
-    if birth.is_empty() {
-        return None;
-    }
+    // An empty birth field is a claim this program wrote whose birth cannot be read: the line is there and holds
+    //  nothing. Refusing the record here would answer for the file before the process table is asked, and a number no
+    //  process has is the owner's own end whatever its birth says, so the claimant would never take over a dead
+    //  owner's item and a person would have to remove the file by hand (finding D of the third review, and the same
+    //  order the held push's reader uses).
     return Some(ClaimRecord::Owned { pid, birth, namespace: if namespace == "-" { None } else { Some(namespace) } });
 }
 

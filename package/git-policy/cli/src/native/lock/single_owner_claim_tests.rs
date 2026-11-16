@@ -287,9 +287,15 @@ fn the_text_of_a_claim_round_trips() {
     ] {
         assert_eq!(decode(encode(&record).as_str()), Some(record));
     }
-    for text in ["", "monochromatic-git-policy-cli owner-claim v2\nreleased\n", "monochromatic-git-policy-cli owner-claim v1\npid=0\nbirth=x\nnamespace=-\n", "monochromatic-git-policy-cli owner-claim v1\npid=1\nbirth=\nnamespace=-\n"] {
+    for text in ["", "monochromatic-git-policy-cli owner-claim v2\nreleased\n", "monochromatic-git-policy-cli owner-claim v1\npid=0\nbirth=x\nnamespace=-\n"] {
         assert_eq!(decode(text), None, "{text:?}");
     }
+    // A claim whose birth field holds nothing is a claim this program wrote whose birth cannot be read: the number
+    //  decides, so it decodes and its holder is asked about rather than answered for by the file.
+    assert_eq!(
+        decode("monochromatic-git-policy-cli owner-claim v1\npid=1\nbirth=\nnamespace=-\n"),
+        Some(ClaimRecord::Owned { pid: 1, birth: String::new(), namespace: None })
+    );
 }
 
 /// A claimant whose listing went stale,
@@ -415,6 +421,9 @@ fn a_claim_on_a_flushing_thread_flushes_its_record_and_its_directory() {
 /// and an error for a question it cannot answer),
 /// so the table can state all three states of the world,
 /// unlike the held push's two-valued reader (`landing/held_push_holder_and_verdict_tests.rs`).
+/// Every unknown row of this table is a birth the reader cannot compare with the process that has the number:
+/// a claim whose birth field holds nothing is a claim this program wrote,
+/// so the number decides it (finding D of the third review).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Required {
     /// Nothing of the owner runs:
@@ -425,26 +434,8 @@ enum Required {
     Alive,
     /// The reader cannot tell:
     /// the claimant stops without taking anything,
-    /// and the words say what it could not read.
-    Unknown(UnknownNames),
-}
-
-/// What the words of a refusal must name,
-/// for the rows whose answer is unknown.
-/// Why:
-///   There are two ways this caller cannot tell,
-/// and both keep the item:
-/// a birth it cannot compare with the process that has the number,
-/// and a file whose birth field is empty,
-/// which is no claim of this program at all,
-/// so that question never reaches a birth.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum UnknownNames {
-    /// The birth the reader could not compare.
-    TheBirth,
-    /// The file,
-    /// whose empty birth field makes it no claim this command wrote.
-    TheFile,
+    /// and the words say which birth it could not read.
+    Unknown,
 }
 
 /// The birth `birth` with a leading zero on its start tick,
@@ -469,21 +460,6 @@ fn birth_with_padding_before_the_colon(birth: &str) -> String {
         panic!("the birth {birth} carries no tag this control can pad");
     };
     return format!("{tag} :{tick}");
-}
-
-/// Whether the refusal of a row says what the reader could not read.
-/// Why:
-///   The two ways this caller cannot tell are told apart by their words,
-/// so the control asks each row for the words that belong to it:
-/// a refusal for another reason does not pass as this row's answer.
-fn names_the_unreadable(names: UnknownNames, birth: &str, directory: &Path, refusal: &MigrateError) -> bool {
-    let said: String = format!("{refusal:?}");
-    return match names {
-        UnknownNames::TheBirth => said.contains(birth),
-        // An empty birth is no text a sentence can quote, and the record is then no claim of this program at all, so this
-        //  row asks that the words name the file.
-        UnknownNames::TheFile => said.contains(directory.display().to_string().as_str()),
-    };
 }
 
 /// Refused:
@@ -526,20 +502,20 @@ fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
         ("a free number and the birth in another spelling", free, live_birth_respelled.as_str(), Required::Gone),
         ("a free number and padding before the birth's colon", free, live_birth_padded.as_str(), Required::Gone),
         ("a free number and a blank birth", free, blank, Required::Gone),
-        ("a free number and an empty birth", free, empty, Required::Unknown(UnknownNames::TheFile)),
+        ("a free number and an empty birth", free, empty, Required::Gone),
         ("a free number and a birth that names no tick", free, unparseable.as_str(), Required::Gone),
         ("the writer's own number and the birth as the writer writes it", own, live_birth.as_str(), Required::Alive),
-        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown(UnknownNames::TheBirth)),
-        ("the writer's own number and padding before the birth's colon", own, live_birth_padded.as_str(), Required::Unknown(UnknownNames::TheBirth)),
-        ("the writer's own number and a blank birth", own, blank, Required::Unknown(UnknownNames::TheBirth)),
-        ("the writer's own number and an empty birth", own, empty, Required::Unknown(UnknownNames::TheFile)),
-        ("the writer's own number and a birth that names no tick", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("the writer's own number and the birth in another spelling", own, live_birth_respelled.as_str(), Required::Unknown),
+        ("the writer's own number and padding before the birth's colon", own, live_birth_padded.as_str(), Required::Unknown),
+        ("the writer's own number and a blank birth", own, blank, Required::Unknown),
+        ("the writer's own number and an empty birth", own, empty, Required::Unknown),
+        ("the writer's own number and a birth that names no tick", own, unparseable.as_str(), Required::Unknown),
         ("a later process's number and an earlier birth as the writer writes it", own, earlier_birth.as_str(), Required::Gone),
-        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Unknown(UnknownNames::TheBirth)),
-        ("a later process's number and padding before that birth's colon", own, earlier_birth_padded.as_str(), Required::Unknown(UnknownNames::TheBirth)),
-        ("a later process's number and a blank birth", own, blank, Required::Unknown(UnknownNames::TheBirth)),
-        ("a later process's number and an empty birth", own, empty, Required::Unknown(UnknownNames::TheFile)),
-        ("a later process's number and a birth that names no tick", own, unparseable.as_str(), Required::Unknown(UnknownNames::TheBirth)),
+        ("a later process's number and that earlier birth in another spelling", own, earlier_birth_respelled.as_str(), Required::Unknown),
+        ("a later process's number and padding before that birth's colon", own, earlier_birth_padded.as_str(), Required::Unknown),
+        ("a later process's number and a blank birth", own, blank, Required::Unknown),
+        ("a later process's number and an empty birth", own, empty, Required::Unknown),
+        ("a later process's number and a birth that names no tick", own, unparseable.as_str(), Required::Unknown),
     ];
     // Every row is asked in a fixture of its own, and every wrong answer is kept, so one run of this table names each
     //  pairing that broke a rule.
@@ -552,7 +528,7 @@ fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
         remove(directory.as_path());
         let expected_generations: Vec<u64> = match required {
             Required::Gone => vec![FIRST + 1],
-            Required::Alive | Required::Unknown(_) => vec![FIRST],
+            Required::Alive | Required::Unknown => vec![FIRST],
         };
         match (outcome, required) {
             (Ok(ClaimOutcome::Held(_claim)), Required::Gone) => {}
@@ -568,9 +544,11 @@ fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
             }
             // The words name the thing the reader could not read, and a refusal that named nothing this row planted would
             //  pass for the wrong reason: an empty birth is no text a refusal could quote, so that row asks for the file.
-            (Err(refusal), Required::Unknown(names)) if names_the_unreadable(names, birth, directory.as_path(), &refusal) => {}
-            (Err(refusal), Required::Unknown(_names)) => {
-                wrong.push(format!("{what}: the refusal does not name what the reader could not read: {refusal:?}"));
+            // The words name the birth the reader could not read. An empty birth is no text a sentence can quote, so
+            //  that row asks only that the words name the record, which they already do, and that nothing was taken.
+            (Err(refusal), Required::Unknown) if birth.is_empty() || refusal.to_string().contains(birth) => {}
+            (Err(refusal), Required::Unknown) => {
+                wrong.push(format!("{what}: the refusal does not name the birth it could not read: {refusal}"));
             }
             (Err(_refusal), _) => {
                 wrong.push(format!("{what}: the claimant refused, and the rule requires {required:?}"));
@@ -631,6 +609,60 @@ fn a_claim_that_cannot_be_told_names_its_record_owner_age_and_removal() {
     }
     if generations_after != vec![FIRST] {
         wrong.push(format!("the item holds generations {generations_after:?} afterwards, and [1] is what this claim leaves"));
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Refused:
+///  a claim whose birth field holds nothing is a claim this program wrote whose birth cannot be read,
+///  so a dead owner's item is taken over and a live owner's is kept.
+/// Why:
+///  Finding D of the third review: the record was refused as "not a claim file this command wrote" before the
+/// process table was asked, so a killed owner's item was never taken over and a person had to remove the file.
+/// The number is the proof that stands apart from the birth:
+/// a number no process has ends the owner whatever the birth field holds,
+/// and a number that names a process leaves the birth to say that nothing can be compared,
+/// which keeps the item and names the record.
+///  Both arms are here, because a fix that only took the item over would take a live owner's.
+#[test]
+fn a_claim_whose_birth_field_is_empty_is_judged_by_its_number() {
+    let mut wrong: Vec<String> = Vec::new();
+    // The dead arm: the number of a process that never runs, and no birth to compare.
+    let dead_directory: PathBuf = fixture("claim-empty-birth-dead");
+    plant_claim_for_tests(dead_directory.as_path(), prefix(), FIRST, unused_pid_for_tests(), "");
+    let dead_outcome: Result<ClaimOutcome, MigrateError> = take_claim(dead_directory.as_path(), prefix());
+    let dead_generations: Vec<u64> = present(dead_directory.as_path());
+    remove(dead_directory.as_path());
+    match dead_outcome {
+        Ok(ClaimOutcome::Held(_claim)) => {
+            if dead_generations != vec![FIRST + 1] {
+                wrong.push(format!("a dead owner's empty-birth claim was taken, and the item holds {dead_generations:?}"));
+            }
+        }
+        Ok(ClaimOutcome::Busy(owner)) => wrong.push(format!("a dead owner's empty-birth claim answered with the owner {owner:?}")),
+        Err(refusal) => wrong.push(format!("a dead owner's empty-birth claim was refused: {refusal}")),
+    }
+    // The live arm: this process's number, and no birth to compare, so nothing is taken and the record is named.
+    let live_directory: PathBuf = fixture("claim-empty-birth-live");
+    plant_claim_for_tests(live_directory.as_path(), prefix(), FIRST, i64::from(std::process::id()), "");
+    let live_outcome: Result<ClaimOutcome, MigrateError> = take_claim(live_directory.as_path(), prefix());
+    let live_generations: Vec<u64> = present(live_directory.as_path());
+    let record: PathBuf = path_of(live_directory.as_path(), prefix(), FIRST);
+    remove(live_directory.as_path());
+    match live_outcome {
+        Ok(ClaimOutcome::Held(_claim)) => wrong.push(String::from("a live owner's empty-birth claim was taken over")),
+        Ok(ClaimOutcome::Busy(_owner)) => wrong.push(String::from("a live owner's empty-birth claim answered with a live owner, and the birth cannot be compared")),
+        Err(refusal) => {
+            let said: String = refusal.to_string();
+            for (what, required) in [("the record's path", record.display().to_string()), ("the exact removal", format!("rm -- {}", crate::stale_ref_lock_message::shell_quote(record.as_path())))] {
+                if !said.contains(required.as_str()) {
+                    wrong.push(format!("the refusal does not name {what}: {said}"));
+                }
+            }
+            if live_generations != vec![FIRST] {
+                wrong.push(format!("a live owner's empty-birth claim left the item holding {live_generations:?}"));
+            }
+        }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
