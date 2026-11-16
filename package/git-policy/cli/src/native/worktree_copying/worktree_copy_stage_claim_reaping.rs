@@ -29,7 +29,7 @@ use crate::worktree_copy_recovery::RecoveryDestinations;
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
-use crate::worktree_copy_owner::token_owner_is_dead;
+use crate::worktree_copy_owner::{OwnerStanding, token_owner_standing};
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
 use crate::worktree_copy_stage_claim_owed_copy_elsewhere::copy_owed_to_another_worktree;
@@ -256,12 +256,15 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
 
 /// Which owners were found dead,
 /// decided before anything is removed.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct StageVerdicts {
     /// The names of the claims whose owner is dead.
     dead_claims: BTreeSet<String>,
     /// The names of the temporaries whose writer is dead.
     dead_temporaries: BTreeSet<String>,
+    /// The words naming every claim or temporary whose holder can be shown neither alive nor gone,
+    ///  which the command prints before it goes on.
+    cannot_be_told: Vec<String>,
 }
 
 impl StageVerdicts {
@@ -309,6 +312,21 @@ impl StageVerdicts {
     /// ```
     pub(crate) fn dead_temporary_names(&self) -> &BTreeSet<String> {
         return &self.dead_temporaries;
+    }
+
+    /// What:
+    ///  The words naming every claim or temporary whose holder can be shown neither alive nor gone, past the patience.
+    /// Why:
+    ///   Such a holder may be a command that runs, so nothing it holds is taken; the person is told, which is the
+    ///  owner's decision of 2026-11-16 ("A: stays, command says how (Recommended)"), and the command goes on because
+    ///  the record is another command's and this one takes nothing from it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// verdicts.cannotBeTold() // the lines the command's standard error carries
+    /// ```
+    pub fn cannot_be_told(&self) -> &[String] {
+        return self.cannot_be_told.as_slice();
     }
 }
 
@@ -375,8 +393,17 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
             continue;
         };
         // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
-        if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
-            verdicts.dead_claims.insert(name);
+        match token_owner_standing(owner.as_deref(), claim.as_path())? {
+            OwnerStanding::Ended => {
+                verdicts.dead_claims.insert(name);
+            }
+            OwnerStanding::MayRun => {}
+            // What: a claim whose holder can be shown neither alive nor gone is kept, and the words naming it are the
+            //       command's own line.
+            // Why:  It may be a command that runs, so nothing it holds is taken; stopping every command of the worktree for
+            //       another command's claim is not the decision, and keeping it in silence is not either. A claim of another
+            //       PID namespace past the patience is the refusal the `?` above returns, and it still stops the command.
+            OwnerStanding::CannotBeTold(refusal) => verdicts.cannot_be_told.push(refusal.0),
         }
     }
     // `match` treats an absent root as having nothing to remove.
@@ -401,8 +428,12 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
             Some(token) => Some(token),
             None => temporary_writer_token(name.as_str()).map(str::to_string),
         };
-        if token_owner_is_dead(writer.as_deref(), path.as_path())? {
-            verdicts.dead_temporaries.insert(name);
+        match token_owner_standing(writer.as_deref(), path.as_path())? {
+            OwnerStanding::Ended => {
+                verdicts.dead_temporaries.insert(name);
+            }
+            OwnerStanding::MayRun => {}
+            OwnerStanding::CannotBeTold(refusal) => verdicts.cannot_be_told.push(refusal.0),
         }
     }
     return Ok(verdicts);
@@ -462,7 +493,10 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 /// const notices = await reapAbandonedStages(commonDir);
 /// ```
 pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeCopyError> {
-    return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?, &RecoveryDestinations::EveryDestination);
+    let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
+    let mut notices: Vec<String> = reap_judged_stages(common_dir, &verdicts, &RecoveryDestinations::EveryDestination)?;
+    notices.extend(verdicts.cannot_be_told().iter().cloned());
+    return Ok(notices);
 }
 
 /// `reap_abandoned_stages` on verdicts that were made before the command changed anything;

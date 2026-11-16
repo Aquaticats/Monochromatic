@@ -307,7 +307,7 @@ impl CopyOwner {
 /// type OwnerStanding = 'may-run' | 'ended' | { refused: WorktreeCopyError };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum OwnerStanding {
+pub enum OwnerStanding {
     /// The owner runs, or nothing proves it ended.
     MayRun,
     /// The owner ended, or the number names a process of another birth.
@@ -342,15 +342,34 @@ enum OwnerStanding {
 /// function ownerIsDead(token: string | undefined, itemPath: string): boolean; // throws when the owner is of another namespace and the item is older than the patience
 /// ```
 pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, WorktreeCopyError> {
-    let Some(owner) = token.and_then(CopyOwner::from_token) else {
-        return Ok(true);
-    };
-    return match owner.alive_by(item, foreign_owner_standing(owner.pid_namespace.as_deref(), item))? {
+    return match token_owner_standing(token, item)? {
         OwnerStanding::MayRun => Ok(false),
         OwnerStanding::Ended => Ok(true),
-        // The foreign refusal and this one are both "neither alive nor dead", and both are never swallowed here.
+        // The refusal is never swallowed here: a caller that only asks "is it dead" learns that it is neither.
         OwnerStanding::CannotBeTold(refusal) => Err(refusal),
     };
+}
+
+/// What:
+///  What the owner a token names is, with the third answer kept apart from a refusal of another PID namespace.
+/// Why:
+///   The two answers that are neither "may run" nor "ended" are not read the same way:
+///  a record of another PID namespace past the patience stops the command
+///  (owner, 2026-11-04, "Refuse and name it (Recommended)"), which is the error `token_owner_standing` returns,
+///  while a record whose holder can be shown neither alive nor gone is kept and the words naming it go to the person,
+///  and the command goes on
+///  (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+///  A caller that would go on beside the second must not go on beside the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownerStanding(token: string | undefined, itemPath: string): 'may-run' | 'ended' | { cannotBeTold: string }; // throws for a foreign refusal
+/// ```
+pub fn token_owner_standing(token: Option<&str>, item: &Path) -> Result<OwnerStanding, WorktreeCopyError> {
+    let Some(owner) = token.and_then(CopyOwner::from_token) else {
+        return Ok(OwnerStanding::Ended);
+    };
+    return owner.alive_by(item, foreign_owner_standing(owner.pid_namespace.as_deref(), item));
 }
 
 #[cfg(test)]

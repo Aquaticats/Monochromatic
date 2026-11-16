@@ -529,6 +529,10 @@ fn recover_judged_transactions(
         }
     }
     notices.extend(reap_judged_stages(common_dir, verdicts, destinations)?);
+    // A claim or a temporary whose holder can be shown neither alive nor gone is kept, and the command says which it is and
+    //  which commands remove it: the owner's decision of 2026-11-16 keeps the silence inside the patience and asks for the
+    //  words past it, and the command goes on because nothing of another command's is taken from it.
+    notices.extend(verdicts.cannot_be_told().iter().cloned());
     // A worktree a copy gave up on stays named until it is gone or replaced, so every command says what is missing
     // there and what settles it; a copy still running wrote its record first and is left without a word.
     notices.extend(crate::worktree_copy_unfilled_record::report_unfilled_records(common_dir)?);

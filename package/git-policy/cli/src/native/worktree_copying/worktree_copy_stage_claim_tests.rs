@@ -2459,3 +2459,56 @@ fn a_record_whose_child_cannot_be_told_is_named_and_kept_past_the_patience() {
     assert!(young.keep && young.notice.is_none(), "inside the patience the record stays and says nothing: {young:?}", young = young.notice.clone());
     remove(root.as_path());
 }
+
+/// What:
+///  A stage claim whose holder can be shown neither alive nor gone, past the patience,
+///  is kept and named, and the sweep does not fail;
+///  inside the patience it is kept and nothing is said, and a dead owner's claim is still reaped.
+/// Why:
+///  The claim may be a command that runs, whose stage holds the ignored state of a destination no later command can make
+///  again; taking it for gone would delete that, and failing the command would fail `git worktree add` for another
+///  command's claim. Past the patience the person is told, with the claim, the owner, its age and the exact command that
+///  removes it (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimStageFor(common, destination, untellableOwner);
+/// const notices = await reapAbandonedStages(common); expect(notices.join()).toContain('rm --'); expect(claim.path).exists();
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_claim_whose_owner_cannot_be_told_is_kept_and_named() {
+    let (root, common, destination) = scene("claim-untellable-owner");
+    let here: crate::worktree_copy_owner::CopyOwner = current_copy_owner().expect("this process has an identity");
+    let untellable = crate::worktree_copy_owner::CopyOwner { birth_identity: String::from("ended"), ..here };
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &untellable).expect("claim");
+    let claim_path: PathBuf = claim.path.clone();
+    // Inside the patience the claim stands for a command that may run: kept, and nothing said.
+    let young: Vec<String> = reap_abandoned_stages(common.as_path()).expect("a young claim is no refusal");
+    assert!(young.is_empty(), "inside the patience nothing is said: {young:?}");
+    assert!(claim_path.exists(), "and the claim stays");
+    // Past the patience the words name the claim, its owner and the command that removes it, and nothing fails.
+    std::fs::File::open(claim_path.as_path())
+        .expect("open the claim")
+        .set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(60))
+        .expect("age the claim");
+    let aged: Vec<String> = reap_abandoned_stages(common.as_path()).expect("the sweep does not fail for a claim whose owner cannot be told");
+    assert_eq!(aged.len(), 1, "one line for one claim: {aged:?}");
+    assert!(
+        aged[0].contains(claim_path.to_string_lossy().as_ref())
+            && aged[0].contains(untellable.pid.to_string().as_str())
+            && aged[0].contains("minutes old")
+            && aged[0].contains("rm -- "),
+        "the line names the claim, the owner, its age and the command that removes it: {}",
+        aged[0]
+    );
+    assert!(claim_path.exists(), "the claim stays");
+    // The other answer of the same reader: a dead owner's claim is still reaped and its stage removed.
+    let dead: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &crate::test_support::dead_copy_owner()).expect("claim");
+    abandoned_stage(dead.container());
+    let dead_path: PathBuf = dead.path.clone();
+    let container: PathBuf = dead.container().to_path_buf();
+    let _ = reap_abandoned_stages(common.as_path()).expect("a dead owner's claim is reaped");
+    assert!(!dead_path.exists() && !container.exists(), "a dead owner's claim and its stage go");
+    remove(root.as_path());
+}
