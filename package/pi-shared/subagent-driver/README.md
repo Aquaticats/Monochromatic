@@ -150,8 +150,18 @@ In the order a run that names no model of its own takes them:
   2026-11-11:
   "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
-  20 runs of Kimi K3.1 Pro flex,
-  taken only by a run that names that model.
+  Kimi K3.1 Pro flex,
+  taken only by a run that names that model,
+  closed to new runs since 2026-11-15 while it keeps its limit of 20 (the room it returns to).
+  The owner,
+  2026-11-15:
+  "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
+  Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish.
+  Anyway, I'll probably figure out something better in the next week."
+  The runs already on it are still counted there and left to end,
+  and a run that names its model gets no room while it is closed.
+  `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens it for one command.
 - `qwen-token-plan`:
   5 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
@@ -181,8 +191,10 @@ and any number above zero is the room it takes again.
 ```sh
 # reopen OpenCode Go once the owner says the week has reset
 PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
-# close Neuralwatt's Kimi flex pool for the day
-PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --counts-only
+# reopen Neuralwatt's Kimi flex pool, which the owner closed on 2026-11-15, for one command
+PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20 start-pi-run-when-a-pool-has-room --counts-only
+# close the qwen plan's `qwen4-max-preview` pool for the day
+PI_RUNS_POOL_LIMITS=qwen-token-plan=0 start-pi-run-when-a-pool-has-room --counts-only
 ```
 
 A pair naming no pool,

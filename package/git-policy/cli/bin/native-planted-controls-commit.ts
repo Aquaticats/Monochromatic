@@ -35,7 +35,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: "the all flag is removed from the commit region",
     file: "src/native/commit/commit_args.rs",
-    from: "if token == \"--all\" {",
+    // The token is compared as bytes since `cb235065f9` read every commit token as bytes, so the guard reads
+    // `bytes` and an empty value is never mistaken for the flag.
+    from: "if bytes == b\"--all\" {",
     to: "if false {",
     failing: "commit::commit_args::tests::without_all_flag_removes_only_the_all_letter",
   },
@@ -50,17 +52,21 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "a branch base is written to the shadow branch",
-    file: "src/native/shadow/shadow_refs.rs",
-    from: "            if let Base::Commit(oid) = base {\n                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.as_bytes())?;",
-    to: "            if let Base::Commit(oid) = &Base::Unborn {\n                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.as_bytes())?;",
-    failing: "shadow::shadow_refs::tests::files_shadow_snapshots_refs_and_points_head_at_the_branch",
+    // The write moved to `shadow_ref_write.rs` when the ref snapshot's reading and writing became two files
+    // (`7592e20235`), and the reference name is read as bytes since `9a06be8d0e`.
+    file: "src/native/shadow/shadow_ref_write.rs",
+    from: "            if let Base::Commit(oid) = base {\n                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.bytes())?;",
+    to: "            if let Base::Commit(oid) = &Base::Unborn {\n                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.bytes())?;",
+    failing: "shadow::shadow_ref_write::tests::files_shadow_snapshots_refs_and_points_head_at_the_branch",
   },
   {
     name: "a linked worktree keeps its info directory private",
     file: "src/native/shadow/shadow_links.rs",
     from: "if !mixed_info {",
     to: "if false {",
-    failing: "shadow::shadow_links::tests::shared_entries_link_and_private_entries_stay_absent",
+    // `shared_entries_link_and_private_entries_stay_absent` became `only_the_named_shared_entries_link` when the
+    // shadow came to link a named list of entries (`664f516ab1`); it still links the real `info` and fails here.
+    failing: "shadow::shadow_links::tests::only_the_named_shared_entries_link",
   },
   {
     name: "the sequencer is copied into the shadow",
@@ -99,7 +105,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: 'signal relay sender check',
-    file: 'src/native/process/signal_relay.rs',
+    // The sender check moved into `read_report` when the relay stopped reading the report itself (`699897702a`), and
+    // the handler now asks that reader whether a process sent the signal.
+    file: 'src/native/process/signal_report.rs',
     from: 'if !is_process_sender(code) {',
     to: 'if false {',
     failing: 'process::signal_relay::tests::handler_marks_a_signal_only_for_a_process_sender',

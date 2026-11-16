@@ -28,6 +28,14 @@ mod service_lock_inventory_tests;
 #[path = "release_bins_tests.rs"]
 mod release_bins_tests;
 
+/// The door every diagnostic line goes through:
+/// it hands each line to the thread that never holds its caller,
+/// that thread writes the descriptor rather than the shared handle,
+/// and no release file says a line with `eprintln!`.
+#[cfg(test)]
+#[path = "diagnostic_door_tests.rs"]
+mod diagnostic_door_tests;
+
 /// The mechanical ban:
 /// no release code starts the wrapper,
 /// passes it management words or writes shell text.

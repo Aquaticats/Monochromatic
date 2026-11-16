@@ -50,6 +50,7 @@ const COVERED_PREFIXES: &[&str] = &[
     "markdown_",
     "standards_review_",
     "commit_",
+    "diagnostic_",
     "tree_held_by_a_live_process",
 ];
 
@@ -108,6 +109,10 @@ const INVENTORY: &[&str] = &[
     //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
     //  and under it one line is pushed or popped while the write runs outside it.
     "service/service_log_lines_off_the_calling_thread.rs",
+    // The lines waiting for the diagnostic stream, and which line the stream has reached:
+    //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
+    //  and under it one line is pushed or popped while the write runs outside it.
+    "foundation/diagnostic_lines_off_the_calling_thread.rs",
     "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
