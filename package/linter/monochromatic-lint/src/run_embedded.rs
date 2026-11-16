@@ -202,6 +202,8 @@ pub fn fix_source(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, Embedded
     // The embedded caller names the rules it wants in its own configuration,
     //  so every class of fix those rules attach applies:
     //  the commit path's `markdown/autofix` exists to rewrite LFS image URLs, which is a suggestion.
+    //  Naming a rule in that configuration is what stands in for the flag a command line would pass,
+    //  so a rule added to the policy brings its class's fixes with it and the policy owner decides.
     let mut store: ConfigStore = ConfigStore::from_source(request.top_level, described)
         .map_err(config_failure)?
         .with_fix_scope(FixScope::ALL);

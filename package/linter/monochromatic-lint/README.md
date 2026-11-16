@@ -218,7 +218,9 @@ and the finding stays reported.
 The in-process entry `monochromatic_lint::run_embedded::fix_source` applies every class,
 because its caller names the rules it wants in its own configuration:
 the commit path's `markdown/autofix` runs only `markdown/lfs-image-url`,
-which is a suggestion.
+which is a suggestion,
+and that configuration entry is what stands in for the flag there,
+so a rule added to the policy brings its class's fixes with it.
 `--fix-content`,
 the whitespace/content split this command carried since version 0.5.2-alpha.5,
 is gone:
