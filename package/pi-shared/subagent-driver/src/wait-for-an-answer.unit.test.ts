@@ -5,7 +5,7 @@
  @module
  */
 
-import { setTimeout as sleep, } from 'node:timers/promises';
+import { setImmediate as nextTurn, setTimeout as sleep, } from 'node:timers/promises';
 import {
   describe,
   expect,
@@ -134,6 +134,9 @@ async function settledWithin(watched: Watched, milliseconds: number,): Promise<b
  Whether the wait has settled, read once the microtask that keeps its answer has run: that answer is kept in a microtask, so a
  look made in the same tick as the settle it asks about still reads false.
 
+ It deliberately does not turn the event loop over, which `settledOnceTheLoopHasTurned` does: a look that must read true asks
+ whether the held clock's own tick settled the wait, not whether something else would have settled it later.
+
  @param watched - what the test watches
 
  @returns whether the answer settled
@@ -141,6 +144,22 @@ async function settledWithin(watched: Watched, milliseconds: number,): Promise<b
 async function settledOnceItsAnswerIsKept(watched: Watched,): Promise<boolean> {
   // The wait keeps its answer in a microtask, which a test that moved a held clock has to let run before it looks.
   await Promise.resolve();
+  return watched.settled();
+}
+
+/**
+ Whether the wait has settled, read after the event loop has turned over once.
+
+ A settle armed on a scheduler the held clock does not drive (`setImmediate`, `node:timers/promises` above all) runs on that turn,
+ so a look that only let microtasks run would read every such settle as still waiting, and a look that must read false has to give
+ them their turn first. The turn is the real one, from `node:timers/promises`, which no fake clock replaces.
+
+ @param watched - what the test watches
+
+ @returns whether the answer settled
+ */
+async function settledOnceTheLoopHasTurned(watched: Watched,): Promise<boolean> {
+  await nextTurn();
   return watched.settled();
 }
 
@@ -282,23 +301,23 @@ await describe({
         },);
         // Almost all of the bound is spent before Pi begins compacting, and the clock moves only by what the test asks for.
         clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
-        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
+        expect(await settledOnceTheLoopHasTurned(watched,),).toBe(false,);
         compaction.begin();
         watched.waiting
           .pauseSilence();
         // Pi is at work, so none of the time a compaction takes is silence, however long Pi spends there.
         clock.tick(COMPACTION_MILLISECONDS,);
-        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
+        expect(await settledOnceTheLoopHasTurned(watched,),).toBe(false,);
         compaction.end();
         watched.waiting
           .resumeSilence(NO_RUN_FAILURE,);
         // A wait that kept the silence it served before would have settled here, on the little the bound had left near 10 ms.
-        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
+        expect(await settledOnceTheLoopHasTurned(watched,),).toBe(false,);
         clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
-        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
-        // The whole bound again: the last of it, and not a millisecond before. The wait must have settled on this tick itself,
-        // and not later on some scheduler the held clock does not drive: a settle that arrives after this look would otherwise be
-        // read as settled by the answer below, which is how a resume that never armed the bound again got through.
+        expect(await settledOnceTheLoopHasTurned(watched,),).toBe(false,);
+        // The whole bound again: the last of it, and not a millisecond before. This look is the one that does not turn the loop
+        // over, so the wait must have settled on this tick of the held clock itself and not on some scheduler it does not drive:
+        // a settle arriving after this look would otherwise be read as settled by the answer below.
         clock.tick(LOOK_MILLISECONDS,);
         expect(await settledOnceItsAnswerIsKept(watched,),).toBe(true,);
         await watched.done;
