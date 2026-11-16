@@ -542,7 +542,7 @@ fn left_after_a_step_failed(path: &Path, error: &std::io::Error) -> WorktreeCopy
 
 fn left_for_a_later_look(path: &Path) -> WorktreeCopyError {
     return WorktreeCopyError(format!(
-        "monochromatic-git-policy-cli: no place came within {:?} for the walk that removes {}, so it was not removed; nothing of it changed, and the record that names it is looked at again by the next command.",
+        "monochromatic-git-policy-cli: no place came within {:?} for the walk that removes {}, so it was left where it is, with whatever the walk had already removed gone; the record that names it is looked at again by the next command, which removes what is left.",
         crate::wait_ceilings::PLACE_WAIT_CEILING,
         path.display()
     ));

@@ -18,6 +18,14 @@
 //! A hold that is not let go ends at `PHASE_PATIENCE`,
 //! so a control that dies cannot leave the service of a fixture held for ever
 //! (nothing may wait without an end).
+//! The holds are compiled into the release executable on purpose, and stay there:
+//! the binary controls run the shipped program itself
+//! (`binary_a_commit_lands_while_every_kind_of_work_is_held_tests.rs`, `binary_a_trash_left_by_its_ceiling_comes_back_after_its_lease_tests.rs`),
+//! and what they prove is that the program a person runs keeps answering while each kind of its own work is held,
+//! which a control built with the holds compiled out could not show.
+//! The cost is two reads of the environment at a step and a poll only when a control set them,
+//! and what a person can do with them is hold a step of their own service for at most `PHASE_PATIENCE`
+//! (the review of `04b80a66cb`, half one, finding 7).
 //! The hold awaited frees whatever polled it:
 //! a step that waits on a child, a remote or a timer holds no thread of the process,
 //! which is how the shipped steps of those kinds wait,

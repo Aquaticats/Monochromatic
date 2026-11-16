@@ -61,6 +61,18 @@ fn a_look_at_a_finished_record_costs_what_the_journal_holds() {
         }
         timings.sort();
         eprintln!("MEASURE a finished record look with {count} records: median {:?}, least {:?}, most {:?}", timings[2], timings[0], timings[4]);
+        // What: A look given one millisecond of its own wait ends within that and one record's read, whatever the journal holds.
+        // Why:  The figure above is a measurement, not an assertion, and a measurement that asserts nothing lets the read
+        //       grow without a word: a journal can hold many more records than `DONE_RETAINED`, because pruning keeps every
+        //       record a client may still read (the review of `04b80a66cb`, half one B, finding 8).
+        let given: Duration = Duration::from_millis(1);
+        let began: Instant = Instant::now();
+        let _read = a_finished_batch_made(journal.as_path(), "an-id-no-record-names", began + given);
+        let took: Duration = began.elapsed();
+        assert!(
+            took <= given + Duration::from_millis(50),
+            "a look given {given:?} over {count} records took {took:?}, so one record's own stall is not what ended the read"
+        );
         crate::test_support::remove(root.as_path());
     }
 }

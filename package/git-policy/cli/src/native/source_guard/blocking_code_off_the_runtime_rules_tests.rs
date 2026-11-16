@@ -446,7 +446,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
     Allowed {
         file: "landing/service_commit_looking_for_what_landed.rs",
         rule: "blocking-sleep",
-        why: "the landing loop's pause between looks; the loop becomes a task with the landing's own step",
+        why: "the look runs in the wrapper's own command, on no runtime task: it is the pause between its passes",
     },
     Allowed {
         file: "landing/service_index_attempts.rs",

@@ -616,21 +616,21 @@ pub fn prune_done(dir: &Path, retained: usize, now: &ClaimTime) -> usize {
 }
 
 /// What:
-///  The records of the newest finished batches in the journal,
+///  The records of the finished batches in the journal,
 /// newest first,
-/// read without removing anything.
+/// read until `until` and without removing anything.
 /// Why:
 ///   A client whose answer was lost looks for the commit its own request made,
-/// and that batch is one of the
-///  newest:
-/// the request was sent seconds ago.
-/// Reading only those keeps a look that repeats until its bound cheap,
-///  where reading the journal's
-/// `DONE_RETAINED` records would re-read every one of them at each look.
+/// and that batch may be behind any number of successors,
+/// so the read must reach every finished record and not a count of the newest:
+/// reading sixteen refused a record behind seventeen successors, and a landed commit exited 1 saying it was not known
+/// whether it was made (the review of `dbee36149c`, finding 1).
+///  `DONE_RETAINED` does not bound what the read meets, because pruning keeps every record a client may still read,
+/// so the clock is read between records and the read ends at the deadline it was given.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// newestFinishedBatchesReadOnly(dir, 16)
+/// newestFinishedBatchesReadUntil(dir, until) // [{ path, intent }]
 /// ```
 pub fn newest_finished_batches_read_until(dir: &Path, until: std::time::Instant) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {

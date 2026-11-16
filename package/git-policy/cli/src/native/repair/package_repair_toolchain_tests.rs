@@ -628,6 +628,10 @@ fn a_birth_no_process_has() -> String {
     return String::from("linux:1");
 }
 
+/// How many takes this control lets the pass make before it gives up,
+/// so every name the counter may hand out in that time is reserved.
+const A_TAKES_THIS_CONTROL_ALLOWS: u32 = 2;
+
 /// What:
 ///  A record a killed pass left aside is put back although another process now holds the number in its name.
 /// Why:
@@ -698,9 +702,18 @@ fn a_take_never_replaces_a_name_another_pass_reserved() {
         "{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/reserved\",\"scope\":\"repo\"}}\n",
         own_lock.display()
     );
-    // The exact name this pass computes for the record it takes aside: the record's own name, this process's number and
-    // birth, and the first token its counter hands out. A control that planted a name the pass never computes proved nothing.
-    let reserved_path: PathBuf = launchers.join(format!("zzz.launch.removing-{}-born-{}-0", std::process::id(), spelled_birth(own_birth.as_str())));
+    // Every name this pass may compute for the record it takes aside: the record's own name, this process's number and
+    //  birth, and each token its counter may hand out. A control that planted one name proved nothing when the process had
+    //  already taken a record under an earlier token, and one that planted a name the pass never computes proved nothing at
+    //  all (the review of `04b80a66cb`, half two, finding 6).
+    let mut reserved_names: Vec<PathBuf> = Vec::new();
+    for token in 0..super::NAMES_A_TAKE_MAY_TRY * A_TAKES_THIS_CONTROL_ALLOWS {
+        reserved_names.push(launchers.join(format!("zzz.launch.removing-{}-born-{}-{token}", std::process::id(), spelled_birth(own_birth.as_str()))));
+    }
+    for name in &reserved_names {
+        std::fs::write(name.as_path(), reserved.as_bytes()).expect("a name this pass's counter would compute");
+    }
+    let reserved_path: PathBuf = reserved_names[0].clone();
     std::fs::write(reserved_path.as_path(), reserved.as_bytes()).expect("the name this pass's own counter would compute");
     let _pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
     assert_eq!(std::fs::read_to_string(legacy.as_path()).unwrap_or_default(), kept, "a pass replaced the record a killed pass of an earlier release left aside");
@@ -715,6 +728,10 @@ fn a_take_never_replaces_a_name_another_pass_reserved() {
         .flatten()
         .filter(|entry| return entry.file_name().to_string_lossy().starts_with("zzz.launch.removing-"))
         .count();
-    assert_eq!(asides, 2, "the pass did not take the record under a name of its own beside the one this control reserved");
+    assert_eq!(
+        asides,
+        reserved_names.len() + 1,
+        "the pass did not take the record beside the names this control reserved, so it either replaced one of them or took none"
+    );
     remove(&root);
 }
