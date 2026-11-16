@@ -105,6 +105,29 @@ fn program_ptr(program: *const libc::c_char) -> usize {
 }
 
 /// What:
+///  Closes every descriptor of this process above the standard three, from the child before it execs.
+/// Why:
+///  A descriptor the caller left open is the caller's, and a service that outlives the caller must not keep it:
+/// `close_range` does it in one call, and the loop is for a kernel older than 5.9.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { close_range(3, ~0, 0) } catch { for (let fd = 3; fd < 1024; fd++) close(fd) }
+/// ```
+fn close_every_descriptor_above_the_standard_three() {
+    // SAFETY: `close_range` and `close` take numbers and touch no memory of this process; the file the service keeps is opened
+    //  after this call, so nothing it needs is closed.
+    unsafe {
+        if libc::close_range(3, libc::c_uint::MAX, 0) == 0 {
+            return;
+        }
+        for descriptor in 3..1024 {
+            libc::close(descriptor);
+        }
+    }
+}
+
+/// What:
 ///  The two forks and the middle process's wait,
 /// which is the part that must not allocate.
 /// Why:
@@ -224,13 +247,23 @@ fn read_the_number(reading: libc::c_int) -> Option<i32> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// setsid(); signal(SIGHUP, SIG_IGN); dup2(nullFd, 0); dup2(logFd, 1); dup2(logFd, 2); execv(program, argv); _exit(127);
+/// setsid(); signal(SIGHUP, SIG_IGN); chdir('/'); close_range(3, ~0); dup2(nullFd, 0); dup2(logFd, 1); dup2(logFd, 2); execv(program, argv); _exit(127);
 /// ```
 fn become_the_server(program: usize, pointers: *const *const libc::c_char, nothing_fd: i32, log_fd: i32) -> ! {
     // SAFETY: before the `execv`, only async-signal-safe calls run, and every argument was made whole before the fork.
     unsafe {
         let _session: libc::pid_t = libc::setsid();
         libc::signal(libc::SIGHUP, libc::SIG_IGN);
+        // What:
+        //  The service starts in no directory of the caller's and with no descriptor of the caller's beyond its own three.
+        // Why:
+        //  The review of `e347be3115` (part one, finding 4) measured a command substitution that returned in 1,1 s and a pipe
+        //  it passed down that never saw its end, because the detached service kept every descriptor of the first command that
+        //  started it: a script, a harness or a `make` jobserver waits for the end of a descriptor the service holds for hours.
+        //  The working directory it kept pinned the first caller's worktree, a deleted directory after a removal
+        //  (`worktree_remove_hand_over.rs`). Both are closed here, and `close_range` is a call `signal-safety(7)` lists.
+        let _no_directory: libc::c_int = libc::chdir(c"/".as_ptr());
+        close_every_descriptor_above_the_standard_three();
         libc::dup2(nothing_fd, libc::STDIN_FILENO);
         libc::dup2(log_fd, libc::STDOUT_FILENO);
         libc::dup2(log_fd, libc::STDERR_FILENO);
