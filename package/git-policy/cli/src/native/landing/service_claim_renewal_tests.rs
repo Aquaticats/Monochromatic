@@ -587,10 +587,10 @@ fn a_move_that_finds_the_record_given_up_on_says_nothing_runs_its_work() {
 }
 
 /// A settlement that finds a take in flight says so:
-/// another instance is moving the claim out of `claimed` to queue the item again,
-/// which is the state its take leaves when it ends at any instruction between the take and the queueing.
+/// another instance is moving the record's file out of `claimed` into a move of its own,
+/// which is the state its take or its recovery leaves when it ends at any instruction between the two renames.
 #[test]
-fn a_move_that_finds_a_take_in_flight_says_the_item_is_queued_again() {
+fn a_move_that_finds_a_take_in_flight_says_which_moves_can_end_there() {
     let (root, work_dir, claimed) = claimed_item("move-finds-a-take", &clock());
     let (held, _renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
@@ -599,7 +599,7 @@ fn a_move_that_finds_a_take_in_flight_says_the_item_is_queued_again() {
     std::fs::rename(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str()), recovering.join(claimed.name.as_str()))
         .expect("the claim is in recovering");
     let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim a recovery holds settles nothing");
-    assert_the_words_say(said.as_str(), &["taking the claim", "into recovering/", "two endings", "tries"]);
+    assert_the_words_say(said.as_str(), &[RECOVERING, CLAIMED, PENDING, FAILED, "tries", "which of the three happened"]);
     assert!(!said.contains("left it queued as"), "a record a recovery is moving is not reported as one the queue already holds: {said}");
     remove(root.as_path());
 }
@@ -717,9 +717,9 @@ fn a_move_that_finds_a_take_in_flight_says_both_endings_of_the_recovery() {
     remove(root.as_path());
     assert!(failed, "the last try of the item goes to failed");
     assert!(!queued_again, "the last try of the item is not queued again");
-    assert!(said.contains(PENDING) && said.contains(FAILED), "the words name both endings: {said}");
+    assert!(said.contains(PENDING) && said.contains(FAILED) && said.contains(CLAIMED), "the words name all three endings: {said}");
     assert!(said.contains("tries"), "the words say what decides which ending it is: {said}");
-    assert!(said.contains("which of the two happened"), "the words say how to tell which happened: {said}");
+    assert!(said.contains("which of the three happened"), "the words say how to tell which happened: {said}");
     assert!(
         !said.contains("run again") && !said.contains("queue it again"),
         "the record went to failed with nothing running it, but the settlement promised a run: {said}"
@@ -776,7 +776,7 @@ fn a_staged_take_before_and_after_it_publishes(name: &str) -> (String, String) {
     std::fs::rename(state_directory(work_dir.as_path(), RECOVERING).join(staged.as_str()), claimed_directory.join(staged.as_str()))
         .expect("the take publishes its claim");
     // The same instance looks again, with a held claim of its own, after the take has published.
-    let (after_settling, _renewer): (HeldClaims, Renewer) = held_claims(work_dir.as_path());
+    let (after_settling, _its_renewer): (HeldClaims, Renewer) = held_claims(work_dir.as_path());
     after_settling.hold(&claimed);
     let after: String = after_settling.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("the claim is not this instance's");
     remove(root.as_path());
@@ -822,12 +822,18 @@ fn a_look_at_a_removed_or_replaced_claimed_directory_says_the_record_went_with_i
             std::fs::remove_dir_all(work_dir.as_path()).expect("the work directory is removed under the service");
         }
         let refused: String = held.is_held_on_disk_or_the_error(work_dir.as_path(), claimed.id.as_str()).expect_err("there is no claim to find");
+        let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+            let mine: Vec<Claimed> = crate::service_work_handlers_replanning_and_acceptance::still_held(&held, work_dir.as_path(), vec![claimed.clone()]);
+            assert!(mine.is_empty(), "no work runs on a record that went away (replaced={replaced})");
+        });
+        let kept: bool = held.is_held(claimed.id.as_str());
         remove(root.as_path());
         assert!(refused.contains("went with it"), "the words say the record went with the directory (replaced={replaced}): {refused}");
         assert!(!refused.contains("permissions"), "the words send a person to permissions for a directory that is not there (replaced={replaced}): {refused}");
+        assert!(!kept, "a claim with nothing left to keep was kept (replaced={replaced})");
         assert!(
-            !held.is_held(claimed.id.as_str()),
-            "a claim with nothing left to keep was kept (replaced={replaced})"
+            entries.iter().any(|entry| { return entry.message.contains("went with it"); }),
+            "the drain says the record went with the directory (replaced={replaced}): {entries:?}"
         );
     }
 }

@@ -89,8 +89,8 @@ fn a_move_that_finds_a_take_in_flight_names_the_recovery_before_the_queue() {
     a_record_in(work_dir.as_path(), PENDING, id.as_str());
     a_record_in(work_dir.as_path(), RECOVERING, id.as_str());
     let said: String = words_for_a_move_that_found_nothing(work_dir.as_path(), id.as_str(), token.as_str());
-    assert!(said.contains(&format!("{RECOVERING}/{id}")), "the recovery's own file is named: {said}");
-    assert!(!said.contains("left it queued as"), "a record a recovery is moving is not reported as one the queue already holds: {said}");
+    assert!(said.contains(&format!("{RECOVERING}/{id}")), "the file that holds the record is named: {said}");
+    assert!(!said.contains("left it queued as"), "a record a move is between steps of is not reported as one the queue already holds: {said}");
     remove(root.as_path());
 }
 
@@ -212,7 +212,8 @@ impl WalksAsTheControlSays<'_> {
         return |work_dir: &Path, state: &str| {
             self.asked.borrow_mut().push(state.to_owned());
             if state == self.state {
-                return WhatTheWalkReached { names: self.answer.names.clone(), stopped_by: self.answer.stopped_by.as_ref().map(|error| std::io::Error::new(error.kind(), error.to_string())) };
+                let stopped_by: Option<std::io::Error> = self.answer.stopped_by.as_ref().map(|error| { return std::io::Error::new(error.kind(), error.to_string()); });
+                return WhatTheWalkReached { names: self.answer.names.clone(), stopped_by };
             }
             return the_names_in(work_dir, state);
         };
@@ -253,11 +254,11 @@ fn a_move_that_finds_the_record_claimed_again_between_its_looks_says_where_it_is
     let claimed_directory: PathBuf = state_directory(work_dir.as_path(), CLAIMED);
     std::fs::rename(claimed_directory.join(claimed.name.as_str()), state_directory(work_dir.as_path(), RECOVERING).join(staged.as_str())).expect("the take stages the claim");
     // The move finishes while the words are between the look at `recovering` and the look at `pending`, which is the window a real take opens.
-    let publishing = |work_dir: &Path, state: &str| {
+    let publishing = |looked_at: &Path, state: &str| {
         if state == RECOVERING {
-            std::fs::rename(state_directory(work_dir, RECOVERING).join(staged.as_str()), claimed_directory.join(staged.as_str())).expect("the take publishes the claim");
+            std::fs::rename(state_directory(looked_at, RECOVERING).join(staged.as_str()), claimed_directory.join(staged.as_str())).expect("the take publishes the claim");
         }
-        return the_names_in(work_dir, state);
+        return the_names_in(looked_at, state);
     };
     let said: String = words_from_the_walk(work_dir.as_path(), id.as_str(), token.as_str(), &publishing);
     remove(root.as_path());

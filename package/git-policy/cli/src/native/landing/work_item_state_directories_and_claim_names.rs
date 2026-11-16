@@ -250,9 +250,8 @@ pub(crate) fn the_names_in(work_dir: &Path, state: &str) -> WhatTheWalkReached {
 /// What:
 ///  The names in a state directory with their modification times, oldest first.
 /// Why:
-///  The callers that read a queue to work on it have nothing to say about a directory they cannot read,
-/// so a walk that did not reach the end gives them no names today;
-/// a caller that *says* where a record is takes `the_names_in` itself.
+///  The callers that read a queue to work on it read the names a walk reached and say nothing about the error that stopped it;
+/// a caller that *says* where a record is takes `the_names_in` itself, which keeps that error.
 pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
     return the_names_the_work_takes(the_names_in(work_dir, state));
 }
@@ -262,15 +261,15 @@ pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String,
 /// Why:
 ///   One body decides what such a caller sees,
 /// so a control can hand in a walk that stopped part-way and read exactly what the callers would.
+///  A walk that stopped part-way gives the names it reached:
+/// a queue that failed on one name is not an empty queue,
+/// and a caller that read none of them would take nothing that is owed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// theNamesTheWorkTakes(reached) // string[]
 /// ```
 fn the_names_the_work_takes(reached: WhatTheWalkReached) -> Vec<(String, SystemTime)> {
-    if !reached.reached_the_end() {
-        return Vec::new();
-    }
     return reached.names;
 }
 

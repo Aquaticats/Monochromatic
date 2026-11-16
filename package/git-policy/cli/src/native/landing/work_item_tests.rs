@@ -1081,3 +1081,54 @@ fn a_given_up_push_whose_notice_cannot_be_written_stays_recoverable() {
     assert!(names(work.as_path(), RECOVERING).is_empty());
     remove(directory.as_path());
 }
+
+/// What:
+///  Whether `job` ended within `seconds`.
+/// Why:
+///  A named pipe holds an open for ever unless something writes to it,
+/// so a control that opens one says how long it waited rather than waiting.
+fn ends_within<T: Send + 'static>(seconds: u64, job: impl FnOnce() -> T + Send + 'static) -> bool {
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    std::thread::spawn(move || {
+        let _answer: T = job();
+        let _sent = sender.send(());
+    });
+    return receiver.recv_timeout(Duration::from_secs(seconds)).is_ok();
+}
+
+/// A name in `pending` that holds a named pipe does not hold the claim step:
+/// the record is not a plain file,
+/// so it goes to `failed` with a line naming it,
+/// and the queue behind it is claimed.
+#[test]
+fn a_named_pipe_in_pending_does_not_hold_the_claim_step() {
+    let directory: PathBuf = fixture("work-pipe-pending");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let good: WorkItem = item(WorkKind::Review, "good");
+    enqueue(work.as_path(), &good).expect("enqueue");
+    let pipe: PathBuf = state_directory(work.as_path(), PENDING).join(item(WorkKind::Review, "pipe").id());
+    let made = std::process::Command::new("mkfifo").arg(pipe.as_path()).status().expect("mkfifo");
+    assert!(made.success(), "the fixture makes a named pipe");
+    let directory_for_the_thread: PathBuf = work.clone();
+    // The claim step runs on a thread of its own, so the entries it writes are taken where it runs and sent back.
+    let (entry_sender, entry_receiver): (std::sync::mpsc::Sender<Vec<crate::service_timing::capture::Captured>>, std::sync::mpsc::Receiver<Vec<crate::service_timing::capture::Captured>>) =
+        std::sync::mpsc::channel();
+    let ended: bool = ends_within(10, move || {
+        let entries: Vec<crate::service_timing::capture::Captured> =
+            crate::service_timing::capture::entries_of(|| { let _claimed: Result<Vec<Claimed>, String> = claim_all_of(&directory_for_the_thread, &[WorkKind::Review]); });
+        let _sent = entry_sender.send(entries);
+    });
+    let entries: Vec<crate::service_timing::capture::Captured> = entry_receiver.recv_timeout(Duration::from_secs(10)).expect("the claim step's own entries");
+    assert!(ended, "the claim step waited for a writer that never came");
+    let failed: Vec<String> = names(work.as_path(), FAILED);
+    let claimed: Vec<String> = names(work.as_path(), CLAIMED);
+    remove(directory.as_path());
+    assert_eq!(failed, vec![pipe_name()], "the pipe was moved to failed, where nothing runs it: {failed:?}");
+    assert!(entries.iter().any(|entry| { return entry.message.contains("is not a plain file"); }), "a line names the pipe: {entries:?}");
+    assert!(claimed.iter().any(|name| { return name.starts_with("review-good"); }), "the record behind it was claimed: {claimed:?}");
+}
+
+/// The name of the named pipe the control above plants, as the queue writes it.
+fn pipe_name() -> String {
+    return item(WorkKind::Review, "pipe").id();
+}

@@ -117,27 +117,96 @@ fn words_from(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>) -> Stri
 /// ```
 pub(crate) fn a_directory_that_could_not_be_read(place: &Path, id: &str, error: &std::io::Error) -> String {
     return format!(
-        "the directory {} could not be read ({error}), so whether a record of {id} is in it could not be found out and nothing of the record was moved here; the permissions of that directory are what to look at",
-        place.display()
+        "the directory {} could not be read ({error}), so whether a record of {id} is in it could not be found out and nothing of the record was moved here{}",
+        place.display(),
+        or_the_permission(error)
     );
 }
 
 /// What:
-///  The sentence for a `claimed` directory that could not be read.
+///  What a walk that stopped says about the place it walked.
 /// Why:
-///   The claim's own directory is the one place the settlement was looking for,
-/// so its failure says plainly that the claim's presence there is unknown,
-/// which is the question the reader of the failure has.
+///   A directory that is not there, a name something else has taken,
+/// and a directory that answered with an error are three different answers,
+/// and a person is sent to permissions only by the third:
+/// the first two are absences the filesystem answered,
+/// and a claim behind one of them has nothing left to keep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `the directory ${place} could not be read (${error}), so whether the claim of ${id} is still in claimed could not be found out ...`
+/// whatTheFailureMeans(error) // 'the place is not there' | 'something else is at the place' | 'could not be told'
 /// ```
-pub(crate) fn the_claim_directory_could_not_be_read(place: &Path, id: &str, error: &std::io::Error) -> String {
-    return format!(
-        "the directory {} could not be read ({error}), so whether the claim of {id} is still in claimed, and where its record stands, could not be found out; nothing of the record was moved here, and the permissions of that directory are what to look at",
-        place.display()
-    );
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WhatTheFailureMeans {
+    /// The place is not there, so what it held went with it.
+    ThePlaceIsNotThere,
+    /// Something else holds the place's name, so the queue is not there any more either.
+    SomethingElseIsAtThePlace,
+    /// The place answered with an error, so nothing is known about it either way.
+    CouldNotBeTold,
+}
+
+///  What a walk that stopped says about the place it walked.
+pub(crate) fn what_the_failure_means(error: &std::io::Error) -> WhatTheFailureMeans {
+    return match error.kind() {
+        std::io::ErrorKind::NotFound => WhatTheFailureMeans::ThePlaceIsNotThere,
+        std::io::ErrorKind::NotADirectory => WhatTheFailureMeans::SomethingElseIsAtThePlace,
+        _ => WhatTheFailureMeans::CouldNotBeTold,
+    };
+}
+
+///  How many names a walk reached, said as a person reads it.
+fn a_count_of_names(count: usize) -> String {
+    return if count == 1 { String::from("1 name") } else { format!("{count} names") };
+}
+
+///  The permission to look at, for the one error that is about a permission.
+fn or_the_permission(error: &std::io::Error) -> &'static str {
+    return match error.kind() {
+        std::io::ErrorKind::PermissionDenied => "; the permissions of that directory are what to look at",
+        _ => "",
+    };
+}
+
+/// What:
+///  The sentence for a walk over `claimed` that stopped, and what the stop means.
+/// Why:
+///   The claim's own directory is the one place the settlement was looking for,
+/// so its failure says plainly what is known about the claim there:
+/// a directory that is not there took the record with it,
+/// and one that answered with an error leaves the claim's presence unknown.
+///  A walk that stopped after some names says how far it got,
+/// because the claim may be among the names it never read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theClaimDirectoryWalkFailed(workDir, id, error, namesReached) // [meaning, words]
+/// ```
+pub(crate) fn the_claim_directory_walk_failed(work_dir: &Path, id: &str, error: &std::io::Error, names_reached: usize) -> (WhatTheFailureMeans, String) {
+    let claimed: PathBuf = state_directory(work_dir, CLAIMED);
+    let meaning: WhatTheFailureMeans = what_the_failure_means(error);
+    let said: String = match meaning {
+        WhatTheFailureMeans::ThePlaceIsNotThere => format!(
+            "the {CLAIMED} directory is not there under {}, so no state of {id} can be read: the record went with it and its work is recorded nowhere",
+            work_dir.display()
+        ),
+        WhatTheFailureMeans::SomethingElseIsAtThePlace => format!(
+            "a file is at {}, where the {CLAIMED} directory was, so no state of {id} can be read: the record went with it and its work is recorded nowhere",
+            claimed.display()
+        ),
+        WhatTheFailureMeans::CouldNotBeTold if names_reached > 0 => format!(
+            "the walk over {} stopped after {}, so whether the claim of {id} is among the rest, and where its record stands, could not be found out; nothing of the record was moved here{}",
+            claimed.display(),
+            a_count_of_names(names_reached),
+            or_the_permission(error)
+        ),
+        WhatTheFailureMeans::CouldNotBeTold => format!(
+            "the directory {} could not be read ({error}), so whether the claim of {id} is still in claimed, and where its record stands, could not be found out; nothing of the record was moved here{}",
+            claimed.display(),
+            or_the_permission(error)
+        ),
+    };
+    return (meaning, said);
 }
 
 /// The sentence for a state of one record that could not be looked at,
@@ -145,8 +214,9 @@ pub(crate) fn the_claim_directory_could_not_be_read(place: &Path, id: &str, erro
 /// whether the record is there is not known.
 fn a_state_that_could_not_be_looked_at(place: &Path, id: &str, error: &std::io::Error) -> String {
     return format!(
-        "the state {} could not be looked at ({error}), so whether a record of {id} is there could not be found out and nothing of the record was moved here; the permissions of that directory are what to look at",
-        place.display()
+        "the state {} could not be looked at ({error}), so whether a record of {id} is there could not be found out and nothing of the record was moved here{}",
+        place.display(),
+        or_the_permission(error)
     );
 }
 
@@ -202,23 +272,11 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>
         }
         Err(error) => return Err(a_directory_that_could_not_be_read(work_dir, id, &error)),
     }
-    let claimed: PathBuf = state_directory(work_dir, CLAIMED);
-    match is_a_directory(claimed.as_path()) {
-        Ok(true) => {}
-        Ok(false) => {
-            return Ok(format!(
-                "the {CLAIMED} directory is not there under {}, so no state of {id} can be read: the record went with it and its work is recorded nowhere",
-                work_dir.display()
-            ));
-        }
-        Err(error) => return Err(the_claim_directory_could_not_be_read(claimed.as_path(), id, &error)),
-    }
     // The claim's own directory: the file the move was for, or another instance's claim of the same record.
+    // A directory that is not there is the walk's answer and not a permission problem, so the walk alone decides.
+    let claims: WhatTheWalkReached = walk(work_dir, CLAIMED);
+    let names_reached: usize = claims.names.len();
     let mut another: Option<String> = None;
-    let claims = walk(work_dir, CLAIMED);
-    if let Some(error) = claims.stopped_by.as_ref() {
-        return Err(the_claim_directory_could_not_be_read(claimed.as_path(), id, error));
-    }
     for (name, _modified) in claims.names {
         if id_of_entry(name.as_str()) != id {
             continue;
@@ -233,29 +291,32 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>
         }
     }
     if let Some(name) = another {
+        return Ok(another_claim_holds_it(id, name.as_str()));
+    }
+    if let Some(error) = claims.stopped_by.as_ref() {
+        // The claim is not among the names the walk reached and the walk did not reach the end,
+        // so the claim is either gone with the directory or in the names that were never read, and the words say which.
+        let (_meaning, said): (WhatTheFailureMeans, String) = the_claim_directory_walk_failed(work_dir, id, error, names_reached);
+        return Err(said);
+    }
+    // The other place a move of this record passes through: a take's staging and a recovery's own file both sit here.
+    let recovering: PathBuf = state_directory(work_dir, RECOVERING);
+    let taking: WhatTheWalkReached = walk(work_dir, RECOVERING);
+    for (name, _modified) in taking.names {
+        if id_of_entry(name.as_str()) != id {
+            continue;
+        }
+        // A file of this record under a generation of its own is between two steps of a move that has three endings,
+        // and this holder cannot tell which one the record meets.
         return Ok(format!(
-            "another instance took the claim of {id} back when its lease ran out and claimed it again as {CLAIMED}/{name}, so its work is run again there and nothing of it was moved here"
+            "another instance has this record's file in {RECOVERING}/{name}, under a generation of its own, so it is between two steps of a move of its own and this instance's claim of the record is not the file in that directory: a take publishes it as a claim in {CLAIMED}, where that instance runs the work there; a recovery queues it in {PENDING}/{id} when the record still has tries left, where the next look that claims it does its work; and a recovery leaves it in {FAILED}/{id} when its tries are all used, where nothing looks at it again and its work happens only if a person does it. Where the record stands after that move is which of the three happened, and nothing of it was moved here"
         ));
     }
-    let recovering: PathBuf = state_directory(work_dir, RECOVERING);
-    match is_a_directory(recovering.as_path()) {
-        Ok(true) => {
-            let taking = walk(work_dir, RECOVERING);
-            if let Some(error) = taking.stopped_by.as_ref() {
-                return Err(a_directory_that_could_not_be_read(recovering.as_path(), id, error));
-            }
-            for (name, _modified) in taking.names {
-                if id_of_entry(name.as_str()) != id {
-                    continue;
-                }
-                // A recovery has two endings, and this holder cannot tell which one this record meets.
-                return Ok(format!(
-                    "another instance is taking the claim of {id} out of {CLAIMED} into {RECOVERING}/{name}, and that recovery has two endings: it leaves the record in {PENDING}/{id} when the record still has tries left, where the next look that claims it does its work, and in {FAILED}/{id} when its tries are all used, where nothing looks at it again and its work happens only if a person does it; where the record stands when the recovery ends is which of the two happened, and nothing of it was moved here"
-                ));
-            }
+    if let Some(error) = taking.stopped_by.as_ref() {
+        // The directory is one a queue need not have, so only a name something else took or an error is worth a sentence.
+        if what_the_failure_means(error) != WhatTheFailureMeans::ThePlaceIsNotThere {
+            return Err(a_directory_that_could_not_be_read(recovering.as_path(), id, error));
         }
-        Ok(false) => {}
-        Err(error) => return Err(a_directory_that_could_not_be_read(recovering.as_path(), id, &error)),
     }
     let queued: PathBuf = state_directory(work_dir, PENDING).join(id);
     match is_a_record(queued.as_path()) {
@@ -283,10 +344,37 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str, walk: AWalkOf<'_>
         Ok(false) => {}
         Err(error) => return Err(a_state_that_could_not_be_looked_at(given_up.as_path(), id, &error)),
     }
+    // A take publishes its staged claim in `claimed`, and that can finish between two of the looks above.
+    // The claim's own directory is therefore asked once more, so the words do not call a move under way a removal.
+    let again: WhatTheWalkReached = walk(work_dir, CLAIMED);
+    let names_reached_again: usize = again.names.len();
+    for (name, _modified) in again.names {
+        if id_of_entry(name.as_str()) != id {
+            continue;
+        }
+        if names_claim(name.as_str(), id, token) {
+            return Ok(format!(
+                "the claim is still in {CLAIMED}/{name}, so nothing of the record moved here and another look runs its work again when its lease runs out"
+            ));
+        }
+        return Ok(another_claim_holds_it(id, name.as_str()));
+    }
+    if let Some(error) = again.stopped_by.as_ref() {
+        let (_meaning, said): (WhatTheFailureMeans, String) = the_claim_directory_walk_failed(work_dir, id, error, names_reached_again);
+        return Err(said);
+    }
     return Ok(format!(
-        "no file of {id} is in {CLAIMED}, {RECOVERING}, {PENDING}, {DONE} or {FAILED} under {}, and every one of those places was looked at, so the record is in none of them: something other than a move of this queue removed it, and nothing of it was moved here",
+        "no file of {id} was in {CLAIMED}, {RECOVERING}, {PENDING}, {DONE} or {FAILED} under {}, and every one of those places was looked at, so either a move of this queue finished between those looks or something other than a move of this queue removed the record; nothing of it was moved here",
         work_dir.display()
     ));
+}
+
+///  The sentence for a claim of this record that is not this instance's: another instance took it back when its lease ran out
+///  and claimed it again, and that claim's work is its own to run.
+fn another_claim_holds_it(id: &str, name: &str) -> String {
+    return format!(
+        "another instance took the claim of {id} back when its lease ran out and claimed it again as {CLAIMED}/{name}, so its work is run again there and nothing of it was moved here"
+    );
 }
 
 /// Controls stay out of the release executable.

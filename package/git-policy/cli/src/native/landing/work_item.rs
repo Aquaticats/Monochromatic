@@ -421,13 +421,16 @@ pub(crate) use crate::work_item_ids_and_names::MAX_OBJECT_NAME_LENGTH;
 /// A failure is returned,
 /// because a claim or renewal that went on without the stamp
 ///  would be one that such a reader takes (a file another user owns cannot be stamped).
+///  The file is opened as a plain one (`open_plain_file`):
+/// a name in the queue that holds a named pipe is a record this command cannot read rather than a wait with no end,
+/// and a claim step that waited for a writer would hold the round for as long as the pipe has no reader.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await utimes(path, new Date(), new Date())
+/// await utimesPlain(path, new Date(), new Date()) // refuses a name that is not a plain file
 /// ```
 fn stamp_modification_time(path: &Path) -> std::io::Result<()> {
-    return std::fs::File::open(path)?.set_modified(SystemTime::now());
+    return crate::plain_file::open_plain_file(path)?.set_modified(SystemTime::now());
 }
 
 /// How a claim or renewal stamps the file it holds.
@@ -603,6 +606,18 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
         Err(error) => Err(error),
     };
     if let Err(error) = published {
+        // The queue's own directories hold records and nothing else, so a name that is not a plain file is one no round can
+        // read: it goes where nothing runs it, with a line naming it, rather than back into the queue it would block for ever.
+        if error.kind() == std::io::ErrorKind::InvalidInput {
+            let failed: PathBuf = state_directory(work_dir, FAILED);
+            let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(staged.as_path(), failed.join(id)).is_ok();
+            log(format!(
+                "the queued entry {id:?} is not a plain file (a named pipe, a device or a directory), so it was {}",
+                if moved { "moved to failed" } else { "left in recovering because moving it failed" }
+            )
+            .as_str());
+            return Ok(None);
+        }
         log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
         // The staged file is this instance's alone:
         // the age it had is put back before it is queued again,
@@ -621,7 +636,7 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
         }
         return Ok(None);
     }
-    let text: String = match std::fs::read_to_string(claimed_path.as_path()) {
+    let text: String = match crate::plain_file::read_plain_text(claimed_path.as_path()) {
         Ok(read) => read,
         Err(error) => return Err(format!("reading the claim of {id} failed: {error}")),
     };
@@ -657,7 +672,7 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
 /// const later = (path) => recordOfALaterRelease(readFileSync(path, 'utf8'));
 /// ```
 fn left_for_a_later_release(path: &Path) -> bool {
-    return match std::fs::read_to_string(path) {
+    return match crate::plain_file::read_plain_text(path) {
         Ok(text) => record_of_a_later_release(text.as_str()),
         Err(_unreadable) => false,
     };

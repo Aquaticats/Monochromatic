@@ -55,8 +55,8 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::work_item::{CLAIMED, Claimed, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named, the_names_in};
-use crate::work_record_where_it_went::the_claim_directory_could_not_be_read;
+use crate::work_item::{CLAIMED, Claimed, WhatTheWalkReached, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named, the_names_in};
+use crate::work_record_where_it_went::{WhatTheFailureMeans, the_claim_directory_walk_failed};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::RefCell;
@@ -84,6 +84,27 @@ const LOOKS: usize = 3;
 /// claim only when a renewal is late by more than 80.
 pub fn renewal_interval(lease: Duration) -> Duration {
     return lease / RENEWALS_PER_LEASE;
+}
+
+///  A walk over `claimed` that did not reach the end, with how many names it reached:
+/// a claim that was not among them is not a claim that is gone.
+#[derive(Debug)]
+struct AClaimWalkThatFailed {
+    error: std::io::Error,
+    names_reached: usize,
+}
+
+/// What one look at a held claim's file in `claimed` found out.
+#[derive(Debug)]
+pub enum WhatTheLookFound {
+    /// The claim is in `claimed` under this instance's generation.
+    Held,
+    /// The claim's file is not in `claimed` any more: it was taken back, taken over, or removed.
+    NotHeld,
+    /// The place the claim lived in is not there, so the record went with it and nothing is left to keep.
+    TheRecordWentWithIt(String),
+    /// The look failed and nothing is known either way, so the claim stays this instance's to look at again.
+    CouldNotBeTold(String),
 }
 
 /// What:
@@ -179,34 +200,36 @@ struct ClaimNames {
     /// The names of `claimed`,
     /// by the id each one is the claim of.
     by_id: std::collections::HashMap<String, Vec<String>>,
+    /// The error that stopped the walk, when it did not reach the end of the directory:
+    /// a claim that is not among the names reached may be among the names never read.
+    stopped_by: Option<std::io::Error>,
 }
 
 impl ClaimNames {
     /// What:
     ///  Lists `claimed` once,
-    ///  or answers the error that kept it from being listed.
+    ///  with the error that stopped the walk when it did not reach the end.
     /// Why:
     ///   The names are kept whole,
     /// so a claim is found by its id and generation alone,
     /// and the listing is the one
     ///  directory read the round makes.
-    /// A directory that could not be listed is an error and never an empty listing:
+    /// A directory that could not be listed is never an empty listing:
     /// a settlement that read it as empty would say a claim is gone that nobody moved.
+    /// A walk that stopped part-way keeps the names it reached,
+    /// and the error travels with them so a claim that was not among them is not called absent.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// new ClaimNames(Object.groupBy(await readdirOrTheError(claimed), idOfEntry))
     /// ```
-    fn listed(work_dir: &Path) -> std::io::Result<ClaimNames> {
-        let reached = the_names_in(work_dir, CLAIMED);
-        if let Some(error) = reached.stopped_by {
-            return Err(error);
-        }
+    fn listed(work_dir: &Path) -> ClaimNames {
+        let reached: WhatTheWalkReached = the_names_in(work_dir, CLAIMED);
         let mut by_id: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
         for (name, _modified) in reached.names {
             by_id.entry(id_of_entry(name.as_str()).to_owned()).or_default().push(name);
         }
-        return Ok(ClaimNames { by_id });
+        return ClaimNames { by_id, stopped_by: reached.stopped_by };
     }
 
     /// What:
@@ -349,7 +372,7 @@ impl HeldClaims {
     /// ```ts
     /// for (let look = 0; look < LOOKS; look += 1) { const name = this.listed.nameOf(claim); if (name) return name; this.listed = await ClaimNames.listed(workDir) }
     /// ```
-    fn current_name(&self, work_dir: &Path, claim: &Claim) -> std::io::Result<Option<String>> {
+    fn current_name(&self, work_dir: &Path, claim: &Claim) -> Result<Option<String>, AClaimWalkThatFailed> {
         for _ in 0..LOOKS {
             let found: Option<String> = match self.listed.borrow().as_ref() {
                 Some(names) => names.name_of(claim).map(str::to_owned),
@@ -359,8 +382,18 @@ impl HeldClaims {
                 return Ok(Some(name));
             }
             // Nothing in the listing: a renewal may have renamed the file since it was taken, so `claimed` is listed again.
-            let fresh: ClaimNames = ClaimNames::listed(work_dir)?;
+            let mut fresh: ClaimNames = ClaimNames::listed(work_dir);
+            let found_in_the_fresh: Option<String> = fresh.name_of(claim).map(str::to_owned);
+            let names_reached: usize = fresh.by_id.values().map(Vec::len).sum();
+            let stopped_by: Option<std::io::Error> = fresh.stopped_by.take();
             *self.listed.borrow_mut() = Some(fresh);
+            if let Some(name) = found_in_the_fresh {
+                return Ok(Some(name));
+            }
+            // A walk that did not reach the end cannot say the claim is not there.
+            if let Some(error) = stopped_by {
+                return Err(AClaimWalkThatFailed { error, names_reached });
+            }
         }
         return Ok(None);
     }
@@ -392,6 +425,28 @@ impl HeldClaims {
     /// held.has(id) && !held.lost(id) && currentName(workDir, claim).ok()?.value !== undefined
     /// ```
     pub fn is_held_on_disk_or_the_error(&self, work_dir: &Path, id: &str) -> Result<bool, String> {
+        return match self.what_the_look_found(work_dir, id) {
+            WhatTheLookFound::Held => Ok(true),
+            WhatTheLookFound::NotHeld => Ok(false),
+            // The look found nothing to keep, or could not tell: both are said, and neither is a claim that is held.
+            WhatTheLookFound::TheRecordWentWithIt(said) | WhatTheLookFound::CouldNotBeTold(said) => Err(said),
+        };
+    }
+
+    /// What:
+    ///  What one look at the claim's file found out:
+    /// held, gone, gone with the place it lived in, or not to be told.
+    /// Why:
+    ///   A settlement and a drain say what happened,
+    /// and a claim behind a directory that is not there has nothing left to keep while one behind a failed look is still this
+    /// instance's to look at again;
+    /// one answer cannot carry both.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// held.whatTheLookFound(workDir, id) // 'held' | 'not held' | {wentWithIt: words} | {couldNotBeTold: words}
+    /// ```
+    pub fn what_the_look_found(&self, work_dir: &Path, id: &str) -> WhatTheLookFound {
         // The claim is cloned out of the list, so the look at the directory happens with no lock held.
         let found: Option<Arc<Claim>> = {
             let claims = self.claims.borrow();
@@ -404,18 +459,26 @@ impl HeldClaims {
             }
             found
         };
-        let Some(claim) = found else { return Ok(false) };
+        let Some(claim) = found else { return WhatTheLookFound::NotHeld };
         if claim.lost.load(Ordering::SeqCst) {
-            return Ok(false);
+            return WhatTheLookFound::NotHeld;
         }
         return match self.current_name(work_dir, claim.as_ref()) {
-            Ok(Some(_name)) => Ok(true),
+            Ok(Some(_name)) => WhatTheLookFound::Held,
             Ok(None) => {
                 claim.lost.store(true, Ordering::SeqCst);
-                Ok(false)
+                WhatTheLookFound::NotHeld
             }
             // The look failed, so nothing is known about the claim: it is neither taken over nor let go.
-            Err(error) => Err(the_claim_directory_could_not_be_read(&crate::work_item::state_directory(work_dir, CLAIMED), id, &error)),
+            Err(failed) => {
+                let (meaning, said): (WhatTheFailureMeans, String) =
+                    the_claim_directory_walk_failed(work_dir, id, &failed.error, failed.names_reached);
+                match meaning {
+                    // The filesystem answered that the place is not there: the record went with it and there is nothing to keep.
+                    WhatTheFailureMeans::ThePlaceIsNotThere | WhatTheFailureMeans::SomethingElseIsAtThePlace => WhatTheLookFound::TheRecordWentWithIt(said),
+                    WhatTheFailureMeans::CouldNotBeTold => WhatTheLookFound::CouldNotBeTold(said),
+                }
+            }
         };
     }
 
@@ -475,12 +538,12 @@ impl HeldClaims {
             return Err(format!("{id} was taken over by another instance"));
         }
         let mut last: String = String::new();
-        let mut unread: Option<std::io::Error> = None;
+        let mut unread: bool = false;
         for _ in 0..LOOKS {
             let found: Option<String> = match self.current_name(work_dir, &claim) {
                 Ok(found) => found,
-                Err(error) => {
-                    unread = Some(error);
+                Err(_failed) => {
+                    unread = true;
                     break;
                 }
             };
@@ -494,9 +557,9 @@ impl HeldClaims {
                 }
             }
         }
-        // A move that failed and then a listing that failed say nothing about the claim being absent,
+        // A move that failed and then a look that failed say nothing about the claim being absent,
         // so the move is named without that clause and the words below say what was found out.
-        let reason: String = match (last.is_empty(), unread.is_some()) {
+        let reason: String = match (last.is_empty(), unread) {
             (true, true) => format!("moving {id} to {state} failed"),
             (true, false) => format!("moving {id} to {state} failed: the claim is not in {CLAIMED}"),
             (false, _) => last,

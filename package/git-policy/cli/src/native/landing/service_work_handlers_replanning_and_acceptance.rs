@@ -25,7 +25,7 @@ use crate::push_retry_cause_line::cause_line;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
-use crate::service_claim_renewal::HeldClaims;
+use crate::service_claim_renewal::{HeldClaims, WhatTheLookFound};
 use crate::service_review_key::ReviewKey;
 use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
@@ -339,20 +339,28 @@ pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed]
 /// so its work is not run here,
 /// the claim is kept (nothing marks it taken over),
 ///  and the words say that the look failed and what its error was.
+/// A claim whose directory the filesystem answered as not there is the third answer:
+///  the record went with the directory,
+/// so nothing is left to keep and the claim is released with the words saying so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const item of claimed) { const answer = held.isHeldOnDiskOrTheError(item.id); if (answer.ok) answer.value ? mine.push(item) : lost.push(item); else unread.push([item, answer.error]) }
+/// for (const item of claimed) { switch (held.whatTheLookFound(item.id)) { case 'held': mine.push(item); case 'not held': lost.push(item); ... } }
 /// ```
 pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
     let mut mine: Vec<Claimed> = Vec::new();
     let mut lost: Vec<Claimed> = Vec::new();
     let mut unread: Vec<(Claimed, String)> = Vec::new();
+    let mut went_with_it: Vec<String> = Vec::new();
     for item in claimed {
-        match held.is_held_on_disk_or_the_error(work_dir, item.id.as_str()) {
-            Ok(true) => mine.push(item),
-            Ok(false) => lost.push(item),
-            Err(said) => unread.push((item, said)),
+        match held.what_the_look_found(work_dir, item.id.as_str()) {
+            WhatTheLookFound::Held => mine.push(item),
+            WhatTheLookFound::NotHeld => lost.push(item),
+            WhatTheLookFound::TheRecordWentWithIt(said) => {
+                crate::service_warn!("{said}, so it is not run here and its claim is released");
+                went_with_it.push(item.id);
+            }
+            WhatTheLookFound::CouldNotBeTold(said) => unread.push((item, said)),
         }
     }
     for item in lost {
@@ -361,8 +369,16 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
         );
         held.release(item.id.as_str());
     }
+    for id in went_with_it {
+        held.release(id.as_str());
+    }
     for (item, said) in unread {
-        crate::service_warn!("{said}, so {} is not run here and its claim is kept for the next look", item.id);
+        // A claim kept here is judged by its lease, and the lease running out is what spends one of the record's tries:
+        // the words say the cost rather than promising a look that nothing schedules.
+        crate::service_warn!(
+            "{said}, so {} is not run here; its claim is kept, nothing looks at it again until its lease runs out, and the recovery that ends that lease spends one of its {MAX_TRIES} tries",
+            item.id
+        );
     }
     return mine;
 }
@@ -470,8 +486,11 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
         if item.kind != WorkKind::Push {
             continue;
         }
+        // What a try is spent on is two things, and only one of them is a service that stopped:
+        // a service that could not tell whether its claim of the record was still its own keeps the claim,
+        // and the lease that then runs out is what spends the try.
         let reason: String = format!(
-            "monochromatic-git-policy-cli: the commit service stopped {MAX_TRIES} times before it finished pushing {} (a restart, a kill or a crash each time), so it gave up on that push.",
+            "monochromatic-git-policy-cli: the commit service did not finish pushing {} in {MAX_TRIES} tries, so it gave up on that push. A try is spent when the service ends before it settles the push, and also when the service cannot tell whether its claim of the push's record is still its own, because that claim then runs out and is recovered. The commit is still in this repository and pushing the branch by hand sends it.",
             item.branch_ref
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {

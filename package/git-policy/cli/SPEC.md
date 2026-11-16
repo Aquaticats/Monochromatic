@@ -17962,6 +17962,15 @@ A record whose id is not the id in its file name is moved to `failed` when it is
 because running it would settle the wrong work under the name.
 A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
 since this release's names for it would not fit.
+A claim the drain keeps because its look failed is judged by its lease and nothing else,
+so the recovery that ends the lease spends one of the record's tries;
+the line says that cost,
+and the notice for a push given up on names both ways a try is spent
+(a service that ended, and a service that could not tell whether its claim was still its own)
+instead of saying the service stopped.
+Every record the queue reads is read as a plain file (`foundation/plain_file.rs`):
+a name that holds a named pipe is a record this command cannot read rather than a wait with no end,
+and an entry of `pending` that is not a plain file is moved to `failed` with a line naming it.
 
 A settlement that renames the claim out of `claimed` and finds nothing says which order left the record elsewhere,
 read from the record's own directories (`landing/work_record_where_it_went.rs`):
@@ -17978,21 +17987,34 @@ run again by the instance that holds the record now,
 recorded as finished,
 recorded nowhere,
 or due again when the claim's lease runs out.
-A take in flight says both endings that recovery has,
-queued again or given up on,
-and that where the record stands afterwards is which of the two happened:
-a recovery gives a record up on its last try, so a settlement cannot promise a run.
-A directory or a state that could not be read is a third answer and is never told as an absence:
+A file of the record in `recovering` is a move between two of its steps,
+and the words name all three endings it can have:
+a take publishes it as a claim in `claimed`, where that instance runs the work,
+a recovery queues it in `pending` when the record still has tries left,
+and a recovery leaves it in `failed` on its last try.
+Which of the three happened is what the record's place afterwards shows,
+and a settlement promises no run of what it cannot know:
+a take's staged claim lives for one stamp and one rename, so a settlement can meet it.
+The places are read in an order,
+and a take that publishes its claim between two of the looks is caught by a last look at `claimed`,
+so a move under way is not told as a removal.
+A place that could not be read is a third answer and is never told as an absence:
 the words name it,
 keep the error the filesystem gave,
 say that whether a record is there could not be found out,
-and name the permission to look at.
+say how many names a walk that stopped part-way reached,
+and name the permission to look at only when a permission is the error.
+A place the filesystem answers as not there, or as a name a file has taken, is an absence it answered:
+the words say the record went with it,
+and the drain releases the claim, which has nothing left to keep.
 The claim's absence alone is never read as a lease that ran out,
 which named the wrong cause for every record whose repository was removed under the service
 (2026-11-14 gate of this package: of 106 such lines, 100 were written by a service instance no older than its claim's lease,
 median 192 ms of uptime,
 with the repository reported gone in the same block,
 and 3 came from a control that drives a takeover and 3 from a control that blocks `done`).
+A walk that stops part-way keeps the names it reached,
+so a caller that only works with the queue reads a shorter one and never an empty one.
 
 Limits:
 machines cloned with one machine ID cannot be told apart,
