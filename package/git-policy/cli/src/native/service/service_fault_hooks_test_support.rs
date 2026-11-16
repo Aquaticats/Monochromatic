@@ -238,10 +238,7 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 pub(crate) fn run_on_any_thread(point: &str) {
     let taken: Option<HoldOnAnyThread> = {
         let mut registry = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
-        match registry.iter().position(|held| { return held.point == point; }) {
-            Some(at) => Some(registry.remove(at)),
-            None => None,
-        }
+        registry.iter().position(|held| { return held.point == point; }).map(|at| { return registry.remove(at); })
     };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
