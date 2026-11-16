@@ -19,6 +19,7 @@ import {
   resolveStorePath,
 } from '@monochromatic-dev/env-local-json-core/ts/discovery.ts';
 import { readEnvLocalJson, } from '@monochromatic-dev/env-local-json-core/ts';
+import { isNonBlank, } from '@monochromatic-dev/env-local-json-core/ts/environment.ts';
 import {
   isMaskableValue,
   type SecretValue,
@@ -418,7 +419,9 @@ function environmentForTheStore({
    The declared names the environment supplies, which the reader would answer the store's value for only if they were absent.
    */
   const shadowed = names.filter(function isHeld(name,) {
-    return isMaskableValue(environment[name] ?? '',);
+    // The reader this code asks keeps the environment's precedence for any value that is not blank, so a short value shadows the
+    // store's long one just as a long value does: pruning only the long ones left the long store value unreadable, and unarmed.
+    return isNonBlank(environment[name],);
   },);
   if (shadowed.length === 0) {
     return environment;
