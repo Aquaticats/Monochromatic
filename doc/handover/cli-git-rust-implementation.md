@@ -39770,6 +39770,48 @@ Rounds twelve to fourteen, written here at 2026-11-15T19:56:30-05:00:
 - Four small actions, each ticked: **"Add the four retired codes to your local file"**, **"Keep SSH_AUTH_SOCK blocked"**,
   **"Mount unit's stop succeeds when nothing is mapped"**, **"Remove the dead old-name units and 0.5.34 folder"**.
 
+Rounds fifteen to seventeen (asked between 20:25 and 20:39, written here at 2026-11-15T20:40:01-05:00), the last of the older questions:
+
+- mpm-shadow, an install that finds another command holding the lock of the launchers and links it is about to change:
+  **"Ten seconds, then refuse (Recommended)"**. One number with the archive answer; nothing is written without the lock; the message names the holder.
+  So the stale-launchers branch's `Option<Guard>` (going on without the lock) is not what a merge keeps.
+- Pi driver, the queue of runs: **"Folder, one file per entry (Recommended)"**. The lock file over one JSON file is set aside; the rule on lock-free concurrency decides it.
+  The scratch queue of this session is rewritten with it at the changeover.
+- wg lifecycle branch `cd83212379`, whose five privileged tasks never ran: typed, **"You run them now. sudo passwordless."**
+  So the coordinating session runs the five tasks with `sudo` and merges when they pass.
+- Wrapper, `UNASKABLE_HOLD_AGE`: **"Approve 150 seconds"**, against the session's recommendation of ten minutes. The sentence "awaits the owner's approval" in `SPEC.md` (line 8381) is now out of date.
+- The four libraries' shared test helpers: **"A separate library (Recommended)"** (`disposable-test-folders`).
+- Where the libraries live: **"package/<job>/core-rust (Recommended)"**, crate `monochromatic-<job>`.
+- Their plural names: **"Keep the names, exempt them (Recommended)"**; `doc/planning/singular-dir-name-invariant.md` gets the entries.
+  With these three the plan's open points for the owner are closed (`doc/planning/cli-git-source-layout-target-tree.md`, "Open points for the owner").
+- monochromatic-lint, a line the fixer breaks inside a blockquote: **"Add `>` to the new line (Recommended)"**.
+- The "release-artifact gate" of the umbrella list: **"What exists is the gate (Recommended)"**: the lock's sha256, `native:perf` on the published archive's binary, and the sample commit after an install. No listing check is built.
+
+Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
+
+- Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
+  the author tests whether such a unit still gets its tunnel exemption (a probe put an instanced unit under `app.slice/app-<name>.slice`, where `wg-quicker-exempt` does not look) and names its slice if not.
+- Pi driver, removal of a worktree at a run's end: the proof of who made it is checked where one exists, and today's rules hold where none does (in line with "Remove after a bound").
+- mpm-shadow: a pass from the global scope looks for a repository above its working folder and keeps what it cannot judge ("what the pass cannot see is protected", and "Newest two plus pinned" needs the pins seen);
+  the two-second clock of a removal starts with the pass, as built ("You should (almost) never be waiting."), and the doc's sentence is corrected;
+  claim names it does not recognise get one line per pass with their count and the first path;
+  the two one-hour constants (`DOWNLOAD_IN_USE_FLOOR`, `DEFAULT_PROGRAM_BOUND`) get a measurement beside them, since a shipped limit cites one;
+  the archive prune gets its seam and a control.
+- Queue of runs: a `reviewOfBranch` entry is converted to `reviewOfRange` at the changeover; `--queue` stays required; breaking a dead holder's claim is logged.
+- Wrapper: a watch note naming another repository's directory stays refused (each service touches its own repository only), and `SPEC.md` says so;
+  `SPEC.md` line 14568 (a wait that was removed) and line 14557 (a claim file that "stays") are corrected on the no-manager branch.
+- cargo-shadow: the eighteen hand-made logs and the renamed record under `package/linter/monochromatic-lint/target/verification` stay where the docs cite them, never swept (the README says so already).
+- The fuzzing artifact reference stays as history with one added line saying its bytes are not kept.
+- `doc/handover/cli-git-native-post-landing.md` line 214 ("nothing remains") is corrected: the maintenance files were not mutated.
+- The wrapper's mutation pause stays: the condition the owner set for lifting it (the commit protocol comparison) is not met.
+
+Held and not asked, with the reason:
+
+- The push of a branch that is not checked out, when a path still holds the old tip and another program's index lock blocks the repair for five seconds (stop the command, or let it through with a note):
+  the report it comes from is of 15:16 and a later run of that author is under way, so it is asked on that run's report.
+- Relinking the dangling `node_modules` links counted on 2026-11-08: counted again first, read-only, since the number is a week old.
+- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.
+
 Settled by a recorded rule and therefore not asked, each open to veto:
 the two constants of the push stop and the 5 ms retry of a refused log line are decided by a measurement, since a shipped limit cites one;
 the durable record before a branch moves keeps its flushed write;
