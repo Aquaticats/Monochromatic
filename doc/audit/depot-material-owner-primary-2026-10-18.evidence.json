@@ -10,7 +10,19 @@
     "gzipSha256": "253cca9bfa20a4bbc767bc0e09d47f659d84b7196dafe7ca8f847335bf3d3050",
     "uncompressedBytes": 3003034,
     "uncompressedSha256": "1b736c42d965f68c04b4481aa3039b9ccaf98ed966401f9081b86994bb593c44",
-    "bodies": 126
+    "bodies": 126,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 20d75368570ee045ddff43d67aef42fd245cce4b:doc/audit/depot-material-owner-primary-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "profiles": [
     {

@@ -11,7 +11,7 @@ Artifact inequality alone did not identify a provider or cache defect.
 
 ## Root cause
 
-The [retained section and source evidence][evidence] compares every section of the 64-bit libraries.
+The retained section and source evidence (`../planning/depot-complete-coverage-android-reproducibility.json.gz`) compares every section of the 64-bit libraries.
 All compared `.text` sections match.
 Each of the 6 differing engine/Turso libraries has exactly 4 different `.rodata` bytes,
 inside an embedded build timestamp.
@@ -20,6 +20,8 @@ the x86-64 values are `2026-10-18 07:36:33` and `2026-10-18 07:57:41`.
 The `.symtab` and `.strtab` sections also differ,
 with changed numeric LLVM symbol suffixes.
 This comparison does not establish the cause of every symbol-table byte difference.
+`depot-complete-coverage-android-reproducibility.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The locked `turso_core` `0.8.2` archive has SHA-256
 `4fa832d4ab648bf139f1b18b29bef6d653b18fbd4a77b0e4846c57aaf28c215c`.
@@ -128,5 +130,4 @@ The `.out-of-scope/` inventory contains no Turso reproducibility exemption.
 There is no additive issue comment to send.
 Do not file a new report presenting the already fixed historical defect as this incident.
 
-[evidence]: ../planning/depot-complete-coverage-android-reproducibility.json.gz
 [fix]: https://github.com/tursodatabase/turso/pull/6137

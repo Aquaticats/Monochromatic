@@ -1083,7 +1083,19 @@
     "gzipSha256": "22cecfc123460fbc5529654a5e622e0ae6e72d93249290b0f46d0cc6c8d2504f",
     "uncompressedBytes": 34159,
     "uncompressedSha256": "0537c8d9f8431afb69f66c03e6fb45acc62be8d651b0a48db33569818f84c3ee",
-    "bodies": 22
+    "bodies": 22,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 594497b184ccb18726303e2fbabccd58c82a7422:doc/audit/depot-remaining-local-unit-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "cleanup": [
     {

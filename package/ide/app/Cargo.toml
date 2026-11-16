@@ -146,7 +146,7 @@ i-slint-backend-testing = "=1.18.1"
 i-slint-backend-winit = ">=1.18.1"
 ignore = ">=0.4.34"
 notify = { version = ">=8.2.2", default-features = false }
-parley = ">=0.12.0"
+parley = ">=0.13.0"
 serde = ">=1.0.229"
 serde_json = ">=1.0.154"
 slint = { version = ">=1.18.1", default-features = false }

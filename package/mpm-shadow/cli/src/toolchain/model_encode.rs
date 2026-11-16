@@ -152,6 +152,28 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
 }
 
 /// What:
+/// One plan entry as this command writes it:
+/// `request`,
+/// `route` and `bins`,
+/// the three fields a request and its route's own source settle.
+/// Why:
+/// A hand-written entry may carry any of the other fields,
+/// but nothing here can know them,
+/// so the entry that is added holds no key with an invented value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function addedPlanEntryValue(declaration: Declaration): Record<string, unknown>
+/// ```
+pub fn added_plan_entry_value(declaration: &Declaration) -> Value {
+    let mut map: Map<String, Value> = Map::new();
+    map.insert("request".to_string(), request_value(&declaration.request));
+    map.insert("route".to_string(), Value::String(declaration.route.as_str().to_string()));
+    map.insert("bins".to_string(), text_array(&declaration.bins));
+    return Value::Object(map);
+}
+
+/// What:
 /// The pretty-printed JSON text of `document`:
 /// two-space indentation,
 /// no trailing newline.

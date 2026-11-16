@@ -506,9 +506,7 @@ fn acknowledge_refuses_what_is_not_an_open_journal_of_a_workspace() {
 /// an absent recorded scope is not read as gone.
 #[test]
 fn a_journal_seen_through_another_view_is_refused_and_kept() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let root = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let journal: PathBuf = journal_with_records(root.path(), &format!("{}\nsettled {}\n", planned.record(), planned.directory().display()));
@@ -558,9 +556,7 @@ fn a_journal_seen_through_another_view_is_refused_and_kept() {
 /// even though the scope path is absent.
 #[test]
 fn a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     // The mount id and the inode of the parent are each changed on their own (fifth certification pass): a check of only one of them
     // is red for the other; the unchanged view is the control, which is read as ended.
     for (label, mount_step, inode_step) in [("an unchanged view", 0_u64, 0_u64), ("another mount id", 1, 0), ("another inode", 0, 1)] {
@@ -626,9 +622,7 @@ fn recovery_in_another_mount_namespace_fixture() {
 /// and keeps the journal and the lockfile.
 #[test]
 fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
-    let Some(route) = delegated_route() else {
-        return;
-    };
+    let route = delegated_route();
     let root = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let journal: PathBuf = journal_with_records(root.path(), &format!("{}\nsettled {}\n", planned.record(), planned.directory().display()));
@@ -661,9 +655,7 @@ fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
 /// and the program writes a marker only after that.
 #[test]
 fn the_scope_record_is_visible_before_the_program_starts() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
     let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
     let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
@@ -695,8 +687,8 @@ fn a_record_that_cannot_be_published_starts_no_program_and_does_not_wait() {
         let plain = scratch();
         if weaker {
             use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
-        } else if delegated_route().is_none() {
-            return;
+        } else {
+            crate::cgroup_test_support::this_test_needs_a_delegated_scope();
         }
         let root = repository();
         let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
@@ -751,8 +743,8 @@ fn wrapper_held_inside_its_start_fixture() {
 #[test]
 fn a_wrapper_killed_inside_its_start_is_recovered_conservatively() {
     for weaker in [false, true] {
-        if !weaker && delegated_route().is_none() {
-            return;
+        if !weaker {
+            crate::cgroup_test_support::this_test_needs_a_delegated_scope();
         }
         let root = repository();
         fs::create_dir_all(root.path().join("not-a-cgroup")).expect("a plain directory");

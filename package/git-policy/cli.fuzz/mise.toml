@@ -15,6 +15,14 @@ description = "Plant each listed defect in a disposable copy of the subject and 
 # Mechanism D: this task writes a planted- record of its own, so it sweeps the run records first too.
 run = ["cargo-shadow lean records target/verification", "node bin/planted-controls.ts"]
 
+# A seed is an input the fuzzer starts from, and its first bytes are the repository answers of the frontier view. The
+# table in `src/seeds.rs` holds the answers and the arguments of each seed and its `Seed::bytes` lays the answers out in
+# the mode's own width, so widening the mode is a change there and one run of this task, never a byte count a person
+# keeps in step; `controls::tests::every_seed_spells_its_scenario` fails until it is run.
+[tasks."seed:write"]
+description = "Rewrite every seed of seed/wrapper_controls from the answers it asks for and the arguments it spells, so a seed keeps its spelling when the mode's width changes"
+run = "cargo run --example write_seeds --locked --offline"
+
 # The root `lint` fans out to the task named exactly `lint` in each package; without this entry the sidecar's checks
 # were never reached, and a change to the subject that broke a fuzz target went unnoticed.
 [tasks.lint]
