@@ -57,18 +57,22 @@ use std::time::SystemTime;
 pub const STAMP_KEY: &str = "stamp";
 
 /// What:
-///  The line a record carries the reading of the clocks it was written by.
+///  The line a record carries the reading of the clocks it was written by,
+///  escaped by the one rule every value of a record's line follows.
 /// Why:
 ///   The reading is written with the record,
 /// so it survives a restart and a copied journal,
 /// and a reader that does not know the key skips the line.
+/// The reading is a boot identifier and three numbers,
+///  so the escape changes nothing in it;
+///  it is applied so that the rule of the record holds for every line of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const line = stampLine(now); // 'stamp=boot~mono~wall~machine\n'
 /// ```
 pub fn stamp_line(now: &ClaimTime) -> String {
-    return format!("{STAMP_KEY}={}\n", now.encode());
+    return format!("{STAMP_KEY}={}\n", crate::path_bytes_in_records::encode_field(now.encode().as_bytes()));
 }
 
 /// What:
@@ -78,7 +82,9 @@ pub fn stamp_line(now: &ClaimTime) -> String {
 ///  and for text that is no record at all.
 /// Why:
 ///   A record with no readable reading is judged by its modification time,
-/// which is what every release before this one did.
+/// which is what every release before this one did;
+/// a record of this release gives it escaped like every other value of its lines,
+/// so the escape is undone here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +92,11 @@ pub fn stamp_line(now: &ClaimTime) -> String {
 /// ```
 pub fn stamp_of(text: &str) -> Option<ClaimTime> {
     let stamped: &str = intent_value(text, STAMP_KEY)?;
-    return ClaimTime::decode(stamped);
+    if !crate::path_bytes_in_records::carries_encoded_fields(text) {
+        return ClaimTime::decode(stamped);
+    }
+    let bytes: Vec<u8> = crate::path_bytes_in_records::decode_field(stamped)?;
+    return ClaimTime::decode(std::str::from_utf8(bytes.as_slice()).ok()?);
 }
 
 /// What:

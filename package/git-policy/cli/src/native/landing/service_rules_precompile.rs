@@ -44,6 +44,10 @@ use std::time::{Duration, Instant};
 /// The file in the service's state directory that names the repository it serves.
 pub const REMEMBERED_FILE: &str = "rules-repository";
 
+/// The field of the remembered record that holds the repository's root,
+///  escaped.
+pub const REMEMBERED_FIELD_PREFIX: &str = "repository=";
+
 /// The address space a warm needs beyond what the service already maps,
 /// in bytes.
 /// Measured on 2026-11-07 with this repository's real rules:
@@ -254,6 +258,26 @@ pub fn warm_in_background(repository_root: PathBuf) {
     spawn_warm(repository_root, true, Vec::new());
 }
 
+/// What:
+///  The repository root a record of this state directory names,
+///  and nothing when it names none.
+/// Why:
+///   The root is a path,
+///  so it is kept as its bytes and escaped by the one rule every value of a record's line follows;
+///  a record an earlier release wrote holds the text it spelled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remembered = (text) => carriesEncodedFields(text) ? pathOfBytes(decodeField(value(text, 'repository'))) : Path(text.trim())
+/// ```
+fn remembered(text: &str) -> Option<PathBuf> {
+    if !crate::path_bytes_in_records::carries_encoded_fields(text) {
+        return Some(PathBuf::from(text.trim()));
+    }
+    let value: &str = text.lines().find_map(|line| { return line.strip_prefix(REMEMBERED_FIELD_PREFIX); })?;
+    return Some(crate::path_bytes_in_records::path_of_bytes(crate::path_bytes_in_records::decode_field(value)?.as_slice()));
+}
+
 /// Whether the state directory does not yet name `repository`:
 /// the first look at it,
 /// which no lock decides,
@@ -261,7 +285,7 @@ pub fn warm_in_background(repository_root: PathBuf) {
 ///  one owner of the answer and survives a restart.
 fn first_look_at(journal: &Path, repository: &Path) -> bool {
     return match std::fs::read_to_string(journal.join(REMEMBERED_FILE)) {
-        Ok(text) => text.trim() != repository.to_string_lossy(),
+        Ok(text) => remembered(text.as_str()).as_deref() != Some(repository),
         Err(_unreadable) => true,
     };
 }
@@ -272,7 +296,9 @@ fn first_look_at(journal: &Path, repository: &Path) -> bool {
 fn remember(journal: &Path, repository: &Path) {
     let target: PathBuf = journal.join(REMEMBERED_FILE);
     let staging: PathBuf = journal.join(format!("{REMEMBERED_FILE}.new"));
-    if let Err(error) = std::fs::write(&staging, format!("{}\n", repository.display())) {
+    let bytes: &[u8] = crate::path_bytes::path_bytes_of(repository);
+    let text: String = format!("{}{REMEMBERED_FIELD_PREFIX}{}\n", crate::path_bytes_in_records::FIELD_ENCODING_HEADER, crate::path_bytes_in_records::encode_field(bytes));
+    if let Err(error) = std::fs::write(&staging, text) {
         crate::service_log!("the repository was not remembered for the rules warm in {}: {error}", journal.display());
         return;
     }
@@ -304,7 +330,7 @@ pub fn warm_remembered(journal: &Path) {
         return;
     }
     let Ok(text) = std::fs::read_to_string(journal.join(REMEMBERED_FILE)) else { return };
-    let repository: PathBuf = PathBuf::from(text.trim());
+    let Some(repository) = remembered(text.as_str()) else { return };
     if repository.is_absolute() && repository.is_dir() {
         warm_in_background(repository);
     }

@@ -30,6 +30,50 @@ fn intent(seq: u64) -> Intent {
     };
 }
 
+/// What:
+///  The path a commit may name,
+///  written as the record of the field it could forge:
+/// a line break,
+///  then a whole `cleanupHex` field naming two directories of its own.
+/// Why:
+///   A path holds any byte but NUL,
+/// so a name may be the text of a field of the record that carries it;
+/// the field names absolute directories,
+///  so the whole text of one fits in a name,
+///  and a reader that took it for a field would remove files there.
+fn forged_cleanup_line(git_dir: &Path, scratch: &Path) -> Vec<u8> {
+    let mut path: Vec<u8> = b"forged\ncleanupHex=".to_vec();
+    path.extend(crate::path_bytes_in_records::hex_of_path(git_dir).bytes());
+    path.push(b'\t');
+    path.extend(crate::path_bytes_in_records::hex_of_path(scratch).bytes());
+    path.extend(b"\t0");
+    return path;
+}
+
+/// What:
+///  One path for each value a name may hold that a record of lines cannot carry as itself.
+/// Why:
+///   The record is lines and fields,
+///  so each of these is a value that ends one or names another,
+///  and the round trip is the whole promise a restart depends on.
+fn hostile_paths() -> Vec<Vec<u8>> {
+    return vec![
+        b"ordinary.txt".to_vec(),
+        b"line\nbreak.txt".to_vec(),
+        b"carriage\rreturn.txt".to_vec(),
+        b"equals=sign.txt".to_vec(),
+        b"a space.txt".to_vec(),
+        b"a\ttab.txt".to_vec(),
+        b"quote'and\"apostrophe.txt".to_vec(),
+        b"back\\slash.txt".to_vec(),
+        b"not\xfftext.txt".to_vec(),
+        b"-leading-dash.txt".to_vec(),
+        b"100%done.txt".to_vec(),
+        "caf\u{e9}.txt".as_bytes().to_vec(),
+        forged_cleanup_line(Path::new("/work/never-mentioned/.git"), Path::new("/work/never-mentioned/scratch")),
+    ];
+}
+
 /// An intent's text parses back to the same intent,
 /// with spaces in paths.
 #[test]
@@ -227,6 +271,89 @@ fn a_damaged_cleanup_is_no_intent() {
     let damaged: String = text.replace(format!("cleanupHex={hexadecimal}").as_str(), format!("cleanupHex={}", &hexadecimal[1..]).as_str());
     assert!(damaged.contains("cleanup=/work/repo/.git\t"), "the plain line is intact: {damaged}");
     assert_eq!(parse_intent(damaged.as_str()), None);
+}
+
+/// What:
+///  The paths a commit carries may hold every byte a name may hold,
+///  and every one of them is the path the record is read back as.
+/// Why:
+///   A commit's path may hold a line break, a tab, a carriage return,
+///  a `%`, a byte that is not text,
+///  or the whole text of a field of this very record;
+///  a record that lost one byte of one path would have the landing update another entry,
+///  or would read a field the commit never wrote.
+#[test]
+fn an_intent_of_a_commit_whose_paths_hold_every_hostile_value_round_trips() {
+    let mut sent: Intent = intent(21);
+    sent.paths = hostile_paths();
+    let text: String = intent_text(&sent);
+    assert_eq!(text.lines().count(), text.lines().filter(|line| { return !line.is_empty(); }).count(), "no line of the record is empty");
+    let read: Intent = parse_intent(text.as_str()).expect("the record of a commit whose paths are hostile reads");
+    assert_eq!(read.paths, sent.paths, "every byte of every path is the path the record names");
+    assert_eq!(read, sent, "and nothing else of the record moved");
+}
+
+/// What:
+///  A path that holds the text of a whole field of this record cannot add one.
+/// Why:
+///   The record is read line by line,
+/// so a path that ends its line and starts another one nobody wrote
+///  would name the Git directory,
+///  the index or the conclusion state a recovery acts on,
+///  and a forged cleanup makes it remove files the commit never mentioned.
+#[test]
+fn a_path_that_holds_a_whole_field_cannot_add_one() {
+    let forged_git_dir: PathBuf = PathBuf::from("/work/never-mentioned/.git");
+    let forged_scratch: PathBuf = PathBuf::from("/work/never-mentioned/scratch");
+    let mut sent: Intent = intent(22);
+    sent.paths = vec![
+        b"ordinary.txt".to_vec(),
+        forged_cleanup_line(forged_git_dir.as_path(), forged_scratch.as_path()),
+    ];
+    let text: String = intent_text(&sent);
+    let read: Intent = parse_intent(text.as_str()).expect("the record reads");
+    assert_eq!(read.cleanup, None, "the commit named no conclusion state to remove: {text}");
+    assert_eq!(read.index, sent.index, "the index is the one the commit was prepared against");
+    assert_eq!(read.git_dir, sent.git_dir, "the Git directory is the one the commit was made in");
+    assert_eq!(read.paths, sent.paths, "and the path is the path the commit made");
+}
+
+/// What:
+///  A record an earlier release wrote whose path broke its plain line is refused,
+///  and never read as the field the rest of the path spells.
+/// Why:
+///   That release wrote the plain field without an escape,
+/// so a path that holds a line break ends the line and the rest of it is read as a field of its own;
+/// the two fields of such a record disagree,
+/// and a reader that acted on it would name a directory or a cleanup the commit never wrote.
+#[test]
+fn a_record_of_an_earlier_release_whose_two_fields_disagree_is_refused() {
+    let mut older: Intent = intent(23);
+    older.paths = vec![b"ordinary.txt".to_vec(), forged_cleanup_line(Path::new("/work/never-mentioned/.git"), Path::new("/work/never-mentioned/scratch"))];
+    // The record as the release before this one wrote it: no header, and the plain fields as the text they spell.
+    let earlier: String = intent_text(&older).lines().filter(|line| { return *line != crate::path_bytes_in_records::FIELD_ENCODING_HEADER.trim_end(); }).map(|line| {
+        return match line.strip_prefix("paths=") {
+            Some(_spelled) => String::from("paths=ordinary.txt"),
+            None => String::from(line),
+        };
+    }).collect::<Vec<String>>().join("\n");
+    assert!(earlier.contains("paths=ordinary.txt\n"), "the plain field of the earlier release ends where its path does: {earlier}");
+    assert_eq!(parse_intent(earlier.as_str()), None, "the two fields of the record disagree, so it is no intent");
+}
+
+/// What:
+///  The plain field of a record an earlier release wrote is read as the text it is,
+///  `%` and all,
+///  because that release escaped nothing.
+/// Why:
+///   A path of that release that holds a `%` spells it as itself,
+/// and a reader that undid an escape nobody wrote would name another file.
+#[test]
+fn a_record_of_an_earlier_release_is_read_without_undoing_an_escape() {
+    let earlier: &str = "seq=4\nrepository=/srv/re%po\nrepositoryHex=2f7372762f726525706f\ncommon=/srv/re%po/.git\ncommonHex=2f7372762f726525706f2f2e676974\nref=refs/heads/main\nold=aaaa\nnew=bbbb\nids=id-1\ncommits=cccc\npaths=100%done\npathsHex=31303025646f6e65\nderived=0\nindex=/srv/re%po/.git/index\nindexHex=2f7372762f726525706f2f2e6769742f696e646578\n";
+    let read: Intent = parse_intent(earlier).expect("an earlier intent still reads");
+    assert_eq!(read.repository, PathBuf::from("/srv/re%po"), "the text of the earlier release is the path");
+    assert_eq!(read.paths, vec![b"100%done".to_vec()], "and so is the path it names");
 }
 
 /// The restart decision follows the branch:

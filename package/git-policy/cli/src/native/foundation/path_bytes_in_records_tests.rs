@@ -125,3 +125,66 @@ fn a_list_and_an_entry_keep_their_bytes_without_losing_the_earlier_release() {
     let damaged_entry: Value = serde_json::from_str(r#"{"relativePathHex":"6"}"#).expect("record");
     assert_eq!(read_path_field(&damaged_entry, "relativePath"), None);
 }
+
+/// What:
+///  Every byte a path may hold survives the one line encoding,
+///  and no byte of the encoded text can end a line or a field.
+/// Why:
+///   A record of lines is read line by line and field by field,
+/// so a value that leaves a line break or a tab in its text names another place
+///  and writes a field nobody chose.
+#[test]
+fn every_byte_of_a_value_survives_the_one_line_encoding() {
+    let every_byte: Vec<u8> = (0..=255u8).collect();
+    let encoded: String = encode_field(every_byte.as_slice());
+    assert!(!encoded.contains('\n') && !encoded.contains('\r') && !encoded.contains('\t'), "the encoded text ends no line and no field: {encoded}");
+    assert_eq!(decode_field(encoded.as_str()), Some(every_byte), "the bytes the encoded text spells are the bytes it was given");
+}
+
+/// What:
+///  A value a person reads of ordinary names stays as it reads,
+///  and a `%` in it is escaped,
+///  because `%` begins an escape.
+/// Why:
+///   A record of a repository whose paths are text is looked at by a person,
+/// and an escape that swallowed an ordinary `%` would name another file.
+#[test]
+fn an_ordinary_value_reads_as_it_is_and_a_percent_is_escaped() {
+    assert_eq!(encode_field(b"src/a b.txt"), "src/a b.txt");
+    assert_eq!(encode_field(b"100%done"), "100%25done");
+    assert_eq!(decode_field("100%25done"), Some(b"100%done".to_vec()));
+    assert_eq!(encode_field(b"a\tb"), "a%09b");
+    assert_eq!(encode_field(b"a\nb"), "a%0Ab");
+    assert_eq!(encode_field(b"a\rb"), "a%0Db");
+    assert_eq!(encode_field(b"caf\xc3\xa9"), "caf%C3%A9", "a byte no line may carry is written as its digits, uppercase");
+}
+
+/// What:
+///  A value that does not spell an escape is damage,
+///  and never the text it looks like.
+/// Why:
+///   The writer escapes every `%`,
+/// so a `%` that begins no escape is a record something else wrote or cut,
+///  and a reader that took it for text would name a path nobody wrote.
+#[test]
+fn a_value_that_does_not_decode_is_damage() {
+    for damaged in ["%", "%2", "%2G", "a%zz", "%0"] {
+        assert_eq!(decode_field(damaged), None, "{damaged:?} is no escaped value");
+    }
+    assert_eq!(decode_field(""), Some(Vec::new()), "an empty value spells no bytes");
+}
+
+/// What:
+///  A record says by its first line whether its values are escaped,
+///  and a record without that line is an earlier release's.
+/// Why:
+///   Decoding a value of an earlier release would name another path,
+/// and reading an escaped value as text would leave the escape in the name.
+#[test]
+fn a_record_says_whether_its_values_are_escaped() {
+    let encoded: String = format!("{}seq=1\n", FIELD_ENCODING_HEADER);
+    assert!(carries_encoded_fields(encoded.as_str()));
+    assert!(!carries_encoded_fields("seq=1\n"), "a record written before the format says nothing about it");
+    assert!(!carries_encoded_fields(""), "an empty record is no record of this format");
+    assert_eq!(path_of_bytes(b"/srv/re\xffpo"), PathBuf::from("/srv").join(OsStr::from_bytes(b"re\xffpo")), "a decoded value becomes the path of its bytes");
+}

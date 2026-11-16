@@ -119,6 +119,159 @@ pub fn path_of_hex(hex: &str) -> Option<PathBuf> {
 }
 
 /// What:
+///  The path whose bytes are given,
+/// whatever bytes they are.
+/// Why:
+///   A value of a record's line is decoded to bytes before it is a path,
+/// so the one place a byte string becomes a path answers here rather than at each reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathOfBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString()
+/// ```
+pub fn path_of_bytes(bytes: &[u8]) -> PathBuf {
+    return PathBuf::from(crate::path_bytes::os_from_path_bytes(bytes));
+}
+
+/// What:
+///  The first line of a record of `key=value` lines whose values are written with [`encode_field`]:
+///  the format it names is the one where every value of a line is escaped.
+/// Why:
+///   A reader has to know whether the values it reads were escaped,
+///  and a record written before this format has no such line,
+///  so its values are read as they are.
+/// The line names a key no field of any record uses, so every reader of these records skips it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const FIELD_ENCODING_HEADER = 'format=2\n'
+/// ```
+pub const FIELD_ENCODING_HEADER: &str = "format=2\n";
+
+/// What:
+///  Whether a record's values were written with [`encode_field`],
+///  which its first line says.
+/// Why:
+///   A record an earlier release wrote has no first line of this shape,
+///  and its values are the text it wrote,
+///  so decoding them would name another path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const carriesEncodedFields = (text: string) => text.startsWith(FIELD_ENCODING_HEADER)
+/// ```
+pub fn carries_encoded_fields(text: &str) -> bool {
+    return text.starts_with(FIELD_ENCODING_HEADER);
+}
+
+/// What:
+///  Whether a byte of a value is written as itself:
+///  the bytes from space to `~`, except `%`,
+///  which begins an escape.
+/// Why:
+///   Those are the bytes that keep a line a line and a field a field,
+///  and a name of them reads as it is in a record a person looks at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isKeptVerbatim = (byte: number) => byte !== 0x25 && byte >= 0x20 && byte <= 0x7e
+/// ```
+fn is_kept_verbatim(byte: u8) -> bool {
+    return byte != b'%' && (byte.is_ascii_graphic() || byte == b' ');
+}
+
+/// The byte a hexadecimal digit spells, nothing when the character is no digit.
+fn byte_of_digit(digit: u8) -> Option<u8> {
+    return match digit {
+        b'0'..=b'9' => Some(digit - b'0'),
+        b'A'..=b'F' => Some(digit - b'A' + 10),
+        b'a'..=b'f' => Some(digit - b'a' + 10),
+        _ => None,
+    };
+}
+
+/// What:
+///  One value of a line of a record,
+///  as one line that holds every byte of it:
+/// every byte a line can carry as itself stays,
+/// and every other byte, `%` included,
+///  is written as `%` and two uppercase hexadecimal digits.
+/// Why:
+///   A record of lines separates its lines by line breaks and its fields by tabs,
+///  so a value that holds one of those would end its line or its field early,
+///  and the text after it would be read as a field nobody wrote;
+///  a commit's path may hold any byte but NUL,
+///  and so may a message or a name a record keeps.
+/// The escape is undone by [`decode_field`],
+///  and it is applied at the one place a value becomes a line,
+///  never to the bytes a reader acts on.
+/// A record's hexadecimal fields stay beside it,
+/// so a release that predates this format still reads every path by its bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const encodeField = (bytes: Uint8Array) => [...bytes].map((byte) => isKeptVerbatim(byte) ? String.fromCharCode(byte) : `%${byte.toString(16).toUpperCase().padStart(2, '0')}`).join('')
+/// ```
+pub fn encode_field(bytes: &[u8]) -> String {
+    let mut encoded: String = String::with_capacity(bytes.len());
+    for byte in bytes {
+        if is_kept_verbatim(*byte) {
+            encoded.push(char::from(*byte));
+            continue;
+        }
+        encoded.push_str(format!("%{byte:02X}").as_str());
+    }
+    return encoded;
+}
+
+/// What:
+///  The bytes a value written with [`encode_field`] spells,
+///  and nothing when an escape is not two hexadecimal digits.
+/// Why:
+///   A value that does not decode is damage,
+///  and a reader that took it for text would act on a path nobody wrote.
+/// A `%` that begins no escape is damage too,
+///  because the writer never leaves one unescaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const decodeField = (text: string) => { const out = []; for (let i = 0; i < text.length; i += 1) { if (text[i] !== '%') { out.push(...Buffer.from(text[i])); continue } const pair = text.slice(i + 1, i + 3); if (!/^[0-9A-Fa-f]{2}$/.test(pair)) return undefined; out.push(parseInt(pair, 16)); i += 2 } return Buffer.from(out) }
+/// ```
+pub fn decode_field(text: &str) -> Option<Vec<u8>> {
+    let bytes: &[u8] = text.as_bytes();
+    let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index: usize = 0;
+    while index < bytes.len() {
+        if bytes[index] != b'%' {
+            decoded.push(bytes[index]);
+            index += 1;
+            continue;
+        }
+        let pair: &[u8] = bytes.get(index + 1..index + 3)?;
+        decoded.push(byte_of_digit(pair[0])? * 16 + byte_of_digit(pair[1])?);
+        index += 3;
+    }
+    return Some(decoded);
+}
+
+/// What:
+///  The text a path's bytes spell in the plain field of a record,
+///  with a byte that is no text replaced by the character every reader of text replaces it with.
+/// Why:
+///   A record written before this format kept its paths as plain text,
+///  and that text was the lossy spelling of the bytes beside it;
+/// a reader that compares the two fields can tell whether the text names the same value,
+///  and refuses the record when it does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lossyTextOf = (bytes: Uint8Array) => new TextDecoder('utf-8').decode(bytes)
+/// ```
+pub fn lossy_text_of(bytes: &[u8]) -> String {
+    return String::from_utf8_lossy(bytes).into_owned();
+}
+
+/// What:
 ///  The path as text when one `key=value` line of a line-oriented record can hold it,
 /// nothing when it cannot.
 /// Why:

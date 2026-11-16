@@ -142,7 +142,11 @@ fn landing_triggers_body(directory: &Path) {
     assert!(warmed.made > first.made, "the first landing of a repository warms its rules");
     assert_eq!(artifacts().len(), 1, "the compiled rules are in the cache");
     let remembered: String = std::fs::read_to_string(journal.join(REMEMBERED_FILE)).expect("the repository is remembered");
-    assert_eq!(remembered.trim(), repository.to_string_lossy());
+    // The record is a line of escaped values, and the value is the repository's own bytes.
+    let line: &str = remembered.lines().find_map(|line| { return line.strip_prefix(REMEMBERED_FIELD_PREFIX); }).expect("the record names the repository");
+    let spelled: Vec<u8> = crate::path_bytes_in_records::decode_field(line).expect("the value the record spells");
+    assert_eq!(crate::path_bytes_in_records::path_of_bytes(spelled.as_slice()), repository);
+    assert!(remembered.starts_with(crate::path_bytes_in_records::FIELD_ENCODING_HEADER), "the record says its values are escaped: {remembered}");
     // Another landing that changes no path of the rules warms nothing, even with the cache gone.
     let quiet: Warms = warms();
     std::fs::remove_dir_all(cache_directory()).expect("remove the cache");

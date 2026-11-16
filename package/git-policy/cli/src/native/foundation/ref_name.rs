@@ -113,6 +113,22 @@ impl RefName {
     }
 
     /// What:
+    ///  A name whose bytes a record held as its escaped text,
+    ///  and which are every byte of that name.
+    /// Why:
+    ///   The plain `ref=` field of a record is read by releases that predate the bytes field,
+    ///  and this is how the bytes it spelled become the name again,
+    ///  without a line break of them ending it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const refNameOfBytes = (bytes: Uint8Array) => ({ os: Buffer.from(bytes) })
+    /// ```
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        return Self { os: os_from_path_bytes(bytes) };
+    }
+
+    /// What:
     ///  The name's bytes,
     ///  as the operating system holds them.
     /// Why:
