@@ -29,7 +29,7 @@ import {
   findFreeTable,
 } from './tunnel-table.ts';
 import { POLICY_RULE_PROTOCOL, } from './tunnel-rule-protocol.ts';
-import { removeSuppressRule, } from './tunnel-suppression-warning.ts';
+import { removeRulesFoundByShape, } from './tunnel-suppression-warning.ts';
 import type { UpMadeThing, } from './tunnel-up-made.ts';
 import {
   isV6,
@@ -539,25 +539,10 @@ export async function removePolicyRules(
     l.debug(`no policy routing to remove for ${interfaceName}`,);
     return;
   }
-  await Promise.all(([
-    '-4',
-    '-6',
-  ] as const).map(function remove(proto,): Promise<void> {
-    return (async function removeFamily(): Promise<void> {
-      await runAllowingFailure({
-        command: 'ip',
-        args: [
-          proto,
-          'rule',
-          'delete',
-          'table',
-          String(fwmark.table,),
-        ],
-      },);
-      await removeSuppressRule({
-        proto,
-        automaticRouting: true,
-      },);
-    })();
-  },),);
+  // An earlier build's tunnel has no claim, so its rules can only be found by shape,
+  // and a rule of the same shape now belongs to a tunnel this build started.
+  await removeRulesFoundByShape({
+    interfaceName,
+    table: fwmark.table,
+  },);
 }

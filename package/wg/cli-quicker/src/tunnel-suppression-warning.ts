@@ -16,6 +16,7 @@ import {
 } from './runner.ts';
 import { isAbsentDelete, } from './ip-delete.ts';
 import { POLICY_RULE_PROTOCOL, } from './tunnel-rule-protocol.ts';
+import { policyResourcesTakenByOthers, } from './tunnel-policy-claims.ts';
 
 /**
  Module logger for the suppression rules of earlier builds.
@@ -195,4 +196,74 @@ export function untaggedSuppressionWarning(
   },
 ): string {
   return `the ${proto} rule \`${rule}\` suppresses the main table without this program's protocol tag ${String(POLICY_RULE_PROTOCOL,)}, so this program did not create it and left it in place: an earlier build of this program for an interface with automatic routing left the same shape, and so can an administrator or another tunnel. If it is a leftover of an earlier build, remove it with \`sudo ip ${proto} rule delete table main suppress_prefixlength 0\`; if another owner depends on it, keep it.`;
+}
+
+/**
+ Removes the policy rules of a tunnel an earlier build set up, by shape, and only when nothing of this build is running.
+
+ A tunnel this program starts records the exact table and suppression preference it owns in a claim,
+ and its teardown deletes those by number.
+ A tunnel an earlier build set up has no claim, so the only identity its rules have is their shape,
+ and a rule of the same shape now belongs to a tunnel this build started:
+ the table its fwmark names may be that tunnel's table, and the suppression delete takes whichever tagged
+ suppression comes first, which may be that tunnel's.
+ So once any claim exists, this teardown removes nothing and says what to remove by hand,
+ because deleting another tunnel's routing is worse than leaving a dead tunnel's rules for a person to see.
+
+ @param interfaceName - Interface whose rules are removed.
+
+ @param table - Policy table its fwmark names.
+
+ @example
+ ```ts
+ await removeRulesFoundByShape({ interfaceName: 'wg0', table: 51820 });
+ ```
+ */
+export async function removeRulesFoundByShape(
+  {
+    interfaceName,
+    table,
+  }: {
+    readonly interfaceName: string;
+    readonly table: number;
+  },
+): Promise<void> {
+  /**
+   What the tunnels this build started have claimed.
+   */
+  const taken = await policyResourcesTakenByOthers({ interfaceName, },);
+  if ((taken.tables
+    .size
+    > 0) || (taken.preferences
+      .size
+      > 0)) {
+    l.warn(
+      `${interfaceName} has no recorded policy claim, so it was set up by an earlier build, and the rules it may have left `
+        + `cannot be told apart by shape from the rules of the tunnels this build started: this teardown removed no policy rule. `
+        + `Its fwmark names table ${String(table,)}; remove what is left for it by hand with `
+        + `\`sudo ip -4 rule show\` and \`sudo ip -6 rule show\`, deleting only the rules whose lookup is that table and whose suppression carries protocol ${String(POLICY_RULE_PROTOCOL,)}.`,
+    );
+    return;
+  }
+  await Promise.all(([
+    '-4',
+    '-6',
+  ] as const).map(function remove(proto,): Promise<void> {
+    return (async function removeFamily(): Promise<void> {
+      await runAllowingFailure({
+        command: 'ip',
+        args: [
+          proto,
+          'rule',
+          'delete',
+          'table',
+          String(table,),
+        ],
+      },);
+      await removeSuppressRule({
+        proto,
+        automaticRouting: true,
+      },);
+    })();
+  },),);
 }

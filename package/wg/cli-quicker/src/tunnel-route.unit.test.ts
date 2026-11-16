@@ -191,6 +191,41 @@ await describe({
       },
     },),
     it({
+      name: 'removes nothing at all for a tunnel an earlier build set up when another interface has claimed a table or a preference, because a rule found by shape may belong to that interface',
+      fn: async () => {
+        /**
+         Scratch runtime directory holding the other interface's claim.
+         */
+        const runtime = await mkdtemp(join(scratchRoot(), 'wg-quicker-route-claims-',),);
+        /**
+         What the removal sees.
+         */
+        const previous = { WG_QUICKER_RUNTIME_DIRECTORY: process.env.WG_QUICKER_RUNTIME_DIRECTORY, };
+        process.env.WG_QUICKER_RUNTIME_DIRECTORY = runtime;
+        await writeFile(
+          join(runtime, 'tunnel-claim-of-another.policy.json',),
+          JSON.stringify({
+            version: 1,
+            interfaceName: 'wganother',
+            table: Number(POLICY_TABLE,),
+            suppressionPreference: 32_764,
+            families: ['-4',],
+          },),
+        );
+        await using restoreRuntime = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            if (previous.WG_QUICKER_RUNTIME_DIRECTORY === undefined)
+              delete process.env.WG_QUICKER_RUNTIME_DIRECTORY;
+            else
+              process.env.WG_QUICKER_RUNTIME_DIRECTORY = previous.WG_QUICKER_RUNTIME_DIRECTORY;
+            await rm(runtime, { recursive: true, force: true, },);
+          },
+        };
+        const calls = await callsOf({ fwmark: POLICY_TABLE, },);
+        expect(calls.filter((call,) => call.includes('delete',),),).toEqual([],);
+      },
+    },),
+    it({
       name: 'names the untagged suppression it leaves, the tag this program writes, and the command that removes the earlier build leftover',
       fn: async () => {
         const rule = '32765:\tfrom all lookup main suppress_prefixlength 0';

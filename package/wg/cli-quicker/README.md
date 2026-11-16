@@ -156,8 +156,12 @@ for the address families the claim records, and never another tunnel's:
 the shape of a suppression rule names no interface and no table, so a delete by shape removes whichever
 rule of that shape has the lowest preference, which used to be another tunnel's, and its local-network
 traffic then went into the tunnel.
-A tunnel an earlier build set up has no claim, and its rules are found from the live fwmark as before,
-with the warning about an untagged suppression left in place.
+A tunnel an earlier build set up has no claim, and its rules can only be found from the live fwmark by shape.
+Once any tunnel of this build is running, that shape-based removal could take this build's rules:
+so a teardown of a tunnel without a claim removes no policy rule at all and says so,
+naming the table its fwmark holds and the commands that remove what is left by hand,
+because deleting by shape is how one tunnel's suppression and rules were removed by another's teardown.
+On a machine with no claimed tunnel the removal works as it did before, with the warning about an untagged suppression left in place.
 When their allowed prefixes overlap,
 policy-rule priority chooses the first table before longest-prefix matching can compare routes across tunnels.
 Use explicit routing ownership when simultaneous overlapping automatic tunnels must preserve cross-interface
