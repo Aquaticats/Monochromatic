@@ -463,6 +463,10 @@ at either,
 one line says which step it was,
 the job is left behind,
 and the loop goes on without what it held.
+Each job takes one of the places kept for slow work,
+so a job that does not return takes neither a worker nor the place the landing's own storage steps need:
+without that reserve the start control read 6,135 ms with the removal of old records held,
+which is the wait this file is about coming back through the pool instead of the landing thread.
 A guard rule fails when a synchronous file helper is called from an `async` body of this crate outside such a job
 (`blocking-helper-on-a-task`,
 whose list is the service's own helpers that read or write),
