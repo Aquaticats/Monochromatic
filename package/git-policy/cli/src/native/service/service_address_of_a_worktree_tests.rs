@@ -26,39 +26,20 @@ const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 
 /// What:
 ///  A runtime directory with a path of exactly `length` bytes,
-/// under the short scratch directory of this test process.
+/// under the longest folder this account offers that leaves room for its name.
 /// Why:
 ///   The boundary is a count of bytes,
 /// so a control that guessed the length would prove nothing about it.
 /// One socket address holds 107 bytes,
 /// and the fixture root under the build directory is far longer than the room the runtime directory has,
 /// so the fixture stands where the package's own binary fixtures put their runtime directories.
+/// The room below that folder is what is left once its own path and the name are taken,
+/// and it is shorter where the home directory's path is longer or the process number has more digits,
+/// so the folder is asked for by the room the name needs and no control here depends on where this account sits.
 fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
-    let parent: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
-        .join("temp/agent")
-        .join(format!("sa{}", std::process::id()));
-    std::fs::create_dir_all(&parent).expect("the scratch directory");
-    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
-    // The name holds the tag where there is room for it and padding to the byte the control asks for. A runtime directory of
-    //  forty bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
-    //  digit narrows that, so a tag that does not fit is replaced by a digest of itself: two controls still get two
-    //  directories, whichever number this process runs as.
-    // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
-    //  controls apart, and the digest needs eight bytes.
-    assert!(room >= 2, "a runtime directory of {length} bytes leaves {room} bytes past this process's scratch folder, too little to name a control in");
-    let name: String = if room > tag.len() {
-        format!("{tag}{}", "x".repeat(room - tag.len()))
-    } else {
-        assert!(room >= 8, "the tag {tag:?} does not fit {room} bytes, and a digest of it needs eight");
-        let mut digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
-        digest.truncate(room);
-        digest
-    };
-    let runtime: PathBuf = parent.join(name);
-    std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
-    crate::test_support::track_for_this_thread(runtime.as_path());
-    return runtime;
+    let longest_parent: usize = length.saturating_sub(1 + crate::test_support::room_a_runtime_name_needs(tag));
+    let parent: PathBuf = crate::test_support::runtime_directory_parent("sa", longest_parent);
+    return crate::test_support::runtime_directory_under(parent.as_path(), length, tag);
 }
 
 /// A runtime directory whose socket path still fits one address,

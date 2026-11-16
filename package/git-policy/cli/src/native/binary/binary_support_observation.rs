@@ -6,6 +6,13 @@
 //! Why:
 //!  The reading of a run needs no fixture beyond its directory,
 //! so it lives in a file of its own that the helpers that start commands import.
+//!  The bound is this wait's own promise and this wait keeps it:
+//! `binary_support_observation_bound.rs` reads the bound the command's own line states,
+//! ends the whole process group at it,
+//! reaps the command,
+//! reads the two pipes under one stated grace,
+//! and says who ended the command;
+//! this file is the faces a control calls.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,16 +20,23 @@
 //! ```
 
 use std::ffi::{OsStr, OsString};
-use std::io::Write;
-use std::os::unix::process::ExitStatusExt;
+use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
+use crate::support_observation_bound::{Answer, UNSTATED_BOUND, spelled_command, stated_bound, wait_under_bound};
 use crate::support_program_names_and_time_bound::TIME_BOUND_SECONDS;
 
-/// The signal that ends `timeout --signal=KILL` itself when the bound was hit:
+/// The signal `timeout --signal=KILL` re-raises on itself when the bound it was given was hit:
 ///  it kills
 /// the command,
 ///  then re-raises the same signal on itself.
+/// Why it is here:
+///  the helpers that run a command under `/usr/bin/timeout` and read its status back need the mark
+///  (`native_git_output`,
+///  and `binary_resolution_tests` for a forwarding loop);
+///  the shared wait no longer reads it,
+///  because a command that kills itself with `SIGKILL` shows the same signal,
+///  and only this wait's own act can say that the bound ended a command (`observe_with`).
 pub const TIMED_OUT_SIGNAL: i32 = 9;
 
 /// What one finished process showed its caller.
@@ -126,8 +140,16 @@ pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
         .collect();
 }
 
-/// Run a command to completion and observe it without its hint fields,
+/// What:
+///  Run a command to completion under the bound its own line states and observe it without its hint fields,
 ///  feeding `input` to its standard input.
+/// Why:
+///  The bound,
+///  the ending and the pipes are kept by `observe_with`,
+///  once for this face and the two below it.
+///
+/// # Panics
+///  As `observe_raw`.
 pub fn observe(command: &mut Command, input: &[u8]) -> Observed {
     let raw: Observed = observe_raw(command, input);
     return Observed {
@@ -214,22 +236,20 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 ///   The input is written by a thread of its own,
 /// so a child that fills its output before it reads all its input is not
 ///  deadlocked by the test,
-/// and `wait_with_output` drains both pipes from then on:
+/// and both pipes are drained on threads:
 /// a command that writes much is not idle.
 ///  The kill is claimed before the cleanup because the cleanup can take longer than the grace in which an unclaimed kill
 ///  aborts the process.
+///  This child is not one this module started and leads no process group of its own,
+///  so `UNSTATED_BOUND` ends the child alone;
+///  the supervisor's controls use this wait for a child they spawn themselves.
 ///
 /// # Panics
 ///  With the supervisor's message when it ended the command.
-pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
+///  When a process that outlived the child still holds one of its pipes after `PIPE_GRACE`.
+pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
     let child_id: u32 = child.id();
-    let mut stdin = child.stdin.take().expect("piped stdin");
-    let owned: Vec<u8> = input.to_vec();
-    // A child that exits without reading its input closes the pipe;
-    // that is not a test failure.
-    let writer = std::thread::spawn(move || { let _ = stdin.write_all(owned.as_slice()); });
-    let output: Output = child.wait_with_output().expect("process finishes");
-    let _joined = writer.join();
+    let answer: Answer = wait_under_bound(child, None, UNSTATED_BOUND, input);
     // The supervisor ended it:
     // a loop or a deadlock,
     // with the reason and the tasks of the tree in the message.
@@ -237,7 +257,8 @@ pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -
         panic!("{message}");
     }
     cleanup();
-    return output;
+    answer.refuse_a_second_ending(UNSTATED_BOUND, "the command this control started", None);
+    return Output { status: answer.status, stdout: answer.stdout, stderr: answer.stderr };
 }
 
 /// Run a command to completion with every byte of its output kept,
@@ -245,6 +266,12 @@ pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -
 /// # Panics
 ///  When the command is a commit transaction or a manual page under the shared bound;
 ///  see `shared_bound_misuse`.
+///  When the supervisor ended the command,
+///  with the supervisor's message.
+///  When this wait ended the command at the bound,
+///  or a process that outlived the command still holds one of its
+///  pipes;
+///  see `Answer::refuse_a_second_ending`.
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     return observe_with(command, input, true);
 }
@@ -267,11 +294,26 @@ pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, 
 
 /// What:
 ///  The body both faces above share:
-///  one run of a command, and the wait for the after-commit work given or refused.
+///  one run of a command,
+///  and the wait for the after-commit work given or refused.
 /// Why:
 ///  The two faces differ only in that wait,
 /// so the bound,
 /// the misuse check and the reading live once.
+///  The command leads a process group of its own,
+///  which is the group the bound ends;
+///  `timeout` makes such a group for itself a moment after it starts (`setpgid` in its own process),
+///  and this wait makes it before the command runs,
+///  so the group it ends is one it made.
+///
+/// # Panics
+///  When the command is a commit transaction or a manual page under the shared bound;
+///  see `shared_bound_misuse`.
+///  When the supervisor ended the command,
+///  with the supervisor's message.
+///  When this wait ended the command at the bound,
+///  or a pipe the command's output came through is still held;
+///  see `Answer::refuse_a_second_ending`.
 fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commit_work: bool) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
@@ -286,38 +328,43 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
         ),
         None => {}
     }
-    let child = command
+    let bound: std::time::Duration = stated_bound(command);
+    let spelled: String = spelled_command(command);
+    let directory: Option<PathBuf> = command.get_current_dir().map(Path::to_path_buf);
+    command.process_group(0);
+    let child: Child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("process starts");
-    let output: Output = supervised_wait(child, input, || {
-        if !waiting_for_the_after_commit_work {
-            return;
-        }
-        if let Some(directory) = command.get_current_dir() {
-            settle_service_work(directory);
-        }
-    });
-    assert_ne!(
-        output.status.signal(),
-        Some(TIMED_OUT_SIGNAL),
-        // Built only on failure: a bound hit under host load must name the command that stalled.
-        "the command hit its wall-clock bound: {:?} in {:?}",
-        command.get_args().collect::<Vec<&OsStr>>(),
-        command.get_current_dir()
-    );
-    return Observed {
-        code: output.status.code(),
-        stdout: output.stdout,
-        stderr: output.stderr,
-    };
+    let child_id: u32 = child.id();
+    let group: libc::pid_t = libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
+    let answer: Answer = wait_under_bound(child, Some(group), bound, input);
+    // The supervisor ended it: a loop or a deadlock, and its message names the reason and the tasks of the tree.
+    //  Claimed before the cleanup, which can take longer than the grace in which an unclaimed kill aborts the process.
+    if let Some(message) = super::supervisor::take_kill(child_id) {
+        panic!("{message}");
+    }
+    if waiting_for_the_after_commit_work && let Some(at) = directory.as_deref() {
+        settle_service_work(at);
+    }
+    answer.refuse_a_second_ending(bound, spelled.as_str(), directory.as_deref());
+    return Observed { code: answer.status.code(), stdout: answer.stdout, stderr: answer.stderr };
 }
 
 /// How long a control waits for the after-commit work (the push,
 /// the upkeep) the commit service runs once the commit returned.
 pub const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The controls of the wait above:
+/// the endings a command can come back with,
+/// a pipe a descendant holds,
+/// and a
+/// command that writes more than a pipe holds.
+#[cfg(test)]
+#[path = "binary_support_observation_tests.rs"]
+mod tests;
 
 /// Every state directory of a work directory with the names it holds,
 /// for the failure message of a wait that ran out.
@@ -344,7 +391,9 @@ pub fn work_listing(work: &Path) -> String {
 /// the packs or the push's failure after the command must first wait for the records to leave `pending`,
 ///  `claimed` and `recovering`;
 /// it waits only where a work directory exists.
-///  This wait is `SERVICE_WORK_PATIENCE`, which is shorter than one claim's lease (`CLAIM_LEASE`, 120 seconds):
+///  This wait is `SERVICE_WORK_PATIENCE`,
+///  which is shorter than one claim's lease (`CLAIM_LEASE`,
+///  120 seconds):
 /// a record whose handler answered with a retry keeps its claim until that lease ends,
 /// so a control that waits here cannot see such a record settle.
 /// A control that means to read one attempt of such a record reads that instead
