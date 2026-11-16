@@ -39719,6 +39719,18 @@ Recovery after the hold (committed at 2026-11-16T10:25:11-05:00; an earlier word
 - Two authors whose last run said it was unfinished are queued again with what they themselves listed as open and nothing added: the queue of runs as a folder (its lint) and `mpm-shadow`'s removal of old versions (controls shown failing, `main` merged, the decisions of 2026-11-15, the cost).
 - Still owed from the night: the drawn-shadow-tree author's eleventh run (queued, see the entry before this one in this list) (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
 
+Seven answers of the owner, asked through the question tool when the owner wrote "What other questions do you need to ask me now?" (answered between 2026-11-16T11:22 and 11:25, read from the clock at 11:25:32; each quoted as chosen):
+
+- **When a wrapper branch may go into a pass: "Narrowing, in general (Recommended)".** A branch goes into a pass once a review that built it shows it fixes something `main` has and its remaining findings are all things `main` has too or does worse. Open findings go back to the author as follow-up on `main`.
+  A regression is caught by the pass's two whole suites and the gate. What follows for the work: each review and each author states, per finding, whether `main` has it; a finding the branch introduces still stops it.
+- **How much Sonnet review: "All queued, three at once (Recommended)".** Asked with the measurement beside it (four reviews used 223,867 to 582,762 subagent tokens, mean about 372,000, 17 to 27 minutes each; about fifty tips queued, on the order of 19 million tokens).
+- **A record whose holder can be shown neither alive nor gone: "A: stays, command says how (Recommended)".** The record stays; within the patience nothing is said; past it the command stops or prints words naming the record, the owner, its age and the exact `rm -- <path>`. Nothing deletes such a record on a timer, and no repair command is built.
+- **A finished worktree the automatic removal kept: "Record it, retry later (Recommended)".** A kept worktree is written to a record, each later sweep tries it again with the same checks, and it is named again each time it is kept. The cost of reading the process table for old candidates is measured by whoever builds it.
+- **The commit a run made into `main` by mistake (`293de6dae5`): "Leave it, review it (Recommended)".** `main` is not rewound and the commit is not reverted; its two files get a Sonnet review as they stand.
+- **A merge on a branch with no upstream: "Push it to origin".** Chosen against this session's recommendation (decline and say so). The recorded condition of 2026-11-02 is amended: such a merge, in a repository that has `origin`, is pushed to origin under the branch's own name and the upstream is set.
+  It needs the amendments at `package/git-policy/cli/SPEC.md` line 9068 and `README.md` line 556, a new reason word, and the ancestry walk's cost measured; a fresh run builds it.
+- **The rotation of the credential values: "Ask again after the merge (Recommended)".** Put to the owner once the second masking merge is in `main` and a resume canary and a fresh canary have both passed through `main`.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
