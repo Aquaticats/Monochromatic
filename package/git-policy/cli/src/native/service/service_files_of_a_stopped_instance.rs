@@ -143,7 +143,7 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
     // The note holds the bytes of the directory: its text would name another place, or none, for a path that is not text.
     let text: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
     let path: PathBuf = note_path(runtime_dir, instance);
-    if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
+    if matches!(crate::read_a_regular_file::read_regular_file(&path), Some(current) if current == text) {
         return Ok(());
     }
     let folder: PathBuf = runtime_dir.join(NOTES_FOLDER);

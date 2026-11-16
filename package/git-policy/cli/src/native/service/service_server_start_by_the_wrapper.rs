@@ -645,7 +645,9 @@ fn do_nothing() {}
 /// Whether the marker's owner is still a process with that birth identity.
 /// A marker that cannot be read or parsed names nobody, so it is nobody's.
 fn holder_is_alive(path: &Path) -> bool {
-    let Ok(text) = std::fs::read_to_string(path) else { return false };
+    // A marker that is a named pipe is no marker: the read answers nothing and the start goes on (the review of
+    //  `e347be3115`, part one, finding 3: a pipe at `.starting` held every commit for ever).
+    let Some(text) = crate::read_a_regular_file::read_regular_file(path) else { return false };
     let Some((number, identity)) = text.trim_end().split_once(' ') else { return false };
     let Ok(pid) = number.parse::<i64>() else { return false };
     return matches!(process_birth_identity(pid), Ok(Some(held)) if held == identity);

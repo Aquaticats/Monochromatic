@@ -71,6 +71,12 @@ pub struct Detached {
 /// ```
 pub fn spawn(detached: &Detached) -> std::io::Result<Option<i32>> {
     let nothing: OwnedFd = std::fs::OpenOptions::new().read(true).open("/dev/null")?.into();
+    // What: A log that is not a regular file is no log: nothing is started into a pipe a reader may never drain.
+    // Why:  The review of `e347be3115` (part one, finding 3) held every commit for ever with a named pipe at
+    //       `<instance>.log`: the append opened the pipe and the start waited for a reader that never came.
+    if detached.log.exists() && !crate::read_a_regular_file::is_regular_file(detached.log.as_path()) {
+        return Err(std::io::Error::other(format!("the file the service's output goes to, {}, is not a regular file, so the service was not started; remove it and run the command again", detached.log.display())));
+    }
     let log: OwnedFd = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&detached.log)?.into();
     let program: CString = CString::new(detached.program.as_os_str().as_bytes()).map_err(|_nul| {
         return std::io::Error::other("the service program's path holds a zero byte");

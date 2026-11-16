@@ -113,7 +113,8 @@ pub fn text(pid: i32) -> Result<String, ProcessIdentityError> {
 
 /// The note as text, or nothing when it is not there.
 pub fn read(note: &Path) -> Option<ServerProcess> {
-    return parse(std::fs::read_to_string(note).ok()?.as_str());
+    // A path here can be a named pipe, which a plain read waits on for ever (the review of `e347be3115`, part one, finding 3).
+    return parse(crate::read_a_regular_file::read_regular_file(note)?.as_str());
 }
 
 /// What:

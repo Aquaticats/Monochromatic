@@ -237,4 +237,5 @@ pub mod notice_stream_that_does_not_hold_its_writer;
 
 /// A connection to a unix socket that is made within one deadline,
 ///  so a socket whose program stopped costs its caller a bounded wait.
+pub mod read_a_regular_file;
 pub mod unix_socket_connect_within_a_deadline;
