@@ -59,6 +59,11 @@ fn clock() -> ClaimTime {
 /// claimed at `stamp`;
 /// the claim is returned with the directories.
 fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
+    return claimed_item_after_tries(name, stamp, 0);
+}
+
+///  A claimed push item whose record says it has already used `tries` attempts.
+fn claimed_item_after_tries(name: &str, stamp: &ClaimTime, tries: u32) -> (PathBuf, PathBuf, Claimed) {
     let root: PathBuf = fixture(name);
     let work_dir: PathBuf = root.join("work");
     let item: WorkItem = WorkItem {
@@ -69,7 +74,7 @@ fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
         oid: OID.to_owned(),
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
-        tries: 0,
+        tries,
     };
     enqueue(work_dir.as_path(), &item).expect("enqueue");
     let claimed: Claimed = claim_next_of(work_dir.as_path(), stamp, &[WorkKind::Push]).expect("claim").expect("one claim");
@@ -657,4 +662,96 @@ fn a_move_that_finds_no_file_of_the_record_says_something_else_removed_it() {
     let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim whose file is gone settles nothing");
     assert_the_words_say(said.as_str(), &["no file of", "something other than the queue", "no claim of it is left"]);
     remove(root.as_path());
+}
+
+/// What:
+///  A state directory made unsearchable for reading while it stays reachable by name,
+///  and put back when this value ends.
+/// Why:
+///  A directory whose read permission is gone answers a listing with "Permission denied"
+/// and still lets a name inside it be looked at,
+/// which is the accident a settlement must not read as a record somebody removed.
+/// The mode is put back however the control ends, so a failing control leaves no fixture behind that the next one trips over.
+struct Unreadable<'directory>(&'directory Path);
+
+impl Unreadable<'_> {
+    /// Take away the read permission of `directory`, keeping the search permission.
+    fn of(directory: &Path) -> Unreadable<'_> {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o111)).expect("the directory can be searched but not listed");
+        return Unreadable(directory);
+    }
+}
+
+impl Drop for Unreadable<'_> {
+    /// Give the read permission back.
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(self.0, std::fs::Permissions::from_mode(0o755)).expect("the directory can be listed again");
+    }
+}
+
+/// A settlement that finds another instance's recovery of the item in `recovering` says both endings that recovery has:
+/// the item waits queued again, or it is given up on,
+/// and a record whose tries are all used is the second.
+/// The first control of the words named only the queueing, so this one holds the last try of an item,
+/// where the recovery that took it goes on to `failed` and nothing runs the work again.
+#[test]
+fn a_move_that_finds_a_take_in_flight_says_both_endings_of_the_recovery() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item_after_tries("move-recovering-last-try", &started, MAX_TRIES - 1);
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    // The take a recovery makes: the expired claim is renamed into `recovering`, where no reader of `claimed` looks.
+    std::fs::rename(
+        state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str()),
+        state_directory(work_dir.as_path(), RECOVERING).join(claimed.name.as_str()),
+    )
+    .expect("the claim is in recovering");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim a recovery holds settles nothing");
+    // The recovery finishes with the second writer: this record has used its last try, so it is given up on.
+    assert_eq!(requeue_expired(work_dir.as_path(), &started.advanced(LEASE * 2), LEASE, MAX_TRIES), 1, "the recovery finishes");
+    let failed: bool = state_directory(work_dir.as_path(), FAILED).join(claimed.id.as_str()).exists();
+    let queued_again: bool = state_directory(work_dir.as_path(), PENDING).join(claimed.id.as_str()).exists();
+    remove(root.as_path());
+    assert!(failed, "the last try of the item goes to failed");
+    assert!(!queued_again, "the last try of the item is not queued again");
+    assert!(said.contains(PENDING) && said.contains(FAILED), "the words name both endings: {said}");
+    assert!(said.contains("tries"), "the words say what decides which ending it is: {said}");
+    assert!(said.contains("which of the two happened"), "the words say how to tell which happened: {said}");
+    assert!(
+        !said.contains("run again") && !said.contains("queue it again"),
+        "the record went to failed with nothing running it, but the settlement promised a run: {said}"
+    );
+    assert!(!said.contains("probably"), "the words say what the record's places show instead of guessing: {said}");
+}
+
+/// A settlement that cannot list `claimed` says that the directory could not be read and what the error was,
+/// and never that a record was removed:
+/// the claim's file is still there,
+/// only the look at it failed.
+#[test]
+fn a_move_that_finds_an_unreadable_claimed_directory_says_the_look_failed() {
+    let (root, work_dir, claimed) = claimed_item("move-unreadable-claimed", &clock());
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    assert!(held.is_held_on_disk(work_dir.as_path(), claimed.id.as_str()), "the claim is listed while the directory can be read");
+    let claimed_directory: PathBuf = state_directory(work_dir.as_path(), CLAIMED);
+    let said: String;
+    let still_there: bool;
+    {
+        let _unreadable: Unreadable<'_> = Unreadable::of(claimed_directory.as_path());
+        said = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("an unlistable claim directory settles nothing");
+        // The name is still reachable inside a directory that may be searched but not listed.
+        still_there = claimed_directory.join(claimed.name.as_str()).exists();
+    }
+    remove(root.as_path());
+    assert!(still_there, "the failed moves and listings removed the claim");
+    assert!(said.contains("Permission denied"), "the words keep the error the listing gave: {said}");
+    assert!(said.contains(CLAIMED) && said.contains("could not be read"), "the words name the directory that could not be read: {said}");
+    assert!(said.contains("could not be found out"), "the words say what could not be found out: {said}");
+    assert!(
+        !said.contains("something other than the queue moved or removed it") && !said.contains("no file of"),
+        "the claim was still there, but the words said a record was removed: {said}"
+    );
 }

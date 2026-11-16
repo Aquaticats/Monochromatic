@@ -3,6 +3,8 @@
 
 use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
+use crate::service_claim_renewal::held_claims;
+use crate::work_item::Claimed;
 use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::{Due, PushRetries};
 use crate::service_work_common_directory::is_bare_common_directory;
@@ -2329,4 +2331,65 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
     );
     assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
     remove(repo.root.as_path());
+}
+
+/// What:
+///  A state directory made reachable by name but not listable,
+///  put back when this value ends.
+/// Why:
+///  The listing a drain makes is what a claim's survival is read from,
+/// and a directory that cannot be listed answers "Permission denied" rather than "nothing".
+/// The mode is put back however the control ends.
+struct Unlistable<'directory>(&'directory Path);
+
+impl Unlistable<'_> {
+    /// Take the read permission away and keep the search permission.
+    fn of(directory: &Path) -> Unlistable<'_> {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o111)).expect("the directory can be searched but not listed");
+        return Unlistable(directory);
+    }
+}
+
+impl Drop for Unlistable<'_> {
+    /// Give the read permission back.
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(self.0, std::fs::Permissions::from_mode(0o755)).expect("the directory can be listed again");
+    }
+}
+
+/// A claim whose directory could not be listed is neither run nor called another instance's:
+/// the look failed, so the words say that,
+/// and the claim stays this instance's to look at again.
+/// It is the same permission accident as the settlement's, one step earlier in the drain.
+#[test]
+fn a_claim_whose_directory_could_not_be_listed_is_kept_and_said_not_taken_over() {
+    let repo: Repo = repo("work-unlistable-claim");
+    let queued: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&queued));
+    let work_directory: PathBuf = work_directory(repo.common.as_path());
+    let (held, _renewer) = held_claims(work_directory.as_path());
+    let claimed: Claimed = claim_next_of(work_directory.as_path(), &ClaimTime::read(), &[WorkKind::Push]).expect("claim").expect("one claim");
+    held.hold(&claimed);
+    let claimed_directory: PathBuf = state_directory(work_directory.as_path(), CLAIMED);
+    let entries: Vec<crate::service_timing::capture::Captured>;
+    {
+        let _unlistable: Unlistable<'_> = Unlistable::of(claimed_directory.as_path());
+        entries = crate::service_timing::capture::entries_of(|| {
+            let mine: Vec<Claimed> = still_held(&held, work_directory.as_path(), vec![claimed.clone()]);
+            assert!(mine.is_empty(), "no work runs on a claim this instance could not check");
+        });
+    }
+    let kept: bool = held.is_held(claimed.id.as_str());
+    remove(repo.root.as_path());
+    assert!(kept, "a look that failed marked the claim taken over and let it go");
+    assert!(
+        entries.iter().any(|entry| entry.message.contains(CLAIMED) && entry.message.contains("could not be read")),
+        "the drain says the directory could not be read: {entries:?}"
+    );
+    assert!(
+        !entries.iter().any(|entry| entry.message.contains("another instance took the work over")),
+        "the look failed, but the drain named a takeover: {entries:?}"
+    );
 }
