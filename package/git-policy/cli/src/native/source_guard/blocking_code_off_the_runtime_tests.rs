@@ -452,6 +452,9 @@ const POOL_CALLS: &[&str] = &[
     "off_the_workers(",
     "run_a_job_once_awaited_no_longer_than(",
     "run_a_job_awaited_no_longer_than(",
+    // The places kept for slow work, taken with the ceiling the caller needs.
+    "run_a_slow_job_within_the_budget(",
+    "run_a_slow_job_once_awaited_no_longer_than(",
 ];
 
 /// Whether a line names a call that hands work to the blocking pool,
