@@ -456,7 +456,7 @@ fn each_part_of_a_marker_is_read_as_the_value_it_names() {
     let naming = |name: &str, boot: &str, scope: &str| -> (i64, String) {
         return (100, format!("{name}#{boot}#{scope}#{MACHINE_A}"));
     };
-    let rows: [(&str, (i64, String), HolderState); 12] = [
+    let rows: [(&str, (i64, String), HolderState); 19] = [
         ("the birth as the wrapper writes it", naming("linux:8423337", BOOT_B, SCOPE), HolderState::Running),
         ("the platform's tag in capitals", naming("LINUX:8423337", BOOT_B, SCOPE), HolderState::Running),
         ("a leading zero on the start tick", naming("linux:08423337", BOOT_B, SCOPE), HolderState::Running),
@@ -469,6 +469,16 @@ fn each_part_of_a_marker_is_read_as_the_value_it_names() {
         ("another boot of this machine, the platform's tag in capitals", naming("LINUX:8423337", BOOT_A, SCOPE), HolderState::Gone),
         ("another boot of this machine, a text naming the tag with no tick", naming("linux:not-a-birth", BOOT_A, SCOPE), HolderState::Gone),
         ("another machine, another boot", (100, format!("linux:8423337#{BOOT_A}#{SCOPE}#{MACHINE_B}")), HolderState::Unknown),
+        // A birth that is no spelling of a value a writer of this crate leaves, while a process holds the number: the
+        //  holder cannot be told, so the lock stays. Read as another process, each of these took a live holder's lock.
+        ("a vertical tab before the birth", naming("\u{b}linux:8423337", BOOT_B, SCOPE), HolderState::Unknown),
+        ("a space before the colon", naming("linux :8423337", BOOT_B, SCOPE), HolderState::Unknown),
+        ("a bare tick with no tag", naming("8423337", BOOT_B, SCOPE), HolderState::Unknown),
+        ("a byte order mark before the tag", naming("\u{feff}linux:8423337", BOOT_B, SCOPE), HolderState::Unknown),
+        ("a tag with a trailing dash", naming("linux-:8423337", BOOT_B, SCOPE), HolderState::Unknown),
+        // Each of them in a boot that has ended is still gone: that proof stands apart from the birth.
+        ("a bare tick with no tag, in another boot of this machine", naming("8423337", BOOT_A, SCOPE), HolderState::Gone),
+        ("a space before the colon, in another boot of this machine", naming("linux :8423337", BOOT_A, SCOPE), HolderState::Gone),
     ];
     // Every row is asked and every wrong answer is kept, so one run of the control names each part that was read as
     //  another value instead of stopping at the first.

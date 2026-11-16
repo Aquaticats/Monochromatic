@@ -1760,3 +1760,83 @@ fn a_journal_holding_a_fifo_never_waits_and_is_kept() {
     );
     remove(fixture_tree.root.as_path());
 }
+
+/// What:
+///  A journal whose writer's birth names no value, and which has stood past the patience,
+///  is kept and named in words that carry the journal, the process, its age and the exact `rm`.
+/// Why:
+///  The journal may hold the person's only copy of a file,
+///  so nothing removes it without proof that the writing process is gone.
+///  A birth that names no value is neither a live writer's nor a gone one's:
+///  the journal stays, and the decision of 2026-11-16 says the person is told past the patience, in words that name
+///  the record, the owner, its age and the command that removes it.
+///  A journal of a writer that ended is still settled, and one inside the patience says nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markWriterUntellable(journal, 30min); reap(notices); expect(notices).toEqual([wordsFor(journal)]); expect(journal).exists();
+/// ```
+#[test]
+fn a_journal_whose_writer_cannot_be_told_is_named_past_the_patience() {
+    let fixture_tree: Tree = tree("install-untellable-writer");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice()).expect("prepared");
+    let journal: PathBuf = prepared[0].journal.clone();
+    mark_writer_untellable(journal.as_path(), crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(600));
+    let mut notices: Vec<String> = Vec::new();
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    assert_eq!(notices.len(), 1, "one journal, one line: {notices:?}");
+    assert!(
+        notices[0].contains(journal.to_string_lossy().as_ref())
+            && notices[0].contains(std::process::id().to_string().as_str())
+            && notices[0].contains("minutes old")
+            && notices[0].contains("rm -- "),
+        "the line names the journal, the process, its age and the command that removes it: {notices:?}"
+    );
+    assert_eq!(journals(&fixture_tree.root), vec![journal.clone()], "the journal stays");
+    // The same journal rewritten inside the patience says nothing, and one whose writer ended is removed.
+    let young: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice()).expect("prepared");
+    mark_writer_untellable(young[0].journal.as_path(), std::time::Duration::from_secs(30));
+    let mut quiet: Vec<String> = Vec::new();
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut quiet);
+    assert!(quiet.is_empty(), "a journal inside the patience says nothing: {quiet:?}");
+    for prepared in &young {
+        mark_writer_dead(prepared.journal.as_path());
+    }
+    let mut settled: Vec<String> = Vec::new();
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut settled);
+    assert!(
+        settled.iter().all(|line| { return !line.contains("minutes old"); }),
+        "the journals of writers that ended are settled, not named as untellable: {settled:?}"
+    );
+    remove(fixture_tree.root.as_path());
+}
+
+/// Rewrite a journal's record so its writer is this process, whose birth is no value a reader can compare, and age the
+/// record to `age`.
+fn mark_writer_untellable(journal: &Path, age: std::time::Duration) {
+    let text: String = std::fs::read_to_string(journal.join(RECORD_FILE)).expect("the record of a prepared site");
+    let untellable: crate::worktree_copy_owner::CopyOwner = crate::worktree_copy_owner::CopyOwner {
+        pid: i64::from(std::process::id()),
+        birth_identity: String::from("linux:not-a-birth"),
+        pid_namespace: crate::pid_namespace::current_pid_namespace(),
+    };
+    let mut rewritten: String = String::new();
+    for line in text.lines() {
+        if line.starts_with("owner ") {
+            rewritten.push_str(format!("owner {}\n", untellable.token()).as_str());
+        } else {
+            rewritten.push_str(format!("{line}\n").as_str());
+        }
+    }
+    let record: PathBuf = journal.join(RECORD_FILE);
+    std::fs::write(record.as_path(), rewritten.as_bytes()).expect("a writer that cannot be told");
+    std::fs::File::options()
+        .write(true)
+        .open(record.as_path())
+        .expect("open the record")
+        .set_modified(std::time::SystemTime::now() - age)
+        .expect("age the record");
+    assert!(read_record(journal).is_some(), "the record still decodes");
+}

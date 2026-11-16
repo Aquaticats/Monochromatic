@@ -300,7 +300,7 @@ fn an_item_is_read_by_the_value_its_owner_names_and_by_its_own_age() {
     let padded_namespace: String = crate::process_identity_spellings::namespace_with_a_leading_zero(namespace.as_str());
     // What each row names: the birth, the PID namespace (none means the token carries none), the age of the item, the
     // answer due, and the words a refusal must say besides the item's path.
-    let rows: [(&str, String, Option<String>, std::time::Duration, Due, &str); 10] = [
+    let rows: [(&str, String, Option<String>, std::time::Duration, Due, &str); 15] = [
         ("the birth as the wrapper writes it", here.birth_identity.clone(), None, young, Due::Alive, ""),
         ("the platform's tag in capitals", capitalised.clone(), None, young, Due::Alive, ""),
         ("a leading zero on the start tick", padded.clone(), None, young, Due::Alive, ""),
@@ -311,6 +311,13 @@ fn an_item_is_read_by_the_value_its_owner_names_and_by_its_own_age() {
         ("a text naming the tag with no tick, past the patience", String::from("linux:not-a-birth"), None, aged, Due::Refused, "birth identity"),
         ("a leading zero on the namespace, past the patience", here.birth_identity.clone(), Some(padded_namespace.clone()), aged, Due::Alive, ""),
         ("another namespace, past the patience", here.birth_identity.clone(), Some(String::from("pid:[1]")), aged, Due::Refused, "PID namespace"),
+        // A birth that is no spelling of a value a writer of this crate leaves: the holder cannot be told, so inside the
+        //  patience it may run and past it the words name it. Read as another process, each of these took a live owner's item.
+        ("a vertical tab before the birth, young", format!("\u{b}{}", here.birth_identity), None, young, Due::Alive, ""),
+        ("a space before the colon, young", here.birth_identity.replacen(':', " :", 1), None, young, Due::Alive, ""),
+        ("a bare tick with no tag, young", here.birth_identity.replacen("linux:", "", 1), None, young, Due::Alive, ""),
+        ("a byte order mark before the tag, young", format!("\u{feff}{}", here.birth_identity), None, young, Due::Alive, ""),
+        ("a bare tick with no tag, past the patience", here.birth_identity.replacen("linux:", "", 1), None, aged, Due::Refused, "birth identity"),
     ];
     let mut wrong: Vec<String> = Vec::new();
     for (what, birth, recorded_namespace, age, due, must_say) in rows {

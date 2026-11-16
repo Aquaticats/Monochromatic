@@ -379,7 +379,7 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
     let padded_namespace: String = crate::process_identity_spellings::namespace_with_a_leading_zero(namespace.as_str());
     // What each row names: the birth, the namespace the record writes (none means the field is absent), the age of the
     // record, the answer due, and the words a refusal must say besides the record's path.
-    let rows: [(&str, String, Option<String>, std::time::Duration, Due, &str); 10] = [
+    let rows: [(&str, String, Option<String>, std::time::Duration, Due, &str); 15] = [
         ("the birth as the wrapper writes it", live.clone(), None, young, Due::Alive, ""),
         ("the platform's tag in capitals", capitalised.clone(), None, young, Due::Alive, ""),
         ("a leading zero on the start tick", padded.clone(), None, young, Due::Alive, ""),
@@ -390,6 +390,13 @@ fn a_record_is_read_by_the_value_its_birth_names_and_by_its_own_age() {
         ("a text naming the tag with no tick, past the patience", String::from("linux:not-a-birth"), None, aged, Due::Refused, "birth identity"),
         ("a leading zero on the namespace, past the patience", live.clone(), Some(padded_namespace.clone()), aged, Due::Alive, ""),
         ("another namespace, past the patience", live.clone(), Some(String::from("pid:[1]")), aged, Due::Refused, "PID namespace"),
+        // A birth that is no spelling of a value a writer of this crate leaves: the holder cannot be told, so inside the
+        //  patience it may run and past it the words name it. Read as another process, each of these settled a live merge.
+        ("a vertical tab before the birth, young", format!("\u{b}{live}"), None, young, Due::Alive, ""),
+        ("a space before the colon, young", live.replacen(':', " :", 1), None, young, Due::Alive, ""),
+        ("a bare tick with no tag, young", live.replacen("linux:", "", 1), None, young, Due::Alive, ""),
+        ("a byte order mark before the tag, young", format!("\u{feff}{live}"), None, young, Due::Alive, ""),
+        ("a bare tick with no tag, past the patience", live.replacen("linux:", "", 1), None, aged, Due::Refused, "birth identity"),
     ];
     // Every row is asked and every wrong answer is kept, so one run of the control names each row that was read another
     //  way instead of stopping at the first.
