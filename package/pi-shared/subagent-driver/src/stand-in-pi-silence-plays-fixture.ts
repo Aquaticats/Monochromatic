@@ -15,6 +15,7 @@ import { spawn, } from 'node:child_process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
 import {
+  scenario,
   seen,
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
@@ -337,3 +338,28 @@ export const abortPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = 
       },
     ],
   ]);
+
+/**
+ Answers an abort with the play this scenario has for it, and says whether it did, so the stand-in's own dispatch stays one line
+ per kind of command.
+
+ @param id - command's identifier
+
+ @returns whether a play of this file answered it
+
+ @example
+ ```ts
+ const answered = await playTheAbort(id,);
+ ```
+ */
+export async function playTheAbort(id: unknown,): Promise<boolean> {
+  /**
+   What this scenario does when the operation ends, when it has a play at all.
+   */
+  const play = abortPlays.get(scenario,);
+  if (play === undefined) {
+    return false;
+  }
+  await play(id,);
+  return true;
+}

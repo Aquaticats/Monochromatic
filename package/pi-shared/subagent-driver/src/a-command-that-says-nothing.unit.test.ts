@@ -44,6 +44,7 @@ import {
   endedCommandMessageOf,
   fieldsOf,
   isRecord,
+  MASKING_NOTHING,
   recordsIn,
   keptCommand,
   POLL_MILLISECONDS,
@@ -262,6 +263,7 @@ async function startRunAtAClock(): Promise<RunAtAClock> {
     now: function now() {
       return clock.at;
     },
+    mask: MASKING_NOTHING,
   },);
   return {
     record,
@@ -289,7 +291,10 @@ async function startRunAtTheRealClock(): Promise<RunAtAClock> {
   /**
    The record of the run.
    */
-  const record = startRecordOfPiRun({ feedFile: join(folder.path, 'feed.jsonl',), },);
+  const record = startRecordOfPiRun({
+    feedFile: join(folder.path, 'feed.jsonl',),
+    mask: MASKING_NOTHING,
+  },);
   return {
     record,
     folder: folder.path,

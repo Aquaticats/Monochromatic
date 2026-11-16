@@ -45,7 +45,7 @@ import {
   CRASH_STATUS,
   playPrompt,
 } from './stand-in-pi-prompt-plays-fixture.ts';
-import { abortPlays, } from './stand-in-pi-silence-plays-fixture.ts';
+import { playTheAbort, } from './stand-in-pi-silence-plays-fixture.ts';
 import {
   answer,
   answerAndExit,
@@ -340,17 +340,8 @@ async function actOnCommand({
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
     exit(CRASH_STATUS,);
   }
-  if (parsed.type === 'abort') {
-    /**
-     What this scenario does when the driver ends the operation in flight, which is a play of its own only where a test's subject
-     is the ending.
-     */
-    const abortPlay = abortPlays.get(scenario,);
-    if (abortPlay !== undefined) {
-      await abortPlay(parsed.id,);
-      return;
-    }
-  }
+  // A scenario about ending a silent command answers the abort itself; every other one answers it like any other command.
+  if ((parsed.type === 'abort') && (await playTheAbort(parsed.id,))) return;
   // A Pi whose own answers name no session file at all, which is what makes a run fall back to a path of its own choice.
   if ((scenario === 'sessionless') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
     /**

@@ -166,6 +166,16 @@ export const LENGTH_OF_AN_END: Readonly<Record<EndReason, LengthOfAnEnd>> = {
     countsAsWork: true,
     why: 'the run worked until Pi outlived every signal, which is its own allowance spent rather than the job cut short',
   },
+  'masking-not-armed': {
+    countsAsWork: false,
+    why: 'the driver refused to send the prompt because the extension that masks secret values never reported arming, so nothing'
+      + ' of the run\'s work happened',
+  },
+  'session-unmasked': {
+    countsAsWork: true,
+    why: 'the run did its work and only the session it left was found to hold a value afterwards, so the length is the job\'s and'
+      + ' the run is marked unclean for what it left behind',
+  },
 };
 
 /**

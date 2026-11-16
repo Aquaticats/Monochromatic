@@ -53,6 +53,7 @@ await describe({
           'pi-exited-before-prompt',
           'driver-failed',
           'model-error',
+          'masking-not-armed',
         ],);
       },
     },),
