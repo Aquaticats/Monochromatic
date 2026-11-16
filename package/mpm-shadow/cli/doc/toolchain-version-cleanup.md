@@ -77,8 +77,8 @@ in the files named above.
   0.27 to 0.7 s to read and parse 164 lock files,
   and 0.15 s for the process table.
 - The removals:
-  at most two seconds,
-  at the measured 30 microseconds per file.
+  at most ten seconds of waiting on a claim,
+  and the bytes at the measured 30 microseconds per file.
 
 ## What the bound counts
 
@@ -249,7 +249,10 @@ A name the list does not explain means the list is wrong.
   which never blocks for good on a dead maker,
   and the install that waits for
   a live one,
-  for at most two seconds and then with a sentence saying what holds it.
+  for at most ten seconds and then with a sentence saying what holds it
+  (`OWNERSHIP_WAIT`,
+  moved from two seconds by the owner's decision of 2026-11-15,
+  because a removal that also waits on a process or on a slow disk was refused while it was still working).
 - **The downloads tombstone**,
   `<store>/downloads/<tool>/.mpm-shadow-removing.<version>`.
   Owns it:
@@ -496,7 +499,7 @@ and both sides take their right with an exclusive create:
 Two creates are ordered in real time,
 so one of the two always sees the other and backs off:
 an install that finds a claim waits for the removal,
-up to two seconds,
+up to ten seconds,
 and then refuses rather than writing under it,
 and a remover that finds a live owner leaves the directory and names it.
 An owner file whose process has ended is what a killed install leaves and keeps nothing.
@@ -652,3 +655,80 @@ and running out of one is said rather than hidden.
   names the guard file and the bound,
   and writes nothing,
   so the lock file and the files around it are exactly as they were.
+
+## One act on the store, proved where it lands
+
+
+Every removal,
+move,
+write and marker delete of the cleanup goes through one proof:
+`proved_under` in `src/toolchain/store_versions.rs` walks the path from the store's root one component at a time with
+`symlink_metadata`,
+which never follows the last component of what it reads,
+and refuses a link at any component below the root,
+naming it.
+`proved_under_itself` is the same walk for an act that removes or replaces the last entry itself:
+removing a link removes the link,
+and a rename replaces the entry it lands on,
+so a link at the last name does not send those acts outside the store,
+while a link on the way still does.
+
+Three wrappers are the only places the cleanup makes such an act:
+`remove_tree_proved`,
+`remove_file_proved` and
+`rename_proved`,
+and each asks the proof first.
+A refusal is `StoreActFailure::Refused` and carries the words that name the link;
+the act's own failure is `StoreActFailure::Failed` and carries the filesystem's error,
+so a caller keeps the sentence it printed before.
+
+What it holds:
+the path,
+at the instant of the walk,
+and the store root it was resolved against,
+which may itself be reached through a link.
+A link that appears between the walk and the act is the window this leaves;
+closing it needs the act itself to be made relative to a held descriptor of the root with `O_NOFOLLOW`,
+which this package's dependency set does not carry.
+
+What the acts answer:
+the recovery pass deletes nothing while any lock it reads could not be read.
+`finish_removals` takes the lock reading as its argument,
+and a reading with an unreadable lock is a value it cannot delete with:
+it says so once and keeps every version and its archives.
+A claim from a maker that has ended is taken by moving it aside to a name no later claim can have and comparing what
+was moved with what was read by device and inode;
+a claim that is not the one read goes back where it was,
+because removing the name as it stands would remove a live claim another remover wrote in the meantime.
+
+The one act of the cleanup that is not proved is `remove_copy`'s removal of the old copy itself:
+that file is `~/.cargo/bin/<bin>`,
+outside the store,
+and removing it removes the link itself and never a target.
+
+## A process that hides what it runs
+
+A process of this account whose program,
+folders and descriptors the kernel will not show the scan is a process
+nobody can check:
+it may hold any file of the store and work in any version,
+and its name is no evidence either way,
+because a wrapper that holds tokens hides its program the same way and calls itself anything.
+The owner's decision of 2026-11-15 (recorded in `doc/handover/cli-git-rust-implementation.md`) is the age rule:
+a hidden process that started after a version was installed keeps that version,
+and one that started before it is taken not to run it.
+The gap that accepts:
+such a process re-executing itself into that version later is not seen.
+The other answer,
+keeping every version for every hidden process until it ends,
+was measured on this machine at
+eleven such processes at once,
+so it kept every removable version for as long as the desktop session lives.
+
+The install time is the version directory's change time,
+not its write time:
+a published archive is unpacked with `tar`,
+which restores the write times the archive recorded,
+so an archive built long ago would look installed long before it was.
+A process's start is read from `/proc/<pid>/stat` and rounded up by one hundredth of a second,
+so a version written in that last tick before a process started counts as written after it and is kept.

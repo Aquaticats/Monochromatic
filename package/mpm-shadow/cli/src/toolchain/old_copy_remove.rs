@@ -112,28 +112,15 @@ pub fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> 
         note = uninstall_bin(ctx, plan, &cargo_home, install)?;
         cargo_ran = true;
     }
-    // What: the file goes through the proof of where it lands.
-    // Why: the path is built from names a lock gives, and this is the proof at the act.
-    match super::store_versions::remove_file_proved(&ctx.scope.toolchain_root, &plan.path, "a copy another root installed") {
+    // What: this file is not in the store: it is the old copy cargo installed into `~/.cargo/bin`, so the store's
+    // proof of where an act lands does not apply to it, and removing it removes the link itself, never a target.
+    // Why: the path is built from names the plans give, and a path outside the store is judged by no store rule.
+    match fs::remove_file(&plan.path) {
         Ok(()) => {}
         // Cargo removes the file itself, so a file that is gone after `cargo uninstall` is the normal case.
-        Err(super::store_versions::StoreActFailure::Refused(reason)) => {
-            if plan.path.exists() {
-                return Err(reason);
-            }
-            if !cargo_ran {
-                note = "another run had already removed the file".to_string();
-            }
-        }
-        Err(super::store_versions::StoreActFailure::Failed(error)) => {
-            if error.kind() == ErrorKind::NotFound {
-                if !cargo_ran {
-                    note = "another run had already removed the file".to_string();
-                }
-            } else {
-                return Err(format!("cannot remove the file: {error}"));
-            }
-        }
+        Err(error) if error.kind() == ErrorKind::NotFound && cargo_ran => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => note = "another run had already removed the file".to_string(),
+        Err(error) => return Err(format!("cannot remove the file: {error}")),
     }
     return Ok(note);
 }
