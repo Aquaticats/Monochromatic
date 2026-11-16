@@ -303,7 +303,8 @@ fn launcher_fixture() {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
-    fs::write(root.join("launcher-pid"), std::process::id().to_string()).expect("write the launcher's process id");
+    fs::write(root.join("launcher-pid.part"), std::process::id().to_string()).expect("write the launcher's process id");
+    fs::rename(root.join("launcher-pid.part"), root.join("launcher-pid")).expect("publish the launcher's process id");
     std::thread::sleep(std::time::Duration::from_secs(300));
 }
 
@@ -434,6 +435,11 @@ impl Attempt {
 /// and the recovery's take of a new time namespace at once after that.
 fn recycled_attempt(schedule: &Schedule<'_>) -> Attempt {
     let root: &Path = schedule.root;
+    // The helpers' handshake files are shared by every round, so a round starts without the previous round's: an identity or a process id
+    // left by a round that lost the number would name a launcher this round never started.
+    for stale in ["identity", "identity.part", "launcher-pid", "launcher-pid.part", "fixture-result"] {
+        let _ = fs::remove_file(root.join(stale));
+    }
     let mut launcher: Child = Command::new("unshare")
         .args(["--user", "--map-root-user", "--time", "--boottime", "7200", "--fork", "--"])
         .arg(std::env::current_exe().expect("this test executable"))
