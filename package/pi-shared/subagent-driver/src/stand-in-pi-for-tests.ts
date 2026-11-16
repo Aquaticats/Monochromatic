@@ -339,6 +339,18 @@ async function actOnCommand({
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
     exit(CRASH_STATUS,);
   }
+  // A Pi that reports a session file it was never given: a file another run keeps, which this run may not rewrite. It is the shape
+  // of a misreporting or compromised peer, and the driver has to leave that file alone and say so.
+  if ((scenario === 'reports-another-session') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
+    answer({
+      id: parsed.id,
+      data: {
+        ...(ORDINARY_ANSWERS.get(parsed.type,) ?? {}),
+        sessionFile: env.STAND_IN_PI_REPORTED_SESSION ?? 'stand-in-reported-session.jsonl',
+      },
+    },);
+    return;
+  }
   // A Pi whose own answers name no session file at all, which is what makes a run fall back to a path of its own choice.
   if ((scenario === 'sessionless') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
     /**

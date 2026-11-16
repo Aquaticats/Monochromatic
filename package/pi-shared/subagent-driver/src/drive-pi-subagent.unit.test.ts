@@ -1995,6 +1995,49 @@ await describe({
       },
     },),
     it({
+      name: 'leaves a session alone that Pi reports and this run did not make',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session this run was given to resume, whose masked copy is this run's own file.
+         */
+        const sessionFile = join(sessionFolder.path, 'given.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'message', message: { role: 'user', content: `an old session holds ${MASKED_STORE_VALUE}`, }, },)}\n`,
+        );
+        /**
+         Another run's session, which this run's Pi has no business naming: it exists before this run starts, and holds ordinary
+         data beside a value.
+         */
+        const otherRuns = join(sessionFolder.path, 'other-run.jsonl',);
+        /**
+         What the other run's file holds, which must be exactly what it holds after this run.
+         */
+        const otherRunsText = `${JSON.stringify({ entry: `other run user data ${MASKED_STORE_VALUE}`, },)}\n`;
+        await writeFile(otherRuns, otherRunsText,);
+        const run = await runDriver({
+          // Pi reports a file this run never made, standing for a misreporting peer.
+          scenario: 'reports-another-session',
+          extraOptions: [`--session=${sessionFile}`,],
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_REPORTED_SESSION: otherRuns,
+          },
+        },);
+        // The file Pi named is another run's: this run leaves every byte of it as it was, and says so in its record.
+        expect(await readFile(otherRuns, 'utf8',),).toBe(otherRunsText,);
+        const noted = run.feed.find((entry,) => entry.kind === 'session_at_rest',);
+        expect(String(noted?.problem,),).toContain('other-run.jsonl',);
+        // The session this run was given is still untouched, and the copy it made is what it masked.
+        expect(await readFile(sessionFile, 'utf8',),).toContain(MASKED_STORE_VALUE,);
+        expect(run.runFiles['resumed-session.jsonl'] ?? '',).not.toContain(MASKED_STORE_VALUE,);
+      },
+    },),
+    it({
       name: 'leaves the session it was given alone when Pi names no session file of its own',
       fn: async () => {
         await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
