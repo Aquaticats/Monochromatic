@@ -174,7 +174,10 @@ pub struct TreeIsGoing;
 pub fn claim_a_made_tree(tree: std::path::PathBuf) -> Result<ClaimOnAMadeTree, TreeIsGoing> {
     return match hold(tree.as_path()) {
         ClaimTaken::Yes(claim) => Ok(ClaimOnAMadeTree::Claimed(AClaimedTree { tree, claim })),
-        ClaimTaken::BeingTaken => Err(TreeIsGoing),
+        // What: A tree a sweep is removing, and a tree a sweep removed, are both trees this maker leaves and makes another of.
+        // Why:  Neither is a tree to build in, and the maker's next tree takes a name of its own
+        //       (`scratch_location.rs`, `prepare_commit_scratch`).
+        ClaimTaken::BeingTaken | ClaimTaken::Gone => Err(TreeIsGoing),
         ClaimTaken::CannotBeAsked => Ok(ClaimOnAMadeTree::TheVolumeCannotSay(tree)),
     };
 }
@@ -230,6 +233,8 @@ where
     let claim: Option<HeldTree> = match take_to_remove(tree) {
         ClaimTaken::Yes(claim) => Some(claim),
         ClaimTaken::BeingTaken => return SweptRemoval::HeldByALiveProcess,
+        // A tree that is not there is one this sweep has nothing to remove.
+        ClaimTaken::Gone => return SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished),
         ClaimTaken::CannotBeAsked => {
             debug_claim(tree, "the volume cannot say who holds it, so the removal goes by its age");
             None
@@ -266,6 +271,9 @@ pub enum ClaimTaken {
     /// A sweep holds it exclusively,
     ///  so it is being removed.
     BeingTaken,
+    /// The tree is not there:
+    ///  a sweep's removal finished before this holder asked, so nothing is there to claim.
+    Gone,
     /// The volume cannot say whether the tree is held.
     CannotBeAsked,
 }
@@ -292,6 +300,14 @@ fn hold(tree: &Path) -> ClaimTaken {
         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
             debug_claim(tree, "a sweep holds it to remove it");
             ClaimTaken::BeingTaken
+        }
+        // What: A tree that is not there is gone, and not a volume that cannot answer.
+        // Why:  A maker's claim on the tree it just made finds `NotFound` when a sweep's removal finished first;
+        //       reading that as "the volume cannot be asked" handed the removed path back as though it were a command's
+        //       to build in, and the first write into it failed with `ENOENT` (the ninth review's third finding).
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            debug_claim(tree, "it is not there any more");
+            ClaimTaken::Gone
         }
         Err(error) => {
             debug_claim(tree, format!("the volume cannot say whether it is held ({error})").as_str());
@@ -321,6 +337,8 @@ fn take_to_remove(tree: &Path) -> ClaimTaken {
     return match lock_without_waiting(tree, Share::Alone) {
         Ok(opened) => ClaimTaken::Yes(HeldTree { _opened: opened }),
         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => ClaimTaken::BeingTaken,
+        // Nothing is at the name any more, so there is nothing for this sweep to remove.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => ClaimTaken::Gone,
         Err(error) => {
             debug_claim(tree, format!("the volume cannot say whether it is held ({error})").as_str());
             ClaimTaken::CannotBeAsked

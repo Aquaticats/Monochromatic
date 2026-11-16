@@ -100,6 +100,14 @@ pub struct PrepareInputs<'a> {
     pub replay: Option<Retry<'a>>,
 }
 
+/// What:
+///  The name, under the commit's scratch tree, of the copy of the person's index the policies read.
+/// Why:
+///  It is the capture a private index that went is rebuilt from:
+///  the copy holds what the person staged,
+///  and the build reads it when the index Git reads is gone (`service_native.rs`, `keep_the_private_index`).
+pub const THE_POLICIES_CAPTURE: &str = "captured.index";
+
 /// Prepares the commit once against the branch as it is now.
 pub fn prepare<F: RepositoryFacts>(
     invocation: &CommitInvocation<'_>,
@@ -168,7 +176,7 @@ pub fn prepare<F: RepositoryFacts>(
         Err(error) => return Err(failed(format!("preparing the commit failed: {error}"))),
     };
     let indexes: CaptureIndexes = CaptureIndexes {
-        captured_index: scratch.0.join("captured.index"),
+        captured_index: scratch.0.join(THE_POLICIES_CAPTURE),
         commit_index: scratch.0.join("commit.index"),
         object_directory: capture.layout.object_directory.clone(),
     };

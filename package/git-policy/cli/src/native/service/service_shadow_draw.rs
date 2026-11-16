@@ -53,18 +53,24 @@ use std::time::{Duration, Instant, SystemTime};
 ///   A drawn tree stands while its claim is held, and whether it stands with no end is the owner's question and not
 ///  this file's (`doc/handover/questions-for-the-owner.md`;
 ///  the brief of the branch that added the claim).
-///  The answer is this one constant, for the tree waiting in the stock and for the tree the service has handed out:
-///  `Some(span)` lets go at the first landing after the span, so the tree ages out and a sweep collects it,
-///  and it must be longer than `DRAWN_ANSWER_DEADLINE` (`service_client_shadow_hand_out.rs`),
-///  or a tree would be let go while the answer that names it is still travelling.
-///  `None` keeps each of them until the landing that names the tree is over, and the stocked one until the service ends,
-///  which is what this branch does today.
+///  The owner's answer of 2026-11-15 is that the claim ends and that the span is proposed here with a measurement beside it
+///  (`doc/handover/cli-git-rust-implementation.md`, "A lifetime" and "Author measures and proposes").
+///  The span is one renewal period, `SCRATCH_REFRESH_EVERY` (an hour):
+///  a tree is let go at the first landing after it, so a tree nobody asked for in an hour ages out and a sweep collects it
+///  within `SCRATCH_TREE_ABANDONED_AFTER` more,
+///  and a stocked tree that no commit ever takes goes at the same pace instead of with the service.
+///  It is far longer than anything the claim has to outlast: the answer's own deadline is
+///  `DRAWN_ANSWER_DEADLINE` (250 ms), and the measured wait for the answer was 17 to 19 ms on six commits of one fixture,
+///  with the client's build after it (`keep/drawn-tree-span-measured.md`).
+///  It is an hour rather than a minute because a tree's cost while it waits is one small repository —
+///  1,708 bytes for the fixture of that measurement, with every object reached through the alternates —
+///  and one wait for the following commit is what the stock exists for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = undefined; // the owner's question, unanswered
+/// const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = Some(SCRATCH_REFRESH_EVERY); // an hour
 /// ```
-pub const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = None;
+pub const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = Some(SCRATCH_REFRESH_EVERY);
 
 /// Lock kept:
 ///  whether this service is already drawing one shadow,

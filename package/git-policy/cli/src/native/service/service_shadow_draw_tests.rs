@@ -399,3 +399,29 @@ fn a_stocked_tree_whose_absence_cannot_be_asked_is_kept() {
     assert_eq!(drawn.ready(), 1, "and the stock still counts it");
     remove(root.as_path());
 }
+
+/// What:
+///  A stocked tree the service has kept for longer than its span is let go at the next landing.
+/// Why:
+///  The owner's answer of 2026-11-15 is that the claim on a drawn tree ends, and the span is one renewal period
+///  (`A_DRAWN_TREE_IS_KEPT_FOR`): without it a tree nobody asks for is kept for the life of the service.
+///  The stock's own record is aged here, as a service that kept a tree for longer would have aged it.
+#[test]
+fn a_stocked_tree_older_than_the_span_is_let_go() {
+    let root: PathBuf = fixture("shadow-draw-stock-span");
+    let stocked: PathBuf = a_tree(root.as_path(), "a-stocked-tree");
+    let drawn = DrawnShadows::none_yet();
+    drawn.note_ready(stocked.clone());
+    assert_eq!(drawn.ready(), 1, "the stock holds the tree");
+    let span: Duration = A_DRAWN_TREE_IS_KEPT_FOR.expect("the owner's answer is a span that ends");
+    {
+        let mut ready = drawn.ready.lock().expect("the stock");
+        for waiting in ready.iter_mut() {
+            waiting.since = Instant::now() - span - Duration::from_secs(1);
+        }
+    }
+    assert_eq!(drawn.let_go_of_what_it_kept_too_long(), 1, "a tree kept past the span is let go");
+    assert_eq!(drawn.ready(), 0, "and the stock does not count it any more");
+    assert!(stocked.is_dir(), "the tree itself is left to the sweep by its age, not removed here");
+    remove(root.as_path());
+}

@@ -271,9 +271,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         //       asked for nothing (the seventh review's first finding). The bytes in hand are what the copy was made of,
         //       and the read after the tree confirms the copy is still those bytes.
         //       The bytes stay in memory for a rebuild, so a copy that goes later cannot stop the commit being built again.
-        let kept: std::io::Result<Vec<u8>> = std::fs::read(input.commit_index).and_then(|bytes: Vec<u8>| {
-            return std::fs::write(captured_index.as_path(), bytes.as_slice()).map(|()| { return bytes; });
-        });
+        let kept: std::io::Result<Vec<u8>> = keep_the_private_index(input, captured_index.as_path());
         // What: A control may hold the commit at this instant, with the copy of the index kept and its tree not yet read
         //       (`transaction_phase.rs`, `Phase::CommitCaptureTaken`).
         // Why:  A copy that goes between the keeping and the read is a commit that cannot say what the person staged,
@@ -282,7 +280,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptureTaken).map_err(|error| {
             return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
         })?;
-        asked_for = the_commit_that_was_asked_for(input, kept.as_deref());
+        asked_for = the_commit_that_was_asked_for(input, commit_args.as_slice(), kept.as_deref());
         // What: A control may hold the commit at this instant, with what it asked for known and no shadow yet taken
         //       (`transaction_phase.rs`, `Phase::CommitCaptured`).
         // Why:  A scratch that goes here has not been read by any Git start of the build, and no other instant of a build
@@ -663,46 +661,45 @@ enum TheFormOfTheCommit {
     ///  the tree is the private index's,
     ///  and the parents are the amended commit's, which this command has not read.
     AmendsTheLastCommit,
+    /// A line this reading cannot place,
+    ///  which is a line Git itself refuses,
+    ///  so no commit is built from it and nothing is held against one.
+    GitRefusesIt,
 }
 
 /// What:
 ///  Which form the arguments make,
-///  read from the words Git itself reads.
+///  read the way Git reads them.
 /// Why:
 ///  A form's tree and parents follow from the form alone,
-///  so it is decided once, here,
-///  rather than by flags scattered where each question is asked.
+///  so it is decided once, here, by the crate's own port of Git's option table
+///  (`command_commit.rs`, `parse_commit_region`):
+///  a value an option takes is never a form, whatever it is spelled,
+///  a unique prefix of a long option is that option (`gitcli(7)`, "Abbreviating long options"),
+///  bundled short options are read as Git reads them,
+///  and every token after `--` is a path.
+///  The scanner this replaces read each argument alone, and two reviews found what that costs:
+///  a message whose value spelled `--fixup=reword:HEAD` switched the tree check off for a commit carrying the index's tree,
+///  and `--amen` was read as an ordinary commit, so a commit Git makes was refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const formOf = (args) => args.includes('--amend') ? 'amendsTheLastCommit'
-///   : /^--fixup[= ]reword:/.test(args.join(' ')) ? 'carriesTheRewordedTree' : 'carriesTheIndex'
+/// const formOf = (args) => { const region = parseCommitRegion(args); return region?.amend ? 'amendsTheLastCommit' : region?.fixup === 'reword' ? 'carriesTheRewordedTree' : 'carriesTheIndex' }
 /// ```
 fn the_form_of_the_commit(arguments: &[OsString]) -> TheFormOfTheCommit {
-    let mut forms: TheFormOfTheCommit = TheFormOfTheCommit::CarriesTheIndex;
-    let mut index: usize = 0;
-    while index < arguments.len() {
-        let text: String = arguments[index].to_string_lossy().to_string();
-        if text == "--amend" {
-            return TheFormOfTheCommit::AmendsTheLastCommit;
-        }
-        let value: Option<String> = match text.strip_prefix("--fixup") {
-            Some(rest) => match rest.strip_prefix('=') {
-                Some(named) => Some(named.to_string()),
-                // `--fixup <value>` hands the value as the next argument.
-                None if rest.is_empty() => arguments.get(index + 1).map(|value| { return value.to_string_lossy().into_owned(); }),
-                None => None,
-            },
-            None => None,
-        };
-        if let Some(named) = value
-            && named.starts_with("reword:")
-        {
-            forms = TheFormOfTheCommit::CarriesTheRewordedTree;
-        }
-        index += 1;
+    let Ok(region) = crate::command_commit::parse_commit_region(arguments, &[]) else {
+        // What: A line this reading cannot place is a line Git itself would refuse, so no commit is built from it.
+        // Why:  Holding an expectation against a commit that is never made costs nothing;
+        //       guessing a form is what refused valid commits and accepted wrong ones.
+        return TheFormOfTheCommit::GitRefusesIt;
+    };
+    if region.amend {
+        return TheFormOfTheCommit::AmendsTheLastCommit;
     }
-    return forms;
+    if region.fixup == Some(crate::command_commit::FixupKind::Reword) {
+        return TheFormOfTheCommit::CarriesTheRewordedTree;
+    }
+    return TheFormOfTheCommit::CarriesTheIndex;
 }
 
 /// What:
@@ -759,8 +756,8 @@ fn expected_parents_of(input: &BuildInput<'_>) -> Asked<Vec<String>> {
 /// ```ts
 /// const asked = { parents, tree: writeTree(capturedIndex) };
 /// ```
-fn the_commit_that_was_asked_for(input: &BuildInput<'_>, kept: Result<&[u8], &std::io::Error>) -> AskedForCommit {
-    let form: TheFormOfTheCommit = the_form_of_the_commit(input.arguments);
+fn the_commit_that_was_asked_for(input: &BuildInput<'_>, commit_args: &[OsString], kept: Result<&[u8], &std::io::Error>) -> AskedForCommit {
+    let form: TheFormOfTheCommit = the_form_of_the_commit(commit_args);
     // What: Each form says for itself what tree and what parents its commit must have.
     // Why:  The forms differ, and a shared branch of a boolean once said "no tree to hold" for `--fixup=amend:`,
     //       whose commit carries the person's staged tree (`the_form_of_the_commit`).
@@ -769,7 +766,11 @@ fn the_commit_that_was_asked_for(input: &BuildInput<'_>, kept: Result<&[u8], &st
             Asked::LeftOut("an amend's parents are the amended commit's, and this command has not read it")
         }
         TheFormOfTheCommit::CarriesTheIndex | TheFormOfTheCommit::CarriesTheRewordedTree => expected_parents_of(input),
+        TheFormOfTheCommit::GitRefusesIt => Asked::LeftOut("the line is not one Git accepts, so no commit is built from it"),
     };
+    if form == TheFormOfTheCommit::GitRefusesIt {
+        return AskedForCommit { parents, tree: Asked::LeftOut("the line is not one Git accepts, so no commit is built from it") };
+    }
     if form == TheFormOfTheCommit::CarriesTheRewordedTree {
         return AskedForCommit {
             parents,
@@ -792,6 +793,75 @@ fn the_commit_that_was_asked_for(input: &BuildInput<'_>, kept: Result<&[u8], &st
         }
     };
     return AskedForCommit { parents, tree: the_tree_the_captured_index_names(input, bytes) };
+}
+
+/// What:
+///  The private index's bytes, with the kept copy written from them,
+///  rebuilding the private index from the policies' capture when it is gone.
+/// Why:
+///  The private index is the wrapper's own product: beside it sits the copy of the person's index the policies read,
+///  and a tree rebuilt from that copy is the content the person staged
+///  (`commit_index.rs`, `initialize_retry_index`;
+///  `service_replay.rs`, `captured_tree`).
+///  Before this, every attempt read the same missing file and the commit failed after the bounded tries
+///  (the ninth review's second finding), where a commit the person asked for could be rebuilt and made.
+///  The rebuild is what the branch already does when a branch moves, and it stages nothing from the worktree:
+///  the tree names the entries, and the real index's stat data is kept where it can be.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = read(commitIndex) ?? (rebuildFromPoliciesCapture() && read(commitIndex)); await write(capturedCopy, kept); kept
+/// ```
+fn keep_the_private_index(input: &BuildInput<'_>, captured_index: &Path) -> std::io::Result<Vec<u8>> {
+    let read_and_copy = || -> std::io::Result<Vec<u8>> {
+        let bytes: Vec<u8> = std::fs::read(input.commit_index)?;
+        std::fs::write(captured_index, bytes.as_slice())?;
+        return Ok(bytes);
+    };
+    let first: std::io::Result<Vec<u8>> = read_and_copy();
+    if first.is_ok() {
+        return first;
+    }
+    match rebuild_the_private_index(input) {
+        Ok(()) => return read_and_copy(),
+        // The capture cannot name what the private index held either, so this attempt is one that cannot tell.
+        Err(_why) => return first,
+    }
+}
+
+/// What:
+///  Writes the private index again from the policies' capture of the person's index,
+///  or says why it cannot.
+/// Why:
+///  The capture is a copy of what the person staged,
+///  and `initialize_retry_index` builds a private index from a tree without staging anything from the worktree
+///  (`commit_index.rs`).
+///  An index rebuilt this way is the content the commit was asked to carry;
+///  if the rebuild is not exact for a form the build cannot restate (a pathspec file, an interactive selection),
+///  the commit differs from what was asked for and is not landed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = capturedTree(capturedIndex); await initializeRetryIndex(realIndex, { capturedIndex, commitIndex }, tree)
+/// ```
+fn rebuild_the_private_index(input: &BuildInput<'_>) -> Result<(), String> {
+    let object_directory: PathBuf = input.capture.layout.object_directory.clone();
+    let captured: PathBuf = input.scratch.join(crate::service_prepare::THE_POLICIES_CAPTURE);
+    let indexes: crate::private_index_request::CaptureIndexes = crate::private_index_request::CaptureIndexes {
+        captured_index: captured.clone(),
+        commit_index: input.commit_index.to_path_buf(),
+        object_directory: object_directory.clone(),
+    };
+    let tree: String = crate::service_replay::captured_tree(input.context, input.cwd, captured.as_path(), object_directory.as_path())
+        .map_err(|stop| { return format!("{stop:?}"); })?;
+    return crate::commit_index::initialize_retry_index(
+        input.context,
+        input.cwd,
+        input.capture.layout.real_index_path.as_path(),
+        &indexes,
+        tree.as_str(),
+    )
+    .map_err(|error| { return error.to_string(); });
 }
 
 /// What:
