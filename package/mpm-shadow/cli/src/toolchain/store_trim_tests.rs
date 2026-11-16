@@ -1839,3 +1839,34 @@ fn trim_lines(rig: &crate::toolchain::fakes::Rig) -> Vec<String> {
     );
     return lines;
 }
+
+/// What:
+/// A removal claim a kill left beside a version that is gone is cleared by the next pass, and the pass says so.
+/// Why:
+/// The review of 82531265a7 killed the removal before its claim's unlink and watched the claim survive three further
+/// passes: nothing asks about a version that is gone, and the claim kept the tool's downloads directory from ever
+/// being removed.
+#[test]
+fn a_claim_a_kill_left_beside_a_version_that_is_gone_is_cleared() {
+    let rig = crate::toolchain::fakes::Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_downloads: PathBuf = root.join("downloads").join("cargo").join("db");
+    fs::create_dir_all(&tool_downloads).expect("make the tool's downloads directory");
+    let claim: PathBuf = tool_downloads.join(".1.0.0.download-removal");
+    // A claim naming a process that has ended, as a kill between the version's removal and the claim's unlink leaves it.
+    fs::write(&claim, format!("{}.12345\n", u32::MAX - 1)).expect("leave the claim");
+    let aged: SystemTime = SystemTime::now() - Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(&claim)
+        .expect("open the claim to age it")
+        .set_times(FileTimes::new().set_modified(aged))
+        .expect("age the claim");
+    fs::write(rig.scope.lock_file.clone(), r#"{"tools":{"cargo:db":{"version":"2.0.0","route":"cargo-binstall","packageId":"db"}}}"#)
+        .expect("write a lock naming the tool");
+    fs::write(unfinished_marker(&root), b"").expect("leave the recovery marker");
+
+    trim_after_install(&rig.context(), &[]);
+
+    assert!(fs::symlink_metadata(&claim).is_err(), "the claim a kill left beside a version that is gone stayed for ever");
+}

@@ -62,7 +62,7 @@ use super::context::Context;
 use super::model::Route;
 /// Imports what this module uses from `super::download_ownership`,
 /// which says who owns a version's downloads while an install writes them and who may remove them.
-use super::download_ownership::{RemovalClaim, RemovalRight, live_owner, removal_held, take_removal_right};
+use super::download_ownership::{REMOVAL_SUFFIX, RemovalClaim, RemovalRight, live_owner, removal_held, take_removal_right};
 /// Imports `remove_orphan_downloads` from `super::published_archive`,
 /// which owns where a version's archives are kept and what tells an install's use of them.
 use super::published_archive::remove_orphan_downloads;
@@ -1469,8 +1469,46 @@ pub fn finish_removals(
                 }
             }
         }
+        clear_claims_of_vanished_versions(root, tools, &mut lines);
     }
     return (lines, unfinished);
+}
+
+/// What:
+/// Clears the removal claims of versions this root no longer has, when the claim's maker has ended.
+/// Why:
+/// A kill between a version's removal and the claim's unlink leaves a claim beside a version that is gone, and nothing
+/// asks about that version again: the claim then keeps the tool's downloads directory from ever being removed, and the
+/// review of 82531265a7 saw it survive three further passes.
+fn clear_claims_of_vanished_versions(root: &Path, tools: &BTreeSet<String>, lines: &mut Vec<String>) {
+    for tool in tools {
+        // The tool's downloads directory is the version's parent, whatever the tool's directory is called.
+        let Some(tool_downloads) = downloads_of(root, tool, "a-version").parent().map(Path::to_path_buf) else {
+            continue;
+        };
+        let Ok(entries) = fs::read_dir(&tool_downloads) else {
+            continue;
+        };
+        let mut names: Vec<String> = entries.flatten().map(|entry| return entry.file_name().to_string_lossy().to_string()).collect();
+        names.sort();
+        for name in names {
+            let Some(rest) = name.strip_prefix('.') else {
+                continue;
+            };
+            let Some(version) = rest.strip_suffix(REMOVAL_SUFFIX) else {
+                continue;
+            };
+            if root.join(tool).join(version).exists() {
+                // The version is still there: its claim is judged where the version is.
+                continue;
+            }
+            if super::download_ownership::clear_a_stale_claim(root, tool, version) {
+                lines.push(format!(
+                    "mpm-shadow: cleared the removal claim of {version} of {tool}, which a kill left after the version was gone"
+                ));
+            }
+        }
+    }
 }
 
 /// The line for a version that stays,

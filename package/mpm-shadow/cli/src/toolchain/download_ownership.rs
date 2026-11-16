@@ -48,7 +48,7 @@ const OWNER_PREFIX: &str = ".mpm-shadow-downloading.";
 
 /// The last field of the name a remover claims one version's downloads under,
 /// which sits beside the version's directory so it can be created before the directory is looked at.
-const REMOVAL_SUFFIX: &str = ".download-removal";
+pub(crate) const REMOVAL_SUFFIX: &str = ".download-removal";
 
 /// How long an install waits for a removal claim to go before it gives up:
 /// two seconds.
@@ -268,6 +268,25 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
             }
         }
     }
+}
+
+/// What:
+/// Clears `version`'s removal claim when the claim's maker has ended, and answers whether it went.
+/// Why:
+/// A kill between the version's removal and the claim's unlink leaves a claim naming a dead maker beside a version that
+/// is gone, and nothing else asks about that version again: the review of 82531265a7 left three further passes and saw
+/// the claim stay, which also kept the tool's downloads directory from ever being removed.
+pub(crate) fn clear_a_stale_claim(root: &Path, tool: &str, version: &str) -> bool {
+    let claim: PathBuf = removal_claim_of(root, tool, version);
+    let Some(reading): Option<ClaimReading> = read_claim(&claim) else {
+        return false;
+    };
+    match &reading.maker {
+        Some(maker) if !process_has_ended(maker) => return false,
+        None if claim_is_young(&claim) => return false,
+        _ => {}
+    }
+    return clear_the_stale_claim(&claim, &reading);
 }
 
 /// What:
