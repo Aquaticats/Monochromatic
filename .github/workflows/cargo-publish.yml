@@ -148,12 +148,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
@@ -485,12 +481,8 @@ jobs:
           libwayland-dev libxkbcommon-dev libdrm-dev libegl-dev \
           clang libclang-dev
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
@@ -867,12 +859,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes 6 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -993,12 +981,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes under 1 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -1129,12 +1113,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes a few seconds (clap is the only sizeable dependency); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -1488,12 +1468,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes a few seconds (clap and serde_json are the only sizeable dependencies); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -1843,12 +1819,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes a few seconds (clap and the ignore crate are the only sizeable dependencies); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -2208,12 +2180,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Key shape, restore-keys rule, and size budget: doc/decision/ci-caching.md
     - name: Identify the Rust toolchain for the cache key
@@ -2443,7 +2411,9 @@ jobs:
   #   creates no immutable release for a crate that is not on crates.io.
   # First publication (0.1.0) is by hand to bootstrap Trusted Publishing
   # (doc/runbook/publish-crate-first-time.md); a later run authenticates, skips the existing upload, and builds the
-  # release. The matrix compiles with each runner's preinstalled rustup toolchain, as the matrices above do.
+  # release. Unlike the other matrices, this one installs the Rust toolchain toolchain.lock.json names (owner decision
+  # of 2026-11-15: "Everything nightly."), because this archive is the wrapper a release ships and the container gate
+  # compiles the wrapper with that same toolchain (package/git-policy/cli/README.md, "The gate image").
 
   gpc-detect:
     runs-on: ubuntu-latest
@@ -2523,12 +2493,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Packaging replaces the path dependency with its version requirement, so the crates.io index must already
     # list the forbidden-strings release this crate requires. A push that bumps both crates starts the
@@ -2641,6 +2607,9 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 1
+
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     - name: Add rust target
       shell: bash
@@ -2834,12 +2803,8 @@ jobs:
         # Nothing after the checkout pushes or fetches; cargo reads the tree only.
         persist-credentials: false
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the crate has no dependencies, so the cold build takes about a second; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -2964,12 +2929,8 @@ jobs:
         # Nothing after the checkout pushes or fetches; cargo reads the tree only.
         persist-credentials: false
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the crate's only dependency is the small monochromatic-jsonc-edit, so the cold build takes seconds (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -3091,12 +3052,8 @@ jobs:
         # Nothing after the checkout pushes or fetches; cargo reads the tree only.
         persist-credentials: false
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the only dependency is toml_edit, so the cold build takes a few seconds; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -3219,12 +3176,8 @@ jobs:
         # Nothing after the checkout pushes or fetches; cargo reads the tree only.
         persist-credentials: false
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes about 15 s (the rustls and hyper stack is the only sizeable dependency); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -3347,12 +3300,8 @@ jobs:
         # Nothing after the checkout pushes or fetches; cargo reads the tree only.
         persist-credentials: false
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes about 10 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -3475,12 +3424,8 @@ jobs:
         # Nothing after the checkout pushes or fetches; cargo reads the tree only.
         persist-credentials: false
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes about 15 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
@@ -3838,12 +3783,8 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Install Rust toolchain
-      shell: bash
-      run: |
-        set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     # Not cached: the cold build takes a few seconds (clap and the ignore crate are the only sizeable dependencies); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)

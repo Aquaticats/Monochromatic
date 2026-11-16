@@ -198,3 +198,11 @@ export type {
 } from './daily-update-package-check-types.ts';
 export { LISTED_ISSUE_LINES, } from './daily-update-check-after-update.ts';
 export { notifierEnvironment, } from './daily-update-effects.ts';
+export {
+  isInstalableToolchain,
+  lockedRustToolchainVersion,
+  RUST_TOOLCHAIN_ROW,
+  RustToolchainPinError,
+  rustupInstallArguments,
+  rustupToolchainEnvironmentLine,
+} from './locked-rust-toolchain.ts';

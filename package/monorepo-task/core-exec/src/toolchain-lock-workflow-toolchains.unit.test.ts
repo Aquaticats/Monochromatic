@@ -76,6 +76,14 @@ const setupAction = await readFile(new URL('../../../../.github/actions/task-cli
 const rustSetupAction = await readFile(new URL('../../../../.github/actions/rust-toolchain-setup/action.yml', import.meta.url,), 'utf8',);
 
 /**
+ The step program the Rust action runs, and the module that reads the lock row for it.
+ */
+const rustSetupProgramPath = 'package/monorepo-task/core-exec/src/rust-toolchain-setup.ts';
+const rustLockReaderPath = 'package/monorepo-task/core-exec/src/locked-rust-toolchain.ts';
+const rustSetupProgram = await readFile(new URL(`../../../../${rustSetupProgramPath}`, import.meta.url,), 'utf8',);
+const rustLockReader = await readFile(new URL(`../../../../${rustLockReaderPath}`, import.meta.url,), 'utf8',);
+
+/**
  Version inputs of the setup action that a workflow may pass to override the lock, with the lock row each one falls back
  to when it is empty.
  */
@@ -299,10 +307,11 @@ await describe({
       },
     },),
     it({
-      name: 'take the Rust version from the lock in the action that installs it, and install the name it read',
+      name: 'take the Rust version from the lock through the action, whose step names the program that reads the row',
       fn: async function rustActionReadsTheLock() {
-        expect(rustSetupAction,).toContain(rustLockRow,);
-        expect(rustSetupAction,).toContain('rustup toolchain install "$TOOLCHAIN"',);
+        expect(rustSetupAction,).toContain(`node ${rustSetupProgramPath}`,);
+        expect(rustSetupProgram,).toContain('lockedRustToolchainVersion',);
+        expect(rustLockReader,).toContain(rustLockRow,);
       },
     },),
   ],

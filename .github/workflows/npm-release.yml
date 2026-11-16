@@ -75,6 +75,11 @@ jobs:
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
 
+      # The wrapper this job builds compiles with the same toolchain the container gate and the release workflows use
+      # (owner decision of 2026-11-15: "Everything nightly."), so the cache key below names that compiler.
+      - name: Install the Rust toolchain toolchain.lock.json names
+        uses: ./.github/actions/rust-toolchain-setup
+
       # The push to main that runs this job seeds the cache. Key shape and size budget: doc/decision/ci-caching.md
       - name: Identify the Rust toolchain for the cache key
         id: toolchain
@@ -89,8 +94,8 @@ jobs:
             cargo-v2-cli-git-release-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
 
       # changeset:version runs the dependent-version ripple through the native cli-git executable, built from this checkout
-      # with the runner's rustup toolchain. --locked builds the versions Cargo.lock records; the release profile keeps
-      # panic = "unwind", which the linked scanner requires.
+      # with the Rust toolchain toolchain.lock.json names. --locked builds the versions Cargo.lock records; the release
+      # profile keeps panic = "unwind", which the linked scanner requires.
       - name: Build the native cli-git executable from the checkout
         working-directory: package/git-policy/cli
         run: cargo build --release --locked --bin monochromatic-git-policy-cli

@@ -101,10 +101,8 @@ jobs:
     - name: Install Node, pnpm and the workspace dependencies
       uses: ./.github/actions/task-cli-setup
 
-    - name: Install Rust toolchain
-      run: |
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
+    - name: Install the Rust toolchain toolchain.lock.json names
+      uses: ./.github/actions/rust-toolchain-setup
 
     - name: Install the system libraries the compositor crate links
       if: ${{ inputs.crate == 'monochromatic-nested-wayland-session' }}

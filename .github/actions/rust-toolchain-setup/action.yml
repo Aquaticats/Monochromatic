@@ -3,58 +3,16 @@ description: >
   Installs the Rust toolchain `toolchain.lock.json` records and makes it the one the rest of the job compiles with.
   The lock holds a dated nightly (`.tools.rust.version`), which the repository's daily update moves; a workflow that
   typed that date itself, or installed the floating `nightly` channel, built with a compiler nothing here tested under
-  (`doc/handover/cli-git-rust-implementation.md`, owner decision of 2026-11-15: "Everything nightly."). Plain shell and
-  `jq` only, so the action runs from this repository with no third-party action to allow.
-
-inputs:
-  components:
-    description: >
-      Space-separated rustup components to add to the minimal profile, such as `clippy`. Empty installs the profile
-      alone.
-    required: false
-    default: ''
-  targets:
-    description: >
-      Space-separated compilation targets to install beside the toolchain, such as `aarch64-unknown-linux-gnu`.
-      Empty installs none.
-    required: false
-    default: ''
+  (`doc/handover/cli-git-rust-implementation.md`, owner decision of 2026-11-15: "Everything nightly."). The step's work is
+  a Node program of this repository, so the YAML holds one command and no shell, and the program's readings are unit
+  tested.
 
 runs:
   using: composite
   steps:
-    - name: Resolve the Rust toolchain pinned in toolchain.lock.json
-      id: pin
+    - name: Install the Rust toolchain toolchain.lock.json names
       shell: bash
-      run: |
-        set -euo pipefail
-        if ! command -v jq >/dev/null; then
-          echo '::error::rust-toolchain-setup: jq is required to read toolchain.lock.json' >&2
-          exit 1
-        fi
-        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
-        case "$toolchain" in
-          nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
-          *) echo "::error::rust-toolchain-setup: unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
-        esac
-        echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
-        echo "rust-toolchain-setup: toolchain.lock.json names $toolchain"
-
-    - name: Install the pinned Rust toolchain
-      shell: bash
-      env:
-        TOOLCHAIN: ${{ steps.pin.outputs.toolchain }}
-        COMPONENTS: ${{ inputs.components }}
-        TARGETS: ${{ inputs.targets }}
-      run: |
-        set -euo pipefail
-        component_arguments=()
-        for component in $COMPONENTS; do component_arguments+=(--component "$component"); done
-        target_arguments=()
-        for target in $TARGETS; do target_arguments+=(--target "$target"); done
-        rustup toolchain install "$TOOLCHAIN" --profile minimal --no-self-update \
-          "${component_arguments[@]}" "${target_arguments[@]}"
-        # Every later step of the job compiles with this toolchain without naming it: rustup applies the environment
-        # variable to the shims the runner has on its PATH, and to `rustup target add` as well.
-        echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
-        rustc "+$TOOLCHAIN" --version --verbose
+      # One command: the workflow shell rules of monochromatic-lint
+      # (`.github/actions/monochromatic-lint.config.jsonc`) allow a step two code lines and no shell construct, and the
+      # program appends RUSTUP_TOOLCHAIN to GITHUB_ENV, which the later steps of the calling job read.
+      run: node package/monorepo-task/core-exec/src/rust-toolchain-setup.ts
