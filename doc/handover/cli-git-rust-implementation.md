@@ -39650,6 +39650,18 @@ The session stood in a question dialog for ten hours and twenty minutes (written
   The rest held (the branch's 42 own controls, the guards, the library suite 7,966 of 7,966, the review's narrowing pair). The pass's branch stands at `fe26edc9cb` for whoever fixes it. `main` and the installed `0.6.1-alpha.44` still carry the empty-tree window.
   The author's later tip `b92347ebd3` had its review on Kimi at 23:46 (20 of 20 files, two reproduced); the author gets both.
 
+Recovery after the hold (written here at 2026-11-16T10:27:00-05:00):
+
+- The filling unit runs again (level 15, since 10:18:43; thirteen Pi units going at 10:26), a drive probe runs at 18, and a waiter reads from 10:22:32. The queue holds 36 entries.
+- The 59 runs that ended unread are being digested by three read-only Sonnet agents into `~/temp/agent/runs-that-ended-while-the-session-was-held-2026-11-16/keep/digest-part-<n>.md`; each run is routed from its digest, and each round is recorded here.
+- **Two more Sonnet reviews are read and accepted** (each transcript names `claude-sonnet-5-5`; both built and ran what they reviewed), and both authors are queued again:
+  two starts of one run name (`16166773fb`, 24 of 24 files, ten findings; the first six can stop a live run, remove a worktree that holds uncommitted work, or halve what the machine may run: the pool gate counts one live run twice,
+  `--stop` signals the launchers of live runs, a failed start runs `rm -rf` on another start's worktree, a proof left at `making` licenses the same, a second start takes the first's worktree, a run named `pi-…` is invisible to the going check), third run;
+  issue 6293's five answers (`149568cbe6`, the delta alone, 12 of 59 of its files; seven findings: its merge dropped every change `main` made to one test file, one control does not fail for its own fix, a start no longer falls back to the base when a manager's scope never runs the service,
+  the sweep of `.writing` files never matches the writers' names and removes on a process number alone), ninth run. Its fifth point, where a private runtime directory's durable state goes when one resolution is slower than 250 ms, is put to its report as a question and not built.
+  Both reviews call themselves a same-vendor pass; by the rule in `AGENTS.md` they are independent, since both authors are Pi runs on another vendor's model. The mistake is the prompt's, which did not say who wrote the change; later prompts say it.
+- Still owed from the night: the drawn-shadow-tree author's eleventh run (pass 57's refusal and its Kimi review's two findings); the fresh run for the age arithmetic and the linked-worktree exemption; the Sonnet audit of the LFS path; the Sonnet pass of the pool change.
+
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
 - Pi driver, numbered unit names (`pi-<name>@<n>.service`): kept, since going back brings the refused second start back;
