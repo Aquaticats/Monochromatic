@@ -386,3 +386,47 @@ function writtenValuesIn(commandLine: readonly string[],): WrittenValues {
     );
   }
 }
+
+/**
+ Reads the options a command line wrote as one word each, in the attached form this command's own parser reads.
+
+ Node's parser reads an option as `--name=value` and as `--name value`, reads the last of a repeated one, and knows no other
+ spelling of it, so a word built here says what that command line said. A caller that replaces an option leaves its name out, and
+ no spelling of it reaches the words.
+
+ @param commandLine - arguments after the program name
+
+ @param leavingOut - the options the caller replaces, by their names without the leading dashes
+
+ @returns one `--name=value` word per option the command line wrote, in the order the parser first met them
+
+ @throws WorktreeLauncherOptionsError when an option is unknown, or a value cannot be parsed
+
+ @example
+ ```ts
+ const words = writtenWordsIn({ commandLine: ['--name', 'a', '--run=5',], leavingOut: ['run',], },);
+ ```
+ */
+export function writtenWordsIn({
+  commandLine,
+  leavingOut = [],
+}: {
+  readonly commandLine: readonly string[];
+  readonly leavingOut?: readonly string[];
+},): readonly string[] {
+  /**
+   The names the caller replaces, which no spelling of theirs may reach the words.
+   */
+  const replaced: ReadonlySet<string> = new Set(leavingOut,);
+  /**
+   One word per option the command line wrote and the caller keeps, in the order the parser first met them.
+   */
+  const words: string[] = [];
+  for (const [name, value,] of Object.entries(writtenValuesIn(commandLine,),)) {
+    if ((value === undefined) || replaced.has(name,)) {
+      continue;
+    }
+    words.push(`--${name}=${value}`,);
+  }
+  return words;
+}

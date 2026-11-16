@@ -22,6 +22,7 @@ import {
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
+import { writtenWordsIn, } from './parse-worktree-launcher-options.ts';
 import { isDigitsOnly, } from './text-of-an-option.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
@@ -352,10 +353,22 @@ export function wakePromptOf({
 }
 
 /**
+ The options a wake replaces: the prompt its agent reads, the session it continues, and the number of the folder it writes. A
+ resumed run that kept a folder number would write into the folder of the run before it, over the summary that run left there.
+ */
+const REPLACED_BY_A_WAKE: readonly string[] = [
+  'prompt',
+  'session',
+  'run',
+];
+
+/**
  Reads the words a launcher is run again with to resume a run's session.
 
- The prompt and the session are replaced, and the run's folder number is dropped so the resumed run writes a folder of its own
- and never writes over the summary the first run wrote.
+ The prompt and the session are replaced, and the run's folder number is dropped so the resumed run writes a folder of its own and
+ never writes over the summary the first run wrote. Every other option is carried with the value the launcher read from it: the
+ words are built from what the launcher's own command line parser understood, so an option written attached, detached, twice, or
+ after the others reaches the resumed run the same way, and only the three options named above are left out.
 
  @param commandLine - the launcher's own words
 
@@ -364,6 +377,8 @@ export function wakePromptOf({
  @param sessionFile - the session file the resumed run continues
 
  @returns the words for the resumed launch
+
+ @throws WorktreeLauncherOptionsError when a word is no option this launcher reads, or an option it reads has no value
 
  @example
  ```ts
@@ -380,10 +395,9 @@ export function wakeResumeWordsOf({
   readonly sessionFile: string;
 },): readonly string[] {
   return [
-    ...commandLine.filter(function isKept(word,) {
-      return (!word.startsWith('--session',))
-        && (!word.startsWith('--prompt',))
-        && (!word.startsWith('--run=',));
+    ...writtenWordsIn({
+      commandLine,
+      leavingOut: REPLACED_BY_A_WAKE,
     },),
     `--prompt=${wakePrompt}`,
     `--session=${sessionFile}`,
