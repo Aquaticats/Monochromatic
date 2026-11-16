@@ -25,7 +25,26 @@
 //! export const notHandedOver = (failure: ClientFailure): ClientFailure => ...;
 //! ```
 
+use crate::service_client_what_became_of_a_wake::Woken;
 use crate::service_messages::ClientFailure;
+
+/// What:
+///  The failure for work that could not be handed to the commit service because no service read the wake that names it.
+/// Why:
+///   The records are on disk and a later command of the repository runs them,
+///  so the commit is saved and nothing of the work is lost;
+///  what a wake the service did not read costs is the backup push's own moment,
+///  and the words say what became of the wake so the person can decide whether to push now.
+///  The wake's own failure text is never used here:
+///  it speaks about a commit that was not made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handed = (woken) => ({ kind: 'work-not-handed-over', reason: woken.whyNothingTookIt() });
+/// ```
+pub(crate) fn not_handed_over_woken(woken: Woken) -> ClientFailure {
+    return ClientFailure::WorkNotHandedOver(woken.why_nothing_took_it());
+}
 
 /// What:
 ///  The failure for work that could not be handed to the commit service after the commit landed.

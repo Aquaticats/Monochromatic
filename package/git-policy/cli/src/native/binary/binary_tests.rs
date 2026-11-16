@@ -688,6 +688,11 @@ mod push_failure;
 #[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
 mod push_queued_after_a_killed_wrapper;
 
+/// A wake the commit service read nothing of:
+/// the `git worktree add` that handed a relink over relinks the worktree itself and says so.
+#[path = "binary_a_wake_nothing_read_tests.rs"]
+mod a_wake_nothing_read;
+
 /// A record that waits and nothing announced it:
 /// a running service finds every kind of record by itself,
 /// acts on it once,

@@ -283,7 +283,10 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
                 // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
                 //  second report of it.
                 match wake(&config, trash.common_dir.as_path(), None, notices) {
-                    Ok(()) => Ok(()),
+                    Ok(woken) if woken.holds_the_work() => Ok(()),
+                    // The record stays queued for the next command of this repository, which is what the words below say to
+                    //  the person.
+                    Ok(woken) => Err(woken.why_nothing_took_it()),
                     Err(failure) => Err(render(&failure)),
                 }
             }

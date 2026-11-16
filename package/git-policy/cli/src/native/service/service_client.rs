@@ -26,7 +26,8 @@
 
 use crate::service_client_settings_and_watches::RECONNECTS;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
-use crate::service_client_listen_and_ask_to_retire::{Heard, Wrote, a_message_is_already_here, listen, read_message, write_within};
+use crate::service_client_listen_and_ask_to_retire::{Heard, Wrote, a_message_is_already_here, listen, write_within};
+pub use crate::service_client_what_became_of_a_wake::Woken;
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerAnswer, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
@@ -527,13 +528,16 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
 ///  Tells the service that work items were written for a repository,
 /// starting it through the operating system when it
 ///  is not running,
-/// and returns once the service has taken the message or the silence bound has passed since it was
-///  written.
+/// and answers whether the service read the one line that says so.
 /// Why:
 ///   The wrapper never starts the service or runs the work itself;
 /// the message is the only thing the service needs to
 ///  look at the repository's work directory.
-/// The connection closes when the service has read the line,
+/// The answer is what a command may hand work over on,
+///  and it is never the write alone:
+/// a wake line of a few hundred bytes fits one connection's buffers,
+/// so the write goes in whole even where the service reads nothing.
+/// The close is the one thing a service does after it has read a work line,
 /// which is the usual
 ///  confirmation that it will act,
 /// and the wait for that close ends at the silence bound whatever the service sends:
@@ -544,25 +548,33 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
 /// 2026-11-03:
 /// "nothing should ever wait forever or
 ///  indefinitely").
-/// What is lost by reaching the bound is only the confirmation:
-/// the line was written,
-/// and the record
-///  it names is already durable.
+/// What is lost by reaching the bound is the confirmation,
+///  and no command may say the service holds the record on that:
+/// the record
+///  it names is already durable,
+///  and what waits is when the service looks at it
+/// (`service_client_what_became_of_a_wake.rs`,
+/// `Woken`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await wake(config, gitDir, reviewKey)
+/// const woken = await wake(config, gitDir, reviewKey)
 /// ```
-pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<Woken, ClientFailure> {
     let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
     let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
     // The one line the wake carries is written under the bounds of any other, so a service that stopped reading costs the
     //  confirmation and never the command.
-    let written: Wrote = write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
-    if written == Wrote::Ended {
-        return Err(ClientFailure::Unavailable);
+    match write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING) {
+        Wrote::All => {}
+        Wrote::Ended => return Err(ClientFailure::Unavailable),
+        // No byte of the line went in, so the service has not read the line and nothing of this wake reached it.
+        Wrote::NothingTaken => return Ok(Woken::NothingTaken),
+        // Part of the line went in, and the service takes a line only when the whole of it and its newline arrived, so
+        //  this wake reached it as nothing (SPEC, "A request is a JSON object and a framing newline").
+        Wrote::TooSlow => return Ok(Woken::PartTaken),
     }
     // The service closes the connection after it has read the line, and that close is the confirmation.
     let closed_by: Instant = Instant::now() + config.heartbeat_silence;
@@ -570,15 +582,21 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
         let left: Duration = closed_by.saturating_duration_since(Instant::now());
         if left.is_zero() {
             debug(TAG, format!("the service did not close the connection within {:?} of the line being written", config.heartbeat_silence).as_str());
-            break;
+            return Ok(Woken::Unwitnessed);
         }
         // No read waits past the bound, whatever the service sends.
         let _timeout = reader.get_ref().set_read_timeout(Some(left));
-        if read_message(&mut reader).is_none() {
-            break;
+        // A work line is answered only by a refusal, so a line the service sends is one it will not act on
+        //  (`service_server_connection_handling.rs`, `answer_request`).
+        // A read that times out and a connection the service closed are two different answers, so this is the read that
+        //  tells them apart (`listen`).
+        match listen(&mut reader) {
+            Heard::Closed => return Ok(Woken::Taken),
+            Heard::Silent => {}
+            Heard::Message(ServiceMessage::Failed { code, .. }) => return Ok(Woken::Refused { code }),
+            Heard::Message(_) => {}
         }
     }
-    return Ok(());
 }
 
 /// The client's bounds and how it reads the service's lines.

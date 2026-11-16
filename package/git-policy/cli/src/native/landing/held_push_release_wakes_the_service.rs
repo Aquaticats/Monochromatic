@@ -30,13 +30,18 @@
 //! wakeTheService(gitDir); // route from the environment, provision, wake; a failure is not the command's
 //! ```
 
+use crate::diagnostic_log::debug;
 use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
+use crate::service_client_what_became_of_a_wake::Woken;
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
 use crate::service_route::{Route, route_from_environment};
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use std::path::Path;
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "heldPushReleaseWake";
 
 /// What:
 ///  How a command tells the commit service to look at a repository now.
@@ -100,7 +105,14 @@ impl WakeTheService for AskTheService<'_> {
         };
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.
         let mut silent: std::io::Sink = std::io::sink();
-        let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &mut silent);
+        let woken: Result<Woken, crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &mut silent);
+        // The record is on disk and the line the person read is about the record's own state, so a wake nothing read is
+        //  said and never acted on: the next command of the repository wakes the service that runs it.
+        if let Ok(not_read) = woken
+            && !not_read.holds_the_work()
+        {
+            debug(TAG, format!("{}: the push record waits, since {}", git_dir.display(), not_read.why_nothing_took_it()).as_str());
+        }
     }
 }
 

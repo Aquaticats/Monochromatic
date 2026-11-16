@@ -24,9 +24,10 @@ use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, pid_of, 
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
+use crate::service_client_what_became_of_a_wake::Woken;
 use crate::service_handoff_queued_push_words::queued_push_line;
 use crate::service_messages::ClientFailure;
-use crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over;
+use crate::service_messages_of_a_work_that_was_not_handed_over::{not_handed_over, not_handed_over_woken};
 use crate::service_work::work_directory;
 use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
@@ -129,7 +130,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
         });
     }
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices).map_err(not_handed_over);
+    return announce(&handoff.config, handoff.git_dir.as_path(), review_key, notices);
 }
 
 /// What:
@@ -320,7 +321,28 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
         return Ok(());
     }
     write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
+    return announce(&handoff.config, handoff.git_dir.as_path(), None, notices);
+}
+
+/// What:
+///  Wake the service for records already written,
+///  and answer the failure of a wake no service read.
+/// Why:
+///  A commit is saved whatever the wake comes to,
+///  so a wake the service did not read is work that could not be handed over:
+///  its records stay pending and are run by the next wake for the repository,
+///  and the person is told to push if they want the backup now.
+///  Reporting the wake's own words here would be the false ones:
+///  they say the commit was not made
+///  (`service_messages_of_a_work_that_was_not_handed_over.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const announce = (config, gitDir, reviewKey, notices) => { const woken = wake(config, gitDir, reviewKey, notices); if (woken.kind !== 'taken') throw workNotHandedOver(woken) }
+/// ```
+fn announce(config: &ClientConfig, git_dir: &Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let woken: Woken = wake(config, git_dir, review_key, notices).map_err(not_handed_over)?;
+    return if woken.holds_the_work() { Ok(()) } else { Err(not_handed_over_woken(woken)) };
 }
 
 /// Handoff controls stay out of the release executable.

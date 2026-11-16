@@ -215,6 +215,8 @@ fn queue_the_removal(common_dir: &Path, item: &WorkItem) -> Result<(), String> {
 /// which is every commit
 ///  and every add,
 /// so the delete happening later is not a failure of the removal.
+///  A wake the service did not read is that same answer here:
+/// the record waits either way.
 ///  A control replaces this with its own answer,
 /// so no test reaches a service.
 ///
@@ -250,7 +252,10 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
     };
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {
-        Ok(()) => Ok(()),
+        Ok(woken) if woken.holds_the_work() => Ok(()),
+        // The record stays queued and the next command of this repository wakes the service that reads it, so this is the
+        //  removal's warning and never its failure.
+        Ok(woken) => Err(woken.why_nothing_took_it()),
         Err(failure) => Err(render(&failure)),
     };
 }

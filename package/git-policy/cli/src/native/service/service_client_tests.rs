@@ -1,5 +1,6 @@
 //! Controls for the client's wait bounds and for how it reads the lines the service sends.
 
+use crate::service_client_listen_and_ask_to_retire::read_message;
 use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, decode_service};
 use super::*;
 use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE, encode_service};
@@ -408,3 +409,195 @@ const A_CHANGE_SET_OF_MANY_PATHS: usize = 2_000;
 /// The length of a changed path in that request,
 /// near the 99th percentile of this repository's own (118 characters).
 const A_PATH_THIS_LONG: usize = 150;
+
+/// What:
+///  A stand-in service that greets and then reads nothing of the connection it greeted,
+///  answering a connection the way `answer` says a service that read the line would.
+/// Why:
+///   The state a service is in when its own thread stopped inside a read is one no control on this machine may make by
+///  loading the host,
+///  so the stand-in is the test's own:
+///  it accepts every connection for its whole patience,
+///  greets each,
+///  and does `after` with it.
+fn a_service_that_reads_nothing(name: &str, after: AfterGreeting) -> std::thread::JoinHandle<()> {
+    let service: UnixListener = a_listener_on(name);
+    let _set = service.set_nonblocking(true);
+    return std::thread::spawn(move || {
+        let began: Instant = Instant::now();
+        let mut served: usize = 0;
+        while served < SERVED && began.elapsed() < STAND_IN_PATIENCE {
+            let Ok((mut stream, _address)) = service.accept() else {
+                std::thread::sleep(Duration::from_millis(5));
+                continue;
+            };
+            served += 1;
+            (&stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+            match after {
+                // Not one byte of the line is read, and the connection is left open: what a service that stopped reading
+                //  leaves a wake to find.
+                AfterGreeting::Nothing => std::thread::sleep(STAND_IN_PATIENCE),
+                // The whole line is read and the connection closed without a word, which is what a service does once it has
+                //  taken a work line.
+                AfterGreeting::ReadingTheLine => {
+                    use std::io::BufRead;
+                    let mut line: String = String::new();
+                    std::io::BufReader::new(&stream).read_line(&mut line).expect("the client sends its line");
+                    drop(stream);
+                }
+                // Everything the connection holds is drained every pause, which is progress the write's clock sees, and
+                //  the drains are too few to finish the line within the ceiling.
+                AfterGreeting::Draining => {
+                    use std::io::Read;
+                    stream.set_nonblocking(true).expect("the draining stand-in reads without waiting");
+                    let mut buffer: [u8; A_DRAINED_CHUNK] = [0; A_DRAINED_CHUNK];
+                    let draining: Instant = Instant::now();
+                    while draining.elapsed() < STAND_IN_PATIENCE {
+                        while stream.read(&mut buffer).is_ok_and(|taken: usize| { return taken > 0; }) {}
+                        std::thread::sleep(A_DRAIN_PAUSE);
+                    }
+                }
+                // The line is read and answered as the service refuses a work line.
+                AfterGreeting::RefusingTheLine(code) => {
+                    use std::io::BufRead;
+                    let mut line: String = String::new();
+                    std::io::BufReader::new(&stream).read_line(&mut line).expect("the client sends its line");
+                    (&stream).write_all(the_line(&ServiceMessage::Failed { id: String::new(), code }).as_slice()).expect("refuse the line");
+                    drop(stream);
+                }
+            }
+        }
+    });
+}
+
+/// What a stand-in service does with a connection once it has greeted it.
+#[derive(Clone, Copy)]
+enum AfterGreeting {
+    /// Reads not one byte of it and leaves it open.
+    Nothing,
+    /// Reads the client's one line and closes the connection silently.
+    ReadingTheLine,
+    /// Drains everything the connection holds every pause, and never finishes the line.
+    Draining,
+    /// Reads the client's one line and answers it with a refusal.
+    RefusingTheLine(crate::service_protocol::FailureCode),
+}
+
+/// What:
+///  A wake of a few hundred bytes into a service that greets and reads nothing answers that nothing witnessed the read,
+///  within the bound a wake has today.
+/// Why:
+///   This is the claim of the review of 2026-11-13 ("Out-of-scope observation"),
+///  run rather than read:
+///  a wake line fits one connection's buffers,
+///  so its write goes in whole even where the service reads nothing,
+///  and the write's own return said nothing about the service.
+///  The answer a command must not hand work over on is therefore the close, not the write.
+///  The bound is the two the wake already had:
+///  the write's silence window and the client's silence bound for the close
+///  (`wait_ceilings.rs`).
+#[test]
+fn a_wake_the_service_read_nothing_of_is_no_answer_that_it_holds_the_record() {
+    let name: String = an_address("wake-nothing-read");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::Nothing);
+    // The waits are the milliseconds of every control here, so a wake of this file ends in well under a second; the
+    //  production bounds are the same two waits with the numbers of `wait_ceilings.rs`.
+    let began: Instant = Instant::now();
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), std::path::Path::new("/nowhere/.git"), None, &mut std::io::sink());
+    let took: Duration = began.elapsed();
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::Unwitnessed), "the service greeted and closed nothing, so nothing witnessed it read the line");
+    assert!(took >= Duration::from_millis(200), "the answer came once the close bound passed, not before ({took:?})");
+    assert!(took < Duration::from_secs(2), "and within the bound a wake has ({took:?})");
+}
+
+/// What:
+///  A wake whose line the service reads and closes answers that it holds the record,
+///  which is the one answer a command may hand work over on.
+/// Why:
+///   The control of the control above:
+///  the close is what says the service read the line,
+///  so a stand-in that reads and closes must be told from one that only greets.
+#[test]
+fn a_wake_the_service_reads_and_closes_is_work_it_holds() {
+    let name: String = an_address("wake-read");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::ReadingTheLine);
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), std::path::Path::new("/nowhere/.git"), None, &mut std::io::sink());
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::Taken), "the service read the line and closed the connection");
+}
+
+/// What:
+///  A service that answers the line with a refusal is reported as refusing it,
+///  not as holding it.
+/// Why:
+///  The service refuses a work line for another instance's repository or when it cannot tell whose it is,
+///  and nothing of this wake reaches a queue in either case
+///  (`service_server_connection_handling.rs`, `answer_request`).
+#[test]
+fn a_wake_the_service_refuses_is_not_work_it_holds() {
+    let name: String = an_address("wake-refused");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::RefusingTheLine(crate::service_protocol::FailureCode::Rejected));
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), std::path::Path::new("/nowhere/.git"), None, &mut std::io::sink());
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::Refused { code: crate::service_protocol::FailureCode::Rejected }), "the service answered that it will not act on the line");
+}
+
+/// What:
+///  A wake line larger than both buffers of the connection,
+///  sent to a service that reads nothing,
+///  answers that no byte of it was taken.
+/// Why:
+///  This is the case the review's sentence named,
+///  and it is reachable only where the line is too large to fit the buffers:
+///  the write then waits in the one connection it has,
+///  and the silence window ends it.
+///  A repository's Git directory path is nowhere near this long,
+///  so the case is proved with a path a wake carries and nothing reads.
+#[test]
+fn a_wake_line_too_large_for_the_buffers_is_no_byte_taken() {
+    let name: String = an_address("wake-too-large");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::Nothing);
+    let git_dir: std::path::PathBuf = std::path::PathBuf::from(format!("/nowhere/{}", "d".repeat(A_WAKE_LINE_LARGER_THAN_THE_BUFFERS)));
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), git_dir.as_path(), None, &mut std::io::sink());
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::NothingTaken), "the line filled both buffers and the window passed with no byte taken");
+}
+
+/// What:
+///  A wake line a service reads slowly, without ever letting the silence window pass,
+///  answers that part of it was taken.
+/// Why:
+///  The ceiling of a write is what ends that one,
+///  and the service takes a line only when the whole of it and its newline arrived,
+///  so part of a line is a wake it never acted on.
+#[test]
+fn a_wake_line_read_too_slowly_is_partly_taken() {
+    let name: String = an_address("wake-too-slow");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::Draining);
+    let git_dir: std::path::PathBuf = std::path::PathBuf::from(format!("/nowhere/{}", "d".repeat(A_WAKE_LINE_MANY_BUFFERS_LONG)));
+    let began: Instant = Instant::now();
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), git_dir.as_path(), None, &mut std::io::sink());
+    let took: Duration = began.elapsed();
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::PartTaken), "the ceiling of a write ended it with part of the line in ({took:?})");
+}
+
+/// The path a wake's line is made larger than both buffers of one connection with.
+/// Why:
+///  Both buffers of a local stream socket hold about 233,152 bytes (measured on this host, 2026-11-12,
+///  `wait_ceilings.rs`), so a directory path of this many characters fills them and the rest waits in the kernel.
+const A_WAKE_LINE_LARGER_THAN_THE_BUFFERS: usize = 400_000;
+
+/// The path a wake's line is made many buffers long with,
+/// so a stand-in that drains the connection every pause still has line left when the ceiling of a write passes.
+/// Why:
+///  A drain re-arms the write only once the peer's queue is empty,
+///  so the line is carried to the service one bufferful at a time,
+///  and the ceiling is the only bound that can end such a write.
+const A_WAKE_LINE_MANY_BUFFERS_LONG: usize = 1_600_000;
+
+/// How much of the connection a draining stand-in reads at a time, and how long it pauses between drains:
+/// inside the silence window, so the write sees progress, and too few drains to finish many buffers within the ceiling.
+const A_DRAINED_CHUNK: usize = 65_536;
+const A_DRAIN_PAUSE: Duration = Duration::from_secs(2);

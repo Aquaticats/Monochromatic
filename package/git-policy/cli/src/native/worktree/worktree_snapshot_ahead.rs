@@ -569,6 +569,8 @@ pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
 /// which is every commit
 ///  and every add,
 /// so a snapshot that arrives later is never this add's failure.
+///  A wake the service did not read is that same answer here:
+/// the records wait either way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -598,7 +600,10 @@ fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> 
     };
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {
-        Ok(()) => Ok(()),
+        Ok(woken) if woken.holds_the_work() => Ok(()),
+        // The records stay queued and the next command of this repository wakes the service that reads them, so this add
+        //  answers the reason and never fails for it.
+        Ok(woken) => Err(woken.why_nothing_took_it()),
         Err(failure) => Err(render(&failure)),
     };
 }

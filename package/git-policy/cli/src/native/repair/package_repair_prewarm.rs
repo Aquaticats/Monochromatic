@@ -31,6 +31,7 @@ use crate::diagnostic_log::debug;
 use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::iso_time::now_iso_never_the_same_twice;
 use crate::service_client::wake;
+use crate::service_client_what_became_of_a_wake::Woken;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
 use crate::service_messages::{ClientFailure, render};
@@ -331,7 +332,10 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..managed_client_config(address, host.as_ref()) };
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
-    return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
+    let woken: Woken = wake(&config, common_dir, None, &mut silent).map_err(render_failure)?;
+    // A wake the service did not read leaves the record queued, so this add answers that the filling waits for a service to
+    //  run for this repository, and never that it happens after this command returns.
+    return if woken.holds_the_work() { Ok(()) } else { Err(woken.why_nothing_took_it()) };
 }
 
 /// What:

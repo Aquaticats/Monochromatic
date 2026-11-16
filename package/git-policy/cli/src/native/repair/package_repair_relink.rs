@@ -28,6 +28,7 @@
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
 use crate::service_client::wake;
+use crate::service_client_what_became_of_a_wake::Woken;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
 use crate::service_messages::{ClientFailure, render};
@@ -420,13 +421,17 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// so the two never both do the work.
 ///
 /// Ok:
-///  A service holds the record,
+///  A service read the wake and holds the record,
 /// so the relinking is its work.
 /// Err:
-///  No service holds the record and none can be given it,
+///  No service holds the record and none read the line that would have given it one,
 /// so the add relinks the worktree itself;
 /// the answer says why,
 /// and the record it leaves is taken back after that run finishes.
+///  A wake whose line the service did not read is one of these:
+/// its work waits in the queue for the next command of this repository or for a service that looks again by itself,
+/// and a worktree whose links are still the source's is wrong for the person's next command here,
+/// so the add does the work rather than promise it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -513,15 +518,20 @@ fn not_written(reason: String) -> NotTaken {
 /// (`wait_ceilings.rs`,
 /// `HAND_OVER_GREETING_WAIT`),
 /// and the ceiling moves with it so no other bound lengthens the wait.
+/// A wake the service did not read is the same work for this command:
+/// the record waits in the queue,
+/// and the add relinks the worktree itself rather than leave its links naming the source.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; wake(config, commonDir, undefined, silent) };
+/// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; const woken = wake(config, commonDir, undefined, silent); return woken.holdsTheWork() ? undefined : woken.whyNothingTookIt() };
 /// ```
 fn wake_the_service(address: Bind, host: Option<&crate::service_provision::ProvisionHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
     let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..managed_client_config(address, host) };
     let mut silent: std::io::Sink = std::io::sink();
-    return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
+    let woken: Woken = wake(&config, common_dir, None, &mut silent).map_err(render_failure)?;
+    // The record stays queued, so this answer is what the add relinks the worktree on.
+    return if woken.holds_the_work() { Ok(()) } else { Err(woken.why_nothing_took_it()) };
 }
 
 /// What:
