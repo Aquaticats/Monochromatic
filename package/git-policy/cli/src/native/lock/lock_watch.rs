@@ -189,6 +189,22 @@ fn a_folder_read_may_take_a_while() {
 #[cfg(not(test))]
 fn a_folder_read_may_take_a_while() {}
 
+/// What:
+///  The instant a binder's caller has waited out its bound and has not yet published the records the watcher reported.
+/// Why:
+///  A kill here leaves a lock the watcher saw with no record, which is the state a review reproduced
+///  (a review of `8c97544dfa`).
+///  Named so a control can kill the wrapper at exactly this instruction and state what the next command meets.
+///  Inert unless the test variable or a control names it.
+pub const A_FINISH_OUTLASTED_THE_BINDER: &str = "a-finish-outlasted-the-binder";
+
+/// What:
+///  The instant a binder's caller has published the records the watcher reported, and has not yet returned.
+/// Why:
+///  A kill here leaves the record in place, which is the other arm of the same walk.
+///  Named as the point above is, and inert unless the test variable or a control names it.
+pub const AFTER_THE_CALLER_PUBLISHED: &str = "after-the-caller-published";
+
 /// The most events one drain reads,
 /// four times the most names a run follows.
 /// Why:
@@ -1348,7 +1364,7 @@ pub fn wait_and_bind(
     identity: &str,
 ) -> std::io::Result<std::process::ExitStatus> {
     watch.follow(child.id());
-    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: common_dir.to_path_buf(), child_pid: i64::from(child.id()), identity: identity.to_owned() };
+    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: common_dir.to_path_buf(), child_pid: i64::from(child.id()), identity: identity.to_owned(), reported: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())) };
     loop {
         if let Some(status) = child.try_wait()? {
             binding.drain(&mut watch);
@@ -1390,6 +1406,9 @@ struct Binding {
     child_pid: i64,
     /// That Git's birth identity, read while it ran.
     identity: String,
+    /// The locks the tracker reports for this child, which the caller reads when its wait outlasts the record,
+    ///  and which are published here before any record is written.
+    reported: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>,
 }
 
 impl Binding {
@@ -1434,6 +1453,13 @@ impl Binding {
     /// ```
     fn take(&mut self, events: Vec<Event>, watch: &Watch) {
         self.tracker.feed(events.as_slice());
+        // What: What the tracker reports is written down for the caller before any record is.
+        // Why:  A caller whose wait outlasts the record publishes it itself, and it can only publish a take it was
+        //       told about (a review of `8c97544dfa`, and `Binder::finish`).
+        let reported: Vec<PathBuf> = self.tracker.locks_taken(self.child_pid);
+        if let Ok(mut held) = self.reported.lock() {
+            *held = reported;
+        }
         bind_what_the_child_took(&self.tracker, watch, self.common_dir.as_path(), self.child_pid, self.identity.as_str(), &mut self.bound);
         forget_what_the_child_finished(&mut self.bound);
     }
@@ -1468,24 +1494,92 @@ pub struct Binder {
     ended: Option<std::sync::mpsc::Receiver<()>>,
     /// The watcher thread itself, so it is not waited for when the caller left its child running.
     thread: Option<std::thread::JoinHandle<()>>,
+    /// The locks the watcher has reported and may not have written a record for yet.
+    reported: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>,
+    /// The common Git directory the caller writes a record under when the watcher was too late.
+    common_dir: PathBuf,
+    /// The Git the records are about.
+    child_pid: i64,
+    /// That Git's birth identity, read while it ran.
+    identity: String,
 }
 
 impl Binder {
     /// What:
-    ///  Wait, briefly, for the watcher's last look after the child has ended.
+    ///  Wait, briefly, for the watcher's last look after the child has ended,
+    ///  and then publish every take the watcher had reported that has no record yet.
     /// Why:
-    ///  A caller that collected its child is about to go on,
-    ///  and a record of the child's last take has to be written before the command can be killed.
-    ///  The wait is short because the thread ends with the child,
-    ///  and a command never waits longer for its own bookkeeping than for its Git.
+    ///  The wait is bounded, because a command never waits longer for its own bookkeeping than for its Git and
+    ///  nothing may wait forever.
+    ///  But a take the watcher saw must not be left without its record merely because the thread was late:
+    ///  a record that is missing when the command can be killed is missing for good, and the next command then
+    ///  has only the order of births, which proves nothing on a volume of one birth stamp
+    ///  (a review of `8c97544dfa`, finding 1).
+    ///  So the caller, which has just collected the child and knows it has ended, writes the record itself with the
+    ///  same writing function the watcher uses; both publish one hard link under the take's own name, and a name
+    ///  the other already took is a record that is there, so whichever writes second loses nothing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// binder.finish()
+    /// binder.finish() // waits briefly, then publishes every take the watcher reported and did not record
     /// ```
     pub fn finish(mut self) {
         if let Some(ended) = self.ended.take() {
             let _outlived = ended.recv_timeout(BINDER_FINISH_WAIT);
+        }
+        // A control reaches here to act as the wrapper killed between its wait and its own publication.
+        crate::service_fault::reach(A_FINISH_OUTLASTED_THE_BINDER);
+        self.publish_what_the_watcher_reported();
+        // A control reaches here to act as the wrapper killed after the caller published.
+        crate::service_fault::reach(AFTER_THE_CALLER_PUBLISHED);
+    }
+
+    /// What:
+    ///  Write a record for every take the watcher reported that has none,
+    ///  and say in words about one whose record cannot be written while its lock stands.
+    /// Why:
+    ///  The watcher may be late, ended or gone; what it reported is in the shared list, and the caller writes the
+    ///  same record with the same function, so a take the watcher saw has its record when this returns.
+    ///  A take whose lock no longer stands has finished and needs no record.
+    ///  A record that cannot be written leaves the lock to the proof that does not need one, and the person is told
+    ///  which lock it is and what clears it, so nothing is dropped in silence.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (const lock of reported) if (lock.exists() && !bindingOf(common, lock)) writeBinding(lock) ?? warn(lock)
+    /// ```
+    fn publish_what_the_watcher_reported(&self) {
+        let reported: Vec<PathBuf> = match self.reported.lock() {
+            Ok(held) => held.clone(),
+            Err(_poisoned) => return,
+        };
+        for lock in reported {
+            if !lock.exists() {
+                continue;
+            }
+            if crate::lock_bindings::of(self.common_dir.as_path(), lock.as_path()).is_some() {
+                continue;
+            }
+            let Some(folder) = lock.parent() else {
+                continue;
+            };
+            let Ok(Some(named)) = crate::index_lock_evidence::read_lock_metadata(folder) else {
+                continue;
+            };
+            if lock_bindings::write(self.common_dir.as_path(), lock.as_path(), &(self.child_pid, self.identity.clone()), (named.device, named.inode)).is_some() {
+                continue;
+            }
+            if lock.exists() && crate::lock_bindings::of(self.common_dir.as_path(), lock.as_path()).is_none() {
+                crate::diagnostic_log::warn(
+                    "monochromatic-git-policy-cli",
+                    format!(
+                        "the record of the lock {} could not be written after the Git that took it ended, so the next command keeps the lock unless the order of the two files proves its holder gone; if no program is using this repository, this command removes the lock: {}",
+                        lock.display(),
+                        crate::abandoned_lock_words::removal_command(lock.as_path())
+                    )
+                    .as_str(),
+                );
+            }
         }
     }
 }
@@ -1526,13 +1620,17 @@ pub fn bind_while_the_caller_waits(watched: Option<(Watch, Watched)>, child_pid:
     let identity: String = crate::lock_holder_records::identity_of_process(child_pid_named)?;
     watch.follow(child_pid);
     let (ended, listened) = std::sync::mpsc::channel::<()>();
+    let reported: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let reported_by_the_watcher: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>> = std::sync::Arc::clone(&reported);
+    let common_dir: PathBuf = about.common_dir.clone();
+    let identity_for_the_caller: String = identity.clone();
     let thread: std::thread::JoinHandle<()> = std::thread::Builder::new()
         .name(String::from("cli-git-lock-binder"))
         .spawn(move || {
-            bind_until_the_child_ends(watch, about, child_pid_named, identity, ended);
+            bind_until_the_child_ends(watch, about, child_pid_named, identity, reported_by_the_watcher, ended);
         })
         .ok()?;
-    return Some(Binder { ended: Some(listened), thread: Some(thread) });
+    return Some(Binder { ended: Some(listened), thread: Some(thread), reported, common_dir, child_pid: child_pid_named, identity: identity_for_the_caller });
 }
 
 /// What:
@@ -1550,8 +1648,15 @@ pub fn bind_while_the_caller_waits(watched: Option<(Watch, Watched)>, child_pid:
 /// ```ts
 /// while (!childEnded()) { binding.look(watch) } binding.drain(watch);
 /// ```
-fn bind_until_the_child_ends(mut watch: Watch, about: Watched, child_pid: i64, identity: String, ended: std::sync::mpsc::Sender<()>) {
-    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: about.common_dir, child_pid, identity };
+fn bind_until_the_child_ends(
+    mut watch: Watch,
+    about: Watched,
+    child_pid: i64,
+    identity: String,
+    reported: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>,
+    ended: std::sync::mpsc::Sender<()>,
+) {
+    let mut binding: Binding = Binding { tracker: Tracker::new(), bound: Vec::new(), common_dir: about.common_dir, child_pid, identity, reported };
     loop {
         binding.look(&mut watch);
         if binding.tracker.nothing_more_can_be_recorded() || the_child_has_ended(&watch, child_pid, binding.identity.as_str()) {

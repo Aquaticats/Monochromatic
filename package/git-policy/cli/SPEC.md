@@ -10423,6 +10423,16 @@ from it (`SPEC.md`, "The rule: a lock is removed only on a proof about its holde
 
 The rest of what a kill at any instruction needs follows from that, and each is built in one place:
 
+- **A watcher's caller finishes what the watcher was too late to record.**
+  The watcher's wait after the child has ended is bounded, and a take the watcher had already reported
+  must not be left without its record merely because one thread was late:
+  a record missing when the command can be killed is missing for good.
+  So the caller, which has just collected the child, writes that record itself with the same function the
+  watcher uses, both publishing one hard link under the take's own name, and a name the other took is a
+  record that is there.
+  A record that cannot be written while its lock stands is said in words, with the lock's path and the
+  command that clears it (a review of `8c97544dfa`,
+  finding 1).
 - **Every watched start leaves a start record.**
   One function starts a watched Git and records the child, and its awaiting face does the same, so no
   runner can watch without recording (`lock_watch::start_a_watched_git`,
