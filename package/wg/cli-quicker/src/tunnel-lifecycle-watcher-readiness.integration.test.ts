@@ -147,7 +147,6 @@ assert.ok(
 );
 // A group whose members have all exited is gone for every purpose the program has, so the failure may not claim it survived a kill.
 assert.ok(
-  !
-    timedOut.failure?.includes('survived SIGKILL',),
-  `the refusal claims a group survived SIGKILL: ${String(timedOut.failure,)}`,
+  (!(timedOut.failure?.includes('survived SIGKILL',) ?? false)),
+  `the refusal claims a group survived SIGKILL: ${timedOut.failure ?? ''}`,
 );

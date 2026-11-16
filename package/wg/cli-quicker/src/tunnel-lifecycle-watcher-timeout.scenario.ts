@@ -10,8 +10,8 @@
  @module
  */
 
-import { existsSync, } from 'node:fs';
 import {
+  access,
   mkdir,
   readdir,
   writeFile,
@@ -26,7 +26,24 @@ import { join, } from 'node:path';
  */
 const HELD_MODULE_LOAD_MILLISECONDS = 30_000;
 
-if (existsSync('/run/systemd/private')) {
+/**
+ Reports whether a system manager can be reached, which this scenario must not ask for a unit.
+
+ @returns Whether the system manager's own socket is there.
+ */
+async function systemManagerIsReachable(): Promise<boolean> {
+  try {
+    await access('/run/systemd/private',);
+    return true;
+  }
+  catch (error) {
+    // No socket means no manager to ask, which is what this scenario needs.
+    void error;
+    return false;
+  }
+}
+
+if (await systemManagerIsReachable()) {
   throw new Error(
     'This scenario asks the system manager for the sentinel service when one is reachable; run it in a container without a system manager.',
   );
