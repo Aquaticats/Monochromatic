@@ -205,9 +205,8 @@ fn a_service_for_a_worktree_remembers_it_for_the_watch() {
     let remembered: Option<crate::lock_watch::Watched> = crate::lock_watch::remembered();
     let mut command: std::process::Command = std::process::Command::new("/bin/true");
     let started = crate::lock_watch::start_a_watched_git(&mut command);
-    let child: std::process::Child = started.expect("a watched start runs").0;
+    let mut child: std::process::Child = started.expect("a watched start runs").0;
     let pid: i64 = i64::from(child.id());
-    let mut child: std::process::Child = child;
     let _waited = child.wait().expect("the child is collected");
     let recorded: bool = !crate::lock_holder_record_reads::identities_recorded(common.as_path(), pid).is_empty();
     crate::lock_watch::remember(None);

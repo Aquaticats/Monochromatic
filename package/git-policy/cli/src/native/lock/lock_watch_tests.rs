@@ -1571,8 +1571,8 @@ fn a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command
         let foreign_bound: Vec<PathBuf> = foreign.iter().filter(|path| { return !lock_bindings::bindings_of(common.as_path(), path.as_path()).is_empty(); }).cloned().collect();
         let foreign_gone: Vec<PathBuf> = foreign.iter().filter(|path| { return !path.exists(); }).cloned().collect();
         drop(held);
-        let _killed = foreign_child.kill();
-        let _reaped = foreign_child.wait();
+        let _foreign_killed = foreign_child.kill();
+        let _foreign_reaped = foreign_child.wait();
         rows.push(format!(
             "{step} ({meets:?}): step status={:?}; lock stands={stands}; reported={named}; commit status={:?}; foreign gone={foreign_gone:?}; foreign bound={foreign_bound:?}",
             ran.status.code(),
@@ -1645,15 +1645,15 @@ fn a_live_foreign_writers_lock_is_not_bound_to_the_watched_child_and_stands() {
         // A moment for the watcher to read the creation and write whatever it makes of it.
         let _waited: bool = bound_within(Duration::from_millis(500), common.as_path(), lock.as_path());
         let bound: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
-        let _killed = watched.kill();
-        let _reaped = watched.wait().expect("the watched child is collected");
+        let _watched_killed = watched.kill();
+        let _watched_reaped = watched.wait().expect("the watched child is collected");
         binder.finish();
         let clearance = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
         let foreign_alive: bool = crate::lock_holder_records::identity_of_process(foreign_pid).is_some();
         let stands: bool = lock.exists();
         drop(held);
-        let _killed = foreign.kill();
-        let _reaped = foreign.wait().expect("the foreign writer is collected");
+        let _writer_killed = foreign.kill();
+        let _writer_reaped = foreign.wait().expect("the foreign writer is collected");
         let _link = common;
         assert!(foreign_alive, "{arm}: the foreign writer ran through the pass");
         assert!(bound.is_empty(), "{arm}: no record may name a live foreign writer's lock as the watched child's: {bound:?}");
@@ -1686,11 +1686,11 @@ fn the_opening_of_the_watch_is_waited_for_no_longer_than_its_ceiling() {
         std::fs::create_dir_all(directory.join(format!("refs/heads/n-{index}"))).expect("the folders a walk reads");
     }
     crate::lock_watch::remember(Some(Watched { common_dir: directory.clone(), roots: vec![directory.clone()] }));
-    crate::lock_watch::a_folder_read_takes(Some(Duration::from_millis(50)));
+    a_folder_read_takes(Some(Duration::from_millis(50)));
     let began: Instant = Instant::now();
     let opened: Option<(Watch, Watched)> = watch_before_starting();
     let waited: Duration = began.elapsed();
-    crate::lock_watch::a_folder_read_takes(None);
+    a_folder_read_takes(None);
     crate::lock_watch::remember(None);
     remove(directory.as_path());
     assert!(opened.is_none(), "a walk that has not finished by the ceiling gives no watch, so the command goes on");
@@ -1723,7 +1723,7 @@ fn the_awaiting_face_opens_the_watch_off_the_worker() {
         std::fs::create_dir_all(directory.join(format!("refs/heads/n-{index}"))).expect("the folders a walk reads");
     }
     crate::lock_watch::remember(Some(Watched { common_dir: directory.clone(), roots: vec![directory.clone()] }));
-    crate::lock_watch::a_folder_read_takes(Some(Duration::from_millis(50)));
+    a_folder_read_takes(Some(Duration::from_millis(50)));
     let ran = crate::lazy_runtime::run_on_runtime(async {
         let mut command: Command = Command::new("/bin/true");
         let began: Instant = Instant::now();
@@ -1732,9 +1732,56 @@ fn the_awaiting_face_opens_the_watch_off_the_worker() {
         return (started.is_ok(), waited);
     })
     .expect("the runtime runs the start");
-    crate::lock_watch::a_folder_read_takes(None);
+    a_folder_read_takes(None);
     crate::lock_watch::remember(None);
     remove(directory.as_path());
     let (_ran, waited): (bool, Duration) = ran;
     assert!(waited < crate::lock_watch::A_WATCH_IS_OPENED_WITHIN * 2, "the awaiting face waits no longer than the ceiling: it waited {waited:?}");
+}
+
+/// What:
+///  How long one folder's read takes while a control says so,
+///  which stands in for a directory on a file system that does not answer.
+/// Why:
+///  The value and the pause live here, in the control's own file, because the runtime guard reads the
+///  release sources for a clock that holds a thread; the release executable calls a function that does
+///  nothing (a review of `412fb03192`,
+/// finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aFolderReadTakes(50_ms) // and None to end it
+/// ```
+static A_FOLDER_READ_TAKES_FOR_THE_PROCESS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// What:
+///  Make every folder's read take `takes` while a control runs.
+/// Why:
+///  The seam above, named so a control does not write the atomic itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aFolderReadTakes(50_ms)
+/// ```
+pub(crate) fn a_folder_read_takes(takes: Option<Duration>) {
+    let nanoseconds: u64 = takes.map(|how_long| { return u64::try_from(how_long.as_nanos()).unwrap_or(u64::MAX); }).unwrap_or(0);
+    A_FOLDER_READ_TAKES_FOR_THE_PROCESS.store(nanoseconds, std::sync::atomic::Ordering::Release);
+}
+
+/// What:
+///  The pause one folder's read takes, when a control asked for one.
+/// Why:
+///  The walk calls this instead of reading at once, so a control can state what a walk that does not
+///  answer costs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (aFolderReadTakes) await sleep(aFolderReadTakes)
+/// ```
+pub(crate) fn a_folder_read_may_take_a_while() {
+    let takes: Duration = match A_FOLDER_READ_TAKES_FOR_THE_PROCESS.load(std::sync::atomic::Ordering::Acquire) {
+        0 => return,
+        nanoseconds => Duration::from_nanos(nanoseconds),
+    };
+    std::thread::sleep(takes);
 }

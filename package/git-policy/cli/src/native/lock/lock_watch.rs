@@ -163,50 +163,31 @@ const MOST_NAMES: usize = 1024;
 ///  (`inotify(7)` stops at `IN_ISDIR`).
 pub const FOUND_BY_READING: u32 = 0x8000_0000;
 
-/// How long one folder's read takes while a control says so,
-///  which stands in for a directory on a file system that does not answer.
+/// What:
+///  Stands in for a folder whose read does not answer,
+///  so a control can state what the command does with a walk that is still running.
 /// Why:
 ///  The walk of the watched roots reads folders before Git is spawned, and a read that never answers
 ///  would hold the command before any of its bounded machinery is entered
 ///  (a review of `412fb03192`,
 /// finding 5).
-///  A control cannot make a real file system stop answering, so it makes each read take a while and
-///  states that the opening of the watch is waited for no longer than its ceiling.
-///  It is one value for the process, because the walk now runs on a thread of its own and a control on
-///  the caller's thread must reach it.
-///  Never part of the release executable, and inert unless a control sets it.
-#[cfg(test)]
-static A_FOLDER_READ_TAKES_FOR_THE_PROCESS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// Does nothing in the release executable.
-#[cfg(not(test))]
-fn a_folder_read_takes_for_this_thread() -> Option<std::time::Duration> {
-    return None;
-}
-
-/// How long one folder's read takes, when a control says so.
-#[cfg(test)]
-fn a_folder_read_takes_for_this_thread() -> Option<std::time::Duration> {
-    return match A_FOLDER_READ_TAKES_FOR_THE_PROCESS.load(std::sync::atomic::Ordering::Acquire) {
-        0 => None,
-        nanoseconds => Some(std::time::Duration::from_nanos(nanoseconds)),
-    };
-}
-
-/// What:
-///  Make every folder's read take `takes` while a control runs.
-/// Why:
-///  The seam above, named so a control does not write the atomic itself.
+///  A real file system cannot be made to stop answering here, so a control makes each read take a while
+///  instead: the pause and its one value for the process live in the control's own file
+///  (`lock_watch_tests.rs`, which the runtime guard does not read), and the release executable does
+///  nothing at this call.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// aFolderReadTakes(50_ms) // and None to end it
+/// a folder read may take a while, when a control says so; nothing in the release build
 /// ```
 #[cfg(test)]
-pub(crate) fn a_folder_read_takes(takes: Option<std::time::Duration>) {
-    let nanoseconds: u64 = takes.map(|how_long| { return u64::try_from(how_long.as_nanos()).unwrap_or(u64::MAX); }).unwrap_or(0);
-    A_FOLDER_READ_TAKES_FOR_THE_PROCESS.store(nanoseconds, std::sync::atomic::Ordering::Release);
+fn a_folder_read_may_take_a_while() {
+    return super::lock_watch_tests::a_folder_read_may_take_a_while();
 }
+
+/// Does nothing in the release executable.
+#[cfg(not(test))]
+fn a_folder_read_may_take_a_while() {}
 
 /// The most events one drain reads,
 /// four times the most names a run follows.
@@ -838,9 +819,7 @@ impl Watch {
         pending.push_back((directory.to_path_buf(), 0));
         while let Some((folder, depth)) = pending.pop_front() {
             // A control makes one read take a while, standing in for a file system that does not answer.
-            if let Some(pause) = a_folder_read_takes_for_this_thread() {
-                std::thread::sleep(pause);
-            }
+            a_folder_read_may_take_a_while();
             if self.watch_one(folder.as_path()) && depth < MOST_WATCH_DEPTH {
                 let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
                     continue;
@@ -1258,7 +1237,7 @@ fn open_the_watch_within_its_ceiling(watched: Watched) -> Option<(Watch, Watched
             let watch: Option<Watch> = Watch::over(roots.as_slice());
             let _sent = opened.send(watch);
         });
-    let Ok(thread) = thread else {
+    let Ok(started_walking) = thread else {
         return None;
     };
     return match collected.recv_timeout(A_WATCH_IS_OPENED_WITHIN) {
@@ -1266,7 +1245,7 @@ fn open_the_watch_within_its_ceiling(watched: Watched) -> Option<(Watch, Watched
         _other => {
             // The walk is left to end on its own thread, where it holds no worker and no command; what it finds is
             //  dropped with it.
-            let _left = thread;
+            let _left = started_walking;
             None
         }
     };
