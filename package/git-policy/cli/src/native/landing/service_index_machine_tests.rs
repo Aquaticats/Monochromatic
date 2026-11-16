@@ -219,13 +219,27 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     // A double space after the process number leaves the space in the birth field, which is how a person or a program
     //  that padded the fields writes the same birth.
     let respelled_space: String = format!(" {identity}");
-    let arms: [(&str, &str, &str, &str, HolderState); 6] = [
+    // Finding A of the third review: a birth in no form this platform writes proves nothing, so a live holder whose
+    //  marker carries one is never judged gone. Each of these is one text a damaged or hand-written marker can hold.
+    let bare_tick: String = String::from(birth.strip_prefix("linux:").expect("a Linux birth"));
+    let quoted_birth: String = format!("\"{birth}\"");
+    let with_byte_order_mark: String = format!("\u{feff}{birth}");
+    let garbage_birth: String = String::from("not a birth at all");
+    let respelled_bare_tick: String = format!("{bare_tick}#{boot}#{scope}{tail}");
+    let respelled_quoted: String = format!("{quoted_birth}#{boot}#{scope}{tail}");
+    let respelled_mark: String = format!("{with_byte_order_mark}#{boot}#{scope}{tail}");
+    let respelled_garbage: String = format!("{garbage_birth}#{boot}#{scope}{tail}");
+    let arms: [(&str, &str, &str, &str, HolderState); 10] = [
         ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
         ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
         ("the birth's tag in capitals", "capitalized-tag", pid_field.as_str(), respelled_tag.as_str(), HolderState::Unknown),
         ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
         ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
         ("a space before the birth", "space-before-birth", pid_field.as_str(), respelled_space.as_str(), HolderState::Unknown),
+        ("the start tick on its own, with no tag", "bare-tick", pid_field.as_str(), respelled_bare_tick.as_str(), HolderState::Unknown),
+        ("the birth inside double quotes", "quoted-birth", pid_field.as_str(), respelled_quoted.as_str(), HolderState::Unknown),
+        ("the birth behind a byte order mark", "byte-order-mark", pid_field.as_str(), respelled_mark.as_str(), HolderState::Unknown),
+        ("a text that is no birth", "garbage-birth", pid_field.as_str(), respelled_garbage.as_str(), HolderState::Unknown),
     ];
     // Every arm is asked and every wrong answer is kept, so one run of the control names each spelling that was read
     //  as another process instead of the first one that was.

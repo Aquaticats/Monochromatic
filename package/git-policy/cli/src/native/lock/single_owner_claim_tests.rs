@@ -154,11 +154,15 @@ fn a_live_owner_whose_birth_is_spelled_another_way_keeps_the_item() {
         panic!("the birth {birth} of this process carries no tag this control can respell");
     };
     let own: i64 = i64::from(std::process::id());
-    let arms: [(&str, String); 4] = [
+    let arms: [(&str, String); 8] = [
         ("a leading zero on the start tick", format!("{tag}:0{tick}")),
         ("a space before the birth", format!(" {birth}")),
         ("a space after the birth", format!("{birth} ")),
         ("the birth's tag in capitals", format!("{}:{tick}", tag.to_uppercase())),
+        ("the start tick on its own, with no tag", String::from(tick)),
+        ("the birth inside double quotes", format!("\"{birth}\"")),
+        ("the birth behind a byte order mark", format!("\u{feff}{birth}")),
+        ("a text that is no birth", String::from("not a birth at all")),
     ];
     let mut wrong: Vec<String> = Vec::new();
     for (index, (what, respelled)) in arms.into_iter().enumerate() {
@@ -176,7 +180,7 @@ fn a_live_owner_whose_birth_is_spelled_another_way_keeps_the_item() {
                 assert_eq!(generations_after, vec![FIRST], "{what}: the claimant created no generation of its own");
             }
             Err(refusal) => {
-                assert!(format!("{refusal:?}").contains(respelled.as_str()), "{what}: the refusal names the birth it could not compare: {refusal:?}");
+                assert!(refusal.to_string().contains(respelled.as_str()), "{what}: the refusal names the birth it could not compare: {refusal}");
                 assert_eq!(generations_after, vec![FIRST], "{what}: the claimant created no generation of its own");
             }
         }

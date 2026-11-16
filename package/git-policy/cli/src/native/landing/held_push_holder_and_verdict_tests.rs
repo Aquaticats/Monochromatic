@@ -290,6 +290,13 @@ fn a_live_holders_text_spelled_another_way_is_never_proven_gone() {
     ];
     if cfg!(target_os = "linux") {
         arms.push(("the birth's tag in capitals", format!("{boot}/{pid}/{}", birth_with_a_capitalized_prefix(birth.as_str()))));
+        // Finding A of the third review: a birth in no form this platform writes proves nothing, so a live holder is
+        //  never gone behind one. Each text here is one a damaged or hand-written record can hold.
+        let bare_tick: &str = birth.strip_prefix(LINUX_IDENTITY_PREFIX).expect("a Linux birth");
+        arms.push(("the start tick on its own, with no tag", format!("{boot}/{pid}/{bare_tick}")));
+        arms.push(("the birth inside double quotes", format!("{boot}/{pid}/\"{birth}\"")));
+        arms.push(("the birth behind a byte order mark", format!("{boot}/{pid}/\u{feff}{birth}")));
+        arms.push(("a text that is no birth", format!("{boot}/{pid}/not a birth at all")));
     }
     // Every arm is asked and every wrong answer is kept, so one run names each spelling that was read as another process
     //  instead of the first one that was.
@@ -386,6 +393,14 @@ enum BirthState {
     Empty,
     /// This platform's tag and no tick.
     NoTick,
+    /// The start tick on its own, with no tag, which is a text no reader on this platform can compare.
+    BareTick,
+    /// The written birth inside double quotes, which is what a program that quoted a field leaves.
+    Quoted,
+    /// A byte order mark and then the written birth, which is what an editor that saved a field leaves.
+    ByteOrderMark,
+    /// A text of no form this platform writes.
+    Garbage,
 }
 
 /// One row of the identity table:
@@ -440,6 +455,10 @@ fn holder_text_of(row: &Row, live_birth: &str, free: i64, own: i64) -> String {
         BirthState::Blank => String::from(" "),
         BirthState::Empty => String::new(),
         BirthState::NoTick => String::from(LINUX_IDENTITY_PREFIX),
+        BirthState::BareTick => value.trim_start_matches(LINUX_IDENTITY_PREFIX).to_owned(),
+        BirthState::Quoted => format!("\"{value}\""),
+        BirthState::ByteOrderMark => format!("\u{feff}{value}"),
+        BirthState::Garbage => String::from("not a birth at all"),
     };
     return format!("{boot}/{number}/{birth}");
 }
@@ -469,7 +488,7 @@ fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
     let live_birth: String = current_birth_identity().expect("this process has an identity");
     assert_ne!(AN_ENDED_BOOT, current_boot_id(), "the table needs a boot ID other than this host's");
     let free: i64 = crate::single_owner_claim::unused_pid_for_tests();
-    let rows: [Row; 33] = [
+    let rows: [Row; 37] = [
         // The birth column, beside this host's boot.
         Row { what: "a free number and the birth as the writer writes it", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::Written, due: Required::Gone },
         Row { what: "a free number and the birth in another spelling", boot: BootState::ThisBoot, number: NumberState::Free, birth: BirthState::Respelled, due: Required::Gone },
@@ -483,6 +502,10 @@ fn every_row_of_the_identity_table_gives_the_answer_the_rule_requires() {
         Row { what: "the writer's number and a blank birth", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Blank, due: Required::Unknown },
         Row { what: "the writer's number and an empty birth", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Empty, due: Required::Unknown },
         Row { what: "the writer's number and a birth that names no tick", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::NoTick, due: Required::Unknown },
+        Row { what: "the writer's number and a bare start tick", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::BareTick, due: Required::Unknown },
+        Row { what: "the writer's number and a quoted birth", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Quoted, due: Required::Unknown },
+        Row { what: "the writer's number and a birth behind a byte order mark", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::ByteOrderMark, due: Required::Unknown },
+        Row { what: "the writer's number and a text that is no birth", boot: BootState::ThisBoot, number: NumberState::TheWriter, birth: BirthState::Garbage, due: Required::Unknown },
         Row { what: "a later process's number and the birth as the writer writes it", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::Written, due: Required::Gone },
         Row { what: "a later process's number and the birth in another spelling", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::Respelled, due: Required::Unknown },
         Row { what: "a later process's number and padding before the birth's colon", boot: BootState::ThisBoot, number: NumberState::ALaterProcess, birth: BirthState::PaddedTag, due: Required::Unknown },
