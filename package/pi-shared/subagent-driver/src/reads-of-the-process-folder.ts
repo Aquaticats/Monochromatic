@@ -31,12 +31,10 @@
  @module
  */
 
-import { readFileSync, } from 'node:fs';
 import {
   readFile,
   readlink,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 
 /**
@@ -266,91 +264,201 @@ export function processHasEnded({ state, }: { readonly state: string },): boolea
 }
 
 /**
- What reading the birth of a process now answered.
+ How many clock ticks `/proc/<pid>/stat` counts a second in, which the kernel reports in hundreds (`USER_HZ`).
+
+ Measured here on 2026-11-15: `/proc/self/stat`'s start time divided by `/proc/uptime`'s seconds was 99.99998 over three rounds.
  */
-export type BirthOfAProcessNow =
+export const CLOCK_TICKS_PER_SECOND = 100;
+
+/**
+ What the boot time a process folder reports looks like.
+ */
+export type BootTimeInAProcessFolder =
   | {
     /**
-     The start time the kernel gave it, in clock ticks since boot.
+     The instant the machine booted, in seconds since the epoch.
      */
-    readonly read: 'birth';
-    readonly birth: string;
+    readonly found: true;
+    readonly seconds: number;
   }
     | {
     /**
-     Why no birth was read, which is a process that has gone as much as a folder this account may not read.
+     The folder reported no boot time, so no start time it gives can be placed on the wall clock.
      */
-      readonly read: 'unreadable';
-      readonly code: string;
+      readonly found: false;
     };
 
 /**
- Reads a process's birth from the process folder, now, without waiting.
+ Reads the instant the machine booted from the line of the process folder that reports it (`btime` in `/proc/stat`).
 
- The line that records a run's work is written while Pi's events arrive, in the order they arrived, so the birth it carries is read
- where it is written rather than awaited: a promise would let the next event's line be written first, and the number in the feed could
-then sit beside a birth read after that number had been reused. It is one read of one short file per process a tool answer names.
+ A process's own start time counts clock ticks since that instant, so this is what puts it on the wall clock a tool's answer is timed
+ by.
 
- @param processFolder - the folder holding one entry per process, `/proc` here
+ @param statText - the process folder's own line, whose `btime` names the instant
 
- @param pid - the process number
-
- @returns the birth, or why there is none
+ @returns the instant, or that the line names none
 
  @example
  ```ts
- const read = birthOfProcessNow({ processFolder: '/proc', pid: 486667, },);
+ const bootedAt = bootTimeIn({ statText: 'cpu  0 0 0 0 0 0 0 0 0 0\nbtime 1700000000\n', },);
  ```
  */
-export function birthOfProcessNow({
-  processFolder,
-  pid,
-}: {
-  readonly processFolder: string;
-  readonly pid: number;
-},): BirthOfAProcessNow {
-  /**
-   The line of the process's own record that holds its state and its start time.
-   */
-  const path = join(
-    processFolder,
-    String(pid,),
-    'stat',
-  );
-  try {
+export function bootTimeIn({ statText, }: { readonly statText: string },): BootTimeInAProcessFolder {
+  for (const line of statText.split('\n',)) {
     /**
-     What the line says about the process, read now rather than awaited: the feed line this birth belongs to cannot wait for it.
+     The words of one line, of which the second is the boot time when the first says so.
      */
-    // oxlint-disable-next-line no-restricted-syntax/no-sync -- the line that records a run's work is written in the order Pi's events arrive, so this read cannot be awaited; see doc/lint/sync-read-of-one-process-line.md
-    const statText = readFileSync(
-      path,
-      'utf8',
-    );
+    const words = line.trim()
+      .split(' ',);
+    if ((words[0] !== 'btime') || (words[1] === undefined)) {
+      continue;
+    }
     /**
-     The life the line describes.
+     The instant the line names, in seconds since the epoch.
      */
-    const life = lifeIn({ statText, },);
-    if (!life.found) {
+    const seconds = Number(words[1],);
+    if (Number.isFinite(seconds,)) {
       return {
-        read: 'unreadable',
-        code: '',
+        found: true,
+        seconds,
       };
     }
+  }
+  return { found: false, };
+}
+
+/**
+ Milliseconds in a second, so a start time counted in ticks and a boot time in seconds meet on one clock.
+ */
+const MILLISECONDS_PER_SECOND = 1_000;
+
+/**
+ What placing a process's kernel start time on the wall clock answered.
+ */
+export type StartInstantOfAProcess =
+  | {
+    /**
+     The instant the process started, in milliseconds since the epoch.
+     */
+    readonly found: true;
+    readonly instant: number;
+  }
+    | {
+    /**
+     The process's start time and the machine's boot time cannot be put together, so nothing is placed.
+     */
+      readonly found: false;
+    };
+
+/**
+ Places the start time the kernel gave a process on the wall clock, in milliseconds since the epoch.
+
+ @param life - the state and start time the process folder gave for the process
+
+ @param booted - the instant the machine booted, as the process folder reports it
+
+ @returns the instant the process started, or that the two cannot be put together
+
+ @example
+ ```ts
+ const started = startInstantIn({ life, booted, },);
+ ```
+ */
+export function startInstantIn({
+  life,
+  booted,
+}: {
+  readonly life: LifeOfAProcess;
+  readonly booted: BootTimeInAProcessFolder;
+},): StartInstantOfAProcess {
+  if ((!life.found) || (!booted.found)) {
+    return { found: false, };
+  }
+  /**
+   The start time as a number of ticks, which the file writes as digits.
+   */
+  const ticks = Number(life.birth,);
+  if (!Number.isFinite(ticks,)) {
+    return { found: false, };
+  }
+  return {
+    found: true,
+    instant: (booted.seconds * MILLISECONDS_PER_SECOND)
+      + ((ticks / CLOCK_TICKS_PER_SECOND) * MILLISECONDS_PER_SECOND),
+  };
+}
+
+/**
+ What reading one line of a process's own record answered.
+ */
+export type ALineOfAProcess =
+  | {
+    /**
+     The line, as the folder holds it.
+     */
+    readonly read: true;
+    readonly text: string;
+  }
+    | {
+    /**
+     Why the read failed, which a caller decides on.
+     */
+      readonly read: false;
+      readonly code: string;
+      readonly error: unknown;
+    };
+
+/**
+ Reads one file of a process's own folder, answering the failure rather than throwing it, so a caller can decide on its code.
+
+ @param path - the file to read
+
+ @param reads - the reads of one process, which a test replaces
+
+ @returns the text, or the failure and the code it carried
+
+ @example
+ ```ts
+ const line = await aLineOfAProcess({ path: '/proc/12/stat', reads, },);
+ ```
+ */
+export async function aLineOfAProcess({
+  path,
+  reads,
+}: {
+  readonly path: string;
+  readonly reads: ProcessFolderReads;
+},): Promise<ALineOfAProcess> {
+  try {
     return {
-      read: 'birth',
-      birth: life.birth,
+      read: true,
+      text: await reads.textOf(path,),
     };
   }
   catch (error) {
-    /**
-     The code the read failed with, which is what this answer says instead of a birth.
-     */
-    const code = errorCodeOf(error,);
-    // A process that has gone, and one this account may not read, keep no birth in the record: the caller leaves the field out, and
-    // a scan then says the recorded work is not provably the process at that number.
     return {
-      read: 'unreadable',
-      code,
+      read: false,
+      code: errorCodeOf(error,),
+      error,
     };
   }
+}
+
+/**
+ Says whether a code means the process folder gave no line this account can use: the number holds nothing, or this account may not
+ read it.
+
+ @param code - the code a read failed with
+
+ @returns whether the folder gave no line this run can use
+
+ @example
+ ```ts
+ const unreadable = theNumberGivesNoLine({ code: 'ENOENT', },);
+ ```
+ */
+export function theNumberGivesNoLine({ code, }: { readonly code: string },): boolean {
+  return processHasGone({ code, },)
+    || (code === 'EACCES')
+    || (code === 'EPERM');
 }

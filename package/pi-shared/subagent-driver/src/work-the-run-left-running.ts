@@ -31,6 +31,7 @@ import {
   readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { isTheCommitServiceIn, } from './commit-service-of-the-git-wrapper.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   PROCESS_TOOL_NAME,
@@ -41,13 +42,16 @@ import {
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import {
+  type BootTimeInAProcessFolder,
   type ProcessFolderReads,
   ProcessFileUnreadableError,
-  lifeIn,
-  processHasEnded,
+  aLineOfAProcess,
+  bootTimeIn,
   processHasGone,
   readsOfTheProcessFolder,
+  theNumberGivesNoLine,
 } from './reads-of-the-process-folder.ts';
+import { recordedWorkStands, } from './recorded-work-of-a-run.ts';
 import {
   type RunCommand,
   runCommandWithChildProcess,
@@ -217,88 +221,6 @@ export async function cgroupOf({
 }
 
 /**
- Says whether the process the run's tool recorded is still the process at that number.
-
-The number alone is no evidence: the kernel gives a freed number to a later process, which may work in another folder and another
-control group, and a scan that counted the number counted that process as the build. So two things are compared, both read from
-`/proc/<pid>/stat`: the start time the record kept when the work was recorded, which no later process at that number repeats, and
-the state, because a process that has ended and waits to be reaped has done no work since.
-
- @param processFolder - the folder holding one entry per process, `/proc` here
-
- @param work - the process the run's tool recorded, with the birth the record kept
-
- @param reads - the reads of one process, which a test replaces
-
- @returns whether the recorded work still runs
-
- @throws ProcessFileUnreadableError when the read failed for a reason that is neither the process having gone nor this account
- being refused
-
- @example
- ```ts
- const runs = await recordedWorkStillRuns({ processFolder: '/proc', work, reads, },);
- ```
- */
-async function recordedWorkStillRuns({
-  processFolder,
-  work,
-  reads,
-}: {
-  readonly processFolder: string;
-  readonly work: WorkOfARun;
-  readonly reads: ProcessFolderReads;
-},): Promise<boolean> {
-  /**
-   The birth the record kept, which no later process at that number repeats.
-   */
-  const recorded = work.birth;
-  if ((work.pid === undefined) || (recorded === undefined)) {
-    // A record with no number names no process, and one with no birth cannot say which process it named: a feed written before the
-    // birth was kept, or one whose read failed. The number alone is what a later process at it makes worthless, so the recorded work
-    // is not counted as running.
-    return false;
-  }
-  /**
-   The file holding the state and the start time of the process at that number.
-   */
-  const path = join(
-    processFolder,
-    String(work.pid,),
-    'stat',
-  );
-  try {
-    /**
-     What that line says about the process.
-     */
-    const life = lifeIn({ statText: await reads.textOf(path,), },);
-    // The state says whether the process has ended, and the birth says whether this is the process the record named at all.
-    return life.found
-      && (!processHasEnded({ state: life.state, },))
-      && (life.birth === recorded);
-  }
-  catch (error) {
-    /**
-     The code the operating system gave the read.
-     */
-    const code = errorCodeOf(error,);
-    // A process that ended at any instant of this scan, or one whose folder this account may not read, is no evidence that the
-    // recorded work runs.
-    if (
-      processHasGone({ code, },)
-        || (code === 'EACCES')
-        || (code === 'EPERM')
-    ) {
-      return false;
-    }
-    throw (error instanceof ProcessFileUnreadableError) ? error : new ProcessFileUnreadableError({
-      path,
-      error,
-    },);
-  }
-}
-
-/**
  Reads the unit a command starts, when it starts one of its own.
 
  A command started with `systemd-run --user --unit=<name>` runs in a unit of its own, which outlives the command that asked for
@@ -417,6 +339,13 @@ export async function workOutlivingTheTurnIn({
     reads,
   },);
   /**
+   What the process folder says about when the machine booted, which places a process's start time on the wall clock.
+   */
+  const booted = await bootTimeOfTheMachine({
+    processFolder,
+    reads,
+  },);
+  /**
    The lines that name the work still going.
    */
   const lines: string[] = [];
@@ -429,11 +358,16 @@ export async function workOutlivingTheTurnIn({
      Whether the process at the number the tool holds is the one the record named, and still runs.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read before the next is asked about; a handful of processes at most; see doc/lint/sequential-awaits.md
-    const alive = await recordedWorkStillRuns({
+    const stands = await recordedWorkStands({
       processFolder,
       work,
+      booted,
       reads,
     },);
+    /**
+     Whether the recorded work counts as work still going, which is everything but a process that has ended.
+     */
+    const alive = stands !== 'ended';
     /**
      Whether the unit the command names still runs it.
      */
@@ -502,9 +436,69 @@ export async function workOutlivingTheTurnIn({
     if ((cgroup === '') || (cgroup === ownCgroup)) {
       continue;
     }
+    // The git wrapper's commit service works inside the worktree for a while after a run's last command by design, and the owner
+    // decided on 2026-11-15 that it is no work the run left running.
+    if (isTheCommitServiceIn({ cgroup, },)) {
+      continue;
+    }
     lines.push(`${String(process.pid,)} ${process.command}`,);
   }
   return lines;
+}
+
+/**
+ Reads what the process folder says about when the machine booted.
+
+ A process's start time counts clock ticks since that instant, so this is what puts the tool's own start time and the kernel's on one
+ clock.
+
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param reads - the reads of one process, which a test replaces
+
+ @returns what the folder's own line says about the boot
+
+ @throws ProcessFileUnreadableError when the folder's own line cannot be read for a reason that is no folder having gone
+
+ @example
+ ```ts
+ const booted = await bootTimeOfTheMachine({ processFolder: '/proc', reads, },);
+ ```
+ */
+async function bootTimeOfTheMachine({
+  processFolder,
+  reads,
+}: {
+  readonly processFolder: string;
+  readonly reads: ProcessFolderReads;
+},): Promise<BootTimeInAProcessFolder> {
+  /**
+   The folder's own line, which names the boot.
+   */
+  const path = join(
+    processFolder,
+    'stat',
+  );
+  /**
+   What that line says, which a folder with none says nothing about.
+   */
+  const line = await aLineOfAProcess({
+    path,
+    reads,
+  },);
+  if (line.read) {
+    return bootTimeIn({ statText: line.text, },);
+  }
+  // A folder that holds no line of its own gives no boot time, and a start time that cannot be placed on the wall clock leaves the
+  // recorded work as work that may still run. Any other failure is a folder this scan cannot read, which is reported like every other
+  // failed read.
+  if (theNumberGivesNoLine({ code: line.code, },)) {
+    return { found: false, };
+  }
+  throw (line.error instanceof ProcessFileUnreadableError) ? line.error : new ProcessFileUnreadableError({
+    path,
+    error: line.error,
+  },);
 }
 
 /**

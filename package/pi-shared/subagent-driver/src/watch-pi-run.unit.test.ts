@@ -391,16 +391,20 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
 
  @param refuses - whether Pi refuses each prompt instead of taking it
 
+ @param noAnswer - whether the answer to each prompt is lost, so the wait ends with Pi silent and no turn started
+
  @returns the connection a watch reads
  */
 function answeringConnection({
   sent = [],
   disposition,
   refuses = false,
+  noAnswer = false,
 }: {
   readonly sent?: string[];
   readonly disposition?: string;
-  readonly refuses?: boolean
+  readonly refuses?: boolean;
+  readonly noAnswer?: boolean;
 } = {},): ConnectionToPi {
   return {
     hasExited: () => false,

@@ -74,7 +74,10 @@ const WORK_COMMAND = 'cargo build';
 
  @returns the process number
  */
-async function startWork(milliseconds: number,): Promise<number> {
+async function startWork(milliseconds: number,): Promise<{
+  readonly pid: number;
+  readonly startTime: number;
+}> {
   /**
    The work itself, detached so it outlives a stand-in its driver stops, and quiet so it writes nothing to a channel.
    */
@@ -99,7 +102,10 @@ async function startWork(milliseconds: number,): Promise<number> {
     throw new Error('the stand-in could not start the work its scenario needs',);
   }
   await writeLogLine(`marker work ${String(pid,)}`,);
-  return pid;
+  return {
+    pid,
+    startTime: Date.now(),
+  };
 }
 
 /**
@@ -125,9 +131,12 @@ async function leaveWorkRunning({
   }
   answer({ id, },);
   /**
-   The process the run leaves behind.
+   The process the run leaves behind, and the instant it started, which the real tool's answer carries.
    */
-  const pid = await startWork(milliseconds,);
+  const {
+    pid,
+    startTime,
+  } = await startWork(milliseconds,);
   emit({
     type: 'tool_execution_start',
     toolName: 'process',
@@ -150,6 +159,7 @@ async function leaveWorkRunning({
           pid,
           command: WORK_COMMAND,
           cwd: '/',
+          startTime,
           status: 'running',
         },
       },

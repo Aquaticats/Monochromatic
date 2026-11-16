@@ -18,7 +18,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  isRecord,
   preview,
+  recordsIn,
   type RecordOfPiRun,
   type RunFailure,
   type RunSummary,
@@ -148,15 +150,19 @@ await describe({
         },);
         await record.close();
         /**
-         The process as the feed kept it.
+         The line as the feed kept it, of any shape.
          */
-        const written = JSON.parse(
+        const line: unknown = JSON.parse(
           (await readFile(feedFile, 'utf8',)).trim(),
-        ).processes[0];
-        expect(written.startTime,).toBe(startTime,);
+        );
+        /**
+         The process the line names, as the feed kept it.
+         */
+        const [written] = isRecord(line,) ? recordsIn(line.processes,) : [];
+        expect(written?.startTime,).toBe(startTime,);
         // The answer's own start time is the only one kept: a birth sampled here would be a later process's whenever the number had
         // already been given to one.
-        expect(written.birth,).toBeUndefined();
+        expect(written?.birth,).toBeUndefined();
       },
     },),
     it({

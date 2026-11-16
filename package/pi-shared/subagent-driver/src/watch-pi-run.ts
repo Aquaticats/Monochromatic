@@ -485,6 +485,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         // one that finished.
         return 'prompt-rejected';
       }
+      if (asked === 'work-unreadable') {
+        // The reads of the run's work failed for longer than the span, so the run ends as one whose leftover work could not be read.
+        return 'work-unreadable';
+      }
       if (asked !== 'nothing') {
         continue;
       }

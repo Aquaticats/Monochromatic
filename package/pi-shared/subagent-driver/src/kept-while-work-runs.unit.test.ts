@@ -221,7 +221,7 @@ await describe({
             expect(sent.length,).toBe(1,);
             expect(waited.wokenAtSettle,).toBe(0,);
             expect(answeredItsWake({
-              wokenAtSettle: waited.wokenAtSettle,
+              ...((waited.wokenAtSettle === undefined) ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
               settledNow: 0,
             },),).toBe(false,);
             /**
@@ -259,9 +259,9 @@ await describe({
             /**
              Where the test's clock is read from.
              */
-            const now = function now() {
+            function now(): number {
               return clock;
-            };
+            }
             expect(await askAboutItsWorkOrReportAFailure({
               watch,
               waited,
@@ -314,9 +314,9 @@ await describe({
             /**
              Where the test's clock is read from.
              */
-            const now = function now() {
+            function now(): number {
               return clock;
-            };
+            }
             expect(await askAboutItsWorkOrReportAFailure({
               watch,
               waited,

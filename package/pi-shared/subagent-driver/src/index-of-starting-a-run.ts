@@ -112,6 +112,8 @@ export {
   unitStateNow,
 } from './the-line-a-launcher-ends-with.ts';
 export {
+  UNREADABLE_WORK_MILLISECONDS,
+  answeredItsWake,
   askAboutItsWork,
   askAboutItsWorkOrReportAFailure,
   type WorkAsked,

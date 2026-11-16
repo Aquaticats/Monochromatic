@@ -218,17 +218,25 @@ export {
  that tells a process from a later one at its number.
  */
 export {
+  CLOCK_TICKS_PER_SECOND,
   GONE_PROCESS_CODES,
-  type BirthOfAProcessNow,
+  type BootTimeInAProcessFolder,
   type LifeOfAProcess,
   type ProcessFolderReads,
   ProcessFileUnreadableError,
-  birthOfProcessNow,
+  type StartInstantOfAProcess,
+  bootTimeIn,
   lifeIn,
   processHasEnded,
   processHasGone,
   readsOfTheProcessFolder,
+  startInstantIn,
 } from './reads-of-the-process-folder.ts';
+
+/**
+ The git wrapper's commit service, which works inside a worktree by design and is no work a run left running.
+ */
+export { isTheCommitServiceIn, } from './commit-service-of-the-git-wrapper.ts';
 
 /**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.

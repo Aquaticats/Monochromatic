@@ -932,18 +932,6 @@ await describe({
             },),).toEqual(['proc_7adb (native-build-2) 101 cd /repo/.claude/worktrees/pi-copy-route && systemd-run --user --scope -- mise run build',],);
           },
         },),
-              },)}\n`,
-            );
-            expect(await workOutlivingTheTurnIn({
-              runFolder: folder.path,
-              workingFolder: aWorktree(),
-              processFolder: processes,
-              run: async function answered() {
-                throw new Error('no manager is asked about work whose process is not the recorded one',);
-              },
-            },),).toEqual([],);
-          },
-        },),
         it({
           name: 'counts recorded work as gone when its process has ended and waits to be reaped',
           fn: async () => {
@@ -1267,7 +1255,7 @@ await describe({
             await writeProcess({
               folder: processes,
               pid: 201,
-              cgroup: '0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dgit\\x2dpolicy\\x2dcli.slice/monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service',
+              cgroup: String.raw`0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\x2dgit\x2dpolicy\x2dcli.slice/monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service`,
               worksIn: aWorktree(),
               command: 'git',
             },);
@@ -1314,6 +1302,7 @@ await describe({
                 process: aProcess({
                   command: 'systemd-run --user --unit=pi-build-2 -- mise run build',
                   pid: 999_999,
+                  startTime: anInstant(),
                 },),
               },)}\n`,
             );

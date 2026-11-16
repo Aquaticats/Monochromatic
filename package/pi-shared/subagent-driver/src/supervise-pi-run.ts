@@ -117,8 +117,8 @@ export async function supervisePiRun(
     'inbox',
   );
   /**
-   The folder holding one entry per process. The record reads the birth of every process a tool answer names from it, and the scan
-   that asks what the run left running reads the same entries again, so both read one folder.
+   The folder holding one entry per process, which the scan that asks what the run left running reads. A test points this at its own
+   entries, so no test reads this machine's process table.
    */
   const processFolder = environment.PI_RUNS_PROCESS_FOLDER ?? '/proc';
   await mkdir(
@@ -128,13 +128,10 @@ export async function supervisePiRun(
   /**
    The run's feed and counts, which every start of it writes to, so the run's record covers all of them.
    */
-  const record = startRecordOfPiRun({
-    feedFile: join(
-      options.runFolder,
-      'feed.jsonl',
-    ),
-    processFolder,
-  },);
+  const record = startRecordOfPiRun({ feedFile: join(
+    options.runFolder,
+    'feed.jsonl',
+  ), },);
   /**
    What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
    `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not

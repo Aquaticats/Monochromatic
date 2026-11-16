@@ -1169,8 +1169,10 @@ That is what a reader sees when the process table,
 the feed or the manager cannot be read while the driver asks what the run left running:
 the driver cannot tell whether work of the run's still runs,
 and a run ended `idle` there would be a run called finished with its work unread.
-The run's own wall clock ends it,
-and its worktree is kept with it.
+Such a read is asked again on every look,
+and a run whose reads fail for longer than `UNREADABLE_WORK_MILLISECONDS` ends as `work-unreadable`,
+which is below,
+with its worktree kept.
 The one failed read that does not keep the run is the driver's own feed having failed:
 that failure is already `feedProblem`,
 and it rewrites the run's end to `driver-failed` anyway,
@@ -1190,31 +1192,60 @@ as a read the scan could not finish.
 
 A process number is no name for one process.
 The kernel gives a freed number to the next process,
-so a `processes` record carries the start time the kernel gave each process it names,
-read once from `/proc/<pid>/stat` as the line is written,
-and the scan counts recorded work as running only when the process at that number has the same start time and has not ended.
-A record with no start time,
-which is one written before this existed,
-names no process this can prove still runs,
-and a zombie counts as gone because it has done no work since it ended.
-A review of this package on 2026-11-14 reproduced the defect:
-a build that had ended was reported as still running from the number a later process held,
-and the driver waited on work that was not the agent's.
+so a `processes` record carries the start time the process tool itself gave each process it names,
+and the scan counts recorded work as running only when the process at that number started then and has not ended.
+The kernel's start time counts clock ticks from the machine's boot,
+so the scan places it on the wall clock with the boot time the process folder reports,
+and a process that started more than two seconds after the tool's own start is a later one at the same number.
+Nothing else is evidence that the work ended:
+a record with no start time,
+a boot time that cannot be read,
+and a start time within the tolerance all mean work that may still run,
+and the run is kept for it.
+A zombie counts as gone,
+because it has done no work since it ended,
+and so does a process whose read says it has gone.
+Two reviews of this package found the defects this closes:
+on 2026-11-14 a build that had ended was reported as still running from the number a later process held,
+and on 2026-11-15 a record whose start time could not be taken hid a live child from the scan.
 
 A zombie is left out by both readings of the process table:
 the recorded one reads its state,
 and the one that walks the table finds its working-folder link has no target.
 
-A wake whose send failed is no failed read.
+The git wrapper's commit service is no work a run left running.
+The wrapper starts one service per worktree,
+and it and the Git processes it runs work inside the worktree for a while after a run's last command by design.
+The owner decided on 2026-11-15: "Do not count the commit service".
+`src/commit-service-of-the-git-wrapper.ts` tells it from the run's own work by the unit it runs in,
+`monochromatic-git-policy-cli@<instance>.service` or `cli-git@<instance>.service`,
+which is the same unit the wrapper itself names for the service of a worktree.
+
+A wake whose send failed, and a wake whose answer never came, are no refused wake.
 Pi may have taken the prompt before the answer path failed,
-so the driver sends that wake once and never again,
-keeps the run up for a reply that may yet come,
-and writes one `wake` line with `success: false` and the failure's text.
+and an answer that never arrived says nothing about whether it did.
+So the driver sends that wake once and never again,
+keeps the run up for a turn that may still settle,
+and writes one `wake` line whose `acceptance` is `taken`, `refused`, or `unknown`.
+Pi refusing the prompt itself is the only ending that lets the run end as one Pi refused;
+an answer Pi handled without starting a turn is the only other ending that owes no reply.
 The run's own wall clock ends a run whose reply never arrives,
 so the agent is neither told twice nor left untold.
 A read that fails keeps the run as above,
-and a good read clears the note of the last failure,
+and a good read clears the note of the last failure and the instant its span is measured from,
 so a failure that comes back after a good scan is news again.
+
+A run whose work cannot be read does not hold its place in the pool until its wall clock either.
+The owner decided on 2026-11-15: "A shorter limit, then end as failed".
+`UNREADABLE_WORK_MILLISECONDS` is thirty seconds,
+a hundred looks of the scan at `POLL_MILLISECONDS`,
+with a measurement beside it in `src/kept-while-work-runs.ts`:
+one scan of this machine's process table took 42 to 102 ms,
+and every failed read in this machine's recorded runs lasted one look.
+A run that reaches it ends as `work-unreadable`,
+marked as one whose leftover work could not be read,
+with `workProblem` naming the failure and its worktree kept.
+It never ends as finished.
 
 `driver-failed` means the driver itself hit an error before it knew how the run ended,
 or that the feed could not be written:
@@ -1223,6 +1254,16 @@ or `feedProblem` does.
 A run that settled is never reported that way for a read that failed after its work was done:
 that failure is `workProblem`,
 and the run is kept until its own wall clock ends it.
+
+`work-unreadable` means the reads of what the run left running failed for longer than `UNREADABLE_WORK_MILLISECONDS`,
+thirty seconds,
+so the driver ended the run instead of holding its place in the pool until its wall clock:
+`workProblem` names the last failure,
+a `problem` line on the feed says the run ended on it,
+the worktree is kept,
+and the run is never counted as one that finished.
+A read that answers clears the span,
+so a failure that passes changes nothing.
 
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.

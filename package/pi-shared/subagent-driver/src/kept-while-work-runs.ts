@@ -17,6 +17,20 @@ import type { WatchRequest, } from './watch-request.ts';
 import { wakeMessageOf, } from './work-the-run-left-running.ts';
 
 /**
+ How long reads of a run's work may go on failing before the run ends as one whose leftover work could not be read.
+
+ The owner decided on 2026-11-15 (`doc/handover/cli-git-rust-implementation.md`, "Owner decisions in force", "Answers of the evening,
+ the long sitting"): "A shorter limit, then end as failed". Such a run ends marked as one whose leftover work could not be read, with
+ its worktree kept, and is never ended as finished.
+
+ Measured here on 2026-11-15: a look of the scan comes every 300 ms (`POLL_MILLISECONDS`) and one scan of this machine's process
+ table, 1 176 entries of which 474 could be read, took 42, 102 and 96 ms over three rounds. Thirty seconds is a hundred looks, and
+ every failed read this machine's record holds lasted one look: eight runs, each with a single `work-unreadable` line, each ended
+ within 50 ms of it (`${HOME}/temp/agent/pi-runs`, read on 2026-11-15).
+ */
+export const UNREADABLE_WORK_MILLISECONDS = 30_000;
+
+/**
  Where the driver stands with the work a run left running.
  */
 export type WorkWaitedFor = {
@@ -40,6 +54,14 @@ export type WorkWaitedFor = {
    The read is asked again on every look, so one failure that lasts is reported once rather than on each of them.
    */
   unreadable?: string;
+
+  /**
+   When the run of failed reads now standing began, or nothing while the last read answered.
+
+   A failure that lasts past `UNREADABLE_WORK_MILLISECONDS` ends the run as one whose leftover work could not be read; a read that
+   answers clears this, so the next failure is measured from its own instant.
+   */
+  unreadableSince?: number;
 };
 
 /**
@@ -92,7 +114,11 @@ export type WorkAsked =
   /**
    Nothing runs, so nothing stands between the run and its end but the rest it has had.
    */
-    | 'nothing';
+    | 'nothing'
+  /**
+   The reads of the run's work have failed for longer than the span, so the run ends as one whose leftover work could not be read.
+   */
+    | 'work-unreadable';
 
 /**
  Asks what the run left running, and does what that answer needs.
@@ -216,6 +242,27 @@ async function answerToTheWake({
 }
 
 /**
+ What Pi made of the message that woke the agent, in one word a reader of the feed can act on.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns what Pi made of it, which is unknown for an answer that never came
+
+ @example
+ ```ts
+ const acceptance = acceptanceOf({ ending: 'silence', problem: 'no answer' },);
+ ```
+ */
+function acceptanceOf(answer: CommandAnswer,): 'taken' | 'refused' | 'unknown' {
+  if (answer.ending !== 'answered') {
+    return 'unknown';
+  }
+  return (answer.record
+    .success
+    === false) ? 'refused' : 'taken';
+}
+
+/**
  Says what the run's work now is, and does what that needs: keeps the run, or sends the agent back to work it can read.
 
  @param watch - watch request
@@ -285,7 +332,7 @@ async function answerAboutItsWork({
       .note({
         kind: 'wake',
         work: ended,
-        success: false,
+        acceptance: 'unknown',
         error: sent.problem,
         preview: preview({
           value: said,
@@ -308,7 +355,7 @@ async function answerAboutItsWork({
     .note({
       kind: 'wake',
       work: ended,
-      success: takenByPi(answer,),
+      acceptance: acceptanceOf(answer,),
       disposition,
       error: outcomeTextOf(answer,),
       preview: preview({
@@ -321,9 +368,9 @@ async function answerAboutItsWork({
   if (refusedByIt({ answer, },)) {
     return 'refused';
   }
-  // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles. A message Pi handled
-  // without starting a turn is never answered by one, so nothing is owed a reply.
-  if (takenByPi(answer,) && (disposition !== 'handled')) {
+  // Only an answer that Pi handled without starting a turn owes no reply: it will never be answered by one. Everything else leaves
+  // the run up for a turn that may still settle, because an answer that never came says nothing about whether Pi took the prompt.
+  if (!(takenByPi(answer,) && (disposition === 'handled'))) {
     waited.wokenAtSettle = settledBefore;
   }
   return 'resumed';
@@ -352,21 +399,25 @@ type WorkRead =
 
  @param watch - watch request
 
- @param waited - where the driver stands with the work, which keeps the last failure it reported
+ @param waited - where the driver stands with the work, which keeps the last failure it reported, and when it began
+
+ @param now - where the driver reads the time, which a test replaces so a span is measured rather than waited out
 
  @returns what the read found, or that it could not be read
 
  @example
  ```ts
- const read = await workTheRunStillHasRunningOrReportAFailure({ watch, waited, },);
+ const read = await workTheRunStillHasRunningOrReportAFailure({ watch, waited, now: Date.now, },);
  ```
  */
 async function workTheRunStillHasRunningOrReportAFailure({
   watch,
   waited,
+  now,
 }: {
   readonly watch: WatchRequest;
   readonly waited: WorkWaitedFor;
+  readonly now: () => number;
 },): Promise<WorkRead> {
   try {
     return {
@@ -385,6 +436,8 @@ async function workTheRunStillHasRunningOrReportAFailure({
       watch.record
         .noteWorkProblem(failure,);
     }
+    // The span is measured from the first look that failed since the last one that answered.
+    waited.unreadableSince ??= now();
     return { read: false, };
   }
 }
@@ -421,9 +474,11 @@ async function workTheRunStillHasRunningOrReportAFailure({
 export async function askAboutItsWorkOrReportAFailure({
   watch,
   waited,
+  now = Date.now,
 }: {
   readonly watch: WatchRequest;
   readonly waited: WorkWaitedFor;
+  readonly now?: () => number;
 },): Promise<WorkAsked> {
   /**
    What the read of the run's work found.
@@ -431,6 +486,7 @@ export async function askAboutItsWorkOrReportAFailure({
   const read = await workTheRunStillHasRunningOrReportAFailure({
     watch,
     waited,
+    now,
   },);
   if (!read.read) {
     // A driver whose own feed failed has already lost the record of the run, and the summary reports that under `feedProblem`; the
@@ -442,11 +498,31 @@ export async function askAboutItsWorkOrReportAFailure({
     const feedFailed = watch.record
       .feedProblem()
       .failed;
-    return feedFailed ? 'nothing' : 'kept';
+    if (feedFailed) {
+      return 'nothing';
+    }
+    /**
+     How long the reads now standing have failed for, or nothing while none has failed since a read that answered.
+     */
+    const since = waited.unreadableSince;
+    if ((since !== undefined) && ((now() - since) >= UNREADABLE_WORK_MILLISECONDS)) {
+      // A run whose work cannot be read for that long ends as one whose leftover work could not be read, with its worktree kept: it is
+      // never ended as finished, and it does not hold a place in the pool until its wall clock either.
+      watch.record
+        .note({
+          kind: 'problem',
+          problem: `the run ended after ${String(UNREADABLE_WORK_MILLISECONDS,)} ms of reads that could not say what work it left `
+            + `running; its worktree is kept, and its work may still run: ${String(waited.unreadable,)}`,
+        },);
+      return 'work-unreadable';
+    }
+    return 'kept';
   }
   // A read that succeeded is what a later failure is a change from: a failure that repeats one the driver has already reported is
-  // news again once a good read has stood between them, so the note of the last failure is cleared by every good read.
+  // news again once a good read has stood between them, so the note of the last failure is cleared by every good read, and so is the
+  // instant its span is measured from.
   delete waited.unreadable;
+  delete waited.unreadableSince;
   return await answerAboutItsWork({
     watch,
     waited,
