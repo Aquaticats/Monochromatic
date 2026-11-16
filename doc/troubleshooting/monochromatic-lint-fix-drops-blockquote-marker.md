@@ -146,10 +146,38 @@ Run on 2026-11-08 over a copy of this repository it measured 6825 files,
 3101 Markdown hosts parsed,
 12629 code and raw HTML blocks compared,
 and reported no difference in any comparison.
+
 A separate one-off comparison of the same two copies,
 using a token split that sets aside quote markers and a pandoc CommonMark render,
 found the token sequence equal in all 69 changed files
 and the HTML identical for all of them because every changed file here is Markdown.
+
+Measured again 2026-11-16T06:34:24-05:00,
+on the tree of that day:
+
+- `--fix` was run over a disposable copy of all 3260 tracked Markdown and MDX files,
+  once with the shipped binary and once with a binary built from the withdrawn behavior.
+  Both wrote identical bytes for every file,
+  so this decision changes no line of the repository's Markdown today:
+  the tree holds no line that the rule would still break inside a quotation.
+  A positive control of one long quoted line made the two binaries differ,
+  so the comparison does see a marker when one is written.
+- The whitespace rule still reflows 50 of those files (11961 lines inserted,
+  4532 removed),
+  none of them a break inside a quotation;
+  that is unrelated formatting the tree has not been through.
+- Pandoc's `sourcepos` reader over the 593 files that hold a quoted line
+  measured 1197 quoted paragraphs and 4839 continuation lines inside them:
+  `doc/` holds 4533,
+  `package/` 257 and the rest of the tree 49.
+- 244 of those continuation lines are lazy today,
+  carrying no `>` at all:
+  `doc/` 243 and `package/` 1,
+  across 12 files,
+  and none is partially marked.
+  The fixer leaves every one of them as written,
+  because it never rewrites a line it does not split,
+  so a fixer that re-marked them would change 244 lines and needs a decision of its own.
 
 Removal condition:
 delete the Workaround and Limits sections once the `monochromatic-lint` release that contains
