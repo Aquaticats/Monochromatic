@@ -224,6 +224,9 @@ pub mod collected_elements_looked_at;
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;
 
+/// The temporary files a write left behind, whose writer is gone.
+pub mod writings_of_dead_writers;
+
 /// The process's own standard error descriptor,
 /// written without the lock the standard library's shared handle takes.
 pub mod standard_error_descriptor;

@@ -99,8 +99,18 @@ pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 /// writeFileSync(`${path}.${process.pid}.writing`, text); renameSync(`${path}.${process.pid}.writing`, path);
 /// ```
 fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
+    // The temporary files earlier writes of this note left when their writer was killed or their write failed go first:
+    //  no later write takes up a name another write owns, so nothing else would ever remove them (the sixth review,
+    //  finding 4).
+    if let (Some(folder), Some(stem)) = (path.parent(), path.file_name().and_then(std::ffi::OsStr::to_str)) {
+        crate::writings_of_dead_writers::remove_writings_of_dead_writers(folder, stem);
+    }
     let temporary: PathBuf = path.with_extension(format!("{}.{}.writing", std::process::id(), next_temporary_number()));
-    std::fs::write(&temporary, text)?;
+    if let Err(refused) = std::fs::write(&temporary, text) {
+        // A write that failed after creating its file leaves it to no one: this writer takes it back.
+        let _left = std::fs::remove_file(&temporary);
+        return Err(refused);
+    }
     let published: std::io::Result<()> = std::fs::rename(&temporary, path);
     if published.is_err() {
         let _left = std::fs::remove_file(&temporary);
