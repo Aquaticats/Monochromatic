@@ -36,12 +36,12 @@ run = "dprint fmt src"
 # place at `${HOME}/temp/agent`: a fixture is then outside every checkout, so a test that walks up looking for one finds none, and nothing is
 # written into a cache folder of the home directory. `scratchRoot()` honours `MONOCHROMATIC_TEST_SCRATCH`, the test runner honours
 # `MONOCHROMATIC_LOG_DIRECTORY`, and a caller may still name folders of its own.
-[tasks."test:unit"]
-extends = "test:unit"
-
-[tasks."test:unit".env]
+[env]
 MONOCHROMATIC_TEST_SCRATCH = "{{env.HOME}}/temp/agent/pi-shared-subagent-driver-test-scratch"
 MONOCHROMATIC_LOG_DIRECTORY = "{{env.HOME}}/temp/agent/pi-shared-subagent-driver-test-logs"
+
+[tasks."test:unit"]
+extends = "test:unit"
 
 [tasks.buildAndTest]
 description = "Build the library, then run unit tests; the unit tests import the built library and run the bin from source"
