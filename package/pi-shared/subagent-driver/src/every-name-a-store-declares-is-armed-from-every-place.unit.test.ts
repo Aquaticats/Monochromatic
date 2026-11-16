@@ -96,6 +96,20 @@ const ROWS: readonly {
     armed: [IN_THE_STORE, IN_THE_ENVIRONMENT,],
   },
   {
+    // A short environment value shadows the name in the store reader, and is too short to mask itself: the store's own long
+    // value must still be armed, which is the fifth review's first defect.
+    called: 'a declared name the environment shadows with a value too short to mask',
+    places: [{ name: 'DEPLOYMENT', store: IN_THE_STORE, environment: 'st', },],
+    armed: [IN_THE_STORE,],
+  },
+  {
+    // A declared name a file-name rule would skip, held by both places with different long values: both are armed, which is the
+    // fifth review's second defect.
+    called: 'a declared name ending in a file-name ending, both places holding a long value',
+    places: [{ name: 'DEPLOYMENT_FILE', store: IN_THE_STORE, environment: IN_THE_ENVIRONMENT, },],
+    armed: [IN_THE_STORE, IN_THE_ENVIRONMENT,],
+  },
+  {
     // Two names, each in a different place, so a set taken from one reader's answer cannot cover both.
     called: 'two declared names, one in each place',
     places: [

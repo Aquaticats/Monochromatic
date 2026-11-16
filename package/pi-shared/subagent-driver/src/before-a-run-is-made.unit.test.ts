@@ -1,20 +1,17 @@
 /**
  What a launcher settles before it makes anything: which checkout it works in, that the prompt can be read, that the base names a
- commit, and that the run's unit name is free.
+ commit, that the run's unit name is free, and that the run folder holds no summary of a run that finished.
 
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import {
-  access,
   chmod,
   mkdir,
   mkdtemp,
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { promisify, } from 'node:util';
 import { join, } from 'node:path';
 import {
   describe,
@@ -26,20 +23,20 @@ import {
   CHECKOUT_MARKER,
   CheckoutNotFoundError,
   ENTRY_REASON_CHARACTERS,
+  SUMMARY_FILE_NAME,
   type CommandOutput,
   type GitRunner,
   type RunCommand,
   PI_START_CHECK_MEMORY_SECONDS,
-  absoluteFolderProblemIn,
   baseProblemIn,
   checkoutFolderOf,
-  markerProblemIn,
   nameProblemIn,
   piProblemIn,
   piStartCheckFileIn,
   promptProblemIn,
   reasonInFailedStart,
   startRefusalsIn,
+  earlierAttemptProblemIn,
   unitNameOfGiven,
 } from '../dist/final/node/index.mjs';
 
@@ -48,16 +45,6 @@ import {
  */
 const EXTENSION_LOAD_FAILURE = 'Failed to load extension "/repo/index.mjs": Failed to load extension: Cannot find module '
   + "'@monochromatic-dev/async-time-core/ts'";
-
-/**
- `execFile` with a promise result, typed through Node's own adapter contract.
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-
-/**
- Runs a program without a shell and waits for it to end.
- */
-const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile,);
 
 /**
  A folder a test throws away.
@@ -215,7 +202,7 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a Git directory that names no shared one, which is a layout this walk cannot place, and says how to name the checkout',
+          name: 'answers the repository of a worktree whose Git directory names no shared one, from the place Git keeps it',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -223,8 +210,7 @@ await describe({
              */
             const repository = join(folder.path, 'checkout',);
             /**
-             A worktree, whose Git directory names no shared one: a checkout kept apart or a submodule, and never a folder this
-             walk can read the repository from.
+             A worktree, whose Git directory names no shared one.
              */
             const worktree = join(folder.path, 'pi-b',);
             await mkdir(join(repository, '.git', 'worktrees', 'pi-b',), { recursive: true, },);
@@ -233,16 +219,7 @@ await describe({
               join(worktree, CHECKOUT_MARKER,),
               `gitdir: ${join(repository, '.git', 'worktrees', 'pi-b',)}\n`,
             );
-            try {
-              await checkoutFolderOf({ from: worktree, },);
-            }
-            catch (error) {
-              expect(error,).toBeInstanceOf(CheckoutNotFoundError,);
-              expect(String(error,),).toContain('--checkout-folder',);
-              expect(String(error,),).toContain('commondir',);
-              return;
-            }
-            throw new Error('a Git directory that names no shared one was guessed into a repository',);
+            expect(await checkoutFolderOf({ from: worktree, },),).toBe(repository,);
           },
         },),
         it({
@@ -419,104 +396,72 @@ await describe({
       ],
     },),
     describe({
-      name: absoluteFolderProblemIn.name,
+      name: earlierAttemptProblemIn.name,
       children: [
         it({
-          name: 'says nothing about a folder that is an absolute path, which systemd takes',
+          name: 'says nothing about a folder that holds no summary, which a run may write into',
           fn: async () => {
-            expect(absoluteFolderProblemIn({
-              folder: '/repo',
-              what: 'checkout folder',
-            },),).toEqual({},);
-            expect(absoluteFolderProblemIn({
-              folder: '/data/my repo',
-              what: 'checkout folder',
-            },),).toEqual({},);
+            await using folder = await makeFolder();
+            expect(await earlierAttemptProblemIn({ runFolder: folder.path, },),).toEqual({},);
+            expect(await earlierAttemptProblemIn({ runFolder: join(folder.path, 'not-made-yet',), },),).toEqual({},);
           },
         },),
         it({
-          name: 'names a relative folder, what systemd takes instead, and the manager words a relative one meets',
-          fn: async () => {
-            for (const folder of ['sub/repo', './repo', '../repo', '',]) {
-              /**
-               What the check said about that folder.
-               */
-              const { problem, } = absoluteFolderProblemIn({
-                folder,
-                what: 'runs folder',
-              },);
-              expect(problem,).toBeDefined();
-              expect(problem,).toContain(`'${folder}'`,);
-              expect(problem,).toContain('runs folder',);
-              expect(problem,).toContain('is not an absolute path',);
-              expect(problem,).toContain('Invalid ReadOnlyPaths',);
-              expect(problem,).toContain('starting with /',);
-            }
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: markerProblemIn.name,
-      children: [
-        it({
-          name: 'says nothing for the folder a repository holds, the ordinary file a worktree holds, and a checkout whose marker is not there',
+          name: 'names the summary a run folder already holds, so a run is given a folder of its own',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             A checkout whose marker is the folder Git keeps in a repository.
+             The run folder a run was given, holding the summary of the run before it.
              */
-            const repository = join(
-              folder.path,
-              'repository',
+            const runFolder = join(folder.path, 'copy-route-5',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(
+              join(
+                runFolder,
+                SUMMARY_FILE_NAME,
+              ),
+              '{"endReason":"idle"}\n',
             );
-            await mkdir(join(repository, '.git',), { recursive: true, },);
-            expect(await markerProblemIn({ checkoutFolder: repository, },),).toEqual({},);
             /**
-             A linked worktree, whose marker is an ordinary file naming its Git directory.
+             What the check answered.
              */
-            const worktree = join(
-              folder.path,
-              'worktree',
-            );
-            await mkdir(worktree,);
-            await writeFile(join(worktree, '.git',), 'gitdir: /repo/.git/worktrees/a\n',);
-            expect(await markerProblemIn({ checkoutFolder: worktree, },),).toEqual({},);
-            /**
-             A folder no checkout marks at all.
-             */
-            const bare = join(
-              folder.path,
-              'bare',
-            );
-            await mkdir(bare,);
-            expect(await markerProblemIn({ checkoutFolder: bare, },),).toEqual({},);
+            const { problem, } = await earlierAttemptProblemIn({ runFolder, },);
+            expect(problem,).toContain(runFolder,);
+            expect(problem,).toContain('summary.json',);
+            expect(problem,).toContain('--run=<number>',);
           },
         },),
         it({
-          name: 'names a marker that is a named pipe, which reading would wait on before any unit exists',
+          name: 'names what an attempt that was killed before its summary left in the folder, so no run writes over another attempt records',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             A checkout whose marker a concurrent command replaced with a named pipe.
+             The run folder a run was given, holding what an attempt at it left when it was killed before it wrote a summary.
              */
-            const checkout = join(
-              folder.path,
-              'checkout',
+            const runFolder = join(folder.path, 'copy-route-5',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(
+              join(
+                runFolder,
+                'stderr.log',
+              ),
+              'the earlier attempt said this of its crash\n',
             );
-            await mkdir(checkout,);
-            await execFileAsync('mkfifo', [join(checkout, '.git',),], { encoding: 'utf8', timeout: 5_000, },);
+            await writeFile(
+              join(
+                runFolder,
+                'feed.jsonl',
+              ),
+              '{"kind":"turns","turns":1}\n',
+            );
             /**
-             What the check said about it.
+             What the check answered.
              */
-            const { problem, } = await markerProblemIn({ checkoutFolder: checkout, },);
+            const { problem, } = await earlierAttemptProblemIn({ runFolder, },);
             expect(problem,).toBeDefined();
-            expect(problem,).toContain(join(
-              checkout,
-              '.git',
-            ),);
-            expect(problem,).toContain('neither a folder nor an ordinary file',);
-            expect(problem,).toContain('--checkout-folder',);
+            expect(problem,).toContain(runFolder,);
+            expect(problem,).toContain('stderr.log',);
+            expect(problem,).toContain('feed.jsonl',);
           },
         },),
       ],
@@ -554,11 +499,64 @@ await describe({
                   };
               },
               runName: 'copy-route',
+              runFolder: join(folder.path, 'copy-route-1',),
               sessionPath: '/bin',
               home: folder.path,
               runsFolder: folder.path,
             },);
             expect(refusals.length,).toBe(3,);
+          },
+        },),
+        it({
+          name: 'refuses a start whose run folder already holds a summary, so no run writes over the record of one',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A prompt file a run could be given.
+             */
+            const prompt = join(folder.path, 'a-prompt.md',);
+            await writeFile(prompt, 'Answer with one line.\n',);
+            /**
+             The run folder a run was given, holding the summary of the run before it.
+             */
+            const runFolder = join(folder.path, 'copy-route-5',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(
+              join(
+                runFolder,
+                SUMMARY_FILE_NAME,
+              ),
+              '{"endReason":"idle"}\n',
+            );
+            /**
+             What every check of a start that could otherwise go ahead answered.
+             */
+            const { refusals, warnings, } = await startRefusalsIn({
+              promptFile: prompt,
+              git: answering({
+                status: 0,
+                stdout: 'a-commit\n',
+                stderr: '',
+              },).git,
+              checkoutFolder: folder.path,
+              base: 'main',
+              run: async function answered() {
+                return {
+                  status: 0,
+                  stdout: 'not-found\n',
+                  stderr: '',
+                };
+              },
+              runName: 'copy-route',
+              runFolder,
+              sessionPath: '/bin',
+              home: folder.path,
+              runsFolder: folder.path,
+            },);
+            expect(warnings,).toEqual([],);
+            expect(refusals.length,).toBe(1,);
+            expect(refusals[0],).toContain(runFolder,);
+            expect(refusals[0],).toContain(SUMMARY_FILE_NAME,);
           },
         },),
         it({
@@ -587,6 +585,7 @@ await describe({
                 };
               },
               runName: 'copy-route',
+              runFolder: join(folder.path, 'copy-route-1',),
               sessionPath: '/bin',
               home: folder.path,
               runsFolder: folder.path,
@@ -633,6 +632,7 @@ await describe({
                   };
               },
               runName: 'copy-route',
+              runFolder: join(folder.path, 'copy-route-1',),
               sessionPath: '/bin',
               home: folder.path,
               runsFolder: folder.path,
@@ -937,129 +937,6 @@ await describe({
              */
             const long = `Error: ${'x'.repeat(ENTRY_REASON_CHARACTERS * 2,)}`;
             expect(reasonInFailedStart({ output: `${long}\n`, },).reason?.length,).toBe(ENTRY_REASON_CHARACTERS,);
-          },
-        },),
-        it({
-          name: 'refuses a start whose checkout folder is a relative path, before it makes anything, and says why',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             A prompt file a run could be given.
-             */
-            const prompt = join(folder.path, 'a-prompt.md',);
-            await writeFile(prompt, 'Answer with one line.\n',);
-            /**
-             What a start that is otherwise ready answers, told that its checkout is a relative path.
-             */
-            const { refusals, } = await startRefusalsIn({
-              promptFile: prompt,
-              git: answering({
-                status: 0,
-                stdout: 'a-commit\n',
-                stderr: '',
-              },).git,
-              checkoutFolder: 'sub/checkout',
-              base: 'main',
-              run: async function answered(request,) {
-                return (request.command === 'pi')
-                  ? {
-                    status: 0,
-                    stdout: 'Usage: pi\n',
-                    stderr: '',
-                  }
-                  : {
-                    status: 0,
-                    stdout: 'not-found\n',
-                    stderr: '',
-                  };
-              },
-              runName: 'copy-route',
-              sessionPath: '/bin',
-              home: folder.path,
-              runsFolder: folder.path,
-            },);
-            expect(refusals,).toHaveLength(1,);
-            expect(refusals[0],).toContain('sub/checkout',);
-            expect(refusals[0],).toContain('is not an absolute path',);
-          },
-        },),
-        it({
-          name: 'makes the folder a run s tools install themselves into once every check passed, and makes nothing for a start it refuses',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             A prompt file a run could be given.
-             */
-            const prompt = join(folder.path, 'a-prompt.md',);
-            await writeFile(prompt, 'Answer with one line.\n',);
-            /**
-             The checkout the start works in, which has no cache yet.
-             */
-            const checkout = join(
-              folder.path,
-              'checkout',
-            );
-            await mkdir(join(checkout, '.git',), { recursive: true, },);
-            /**
-             What a start that passes every check settled.
-             */
-            const passed = await startRefusalsIn({
-              promptFile: prompt,
-              git: answering({
-                status: 0,
-                stdout: 'a-commit\n',
-                stderr: '',
-              },).git,
-              checkoutFolder: checkout,
-              base: 'main',
-              run: async function answered() {
-                return {
-                  status: 0,
-                  stdout: 'not-found\n',
-                  stderr: '',
-                };
-              },
-              runName: 'copy-route',
-              sessionPath: '/bin',
-              home: folder.path,
-              runsFolder: folder.path,
-            },);
-            expect(passed.refusals,).toEqual([],);
-            await expect(access(
-              join(checkout, '.cache',),
-            ),).resolves.toBeUndefined();
-            await rm(
-              join(checkout, '.cache',),
-              { recursive: true, force: true, },
-            );
-            /**
-             A start of the same shape whose base names no commit, which must make nothing.
-             */
-            const refusedAgain = await startRefusalsIn({
-              promptFile: prompt,
-              git: answering({
-                status: 1,
-                stdout: '',
-                stderr: 'fatal: bad revision\n',
-              },).git,
-              checkoutFolder: checkout,
-              base: 'no-such-branch',
-              run: async function answered() {
-                return {
-                  status: 0,
-                  stdout: 'not-found\n',
-                  stderr: '',
-                };
-              },
-              runName: 'copy-route',
-              sessionPath: '/bin',
-              home: folder.path,
-              runsFolder: folder.path,
-            },);
-            expect(refusedAgain.refusals.length,).toBeGreaterThan(0,);
-            await expect(access(
-              join(checkout, '.cache',),
-            ),).rejects.toThrow('ENOENT',);
           },
         },),
       ],

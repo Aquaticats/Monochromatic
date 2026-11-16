@@ -213,6 +213,7 @@ const {
   base: options.base,
   run: runCommandWithChildProcess,
   runName: options.name,
+  runFolder,
   sessionPath,
   home: env.HOME ?? '',
   runsFolder: options.runsFolder,

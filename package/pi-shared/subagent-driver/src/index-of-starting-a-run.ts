@@ -100,6 +100,7 @@ export {
   WorktreeLauncherOptionsError,
   parseWorktreeLauncherOptions,
   worktreeFolderOf,
+  writtenWordsIn,
 } from './parse-worktree-launcher-options.ts';
 export {
   SessionFileUnreadableError,
