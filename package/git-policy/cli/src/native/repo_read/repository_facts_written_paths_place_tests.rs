@@ -11,14 +11,18 @@
 //!  and `git checkout-index -f --prefix=/abs/outside/ -a` writes a person's file outside the
 //!  worktree, which the guard dropped from its answer.
 //!  So every spelling Git accepts is run, and the question is the one a loss turns on:
-//!  did Git change or delete a file holding a person's data, and did the guard name that file's
-//!  place?
+//!  did Git change or delete an entry a person holds, and did the guard name that entry's place?
+//!  The entry is the one at the name: a file the person wrote, and a link the person made,
+//!  because Git replaces the entry at a written name rather than writing through it
+//!  (measured on this host with native Git 2.56.0, 2026-11-16: a link at a tracked `a.txt` is
+//!  replaced by `checkout -f`, `restore`, `reset --hard`, `read-tree --reset -u` and
+//!  `checkout-index -f`, and a link at a forced move's destination is replaced by the rename).
 //!  A file the index holds is no part of this question: its content is in the repository, and an
 //!  edit to it is the dirty question's business.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // for each row: guardPlaces(row) covers every USER DATA file real Git changed or deleted
+//! // for each row: guardPlaces(row) covers every USER DATA file and every link real Git changed
 //! ```
 
 /// The reading under test, the forms it answers for, and the fixture helpers.
@@ -61,9 +65,22 @@ struct Row {
 
 /// Every entry the guard would refuse one row over, as it names them: the reading the refusal's
 /// sentence lists.
-/// Every file below `root`, with its bytes.
-fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
-    let mut found: BTreeMap<PathBuf, Vec<u8>> = BTreeMap::new();
+/// One entry of a fixture as a person holds it:
+///  a file with the bytes they wrote, or the link they made.
+/// Why:
+///  A fixture's links are entries a person made,
+///  and Git replaces a link at a written name instead of writing through it,
+///  so a walk that recorded only regular files would call a replaced link no loss.
+enum Held {
+    /// A file and its bytes.
+    File(Vec<u8>),
+    /// A symbolic link and what it points at.
+    Link(PathBuf),
+}
+
+/// Every entry below `root` that a person holds, with what it is.
+fn snapshot(root: &Path) -> BTreeMap<PathBuf, Held> {
+    let mut found: BTreeMap<PathBuf, Held> = BTreeMap::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
@@ -74,28 +91,51 @@ fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
             if entry.file_name() == ".git" {
                 continue;
             }
-            match entry.file_type() {
-                Ok(kind) if kind.is_dir() => pending.push(path),
-                Ok(kind) if kind.is_file() => {
-                    let bytes: Vec<u8> = std::fs::read(path.as_path()).unwrap_or_default();
-                    found.insert(path, bytes);
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if kind.is_symlink() {
+                if let Ok(target) = std::fs::read_link(path.as_path()) {
+                    found.insert(path, Held::Link(target));
                 }
-                _ => continue,
+                continue;
+            }
+            if kind.is_file() {
+                let bytes: Vec<u8> = std::fs::read(path.as_path()).unwrap_or_default();
+                found.insert(path, Held::File(bytes));
             }
         }
     }
     return found;
 }
 
-/// What one row wrote: every file a person's data stood in before and whose bytes changed, or which
-/// went away.
-fn files_a_person_lost(before: &BTreeMap<PathBuf, Vec<u8>>, after: &BTreeMap<PathBuf, Vec<u8>>) -> Vec<PathBuf> {
+/// What one row wrote: every entry a person held before and that is no longer the entry they held,
+/// whether its bytes changed, the link was replaced, or it went away.
+/// Why:
+///  The question is the entry at the name, because that is what Git writes over:
+///  a link replaced by a regular file is the person's link gone,
+///  even though no byte of the file it pointed at moved.
+fn files_a_person_lost(before: &BTreeMap<PathBuf, Held>, after: &BTreeMap<PathBuf, Held>) -> Vec<PathBuf> {
     let mut lost: Vec<PathBuf> = Vec::<PathBuf>::new();
-    for (path, bytes) in before {
-        if !String::from_utf8_lossy(bytes.as_slice()).starts_with(USER_DATA) {
+    for (path, held) in before {
+        let theirs: bool = match held {
+            // A fixture's links are all the person's own, and so is any file they wrote.
+            Held::Link(_) => true,
+            Held::File(bytes) => String::from_utf8_lossy(bytes.as_slice()).starts_with(USER_DATA),
+        };
+        if !theirs {
             continue;
         }
-        if after.get(path) != Some(bytes) {
+        let same: bool = match (held, after.get(path)) {
+            (Held::File(bytes), Some(Held::File(now))) => bytes == now,
+            (Held::Link(target), Some(Held::Link(now))) => target == now,
+            _ => false,
+        };
+        if !same {
             lost.push(path.clone());
         }
     }
@@ -132,17 +172,18 @@ fn fixture_for(index: usize) -> Places {
     std::fs::create_dir_all(outside.as_path()).expect("a directory outside the worktree");
     git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
     std::fs::write(repo.join("a.txt"), b"committed a\n").expect("a tracked file");
+    std::fs::write(repo.join("target.txt"), b"committed target\n").expect("a tracked file a link reaches");
     std::fs::create_dir_all(repo.join("sub")).expect("a tracked directory");
     std::fs::write(repo.join("sub/deep.txt"), b"committed deep\n").expect("a tracked file below the root");
     std::fs::write(repo.join(".gitignore"), b"ignored/\n").expect("ignore rules");
-    git(repo.as_path(), &["add", "--", "a.txt", "sub/deep.txt", ".gitignore"]);
+    git(repo.as_path(), &["add", "--", "a.txt", "target.txt", "sub/deep.txt", ".gitignore"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=main"]);
     git(repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
     std::fs::write(repo.join("a.txt"), b"other a\n").expect("the other tree's a");
     std::fs::write(repo.join("b.txt"), b"other b\n").expect("the other tree's b");
     std::fs::write(repo.join("sub/deep.txt"), b"other deep\n").expect("the other tree's deep file");
     std::fs::write(repo.join("sub/other.txt"), b"other only\n").expect("a file only the other tree holds");
-    git(repo.as_path(), &["add", "--", "a.txt", "b.txt", "sub/deep.txt", "sub/other.txt"]);
+    git(repo.as_path(), &["add", "--", "a.txt", "b.txt", "target.txt", "sub/deep.txt", "sub/other.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=other"]);
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     // The files a person holds: untracked, ignored, below a directory a prefix names, and outside.
@@ -169,6 +210,17 @@ fn fixture_for(index: usize) -> Places {
     // One link leaves the worktree and one stays inside it.
     std::os::unix::fs::symlink(outside.as_path(), repo.join("link-out")).expect("a link outside");
     std::os::unix::fs::symlink("sub", repo.join("link-in")).expect("a link inside");
+    // The links a person made at a name a form writes: the destination of a forced move,
+    //  each pointing at a file the index holds, a file it does not, nothing at all, and a place
+    //  outside the worktree,
+    //  and one at a path a prefix glues an index path to.
+    std::fs::write(repo.join("untracked-target.txt"), format!("{USER_DATA} untracked target\n")).expect("a file a person holds");
+    std::os::unix::fs::symlink("target.txt", repo.join("dest-tracked.txt")).expect("a link to a tracked file");
+    std::os::unix::fs::symlink("untracked-target.txt", repo.join("dest-untracked.txt")).expect("a link to an untracked file");
+    std::os::unix::fs::symlink("nothing-at-all.txt", repo.join("dest-dangling.txt")).expect("a link to nothing");
+    std::os::unix::fs::symlink("../outside/a.txt", repo.join("dest-outside.txt")).expect("a link outside the worktree");
+    std::fs::create_dir_all(repo.join("outlink")).expect("a directory a prefix names");
+    std::os::unix::fs::symlink("../b.txt", repo.join("outlink/a.txt")).expect("a link at a prefixed path");
     return Places { repo, outside };
 }
 
@@ -238,13 +290,16 @@ fn row_specs(places: &Places) -> Vec<Row> {
         ("parent-relative outside", String::from("../outside/")),
         ("through a link that leaves", String::from("link-out/")),
         ("through a link that stays", String::from("link-in/")),
+        ("whose last component is a link", String::from("outlink/")),
     ];
     for (kind, prefix) in &prefixes {
+        // `--prefix` and `--reset` exclude each other (`fatal: Which one? -m, --reset, or --prefix?`),
+        //  so the form that runs is `-u --prefix=<directory>`; the reset form is the whole-tree row.
         rows.push(row(
-            format!("read-tree --reset -u --prefix=<{kind}> other"),
+            format!("read-tree -u --prefix=<{kind}> other"),
             "read-tree",
             GuardedCommand::ReadTree,
-            vec![String::from("--reset"), String::from("-u"), format!("--prefix={prefix}"), String::from("other")],
+            vec![String::from("-u"), format!("--prefix={prefix}"), String::from("other")],
             repo,
         ));
         rows.push(row(
@@ -268,6 +323,12 @@ fn row_specs(places: &Places) -> Vec<Row> {
         ("through a link that leaves", String::from("link-out/b.txt")),
         ("through a link that leaves where nothing is", String::from("link-out/new.txt")),
         ("through a link that stays", String::from("link-in/precious.txt")),
+        // The destination itself is a link, which Git replaces rather than writing through
+        //  (measured on this host with native Git 2.56.0, 2026-11-16).
+        ("whose last component is a link to a tracked file", String::from("dest-tracked.txt")),
+        ("whose last component is a link to an untracked file", String::from("dest-untracked.txt")),
+        ("whose last component is a link to nothing", String::from("dest-dangling.txt")),
+        ("whose last component is a link outside the worktree", String::from("dest-outside.txt")),
     ];
     for (kind, destination) in &destinations {
         rows.push(row(
@@ -345,12 +406,12 @@ fn every_row_names_the_place_of_a_file_git_writes() {
         let row: Row = row_specs(&places).into_iter().nth(number).unwrap_or_else(|| panic!("row {number} is missing"));
         assert_eq!(&row.label, label, "the rows shift between fixtures");
         let guarded: Result<Vec<String>, String> = guard_names(row.directory.as_path(), row.command, row.words.as_slice());
-        let mut before: BTreeMap<PathBuf, Vec<u8>> = snapshot(places.repo.as_path());
+        let mut before: BTreeMap<PathBuf, Held> = snapshot(places.repo.as_path());
         before.extend(snapshot(places.outside.as_path()));
         let mut arguments: Vec<&str> = vec![row.word];
         arguments.extend(row.words.iter().map(String::as_str));
         let observed: std::process::Output = git_status(row.directory.as_path(), arguments.as_slice());
-        let mut after: BTreeMap<PathBuf, Vec<u8>> = snapshot(places.repo.as_path());
+        let mut after: BTreeMap<PathBuf, Held> = snapshot(places.repo.as_path());
         after.extend(snapshot(places.outside.as_path()));
         let lost: Vec<PathBuf> = files_a_person_lost(&before, &after);
         match guarded {
