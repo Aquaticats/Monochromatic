@@ -416,9 +416,67 @@ pub enum Settled {
 /// ```ts
 /// await wake.read(); stopped.broadcast(); return await timeout(bound, unfinished.reachesZero()) ? 'completely' : 'at the bound';
 /// ```
+///
+/// @param bound - the longest the work in flight is waited for
+///
+/// @returns whether the work settled or the bound passed
+///
+/// @example
+/// ```ts
+/// await tell_the_stop_and_wait_for_the_work(SETTLE_CEILING);
+/// ```
 pub async fn tell_the_stop_and_wait_for_the_work(bound: Duration) -> Settled {
+    tell_the_stop().await;
+    return wait_for_the_work(bound).await;
+}
+
+/// What:
+///  Waits for the byte the stop handler writes,
+/// and tells every waiter that the stop came.
+/// Why:
+///   A stop's own work that must happen between the telling and the wait for the work in flight
+///  (the service starts the thread its last sweep runs on there,
+///  `service_sweep_started_at_the_stop.rs`)
+///  needs the two halves apart,
+/// and both halves are bounded by their callers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await wake.read(); stopped.broadcast();
+/// ```
+///
+/// @example
+/// ```ts
+/// tell_the_stop().await;
+/// ```
+pub async fn tell_the_stop() {
     wait_for_the_wake().await;
+    // The level is a level, so a waiter that starts after the stop reads it as told.
     told().send_replace(true);
+}
+
+/// What:
+///  Waits for the work in flight to settle for at most `bound`,
+///  and says how the wait ended.
+/// Why:
+///   The bound is the stop's promise to the manager and to a person:
+///  a wait that outlasted it ends the service by the last-resort alarm instead of its own shutdown,
+///  which is what the line the shutdown writes names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// return await timeout(bound, unfinished.reachesZero()) ? 'completely' : 'at the bound';
+/// ```
+///
+/// @param bound - the longest the work in flight is waited for
+///
+/// @returns whether the work settled or the bound passed
+///
+/// @example
+/// ```ts
+/// await wait_for_the_work(SETTLE_CEILING);
+/// ```
+pub async fn wait_for_the_work(bound: Duration) -> Settled {
     return match tokio::time::timeout(bound, all_work_settled()).await {
         Ok(()) => Settled::Completely,
         Err(_elapsed) => Settled::AtTheBound,

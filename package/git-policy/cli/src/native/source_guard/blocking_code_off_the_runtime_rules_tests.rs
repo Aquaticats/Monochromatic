@@ -477,6 +477,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between looks at whether the manager dropped this worktree's units, on the synchronous face of provisioning",
     },
     Allowed {
+        file: "service/service_sweep_started_at_the_stop.rs",
+        rule: "thread-start",
+        why: "the shutdown's removal of the markers made ahead runs on this thread, so a sweep the kernel does not answer for cannot stand between the service's own line and its end; the thread is started when the stop is told and asked once at the end, and it is the only thread the stop path starts. The entry goes when the removal is carried by a job of the blocking pool the shutdown can ask and time out, which needs no thread of the stop path",
+    },
+    Allowed {
         file: "service/service_sweep_control_window.rs",
         rule: "blocking-sleep",
         why: "the pause between looks for a control's release file while the service's last sweep is parked, and only the control variable `PARK_VARIABLE` (`CLI_GIT_TEST_ONLY_SWEEP_PARK`) arms it: a sweep without it passes at once. The pause runs inside the job `work_within` wraps, not on a worker of the runtime, and it ends at the control's release file or at `CONTROL_PARK_CEILING` (60 s), so a control that ended leaves no thread parked. The entry goes when the park is replaced by a signal the control sends rather than a file the sweep polls",

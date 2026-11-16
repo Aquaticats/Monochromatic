@@ -14421,7 +14421,14 @@ The shutdown waits for that sweep no longer than `SWEEP_CEILING`
 the sweep takes the step a prestage job excludes itself from and then calls the file system,
 and neither may hold the end of a stopped service past its bound,
 so a marker the sweep does not reach within that bound is one the next acquisition removes,
-and what a killed service leaves is removed by the next acquisition,
+as a killed service's markers are,
+and the service's last line in its log names that wait,
+how long it waited,
+and that the next command taking the index removes what is left:
+a stop that gives up its sweep leaves the person the reason in the log the person reads,
+and leaves a Git directory no command of Git reads differently,
+because the staging names are never `index.lock`.
+And what a killed service leaves is removed by the next acquisition,
 by these rules:
 a whole marker decides alone,
 and its verdict vetoes the name

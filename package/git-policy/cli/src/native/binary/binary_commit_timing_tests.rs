@@ -1040,6 +1040,10 @@ fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new
     remove_settled(&fixture);
 }
 
+/// The words of the shutdown's own line when it gives up the removal of the markers it made ahead,
+/// so every control of that give-up reads one text.
+const LEFT_UNFINISHED: &str = "stopped: the removal of the markers made ahead was still unfinished after";
+
 /// The marker files of the lock that sit in the repository's Git directory.
 fn marker_files(repo: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(repo.join(".git"))
@@ -1100,16 +1104,19 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
 
 /// What:
 ///  A service the manager stops with `SIGTERM` removes every lock marker it made ahead,
-/// as a service that retires does,
+/// or says in its log which removal it gave up,
 /// and the service's own shutdown is what removes them.
 /// Why:
-///  `SPEC.md` "Removing the lock and what is made durable" says they "are removed when the service ends,
-///  whichever way its loop ends",
-/// and the signal path ended the process from the runtime's shutdown,
+///  `SPEC.md` "Removing the lock and what is made durable" says they are removed when the service ends,
+/// and that a removal a stop gives up at its ceiling is the next acquisition's,
+/// which the service's last line names;
+/// the signal path ended the process from the runtime's shutdown,
 ///  where no destructor runs,
 /// so every stop left files behind in the Git directory.
+/// A control that demanded the removal alone would fail on the machine's speed alone:
+/// a machine that makes two removals slower than the ceiling leaves them, and the service then says so.
 #[test]
-fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
+fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead_or_says_which_removal_it_left() {
     let fixture: Fixture = fixture("timing-signal-marker");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("timing-signal-marker-{}", std::process::id());
@@ -1132,7 +1139,129 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let status = exit_of(&mut service, PATIENCE);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     assert!(lines_of(&places.log, "exiting")[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()));
-    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends by the signal: {:?}", marker_files(&repo));
+    let left: Vec<String> = marker_files(&repo);
+    let said: Vec<String> = lines_of(&places.log, LEFT_UNFINISHED);
+    if left.is_empty() {
+        assert!(said.is_empty(), "a sweep that removed them is not said to have been given up: {said:?}");
+    } else {
+        assert_eq!(said.len(), 1, "the markers are left, so the service says which removal it gave up: {left:?}");
+        assert!(said[0].contains("the next command that takes this index removes them"), "{}", said[0]);
+    }
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A stop that gives up its removal of the markers made ahead says so,
+///  with the wait it was and how long it waited,
+///  and what it leaves is only the markers it made: no Git command reads them,
+///  and a repository whose service is never started again keeps nothing a command can trip over.
+/// Why:
+///  A marker left behind is in the person's Git directory,
+/// and the markers are named `index.lock.cli-git-marker-...`,
+/// never `index.lock`,
+/// so plain Git reads none of them and does not refuse;
+/// a person or a later reader of the service's log finds why they are there in that line.
+#[test]
+fn a_stop_that_gives_up_the_sweep_says_which_removal_it_left_and_leaves_only_markers_no_git_command_reads() {
+    let fixture: Fixture = fixture("timing-signal-marker-left");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-signal-marker-left-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let park: PathBuf = fixture.root.join("sweep-park");
+    let mut service: Held = spawn_service_with_environment(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+        &[(git_policy_cli::service_sweep_control_window::PARK_VARIABLE, park.to_string_lossy().into_owned())],
+    );
+    let runtime: PathBuf = runtime_for(name.as_str());
+    let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let began: Instant = Instant::now();
+    while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
+        assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let before: Vec<String> = marker_files(&repo);
+    let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
+    let stopped_at: Instant = Instant::now();
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    let status: std::process::ExitStatus = exit_of(&mut service, PATIENCE);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "the shutdown ended it, not the last-resort alarm: {status:?}");
+    let last_resort: Duration = git_policy_cli::stop_of_the_service_noticed_by_its_children::LAST_RESORT;
+    assert!(stopped_at.elapsed() < last_resort, "the shutdown ended it before the last-resort alarm: {:?}", stopped_at.elapsed());
+    let said: Vec<String> = lines_of(&places.log, LEFT_UNFINISHED);
+    assert_eq!(said.len(), 1, "the service says which removal it gave up: {said:?}");
+    assert!(said[0].contains(" ms: they are left where they are"), "{}", said[0]);
+    assert!(said[0].contains("the next command that takes this index removes them"), "{}", said[0]);
+    let left: Vec<String> = marker_files(&repo);
+    assert_eq!(left, before, "the markers the service made ahead are the ones left: {left:?}");
+    assert!(!repo.join(".git/index.lock").exists(), "no lock is left");
+    assert!(left.iter().all(|marker| { return marker.starts_with("index.lock.cli-git-marker"); }), "{left:?}");
+    assert!(!git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().is_empty(), "the branch is where it was");
+    let _clean: String = git_text(&fixture, &repo, &["status", "--short"]);
+    let _committed: String = git_text(&fixture, &repo, &[
+        "-c", "user.name=control", "-c", "user.email=control@example.invalid", "commit", "--allow-empty", "--quiet", "-m", "plain Git with the markers left",
+    ]);
+    assert_eq!(marker_files(&repo), left, "no Git command removed them and none read them wrongly: {left:?}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The markers a stopped service left are removed by the next service that takes that index,
+///  and the commit that makes it the next acquisition lands.
+/// Why:
+///  A stop may give up its removal at its ceiling,
+/// and what it left is the next acquisition's to remove
+/// (`SPEC.md`, "Removing the lock and what is made durable"):
+/// that acquisition reads a whole marker, finds the holder gone, and removes it before it places its own.
+#[test]
+fn the_markers_a_stopped_service_left_are_removed_by_the_next_service_that_takes_that_index() {
+    let fixture: Fixture = fixture("timing-signal-marker-next");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-signal-marker-next-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let park: PathBuf = fixture.root.join("sweep-park");
+    let mut service: Held = spawn_service_with_environment(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+        &[(git_policy_cli::service_sweep_control_window::PARK_VARIABLE, park.to_string_lossy().into_owned())],
+    );
+    let runtime: PathBuf = runtime_for(name.as_str());
+    let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let began: Instant = Instant::now();
+    while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
+        assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    let status: std::process::ExitStatus = exit_of(&mut service, PATIENCE);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    let left: Vec<String> = marker_files(&repo);
+    assert_eq!(left.len(), MARKERS_MADE_AHEAD, "the stop gave up its removal, so the markers it made are left: {left:?}");
+    assert_eq!(lines_of(&places.log, LEFT_UNFINISHED).len(), 1, "and the service said so");
+    let second_name: String = format!("{name}-second");
+    let second_places: Places = places_for(&fixture, second_name.as_str(), &repo);
+    let mut second: Held = spawn_service(fixture.root.as_path(), &second_places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let second_runtime: PathBuf = runtime_for(second_name.as_str());
+    let again: super::support::Observed = commit_a(&fixture, &repo, second_runtime.as_path());
+    let now: Vec<String> = marker_files(&repo);
+    assert_eq!(again.code, Some(0), "{}", String::from_utf8_lossy(&again.stderr));
+    assert!(left.iter().all(|old| { return !now.contains(old); }), "the next acquisition removed the markers the stop left: left {left:?}, now {now:?}");
+    let second_pid: libc::pid_t = libc::pid_t::try_from(second.0.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(second_pid, libc::SIGTERM) }, 0);
+    let retired: std::process::ExitStatus = exit_of(&mut second, PATIENCE);
+    assert_eq!(retired.signal(), Some(libc::SIGTERM), "{retired:?}");
     remove_settled(&fixture);
 }
 

@@ -105,12 +105,17 @@ pub mod service_signal;
 /// The service's own shutdown after a stop:
 /// it tells the waiters,
 /// waits a bounded time for the Gits and the landing in flight,
+/// asks for the markers made ahead to be removed within a ceiling of its own,
 /// and ends the process by the signal.
 pub mod service_server_shutdown_after_a_stop;
 
 /// The instant at which a control may hold the shutdown's last sweep,
 /// so a sweep that does not answer can be shown not to hold the end.
 pub mod service_sweep_control_window;
+
+/// The removal of the markers a stop asks for, on a thread started when the stop is told,
+/// so neither its start nor a slow removal takes the grace the last-resort alarm leaves.
+pub mod service_sweep_started_at_the_stop;
 
 /// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
 /// read at a service's start on a thread of its own.

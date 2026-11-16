@@ -290,3 +290,13 @@ fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
     let start: &str = include_str!("../repair/package_repair_start.rs");
     assert!(start.contains("async fn start_within("), "the start of a tool is the bounded one");
 }
+
+/// The stop's sweep gets a quarter of the grace the last-resort alarm leaves,
+/// so the raise keeps three quarters of it whatever the sweep does,
+/// and the stop's own waiting for the sweep names the ceiling the shutdown uses.
+#[test]
+fn the_sweep_of_a_stop_gets_a_quarter_of_the_grace_before_the_alarm() {
+    assert_eq!(SWEEP_CEILING * 4, crate::bounded_push::STOP_GRACE, "a quarter of the grace, and the raise keeps the rest");
+    let source: &str = include_str!("service_server_shutdown_after_a_stop.rs");
+    assert!(source.contains("SWEEP_CEILING"), "the shutdown waits for the sweep at this ceiling");
+}
