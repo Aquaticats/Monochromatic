@@ -476,6 +476,12 @@ fn a_push_given_up_by_recovery_leaves_a_notice() {
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert_eq!(shown.len(), 1, "{shown:?}");
     assert!(shown[0].contains(OID) && shown[0].contains("gave up") && shown[0].contains("branch main"), "{shown:?}");
+    // The two ways a try is spent are named, because a recovery cannot tell which one spent each of them:
+    // a notice that says the service stopped says more than the record shows.
+    assert!(shown[0].contains("ends before it settles the push"), "the notice names a service that ended: {shown:?}");
+    assert!(shown[0].contains("cannot tell whether its claim"), "the notice names a look that failed and the lease it costs: {shown:?}");
+    assert!(!shown[0].contains("stopped"), "the notice says which of the two happened, not that the service stopped: {shown:?}");
+    assert!(shown[0].contains("pushing the branch by hand sends it"), "the notice says what a person does next: {shown:?}");
     remove(repo.root.as_path());
 }
 
