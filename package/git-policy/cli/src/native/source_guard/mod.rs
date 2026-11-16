@@ -52,6 +52,12 @@ mod no_self_invocation_tests;
 #[path = "blocking_code_off_the_runtime_tests.rs"]
 mod blocking_code_off_the_runtime_tests;
 
+/// The one way a sweep removes a swept tree:
+/// through the function that holds the removal claim until the removal is over.
+#[cfg(test)]
+#[path = "tree_removals_under_the_claim_tests.rs"]
+mod tree_removals_under_the_claim_tests;
+
 /// The structural check that the review's network client is reachable only from the service run;
 /// never in the release build.
 #[cfg(test)]

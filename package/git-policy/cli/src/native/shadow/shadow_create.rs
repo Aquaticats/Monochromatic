@@ -507,6 +507,20 @@ pub fn create_shadow_repository_carrying(
 }
 
 /// What:
+///  The failure of a test-only phase marker reached between a commit's question of the handed tree and its first write.
+/// Why:
+///   The marker variable decides a command's whole life when it is malformed (`transaction_phase.rs`),
+///  and a command that cannot reach its marker says so in the words a commit reports failures with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function phaseMarkerFailure(error: Error): GitFailure; // new GitFailure(`...`)
+/// ```
+fn phase_marker_failure(error: crate::transaction_phase::PhaseMarkerError) -> GitFailure {
+    return GitFailure(format!("the handed shadow's test-only phase marker could not be reached: {error}"));
+}
+
+/// What:
 ///  The shadow one commit was given,
 ///  and the finished one the service drew ahead of it when that is where it came from.
 /// Why:
@@ -581,6 +595,127 @@ pub(crate) fn may_be_handed_a_tree(template: &ShadowTemplate, carry_conclusion: 
 }
 
 /// What:
+///  Whether the shadow still holds the entries this commit's build was given,
+///  which is what Git needs to work in it.
+/// Why:
+///  A removal is not one step:
+///  a process killed between its steps leaves the root directory with some of its entries gone,
+///  and a root that exists answers nothing about whether Git can work there
+///  (`fatal: not a git repository`).
+///  What the build was given is the creation's own entries and the ref store this commit's attempt wrote:
+///  `HEAD` and the ref it names when the base is a commit,
+///  `config`,
+///  the `objects` tree down to the `alternates` file that reaches the real object store,
+///  `refs`,
+///  and the packed refs of the files backend.
+///  A reftable shadow keeps its refs in Git's own tables and so has no packed file to look for.
+///  The answer is a few metadata calls and one read of `HEAD`;
+///  a tree that holds them all and still fails Git failed for the repository's or the volume's reason and is the
+///  commit's to report,
+///  and a tree that has lost any of them is one the commit builds in another tree rather than fails in
+///  (`service_native.rs`,
+///  `build_with_git`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whole = (tree, template, base) => hasFile('HEAD') && hasFile('config') && hasDir('objects') && hasDir('objects/info')
+///   && hasFile('objects/info/alternates') && hasDir('refs') && (reftable || hasFile('packed-refs'))
+///   && (reftable || base === 'unborn' || hasFile(headTargetOf(readFile('HEAD'))));
+/// ```
+pub fn the_shadow_holds_what_a_build_needs(tree: &Path, template: &ShadowTemplate, base: &crate::transaction_journal::Base) -> bool {
+    use crate::transaction_journal::RefFormat;
+    if !the_shadow_holds_what_a_creation_makes(tree, template) {
+        return false;
+    }
+    // A reftable repository's shadow keeps its refs in Git's own tables, so no loose ref and no packed file of ours stands
+    //  for one; the creation's question has already asked for the list of those tables.
+    if template.ref_format == RefFormat::Reftable {
+        return true;
+    }
+    if template.ref_format == RefFormat::Files
+        && !std::fs::symlink_metadata(tree.join("packed-refs")).is_ok_and(|metadata| { return metadata.is_file(); })
+    {
+        return false;
+    }
+    if matches!(base, crate::transaction_journal::Base::Unborn) {
+        return true;
+    }
+    // The ref `HEAD` names is a loose file this attempt wrote, unless `HEAD` is detached and names the commit itself.
+    let Ok(head) = std::fs::read(tree.join("HEAD")) else { return false };
+    let text: String = String::from_utf8_lossy(head.as_slice()).trim().to_string();
+    let Some(name) = text.strip_prefix("ref: ") else { return true };
+    return std::fs::symlink_metadata(tree.join(name.trim())).is_ok_and(|metadata| { return metadata.is_file(); });
+}
+
+/// What:
+///  Whether the shadow still holds the entries a creation makes,
+///  which are the entries every later write of the commit is written on top of.
+/// Why:
+///  It is the question a write that failed is asked,
+///  where the ref store of the attempt may be exactly what could not be written (`a_shadow_from_the_handed_tree`):
+///  `HEAD` and `config` as files,
+///  the `objects` tree down to the `alternates` file that reaches the real object store,
+///  and `refs` as a directory.
+///  A tree that has lost any of them is one a removal reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = (tree) => hasFile('HEAD') && hasFile('config') && hasDir('objects') && hasDir('objects/info')
+///   && hasFile('objects/info/alternates') && hasDir('refs');
+/// ```
+pub fn the_shadow_holds_what_a_creation_makes(tree: &Path, template: &ShadowTemplate) -> bool {
+    let is_a_file: &dyn Fn(&Path) -> bool = &|path: &Path| { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_file(); }); };
+    let is_a_directory: &dyn Fn(&Path) -> bool = &|path: &Path| { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_dir(); }); };
+    if !is_a_directory(tree) || !is_a_file(&tree.join("HEAD")) || !is_a_file(&tree.join("config")) {
+        return false;
+    }
+    let objects: PathBuf = tree.join("objects");
+    if !is_a_directory(&objects) || !is_a_directory(&objects.join("info")) || !is_a_file(&objects.join("info").join("alternates")) {
+        return false;
+    }
+    if !is_a_directory(&tree.join("refs")) {
+        return false;
+    }
+    // What: A reftable shadow's ref store is its list of tables and every table the list names.
+    // Why:  The list alone answers nothing: a removal killed between entries leaves the list naming a table that is gone,
+    //       and Git then refuses the commit's ref transaction
+    //       (`fatal: reftable: transaction prepare: file does not exist`, measured with Git 2.56.0).
+    //       A store whose list cannot be read is a store this cannot say is whole, and a store that cannot be said to be whole
+    //       is one the commit builds in another tree rather than fails in (`service_native.rs`, `build_with_git`).
+    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
+        return the_reftable_store_is_whole(tree);
+    }
+    return true;
+}
+
+/// What:
+///  Whether a reftable store is whole:
+///  its list of tables is a file,
+///  and every table the list names is a file too.
+/// Why:
+///  It is the store as Git reads it, and Git reads the list and then the tables it names.
+///  A list that cannot be read says nothing about the tables, so the store is not called whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whole = (tree) => { const list = read('reftable/tables.list'); return list !== undefined && list.split('\n').every((name) => name.trim() === '' || isFile(`reftable/${name.trim()}`)) }
+/// ```
+fn the_reftable_store_is_whole(tree: &Path) -> bool {
+    let list: PathBuf = tree.join("reftable").join("tables.list");
+    let Ok(text) = std::fs::read_to_string(list.as_path()) else { return false };
+    for line in text.lines() {
+        let name: &str = line.trim();
+        if name.is_empty() {
+            continue;
+        }
+        if !std::fs::symlink_metadata(tree.join("reftable").join(name)).is_ok_and(|metadata| { return metadata.is_file(); }) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
 ///  The shadow of one commit:
 /// a finished one the service drew ahead and handed over,
 /// a finished one this invocation can use from the pool,
@@ -624,28 +759,18 @@ pub fn take_or_create_shadow(
     //       the question can fail a commit.
     clock.next("shadow hand-out");
     let concludes: bool = carry_conclusion && conclusion_state_present(capture.layout.git_dir.as_path());
-    let asked: Option<PathBuf> = match may_be_handed_a_tree(&template, concludes) {
+    let asked: Option<(PathBuf, std::os::unix::net::UnixStream)> = match may_be_handed_a_tree(&template, concludes) {
         true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory),
         false => None,
     };
-    if let Some(drawn) = asked {
-        match refusal(&template, drawn.as_path()) {
-            Ok(None) => {
-                let handed = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
-                carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock)?;
-                return Ok(ShadowTree { path: drawn, handed: Some(handed) });
-            }
-            Ok(Some(reason)) => crate::diagnostic_log::debug(
-                "shadowDrawn",
-                format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str(),
-            ),
-            Err(error) => crate::diagnostic_log::debug(
-                "shadowDrawn",
-                format!("refused the drawn shadow {}: {error}", drawn.display()).as_str(),
-            ),
+    if let Some((drawn, answer)) = asked {
+        // What: The tree this commit was handed, when it could take it and its question of it named nothing to refuse.
+        // Why:  Everything this arm leaves behind is released by the value that held the tree, so a tree this invocation
+        //       cannot use is handed back once and not twice; the connection the answer came on is kept until the tree is the
+        //       commit's, so the service's claim covers every instant of the hand-over (`handle_connection`).
+        if let Some(taken) = a_shadow_from_the_handed_tree(context, cwd, capture, &template, drawn.as_path(), answer, transaction_directory, carry_conclusion, clock)? {
+            return Ok(taken);
         }
-        // A tree this invocation cannot use is the service's own, and this commit is the last thing that held it.
-        crate::service_scratch_release_removal::start(drawn);
     }
     clock.next("shadow pool");
     if crate::shadow_pool::take(&template, shadow) {
@@ -656,6 +781,85 @@ pub fn take_or_create_shadow(
     create_shadow_template(context, &template, shadow, clock)?;
     carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
     return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
+}
+
+/// What:
+///  The commit's shadow, built in the tree the service handed it,
+///  or nothing when this invocation cannot use that tree,
+///  or the failure of a write whose tree is still there.
+/// Why:
+///   The commit claims the tree before it asks anything of it,
+///  so the tree a sweep finds claimed is one it leaves,
+///  and a tree a sweep has taken to remove is one this commit gives up on instead of building in
+///  (`tree_held_by_a_live_process.rs`).
+///  Everything after the claim can lose the tree to a cause no sweep explains, a person or a full drive,
+///  and none of those may end the commit:
+///  a failure whose tree is gone is answered with nothing, so the commit takes the pool's member or makes its own tree,
+///  and a failure whose tree is still there is the repository's or the volume's and is the commit's to report
+///  (`SPEC.md`, "Merges and commits never fail").
+///  Nothing has been sent to the service when any of this happens, and what was written went into a tree this command
+///  abandons.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = await aShadowFromTheHandedTree({ ... }); // ShadowTree | undefined, or a failure to report
+/// ```
+fn a_shadow_from_the_handed_tree(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    template: &ShadowTemplate,
+    drawn: &Path,
+    answer: std::os::unix::net::UnixStream,
+    transaction_directory: &Path,
+    carry_conclusion: bool,
+    clock: &mut BuildPartClock,
+) -> Result<Option<ShadowTree>, GitFailure> {
+    let Some(held) = crate::shadow_drawn::HandedShadow::hold(drawn.to_path_buf()) else {
+        crate::diagnostic_log::debug(
+            "shadowDrawn",
+            format!("the drawn shadow {} is being removed, so this commit takes another tree", drawn.display()).as_str(),
+        );
+        return Ok(None);
+    };
+    // What: The connection the answer came on closes here, and no later: the tree is this commit's from the claim above.
+    // Why:  The service keeps its own claim on the tree until this end closes, so a client killed before its claim leaves a
+    //       tree nobody holds, which the sweep takes a bound later; a client whose claim is taken hands the tree's keeping to
+    //       itself and lets the service's go.
+    drop(answer);
+    // What: A control may hold the command at this instant, between its claim on the handed tree and its first write into it
+    //       (`transaction_phase.rs`, `Phase::ShadowHanded`).
+    // Why:  A tree that goes here decides whether the commit lands in it or in a tree of its own, and no other instant of a
+    //       commit can be held at that point. Nothing arms this marker in a run.
+    crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::ShadowHanded).map_err(phase_marker_failure)?;
+    match refusal(template, drawn) {
+        Ok(None) => {}
+        Ok(Some(reason)) => {
+            crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str());
+            return Ok(None);
+        }
+        Err(error) => {
+            crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {error}", drawn.display()).as_str());
+            return Ok(None);
+        }
+    }
+    match carry_the_commit_parts(context, cwd, capture, drawn, transaction_directory, carry_conclusion, clock) {
+        Ok(()) => return Ok(Some(ShadowTree { path: drawn.to_path_buf(), handed: Some(held) })),
+        Err(error) => {
+            // A failure whose tree still holds what this build was given is the repository's or the volume's, and it is the
+            //  commit's to report; a tree that has lost an entry is one a removal reached, and the commit takes another.
+            if the_shadow_holds_what_a_creation_makes(drawn, template) {
+                return Err(error);
+            }
+            crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!("the drawn shadow {} went before this commit wrote into it: {error}", drawn.display()).as_str(),
+            );
+            // The tree stops being this commit's here, and what is left of it goes beside the command.
+            drop(held);
+            return Ok(None);
+        }
+    }
 }
 
 /// What:

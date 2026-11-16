@@ -281,6 +281,15 @@ pub(crate) fn land_group(
     if let Some(first) = requests.first() {
         crate::service_shadow_draw::start(&context.git, first, drawn);
     }
+    // What: The claim the service kept on a drawn tree a commit was handed goes once that commit's request names it.
+    // Why:  The request is sent only after the commit has built in the tree and taken its own claim, so the tree stays held
+    //       by the commit from here on, and the service's claim on a tree this landing is about to remove is no longer needed
+    //       (`service_shadow_draw.rs`, `hand_out`; `shadow_drawn.rs`, `HandedShadow`).
+    for request in &requests {
+        if let Some(handed) = request.shadow.as_deref() {
+            let _let_go: bool = drawn.let_go_of(handed);
+        }
+    }
     // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
     drop(claim);
     // How many requests were still waiting when this landing finished: the batch's own are still unanswered here, so they come

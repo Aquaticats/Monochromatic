@@ -17,7 +17,9 @@
 //!  A tree in use is a fresh drawn tree and an abandoned one is a stale one,
 //!  which is the rule a commit's scratch tree already has (`service_scratch_abandonment.rs`):
 //!  the command that holds a tree renews it while it lives,
-//!  so no lock is written and none can be left held.
+//!  the service renews a tree while it waits in its stock,
+//!  so no lock is written and none can be left held,
+//!  and no tree anybody needs is ever at the age the sweep takes one at.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -43,9 +45,11 @@ use crate::shadow_pool_member::refusal;
 /// One Git start.
 use crate::transaction_git::{GitContext, GitFailure};
 /// The renewal that keeps a tree a command holds from aging out,
+/// the call that marks a tree as used now,
 /// and the age it is written against.
 use crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER;
 use crate::service_scratch_renewal::ScratchRenewal;
+use crate::scratch_location::renew;
 /// What the folder beside the pool is called.
 use crate::wrapper_names_old_and_new::SHADOW_DRAWN_FOLDER;
 /// Paths,
@@ -168,6 +172,10 @@ pub fn is_a_drawn_tree(tree: &Path, common_dir: &Path, git_dir: &Path) -> bool {
 ///  A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
 ///  every member of theirs would be refused,
 ///  so a draw makes none (`shadow_pool.rs`, `fill`).
+///  The draw marks the tree it drew as used now,
+///  so the age a sweep goes by is the tree's time in the drawn folder and never the age it carried out of the pool:
+///  a `rename` keeps the modification time of the member,
+///  and a member that stood there longer than the sweep's bound would otherwise be abandoned from the moment it is drawn.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,6 +210,8 @@ pub fn draw(_context: &GitContext, template: &ShadowTemplate) -> Result<Option<P
         if std::fs::rename(member.as_path(), drawn.as_path()).is_err() {
             continue;
         }
+        // The tree is the stock's from now, and its age starts here: the member's old age says nothing about when it was drawn.
+        renew(drawn.as_path());
         match refusal(template, drawn.as_path()) {
             Ok(None) => return Ok(Some(drawn)),
             Ok(Some(reason)) => note_refusal(drawn.as_path(), reason.as_str()),
@@ -230,6 +240,7 @@ fn note_refusal(drawn: &Path, reason: &str) {
     crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str());
 }
 
+
 /// What:
 ///  Removes every drawn tree of every worktree that nothing has renewed,
 ///  and a worktree's folder once nothing is in it.
@@ -242,6 +253,13 @@ fn note_refusal(drawn: &Path, reason: &str) {
 ///  The age is the scratch tree's own (`SCRATCH_TREE_ABANDONED_AFTER`),
 ///  because a drawn tree is held exactly as long as the tree a commit would have made in its scratch:
 ///  a commit that runs for two hours is the bound both rules are written against.
+///  The tree is marked as used when it is drawn,
+///  every `SCRATCH_REFRESH_EVERY` by the renewal that travels with the stock entry while it waits
+///  (`service_shadow_draw.rs`,
+///  `note_ready`),
+///  and every `SCRATCH_REFRESH_EVERY` by the command that holds it once it is handed over (`HandedShadow`).
+///  Both marks are the half of this bound, so a tree is never more than half-way to it while anybody holds it,
+///  and a tree nothing holds goes a bound after its last mark.
 ///  Nothing else reaches a drawn tree:
 ///  no sweep of the repository scratch directory,
 ///  and no pool removal.
@@ -285,6 +303,18 @@ pub fn sweep_drawn_of(common_dir: &Path, git_dir: &Path, now: SystemTime) -> Vec
 /// Why:
 ///  The three callers above and below differ only in which folders they ask about,
 ///  and the age rule is one rule.
+///  The age is asked first and the claim second,
+///  so the ordinary sweep pays no question to the file system beyond the listing:
+///  a tree the age keeps is never asked about at all.
+///  A tree whose age would take it is taken only by a sweep that holds the claim on it,
+///  because an age computed from a wall clock that stepped forward says a tree written moments ago is hours old
+///  (`tree_held_by_a_live_process.rs`).
+///  The sweep takes the claim and keeps it through the removal,
+///  so the question and the removal are one step:
+///  no holder can begin in a tree between the sweep's question and its removal,
+///  and a holder that arrives at a tree being removed is one that gives the tree up instead of building in it.
+///  A volume that gives no `flock` leaves the age to decide, as it did before the claim existed,
+///  and the log names it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -296,14 +326,33 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
         if !nothing_holds(drawn.as_path(), now) {
             continue;
         }
-        match remove_tree(drawn.as_path()) {
-            Ok(()) => {
+        // What: A sweep removes a drawn tree only while it holds the claim on it, and it holds it until the tree is gone.
+        // Why:  A forward step of the wall clock, as time synchronisation makes after a suspend and a resume, makes the age
+        //       of a tree a commit is building in pass the bound; and a question asked and released before the removal would
+        //       let a commit claim and write into the tree in between and lose it under its build. Holding the claim makes the
+        //       question and the removal one step, and the claim a commit finds taken is one it gives up on
+        //       (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(drawn.as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+            let outcome = match remove_tree(path) {
+                Ok(()) => crate::scratch_entry_removal::Removal::Finished,
+                Err(error) => crate::scratch_entry_removal::Removal::Failed(error),
+            };
+            // A removal that runs here holds the claim until it ends; one that runs on goes on holding it.
+            drop(claim);
+            return outcome;
+        }) {
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished) => {
                 crate::diagnostic_log::debug("shadowDrawn", format!("removed the drawn shadow nothing renewed: {}", drawn.display()).as_str());
                 removed.push(drawn);
             }
-            Err(error) => {
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Unfinished) => {
+                crate::diagnostic_log::warn("shadowDrawn", format!("the drawn shadow {} was still being removed, and stays for the next sweep", drawn.display()).as_str());
+            }
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Failed(error)) => {
                 crate::diagnostic_log::warn("shadowDrawn", format!("the drawn shadow {} was not removed: {error}", drawn.display()).as_str());
             }
+            // A live process holds it, so it is no tree of this sweep's to remove.
+            crate::tree_held_by_a_live_process::SweptRemoval::HeldByALiveProcess => {}
         }
     }
     return removed;
@@ -313,7 +362,9 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
 ///  Whether a drawn tree has gone longer than any commit holds one without being renewed.
 /// Why:
 ///   This is the whole of the question a tree in use is told from an abandoned one by:
-///  a command renews what it holds,
+///  a tree is marked as used when it is drawn,
+///  while it waits in the service's stock,
+///  and while the command that was handed it runs,
 ///  and a command that stopped renews nothing,
 ///  so the answer needs no lock,
 ///  no process and no record.
@@ -321,6 +372,11 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
 ///  or one dated in the future,
 ///  is never old enough:
 ///  a wrong clock must not delete a live tree.
+///  That guard covers a clock that went backwards and a mark written by one that ran ahead;
+///  a clock that steps **forward** makes a live tree look old instead,
+///  and that direction is answered by the claim a live process keeps, which no clock moves
+///  (`sweep_drawn_folder`,
+///  `tree_held_by_a_live_process.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -355,6 +411,9 @@ fn nothing_holds_after() -> Duration {
 ///  and a killed client cannot be asked:
 ///  the renewal is what says a command still runs,
 ///  with no lock and no record of a process (`service_scratch_renewal.rs`).
+///  The renewal beats at once and then every `SCRATCH_REFRESH_EVERY`,
+///  so the tree is marked as used from the moment this value holds it,
+///  which is why the answer itself makes no call on the volume.
 ///  A commit that is answered as not landed, or whose request the service never took,
 ///  removes the tree itself in the background,
 ///  as it removes a scratch tree the service handed back,
@@ -382,17 +441,22 @@ pub struct HandedShadow {
 impl HandedShadow {
     /// What:
     ///  Takes hold of a tree the service handed out,
-    ///  and starts renewing it.
+    ///  and starts renewing it,
+    ///  the first renewal at once,
+    ///  or answers nothing when a sweep holds the claim to remove the tree.
     /// Why:
     ///   The renewal ends with this value however the command ends,
     ///  and a process killed at any instruction stops renewing at that moment,
     ///  which is the whole of what the sweep needs to tell a live tree from an abandoned one.
+    ///  The first beat is at once, so the tree is marked as used from this call and not from an hour later:
+    ///  a tree that was drawn and waited in the stock arrives with the stock's last mark on it,
+    ///  and the service makes no call on the volume when it answers.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// HandedShadow.hold(tree)
     /// ```
-    pub fn hold(path: PathBuf) -> Self {
+    pub fn hold(path: PathBuf) -> Option<Self> {
         return Self::hold_renewed_every(path, crate::scratch_location::SCRATCH_REFRESH_EVERY);
     }
 
@@ -408,9 +472,22 @@ impl HandedShadow {
     /// ```ts
     /// HandedShadow.holdRenewedEvery(tree, 20)
     /// ```
-    pub fn hold_renewed_every(path: PathBuf, every: Duration) -> Self {
-        let renewal: ScratchRenewal = ScratchRenewal::start(path.as_path(), every);
-        return Self { path, _renewal: renewal, the_service_removes_it: false };
+    pub fn hold_renewed_every(path: PathBuf, every: Duration) -> Option<Self> {
+        let claim: crate::tree_held_by_a_live_process::ClaimOnAMadeTree = match crate::tree_held_by_a_live_process::claim_a_made_tree(path) {
+            // A sweep holds the claim to remove this tree, so the commit must give it up rather than build in a tree that is going.
+            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => return None,
+            Ok(claimed) => claimed,
+        };
+        let (where_it_is, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = match claim {
+            // A volume that cannot say whether the tree is held leaves it to its mark, as every holder did before the claim.
+            crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree) => (tree, None),
+            crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed) => {
+                let (where_it_is, its_claim) = claimed.into_parts();
+                (where_it_is, Some(its_claim))
+            }
+        };
+        let renewal: ScratchRenewal = ScratchRenewal::start_holding(where_it_is.as_path(), every, held);
+        return Some(Self { path: where_it_is, _renewal: renewal, the_service_removes_it: false });
     }
 
     /// Where the tree is.

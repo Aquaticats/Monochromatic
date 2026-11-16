@@ -35,12 +35,36 @@ use crate::shadow_create::ShadowTemplate;
 use crate::shadow_drawn::{DRAWN_LIMIT, draw, sweep_drawn};
 /// Where the pool holds what a draw moves out of it, and what a fill makes when it holds nothing.
 use crate::shadow_pool::{members, pool_root_for};
+/// The renewal that keeps a stocked tree from aging out while it waits,
+/// and the pace a holding command renews at.
+use crate::service_scratch_renewal::ScratchRenewal;
+use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 /// The service's own log.
 use crate::transaction_git::{GitContext, GitFailure};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
+
+/// What:
+///  How long the service keeps the claim on a drawn tree,
+///  or nothing for as long as the service lives.
+/// Why:
+///   A drawn tree stands while its claim is held, and whether it stands with no end is the owner's question and not
+///  this file's (`doc/handover/questions-for-the-owner.md`;
+///  the brief of the branch that added the claim).
+///  The answer is this one constant, for the tree waiting in the stock and for the tree the service has handed out:
+///  `Some(span)` lets go at the first landing after the span, so the tree ages out and a sweep collects it,
+///  and it must be longer than `DRAWN_ANSWER_DEADLINE` (`service_client_shadow_hand_out.rs`),
+///  or a tree would be let go while the answer that names it is still travelling.
+///  `None` keeps each of them until the landing that names the tree is over, and the stocked one until the service ends,
+///  which is what this branch does today.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = undefined; // the owner's question, unanswered
+/// ```
+pub const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = None;
 
 /// Lock kept:
 ///  whether this service is already drawing one shadow,
@@ -58,7 +82,13 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 ///  a listing of the drawn folder can wait on the volume,
 ///  and the answer must not.
 ///  The list is the whole of the service's own record of what it drew,
-///  so a stock a restart forgets is drawn again and the trees it dropped are left to the sweep by their age.
+///  so a stock a restart forgets is drawn again and the trees it dropped are left to the sweep by their age,
+///  which the draw marked with the moment it drew them.
+///  A tree it still holds is marked by the renewal that travels with the entry,
+///  so a stocked tree never reaches the age a sweep takes one at,
+///  and the claim that renewal keeps says the same to a sweep whose clock stepped forward
+///  (`tree_held_by_a_live_process.rs`),
+///  and the answer itself reads nothing but memory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +99,7 @@ pub struct DrawnShadows {
     /// Lock kept:
     ///  the trees nobody has asked for yet,
     ///  which the draw's own thread records and every connection's answer takes,
-    ///  so two threads reach the list and a list of paths is not one word an atomic could hold.
+    ///  so two threads reach the list and a list of trees is not one word an atomic could hold.
     ///  Under it the list is changed and nothing else:
     ///  one `push` on the draw's thread and one `pop` where a commit's question is answered,
     ///  with no Git process, no file and no other lock,
@@ -78,10 +108,94 @@ pub struct DrawnShadows {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// #ready: PathBuf[] = []
+    /// #ready: Waiting[] = []
     /// ```
-    ready: Mutex<Vec<PathBuf>>,
+    ready: Mutex<Vec<Waiting>>,
+    /// Lock kept:
+    ///  the trees the service has handed out and the claim it kept on each of them,
+    ///  which the answer that hands one over records and the landing that names it lets go,
+    ///  so two threads reach the list and a tree is never unheld while it changes hands.
+    ///  Under it the list is changed and nothing else:
+    ///  one `push` on the answer's thread and one `retain` where a landing or a draw reads it,
+    ///  with no Git process, no file and no other lock.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// #handed: HandedOut[] = []
+    /// ```
+    handed: Mutex<Vec<HandedOut>>,
 }
+
+/// What:
+///  One tree the service handed out,
+///  with the claim it kept on the tree across the hand-out.
+/// Why:
+///  The answer travels to the commit over a socket, and the commit takes its own claim when it has read it,
+///  so a sweep that ran in that moment would find a tree nobody held and, with the wall clock stepped forward,
+///  take it for hours old.
+///  The service therefore keeps its claim until the landing that names the tree is over,
+///  and the commit's claim overlaps it, so the tree has a holder at every instant of the change of hands.
+///  How long it is kept is `A_DRAWN_TREE_IS_KEPT_FOR`'s answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HandedOut = { path: string; since: Instant; claim: HeldTree };
+/// ```
+#[derive(Debug)]
+struct HandedOut {
+    /// Where the tree is.
+    path: PathBuf,
+    /// When the service handed it out,
+    /// which `A_DRAWN_TREE_IS_KEPT_FOR` counts from.
+    since: Instant,
+    /// The claim the service kept,
+    /// which stops when this value goes.
+    _claim: crate::tree_held_by_a_live_process::HeldTree,
+}
+
+/// What:
+///  One tree the service drew and nobody has asked for yet:
+///  where it is,
+///  and the renewal that keeps a sweep from taking it while it waits.
+/// Why:
+///   A drawn tree is standing state until a commit takes it,
+///  as a pool member is until a commit claims one:
+///  the service drew it ahead precisely so that it stands there while it waits,
+///  so its age must not be what decides it goes.
+///  The renewal beats on a thread of its own,
+///  the first beat at once and then at the pace a holding command uses,
+///  which is half the age a sweep takes a tree at,
+///  so no sweep ever finds a stocked tree old enough to take (`shadow_drawn.rs`, `nothing_holds`),
+///  and it carries the claim on the tree, which no wall-clock step can take away
+///  (`tree_held_by_a_live_process.rs`).
+///  Both stop when the entry leaves the stock, and with the service:
+///  a service that is gone renews and claims nothing, and the sweep collects the tree a bound later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Waiting = { path: string; renewal: ScratchRenewal };
+/// ```
+#[derive(Debug)]
+struct Waiting {
+    /// Where the tree is.
+    path: PathBuf,
+    /// When the draw stocked it,
+    /// which `A_DRAWN_TREE_IS_KEPT_FOR` counts from.
+    since: Instant,
+    /// The renewal that keeps it from aging out while it waits,
+    /// and the claim on it,
+    /// both of which stop when this value goes.
+    _renewal: ScratchRenewal,
+}
+
+/// How long a stocked tree's absence may take to be answered, and why.
+/// Why this figure:
+///  One `symlink_metadata` of a path this service wrote itself answers in microseconds on a healthy volume;
+///  fifty milliseconds is the same bound the claim on a tree is asked within
+///  (`tree_held_by_a_live_process.rs`,
+///  `THE_CLAIM_IS_ASKED_FOR_AT_MOST`),
+///  and a volume that has not answered in that time is one this landing cannot wait for.
+const THE_STOCK_IS_ASKED_FOR_AT_MOST: std::time::Duration = std::time::Duration::from_millis(50);
 
 impl DrawnShadows {
     /// What:
@@ -100,18 +214,33 @@ impl DrawnShadows {
     }
 
     /// What:
-    ///  Records a tree the draw made, for the next commit that asks.
+    ///  Records a tree the draw made, for the next commit that asks,
+    ///  with the renewal that keeps it from aging out while it waits.
     /// Why:
     ///   Only the draw and the answers touch the list,
     ///  and a poisoned lock is still a list of paths.
+    ///  The renewal beats at the pace a holding command uses (`SCRATCH_REFRESH_EVERY`),
+    ///  the first beat at once,
+    ///  so a stocked tree is never half-way to the age a sweep takes one at.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// stock.note(tree)
     /// ```
     pub fn note_ready(&self, tree: PathBuf) {
+        // What: The renewal is started before the entry is listed, so no answer can name a tree that nothing marks.
+        // Why:  A tree a sweep had already taken is one this stock cannot hand out: nothing can keep a tree alive that a removal
+        //       is emptying, so the stock leaves it to the sweep and the next fill draws another
+        //       (`tree_held_by_a_live_process.rs`, `claim_a_made_tree`).
+        let (path, renewal): (PathBuf, ScratchRenewal) = match ScratchRenewal::start(tree, SCRATCH_REFRESH_EVERY) {
+            Some(started) => started,
+            None => {
+                crate::diagnostic_log::debug("shadowDraw", "the drawn tree is being removed by a sweep, so the stock leaves it to the sweep");
+                return;
+            }
+        };
         let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        ready.push(tree);
+        ready.push(Waiting { path, since: Instant::now(), _renewal: renewal });
     }
 
     /// What:
@@ -122,14 +251,157 @@ impl DrawnShadows {
     ///  so two commits that ask at the same moment never get the same tree:
     ///  the second one is told the stock is empty and takes the pool's member or the creation,
     ///  which is the path it knows.
+    ///  The answer reads memory and nothing else:
+    ///  a query of the volume here would wait on the volume the drawn tree lives on,
+    ///  which is the wait the draw-ahead exists to take off a commit
+    ///  (`service_server_connection_handling.rs`, `answer_the_shadow_question`).
+    ///  The renewal that kept the tree fresh while it waited stops with this answer,
+    ///  and the commit's own renewal takes over from the moment it holds the tree
+    ///  (`shadow_drawn.rs`, `HandedShadow`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const tree = stock.handOut(); // the tree, or undefined
     /// ```
     pub fn hand_out(&self) -> Option<PathBuf> {
-        let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        return ready.pop();
+        let taken: Option<Waiting> = {
+            let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            ready.pop()
+        };
+        let waiting: Waiting = taken?;
+        // The claim moves from the renewal to the handed entry in one step, so no sweep finds the tree unheld
+        //  while the answer that names it travels to the commit that will claim it.
+        if let Some(held) = waiting._renewal.into_claim() {
+            let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            handed.push(HandedOut { path: waiting.path.clone(), since: Instant::now(), _claim: held });
+        }
+        return Some(waiting.path);
+    }
+
+    /// What:
+    ///  Lets go of the claim the service kept on a tree a landing named,
+    ///  and answers whether it held one.
+    /// Why:
+    ///   The commit's own claim is held by then, because the request that names the tree is sent only after the build in
+    ///  it, so the tree stays held by the commit while this claim goes.
+    ///  The landing that named the tree reads its own scratch tree and not this one,
+    ///  and removes it once that landing is over (`service_server.rs`, `remove_the_trees`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// stock.letGoOf(tree) // whether the service held a claim on it
+    /// ```
+    pub fn let_go_of(&self, tree: &Path) -> bool {
+        let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let counted: usize = handed.len();
+        handed.retain(|out| { return out.path != tree; });
+        return handed.len() != counted;
+    }
+
+    /// What:
+    ///  Lets go of the claims the service has kept longer than `A_DRAWN_TREE_IS_KEPT_FOR`,
+    ///  and answers how many it let go.
+    /// Why:
+    ///   The constant is the owner's answer to whether a drawn tree stands with no end while its claim is held;
+    ///  with `None` nothing is let go here, and with a span a tree the service kept too long stops being kept at the first
+    ///  landing that runs after it, so its age takes it and a sweep collects it.
+    ///  A tree the commit took is let go by `let_go_of` when its request arrives, and this is for a tree whose commit
+    ///  never sent one: a commit that gave the tree up, or one that was killed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// stock.letGoOfWhatItKeptTooLong()
+    /// ```
+    pub fn let_go_of_what_it_kept_too_long(&self) -> usize {
+        let Some(kept_for) = A_DRAWN_TREE_IS_KEPT_FOR else { return 0 };
+        let mut let_go: usize = 0;
+        {
+            let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = handed.len();
+            handed.retain(|out| { return out.since.elapsed() < kept_for; });
+            let_go += counted - handed.len();
+        }
+        {
+            let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = ready.len();
+            ready.retain(|waiting| { return waiting.since.elapsed() < kept_for; });
+            let_go += counted - ready.len();
+        }
+        return let_go;
+    }
+
+    /// What:
+    ///  Drops the stocked trees that are not there any more,
+    ///  and answers how many it dropped.
+    /// Why:
+    ///   The stock is memory only, so nothing tells it that a tree went:
+    ///  a person,
+    ///  another program,
+    ///  or a removed worktree can take one out of the drawn folder.
+    ///  A tree that is not there is no tree a commit can be handed,
+    ///  and a stock that counted one would draw nothing in its place (`start`),
+    ///  so the question is asked at every landing,
+    ///  on the landing's own thread and never on an answer's,
+    ///  and never while the stock's lock is held:
+    ///  an answer that waited for this lock would wait on the volume through it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// stock.dropWhatIsGone() // how many entries went
+    /// ```
+    pub fn drop_what_is_gone(&self) -> usize {
+        // The paths are read under the lock and asked about without it, so no volume call is made inside the lock.
+        let paths: Vec<PathBuf> = {
+            let ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut paths: Vec<PathBuf> = ready.iter().map(|waiting| { return waiting.path.clone(); }).collect();
+            paths.extend(handed.iter().map(|out| { return out.path.clone(); }));
+            paths
+        };
+        let mut gone: Vec<PathBuf> = Vec::new();
+        for path in paths {
+            // What: The question is put on a thread of its own, and this landing thread waits for it no longer than the ceiling.
+            // Why:  It runs here, on the landing thread, after the batch's work and before its outcomes go out:
+            //       a `symlink_metadata` on a mount whose server stopped answering never returns, and the batch's answer and
+            //       every landing behind it would wait with it (`doc/planning/cli-git-no-unbounded-waits.md`).
+            //       A tree nobody could ask about is kept rather than counted gone: a stock that dropped it would draw another
+            //       in its place, and a tree that is still there is one a commit may be handed.
+            let asked: PathBuf = path.clone();
+            let answered: crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork<bool> =
+                crate::work_awaited_within_a_ceiling::work_within_reporting(THE_STOCK_IS_ASKED_FOR_AT_MOST, move || {
+                    return std::fs::symlink_metadata(asked.as_path()).is_err();
+                });
+            match answered {
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(true) => gone.push(path),
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(false) => {}
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart => {
+                    crate::diagnostic_log::debug("shadowDraw", format!("no thread was left to ask about {}, so the stock keeps it", path.display()).as_str());
+                }
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => {
+                    crate::diagnostic_log::debug(
+                        "shadowDraw",
+                        format!("whether {} is still there cannot be asked within {THE_STOCK_IS_ASKED_FOR_AT_MOST:?}, so the stock keeps it", path.display()).as_str(),
+                    );
+                }
+            }
+        }
+        if gone.is_empty() {
+            return 0;
+        }
+        let mut dropped: usize = 0;
+        {
+            let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = ready.len();
+            ready.retain(|waiting| { return !gone.contains(&waiting.path); });
+            dropped += counted - ready.len();
+        }
+        {
+            let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = handed.len();
+            handed.retain(|out| { return !gone.contains(&out.path); });
+            dropped += counted - handed.len();
+        }
+        return dropped;
     }
 
     /// How many trees the stock holds now.
@@ -155,6 +427,11 @@ impl DrawnShadows {
 /// start({ context, request, stock }) // void
 /// ```
 pub fn start(context: &GitContext, request: &CommitRequest, stock: &Arc<DrawnShadows>) {
+    // What: A tree the stock counted that is not there is no tree to hand a commit, and no reason to skip the draw.
+    // Why:  The stock is memory only and the drawn folder is on the volume, where any command of the repository may collect
+    //       a tree nothing marked; the landing's own thread asks here, so an answer that comes later reads memory alone.
+    let _too_long: usize = stock.let_go_of_what_it_kept_too_long();
+    let _gone: usize = stock.drop_what_is_gone();
     if stock.ready() >= DRAWN_LIMIT {
         return;
     }

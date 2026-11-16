@@ -78,12 +78,19 @@ pub const DRAWN_ANSWER_DEADLINE: Duration = Duration::from_millis(250);
 ///  and an abstract address has no file (`service_address_of_a_worktree.rs`).
 ///  A commit under a runtime directory too long for a path therefore builds its own shadow,
 ///  which is the path this ask saves a second off.
+///  The connection the answer came on is answered with the tree,
+///  because the service keeps the claim on that tree until this end of the connection closes:
+///  a client killed between the answer and its own claim closes it by dying, and the tree is nobody's from then on,
+///  while a client that takes its claim closes it as it stops needing the service's
+///  (`service_server_connection_handling.rs`,
+///  `handle_connection`).
+///  The caller holds the connection until its claim is taken and no longer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const tree = askForADrawnShadow(address, template, scratch);
+/// const [tree, answer] = askForADrawnShadow(address, template, scratch) ?? []; // the answer's connection kept until the claim
 /// ```
-pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch: &Path) -> Option<PathBuf> {
+pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch: &Path) -> Option<(PathBuf, UnixStream)> {
     let socket: &Path = match address {
         Bind::Path(path) => path.as_path(),
         Bind::Abstract(_) | Bind::Inherited => return None,
@@ -106,7 +113,9 @@ pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch
         crate::diagnostic_log::debug("shadowDrawn", format!("refused the answer {}: it is not a drawn shadow of this worktree", tree.display()).as_str());
         return None;
     }
-    return Some(tree);
+    // The reader's stream is the connection the service holds the tree by, and the caller keeps it until it holds the tree.
+    let stream: UnixStream = reader.into_inner();
+    return Some((tree, stream));
 }
 
 /// What:

@@ -36,7 +36,7 @@
 //! ```
 
 /// Private directory creation and tree removal.
-use crate::private_storage::{create_private_directory_all, remove_tree};
+use crate::private_storage::{create_private_directory, create_private_directory_all, remove_tree};
 /// Random member names.
 use crate::random_id::random_uuid;
 /// The facts a creation is made from,
@@ -370,10 +370,30 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     }
     sweep_abandoned(root.as_path(), SystemTime::now());
     let staging: PathBuf = root.join(format!("{FILLING_PREFIX}{}", random_uuid().unwrap_or_default()));
+    // What: The staging name is made here and claimed before anything is written into it.
+    // Why:  The claim is what a sweep reads before it takes a half-made member for one a killed fill left
+    //       (`tree_held_by_a_live_process.rs`), and the age that sweep goes by is a wall clock that may step forward.
+    //       The creation's first directory is this one, so making it here costs the creation no call it would not have made.
+    if let Err(error) = create_private_directory(staging.as_path()) {
+        return Err(GitFailure(format!("the staging folder of the finished shadow {} cannot be made: {error}", staging.display())));
+    }
+    // What: The staging tree is claimed as it is made, and a tree a sweep had already taken is one this fill leaves.
+    // Why:  A half-made member belongs to the fill that is making it, and a tree a removal owns is one whose files would go
+    //       under this creation (`tree_held_by_a_live_process.rs`, `claim_a_made_tree`).
+    //       A fill that cannot keep its tree makes no member at all, which is the answer a pool that could not be filled gives.
+    let claimed: crate::tree_held_by_a_live_process::ClaimOnAMadeTree = match crate::tree_held_by_a_live_process::claim_a_made_tree(staging.clone()) {
+        Ok(claimed) => claimed,
+        Err(crate::tree_held_by_a_live_process::TreeIsGoing) => {
+            crate::diagnostic_log::debug("shadowPool", format!("made no member: a sweep is removing the staging tree {}", staging.display()).as_str());
+            return Ok(None);
+        }
+    };
     // The creation names its own stretches; nothing reads them here, so they are taken and dropped rather than
     // left in the process's ledger for a record that this process never writes.
     let mut clock: BuildPartClock = BuildPartClock::begin("shadow fill");
-    let made: Result<(), GitFailure> = create_shadow_template(context, template, staging.as_path(), &mut clock);
+    let made: Result<(), GitFailure> = create_shadow_template(context, template, claimed_path(&claimed), &mut clock);
+    // The claim goes with the fill: the staging tree is gone from its name once it is published, and a fill that failed removes it first.
+    drop(claimed);
     let _parts = crate::commit_build_part_durations::drain_build_parts();
     if let Err(error) = made {
         let _removed: std::io::Result<()> = remove_tree(staging.as_path());
@@ -491,6 +511,10 @@ pub fn members(root: &Path) -> Vec<PathBuf> {
 ///   A fill publishes its member with one rename,
 /// so anything still named as a fill belongs to a process that stopped,
 /// and nothing else ever claims it.
+///  The age is asked first and the claim second,
+///  so a fill a live process is making is left alone even when a wall clock that stepped forward says its folder is old
+///  (`tree_held_by_a_live_process.rs`),
+///  and a volume that gives no `flock` leaves the age to decide, as it did before the claim existed.
 ///  The moment is a parameter so a control can show the age that removes one.
 ///
 /// In TS you'd write (pseudocode):
@@ -512,11 +536,57 @@ fn sweep_abandoned(root: &Path, now: SystemTime) {
             Ok(modified) => now.duration_since(modified).is_ok_and(older_than_the_fill_age),
             Err(_) => false,
         };
-        if old {
-            let _removed: std::io::Result<()> = remove_tree(entry.path().as_path());
-            crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
+        if !old {
+            continue;
+        }
+        // What: A control may take a live fill's claim at this instant (`shadow_pool_removal_test_support.rs`).
+        // Why:  A fill that claims its staging tree just before this removal is the race the removal's own claim has to answer,
+        //       and nothing else lets a control place it.
+        //       Nothing arms this hook in a run.
+        #[cfg(test)]
+        test_removal::before_the_removal(entry.path().as_path());
+        // What: The removal runs only while this sweep holds the claim on the entry, and holds it until the removal is over.
+        // Why:  A forward step of the wall clock makes a folder a fill wrote moments ago look older than any fill takes;
+        //       a sweep that looked and let go would then remove the staging tree under the live fill that claimed it in
+        //       between (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(entry.path().as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+            let outcome = match remove_tree(path) {
+                Ok(()) => crate::scratch_entry_removal::Removal::Finished,
+                Err(error) => crate::scratch_entry_removal::Removal::Failed(error),
+            };
+            // A removal that runs here holds the claim until it ends; one that runs on goes on holding it.
+            drop(claim);
+            return outcome;
+        }) {
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished) => {
+                crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
+            }
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Unfinished) => {
+                crate::diagnostic_log::debug("shadowPool", format!("the abandoned fill {name} was still being removed and stays for the next sweep").as_str());
+            }
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Failed(error)) => {
+                crate::diagnostic_log::debug("shadowPool", format!("the abandoned fill {name} could not be removed: {error}").as_str());
+            }
+            // A live fill holds it, and a tree a fill is writing is no tree of this sweep's.
+            crate::tree_held_by_a_live_process::SweptRemoval::HeldByALiveProcess => {}
         }
     }
+}
+
+/// Where a claimed staging tree is.
+/// Why:
+///  A fill that was refused the claim gives the tree up,
+///  so the tree it works in is the one its claim named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claimedPath = (claimed) => claimed.claimed?.path() ?? claimed.theVolumeCannotSay
+/// ```
+fn claimed_path(claimed: &crate::tree_held_by_a_live_process::ClaimOnAMadeTree) -> &Path {
+    return match claimed {
+        crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(taken) => taken.path(),
+        crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree) => tree.as_path(),
+    };
 }
 
 /// What:
@@ -545,6 +615,11 @@ fn modification_time(metadata: std::fs::Metadata) -> std::io::Result<SystemTime>
 fn older_than_the_fill_age(age: Duration) -> bool {
     return age > FILLING_STALE_AFTER;
 }
+
+/// The instant before a sweep's removal, for the control that claims there.
+#[cfg(test)]
+#[path = "shadow_pool_removal_test_support.rs"]
+pub(crate) mod test_removal;
 
 /// Pool controls stay out of the release executable.
 #[cfg(test)]

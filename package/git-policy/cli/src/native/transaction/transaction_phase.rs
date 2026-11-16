@@ -112,11 +112,55 @@ pub enum Phase {
     ///   A tree the service removes under that read is the one race of the retry,
     /// so a control needs the instant between the answer and the read.
     ServiceSentBack,
+    /// A commit was handed a finished shadow, its own question of that tree named nothing to refuse,
+    /// and it has not yet written into it.
+    /// Why:
+    ///   A tree that goes between the question and the first write decides whether the commit lands in it or in a tree
+    ///  of its own, and nothing else in a commit can be held at that instant (`shadow_create.rs`,
+    ///  `take_or_create_shadow`).
+    ShadowHanded,
+    /// A commit's shadow is built, with the ref store of this attempt written into it, and Git has not yet run in it;
+    /// repeatable,
+    /// numbered by occurrence (a commit that builds again reaches it again).
+    /// Why:
+    ///   A tree that goes while Git builds in it is the one loss only a second build answers
+    ///  (`service_native.rs`,
+    ///  `build_with_git`),
+    ///  and no other instant of a commit lets a control place that loss.
+    ShadowBuilt,
+    /// A commit kept its copy of the index the command was given,
+    /// and has not yet read the tree that copy names;
+    /// repeatable,
+    /// numbered by occurrence (a capture taken again reaches it again).
+    /// Why:
+    ///   A copy that goes between the keeping and the read is a commit that cannot say what the person staged,
+    ///  and no other instant of a build lets a control place that loss (`service_native.rs`,
+    ///  `the_commit_that_was_asked_for`).
+    CommitCaptureTaken,
+    /// A commit has kept its copy of the index and read the tree that copy names,
+    /// and has not yet made or taken a shadow to build in;
+    /// repeatable,
+    /// numbered by occurrence (a capture taken again reaches it again).
+    /// Why:
+    ///   A commit builds only when what it asked for is known, and a scratch that goes at this instant is one
+    ///  no Git start has yet read (`service_native.rs`,
+    ///  `build_with_git`).
+    CommitCaptured,
+    /// A commit's shadow has the commit Git built in it,
+    /// and the commit has not yet been read back out of it;
+    /// repeatable,
+    /// numbered by occurrence (a commit that builds again reaches it again).
+    /// Why:
+    ///   A tree that goes here takes the ref that names the commit Git made,
+    ///  so the read-back can only answer with its failure (`service_native.rs`,
+    ///  `build_with_git`),
+    ///  and no other instant of a commit lets a control place that loss.
+    ShadowReadable,
 }
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 13] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 18] = [
     Phase::MergeCarried,
     Phase::MergeIntent,
     Phase::MergeClearIndex,
@@ -127,6 +171,11 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 13] = [
     Phase::MergeCarryFile,
     Phase::MergeCarriedBack,
     Phase::ServiceStaged,
+    Phase::CommitCaptureTaken,
+    Phase::CommitCaptured,
+    Phase::ShadowHanded,
+    Phase::ShadowBuilt,
+    Phase::ShadowReadable,
     Phase::ServicePrepared,
     Phase::ServiceSentBack,
     Phase::KeptReferencesListed,
@@ -155,6 +204,11 @@ impl Phase {
             Phase::MergeCarriedBack => return "merge-carried-back",
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
+            Phase::CommitCaptureTaken => return "commit-capture-taken",
+            Phase::CommitCaptured => return "commit-captured",
+            Phase::ShadowHanded => return "shadow-handed",
+            Phase::ShadowBuilt => return "shadow-built",
+            Phase::ShadowReadable => return "shadow-readable",
             Phase::ServicePrepared => return "service-prepared",
             Phase::ServiceSentBack => return "service-sent-back",
             Phase::KeptReferencesListed => return "kept-references-listed",

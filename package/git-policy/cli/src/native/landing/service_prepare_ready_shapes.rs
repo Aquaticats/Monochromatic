@@ -74,8 +74,12 @@ impl Scratch {
     /// const scratch = makeScratch(commonDir, gitDir, name);
     /// ```
     pub fn make(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<Self> {
-        let path: PathBuf = prepare_commit_scratch(common_dir, git_dir, name, SCRATCH_REMOVAL_CEILING)?;
-        let renewal: crate::service_scratch_renewal::ScratchRenewal = crate::service_scratch_renewal::ScratchRenewal::of_a_commit(path.as_path());
+        // The tree is claimed as it is made, so the renewal below takes the claim the making already gave it and no sweep
+        //  can find a made tree unheld.
+        let (path, claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) =
+            prepare_commit_scratch(common_dir, git_dir, name, SCRATCH_REMOVAL_CEILING)?;
+        let renewal: crate::service_scratch_renewal::ScratchRenewal =
+            crate::service_scratch_renewal::ScratchRenewal::start_holding(path.as_path(), crate::scratch_location::SCRATCH_REFRESH_EVERY, claim);
         return Ok(Self(path, false, Some(renewal)));
     }
 
@@ -103,7 +107,7 @@ impl Drop for Scratch {
         if self.1 {
             return;
         }
-        let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING);
+        let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
     }
 }
 

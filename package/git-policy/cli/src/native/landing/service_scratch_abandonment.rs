@@ -70,6 +70,9 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 ///  however old it is, until the service is done with that request.
 ///  Every other entry of a scratch place is the wrapper's own and goes by the age the caller gives it,
 ///  because nothing else ever collects it.
+///  A commit tree that a live process claims goes nothing, whatever age the clock gives it:
+///  a forward step of the wall clock makes a tree a commit is building in look hours old,
+///  and the claim is the one thing a clock step cannot move (`tree_held_by_a_live_process.rs`).
 ///  An entry whose age cannot be told,
 ///  and one dated in the future,
 ///  is never old enough:
@@ -87,10 +90,18 @@ pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_ag
         return false;
     }
     let allowed: Duration = if tree { SCRATCH_TREE_ABANDONED_AFTER } else { max_age };
-    return match age {
-        Some(found) => found > allowed,
-        None => false,
-    };
+    let Some(found) = age else { return false };
+    if found <= allowed {
+        return false;
+    }
+    // What: The age is the whole of the question this function answers; who holds the tree is the removal's to ask.
+    // Why:  A forward step of the clock, as time synchronisation makes after a suspend and a resume, makes the tree of a
+    //       commit that is running look hours old, and a look that let go here would let the removal take that tree under its
+    //       commit: every sweep removes through `remove_as_a_sweep`, which takes the claim and keeps it through the removal
+    //       (`tree_held_by_a_live_process.rs`).
+    //       Asking the claim here as well would be a second question whose answer nobody uses, and a reader would take it for
+    //       the guard.
+    return true;
 }
 
 /// Whether `path` is named as one of the wrapper's commit scratch trees:

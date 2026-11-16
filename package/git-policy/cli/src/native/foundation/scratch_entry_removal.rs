@@ -160,11 +160,16 @@ pub fn unfinished_removals() -> usize {
 ///  The time and the outcome go to the command's timing record,
 ///  so a machine where removals stall says so where a reading looks.
 ///
+///  What the caller keeps alive until the removal ends travels into the removal's thread:
+///  a claim on the tree is one thing that must not end when the caller stops waiting for the removal
+///  (`tree_held_by_a_live_process.rs`,
+///  `remove_as_a_sweep`).
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const removal = removeWithin(path, ceiling); // 'finished' | 'unfinished' | { failed }
+/// const removal = removeWithin(path, ceiling, kept); // 'finished' | 'unfinished' | { failed }
 /// ```
-pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
+pub fn remove_within<Kept: Send + 'static>(path: &Path, ceiling: Duration, kept: Option<Kept>) -> Removal {
     let began: Instant = Instant::now();
     let target: PathBuf = path.to_path_buf();
     // A removal that outlasted its ceiling keeps its thread, so a place is taken before one is started, and a caller that finds
@@ -181,8 +186,16 @@ pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     // What the thread ended with; a thread that outlives the ceiling sends into a channel nobody reads, which is no error.
     let (ended, waited) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let started = std::thread::Builder::new().name(String::from("scratch-removal")).spawn(move || {
+        // What: A control may hold this thread before it deletes anything (`scratch_entry_removal_control_test_support.rs`).
+        // Why:  What happens to a tree after its caller stopped waiting has to be observed from one known instant.
+        //       Nothing arms this seam in a run.
+        #[cfg(test)]
+        test_hold::wait_before_the_deletion();
         // The place belongs to the removal's own work, so a removal its caller stopped waiting for keeps it until that work ends.
         let outcome: std::io::Result<()> = remove_entry(&target);
+        // What this removal held goes with the work it did, and not before it: a caller that stopped waiting at the ceiling
+        //  stopped waiting for the removal, not for what the removal keeps off the tree.
+        drop(kept);
         // It goes back before the answer is sent, so a caller told a removal finished finds its place free: a sweep that
         //  followed one whose removals had just been reported would otherwise find every place held by that sweep's own
         //  work and start nothing (measured on 2026-11-11: 0 of 2 entries removed in the gate's image, `left: 0, right: 2`
@@ -221,6 +234,11 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
     };
     return if metadata.is_dir() { remove_tree(path) } else { std::fs::remove_file(path) };
 }
+
+/// The instant before a removal's thread deletes, for the control that holds it there.
+#[cfg(test)]
+#[path = "scratch_entry_removal_control_test_support.rs"]
+pub(crate) mod test_hold;
 
 /// The removal is controlled in the test module.
 #[cfg(test)]

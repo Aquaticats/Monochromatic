@@ -51,6 +51,7 @@ const COVERED_PREFIXES: &[&str] = &[
     "standards_review_",
     "commit_",
     "diagnostic_",
+    "tree_held_by_a_live_process",
 ];
 
 /// The source files that ship nothing:
@@ -116,6 +117,10 @@ const INVENTORY: &[&str] = &[
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
     "landing/service_index_prestage.rs",
+    // Whether a tree is held by a live process, which no wall-clock step can answer:
+    //  the exclusive flock of one tree's own directory, never waited for, released by the kernel when its holder ends,
+    //  so a sweep asks a question a clock cannot lie to and a killed holder leaves nothing held.
+    "foundation/tree_held_by_a_live_process.rs",
 ];
 
 /// Every `.rs` file below `root`,

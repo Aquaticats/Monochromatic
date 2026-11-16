@@ -9,10 +9,11 @@
 use super::*;
 use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
 use crate::commit_build_part_durations::BuildPartClock;
+use crate::service_shadow_draw::DrawnShadows;
 use crate::shadow_create::{ShadowTemplate, create_shadow_template, may_be_handed_a_tree};
 use crate::shadow_pool::{fill, members, pool_root};
 use crate::shadow_pool_member::refusal;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{fixture, git, git_context, remove, repository, wait_until};
 /// The stand-in service of one control,
 /// and the protocol lines it answers.
 use crate::service_protocol::{ServiceMessage, encode_service};
@@ -197,6 +198,189 @@ fn a_tree_nothing_renewed_is_swept_and_a_fresh_one_is_left() {
 }
 
 /// What:
+///  A tree the service hands a commit is not swept for the age it carried out of the pool,
+///  and the commit that was handed it builds in it and lands there.
+/// Why:
+///  A pool member stands in the pool until a commit takes one,
+///  so a repository nobody committed in for longer than the sweep's bound holds a member already past it,
+///  and the draw's one `rename` keeps that member's modification time.
+///  The renewal a commit holds its tree with beats for the first time `SCRATCH_REFRESH_EVERY` after it starts,
+///  and every wrapped command of the repository sweeps every worktree's drawn folder by that age
+///  (`wrapped_command_notices_snapshots_and_manual_push.rs`,
+///  `sweep_shadow_pools_of_gone_worktrees`),
+///  so a sweep that runs between the hand-out and the commit's first write removes the tree the commit was told to build in.
+///  The stock is asked here as the service asks it,
+///  so the moment a control needs, the answer and then a sweep of the repository, is fixed and never raced.
+#[test]
+fn a_tree_handed_to_a_commit_is_not_swept_for_the_age_it_carried_out_of_the_pool() {
+    let root: PathBuf = fixture("shadow-drawn-handed-then-swept");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    let member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    // The machine stood idle long enough that the member the pool holds is already past the bound.
+    age(member.as_path(), nothing_holds_after() + Duration::from_secs(60));
+    assert!(nothing_holds(member.as_path(), SystemTime::now()), "the member the pool holds is already past the bound");
+    let drawn: PathBuf = draw(&context, &template).expect("a draw").expect("a drawn tree");
+    let stock: std::sync::Arc<DrawnShadows> = DrawnShadows::none_yet();
+    stock.note_ready(drawn.clone());
+    let handed: PathBuf = stock.hand_out().expect("the service answered with the tree it drew");
+    // A swept command of the repository, or another worktree's landing, in that moment: every worktree's drawn folder goes
+    //  by its age alone.
+    let swept: Vec<PathBuf> = sweep_drawn(template.common_dir.as_path(), SystemTime::now());
+    assert!(swept.is_empty(), "a tree handed to a commit must not be removed by the sweep: {swept:?}");
+    assert!(!nothing_holds(handed.as_path(), SystemTime::now()), "the answer marked the tree as used now, so the bound counts from it");
+    let socket: PathBuf = a_stand_in_a_drawn_tree("handed-then-swept", handed.as_path());
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(scratch.as_path()).expect("the commit's scratch tree");
+    let shadow: PathBuf = scratch.join("shadow");
+    let mut clock: BuildPartClock = BuildPartClock::begin("test");
+    let taken: crate::shadow_create::ShadowTree = crate::shadow_create::take_or_create_shadow(
+        &context,
+        repo.as_path(),
+        &capture,
+        shadow.as_path(),
+        scratch.as_path(),
+        false,
+        &mut clock,
+        &crate::service_server_socket_binding::Bind::Path(socket),
+    )
+    .expect("the commit's shadow, built where the service said");
+    assert_eq!(taken.path, handed, "the commit built in the tree it was handed");
+    assert!(taken.handed.is_some(), "and the commit holds it, so its renewal keeps it");
+    assert!(handed.join("packed-refs").exists(), "the commit's own ref store is written in that tree");
+    assert!(handed.join("HEAD").exists(), "and its HEAD names the branch it commits to");
+    remove(root.as_path());
+}
+
+/// What:
+///  A tree a command holds is marked as used from the moment it holds it,
+///  not an hour later.
+/// Why:
+///  A tree arrives with somebody else's last mark on it:
+///  a drawn tree carries the moment it was drawn and then the stock's renewals,
+///  and a tree can reach a holder close to the age a sweep takes one at.
+///  The first renewal is therefore made at once,
+///  so a sweep that runs in the hour after a holder takes a tree cannot find it old
+///  (`service_scratch_renewal.rs`).
+#[test]
+fn a_held_tree_is_marked_as_used_from_the_moment_it_is_held() {
+    let root: PathBuf = fixture("shadow-drawn-held-marked");
+    let tree: PathBuf = root.join("drawn-held-old");
+    std::fs::create_dir(tree.as_path()).expect("a tree to hold");
+    age(tree.as_path(), nothing_holds_after() + Duration::from_secs(60));
+    let _held: HandedShadow = HandedShadow::hold(tree.clone()).expect("the claim of a tree nobody holds");
+    assert!(
+        wait_until(&|| return !nothing_holds(tree.as_path(), SystemTime::now())),
+        "a tree is marked as used from the moment a command holds it"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A step of the wall clock forward does not sweep a tree a live holder keeps,
+///  and it still sweeps a tree nobody holds.
+/// Why:
+///  The age a sweep reads is a difference between the mark a holder wrote and the clock the sweep reads,
+///  and the ordinary way those two clocks differ is time synchronisation after a suspend and a resume:
+///  the clock steps forward and every live tree looks hours old.
+///  A tree a commit is building in is the one thing that age may never take, so the holder's claim answers the
+///  question instead of the clock (`tree_held_by_a_live_process.rs`).
+///  The second arm is the positive control: the sweep still collects what nobody holds at the stepped clock,
+///  so the first arm is the claim and not a sweep that stopped working.
+#[test]
+fn a_clock_step_forward_never_sweeps_a_tree_a_live_holder_keeps() {
+    let root: PathBuf = fixture("shadow-drawn-clock-step");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, _member) = a_member(repo.as_path());
+    let folder: PathBuf = drawn_root(&template);
+    let held: PathBuf = folder.join("drawn-a-tree-a-commit-builds-in");
+    std::fs::create_dir_all(held.as_path()).expect("a tree a commit holds");
+    let _holding: HandedShadow = HandedShadow::hold(held.clone()).expect("the claim of a tree nobody holds");
+    let stopped: PathBuf = folder.join("drawn-a-tree-a-command-that-stopped");
+    std::fs::create_dir_all(stopped.as_path()).expect("a tree nothing holds");
+    // The host clock steps forward three hours, well past the bound and its renewal margin, and a sweep reads it.
+    let stepped: SystemTime = SystemTime::now() + Duration::from_secs(3 * 60 * 60);
+    let removed: Vec<PathBuf> = sweep_drawn(template.common_dir.as_path(), stepped);
+    assert_eq!(removed, vec![stopped.clone()], "only the tree nobody holds goes at the stepped clock: {removed:?}");
+    assert!(held.exists(), "the tree a live holder keeps is still there, and the commit building in it is safe");
+    assert!(!stopped.exists(), "and the tree nothing holds is collected as it was before");
+    remove(root.as_path());
+}
+
+/// What:
+///  A shadow that cannot be written for a reason of its own is the commit's to report:
+///  the old tree or the pool is not tried again in its place.
+/// Why:
+///  The commit falls back only when the tree it was handed went,
+///  because that is a loss of the wrapper's own cache and nothing the person did;
+///  a tree that is still there and cannot be written is a failure of the volume or of the repository,
+///  and a commit that hid it would build a tree it cannot trust either.
+#[test]
+fn a_handed_tree_that_cannot_be_written_is_the_commits_to_report() {
+    let root: PathBuf = fixture("shadow-drawn-cannot-write");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    // The pool's only member is the tree the draw makes, so no member stands in for the one that cannot be written.
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let drawn: PathBuf = draw(&context, &template).expect("a draw").expect("a drawn tree");
+    // A tree every read of the claim's question may take and no write: the ref store of this commit cannot be written into it.
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(drawn.as_path(), std::fs::Permissions::from_mode(0o555)).expect("a tree no write reaches");
+    }
+    assert_eq!(refusal(&template, drawn.as_path()).expect("a check"), None, "the tree is one the commit's question accepts");
+    let socket: PathBuf = a_stand_in_a_drawn_tree("cannot-write", drawn.as_path());
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(scratch.as_path()).expect("the commit's scratch tree");
+    let shadow: PathBuf = scratch.join("shadow");
+    let mut clock: BuildPartClock = BuildPartClock::begin("test");
+    let taken: Result<crate::shadow_create::ShadowTree, crate::transaction_git::GitFailure> = crate::shadow_create::take_or_create_shadow(
+        &context,
+        repo.as_path(),
+        &capture,
+        shadow.as_path(),
+        scratch.as_path(),
+        false,
+        &mut clock,
+        &crate::service_server_socket_binding::Bind::Path(socket),
+    );
+    let Err(reported) = taken else { panic!("a tree that cannot be written must be reported, not replaced") };
+    assert!(reported.0.contains("packed-refs"), "the failure names the write that failed: {}", reported.0);
+    assert!(std::fs::symlink_metadata(drawn.as_path()).is_ok(), "the tree that could not be written is still there for the person to look at");
+    remove(root.as_path());
+}
+
+/// What:
+///  A drawn tree nobody took is removed once its bound has passed,
+///  and the bound that removes it counts from the draw.
+/// Why:
+///  The draw marks the tree it drew as used,
+///  and that mark is the only thing that keeps a tree in the stock,
+///  so a control that a much older member still leaves a tree the sweep collects proves the mark did not turn the bound into never.
+#[test]
+fn a_drawn_tree_nobody_took_is_removed_once_its_bound_has_passed() {
+    let root: PathBuf = fixture("shadow-drawn-bound");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, member) = a_member(repo.as_path());
+    // The member stood in the pool longer than a bound, so a draw that marked nothing would leave a tree that is already old.
+    age(member.as_path(), nothing_holds_after() + Duration::from_secs(60));
+    let drawn: PathBuf = draw(&git_context(), &template).expect("a draw").expect("a drawn tree");
+    assert!(!nothing_holds(drawn.as_path(), SystemTime::now()), "the draw marked the tree as drawn now");
+    // Nobody takes it, and the bound passes with it standing there.
+    age(drawn.as_path(), nothing_holds_after() + Duration::from_secs(1));
+    let removed: Vec<PathBuf> = sweep_drawn(template.common_dir.as_path(), SystemTime::now());
+    assert_eq!(removed, vec![drawn.clone()], "a drawn tree nobody took goes once its bound has passed");
+    assert!(std::fs::symlink_metadata(drawn.as_path()).is_err(), "and it is not there");
+    remove(root.as_path());
+}
+
+/// What:
 ///  The removal of a worktree removes the trees of its own folder that nothing renewed,
 ///  and leaves the tree a commit is running in.
 /// Why:
@@ -271,7 +455,7 @@ fn a_held_tree_is_renewed_while_its_command_lives() {
     let root: PathBuf = fixture("shadow-drawn-renewal");
     let tree: PathBuf = root.join("drawn-renewed");
     std::fs::create_dir(tree.as_path()).expect("a tree to hold");
-    let _held: HandedShadow = HandedShadow::hold_renewed_every(tree.clone(), Duration::from_millis(10));
+    let _held: HandedShadow = HandedShadow::hold_renewed_every(tree.clone(), Duration::from_millis(10)).expect("the claim of a tree nobody holds");
     age(tree.as_path(), Duration::from_secs(60));
     let aged: SystemTime = std::fs::symlink_metadata(tree.as_path()).expect("metadata").modified().expect("a time");
     std::thread::sleep(Duration::from_millis(120));
@@ -292,7 +476,7 @@ fn a_tree_the_service_took_is_left_to_the_service_and_one_it_did_not_is_removed(
     let root: PathBuf = fixture("shadow-drawn-release");
     let taken: PathBuf = root.join("drawn-taken");
     std::fs::create_dir(taken.as_path()).expect("a tree the service takes");
-    let mut held: HandedShadow = HandedShadow::hold(taken.clone());
+    let mut held: HandedShadow = HandedShadow::hold(taken.clone()).expect("the claim of a tree nobody holds");
     held.the_service_removes_it();
     drop(held);
     let removed: PathBuf = root.join("drawn-released");

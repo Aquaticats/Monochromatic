@@ -63,3 +63,39 @@ pub(crate) fn named() -> Vec<PathBuf> {
 pub(crate) fn forget() {
     NAMED.with(|named| { named.borrow_mut().clear(); });
 }
+
+thread_local! {
+    static BEFORE_CLAIM: RefCell<Option<Box<dyn FnMut(&Path)>>> = const { RefCell::new(None) };
+}
+
+/// What:
+///  Sets what a control does at the instant between making a commit's tree and claiming it.
+/// Why:
+///  A sweep that takes the tree's removal claim in that instant is the one race a maker meets,
+///  and a control has to place it there and nowhere else (`tree_held_by_a_live_process.rs`,
+///  `claim_a_made_tree`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// beforeClaim = hook
+/// ```
+pub(crate) fn set_before_claim<F: FnMut(&Path) + 'static>(hook: F) {
+    BEFORE_CLAIM.with(|slot| { *slot.borrow_mut() = Some(Box::new(hook)); });
+}
+
+/// What:
+///  Does what the control set, with the tree it was made as.
+/// Why:
+///  The call site is the only moment this thread has the path and no claim on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// beforeClaim?.(tree)
+/// ```
+pub(crate) fn before_claim(tree: &Path) {
+    BEFORE_CLAIM.with(|slot| {
+        if let Some(hook) = slot.borrow_mut().as_deref_mut() {
+            hook(tree);
+        }
+    });
+}

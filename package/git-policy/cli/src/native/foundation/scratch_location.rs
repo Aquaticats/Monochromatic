@@ -288,7 +288,137 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 /// ```ts
 /// const tree = prepareCommitScratch(commonDir, gitDir, name);
 /// ```
-pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
+pub fn prepare_commit_scratch(
+    common_dir: &Path,
+    git_dir: &Path,
+    name: &str,
+    ceiling: Duration,
+) -> std::io::Result<(PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>)> {
+    // What: A tree is made again when a sweep had already taken the one this attempt made.
+    // Why:  A command descheduled between making its tree and claiming it, or a clock that stepped past the age a sweep
+    //       removes at, lets a sweep take the claim first; that tree is being emptied, and a command that built in it would
+    //       lose its own files under its build (`tree_held_by_a_live_process.rs`, `claim_a_made_tree`).
+    //       The tree a refused maker leaves goes with the sweep that owns it, and the next make takes another name where the
+    //       removal has not finished (`make_a_commit_scratch`).
+    //       The tries are bounded because a maker that could never claim a tree would wait forever; three of them are three
+    //       sweeps meeting one command's own name, and the reason this stops is written in `THE_TREES_A_COMMAND_MAKES_AT_MOST`.
+    let mut attempt_name: String = name.to_string();
+    for attempt in 1..=THE_TREES_A_COMMAND_MAKES_AT_MOST {
+        // What: A tree made after a sweep took the one before it takes a name of its own.
+        // Why:  A sweep that holds the claim on a tree removes it later by the name it was given, and a maker that made its
+        //       next tree under that same name would put a live tree where a removal is about to arrive. The aside's name is
+        //       one no attempt makes, and so is this one (`make_a_commit_scratch`).
+        let tree: PathBuf = make_a_commit_scratch(common_dir, git_dir, attempt_name.as_str(), ceiling)?;
+        // What: A control may take the tree's removal claim between its making and its claim (`scratch_location_removal_targets_test_support.rs`).
+        // Why:  That instant is the one race a maker meets, and nothing else lets a control place it.
+        //       Nothing arms this hook in a run.
+        #[cfg(test)]
+        test_targets::before_claim(tree.as_path());
+        // What: The tree is claimed as it is made, before this call returns it.
+        // Why:  A sweep that listed a tree as stale and removes it later must find the claim of the maker that made it:
+        //       a tree claimed from its first instant is one `may_go` spares and a removal's whole take refuses,
+        //       so no sweep can remove a tree a command is about to work in
+        //       (`service_scratch_abandonment.rs`,
+        //       `sweep_stale`).
+        //       A volume that cannot answer leaves the tree to its modification time, as every tree was kept before the claim existed.
+        match crate::tree_held_by_a_live_process::claim_a_made_tree(tree) {
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
+                let (made, claim): (PathBuf, crate::tree_held_by_a_live_process::HeldTree) = claimed.into_parts();
+                return Ok((made, Some(claim)));
+            }
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(unanswered)) => {
+                debug(TAG, format!("whether {} is held cannot be asked of the volume, so this commit's tree is kept by its modification time", unanswered.display()).as_str());
+                return Ok((unanswered, None));
+            }
+            // The sweep took this tree first: it is going, and this attempt makes another rather than build in a tree a removal is emptying.
+            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => {
+                debug(
+                    TAG,
+                    format!("a sweep had already taken the commit's scratch tree of attempt {attempt}, so this attempt makes another").as_str(),
+                );
+                attempt_name = format!("{name}-again-{}", crate::random_id::random_uuid().unwrap_or_default());
+            }
+        }
+    }
+    return Err(std::io::Error::other(format!(
+        "every one of the {THE_TREES_A_COMMAND_MAKES_AT_MOST} scratch trees this commit made was taken by a sweep before it could be claimed, so nothing was prepared and nothing landed"
+    )));
+}
+
+/// How many commit scratch trees one command makes before it stops, and why.
+/// Why this figure:
+///  A tree is refused only when a sweep had already taken the claim on that very name,
+///  and a sweep is what removes a tree of a command that is gone:
+///  three attempts meet three sweeps on names this command alone makes,
+///  and a fourth would mean sweeps are removing this command's trees as fast as it makes them,
+///  where the honest answer is to say so rather than keep making trees nobody can keep.
+pub const THE_TREES_A_COMMAND_MAKES_AT_MOST: usize = 3;
+
+/// What:
+///  The path the next attempt of one command may build in,
+///  emptied for it.
+/// Why:
+///  A rebuild needs the first attempt's shadow and conclusion copies gone before it writes into those names,
+///  and a removal of them that has not finished keeps its thread and its claim
+///  (`scratch_entry_removal.rs`,
+///  `remove_within`;
+///  `tree_held_by_a_live_process.rs`).
+///  The old tree is moved aside, and the aside is removed bounded;
+///  the answer is the path only when the next attempt may write there,
+///  and nothing when it may not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = thePathTheNextAttemptMayUse(tree, ceiling); // the path, or undefined
+/// ```
+pub fn the_path_the_next_attempt_may_use(tree: PathBuf, ceiling: Duration) -> Option<PathBuf> {
+    // What: The old tree is moved aside in one step, and only the aside is removed.
+    // Why:  A removal that has not finished keeps its thread and its claim, so the name it was given is not free until it
+    //       ends; a rename is one step that cannot be half done, so the name the next attempt writes is free the moment
+    //       this returns, whatever the old removal goes on doing at the aside's name
+    //       (the same rule the leftover handling above follows).
+    let parent: &Path = tree.parent()?;
+    let name: String = tree.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
+    let aside: PathBuf = parent.join(format!("{name}.going-{}", crate::random_id::random_uuid().unwrap_or_default()));
+    match std::fs::rename(tree.as_path(), aside.as_path()) {
+        Ok(()) => {
+            match crate::scratch_entry_removal::remove_within(aside.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>) {
+                crate::scratch_entry_removal::Removal::Finished => {}
+                crate::scratch_entry_removal::Removal::Unfinished => debug(
+                    TAG,
+                    format!("the next attempt's tree is free; what was at {} is still being removed after {ceiling:?}", aside.display()).as_str(),
+                ),
+                crate::scratch_entry_removal::Removal::Failed(error) => debug(
+                    TAG,
+                    format!("what was at {} is left to a later sweep: {error}", aside.display()).as_str(),
+                ),
+            }
+            return Some(tree);
+        }
+        // Nothing is at the name, so nothing is removing anything there and the next attempt may have it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(tree),
+        // The name cannot be moved aside, so the removal is asked for where it is and the path is handed on only when it ended.
+        Err(error) => {
+            debug(TAG, format!("{} cannot be moved aside ({error}), so its removal is asked for where it is", tree.display()).as_str());
+            return match crate::scratch_entry_removal::remove_within(tree.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>) {
+                crate::scratch_entry_removal::Removal::Unfinished => None,
+                _ended => Some(tree),
+            };
+        }
+    }
+}
+
+/// What:
+///  Makes one commit scratch tree and answers where it is.
+/// Why:
+///   It is the making on its own,
+///  which the claim above is taken on as soon as it is a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = makeACommitScratch(commonDir, gitDir, name);
+/// ```
+fn make_a_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
     let covered: Option<PathBuf> = match prepare_repository_scratch_for_a_commit(common_dir) {
         Ok(directory) => Some(directory),
         Err(error) => {
@@ -339,7 +469,7 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
                 // A control checks which name the removal below is given (`scratch_location_removal_targets_test_support.rs`).
                 #[cfg(test)]
                 test_targets::note(aside.as_path());
-                match remove_within(aside.as_path(), ceiling) {
+                match remove_within(aside.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>) {
                     Removal::Finished => {}
                     Removal::Unfinished => debug(
                         TAG,
@@ -363,7 +493,7 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
                 debug(TAG, format!("the leftover {} cannot be moved aside: {error}", tree.display()).as_str());
                 #[cfg(test)]
                 test_targets::note(tree.as_path());
-                if !remove_within(tree.as_path(), ceiling).finished() {
+                if !remove_within(tree.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>).finished() {
                     let fresh: PathBuf = directory.join(format!("{name}-again-{}", crate::random_id::random_uuid().unwrap_or_default()));
                     debug(
                         TAG,
@@ -657,12 +787,27 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
     stale.sort_by(older_first);
     let mut removed: usize = 0;
     for (_, path) in stale.iter().take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND) {
-        // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the
-        //  next sweep, instead of holding the command that asked for scratch for as long as the device takes.
-        match remove_within(path.as_path(), ceiling) {
-            Removal::Finished => removed += 1,
-            Removal::Unfinished => debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str()),
-            Removal::Failed(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
+        // What: The entry is taken whole as the last thing before its removal, and removed only while that claim is held.
+        // Why:  The listing above and this removal are two steps, and a maker that takes its claim between them is a live
+        //       holder of a tree this sweep listed as stale: a sweep that removed what it listed would take a tree a command is
+        //       about to work in (the review's fourth finding; a clock step is what opens the window).
+        //       The claim's whole take is the one answer no clock moves, and a maker has it from the tree's first instant
+        //       (`prepare_commit_scratch`), so the two never overlap
+        //       (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
+        //       The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the
+        //       entry to the next sweep, instead of holding the command that asked for scratch for as long as the device takes.
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(path.as_path(), |within: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+            return remove_within(within, ceiling, claim);
+        }) {
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(Removal::Finished) => removed += 1,
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(Removal::Unfinished) => {
+                debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str());
+            }
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(Removal::Failed(error)) => {
+                debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str());
+            }
+            // A live holder, and no entry of this sweep's to remove.
+            crate::tree_held_by_a_live_process::SweptRemoval::HeldByALiveProcess => {}
         }
     }
     return removed;

@@ -42,6 +42,57 @@ fn may_go_by_the_day(path: &Path) -> bool {
     return may_go(path, &metadata, SystemTime::now(), crate::scratch_location::SCRATCH_STALE_AFTER);
 }
 
+/// What:
+///  A step of the wall clock forward does not take the tree a live commit builds in,
+///  and it still takes a commit tree no live command holds.
+/// Why:
+///  A commit's tree is kept by its renewal at a steady clock;
+///  a clock that steps forward, as time synchronisation makes after a suspend and a resume,
+///  makes that tree look hours old, and the age alone would collect the private index and the scratch repository
+///  under the commit that is building there.
+///  The claim a live command keeps is what answers, and it answers at the removal:
+///  every sweep removes through `remove_as_a_sweep`, which takes the claim and keeps it through the removal
+///  (`tree_held_by_a_live_process.rs`),
+///  and the second arm is the positive control: a tree nobody holds still goes at the stepped clock.
+#[test]
+fn a_clock_step_forward_never_takes_a_commit_tree_a_live_command_builds_in() {
+    let root: PathBuf = fixture("scratch-abandonment-clock-step");
+    let directory: PathBuf = root.join("scratch");
+    std::fs::create_dir_all(directory.as_path()).expect("a scratch place");
+    let building: PathBuf = tree(directory.as_path(), "a-commit-that-is-running");
+    let _held: crate::service_scratch_renewal::ScratchRenewal =
+        crate::service_scratch_renewal::ScratchRenewal::of_a_commit(building.as_path());
+    let stopped: PathBuf = tree(directory.as_path(), "a-commit-that-stopped");
+    let stepped: SystemTime = SystemTime::now() + Duration::from_secs(3 * 60 * 60);
+    let building_metadata: std::fs::Metadata = std::fs::symlink_metadata(building.as_path()).expect("metadata");
+    // The age alone says the tree may go, and the removal is what refuses it: the live command holds the claim.
+    assert!(
+        may_go(building.as_path(), &building_metadata, stepped, crate::scratch_location::SCRATCH_STALE_AFTER),
+        "the age of the tree a live command builds in passed at the stepped clock, which is the case this control is about"
+    );
+    let refused = crate::tree_held_by_a_live_process::remove_as_a_sweep(building.as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+        return crate::scratch_entry_removal::remove_within(path, crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING, claim);
+    });
+    assert!(
+        matches!(refused, crate::tree_held_by_a_live_process::SweptRemoval::HeldByALiveProcess),
+        "a tree a live command builds in does not go, however far the clock stepped: {refused:?}"
+    );
+    let stopped_metadata: std::fs::Metadata = std::fs::symlink_metadata(stopped.as_path()).expect("metadata");
+    assert!(
+        may_go(stopped.as_path(), &stopped_metadata, stepped, crate::scratch_location::SCRATCH_STALE_AFTER),
+        "and a commit tree no live command holds still goes at the stepped clock"
+    );
+    let taken = crate::tree_held_by_a_live_process::remove_as_a_sweep(stopped.as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+        return crate::scratch_entry_removal::remove_within(path, crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING, claim);
+    });
+    assert!(
+        matches!(taken, crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished)),
+        "a tree nobody holds goes at the stepped clock: {taken:?}"
+    );
+    assert!(building.exists(), "the tree of the running commit is still there");
+    remove(root.as_path());
+}
+
 /// The identity the control's request is queued under.
 const A_QUEUED_REQUEST: &str = "scratch-abandonment-queued-request";
 
