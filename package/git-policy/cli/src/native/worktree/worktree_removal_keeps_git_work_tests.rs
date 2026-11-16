@@ -12,7 +12,7 @@
 //! gitWorkARemovalWouldStrand(context, common, worktree, admin) // ['its detached HEAD names the commit ...']
 //! ```
 
-use super::{NAMING_RECORD_FILES, NAMING_RECORDS, detached_head, git_work_a_removal_would_strand};
+use super::{NAMING_RECORD_FILES, NAMING_RECORDS, SHA1_DIGITS, SHA256_DIGITS, complete_lines, detached_head, git_work_a_removal_would_strand, is_a_reflog_file_name, reflog_line_names};
 use crate::worktree_removal_worktrees_it_takes::the_worktrees_it_takes;
 use crate::test_support::{fixture, git, git_context, git_text, repository};
 use crate::transaction_git::GitContext;
@@ -656,3 +656,84 @@ fn clear_dying_name(fixture: &Fixture, place: &str) {
         other => panic!("no kind of name called {other}"),
     }
 }
+
+//region the names Git reads in a folder of logs, and the ones it does not
+
+/// What:
+///  One reflog line as Git writes it, from the parts a control varies.
+/// Why:
+///   A control of the line's grammar must vary one part at a time,
+///  and a line pasted whole hides which part it was that a row broke.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aLine('a'.repeat(40), 'b'.repeat(40), '+0000') // '<old> <new> Fixture <fixture@example.invalid> 1700000000 +0000\tx\n'
+/// ```
+fn a_reflog_line(old: &str, new: &str, zone: &str) -> Vec<u8> {
+    return format!("{old} {new} Fixture <fixture@example.invalid> 1700000000 {zone}\ta message\n").into_bytes();
+}
+
+/// What:
+///  A file name is a reflog's only when Git's own ref name rule takes it.
+/// Why:
+///   A reflog is written through a lock and renamed into place,
+///  so a killed Git leaves a lock beside it,
+///  and reading that lock's lines as names took the only name of a commit
+///  (a review of `09fd2138d7`).
+#[test]
+fn a_file_name_is_a_reflogs_only_when_git_reads_it_as_one() {
+    for name in ["HEAD", "refs", "main", "HEAD.tmp", "head", "topic"] {
+        assert!(is_a_reflog_file_name(name.as_bytes()), "{name} is a name Git reads");
+    }
+    for name in ["", "@", ".hidden", "HEAD.lock", "name with space", "name~1", "name^", "name:", "name?", "name*", "name[", "name.", "a..b", "a@{b}", "name\\x", "tab\there"] {
+        assert!(!is_a_reflog_file_name(name.as_bytes()), "{name} is no name Git reads");
+    }
+}
+
+/// What:
+///  A line names the two objects Git reads from it, or nothing.
+/// Why:
+///   Git writes `old new name <email> time zone<TAB>message` and skips a line of any other shape,
+///  including a last line with no newline,
+///  so a planted line of another shape must prove nothing.
+#[test]
+fn a_reflog_line_names_the_two_objects_git_reads_and_no_others() {
+    let old: String = "a".repeat(SHA1_DIGITS);
+    let new: String = "b".repeat(SHA1_DIGITS);
+    let read = |line: &[u8]| -> Option<(String, String)> { return reflog_line_names(line); };
+    assert_eq!(read(a_reflog_line(&old, &new, "+0000").as_slice()), Some((old.clone(), new.clone())), "a line as Git writes it");
+    let longer: String = "c".repeat(SHA256_DIGITS);
+    assert_eq!(read(a_reflog_line(&longer, &longer, "-0130").as_slice()), Some((longer.clone(), longer.clone())), "a repository of the longer names");
+    for line in [
+        // No newline at the end: Git reads a line only once its newline has been written.
+        format!("{old} {new} Fixture <fixture@example.invalid> 1700000000 +0000\ta message"),
+        // A line of another shape entirely.
+        String::from("this line is not a reflog line\n"),
+        // An ident with no `>` in it, so no name and email Git can tell from the time.
+        format!("{old} {new} Fixture fixture@example.invalid 1700000000 +0000\ta message\n"),
+        // A zone of three digits, and one that is not a number.
+        a_reflog_line(&old, &new, "+000").iter().map(|byte| return *byte as char).collect::<String>(),
+        a_reflog_line(&old, &new, "+00x0").iter().map(|byte| return *byte as char).collect::<String>(),
+        // A shorter name than either kind Git writes.
+        a_reflog_line(&old[..SHA1_DIGITS - 1], &new, "+0000").iter().map(|byte| return *byte as char).collect::<String>(),
+        // A name with a byte that is no hexadecimal digit.
+        a_reflog_line(&format!("{}z", &old[..SHA1_DIGITS - 1]), &new, "+0000").iter().map(|byte| return *byte as char).collect::<String>(),
+    ] {
+        assert_eq!(read(line.as_bytes()), None, "{line:?} names nothing");
+    }
+}
+
+/// What:
+///  The lines of a text that end in a newline are the ones Git reads.
+/// Why:
+///   A writer's last line may be half written,
+///  and Git skips such a line rather than reading a name out of it.
+#[test]
+fn only_complete_lines_are_read() {
+    assert_eq!(complete_lines(b"one\ntwo\n"), vec![b"one\n".as_slice(), b"two\n".as_slice()]);
+    assert_eq!(complete_lines(b"one\ntwo"), vec![b"one\n".as_slice()], "a last line with no newline is not read");
+    assert!(complete_lines(b"").is_empty());
+    assert!(complete_lines(b"no newline at all").is_empty());
+}
+
+//endregion

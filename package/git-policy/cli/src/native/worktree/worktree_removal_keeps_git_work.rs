@@ -666,12 +666,16 @@ fn surviving_reference_names(context: &GitContext, root: &Path) -> Result<Vec<St
 }
 
 /// What:
-///  Every commit named by a log under the common Git directory,
+///  Every commit named by a reflog under the common Git directory,
 ///  which a removal leaves alone.
 /// Why:
 ///   Git's own collection keeps what a reflog names,
 ///  and the reflog of a branch is where the commits an amend or a rebase took off it stay named:
 ///  a question that read only references would report those stranded and keep a worktree nothing stands in the way of.
+///  Only the files Git itself reads as reflogs are read here,
+///  and only the lines of them Git reads,
+///  because a name the collection does not keep proves nothing
+///  (`is_a_reflog_file_name`, `reflog_line_names`).
 ///  The worktree's own logs are not read here:
 ///  they are in its own Git directory, and they die with it.
 ///
@@ -683,18 +687,144 @@ fn surviving_log_names(common_dir: &Path) -> Result<Vec<String>, String> {
     let mut names: Vec<String> = Vec::new();
     let logs: PathBuf = common_dir.join("logs");
     for path in files_beneath(logs.as_path()).map_err(|error| return format!("nothing proves which logs outlive the worktree ({error})"))? {
-        // A log another command is writing may end in a torn line, and a torn line of a surviving log can only make a
-        // commit look stranded, which keeps the worktree rather than losing anything: it is skipped.
+        // A file Git does not read as a reflog names nothing, and reading it anyway authorized a removal: a lock file is
+        // an update that was never renamed into place, and a killed Git leaves one behind (a review of `09fd2138d7`).
+        let Some(name) = path.file_name() else { continue };
+        if !is_a_reflog_file_name(name.as_encoded_bytes()) {
+            continue;
+        }
+        // A log another command is writing may end in a torn line, and Git reads the lines before it: the line itself is
+        // skipped, and the names of the lines Git reads are kept.
         let Ok(text) = crate::private_storage::read_regular_file(path.as_path(), NAME_RECORD_LIMIT) else { continue };
-        for line in String::from_utf8_lossy(text.as_slice()).lines() {
-            for field in line.split_ascii_whitespace().take(2) {
-                if is_an_object_name(field) && field.bytes().any(|byte| return byte != b'0') {
-                    names.push(as_git_prints_an_object_name(field));
+        for line in complete_lines(text.as_slice()) {
+            let Some((old, new)) = reflog_line_names(line) else { continue };
+            for held in [old, new] {
+                if held.bytes().any(|byte| return byte != b'0') {
+                    names.push(held);
                 }
             }
         }
     }
     return Ok(names);
+}
+
+/// What:
+///  Whether Git reads a file of this name as a reflog.
+/// Why:
+///   Git's reflog iterator walks the files below `logs` and skips every one whose own name is not a ref name
+///  (`files_reflog_iterator_advance` in Git's `refs/files-backend.c` asks `check_refname_format(basename,
+///  REFNAME_ALLOW_ONELEVEL)`),
+///  which is what leaves a lock file, a file whose name holds a space and a name ending in a dot no reflog at all:
+///  a reflog is written through a lock and renamed into place, so a killed Git leaves `logs/HEAD.lock` behind,
+///  and reading that file's lines as names authorized a removal that took the only name of a commit
+///  (a review of `09fd2138d7`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isAReflogFileName('HEAD') // true; isAReflogFileName('HEAD.lock') // false
+/// ```
+fn is_a_reflog_file_name(name: &[u8]) -> bool {
+    // `check_refname_format` with `REFNAME_ALLOW_ONELEVEL`, for the one part of a path that a file's name holds.
+    if name.is_empty() || name[0] == b'.' || name.ends_with(b".") || name.ends_with(b".lock") || name == b"@" {
+        return false;
+    }
+    let mut previous: u8 = 0;
+    for byte in name {
+        if byte.is_ascii_control() || *byte == b' ' || b"~^:?*[\\".contains(byte) {
+            return false;
+        }
+        if (previous == b'.' && *byte == b'.') || (previous == b'@' && *byte == b'{') {
+            return false;
+        }
+        previous = *byte;
+    }
+    return true;
+}
+
+/// What:
+///  The lines of a text that end in a newline,
+///  which are the ones Git reads.
+/// Why:
+///   Git's reflog reader takes one line at a time and skips a last line that has no newline
+///  (`show_one_reflog_ent`, `refs/files-backend.c`: `sb->buf[sb->len - 1] != '\n'`),
+///  so a file writing its last line names nothing yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// completeLines('a\nb') // ['a\n']
+/// ```
+fn complete_lines(text: &[u8]) -> Vec<&[u8]> {
+    let mut lines: Vec<&[u8]> = Vec::new();
+    let mut rest: &[u8] = text;
+    while let Some(end) = rest.iter().position(|byte| return *byte == b'\n') {
+        lines.push(&rest[..=end]);
+        rest = &rest[end + 1..];
+    }
+    return lines;
+}
+
+/// What:
+///  The two object names of one reflog line, when Git reads that line as a reflog entry.
+/// Why:
+///   Git writes `old new name <email> time zone<TAB>message` and reads only a line of that shape
+///  (`show_one_reflog_ent`, which checks the two names, the closing `>` of the ident with the space after it,
+///  the time, and the sign and four digits of the zone),
+///  so a line of any other shape names nothing:
+///  a file whose lines Git cannot read is no proof that a commit outlives the removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reflogLineNames('aaa... bbb... Fixture <f@e> 1700000000 +0000\tx\n') // [old, new]
+/// ```
+fn reflog_line_names(line: &[u8]) -> Option<(String, String)> {
+    let body: &[u8] = line.strip_suffix(b"\n")?;
+    let (old, rest) = take_a_reflog_name(body)?;
+    let (new, rest) = take_a_reflog_name(rest)?;
+    // The ident ends at its first `>`, which the space before the time follows.
+    let at: usize = rest.iter().position(|byte| return *byte == b'>')?;
+    let after_ident: &[u8] = rest.get(at + 1..)?.strip_prefix(b" ")?;
+    // The time is a decimal number, and the zone a sign and four digits.
+    let digits: usize = after_ident.iter().position(|byte| return !byte.is_ascii_digit())?;
+    if digits == 0 {
+        return None;
+    }
+    let after_time: &[u8] = after_ident.get(digits..)?.strip_prefix(b" ")?;
+    let sign: &[u8] = after_time.get(..1)?;
+    if sign != b"+" && sign != b"-" {
+        return None;
+    }
+    let zone: &[u8] = after_time.get(1..4 + 1)?;
+    if !zone.iter().all(|byte| return byte.is_ascii_digit()) {
+        return None;
+    }
+    return Some((old, new));
+}
+
+/// What:
+///  One object name at the start of these bytes and the space after it,
+///  or nothing.
+/// Why:
+///   A reflog line begins with two object names of the repository's kind,
+///  and each is followed by one space;
+///  the longer kind is tried first so that a name of the shorter kind is never read as one of the longer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takeAReflogName(`${'a'.repeat(40)} rest`) // ['aaa...', ' rest']
+/// ```
+fn take_a_reflog_name(bytes: &[u8]) -> Option<(String, &[u8])> {
+    for digits in [SHA256_DIGITS, SHA1_DIGITS] {
+        if bytes.len() <= digits || bytes[digits] != b' ' {
+            continue;
+        }
+        let name: &[u8] = &bytes[..digits];
+        if !name.iter().all(|byte| return byte.is_ascii_hexdigit()) {
+            continue;
+        }
+        let text: &str = std::str::from_utf8(name).ok()?;
+        return Some((as_git_prints_an_object_name(text), &bytes[digits + 1..]));
+    }
+    return None;
 }
 
 /// What:
