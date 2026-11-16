@@ -370,8 +370,10 @@ fn a_record_that_settles_during_the_look_is_the_answer() {
     let done: PathBuf = state_directory(work.as_path(), DONE).join(id.as_str());
     let mut settled: bool = false;
     let mut looking = |state: &str| {
-        // The service settles the record once, when the look has already passed the state it stood in.
-        if state == CLAIMED && !settled {
+        // The service settles the record once, after the look has read a state it was not in and before the look reaches
+        //  `claimed`, where it stands: a look that reads the settled states first misses it entirely, and one that reads the
+        //  states in the order records move through them meets `done` after `claimed`.
+        if state == RECOVERING && !settled {
             settled = true;
             std::fs::rename(claimed.as_path(), done.as_path()).expect("the record settles to done");
         }
