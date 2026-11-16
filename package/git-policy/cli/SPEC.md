@@ -10253,7 +10253,7 @@ lines 99 to 110;
 lines 132 to 136),
 and which files it locks is fixed by its own layout while where they lie follows the settings a command carries.
 The one answer reads those settings (`repository_a_command_works_on`,
-`CommandRepository::lock_roots`):
+`CommandRepository::lock_candidates_in`):
 
 - the Git directory:
   `--git-dir`,
@@ -10276,9 +10276,37 @@ The one answer reads those settings (`repository_a_command_works_on`,
 The pass opens and unlinks only the names Git writes, never "a folder's files with a suffix":
 each lock is named exactly where Git names it,
 and a whole folder is read only where nothing but Git's own state can be in it,
-which is `refs` below the common directory (a reference name cannot end in `.lock`) and the sequencer's three folders
+which is `refs` below the common directory (a reference name cannot end in `.lock`),
+the sequencer's three folders
 (a review of `429503238b`,
+finding 3)
+and `worktrees` below the common directory,
+whose every folder is a linked worktree's Git directory.
+
+Two things hold before any of those folders is opened.
+The folder is a Git directory Git itself answers for,
+proved once for the whole invocation
+(`src/native/repo_read/git_directory_proof.rs`,
+`prove_git_directory`):
+the Git and common directories the one answer resolved, resolved again to real paths,
+a `HEAD` that names a reference or an object,
+and an object store with a reference folder,
+or the `commondir` file a linked worktree's Git directory carries.
+A folder an option names that Git would refuse is no place the pass opens or unlinks,
+and no place a record is written
+(a review of `551084db3c`,
 finding 3).
+And each root below those two folders is reached by one walk that opens every component as the folder it is named as
+(`src/native/lock/abandoned_locks.rs`,
+`folder_below_proven`),
+so a link at `refs`, at `worktrees`, at an entry of `worktrees` or at the object store's own folders is no root of this
+repository
+(a review of `58cd4d9f7c`,
+finding 1;
+a review of `3ac1254a73`,
+finding 1;
+a review of `551084db3c`,
+finding 2).
 The directory of an alternate index or a shallow file is read by no walk at all: the one lock there is the selected
 file's own.
 The table of every locked file, with the exact candidate that names it and Git's own file and line, is the doc comment
@@ -10315,8 +10343,18 @@ A Git the wrapper starts is named in the record before it is waited for,
 and its birth is read whatever state it is in by then:
 a Git that took a lock and ended in the instruction after its start is still in the process table as a zombie,
 and its birth is readable there.
-When even that record cannot be written the child is stopped and reaped and the error is returned,
-so no Git runs unaccounted for.
+A record that cannot be written never fails the command.
+The folder's path may hold a person's file or something another program left,
+and whatever stands there is never removed,
+replaced or written through:
+the start drops the line,
+says once in a warning that this command runs with no record,
+and what that costs (a lock of that Git, if it is killed, keeps the bounded wait instead of being cleared at once,
+and may have to be removed by hand).
+Before this, a wrapped commit failed with `File exists (os error 17)` and started no Git at all,
+while plain Git committed the same change
+(a review of `551084db3c`,
+finding 1).
 Every open in the lock-holders folder is a plain-file open:
 it cannot wait,
 follows no link,

@@ -3691,7 +3691,12 @@ and without a named Git directory the repository is found by walking up.
 The pass opens only the names Git writes:
 each lock is named exactly where Git names it,
 and a whole folder is read only where nothing but Git's state can be in it,
-which is `refs` and the sequencer's three folders.
+which is `refs`, `worktrees` and the sequencer's three folders.
+Nothing is opened or unlinked in a folder Git itself does not accept as a Git directory,
+and every folder of it is reached by a path with no link in any component,
+so a `--git-dir` naming an ordinary folder, or a link at `refs` or `worktrees`, is no place the pass touches.
+A record the wrapper cannot write is a warning, never a failed command:
+a file standing where the record folder would be is left exactly as it is.
 A file of a person's named `something.lock` beside an alternate index, or in a Git directory, is never opened or
 unlinked.
 A lock in the per-user or system config, a `--file` config, the credential store, a bundle or a marks file

@@ -726,22 +726,27 @@ fn a_record_that_cannot_name_a_git_that_already_became_it_does_not_fail_the_comm
 }
 
 /// What:
-///  A named pipe at this process's record path fails the start before any Git runs,
-///  instead of holding the command inside `spawn`.
+///  A named pipe at this process's record path neither holds the command inside `spawn`
+///  nor stops the Git it cannot record.
 /// Why:
 ///  The the parent's own note once answered success for whatever stood at the path,
 ///  and the child's append then waited on the pipe with no reader,
 ///  so a Git command waited forever before Git started
 ///  (a review of `58cd4d9f7c`,
 /// finding 3).
+///  The pipe is opened with `O_NONBLOCK` and never waited on,
+///  the line is dropped,
+///  and the command runs as it would with no record
+///  (a review of `551084db3c`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// mkfifo(thisProcessRecordPath(common)); const began = Date.now();
-/// awaitReject(spawnNamingItsChild(command)); expect(Date.now() - began).toBeLessThan(5000); expect(existsSync(marker)).toBe(false)
+/// mkfifo(thisProcessRecordPath(common)); const began = Date.now(); const child = spawnNamingItsChild(command);
+/// expect(Date.now() - began).toBeLessThan(5000); expect(child.status).toBe(0); expect(existsSync(marker)).toBe(true)
 /// ```
 #[test]
-fn a_named_pipe_at_the_record_path_fails_the_start_before_a_git_runs() {
+fn a_named_pipe_at_the_record_path_neither_holds_the_start_nor_stops_the_git() {
     let root: PathBuf = fixture("forward-record-pipe");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(crate::lock_holder_records::folder_of(common.as_path()).as_path()).expect("the record folder");
@@ -756,27 +761,35 @@ fn a_named_pipe_at_the_record_path_fails_the_start_before_a_git_runs() {
     let began: std::time::Instant = std::time::Instant::now();
     let started = crate::forwarding::spawn_naming_its_child(&mut git_command(program.as_path(), &[], &[], StartOwner::Wrapper));
     assert!(began.elapsed() < std::time::Duration::from_secs(5), "the start answers at once instead of waiting for a reader: {began:?}");
-    assert!(started.is_err(), "a record path that holds a pipe fails the start: {started:?}");
-    assert!(!marker.exists(), "no Git ran");
+    let mut child = started.expect("a record path that holds a pipe never fails the start");
+    let ended = child.wait().expect("the Git ends");
+    assert!(ended.success(), "the Git runs and ends plainly: {ended:?}");
+    assert!(marker.exists(), "and it really ran");
     remove(root.as_path());
 }
 
 /// What:
-///  A link at this process's record path fails the start,
-///  and the file it names is not written to.
+///  A link at this process's record path is never written through,
+///  and the command it cannot record runs anyway.
 /// Why:
-///  The the child's append open had no `O_NOFOLLOW`,
+///  The child's append open had no `O_NOFOLLOW`,
 ///  so the record line was added to whatever the link named
 ///  (a review of `58cd4d9f7c`,
 /// finding 4).
+///  What follows from the record's own rule is that the start does not fail:
+///  the line is dropped,
+///  a warning names the folder,
+///  and Git runs
+///  (a review of `551084db3c`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// symlink(personsFile, thisProcessRecordPath(common)); awaitReject(spawnNamingItsChild(command));
-/// expect(readFileSync(personsFile)).toEqual(original)
+/// symlink(personsFile, thisProcessRecordPath(common)); const child = spawnNamingItsChild(command);
+/// expect(child.status).toBe(0); expect(readFileSync(personsFile)).toEqual(original)
 /// ```
 #[test]
-fn a_link_at_the_record_path_fails_the_start_and_leaves_the_persons_file_alone() {
+fn a_link_at_the_record_path_is_never_written_through_and_the_command_runs() {
     let root: PathBuf = fixture("forward-record-link");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(crate::lock_holder_records::folder_of(common.as_path()).as_path()).expect("the record folder");
@@ -791,8 +804,10 @@ fn a_link_at_the_record_path_fails_the_start_and_leaves_the_persons_file_alone()
     let script: String = format!("#!/bin/sh\n: > '{0}'\nexit 0\n", marker.display());
     executable(program.as_path(), script.as_bytes());
     let started = crate::forwarding::spawn_naming_its_child(&mut git_command(program.as_path(), &[], &[], StartOwner::Wrapper));
-    assert!(started.is_err(), "a record path that is a link fails the start: {started:?}");
-    assert!(!marker.exists(), "no Git ran");
+    let mut child = started.expect("a record path that is a link never fails the start");
+    let ended = child.wait().expect("the Git ends");
+    assert!(ended.success(), "the Git the person asked for runs and ends plainly: {ended:?}");
+    assert!(marker.exists(), "and it really ran");
     assert_eq!(std::fs::read(persons_file.as_path()).expect("the person's file is still there"), persons_bytes, "the person's file is not written to");
     remove(root.as_path());
 }
