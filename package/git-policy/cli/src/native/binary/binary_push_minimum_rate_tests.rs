@@ -122,6 +122,23 @@ const HANGING_HOOK_SECONDS: u64 = 1000;
 /// so the control measures the floor and not the window.
 const SILENT_HOOK_SECONDS: u64 = 2;
 
+/// What:
+///  The payload of the control whose server reads the upload slowly:
+/// a kilobyte the server takes about thirteen seconds over at eight bytes every tenth of a second,
+/// which is longer
+///  than the connected window and short enough to drain when the control ends.
+/// Why:
+///   That control's subject is the rate the connection carries,
+/// not the size of the pack,
+/// and its relay reads the pack
+///  at that pace after the push is stopped and is joined when the relay is dropped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PAYLOAD_BYTES_FOR_A_SLOW_READER = 4096; // 4096 / 8 * 100 ms = 51 s: too long to drain
+/// ```
+const PAYLOAD_BYTES_FOR_A_SLOW_READER: usize = 1024;
+
 /// The payload of a control's commit,
 /// in bytes,
 /// incompressible so the pack that is sent is about its size.
@@ -653,13 +670,29 @@ fn still_alive(pids: &[i32]) -> Vec<i32> {
 /// with one staged file whose content is incompressible,
 /// so the pack the push sends is about its size.
 fn world(fixture: &Fixture, relay: &Relay) -> PathBuf {
+    return world_with(fixture, relay, PAYLOAD_BYTES);
+}
+
+/// What:
+///  The same repository with a payload of `payload_bytes`.
+/// Why:
+///   A control whose server reads slowly drains the pack at its own pace after the push is stopped,
+/// and the relay's thread
+///  is joined when the relay is dropped,
+/// so a control that means to read slowly chooses a pack it can drain.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worldWith = (fixture, relay, payloadBytes) => writePayload(repository(fixture, 'repo'), payloadBytes);
+/// ```
+fn world_with(fixture: &Fixture, relay: &Relay, payload_bytes: usize) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     git(fixture, repo.as_path(), &["remote", "add", "origin", relay.url("remote.git").as_str()]);
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     // A file that does not compress, so the size the push sends is the size this control chose: a linear congruential
     //  sequence is incompressible enough for this and needs no dependency.
     let mut state: u64 = 0x2545_f491_4f6c_dd1d;
-    let payload: Vec<u8> = (0..PAYLOAD_BYTES)
+    let payload: Vec<u8> = (0..payload_bytes)
         .map(|_| {
             state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
             // The top byte of the state: every byte of this payload is its own, so the pack the push sends is about its size.
@@ -962,7 +995,9 @@ fn a_server_that_reads_the_upload_slowly_is_ended_at_the_connected_window() {
         whole_advertisement: true,
     };
     let relay: Relay = Relay::start(projects.as_path(), pace);
-    let repo: PathBuf = world(&root, &relay);
+    // A pack the slow reader drains in about thirteen seconds at its own pace, which is longer than the window and short
+    //  enough that the relay's thread ends when the control drops it.
+    let repo: PathBuf = world_with(&root, &relay, PAYLOAD_BYTES_FOR_A_SLOW_READER);
     let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
     assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
     assert!(relay.counts.read() > 0, "the server read the upload the slow line was carrying");
