@@ -1632,6 +1632,33 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Integration pass 55 is in `main`; seven other runs ended during the owner's questions and are not yet read (2026-11-15T19:47:56-05:00)
+
+Not final and not approved:
+what the pass reports and what the coordinating session did.
+
+Pass 55 reported fit at `ec1215f55f` and was merged as `e4a33a35e5` at 19:47:56.
+`git log ec1215f55f..main -- package/git-policy/ toolchain.lock.json Cargo.lock` was empty,
+and what the merge changed is thirteen files under `src/native/binary/`, test support and tests alone, so no release follows.
+It carries the shared wait of the binary controls (`e12b36fd81`, by the owner's "Merge now, fix after") and the three gate controls (`8182b750e7`).
+
+From its report (`~/temp/agent/integration-pass-55-scratch/keep/`):
+
+- One repair of its own, `079ddfc8a5`: a control `main` gained after the branch's base asserted the old sentence of the shared wait; it now asserts its own intent. Test code.
+- Whole library suite once: 7,928 of 7,929 passed; the one failure,
+  `invocation::started_as_git::tests::a_record_of_a_live_process_above_continues_the_chain_through_relays`,
+  passes alone and fails when an unrelated live process happens to have the number it assumes free. Nobody owns it yet.
+- Binary suite twice: four failed each time.
+  Two are the `cli-git-lock-holders` folder left (the gate's known two);
+  one is the checkout migration control that fails only inside the suite;
+  one is the shared wait's own new control `a_command_that_never_ends_is_ended_at_its_bound`, the review's first finding reproduced
+  (the inner `timeout` won the race at an equal deadline). Its fix (`b193af3bdf`) has its review; a gate before that fix can be red at it.
+
+Ended between 19:23 and 19:43 and still to be read, in the order they ended:
+the review of the shared wait's fix, the resumed wake's folder (author), the landed removal's seventeenth run (author),
+the checkout migration's third run (author), the review of the branch that keeps a Pi run out of the main checkout,
+the review of the long-runtime-directory controls.
+
 ##### Two fresh runs end: a diagnostic written to a pipe nobody reads held a commit and a `git add` for good on `main`'s code, and the guess in a settlement's line is gone (2026-11-15T19:19:21-05:00)
 
 Not final and not approved:
@@ -39587,6 +39614,29 @@ The machine:
 
 - OpenSnitch's reject rules for freshly built programs: **"You remove the piled-up rules and you add regex allow rules so we'd never have to worry about it again."**
   The session reads the rule files first and asks the scope of the allow rules before changing the firewall.
+
+Rounds twelve to fourteen, written here at 2026-11-15T19:56:30-05:00:
+
+- The 3,606 `rn-<number>-0` and 134 `rt-<number>-0` folders at the top of `~/temp/agent`: **"Delete those older than a day, and fix the tests (Recommended)"**.
+- The IDE and a blank at the end of a wrapped row: **"Adopt the CSS rule (Recommended)"**.
+- Container images held only by exited containers: **"Yes, after 24h."** (the option offered a week).
+- The order of work: **"Pass 55 now, then the remaining questions (Recommended)"**.
+- The firewall's allow rules, asked by folder: **"No no no. It should be regex allow rules matching specific programs. Allowlisting a whole worktree is never good. Like for example how I allowlisted codex."**
+  Asked again by program, ticked: **"This repository's five tools as built"**, **"Tool managers in agents' throwaway homes"**,
+  and typed: **"You're still proposing allowlist too much on the launchers. What happened to "allowlist per program"? For example, tokei doesn't need network."**
+  So: one regex per program, the program's name at the end of the pattern, in the launcher folders too; no pattern ends in "any name".
+  The session twice offered a wider rule than the owner's stated principle; the second time after being told.
+- The two root-owned folders in an old build folder: **"Remove both, and fix the tests (Recommended)"**.
+- `hall-monitor/daemon` and its lint rule: **"Move hall-monitor to package-paused altogether."**
+- A token source for `mise` inside agents: **"Anonymous until a limit is hit (Recommended)"**.
+- Four older picks, each ticked as confirmed: **"Port three fixes, leave the branch"** (copy-in-service), **"Launcher records heal on next run"**,
+  **"Retire old-style build folders after 7 idle days"**, **"Limits share the sweep's reading, with those numbers"**.
+- Four more: ticked **"Renewal stop has a measured ceiling"**, **"A commit does not wait for an earlier flush"**, **"The two tokio choices stand"**;
+  and for the linter, typed: **"No, we need to follow oxlint's --fix. Oxlint isn't whitespace-only by default."**
+  So `monochromatic-lint --fix` follows oxlint's `--fix` and the whitespace-only default is reversed.
+  That option also carried the blockquote continuation, which the answer does not speak to; it stays as built until asked alone.
+- Four small actions, each ticked: **"Add the four retired codes to your local file"**, **"Keep SSH_AUTH_SOCK blocked"**,
+  **"Mount unit's stop succeeds when nothing is mapped"**, **"Remove the dead old-name units and 0.5.34 folder"**.
 
 Settled by a recorded rule and therefore not asked, each open to veto:
 the two constants of the push stop and the 5 ms retry of a refused log line are decided by a measurement, since a shipped limit cites one;
