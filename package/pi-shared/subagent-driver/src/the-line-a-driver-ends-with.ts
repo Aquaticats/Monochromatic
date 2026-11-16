@@ -165,6 +165,21 @@ function compactionNoteOf(summary: RunSummary,): string {
 }
 
 /**
+ Says what the run was waiting for when Pi never reported the masking of secret values in place, so a reader knows the run refused
+ to work rather than failed at something else.
+
+ @param summary - what the caller reads
+
+ @returns the note, in words, or nothing when that is not why the run ended
+ */
+function maskingNoteOf(summary: RunSummary,): string {
+  return (summary.endReason === 'masking-not-armed')
+    ? ', because the extension that masks secret values in its tool results never reported arming with the values the driver'
+      + ' handed Pi, so no prompt was sent and Pi\'s standard error says why the extension did not load'
+    : '';
+}
+
+/**
  Builds the line the driver prints as a run that did not end on its own terms ends, naming where the summary and Pi's standard
  error are.
 
@@ -189,7 +204,7 @@ export function endingLineOf({
   /**
    What the line says before the files it names, ending where the reason it quotes already ended a sentence.
    */
-  const sentence = `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}`;
+  const sentence = `The Pi run ended with "${summary.endReason}"${maskingNoteOf(summary,)}${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}`;
   return `${sentence}${sentence.endsWith('.') ? '' : '.'} The summary is in ${
     join(
       runFolder,
