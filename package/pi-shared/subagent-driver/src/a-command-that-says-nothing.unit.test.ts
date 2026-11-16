@@ -1968,3 +1968,187 @@ await describe({
     },),
   ],
 },);
+
+await describe({
+  name: 'what the ending of a silent operation leaves behind',
+  children: [
+    it({
+      name: 'stays up for the turn an accepted recovery message starts, and ends on its wall clock when that turn never comes',
+      fn: async () => {
+        // The machine's clock: a turn that never comes is a silence, and the idle path is what a silence reaches.
+        await using run = await startRunAtTheRealClock();
+        observe(run, { type: 'agent_start', },);
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'call-silent',
+          toolName: 'bash',
+          args: COMMAND_ARGS,
+        },);
+        /**
+         Every command the watch sent Pi.
+         */
+        const sent: Record<string, unknown>[] = [];
+        /**
+         How long the run may last, which is the bound its silent stretch is meant to reach when no turn answers the message.
+         */
+        const wallMilliseconds = 900;
+        const endReason = await watchUntilEnded({
+          // The abort settles the operation, and the recovery message is accepted: what never comes is the turn it asked for.
+          connection: endingConnection({
+            sent,
+            abort: 'done',
+            message: 'done',
+            before: {
+              abort: function settle() {
+                observeAbortedCall(run, 'call-silent',);
+              },
+            },
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.folder,
+            silentSeconds: PAST_BOTH_TIMES_SECONDS,
+            silentEndSeconds: PAST_BOTH_TIMES_SECONDS,
+            idleSeconds: 0.05,
+            milliseconds: wallMilliseconds,
+          },),
+          inbox: join(run.folder, 'inbox',),
+          deadline: Date.now() + wallMilliseconds,
+        },);
+        expect(sent.map((command,) => command.type,),).toEqual(['abort', 'prompt',],);
+        // The one settle is the abort's: no turn answered the message, so the run must not end as one that finished its turn.
+        expect(run.record.settledCount(),).toBe(1,);
+        expect(endReason,).toBe('wall-clock',);
+      },
+    },),
+    it({
+      name: 'names every command the abort ended, including one that started while the abort was on the wire',
+      fn: async () => {
+        await using run = await startRunInASilentCommand();
+        /**
+         Every command the watch sent Pi.
+         */
+        const sent: Record<string, unknown>[] = [];
+        const watch = watchOf({
+          run,
+          connection: endingConnection({
+            sent,
+            abort: 'done',
+            message: 'done',
+            before: {
+              abort: function endTheOperation() {
+                // Work already queued starts while the abort is on the wire, and the same abort then ends both calls.
+                observe(run, {
+                  type: 'tool_execution_start',
+                  toolCallId: 'call-late',
+                  toolName: 'bash',
+                  args: { command: 'command-late', },
+                },);
+                observe(run, {
+                  type: 'tool_execution_end',
+                  toolCallId: 'call-silent',
+                  toolName: 'bash',
+                  isError: true,
+                  result: { content: [], },
+                },);
+                observe(run, {
+                  type: 'tool_execution_end',
+                  toolCallId: 'call-late',
+                  toolName: 'bash',
+                  isError: true,
+                  result: { content: [], },
+                },);
+                observe(run, { type: 'agent_settled', aborted: true, },);
+              },
+            },
+          },),
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
+        },);
+        await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },);
+        /**
+         What the agent was told.
+         */
+        const told = String(sent[1]?.message,);
+        // The call the driver took for the operation, and the one that started after it looked, are both work this abort ended.
+        expect(told,).toContain('command-late',);
+        expect(told,).toContain('rg -l --fixed-strings something',);
+      },
+    },),
+    it({
+      name: 'ends the operation at its stated ending time whatever order the two stated times come in',
+      fn: async () => {
+        /**
+         The two stated times the driver ships, which every order below is generated from.
+         */
+        const stated = [
+          SILENT_ENDING_SECONDS,
+          SILENT_NOTICE_SECONDS,
+        ] as const;
+        /**
+         Every order of them: the ending before the notice, the two equal, and the ending after the notice.
+         */
+        const orders = [
+          {
+            ending: Math.min(...stated,),
+            notice: Math.max(...stated,),
+          },
+          {
+            ending: stated[0],
+            notice: stated[0],
+          },
+          {
+            ending: Math.max(...stated,),
+            notice: Math.min(...stated,),
+          },
+        ];
+        for (const order of orders) {
+          /* oxlint-disable eslint/no-await-in-loop -- one order of the two times at a time, each its own run. */
+          await using run = await startRunAtAClock();
+          observe(run, { type: 'agent_start', },);
+          observeCommandStart(run,);
+          /**
+           Every command the watch sent Pi.
+           */
+          const sent: Record<string, unknown>[] = [];
+          const watch = watchOf({
+            run,
+            connection: endingConnection({
+              sent,
+              abort: 'done',
+              message: 'done',
+              before: {
+                abort: function settle() {
+                  observeAbortedCall(run, '',);
+                },
+              },
+            },),
+            silentSeconds: order.notice,
+            silentEndSeconds: order.ending,
+          },);
+          // A notice that is due before the ending is written, and ends nothing.
+          if (order.notice < order.ending) {
+            run.clock.at = order.notice * MILLISECONDS_PER_SECOND;
+            await aSilenceInTheRun({
+              watch,
+              waited: {},
+            },);
+            expect(sent,).toHaveLength(0,);
+            expect(await linesOfKindWhenWritten(join(run.folder, 'feed.jsonl',), 'silence',),).toHaveLength(1,);
+          }
+          // At the ending the operation is due, whatever the notice time is.
+          run.clock.at = order.ending * MILLISECONDS_PER_SECOND;
+          await aSilenceInTheRun({
+            watch,
+            waited: {},
+          },);
+          // oxlint-enable eslint/no-await-in-loop
+          expect(sent.map((command,) => command.type,),).toEqual(['abort', 'prompt',],);
+        }
+      },
+    },),
+  ],
+},);
