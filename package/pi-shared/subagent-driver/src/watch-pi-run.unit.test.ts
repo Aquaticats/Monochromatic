@@ -1,7 +1,8 @@
 /**
  The watch of a run, after its prompt was sent, against a connection and a feed a test owns. The bounds that keep a stalled
- delivery from holding a run are judged here, where no process starts and no start-up can spend the run's own clock, so a busy
- host cannot decide the outcome.
+ delivery from holding a run are judged here, where no process starts and no start-up can spend the run's own clock, and each
+ test owns the run's clock itself: a run ends when the test moves that clock, never because a look happened to cost more on a busy
+ machine than a number of milliseconds the test wrote down.
 
  @module
  */
@@ -20,6 +21,7 @@ import {
   describe,
   expect,
   it,
+  type TestContext,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
@@ -45,16 +47,19 @@ import {
 const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
- Milliseconds a run here may last: enough for the watch to take one look, deliver one message and take another look. The watch
- looks every `POLL_MILLISECONDS`, so no part of this is a sleep whose length a test guessed.
+ Milliseconds of wall clock a run here gets when its bound is not the subject: far above every look and every bound a fixture
+ waits out, so a watch that never reaches the end its test means is reported as one that hit its wall clock instead of holding the
+ suite. A look was measured at about half a second under `CPUQuota=1%` on 2026-11-15, so this is a hundred looks' worth, and the
+ decision a test asserts never rests on it: a test that wants the run's bound to pass moves its own clock onto it.
  */
-const RUN_MILLISECONDS = 2 * POLL_MILLISECONDS;
+const BOUND_ABOVE_EVERY_LOOK_MILLISECONDS = 60_000;
 
 /**
- Milliseconds a run here may last when the watch must take a further look: one look to see the failure, one to answer it, and
- one to look again. Derived from the poll so no part of it is a sleep a test guessed.
+ Milliseconds a run here may last when the bound itself is the subject: enough for the watch to take one look, deliver one
+ message and take another look. The watch looks every `POLL_MILLISECONDS`, so no part of this is a sleep whose length a test
+ guessed.
  */
-const HOLD_MILLISECONDS = 3 * POLL_MILLISECONDS;
+const RUN_MILLISECONDS = 2 * POLL_MILLISECONDS;
 
 /**
  Seconds of silence after which a settled run would end. Every run here is one Pi is at work on, so this never decides anything;
@@ -129,8 +134,78 @@ type RunUnderTest = {
   readonly runFolder: string;
   readonly inbox: string;
   readonly record: RecordOfPiRun;
+
+  /**
+   Finishes writing the feed, once, so a reader reads a file its writer has done with rather than one it still holds.
+   */
+  readonly closeFeed: () => Promise<void>;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
+
+/**
+ A run's clock, which one test owns: the machine's own clock plus a distance the test adds, so the run's wall clock passes at the
+ look the test means and never because a look cost more on a busy machine before the test got there.
+ */
+type RunClock = {
+  readonly now: () => number;
+  readonly advance: (milliseconds: number) => void;
+};
+
+/**
+ The machine's clock, with a distance the test adds to it.
+
+ A driver measures a run's wall clock against the time of the day, so a run whose bound is short is over before a busy machine has
+ taken the looks its test needs: that is how the 429 and wake tests failed on 2026-11-15. Each test here gives its run a bound far
+ above every look it needs, and the test that wants that bound to pass moves this clock onto it, which ends the run at the look the
+ test means whatever the machine's speed. A clock that is never moved is the machine's own, so a watch that never reaches the end
+ its test means is ended by the run's bound rather than holding the suite. The test's sandbox puts the machine's clock back when
+ the test ends.
+
+ @param ctx - the test's own context, whose sandbox restores the machine's clock
+
+ @returns the clock this test moves
+
+ @example
+ ```ts
+ const clock = ownTheClock(ctx,);
+ clock.advance(BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,);
+ ```
+ */
+function ownTheClock(ctx: TestContext,): RunClock {
+  /**
+   The machine's clock, which this test replaces and whose sandbox puts back.
+   */
+  const machineNow: () => number = Date.now;
+  /**
+   How far this test has moved the clock, which is nothing until it moves it.
+   */
+  const distance: { milliseconds: number } = { milliseconds: 0, };
+
+  /**
+   Where this test's clock stands.
+
+   @returns milliseconds since the epoch, as the machine's clock reads them plus the distance this test added
+   */
+  function now(): number {
+    return machineNow() + distance.milliseconds;
+  }
+
+  /**
+   Moves this test's clock forward.
+
+   @param milliseconds - how far, as a length of time
+   */
+  function advance(milliseconds: number,): void {
+    distance.milliseconds += milliseconds;
+  }
+
+  ctx.sinon.stub(Date, 'now',)
+    .callsFake(now,);
+  return {
+    now,
+    advance,
+  };
+}
 
 async function makeFolder(): Promise<DisposableFolder> {
   const path = await mkdtemp(join(scratchRoot(), 'pi-watch-',),);
@@ -160,7 +235,7 @@ async function makeFolder(): Promise<DisposableFolder> {
  */
 function optionsOf({
   runFolder,
-  milliseconds = RUN_MILLISECONDS,
+  milliseconds = BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
   retryCap = 0,
   retryBaseSeconds = 1,
   idleSeconds = IDLE_SECONDS,
@@ -198,12 +273,27 @@ async function startRun(): Promise<RunUnderTest> {
   const inbox = join(runFolder, 'inbox',);
   await mkdir(inbox,);
   const record = startRecordOfPiRun({ feedFile: join(runFolder, 'feed.jsonl',), },);
+  /**
+   The one close of this run's feed, so a test that reads the feed and the disposer never close it twice.
+   */
+  const closed: { writing?: Promise<void> } = {};
+
+  /**
+   Finishes writing the feed, once.
+
+   @returns what ends when the feed's last line is written
+   */
+  function closeFeed(): Promise<void> {
+    closed.writing ??= record.close();
+    return closed.writing;
+  }
   return {
     runFolder,
     inbox,
     record,
+    closeFeed,
     async [Symbol.asyncDispose]() {
-      await record.close();
+      await closeFeed();
       await folder[Symbol.asyncDispose]();
     },
   };
@@ -345,11 +435,31 @@ function refuseDialog(): void {
 
  @param boundsAsked - where the bounds the wait was given are recorded
 
+ @param onLook - what the test does at the start of a look, counted from one
+
+ @param onAnswer - what the test does once the stall is over, such as moving its clock past the run's own bound
+
  @returns the connection a watch reads
  */
-function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; },): ConnectionToPi {
+function stallingConnection({
+  boundsAsked,
+  onLook,
+  onAnswer,
+}: {
+  readonly boundsAsked: number[];
+  readonly onLook?: (look: number) => void;
+  readonly onAnswer?: () => void
+},): ConnectionToPi {
+  /**
+   Which look the watch is taking, counting from one, which only the watch's own question changes.
+   */
+  const looks: { taken: number } = { taken: 0, };
   return {
-    hasExited: () => false,
+    hasExited: function hasExited(): boolean {
+      looks.taken += 1;
+      onLook?.(looks.taken,);
+      return false;
+    },
     exitDetails: () => ({}),
     write: function write() {
       throw new Error('the watch was not expected to write without waiting for an answer',);
@@ -373,6 +483,7 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
       // The timer holds this process up while it stalls, so a wait given a long bound is waited out and judged, never left to a
       // process that ran out of work and exited.
       await wait(bound,);
+      onAnswer?.();
       return {
         ending: 'silence',
         problem: `no answer in ${String(bound,)} ms`,
@@ -391,19 +502,32 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
 
  @param refuses - whether Pi refuses each prompt instead of taking it
 
+ @param onLook - what the test does at the start of a look, counted from one, such as moving its clock past the run's own bound or
+ letting a reply land between two looks
+
  @returns the connection a watch reads
  */
 function answeringConnection({
   sent = [],
   disposition,
   refuses = false,
+  onLook,
 }: {
   readonly sent?: string[];
   readonly disposition?: string;
-  readonly refuses?: boolean
+  readonly refuses?: boolean;
+  readonly onLook?: (look: number) => void
 } = {},): ConnectionToPi {
+  /**
+   Which look the watch is taking, counting from one, which only the watch's own question changes.
+   */
+  const looks: { taken: number } = { taken: 0, };
   return {
-    hasExited: () => false,
+    hasExited: function hasExited(): boolean {
+      looks.taken += 1;
+      onLook?.(looks.taken,);
+      return false;
+    },
     exitDetails: () => ({}),
     write: function write() {
       throw new Error('the watch was not expected to write without waiting for an answer',);
@@ -440,17 +564,29 @@ function answeringConnection({
 
  @param record - the run's record, which the reply is observed on
 
+ @param onLook - what the test does at the start of a look, counted from one
+
  @returns the connection a watch reads
  */
 function connectionWhosePiReplies({
   sent,
   record,
+  onLook,
 }: {
   readonly sent: string[];
-  readonly record: RecordOfPiRun
+  readonly record: RecordOfPiRun;
+  readonly onLook?: (look: number) => void
 },): ConnectionToPi {
+  /**
+   Which look the watch is taking, counting from one, which only the watch's own question changes.
+   */
+  const looks: { taken: number } = { taken: 0, };
   return {
-    hasExited: () => false,
+    hasExited: function hasExited(): boolean {
+      looks.taken += 1;
+      onLook?.(looks.taken,);
+      return false;
+    },
     exitDetails: () => ({}),
     write: function write() {
       throw new Error('the watch was not expected to write without waiting for an answer',);
@@ -485,16 +621,48 @@ function recordOf(line: string,): PiRecord {
 }
 
 /**
- What the feed holds, once the run is over.
+ What the feed holds, read once the run has finished writing it.
 
- @param runFolder - folder of the run
+ A reader that reads a feed its writer still holds sees the file as it stood a moment ago, whatever the machine's speed: the 429
+ test of 2026-11-15 read a feed without the `problem` line the watch had just noted, and the wake test read one without its `wake`
+ line. Closing the record is the event that every line the watch noted has been written, so it is waited for rather than a length
+ of time.
+
+ @param run - the run whose feed is read
 
  @returns the feed's records, in the order they were written
  */
-async function feedOf(runFolder: string,): Promise<readonly PiRecord[]> {
-  return (await readFile(join(runFolder, 'feed.jsonl',), 'utf8',)).split('\n',)
+async function feedOf(run: RunUnderTest,): Promise<readonly PiRecord[]> {
+  await run.closeFeed();
+  return (await readFile(join(run.runFolder, 'feed.jsonl',), 'utf8',)).split('\n',)
     .filter((line,) => line !== '')
     .map(recordOf,);
+}
+
+/**
+ What a connection does at the start of the look a test means: moves the test's clock onto the run's own bound, which ends the run
+ at that look whatever the machine's speed.
+
+ @param clock - the clock the test owns
+
+ @param look - which look, counting from one, the run's wall clock passes at
+
+ @returns the hook a connection calls at the start of every look
+
+ @example
+ ```ts
+ const onLook = passTheBoundAtLook({ clock, look: 2, },);
+ ```
+ */
+function passTheBoundAtLook({ clock, look, }: {
+  readonly clock: RunClock;
+  readonly look: number
+},): (eachLook: number) => void {
+  return function onLook(eachLook,) {
+    if (eachLook === look) {
+      clock.advance(BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,);
+    }
+  };
 }
 
 await describe({
@@ -502,22 +670,39 @@ await describe({
   children: [
     it({
       name: 'bounds a stalled delivery by what the run has left, and still ends at the wall clock',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunWithAMessage();
         /**
          The bounds the watch asked Pi for, in the order it asked.
          */
         const boundsAsked: number[] = [];
         /**
-         When the run must be over, counted from before the watch starts so the whole run is inside it.
+         When the run must be over: far above every look, so the delivery is reached whatever the first look costs. The test spends
+         that bound up to one look pair of its end at the first look, so the delivery is made with only that much of the run left,
+         which is the subject here.
          */
-        const deadline = Date.now() + RUN_MILLISECONDS;
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         /**
          What the run had left when the watch started, which no bound the watch asks for can exceed.
          */
-        const leftAtStart = deadline - Date.now();
+        const leftAtStart = deadline - clock.now();
         const endReason = await watchUntilEnded({
-          connection: stallingConnection({ boundsAsked, },),
+          connection: stallingConnection({
+            boundsAsked,
+            onLook: function onLook(look,) {
+              if (look === 1) {
+                // One look pair of the bound is kept for the delivery, whatever the first look cost on this machine.
+                clock.advance(Math.max(0, (deadline - clock.now()) - RUN_MILLISECONDS,),);
+              }
+            },
+            // What the run had left when the stalled delivery was asked for is spent by the delivery itself, so the run ends at its
+            // wall clock on the next look whatever the machine's speed.
+            onAnswer: function onAnswer() {
+              clock.advance(RUN_MILLISECONDS,);
+            },
+          },),
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
@@ -527,11 +712,14 @@ await describe({
         // One message, asked for within the run's own limit: a delivery that waited for its answer by an ordinary command
         // bound would outlast the run it is part of.
         expect(boundsAsked,).toHaveLength(1,);
+        // The wait is cut to what the run had left, never to the bound an ordinary command is given: a delivery that waited by that
+        // bound would outlast the run it is part of.
+        expect(boundsAsked[0],).toBeLessThan(COMMAND_ANSWER_MILLISECONDS,);
         expect(boundsAsked[0],).toBeLessThanOrEqual(leftAtStart,);
         /**
          What the feed says about the delivery.
          */
-        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        const delivered = (await feedOf(run,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(false,);
         expect(String(delivered?.error,),).toContain('no answer',);
         // The keep-it-aside path is what makes a stalled message neither lost nor sent again.
@@ -541,14 +729,19 @@ await describe({
     },),
     it({
       name: 'takes what Pi answered off the inbox and goes on watching',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunWithAMessage();
         /**
-         When the run must be over.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + RUN_MILLISECONDS;
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         const endReason = await watchUntilEnded({
-          connection: answeringConnection(),
+          // The message is taken on the first look, and the clock passes at the second, so the run ends at its wall clock once the
+          // look that took the message has had its say.
+          connection: answeringConnection({ onLook: passTheBoundAtLook({ clock, look: 2, },), },),
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
@@ -558,29 +751,32 @@ await describe({
         /**
          What the feed says about the delivery.
          */
-        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        const delivered = (await feedOf(run,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(true,);
         expect(await readdir(run.inbox,),).toEqual([],);
       },
     },),
     it({
       name: 'holds a retry back while Pi is at work on a run the retry did not start',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({ atWork: true, },);
         /**
          The messages the watch sent, which a retry sent into the run Pi is at work on would join.
          */
         const sent: string[] = [];
         /**
-         When the run must be over.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         const endReason = await watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          connection: answeringConnection({ sent, onLook: passTheBoundAtLook({ clock, look: 2, },), },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 3,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -595,18 +791,21 @@ await describe({
     },),
     it({
       name: 'keeps the failure standing when the retry Pi was sent only handles the prompt',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({ atWork: false, },);
         /**
-         When the run must be over: after the looks that send the prompt and see Pi resting with nothing answering it.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         const endReason = await watchUntilEnded({
           connection: answeringConnection({ disposition: 'handled', },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 2 * HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 1,
             retryBaseSeconds: NO_WAIT_SECONDS,
             idleSeconds: RESTING_IDLE_SECONDS,
@@ -629,7 +828,9 @@ await describe({
     },),
     it({
       name: 'ends a run on a 429 with no attempt of its own, whatever retries the run would allow',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({
           atWork: false,
           text: RATE_LIMIT_FAILURE_TEXT,
@@ -639,15 +840,16 @@ await describe({
          */
         const sent: string[] = [];
         /**
-         When the run must be over: past the looks an attempt would have gone in, had the watch scheduled one.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         const endReason = await watchUntilEnded({
           connection: answeringConnection({ sent, },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 3,
             retryBaseSeconds: NO_WAIT_SECONDS,
           },),
@@ -660,7 +862,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await feedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
         // The hand-off is written plainly, so a person reading the run sees why the driver made no attempt at it.
         expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('rate limit',);
@@ -677,22 +879,25 @@ await describe({
     },),
     it({
       name: 'a wait the run ends before leaves the failure standing and counts no retry',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({ atWork: false, },);
         /**
          The messages the watch sent, which a wait cut off before its end never puts one in.
          */
         const sent: string[] = [];
         /**
-         When the run must be over, before the wait it scheduled is.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         const endReason = await watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          connection: answeringConnection({ sent, onLook: passTheBoundAtLook({ clock, look: 2, },), },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 3,
             retryBaseSeconds: WAIT_PAST_THE_RUN_SECONDS,
           },),
@@ -703,7 +908,7 @@ await describe({
         expect(sent,).toEqual([],);
         // A retry the run never reached is not an attempt it made.
         expect(run.record.retriesTaken(),).toBe(0,);
-        expect((await feedOf(run.runFolder,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect((await feedOf(run,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
         const summary = run.record.summarize({
           endReason: 'wall-clock',
           piExit: {},
@@ -741,7 +946,7 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 3,
           },),
           inbox: run.inbox,
@@ -758,22 +963,25 @@ await describe({
     },),
     it({
       name: 'holds the ending on a failure while Pi is at work on a run that may still reply',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({ atWork: true, },);
         /**
          The messages the watch sent, which no attempt at this failure is left to send.
          */
         const sent: string[] = [];
         /**
-         When the run must be over.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         const endReason = await watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          connection: answeringConnection({ sent, onLook: passTheBoundAtLook({ clock, look: 2, },), },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: NO_RETRIES,
           },),
           inbox: run.inbox,
@@ -787,34 +995,44 @@ await describe({
     },),
     it({
       name: 'drops an owed attempt whose failure a reply recovered before it went',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({ atWork: false, },);
         /**
          The messages the watch sent, which a recovered failure owes nothing to.
          */
         const sent: string[] = [];
         /**
-         When the run must be over.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         /**
-         What the watch does, which runs while the reply arrives.
+         What the watch does: its first look schedules the attempt the failure earns, and the reply lands at the start of the
+         second, before that attempt would go.
          */
         const watching = watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          connection: answeringConnection({
+            sent,
+            // The reply lands at the start of the second look, before the watch answers the failure it scheduled an attempt
+            // for: the same moment the wait would have ended, whatever the machine's speed.
+            onLook: function onLook(look,) {
+              if (look === 2) {
+                observeSuccessfulReply(run.record,);
+              }
+            },
+          },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 2 * HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 3,
             retryBaseSeconds: WAIT_LONGER_THAN_ONE_LOOK_SECONDS,
           },),
           inbox: run.inbox,
           deadline,
         },);
-        // The attempt is scheduled on the first look and would go on the next one, so the reply lands in between.
-        await wait(POLL_MILLISECONDS + (POLL_MILLISECONDS / 2),);
-        observeSuccessfulReply(run.record,);
         const endReason = await watching;
         expect(endReason,).toBe('idle',);
         expect(sent,).toEqual([],);
@@ -823,33 +1041,43 @@ await describe({
     },),
     it({
       name: 'drops an owed attempt whose failure another one replaced, and reads the new one afresh',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatFailed({ atWork: false, },);
         /**
          The messages the watch sent, which the failure that replaced the first one earns none of.
          */
         const sent: string[] = [];
         /**
-         When the run must be over.
+         When the run must be over: far above every look and every bound a fixture waits out, so it is a bound and never the thing
+         that decides how this run ends.
          */
-        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const deadline = clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS;
         /**
-         What the watch does, which runs while the second failure arrives.
+         What the watch does: its first look schedules the attempt the failure earns, and the second failure lands at the start
+         of the second look, before that attempt would go.
          */
         const watching = watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          connection: answeringConnection({
+            sent,
+            // The second failure lands at the start of the second look, before the watch sends the attempt the first one owed.
+            onLook: function onLook(look,) {
+              if (look === 2) {
+                observeFailedAttempt(run.record, PERMANENT_FAILURE_TEXT,);
+              }
+            },
+          },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: 2 * HOLD_MILLISECONDS,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
             retryCap: 3,
             retryBaseSeconds: WAIT_LONGER_THAN_ONE_LOOK_SECONDS,
           },),
           inbox: run.inbox,
           deadline,
         },);
-        await wait(POLL_MILLISECONDS + (POLL_MILLISECONDS / 2),);
-        observeFailedAttempt(run.record, PERMANENT_FAILURE_TEXT,);
         const endReason = await watching;
         // What stands now is a failure no attempt can fix, whatever the failure the owed attempt was scheduled for.
         expect(endReason,).toBe('model-error',);
@@ -859,7 +1087,9 @@ await describe({
     },),
     it({
       name: 'keeps a run whose own work still runs, then sends the agent back when that work ends',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatSettled();
         /**
          The messages the watch sent, which the one that sends the agent back to its work joins.
@@ -878,7 +1108,7 @@ await describe({
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          deadline: clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 2) ? work : [];
@@ -891,7 +1121,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await feedOf(run,);
         expect(feed.filter((entry,) => entry.kind === 'waiting').length,).toBe(1,);
         expect(String(feed.find((entry,) => entry.kind === 'waiting')?.problem,),).toContain('native-build-2',);
         expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
@@ -899,18 +1129,21 @@ await describe({
     },),
     it({
       name: 'ends on its wall clock while its work still runs, and its feed says what it waited for',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatSettled();
         /**
          The messages the watch sent, which a kept run must not send while it waits.
          */
         const sent: string[] = [];
         const endReason = await watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          // The work is named on the first look; the clock passes at the second, while the run waits for work that never ends.
+          connection: answeringConnection({ sent, onLook: passTheBoundAtLook({ clock, look: 2, },), },),
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          deadline: clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           workLeftRunning: async function workLeftRunning() {
             return ['proc_7adb (native-build-2) 486667 systemd-run --user --scope',];
           },
@@ -920,7 +1153,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await feedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(true,);
         // A run the wall clock ended while it waited for work did not end with nothing to do, and the feed says so.
         expect(String(feed.at(-1)?.problem,),).toContain('waited for the work it left running',);
@@ -929,7 +1162,9 @@ await describe({
     it({
       name: 'does not end a run as idle before the agent answers the message that woke it, and ends it on the wall clock'
         + ' instead',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatSettled();
         /**
          The messages the watch sent, which is the one that wakes the agent.
@@ -940,16 +1175,17 @@ await describe({
          */
         let looks = 0;
         const endReason = await watchUntilEnded({
-          // Pi takes the message and says nothing more, which is the state a driver that ended a woken run as idle left it
-          // in: the agent's turn never opened, so the report it would have written was never read.
-          connection: answeringConnection({ sent, },),
+          // Pi takes the message and says nothing more, which is the state a driver that ended a woken run as idle left it in: the
+          // agent's turn never opened, so the report it would have written was never read. The clock passes at the fourth look,
+          // after the look that could have ended the run as idle and did not.
+          connection: answeringConnection({ sent, onLook: passTheBoundAtLook({ clock, look: 4, },), },),
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 2,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          deadline: clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -961,13 +1197,15 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await feedOf(run,);
         expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
       },
     },),
     it({
       name: 'ends a run as idle when Pi handled the message that woke it without starting a turn',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatSettled();
         /**
          The messages the watch sent, which is the one that wakes the agent.
@@ -985,10 +1223,10 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 2,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          deadline: clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1001,7 +1239,9 @@ await describe({
     },),
     it({
       name: 'ends a run whose wake message Pi refused as one Pi refused a prompt, not as one that finished',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatSettled();
         /**
          The messages the watch sent, which is the one that wakes the agent.
@@ -1019,10 +1259,10 @@ await describe({
           record: run.record,
           options: optionsOf({
             runFolder: run.runFolder,
-            milliseconds: HOLD_MILLISECONDS * 2,
+            milliseconds: BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           },),
           inbox: run.inbox,
-          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          deadline: clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
@@ -1034,13 +1274,15 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await feedOf(run,);
         expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
       },
     },),
     it({
       name: 'ends a run with nothing running as it always did, sending nothing',
-      fn: async () => {
+      fn: async (ctx,) => {
+        /** The run's clock, which this test moves: see `ownTheClock`. */
+        const clock = ownTheClock(ctx,);
         await using run = await startRunThatSettled();
         /**
          The messages the watch sent, which nothing running must not produce.
@@ -1055,7 +1297,7 @@ await describe({
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
-          deadline: Date.now() + HOLD_MILLISECONDS,
+          deadline: clock.now() + BOUND_ABOVE_EVERY_LOOK_MILLISECONDS,
           workLeftRunning: async function workLeftRunning() {
             looks += 1;
             return [];
@@ -1067,7 +1309,7 @@ await describe({
         /**
          What the run's feed holds, which must name no wait and no wake.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await feedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(false,);
         expect(feed.some((entry,) => entry.kind === 'wake'),).toBe(false,);
       },
