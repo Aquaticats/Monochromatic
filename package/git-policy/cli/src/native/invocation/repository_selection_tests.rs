@@ -6,7 +6,7 @@
 //!  and a value Git reads as a value (the directory of a `-C`,
 //!  the setting of a `-c`) must never be read as an option.
 
-use super::{from_global_options, of_identity, of_paths, without_repository_selection};
+use super::{from_global_options, of_identity, of_paths, selected_repository, without_repository_selection};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -160,6 +160,43 @@ fn the_shadows_start_keeps_every_option_but_the_repository_selection() {
     );
     assert_eq!(kept(&["-C", ".."]), Vec::<String>::new(), "the directory of -C goes with it");
     assert_eq!(kept(&["-c", "--git-dir=x"]), vec![String::from("-c"), String::from("--git-dir=x")], "a configuration value is not an option");
+}
+
+/// What:
+///  The reader of the selected repository reports the directory the `-C` chain ends in,
+///  the Git directory the options or `GIT_DIR` name,
+///  and which of the two named it.
+/// Why:
+///  The pass that clears a killed Git's locks searches the repository this answers,
+///  and it must not search a bare repository or a directory the command never reaches,
+///  which is what the third field tells it apart by.
+#[test]
+fn the_selected_repository_names_the_git_directory_and_who_named_it() {
+    let work: &Path = Path::new("/work");
+    let quiet = selected_repository(work, arguments(&["-C", "sub", "-c", "user.name=X"]).as_slice(), &[]);
+    assert_eq!(quiet.directory, PathBuf::from("/work/sub"), "the directory Git would discover from");
+    assert_eq!(quiet.git_directory, None, "no option and no variable name a Git directory");
+    assert!(!quiet.named_by_option);
+
+    let option = selected_repository(work, arguments(&["--git-dir=../cfg.git"]).as_slice(), &[(OsString::from("GIT_DIR"), OsString::from("/elsewhere"))]);
+    assert_eq!(option.git_directory, Some(PathBuf::from("/work/../cfg.git")), "the option wins over the variable, read from the chain's directory");
+    assert!(option.named_by_option, "the command's own option named it");
+
+    let bare = selected_repository(work, arguments(&["-C", "bare", "--bare"]).as_slice(), &[]);
+    assert_eq!(bare.directory, PathBuf::from("/work/bare"));
+    assert_eq!(bare.git_directory, Some(PathBuf::from("/work/bare/.")), "a bare repository is the directory Git runs in");
+    assert!(bare.named_by_option);
+
+    let variable = selected_repository(work, arguments(&[]).as_slice(), &[(OsString::from("GIT_DIR"), OsString::from(".git"))]);
+    assert_eq!(variable.git_directory, Some(PathBuf::from("/work/.git")), "a relative GIT_DIR is read from the directory the command runs in");
+    assert!(!variable.named_by_option, "the environment named it, not an option");
+
+    let twice = selected_repository(
+        work,
+        arguments(&[]).as_slice(),
+        &[(OsString::from("GIT_DIR"), OsString::from("/first")), (OsString::from("GIT_DIR"), OsString::from("/second"))],
+    );
+    assert_eq!(twice.git_directory, Some(PathBuf::from("/second")), "the last GIT_DIR of the environment is the one Git reads");
 }
 
 /// What:

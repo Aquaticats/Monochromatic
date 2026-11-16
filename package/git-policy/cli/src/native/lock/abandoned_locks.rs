@@ -35,7 +35,7 @@ use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 /// The names a lock and its PID file have.
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
-use crate::git_directory_roots::{common_dir_for, git_directory_of};
+use crate::git_directory_roots::common_dir_for;
 /// The records themselves:
 /// the repository this command works in,
 /// and the account of this process.
@@ -336,7 +336,7 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Meet the locks of the repository the working directory is in,
+///  Meet the locks of the repository the command will work in,
 ///  before this command reaches Git:
 ///  remember the repository,
 ///  note this process in its record,
@@ -345,31 +345,17 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 ///  This is the one place a client command passes,
 ///  so every command of any kind meets a clear repository,
 ///  and a `git status` after a kill is enough to repair what the killed command left.
-///  The Git directory is found by reading a few small files,
-/// never by starting Git,
-///  and a directory outside any repository costs one failed look.
+///  The caller names the Git directory,
+///  found from the command's own options and variables,
+///  never by starting Git (`lock_pass_repository.rs`),
+///  so the pass searches the repository the command itself will use and no other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// meetTheLocks(env) // GIT_DIR, else the working directory's repository
+/// meetTheLocks(gitDir) // the one Git directory this command will work in
 /// ```
-pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsString, std::ffi::OsString)]) {
-    let working: PathBuf = std::env::current_dir().unwrap_or_default();
-    let mut named: Option<PathBuf> = None;
-    for (name, value) in environment.iter().rev() {
-        if name == std::ffi::OsStr::new("GIT_DIR") {
-            named = Some(working.join(value));
-            break;
-        }
-    }
-    let found: Option<PathBuf> = match named {
-        Some(directory) => Some(directory),
-        None => git_directory_of(working.as_path()),
-    };
-    let Some(git_dir) = found else {
-        return;
-    };
-    let common: PathBuf = common_dir_for(git_dir.as_path());
+pub fn meet_the_locks_of_the_repository(git_dir: &Path) {
+    let common: PathBuf = common_dir_for(git_dir);
     remember_repository(common.as_path());
     // One record per process: a command that runs the pass twice (a client, then a forward that meets another repository)
     //  adds no second line and costs one atomic read.
@@ -377,5 +363,5 @@ pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsStrin
         return;
     }
     record_this_process(common.as_path());
-    clear_abandoned_locks_telling(roots_of_git_directory(git_dir.as_path()).as_slice(), &mut std::io::stderr());
+    clear_abandoned_locks_telling(roots_of_git_directory(git_dir).as_slice(), &mut std::io::stderr());
 }

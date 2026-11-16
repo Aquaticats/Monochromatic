@@ -78,6 +78,9 @@ pub mod global_arguments;
 /// The pathspec-mode options of a global prefix and the prefix without them.
 pub mod global_arguments_pathspec_modes;
 
+/// The repository the lock pass searches: the Git directory the command itself will work in.
+pub mod lock_pass_repository;
+
 /// The `git monochromatic-git-policy-cli` decision:
 ///  help,
 ///  retired commands,
@@ -190,5 +193,6 @@ pub mod forwarded_command;
 pub mod guarded_forwarded_command;
 
 /// The repository a command line names by its global options,
-/// as the arguments that name it in another process.
+/// as the arguments that name it in another process,
+/// and as the Git directory it selects.
 pub mod repository_selection;

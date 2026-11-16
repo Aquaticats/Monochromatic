@@ -353,11 +353,15 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     }
     // From here on every real-Git start of this process runs with traditional hooks off.
     crate::hooks_off::activate();
-    // What: The locks a killed command of this repository left are met here, before this command reaches Git.
+    // What: The locks a killed command of the repository this command will work in are met here, before it reaches Git.
     // Why:  A lock whose holder the wrapper's own record proves gone protects nothing, and waiting a minute for that process
-    //       would be a wait the wrapper could have known to skip. Nothing is cleared on a proof that is not complete, so a
-    //       lock of a live Git, of an editor, or of another machine keeps the bounded wait and the report it always had.
-    crate::abandoned_locks::meet_the_locks_of_the_working_directory(environment);
+    //       would be a wait the wrapper could have known to skip. The repository is the one the command's own `-C`,
+    //       `--git-dir` and `GIT_DIR` select, so a command naming another repository repairs that one and leaves the
+    //       directory it was started from alone. Nothing is cleared on a proof that is not complete, so a lock of a live
+    //       Git, of an editor, or of another machine keeps the bounded wait and the report it always had.
+    if let Some(git_dir) = crate::lock_pass_repository::git_directory_of_this_command(arguments, environment) {
+        crate::abandoned_locks::meet_the_locks_of_the_repository(git_dir.as_path());
+    }
     let action: Action = match process_resolution_inputs(environment) {
         // A monochromatic-git-policy-cli executable that a wrapper started as Git stops before it plans anything or starts anything.
         Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {

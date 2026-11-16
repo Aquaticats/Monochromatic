@@ -64,41 +64,52 @@ fn inline_value(token: &[u8], spelling: &str) -> Option<OsString> {
 }
 
 /// What:
-///  The repository a global prefix selects,
-///  as `--git-dir <absolute>` and `--work-tree <absolute>`,
-///  or nothing when the prefix names no repository.
+///  Where a command line selects its repository, read from the directory it starts in:
+///  the directory its `-C` chain ends in,
+///  the Git directory its own options or the environment name,
+///  and which of the two named it.
 /// Why:
-///   A commit's own Git children run somewhere other than the caller's directory,
-///  and a request that keeps none of the caller's other options still needs the repository the caller named.
-///  The last `--git-dir` (or `--bare`) wins and so does the last `--work-tree`,
-///  as with Git,
-///  and both are read from the directory the `-C` chain ends in,
-///  because Git resolves them after its last `-C`.
-///  `directory` must therefore be the directory the command runs in,
-///  before any `-C`:
-///  handing this function a directory Git discovered instead applies the chain a second time
-///  and names a repository that does not exist
-///  (`of_identity`,
-///  which is what a rule that starts Git elsewhere wants).
+///  A rule that searches a repository before Git starts and a rule that starts Git elsewhere need the same
+///  three facts,
+///  and reading them once means no rule resolves a `-C` chain its own way.
+///  A Git directory the command's own options name wins over the variable,
+///  as in Git,
+///  whose option reader sets the variable while it reads `--git-dir` or `--bare`.
+///  `directory` is the directory Git would discover from:
+///  a relative Git directory or `GIT_DIR` is read from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function fromGlobalOptions({ directory, globalPrefix }): string[] {
-///   let ends = directory; let gitDir; let workTree;
-///   for (let i = 0; i < globalPrefix.length; i += 1) {
-///     const token = globalPrefix[i];
-///     if (token === '-C') { if (globalPrefix[i + 1] && globalPrefix[i + 1] !== '') ends = join(ends, globalPrefix[i + 1]); i += 1; continue; }
-///     if (token === '--bare') { gitDir = '.'; continue; }
-///     if (token === '--git-dir' || token === '--work-tree') { if (token === '--git-dir') gitDir = globalPrefix[i + 1]; else workTree = globalPrefix[i + 1]; i += 1; continue; }
-///     if (token.startsWith('--git-dir=')) { gitDir = token.slice('--git-dir='.length); continue; }
-///     if (token.startsWith('--work-tree=')) { workTree = token.slice('--work-tree='.length); continue; }
-///     if (takesValue(token)) i += 1;
-///   }
-///   const named = [['--git-dir', gitDir], ['--work-tree', workTree]].filter(([, value]) => value !== undefined);
-///   return named.flatMap(([spelling, value]) => [spelling, join(ends, value)]);
-/// }
+/// type SelectedRepository = { directory: string; gitDirectory?: string; namedByOption: boolean };
 /// ```
-pub fn from_global_options(directory: &Path, global_prefix: &[OsString]) -> Vec<OsString> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectedRepository {
+    /// The directory the `-C` chain ends in,
+    ///  which Git discovers from and reads a relative Git directory in.
+    pub directory: PathBuf,
+    /// The Git directory the options or the environment name,
+    ///  resolved from `directory`.
+    pub git_directory: Option<PathBuf>,
+    /// Whether the command's own options named the Git directory,
+    ///  rather than the environment.
+    pub named_by_option: bool,
+}
+
+/// What:
+///  The parts of a global prefix that select a repository,
+///  unresolved:
+///  the directory its `-C` chain ends in,
+///  the Git directory its options name,
+///  and the work tree they name.
+/// Why:
+///  Both readers below need the same walk,
+///  and one walk is what keeps them agreeing about which token is a value of another option.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const selectionOf = (directory, prefix) => ({ ends, gitDir, workTree });
+/// ```
+fn selection_of(directory: &Path, global_prefix: &[OsString]) -> (PathBuf, Option<OsString>, Option<OsString>) {
     let mut ends: PathBuf = directory.to_path_buf();
     let mut git_dir: Option<OsString> = None;
     let mut work_tree: Option<OsString> = None;
@@ -144,6 +155,73 @@ pub fn from_global_options(directory: &Path, global_prefix: &[OsString]) -> Vec<
         }
         index += if takes_value(argument) { 2 } else { 1 };
     }
+    return (ends, git_dir, work_tree);
+}
+
+/// What:
+///  Where a command line selects its repository,
+///  as the directory its `-C` chain ends in and the Git directory it names,
+///  from its options or from `GIT_DIR`.
+/// Why:
+///  A rule that reads the repository before Git starts needs the directory Git would discover from and the
+///  directory the options name,
+///  and both are read here so that no rule repeats Git's order.
+///  A `--git-dir` or `--bare` of the command wins over `GIT_DIR`,
+///  and the last `GIT_DIR` of an environment list wins,
+///  as Git's own reader of the variable takes the one it finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const selected = (directory, prefix, environment) => ({ directory: ends, gitDirectory: gitDir ?? env.GIT_DIR && join(ends, env.GIT_DIR), namedByOption: gitDir !== undefined });
+/// ```
+pub fn selected_repository(directory: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> SelectedRepository {
+    let (ends, git_dir, _work_tree) = selection_of(directory, global_prefix);
+    if let Some(named) = git_dir {
+        let git_directory: PathBuf = ends.join(named);
+        return SelectedRepository { directory: ends, git_directory: Some(git_directory), named_by_option: true };
+    }
+    let named: Option<&OsString> = environment.iter().rev().find(|(name, _value)| { return name == "GIT_DIR"; }).map(|(_name, value)| { return value; });
+    let git_directory: Option<PathBuf> = named.map(|value| { return ends.join(value); });
+    return SelectedRepository { directory: ends, git_directory, named_by_option: false };
+}
+
+/// What:
+///  The repository a global prefix selects,
+///  as `--git-dir <absolute>` and `--work-tree <absolute>`,
+///  or nothing when the prefix names no repository.
+/// Why:
+///   A commit's own Git children run somewhere other than the caller's directory,
+///  and a request that keeps none of the caller's other options still needs the repository the caller named.
+///  The last `--git-dir` (or `--bare`) wins and so does the last `--work-tree`,
+///  as with Git,
+///  and both are read from the directory the `-C` chain ends in,
+///  because Git resolves them after its last `-C`.
+///  `directory` must therefore be the directory the command runs in,
+///  before any `-C`:
+///  handing this function a directory Git discovered instead applies the chain a second time
+///  and names a repository that does not exist
+///  (`of_identity`,
+///  which is what a rule that starts Git elsewhere wants).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fromGlobalOptions({ directory, globalPrefix }): string[] {
+///   let ends = directory; let gitDir; let workTree;
+///   for (let i = 0; i < globalPrefix.length; i += 1) {
+///     const token = globalPrefix[i];
+///     if (token === '-C') { if (globalPrefix[i + 1] && globalPrefix[i + 1] !== '') ends = join(ends, globalPrefix[i + 1]); i += 1; continue; }
+///     if (token === '--bare') { gitDir = '.'; continue; }
+///     if (token === '--git-dir' || token === '--work-tree') { if (token === '--git-dir') gitDir = globalPrefix[i + 1]; else workTree = globalPrefix[i + 1]; i += 1; continue; }
+///     if (token.startsWith('--git-dir=')) { gitDir = token.slice('--git-dir='.length); continue; }
+///     if (token.startsWith('--work-tree=')) { workTree = token.slice('--work-tree='.length); continue; }
+///     if (takesValue(token)) i += 1;
+///   }
+///   const named = [['--git-dir', gitDir], ['--work-tree', workTree]].filter(([, value]) => value !== undefined);
+///   return named.flatMap(([spelling, value]) => [spelling, join(ends, value)]);
+/// }
+/// ```
+pub fn from_global_options(directory: &Path, global_prefix: &[OsString]) -> Vec<OsString> {
+    let (ends, git_dir, work_tree) = selection_of(directory, global_prefix);
     let mut selection: Vec<OsString> = Vec::new();
     for (spelling, named) in [(GIT_DIR, git_dir), (WORK_TREE, work_tree)] {
         let Some(value) = named else { continue };
