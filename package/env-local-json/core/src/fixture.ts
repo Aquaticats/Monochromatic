@@ -10,6 +10,7 @@
  */
 
 import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
   chmod,
   mkdir,
@@ -28,13 +29,6 @@ import { randomUUID, } from 'node:crypto';
 import {
   caughtValueText,
 } from '@monochromatic-dev/caught-value-core/ts';
-
-import {
-  MAX_SOPS_OUTPUT_BYTES,
-} from './constants.ts';
-import {
-  collectChildStdout,
-} from './sops-stdout-capture.ts';
 
 //region Constants
 
@@ -164,6 +158,12 @@ type RunCommandOptions = {
  tool can end while its standard output pipe still holds unread data, and a
  join there yields empty or cut text that then lands in a fixture store.
 
+ The capture stays here instead of going through `collectChildStdout` in
+ `./sops-stdout-capture.ts` because this package's lint refuses a fixture
+ module that imports its package's source, and the built artifact that lint
+ allows would make every suite importing this fixture need this package built
+ first. `fixture.unit.test.ts` guards the event this join waits for.
+
  Exported so a test can drive a stand-in tool the fixture's own helpers cannot
  name, such as one whose standard output arrives after its exit event.
 
@@ -190,9 +190,13 @@ export async function runCommand({
   args,
   extraEnv,
 }: RunCommandOptions,): Promise<CommandResult> {
+  /**
+   Output chunks captured from the child process.
+   */
+  const captured: string[] = [];
   try {
     /**
-     Tool child process, whose standard output the capture seam owns.
+     Tool child process with captured standard output.
      */
     const child = spawn(
       command,
@@ -209,33 +213,31 @@ export async function runCommand({
         ],
       },
     );
-    /**
-     Whole standard output of the tool, whether it outran the bound, and what
-     its child reported when every stdio stream had ended.
-     */
-    const capture = await collectChildStdout({
-      completionSource: child,
-      stdoutSource: child,
-      onOverflow: function killOverflowingTool() {
-        child.kill();
+    child.stdout
+      .setEncoding('utf8',);
+    child.stdout
+      .on(
+      'data',
+      function captureChunk(chunk: string,): void {
+        captured.push(chunk,);
       },
-      // The reader this fixture feeds refuses a document longer than this, so
-      // a tool that printed one has produced a fixture no test could use.
-      maxBytes: MAX_SOPS_OUTPUT_BYTES,
-    },);
-    if (capture.overflow)
-      throw new Error(
-        `${command} printed more than ${String(MAX_SOPS_OUTPUT_BYTES,)} characters of standard output`,
       );
     /**
-     Reported exit code from the completion tuple.
+     Raw completion event of the tool process, which fires once every stdio
+     stream has ended and so after the last stdout chunk was emitted.
      */
-    const code: unknown = Array.isArray(capture.endEvent,) ? capture.endEvent[0] : undefined;
+    const closeEvent: unknown = await once(
+      child,
+      'close',
+    );
+    /**
+     Reported exit code from the event tuple.
+     */
+    const code: unknown = Array.isArray(closeEvent,) ? closeEvent[0] : undefined;
     if ((typeof code) !== 'number')
       throw new Error(`${command} did not exit with a status`,);
     if (code !== 0)
       throw new Error(`${command} exited with status ${String(code,)}`,);
-    return { stdout: capture.output, };
   }
   catch (error) {
     throw new Error(
@@ -243,6 +245,7 @@ export async function runCommand({
       { cause: error, },
     );
   }
+  return { stdout: captured.join('',), };
 }
 
 //endregion Command execution
