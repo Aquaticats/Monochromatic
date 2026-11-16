@@ -433,9 +433,7 @@ const finished = await finishTheRun({
   unitStatus: status,
   git,
   run: runCommandWithChildProcess,
-  report: function report(line,) {
-    console.log(line,);
-  },
+  report: console.log,
   wait: waitBetweenLooks,
   now: Date.now,
 },);

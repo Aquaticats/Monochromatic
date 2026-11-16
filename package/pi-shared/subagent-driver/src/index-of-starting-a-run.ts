@@ -182,7 +182,6 @@ export {
   UNIT_IO_WEIGHT,
   type UnitCommandRequest,
   runtimeMaxSecondsOf,
-  runUnitOf,
   unitCommandOf,
 } from './unit-command-of-a-run.ts';
 export {
