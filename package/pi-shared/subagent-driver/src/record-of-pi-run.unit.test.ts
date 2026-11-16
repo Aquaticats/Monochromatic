@@ -23,6 +23,7 @@ import {
   type RunFailure,
   type RunSummary,
   startRecordOfPiRun,
+  MASKING_NOTHING,
 } from '../dist/final/node/index.mjs';
 
 /** Milliseconds a record's clock is moved by, so a silence is measured on a clock the test owns. */
@@ -59,6 +60,7 @@ function recordOnOwnClock(feedFile: string,): { readonly record: RecordOfPiRun; 
   return {
     record: startRecordOfPiRun({
       feedFile,
+      mask: MASKING_NOTHING,
       now: () => clock.at,
     },),
     clock,

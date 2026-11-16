@@ -35,6 +35,8 @@ export const CLEAN_END_REASONS: ReadonlySet<string> = new Set<string>([
 
  @param piExit - how Pi ended
 
+ @param sessionAtRest - why the session the run leaves still holds a value, when it does
+
  @returns the reason the summary and the exit status carry
 
  @example
@@ -45,6 +47,7 @@ export const CLEAN_END_REASONS: ReadonlySet<string> = new Set<string>([
    modelError: NO_RUN_FAILURE,
    feedProblem: NO_RUN_FAILURE,
    piExit: { code: 0, },
+   sessionAtRest: NO_RUN_FAILURE,
  },);
  ```
  */
@@ -55,12 +58,19 @@ export function finalEndReason(
     modelError,
     feedProblem,
     piExit,
+    sessionAtRest,
   }: {
     readonly endReason: EndReason;
     readonly stopped: boolean;
     readonly modelError: RunFailure;
     readonly feedProblem: RunFailure;
     readonly piExit: PiExit;
+
+    /**
+     Why the session a run leaves behind still holds a value, when it does. A run whose session could not be masked did not finish
+     clean whatever else it did, and the summary says where the value is.
+     */
+    readonly sessionAtRest: RunFailure;
   },
 ): EndReason {
   if (!CLEAN_END_REASONS.has(endReason,)) {
@@ -74,6 +84,9 @@ export function finalEndReason(
   }
   if (feedProblem.failed) {
     return 'driver-failed';
+  }
+  if (sessionAtRest.failed) {
+    return 'session-unmasked';
   }
   /**
    The status Pi left with, when it left with one rather than a signal.

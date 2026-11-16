@@ -465,6 +465,19 @@ and the reason names the process so a person can look at it.
 The cost is a worktree kept while a young hidden program runs elsewhere on the machine:
 safe,
 and readable in the notice rather than silent.
+
+Amendment, owner decision of 2026-11-15T19:16:23-05:00 ("Accept the gap"):
+the sentence "a process older than the worktree directory cannot be inside it" holds for the working folder a process had when the worktree was made,
+and for nothing a process does afterwards.
+A hidden process older than the worktree can open a file in it later,
+or change its working folder into it,
+and the removal does not see either.
+Two reviews of 2026-11-15 reproduced that with a made process table.
+The gap is accepted:
+the other rule, keeping every worktree while any hidden process of this account exists,
+removes none on a desktop whose login services hide their tables.
+The rule stays as written here,
+and the docs and the notice say the gap in these words instead of calling such a process outside.
 The landed sweep's controls write their own process table,
 so no test depends on which programs this machine happens to run.
 
