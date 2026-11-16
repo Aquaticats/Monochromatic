@@ -73,3 +73,23 @@ fn a_worker_is_free_while_the_job_runs() {
     })
     .expect("the runtime this test runs on");
 }
+
+/// What:
+///  The state a service starts with when the door's restore step gave no answer keeps the real plan folder, the real
+///  watch folder and the instance identity, and says it has not restored them yet.
+/// Why:
+///  A restore that gave no answer has not answered "empty":
+///  a fallback that invents an empty path is read by the after-commit loop as an empty store,
+///  so a saved push is forgotten instead of being late
+///  (the third review of this branch, finding 3).
+#[test]
+fn the_state_of_a_restore_that_gave_no_answer_keeps_the_real_folders() {
+    let root: std::path::PathBuf = crate::test_support::fixture("the-state-of-a-restore-that-gave-no-answer");
+    let plan: std::path::PathBuf = root.join("plan");
+    let watch: std::path::PathBuf = root.join("watch");
+    let (retries, kept): (crate::push_retry::PushRetries, crate::service_claim_watch::ClaimWatch) =
+        the_state_of_a_restore_that_gave_no_answer(plan.as_path(), watch.as_path(), Some("an-instance"));
+    assert_eq!(retries.plans(), Some(plan.as_path()), "the plan folder a saved push waits in is kept");
+    assert_eq!(kept.key(), Some(watch.clone()), "the watch folder the repositories are noted in is kept");
+    assert!(kept.needs_retry(), "and the watch says it has not been restored, so the loop tries it again");
+}

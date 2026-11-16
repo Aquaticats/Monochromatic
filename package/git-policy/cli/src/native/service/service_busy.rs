@@ -476,7 +476,7 @@ impl LandingBoard {
     /// ```
     pub fn may_promise_a_request_never_lands(&self) -> bool {
         let _mine: Option<&crate::service_journal_holders::HeldPlace> = self.place.as_ref();
-        return crate::service_journal_holders::holders(self.journal.as_path()) == crate::service_journal_holders::Holders::Alone;
+        return crate::service_journal_holders::the_count_alone(self.journal.as_path()) == crate::service_journal_holders::Holders::Alone;
     }
 
     /// What:

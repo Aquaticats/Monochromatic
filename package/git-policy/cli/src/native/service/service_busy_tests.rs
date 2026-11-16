@@ -607,3 +607,36 @@ fn a_second_service_of_one_journal_never_confirms_a_withdrawal_it_does_not_hold(
         assert!(matches!(alone, EarlyAnswer::Withdrawn(_)), "with no other service of this journal, the withdrawal is confirmed: {alone:?}");
     });
 }
+
+/// What:
+///  A service that could not take a place of its own in its journal never promises that a request it does not hold will
+///  never land.
+/// Why:
+///  A place it could not take is "could not tell", and "could not tell" is not the best case:
+///  with another service's one live place in the journal, a count alone would call the caller alone and let it answer
+///  `Withdrawn` for a request the other service can still land
+///  (the third review of this branch, finding 1).
+#[test]
+fn a_service_with_no_place_of_its_own_never_promises_a_request_will_not_land() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-no-place-of-its-own").join("journal");
+        std::fs::create_dir_all(journal.as_path()).expect("the journal");
+        // The first service takes the only place there can be for now.
+        let landing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let services: std::path::PathBuf = journal.join("services");
+        // What: A services directory that can be read and not written, as a full or read-only journal leaves it.
+        // Why:  This is the state in which a service that starts now cannot take a place of its own.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o500)).expect("refuse new places");
+        let without_a_place: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore the fixture");
+        assert!(!without_a_place.may_promise_a_request_never_lands(), "a service with no place of its own cannot promise anything");
+        // A request it does not hold, while the other service is inside a write, is left to the landing thread.
+        use_on_this_thread(Arc::clone(&landing));
+        let _step = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        let answer: EarlyAnswer = without_a_place.withdraw_early("a-request");
+        assert_eq!(answer, EarlyAnswer::Queued, "it may not say that a request another service can land will never land");
+        drop(_step);
+    });
+}

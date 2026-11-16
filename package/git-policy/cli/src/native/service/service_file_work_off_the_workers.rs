@@ -82,6 +82,32 @@ where
     };
 }
 
+/// What:
+///  The plan, the watch and the identity a service starts with when the door's restore step gave no answer at all.
+/// Why:
+///   A restore that gave no answer has not answered "empty": the folders are known before the restore is asked and stay
+/// known after it,
+///  so the state says "not restored yet" over the real folders and the after-commit loop tries them again,
+///  which makes a saved push late and never forgotten.
+///  An empty path here would be a value invented for a question nobody answered, and the loop would read the empty
+///  path's "not found" as an empty store
+///  (`service_server.rs`, `start_the_after_commit_work_or_exit`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = theStateOfARestoreThatGaveNoAnswer(plan, watch, instance); // { retries: unread(plan), watch: unread(watch, instance) }
+/// ```
+pub fn the_state_of_a_restore_that_gave_no_answer(
+    _plan_directory: &std::path::Path,
+    _watch_directory: &std::path::Path,
+    _instance: Option<&str>,
+) -> (crate::push_retry::PushRetries, crate::service_claim_watch::ClaimWatch) {
+    return (
+        crate::push_retry::PushRetries::unread_from_environment(std::path::Path::new("")),
+        crate::service_claim_watch::ClaimWatch::unread(std::path::Path::new(""), None),
+    );
+}
+
 /// Controls of the door stay out of the release executable.
 #[cfg(test)]
 #[path = "service_file_work_off_the_workers_tests.rs"]

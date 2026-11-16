@@ -36,6 +36,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// The directory of the places inside a journal.
 const PLACES_DIRECTORY: &str = "services";
 
+/// The instant a place's file exists and holds no byte of it,
+/// for a control that ends the writer there (`service_journal_holders_tests.rs`).
+#[cfg(test)]
+pub(crate) const IN_THE_PLACE_AFTER_ITS_FILE: &str = "in-the-place-after-its-file";
+
+/// The instant a place's file holds half of what it names,
+/// for a control that ends the writer there.
+#[cfg(test)]
+pub(crate) const IN_THE_PLACE_AFTER_HALF_OF_IT: &str = "in-the-place-after-half-of-it";
+
 /// The extension of one place.
 const PLACE_EXTENSION: &str = "service";
 
@@ -118,7 +128,13 @@ pub fn take_ones_place(journal: &Path) -> Option<HeldPlace> {
         let path: PathBuf = directory.join(format!("{pid}-{number}.{PLACE_EXTENSION}"));
         match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
             Ok(mut file) => {
+                // A control ends the writer here, which is the instant a kill would leave an empty record.
+                #[cfg(test)]
+                crate::service_fault::hooks::run_on_any_thread(IN_THE_PLACE_AFTER_ITS_FILE);
                 let _written = std::io::Write::write_all(&mut file, format!("{pid}\n{identity}\n").as_bytes());
+                // A control ends the writer here, which is the instant a kill would leave one line of two.
+                #[cfg(test)]
+                crate::service_fault::hooks::run_on_any_thread(IN_THE_PLACE_AFTER_HALF_OF_IT);
                 let _mode = std::fs::set_permissions(path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(PRIVATE_DIRECTORY_MODE));
                 return Some(HeldPlace { path });
             }
@@ -148,9 +164,9 @@ pub fn take_ones_place(journal: &Path) -> Option<HeldPlace> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holders = servicesOfThisJournal(journal); // 'alone' | 'shared' | 'unknown'
+/// const holders = servicesOfThisJournal(journal, mine); // 'alone' | 'shared' | 'unknown'
 /// ```
-pub fn holders(journal: &Path) -> Holders {
+pub fn holders(journal: &Path, _mine: &HeldPlace) -> Holders {
     let directory: PathBuf = journal.join(PLACES_DIRECTORY);
     let entries = match std::fs::read_dir(directory.as_path()) {
         Ok(entries) => entries,
@@ -179,6 +195,40 @@ pub fn holders(journal: &Path) -> Holders {
                 let _removed = std::fs::remove_file(path.as_path());
             }
             Holders::Unknown => return Holders::Unknown,
+        }
+    }
+    return if live <= 1 { Holders::Alone } else { Holders::Shared };
+}
+
+/// What:
+///  The count of live places alone,
+///  which is what this branch answered before the third review's first finding:
+///  it says `Alone` when at most one live place is there, whoever's it is.
+/// Why:
+///  The control of that finding is red while this answer stands,
+/// and the answer itself is the defect: a service that took no place still counted the journal's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holders = theCountAlone(journal); // 'alone' when one live place is there, whoever's it is
+/// ```
+pub(crate) fn the_count_alone(journal: &Path) -> Holders {
+    let directory: PathBuf = journal.join(PLACES_DIRECTORY);
+    let entries = match std::fs::read_dir(directory.as_path()) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Holders::Alone,
+        Err(_unreadable) => return Holders::Unknown,
+    };
+    let mut live: usize = 0;
+    for entry in entries {
+        let Ok(found) = entry else { return Holders::Unknown };
+        let path: PathBuf = found.path();
+        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLACE_EXTENSION) {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        if holder_is_live(text.as_str()) == Holders::Alone {
+            live += 1;
         }
     }
     return if live <= 1 { Holders::Alone } else { Holders::Shared };
