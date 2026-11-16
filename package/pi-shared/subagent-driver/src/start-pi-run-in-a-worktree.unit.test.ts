@@ -680,10 +680,8 @@ await describe({
         },);
         expect(ended.code,).toBe(1,);
         expect(ended.stderr,).toContain('refused was not started',);
-        expect(ended.stderr,).toContain(join(
-          runFolder,
-          SUMMARY_FILE_NAME,
-        ),);
+        expect(ended.stderr,).toContain(runFolder,);
+        expect(ended.stderr,).toContain(SUMMARY_FILE_NAME,);
         expect(ended.stderr,).toContain('--run=<number>',);
         expect(ended.stdout,).not.toContain('dependencies:',);
         await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);

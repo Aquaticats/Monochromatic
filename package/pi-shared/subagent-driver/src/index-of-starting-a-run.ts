@@ -138,7 +138,6 @@ export {
   nameProblemIn,
   promptProblemIn,
   startRefusalsIn,
-  summaryProblemIn,
 } from './checks-before-a-start.ts';
 export {
   ENTRY_REASON_CHARACTERS,

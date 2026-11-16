@@ -298,13 +298,16 @@ or start a run it would refuse.
   the run folder's number.
   Without it the next number no folder of that name holds is taken,
   so a restart never writes over an earlier run's summary.
-  A number whose folder already holds a summary refuses the launch,
+  A number whose folder already holds anything refuses the launch,
   and so does the driver when it is given that folder,
-  because a summary is the record of what a run did and said
+  because whatever is there is another attempt's record,
+  whether that attempt finished its summary or was killed before it,
   and no run writes over one.
-  The refusal names the summary it keeps
-  and asks for a launch with no `--run`,
-  whose folder then takes the next number.
+  The refusal names the folder and what it found there,
+  and offers three ways out:
+  a launch with no `--run`, whose folder takes the next number,
+  a runs folder of its own,
+  or moving that folder aside when nobody needs what it holds.
 - `--turn-cap`:
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
@@ -1020,6 +1023,10 @@ the launcher that builds the session's environment asks it, once, before it make
   A folder holds one summary and no run writes over one:
   the file takes its name by a link of a file already written whole,
   so a name that is taken makes the run refuse instead of replacing the record there.
+  That file is written under a name of its own made from random bytes
+  and created rather than opened,
+  so a writer killed between two of its steps
+  leaves a name no later write can derive or truncate.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,

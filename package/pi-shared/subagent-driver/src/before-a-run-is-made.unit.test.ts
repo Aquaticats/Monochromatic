@@ -36,7 +36,7 @@ import {
   promptProblemIn,
   reasonInFailedStart,
   startRefusalsIn,
-  summaryProblemIn,
+  earlierAttemptProblemIn,
   unitNameOfGiven,
 } from '../dist/final/node/index.mjs';
 
@@ -396,14 +396,14 @@ await describe({
       ],
     },),
     describe({
-      name: summaryProblemIn.name,
+      name: earlierAttemptProblemIn.name,
       children: [
         it({
           name: 'says nothing about a folder that holds no summary, which a run may write into',
           fn: async () => {
             await using folder = await makeFolder();
-            expect(await summaryProblemIn({ runFolder: folder.path, },),).toEqual({},);
-            expect(await summaryProblemIn({ runFolder: join(folder.path, 'not-made-yet',), },),).toEqual({},);
+            expect(await earlierAttemptProblemIn({ runFolder: folder.path, },),).toEqual({},);
+            expect(await earlierAttemptProblemIn({ runFolder: join(folder.path, 'not-made-yet',), },),).toEqual({},);
           },
         },),
         it({
@@ -425,11 +425,9 @@ await describe({
             /**
              What the check answered.
              */
-            const { problem, } = await summaryProblemIn({ runFolder, },);
-            expect(problem,).toContain(join(
-              runFolder,
-              SUMMARY_FILE_NAME,
-            ),);
+            const { problem, } = await earlierAttemptProblemIn({ runFolder, },);
+            expect(problem,).toContain(runFolder,);
+            expect(problem,).toContain('summary.json',);
             expect(problem,).toContain('--run=<number>',);
           },
         },),
@@ -459,7 +457,7 @@ await describe({
             /**
              What the check answered.
              */
-            const { problem, } = await summaryProblemIn({ runFolder, },);
+            const { problem, } = await earlierAttemptProblemIn({ runFolder, },);
             expect(problem,).toBeDefined();
             expect(problem,).toContain(runFolder,);
             expect(problem,).toContain('stderr.log',);
@@ -557,10 +555,8 @@ await describe({
             },);
             expect(warnings,).toEqual([],);
             expect(refusals.length,).toBe(1,);
-            expect(refusals[0],).toContain(join(
-              runFolder,
-              SUMMARY_FILE_NAME,
-            ),);
+            expect(refusals[0],).toContain(runFolder,);
+            expect(refusals[0],).toContain(SUMMARY_FILE_NAME,);
           },
         },),
         it({

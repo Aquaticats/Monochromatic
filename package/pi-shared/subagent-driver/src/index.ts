@@ -348,9 +348,10 @@ export { summaryTheStoppingWriterPublishes, } from './summary-the-stopping-write
 export {
   type BetweenSummaryWriteSteps,
   type SummaryWriteStep,
-  SummaryAlreadyThereError,
-  refuseWhenTheFolderHoldsASummary,
-  summaryIsThereProblemOf,
+  RunFolderHoldsAnEarlierAttemptError,
+  earlierAttemptProblemIn,
+  earlierAttemptProblemOf,
+  refuseWhenTheFolderHoldsAnEarlierAttempt,
   writeSummary,
 } from './write-summary.ts';
 

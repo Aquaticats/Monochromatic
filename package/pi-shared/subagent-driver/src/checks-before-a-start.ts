@@ -22,7 +22,7 @@ import {
   SUMMARY_FILE_NAME,
   isThere,
 } from './newest-finished-run-of-a-name.ts';
-import { summaryIsThereProblemOf, } from './write-summary.ts';
+import { earlierAttemptProblemIn, } from './write-summary.ts';
 import {
   type PiStartAnswer,
   piProblemIn,
@@ -202,31 +202,6 @@ export async function nameProblemIn({
 }
 
 /**
- Says what stops a run from writing into the folder it was given, if anything does.
-
- A folder that holds a summary holds the record of a run that finished, and a run never writes over one: a start that would is
- refused here, before it makes a worktree or spends a provider slot, rather than after it has worked.
-
- @param runFolder - the folder this run would write into
-
- @returns the problem in words, or nothing when the folder holds no summary
-
- @example
- ```ts
- const problem = await summaryProblemIn({ runFolder: '/runs/a-5', },);
- ```
- */
-export async function summaryProblemIn({ runFolder, }: { readonly runFolder: string },): Promise<PiStartAnswer> {
-  if (!await isThere(join(
-    runFolder,
-    SUMMARY_FILE_NAME,
-  ),)) {
-    return {};
-  }
-  return { problem: summaryIsThereProblemOf({ runFolder, },), };
-}
-
-/**
  What a start settled before it made anything: the reasons it is refused, and the warnings a start that goes ahead prints.
  */
 export type StartChecks = {
@@ -336,7 +311,7 @@ export async function startRefusalsIn({
   /**
    What the checks about the run itself found, in the order a reader needs them.
    */
-  const [promptAnswer, baseAnswer, nameAnswer, summaryAnswer,] = await Promise.all([
+  const [promptAnswer, baseAnswer, nameAnswer, recordsAnswer,] = await Promise.all([
     promptProblemIn({ path: promptFile, },),
     baseProblemIn({
       git,
@@ -347,7 +322,7 @@ export async function startRefusalsIn({
       run,
       runName,
     },),
-    summaryProblemIn({ runFolder, },),
+    earlierAttemptProblemIn({ runFolder, },),
   ],);
   /**
    What the question about Pi answered, which is asked even when another check refuses, so a reader fixes them all at once.
@@ -367,7 +342,7 @@ export async function startRefusalsIn({
     promptAnswer,
     baseAnswer,
     nameAnswer,
-    summaryAnswer,
+    recordsAnswer,
     pi,
   ],);
   // A refused start makes nothing, not even a memory: the answer about Pi is kept only once every check has passed.

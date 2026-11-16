@@ -62,7 +62,7 @@ import {
   maskTheSessionAtRest,
 } from './session-file-at-rest.ts';
 import {
-  refuseWhenTheFolderHoldsASummary,
+  refuseWhenTheFolderHoldsAnEarlierAttempt,
   writeSummary,
 } from './write-summary.ts';
 
@@ -143,7 +143,7 @@ export class PiRunEndedEarlyError extends Error {
 
  @throws NestedDriverError when started by a Pi that a driver runs
 
- @throws SummaryAlreadyThereError when the folder this run was given holds the summary of a run that finished, which is kept
+ @throws RunFolderHoldsAnEarlierAttemptError when the folder this run was given holds what an earlier attempt left there, which is kept
 
  @throws PiRunEndedEarlyError when the run did not end on its own terms, after the summary is written
 
@@ -180,9 +180,10 @@ export async function supervisePiRun(
       'This driver was started by a Pi that a driver is already running, and it stops here so agents cannot start agents without end. Do this work in the current session, or finish and let the lead start another run.',
     );
   }
-  // A run given the folder of a run that finished stops before it makes anything: the summary there is that run's record, and a
-  // run that worked for an hour only to answer that it may not write would have spent the work for nothing.
-  await refuseWhenTheFolderHoldsASummary({ runFolder: options.runFolder, },);
+  // A run given a folder that holds anything stops before it makes anything: what is there is another attempt's record, whether that
+  // attempt finished or was killed, and a run that worked for an hour only to answer that it may not write would have spent the work
+  // for nothing.
+  await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: options.runFolder, },);
   /**
    The wall limit in milliseconds, which is what every deadline and timer is computed from.
    */

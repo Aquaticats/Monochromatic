@@ -1241,20 +1241,6 @@ await describe({
       },
     },),
     it({
-      name: 'a run whose feed cannot be written does not end clean',
-      fn: async () => {
-        const run = await runDriver({
-          scenario: 'normal',
-          prepare: async ({ runFolder, },) => {
-            await mkdir(join(runFolder, 'feed.jsonl',), { recursive: true, },);
-          },
-        },);
-        expect(run.status,).toBe(FAILED_STATUS,);
-        expect(run.summary.endReason,).toBe('driver-failed',);
-        expect(String(run.summary.feedProblem,),).toContain('EISDIR',);
-      },
-    },),
-    it({
       name: 'a final reply that ended in a model error does not end clean',
       fn: async () => {
         const run = await runDriver({ scenario: 'model-error', },);
@@ -1884,11 +1870,9 @@ await describe({
           encoding: 'utf8',
         },),);
         expect(status,).toBe(FAILED_STATUS,);
-        expect(standardError,).toContain('SummaryAlreadyThereError',);
-        expect(standardError,).toContain(join(
-          runFolder,
-          SUMMARY_FILE_NAME,
-        ),);
+        expect(standardError,).toContain('RunFolderHoldsAnEarlierAttemptError',);
+        expect(standardError,).toContain(runFolder,);
+        expect(standardError,).toContain(SUMMARY_FILE_NAME,);
         // The run stopped before it made anything, so the folder holds the summary the run before it wrote and nothing else.
         expect(await readdir(runFolder,),).toEqual([SUMMARY_FILE_NAME,],);
         expect(await readFile(

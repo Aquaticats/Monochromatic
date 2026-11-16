@@ -27,11 +27,13 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
-  SummaryAlreadyThereError,
   type RunSummary,
   type SummaryWriteStep,
-  refuseWhenTheFolderHoldsASummary,
-  summaryIsThereProblemOf,
+  RunFolderHoldsAnEarlierAttemptError,
+  type BetweenSummaryWriteSteps,
+  earlierAttemptProblemIn,
+  earlierAttemptProblemOf,
+  refuseWhenTheFolderHoldsAnEarlierAttempt,
   summaryTheStoppingWriterPublishes,
   writeSummary,
 } from '../dist/final/node/index.mjs';
@@ -320,7 +322,7 @@ await describe({
             catch (error) {
               caught = error;
             }
-            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            expect(caught,).toBeInstanceOf(RunFolderHoldsAnEarlierAttemptError,);
             expect((caught as Error).message,).toContain(folder.path,);
             expect(await readFile(
               join(
@@ -344,35 +346,61 @@ await describe({
              */
             let caught: unknown;
             try {
-              await refuseWhenTheFolderHoldsASummary({ runFolder: folder.path, },);
+              await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: folder.path, },);
             }
             catch (error) {
               caught = error;
             }
-            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            expect(caught,).toBeInstanceOf(RunFolderHoldsAnEarlierAttemptError,);
           },
         },),
         it({
           name: 'refuses nothing for a folder that holds no summary, and writes none of its own',
           fn: async () => {
             await using folder = await makeFolder();
-            await refuseWhenTheFolderHoldsASummary({ runFolder: folder.path, },);
+            await refuseWhenTheFolderHoldsAnEarlierAttempt({ runFolder: folder.path, },);
             expect(await readdir(folder.path,),).toEqual([],);
           },
         },),
         it({
-          name: 'names the summary that is kept, the folder it is in, and both ways of giving a run a folder of its own',
+          name: 'names the folder, the records an earlier attempt left in it, and every way of giving a run a folder of its own',
           fn: async () => {
             /**
-             What a run answers a folder that holds a summary with.
+             What a run answers a folder that holds what an earlier attempt left with.
              */
-            const problem = summaryIsThereProblemOf({ runFolder: '/runs/a-5', },);
-            expect(problem,).toContain(join(
-              '/runs/a-5',
-              SUMMARY_FILE_NAME,
-            ),);
+            const problem = earlierAttemptProblemOf({
+              runFolder: '/runs/a-5',
+              records: ['feed.jsonl', 'stderr.log',],
+            },);
+            expect(problem,).toContain('/runs/a-5',);
+            expect(problem,).toContain('feed.jsonl',);
+            expect(problem,).toContain('stderr.log',);
             expect(problem,).toContain('--run=<number>',);
             expect(problem,).toContain('runs folder of its own',);
+            expect(problem,).toContain('move that folder aside',);
+          },
+        },),
+        it({
+          name: 'counts the records it does not name, so a folder of many is still one line',
+          fn: async () => {
+            /**
+             What a run answers a folder holding more records than a refusal names.
+             */
+            const problem = earlierAttemptProblemOf({
+              runFolder: '/runs/a-5',
+              records: [
+                'record-1',
+                'record-2',
+                'record-3',
+                'record-4',
+                'record-5',
+                'record-6',
+                'record-7',
+              ],
+            },);
+            expect(problem,).toContain('record-5',);
+            expect(problem,).not.toContain('record-6',);
+            expect(problem,).toContain('and 2 more',);
           },
         },),
         it({
@@ -513,7 +541,7 @@ await describe({
             catch (error) {
               caught = error;
             }
-            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            expect(caught,).toBeInstanceOf(RunFolderHoldsAnEarlierAttemptError,);
             expect(await readFile(
               join(
                 folder.path,
@@ -575,7 +603,7 @@ await describe({
             catch (error) {
               caught = error;
             }
-            expect(caught,).toBeInstanceOf(SummaryAlreadyThereError,);
+            expect(caught,).toBeInstanceOf(RunFolderHoldsAnEarlierAttemptError,);
             // The later writer was in a process whose number follows from the same place the held writer's temporary name did, so a
             // name derived from the process lets one writer write through the other's published summary.
             expect(await readFile(
