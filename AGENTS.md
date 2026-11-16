@@ -260,7 +260,7 @@ XVS:
 
 KRV:
  Reviews of a change go to Claude Sonnet alone,
- by whatever route that harness offers,
+ by whatever route the harness in use offers,
  in a worktree of its own;
  none starts on Kimi K3.1 Pro,
  which costs too much.

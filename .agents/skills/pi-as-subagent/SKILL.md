@@ -173,12 +173,15 @@ from the owner's words of 2026-11-15 at about 23:27 -05:00:
 "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
 Please use Sonnet for reviews and audits from now on.
 Close the Kimi pool for now, but let the already running runs finish."
-Pi on this machine has no provider that serves a Claude model
-(read at about 23:29 -05:00 that day:
-its credential file names `synthetic`,
-`qwen-token-plan-individual` and `opencode-go`),
-so a review is handed to a harness that has one,
-and no Pi run reviews or audits until Pi gets such a provider.
+Pi on this machine lists no Claude Sonnet model
+(`pi --list-models`,
+read at about 23:42 -05:00 that day:
+ninety-nine lines,
+Neuralwatt's models among them,
+and one Claude model,
+`claude-haiku-5-5` on `opencode-go`),
+so a review is handed to a harness that has Sonnet,
+and no Pi run reviews or audits until Pi lists one.
 The rest of this paragraph is what held until then,
 kept because the Kimi pool's numbers return with it when the owner reopens it.
 Reviews of a change ran on Kimi K3.1 Pro alone,
