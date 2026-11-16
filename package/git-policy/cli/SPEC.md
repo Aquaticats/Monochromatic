@@ -6166,7 +6166,8 @@ so a service killed between the two leaves the plan and a later service tries th
 never a notice that promises a retry nothing schedules.
 A record the storage refused leaves the plan as well,
 and the plan holds the words the person is owed (`OwedRecord` in `src/native/push/push_retry_store.rs`):
-the item is in `failed`, which nothing scans,
+the item is in `failed`,
+which nothing scans,
 so a plan dropped with a refused record would leave neither a notice nor anything that tries the branch again.
 Such a plan's next look writes the record and ends the plan then,
 and it never pushes again,
