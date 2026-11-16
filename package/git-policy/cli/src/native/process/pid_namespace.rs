@@ -594,8 +594,8 @@ impl RefusedUntellableRecord {
             false => format!("remove the record with `rm -- {}`", crate::stale_ref_lock_message::shell_quote(self.record.as_path())),
         };
         return format!(
-            "monochromatic-git-policy-cli: the record {record} {writer}, {part}, so whether that process still runs cannot be told from it, \
-             record, {state}. Nothing was changed. A record like that was written by a release or a program that is not this one, or names a process this host does \
+            "monochromatic-git-policy-cli: the record {record} {writer}, {part}, so whether that process still runs cannot be told from \
+             the record, {state}. Nothing was changed. A record like that was written by a release or a program that is not this one, or names a process this host does \
              not report; its owner may still be running and a Git process monochromatic-git-policy-cli left running (a write it could not safely end, such as a merge, a \
              reset or a branch update) may still be working for it; `ps` shows them. When no monochromatic-git-policy-cli command and no such Git process runs for this \
              repository, {removal} and run the command again.",

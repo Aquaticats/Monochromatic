@@ -64,7 +64,7 @@ pub struct MergeRecoveryOutcome {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await listMergeIntents(gitDir)).some((record) => !isLive(record))
+/// (await listMergeIntents(gitDir)).some((record) => !isLive(record)) // dead, or a holder that cannot be told
 /// ```
 pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
     for record in list_merge_intents(git_dir)? {
@@ -76,7 +76,10 @@ pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
         let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
             return Ok(true);
         };
-        if owner_liveness(&intent, record.as_path())? == OwnerLiveness::Dead {
+        // What: a record whose holder cannot be told is looked at too, so the words naming it reach the command.
+        // Why:  There is nothing to settle, but the person is told past the patience every time, and this scan is the one
+        //       read that decides whether the telling happens (owner, 2026-11-16, "A: stays, command says how (Recommended)").
+        if matches!(owner_liveness(&intent, record.as_path())?, OwnerLiveness::Dead | OwnerLiveness::CannotBeTold(_)) {
             return Ok(true);
         }
     }

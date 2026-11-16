@@ -4779,6 +4779,9 @@ fn a_merge_record_whose_owner_cannot_be_told_is_kept_and_named_without_failing()
     // Past the patience the words are written and nothing is settled.
     let aged: PathBuf = record_of(&world, untellable.clone(), Some("refs/heads/main"));
     std::fs::File::open(aged.as_path()).expect("open the record").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(60)).expect("age the record");
+    // The scan every command makes decides whether the words are written at all: a record whose holder cannot be told is
+    //  looked at, so the telling happens on every command and not only where another record needs recovery.
+    assert!(merge_intents_to_recover(world.git_dir.as_path()).expect("the scan"), "the aged record whose holder cannot be told is looked at");
     let mut said: Vec<u8> = Vec::new();
     let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery does not fail for a record whose holder cannot be told");
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
