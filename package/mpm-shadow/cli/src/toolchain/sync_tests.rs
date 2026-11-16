@@ -500,3 +500,80 @@ fn an_install_keeps_the_version_the_current_link_names() {
 }
 
 //endregion the cleanup of old versions an install runs
+
+/// What:
+/// An install's cleanup keeps a version a process of this account runs from, through the pass the install runs.
+/// Why:
+/// The review of 82531265a7 showed the plan tests asking the cleanup a closure they wrote themselves, so the shipped
+/// `protection_of` could lose its process check with every test still passing; this test asks the shipped pass with a
+/// real process of this account holding the version.
+#[cfg(unix)]
+#[test]
+fn an_install_keeps_a_version_a_process_runs_from() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    let stale = version_directory(&rig.scope.toolchain_root, "fd-find", "1.0.0");
+    fs::create_dir_all(&stale).expect("make the old version");
+    fs::write(stale.join("fd"), b"old program").expect("write the old program");
+    rig.env = rig
+        .env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    written_ago(&stale, 24 * 60 * 60);
+    // A process of this account working inside the version: its own working folder, nothing else.
+    let mut holder = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&stale)
+        .spawn()
+        .expect("start a process that works inside the version");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+
+    let report = sync_tools(&rig.context(), None);
+    let _ = holder.kill();
+    let _ = holder.wait();
+
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert!(stale.exists(), "the cleanup removed a version a process of this account was working inside");
+}
+
+/// What:
+/// An install's cleanup keeps a version a process the kernel will not describe may run, when that process started
+/// after the version was installed, through the pass the install runs.
+/// Why:
+/// The review of 82531265a7 showed the size cleanup judging such a process by its name, so a hidden process called
+/// `node` never kept a version of `fd-find`; the owner's age rule of 2026-11-15 is what the other three removals ask.
+#[cfg(unix)]
+#[test]
+fn an_install_keeps_a_version_a_hidden_process_started_after() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    let stale = version_directory(&rig.scope.toolchain_root, "fd-find", "1.0.0");
+    fs::create_dir_all(&stale).expect("make the old version");
+    fs::write(stale.join("fd"), b"old program").expect("write the old program");
+    rig.env = rig
+        .env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    written_ago(&stale, 24 * 60 * 60);
+    // A process that hides its program from this account after the version was written, calling itself `node`.
+    let mut hiding = std::process::Command::new("python3")
+        .arg("-I")
+        .arg("-c")
+        .arg("import ctypes,time; ctypes.CDLL(None).prctl(15,b'node',0,0,0); ctypes.CDLL(None).prctl(4,0,0,0,0); time.sleep(60)")
+        .spawn()
+        .expect("start the hidden process");
+    let give_up = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while std::fs::read_link(format!("/proc/{}/exe", hiding.id())).is_ok() {
+        assert!(std::time::Instant::now() < give_up, "the stand-in never hid what it runs");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    let report = sync_tools(&rig.context(), None);
+    let _ = hiding.kill();
+    let _ = hiding.wait();
+
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert!(stale.exists(), "the cleanup removed a version a hidden process started after it was installed may run");
+}

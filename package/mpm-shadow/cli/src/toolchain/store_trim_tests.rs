@@ -31,8 +31,13 @@ use std::time::{Duration, Instant, SystemTime};
 use crate::toolchain::store_trim::{
     ClaimedVersion, DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim,
     candidates_of, DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal,
-    parse_duration, parse_size, plan_trim, read_named_versions, settle_markers, trim_after_install, unfinished_marker,
+    parse_duration, parse_size, plan_trim, protection_of, read_named_versions, settle_markers, trim_after_install,
+    unfinished_marker,
 };
+/// Imports the holders the protection asks about.
+use crate::toolchain::store_path_holders::{HeldPath, HoldKind, OpaqueProcess, StoreHolders, installed_at};
+/// Imports the lock reading the protection asks about.
+use crate::toolchain::store_trim::NamedVersions;
 use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
@@ -1653,6 +1658,113 @@ fn a_recovery_marker_that_is_a_link_is_refused() {
         "the line says why it stayed: {:?}",
         outcome.lines
     );
+}
+
+//endregion
+
+//region what the shipped protection keeps
+
+/// A candidate for `version` of `tool` under `root`, as the cleanup builds one from the store.
+fn candidate_of(root: &std::path::Path, tool: &str, version: &str) -> TrimCandidate {
+    let directory: PathBuf = root.join(tool).join(version);
+    fs::create_dir_all(&directory).expect("make the version directory");
+    let metadata = fs::symlink_metadata(&directory).expect("read the version");
+    return TrimCandidate {
+        root: root.to_path_buf(),
+        tool: tool.to_string(),
+        version: version.to_string(),
+        directory,
+        downloads: None,
+        bytes: 10,
+        written: SystemTime::now() - Duration::from_secs(3_600),
+        naming: crate::toolchain::store_versions::EntryNaming::of(&metadata),
+        leftover: false,
+    };
+}
+
+/// The protections the cleanup asks with nothing else true: no lock, nothing installed, no `current` link.
+fn asked(candidate: &TrimCandidate, holders: &StoreHolders) -> Option<String> {
+    return protection_of(candidate, &NamedVersions::default(), holders, &BTreeSet::new(), &BTreeMap::new());
+}
+
+/// What:
+/// The cleanup keeps a version a process of this account holds open, and the line names the process and what it does.
+/// Why:
+/// The review of 82531265a7 took the process check out of `protection_of` and all 286 tests still passed, so the
+/// cleanup's headline promise had no control.
+#[test]
+fn the_protection_keeps_a_version_a_process_holds_open() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let candidate: TrimCandidate = candidate_of(&root, "fd-find", "1.0.0");
+    let held: PathBuf = candidate.directory.join("fd");
+    fs::write(&held, b"#!/bin/sh\n").expect("write the program");
+    let holders = StoreHolders {
+        held: vec![HeldPath { path: held, kind: HoldKind::Runs, pid: 4242 }],
+        opaque: Vec::new(),
+        processes: 1,
+        incomplete: None,
+    };
+
+    let reason: String = asked(&candidate, &holders).expect("a version a process runs is kept");
+
+    assert!(reason.contains("in use"), "the line says the version is in use: {reason}");
+    assert!(reason.contains("4242"), "the line names the process: {reason}");
+    assert!(reason.contains("runs"), "the line says what the process does with it: {reason}");
+}
+
+/// What:
+/// The cleanup keeps a version a process the kernel will not describe may run when that process started after the
+/// version was installed, and it does not keep one that started before.
+/// Why:
+/// The review of 82531265a7 showed the size cleanup judging such a process by its name while the other three removals
+/// asked the owner's age rule, so a name under five letters (`node`, `uv`) could never match and the pass that removes
+/// the most was the weakest on hidden processes.
+#[test]
+fn the_protection_asks_the_age_rule_about_a_hidden_process() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let candidate: TrimCandidate = candidate_of(&root, "fd-find", "1.0.0");
+    let installed: SystemTime = installed_at(&candidate.directory).expect("the version says when it was installed");
+    let after = StoreHolders {
+        held: Vec::new(),
+        opaque: vec![OpaqueProcess { pid: 4243, comm: "node".to_string(), started: Some(installed + Duration::from_secs(5)) }],
+        processes: 1,
+        incomplete: None,
+    };
+    let before = StoreHolders {
+        held: Vec::new(),
+        opaque: vec![OpaqueProcess { pid: 4244, comm: "node".to_string(), started: Some(installed - Duration::from_secs(5)) }],
+        processes: 1,
+        incomplete: None,
+    };
+
+    let kept: String = asked(&candidate, &after).expect("a hidden process started after the version keeps it");
+    assert!(kept.contains("4243"), "the line names the process: {kept}");
+    assert!(kept.contains("after"), "the line says why the version is kept: {kept}");
+    assert_eq!(asked(&candidate, &before), None, "a hidden process that started before the version kept it");
+}
+
+/// What:
+/// The cleanup keeps every version when the process table could not be read, and says so.
+/// Why:
+/// The review of 82531265a7 took that answer out of the shipped pass and all 286 tests still passed; a version a
+/// process the scan did not reach runs must not be removed.
+#[test]
+fn the_protection_keeps_everything_when_the_process_table_could_not_be_read() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let candidate: TrimCandidate = candidate_of(&root, "fd-find", "1.0.0");
+    let holders = StoreHolders {
+        held: Vec::new(),
+        opaque: Vec::new(),
+        processes: 0,
+        incomplete: Some("the scan of the process table could not start".to_string()),
+    };
+
+    let reason: String = asked(&candidate, &holders).expect("an unreadable process table keeps the version");
+
+    assert!(reason.contains("could not be read"), "the line says why: {reason}");
 }
 
 //endregion

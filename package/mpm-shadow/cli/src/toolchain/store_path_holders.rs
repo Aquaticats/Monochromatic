@@ -303,49 +303,6 @@ pub fn held_reason(holders: &StoreHolders, version_directory: &Path) -> Option<S
     return None;
 }
 
-/// The letters and digits of `text`, lowercased,
-/// for comparing a process's name with a tool's directory name.
-fn letters_of(text: &str) -> String {
-    return text.chars().filter(|character| return character.is_alphanumeric()).flat_map(char::to_lowercase).collect();
-}
-
-/// The shortest process name that is compared with a tool's directory name.
-/// Shorter names are ordinary words (`sh`, `ps`, `go`) and would match by accident.
-const SHORTEST_COMPARED_NAME: usize = 5;
-
-/// What:
-/// The reason every version of the tool in `tool_directory_name` stays because a process of this user called itself
-/// something that names this tool and the kernel will not say which file it runs,
-/// or `None` when no such process exists.
-/// Why:
-/// A wrapper that holds tokens calls `prctl` to hide its program from every other process,
-/// so a version it runs cannot be found by its path;
-/// its name is all that is left,
-/// and a name that matches the tool is taken as evidence that the version may be in use.
-/// The size- and age-bounded cleanup asks this, because it judges only while the stores are over their bound;
-/// the two removals an install makes ask `opaque_holder_reason` instead, which keeps more.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function opaqueReason(holders: StoreHolders, toolDirectoryName: string): string | undefined
-/// ```
-pub fn opaque_reason(holders: &StoreHolders, tool_directory_name: &str) -> Option<String> {
-    let tool_letters: String = letters_of(tool_directory_name);
-    for opaque in &holders.opaque {
-        let name: String = letters_of(&opaque.comm);
-        if name.len() < SHORTEST_COMPARED_NAME {
-            continue;
-        }
-        if tool_letters.contains(&name) {
-            return Some(format!(
-                "pid {} calls itself {} and the kernel will not say which file it runs, so it may run this version",
-                opaque.pid, opaque.comm
-            ));
-        }
-    }
-    return None;
-}
-
 /// What:
 /// When the version at `directory` was installed, as the filesystem last changed its record of that directory,
 /// or `None` when the record cannot be read.

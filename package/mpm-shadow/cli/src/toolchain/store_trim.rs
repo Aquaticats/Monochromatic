@@ -72,7 +72,7 @@ use super::prune_cargo::crate_of_entry;
 /// Imports `ScopeKind` and `global_scope` from `super::scope`.
 use super::scope::{EnvMap, ScopeKind, global_scope};
 /// Imports what this module uses from `super::store_path_holders`.
-use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
+use super::store_path_holders::{StoreHolders, held_reason, holders_of, installed_at, opaque_holder_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::segment::check_version;
 use super::store_versions::{
@@ -1589,13 +1589,18 @@ pub(super) fn roots_to_trim(ctx: &Context) -> Vec<PathBuf> {
 
 /// How a candidate is protected,
 /// given what the pass knows.
-fn protection_of(
+pub(crate) fn protection_of(
     candidate: &TrimCandidate,
     named: &NamedVersions,
     holders: &StoreHolders,
     installed: &BTreeSet<(String, String)>,
     current_links: &BTreeMap<(PathBuf, String), String>,
 ) -> Option<String> {
+    // What: a scan that could not be completed keeps every version.
+    // Why: a version a process the scan did not reach may be running from it, and nothing tells which.
+    if let Some(reason) = &holders.incomplete {
+        return Some(format!("the process table could not be read: {reason}"));
+    }
     if installed.contains(&(candidate.tool.clone(), candidate.version.clone())) {
         return Some("this install put it there".to_string());
     }
@@ -1610,7 +1615,12 @@ fn protection_of(
     if let Some(reason) = held_reason(holders, &candidate.directory) {
         return Some(format!("it is in use: {reason}"));
     }
-    if let Some(reason) = opaque_reason(holders, &candidate.tool) {
+    // What: a process the kernel will not describe keeps this version only when it started after the version was
+    // installed, which is the owner's age rule of 2026-11-15 and the rule the other three removals ask.
+    // Why: the review of 82531265a7 showed this cleanup judging such a process by its name while `prune` and the two
+    // install removals asked the age rule, so the pass that removes the most was the weakest on hidden processes, and
+    // a name under five letters (`node`, `uv`) could never match.
+    if let Some(reason) = opaque_holder_reason(holders, installed_at(&candidate.directory)) {
         return Some(format!("it may be in use: {reason}"));
     }
     return None;
@@ -1710,13 +1720,9 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
         for reason in &inventory_incomplete {
             lines.push(format!("mpm-shadow: the cleanup's inventory is not the whole store: {reason}"));
         }
-        // What: a scan that could not be completed keeps every version.
-        // Why: a version a process the scan did not reach uses must not be removed.
-        let unread: Option<String> = holders.incomplete.clone();
+        // What: the protection is one function the pass asks, so what it keeps is what a control can ask it about.
+        // Why: a scan that could not be completed keeps every version, and that answer belongs with the others.
         let protection = |candidate: &TrimCandidate| -> Option<String> {
-            if let Some(reason) = &unread {
-                return Some(format!("the process table could not be read: {reason}"));
-            }
             return protection_of(candidate, &named, &holders, &installed_set, &links);
         };
         let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &protection);
