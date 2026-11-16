@@ -136,8 +136,10 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
         return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
-    // inside at all: a process older than the directory cannot have changed into it.
-    if let Some(working) = process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
+    // inside at all: a process older than the worktree cannot have changed into it. The time is the one the records Git
+    // wrote for this worktree say (`worktree_age`), never the birth time of the folder, which a btrfs snapshot copies
+    // from the subvolume it was taken from.
+    if let Some(working) = process_working_inside(worktree, admin, look.proc_root, worktree_age(worktree, admin)) {
         return Some(working.why());
     }
     let Some(source) = look.source else {
@@ -277,44 +279,50 @@ fn bisect_mark_in(admin: &Path) -> Option<String> {
 }
 
 /// What:
-///  How long a directory has existed,
-///  as the filesystem records when it was made.
+///  How long ago the worktree at `worktree`,
+///  which the registration at `admin` names,
+///  was made,
+///  as the records Git wrote when it made it say.
 /// Why:
-///   A process that hides its working folder can only be working inside a directory that existed when it started,
-///  so the worktree's age is what separates the services that start at login from a process this worktree's own work began.
-///  A filesystem that records no birth time says nothing,
+///   A process that hides its working folder can only be working inside a worktree that existed when it started,
+///  so the time the worktree was made is what separates the services that start at login from a process this
+///  worktree's own work began.
+///  The worktree folder's own birth time does not say that time:
+///  a btrfs snapshot keeps the birth time of the subvolume it was taken from
+///  (measured on this machine 2026-11-16:
+/// 157 of the 172 worktree folders carry one birth time to the nanosecond,
+/// `2026-11-08T08:33:27.264647059Z`,
+///  which is the repository subvolume's own),
+/// and every worktree the wrapper makes on a btrfs volume is a snapshot or a subvolume the add just made.
+///  The records Git writes as it adds a worktree are not part of any snapshot:
+/// the registration it creates under `<common Git directory>/worktrees` is a directory of the repository's own Git
+/// directory,
+///  and the worktree's own `.git` file is written beside its checkout,
+///  and Git rewrites both in place (`git worktree move` and `git worktree repair`,
+/// measured with Git 2.56:
+///  the birth time of each stayed the add's while only its modification time moved),
+///  so both birth times are when the worktree was added and are never older than it.
+///  The earlier of the two is taken:
+///  a registration that a `git worktree repair` made again is born later than the add,
+///  and the `.git` file it leaves standing is the older record of it,
+///  while a record older than the worktree's first instant costs only a worktree kept.
+///  A file system that records no birth time for either record says nothing,
 ///  and the hidden process then keeps the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ageOf(directory) // Duration | undefined
+/// worktreeAge(worktree, admin) // Duration | undefined
 /// ```
-#[cfg(target_os = "linux")]
-pub(crate) fn age_of(directory: &Path) -> Option<Duration> {
-    use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(directory.as_os_str().as_bytes()).ok()?;
-    // SAFETY: an all-zero `statx` is a valid value for the call to fill.
-    let mut found: libc::statx = unsafe { std::mem::zeroed() };
-    // SAFETY: `name` outlives the call, `found` is a live `statx`, and `AT_FDCWD` with an absolute path names the directory.
-    let called: libc::c_int = unsafe { libc::statx(libc::AT_FDCWD, name.as_ptr(), 0, libc::STATX_BTIME, &mut found) };
-    if called != 0 || found.stx_mask & libc::STATX_BTIME == 0 {
-        return None;
-    }
-    let seconds: u64 = u64::try_from(found.stx_btime.tv_sec).ok()?;
-    let made: SystemTime = SystemTime::UNIX_EPOCH + Duration::new(seconds, found.stx_btime.tv_nsec);
+pub(crate) fn worktree_age(worktree: &Path, admin: &Path) -> Option<Duration> {
+    let registration: Option<SystemTime> = crate::lock_birth_times::birth_time_of(admin);
+    let pointer: Option<SystemTime> = crate::lock_birth_times::birth_time_of(worktree.join(".git").as_path());
+    let made: SystemTime = match (registration, pointer) {
+        (Some(recorded), Some(also)) => recorded.min(also),
+        (Some(recorded), None) => recorded,
+        (None, Some(also)) => also,
+        (None, None) => return None,
+    };
     return SystemTime::now().duration_since(made).ok();
-}
-
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-/// No birth time to read on a platform without `statx`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ageOf(directory) // undefined
-/// ```
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn age_of(_directory: &Path) -> Option<Duration> {
-    return None;
 }
 
 /// Controls of the proof made again stay out of the release executable.

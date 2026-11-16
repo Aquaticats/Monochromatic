@@ -59,6 +59,10 @@
 //!  or when the age of the worktree cannot be read,
 //!  and taken to be outside when it started before the worktree was made,
 //!  and the reason names the process when the answer is that it may be inside.
+//!  A worktree whose made time no record names is kept as well,
+//!  and its reason says that nothing shows when the worktree was made,
+//!  because that is not the same fact as a process younger than it,
+//!  and a person reading it knows whether the worktree's records are worth looking at.
 //!  That is a guess at which processes change into a worktree,
 //!  not a proof:
 //!  a process that started before the worktree was made can change into it afterwards,
@@ -137,6 +141,26 @@ pub struct WorkingProcess {
     pub pid: u32,
     /// What the reads of this process showed.
     pub folder: WorkingFolder,
+    /// What the records said about when the worktree was made,
+    /// which decides the words of the two answers about a process this account could not see into.
+    pub made_time: MadeTime,
+}
+
+/// What the records said about when the worktree was made.
+/// Why:
+///  A process this account cannot see into is judged by its start against that time,
+///  and a time nothing records is not the same answer as a time that makes the process young:
+///  one worktree is kept because nothing proves the process outside it,
+///  and the other because nothing proves when the worktree existed at all.
+///  A person reads which one it is and knows whether removing it needs anything else looked at.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MadeTime {
+    /// A record names the time,
+    /// and this process started after it or at the same instant.
+    Known,
+    /// Nothing readable names the time,
+    /// so this process may be inside the worktree whatever its start.
+    Unknown,
 }
 
 impl WorkingProcess {
@@ -159,14 +183,26 @@ impl WorkingProcess {
         return match self.folder {
             WorkingFolder::Inside => format!("process {} is working in it", self.pid),
             WorkingFolder::OpenFile => format!("process {} has a file open in it, though its working folder is elsewhere", self.pid),
-            WorkingFolder::Unreadable => format!(
-                "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
-                self.pid
-            ),
-            WorkingFolder::OpenFilesUnreadable => format!(
-                "process {} belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it",
-                self.pid
-            ),
+            WorkingFolder::Unreadable => match self.made_time {
+                MadeTime::Known => format!(
+                    "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
+                    self.pid
+                ),
+                MadeTime::Unknown => format!(
+                    "process {} belongs to this account, hides its working folder, and nothing shows when this worktree was made, so nothing proves it is outside it",
+                    self.pid
+                ),
+            },
+            WorkingFolder::OpenFilesUnreadable => match self.made_time {
+                MadeTime::Known => format!(
+                    "process {} belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it",
+                    self.pid
+                ),
+                MadeTime::Unknown => format!(
+                    "process {} belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows when this worktree was made, so nothing proves it holds none in it",
+                    self.pid
+                ),
+            },
         };
     }
 }
@@ -181,11 +217,14 @@ impl WorkingProcess {
 ///  The caller's own process is read like every other one:
 ///  a command started in a worktree is a process working there,
 ///  and `-C` names the repository rather than that folder.
-///  `worktree_age` is how long `root` has existed,
+///  `worktree_age` is how long ago `root` was made,
 ///  which is what a process this account could not see into is judged by:
-///  one older than the folder is taken to be outside it,
-///  though one can change into it or open a file in it after the folder was made,
+///  one older than the worktree is taken to be outside it,
+///  though one can change into it or open a file in it after the worktree was made,
 ///  which is the miss the module doc names.
+///  The caller reads that time from the records Git wrote when it made the worktree
+///  (`worktree_age` in `worktree_removal_second_look.rs`):
+///  the folder's own birth time is a snapshot's and is not when the worktree was made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,17 +233,22 @@ impl WorkingProcess {
 pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
     let listing = std::fs::read_dir(proc_root).ok()?;
     let uptime: Option<Duration> = uptime_of(proc_root);
+    // What the words of the two answers about a process this account could not see into rest on, read once.
+    let made_time: MadeTime = match worktree_age {
+        Some(_recorded) => MadeTime::Known,
+        None => MadeTime::Unknown,
+    };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Ok(pid) = name.parse::<u32>() else {
             continue;
         };
         match std::fs::read_link(entry.path().join("cwd")) {
-            Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
+            Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside, made_time }),
             Ok(_elsewhere) => {
                 // A folder outside the worktree can still hold a file open in it, and that process is working there.
                 match open_files_in(entry.path().as_path(), root, git_dir) {
-                    OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
+                    OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile, made_time }),
                     OpenFiles::Outside => {}
                     // A descriptor table this account may not read hides what the process holds, so the age of the
                     // process decides it as it decides a hidden working folder: one younger than the worktree keeps
@@ -213,7 +257,7 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
                     // doc names.
                     OpenFiles::Unreadable => {
                         if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
-                            return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
+                            return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable, made_time });
                         }
                     }
                 }
@@ -222,7 +266,7 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_refused) => {
                 if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
-                    return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
+                    return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable, made_time });
                 }
             }
         }

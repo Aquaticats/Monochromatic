@@ -3221,6 +3221,32 @@ A worktree whose branch a merge landed is removed by those same routes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
  The registration the record names must still be the one standing beside that path,
  which is what the next paragraph says the record carries.
+ The time a worktree was made decides every process whose working folder or descriptor table this account may not
+ read,
+ and it is read from the records Git wrote when it added the worktree:
+ the birth time of the registration under `<common Git directory>/worktrees` and of the worktree's own `.git` file,
+ whichever is earlier.
+ The worktree folder's own birth time is never that time.
+ A btrfs snapshot keeps the birth time of the subvolume it was taken from,
+ so a worktree this program made as a snapshot reads as old as the checkout it came from,
+ and every process of this account that started after that checkout and before the worktree,
+ the account's service manager above all,
+ would keep it for ever
+ (measured on this machine 2026-11-13:
+ a worktree made at 20:16 carried the folder birth time `2026-11-08T03:33:27.264647059-05:00`,
+ and the service manager,
+ started eleven hours before the worktree,
+ kept it).
+ Git creates the registration and writes the worktree's `.git` file as it adds a worktree,
+ and it rewrites both in place under `git worktree move` and `git worktree repair`
+ (measured with Git 2.56:
+ only the modification time of each moved),
+ so both birth times are the add's,
+ and neither is inside a snapshot.
+ A file system that records no birth time for either of them says nothing,
+ and the worktree is then kept as it is kept when a process's own start cannot be read:
+ the reason says that nothing shows when the worktree was made,
+ never that a process started after it.
  A worktree the service keeps is named in a record under the common Git directory,
  `monochromatic-git-policy-cli/kept-worktree-notices`,
  which the next wrapper command in any worktree of that repository shows once,

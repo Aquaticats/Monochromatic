@@ -10,7 +10,7 @@
 //! expect(processWorkingInside(worktree, table)).toBe(pid);
 //! ```
 
-use super::{WorkingFolder, WorkingProcess, process_working_inside, started_before};
+use super::{MadeTime, WorkingFolder, WorkingProcess, process_working_inside, started_before};
 use std::time::Duration;
 use crate::test_support::{fixture, spawn_owned};
 use std::path::{Path, PathBuf};
@@ -43,7 +43,7 @@ fn a_process_working_in_the_folder_is_named_by_its_id() {
     let table: PathBuf = a_table_with_one_process_in(worktree.as_path(), 4242);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
-        Some(WorkingProcess { pid: 4242, folder: WorkingFolder::Inside })
+        Some(WorkingProcess { pid: 4242, folder: WorkingFolder::Inside, made_time: MadeTime::Unknown })
     );
 }
 
@@ -56,7 +56,7 @@ fn a_process_in_a_folder_below_the_worktree_counts() {
     let table: PathBuf = a_table_with_one_process_in(below.as_path(), 4343);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
-        Some(WorkingProcess { pid: 4343, folder: WorkingFolder::Inside })
+        Some(WorkingProcess { pid: 4343, folder: WorkingFolder::Inside, made_time: MadeTime::Unknown })
     );
 }
 
@@ -97,7 +97,7 @@ fn this_command_working_in_the_folder_keeps_it() {
     let own: u32 = std::process::id();
     let table: PathBuf = a_table_with_one_process_in(worktree.as_path(), own);
     let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
-    assert_eq!(found, Some(WorkingProcess { pid: own, folder: WorkingFolder::Inside }), "the command itself works there");
+    assert_eq!(found, Some(WorkingProcess { pid: own, folder: WorkingFolder::Inside, made_time: MadeTime::Unknown }), "the command itself works there");
     let why: String = found.expect("the command's own process").why();
     assert_eq!(why, "this command is working in it, because it was started in that folder");
 }
@@ -111,7 +111,7 @@ fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
     let found: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
     let _ended = child.kill();
     let _waited = child.wait();
-    assert_eq!(found, Some(WorkingProcess { pid: child.id(), folder: WorkingFolder::Inside }), "the helper is named by its own id");
+    assert_eq!(found, Some(WorkingProcess { pid: child.id(), folder: WorkingFolder::Inside, made_time: MadeTime::Known }), "the helper is named by its own id");
 }
 
 /// What:
@@ -187,7 +187,7 @@ fn a_process_whose_descriptor_table_cannot_be_read_keeps_the_worktree_only_befor
     std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the descriptor directory is readable again");
     assert_eq!(
         younger,
-        Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable }),
+        Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable, made_time: MadeTime::Known }),
         "a refused read of the files a process holds is never none"
     );
     assert_eq!(
@@ -220,17 +220,54 @@ fn a_table_with_a_process_whose_folder_cannot_be_read(pid: u32) -> PathBuf {
     return table;
 }
 
+/// What:
+///  A process of this account whose working folder cannot be read keeps the worktree,
+///  and the reason says that nothing shows it started before the worktree was made.
+/// Why:
+///   Nothing proves the process is outside the worktree,
+///  and a worktree whose made time the records name is the answer that names the process's start.
 #[test]
 fn a_process_of_this_account_whose_folder_cannot_be_read_keeps_the_folder() {
     let root: PathBuf = fixture("process-hidden");
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
     let table: PathBuf = a_table_with_a_process_whose_folder_cannot_be_read(4545);
-    let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
-    assert_eq!(found, Some(WorkingProcess { pid: 4545, folder: WorkingFolder::Unreadable }), "nothing proves it is outside the folder");
+    let found: Option<WorkingProcess> =
+        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(5)));
+    assert_eq!(found, Some(WorkingProcess { pid: 4545, folder: WorkingFolder::Unreadable, made_time: MadeTime::Known }), "nothing proves it is outside the folder");
     let why: String = found.expect("the process").why();
     assert!(why.contains("process 4545"), "{why}");
     assert!(why.contains("hides its working folder"), "{why}");
+    assert!(why.contains("nothing shows it started before this worktree was made"), "{why}");
+    assert!(why.contains("nothing proves it is outside it"), "{why}");
+}
+
+/// What:
+///  A worktree whose made time no record names is kept,
+///  and the reason says that time is unknown instead of saying the process is young.
+/// Why:
+///   A file system that records no birth time says nothing about when the worktree existed,
+///  and a notice that said the process started after the worktree was made would state a fact nothing read,
+///  so a person would look for a program that started there instead of at the worktree's own records.
+///  The process here started long before the worktree's folder was made,
+///  which is the answer a known time would have taken as outside it.
+#[test]
+fn a_worktree_whose_made_time_nothing_records_is_kept_and_says_the_time_is_unknown() {
+    let root: PathBuf = fixture("process-made-time-unknown");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    let table: PathBuf = saying_it_started(a_table_with_a_process_whose_folder_cannot_be_read(5555), 5555, 1_000, 100);
+    let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
+    assert_eq!(
+        found,
+        Some(WorkingProcess { pid: 5555, folder: WorkingFolder::Unreadable, made_time: MadeTime::Unknown }),
+        "a time nothing records keeps the worktree"
+    );
+    let why: String = found.expect("the hidden process").why();
+    assert!(why.contains("process 5555"), "{why}");
+    assert!(why.contains("hides its working folder"), "{why}");
+    assert!(why.contains("nothing shows when this worktree was made"), "{why}");
+    assert!(!why.contains("started before this worktree was made"), "the reason does not claim the process is young: {why}");
     assert!(why.contains("nothing proves it is outside it"), "{why}");
 }
 
@@ -247,7 +284,7 @@ fn a_process_that_ended_while_it_was_read_does_not_count() {
 
 #[test]
 fn a_process_whose_folder_was_read_elsewhere_says_so_in_its_own_words() {
-    let inside: WorkingProcess = WorkingProcess { pid: 4747, folder: WorkingFolder::Inside };
+    let inside: WorkingProcess = WorkingProcess { pid: 4747, folder: WorkingFolder::Inside, made_time: MadeTime::Known };
     assert_eq!(inside.why(), "process 4747 is working in it");
 }
 
@@ -307,7 +344,7 @@ fn a_hidden_process_younger_than_the_worktree_keeps_it() {
     let table: PathBuf = a_table_of_a_hidden_process_started_at(4949, 1_000, 99_900);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(10))),
-        Some(WorkingProcess { pid: 4949, folder: WorkingFolder::Unreadable }),
+        Some(WorkingProcess { pid: 4949, folder: WorkingFolder::Unreadable, made_time: MadeTime::Known }),
         "a process that started after the folder was made may be working in it"
     );
 }
@@ -361,7 +398,7 @@ fn a_process_holding_a_file_inside_keeps_the_worktree_though_its_folder_is_elsew
     std::fs::write(held.as_path(), b"the file the process holds\n").expect("the file the process holds open");
     let table: PathBuf = a_table_with_one_process_holding(elsewhere.as_path(), held.as_path(), 5151);
     let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None);
-    assert_eq!(found, Some(WorkingProcess { pid: 5151, folder: WorkingFolder::OpenFile }), "the descriptor into the worktree is found");
+    assert_eq!(found, Some(WorkingProcess { pid: 5151, folder: WorkingFolder::OpenFile, made_time: MadeTime::Unknown }), "the descriptor into the worktree is found");
     assert_eq!(
         found.expect("the process holding the file").why(),
         "process 5151 has a file open in it, though its working folder is elsewhere"
@@ -412,7 +449,7 @@ fn a_descriptor_whose_file_is_already_unlinked_counts() {
     let table: PathBuf = a_table_with_one_process_holding(elsewhere.as_path(), Path::new(named.as_str()), 5252);
     assert_eq!(
         process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), None),
-        Some(WorkingProcess { pid: 5252, folder: WorkingFolder::OpenFile }),
+        Some(WorkingProcess { pid: 5252, folder: WorkingFolder::OpenFile, made_time: MadeTime::Unknown }),
         "the text the kernel adds after an unlinked target does not hide it"
     );
 }
@@ -470,7 +507,7 @@ fn a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table() {
     let found: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
     let _ended = helper.kill();
     let _waited = helper.wait();
-    assert_eq!(found, Some(WorkingProcess { pid: helper.id(), folder: WorkingFolder::OpenFile }), "the helper's own descriptor is named");
+    assert_eq!(found, Some(WorkingProcess { pid: helper.id(), folder: WorkingFolder::OpenFile, made_time: MadeTime::Known }), "the helper's own descriptor is named");
 }
 
 /// What:
@@ -511,7 +548,7 @@ fn a_walk_before_the_helper_opens_the_file_names_nothing_and_a_walk_after_it_nam
     let _waited = helper.wait();
     assert_eq!(
         after,
-        Some(WorkingProcess { pid: helper.id(), folder: WorkingFolder::OpenFile }),
+        Some(WorkingProcess { pid: helper.id(), folder: WorkingFolder::OpenFile, made_time: MadeTime::Known }),
         "the same walk names the helper once it holds the file"
     );
 }
