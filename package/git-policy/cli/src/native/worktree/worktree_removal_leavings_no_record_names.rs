@@ -44,17 +44,18 @@
 //!    only the leaving did.
 //!
 //!  Where it looks:
-//!  the directory each linked worktree of this repository stands in,
-//!  and each directory a removal of it has written down before a rename,
-//!  which is what keeps a directory readable once its last registration goes;
-//!  nothing else.
-//!  A removal renames its subvolume inside the directory that holds the worktree it removes,
-//!  in one call on the parent it already holds open
-//!  (`worktree_remove_hand_over.rs`, `hand_over_with`).
-//!  The main checkout is no such directory:
-//!  Git removes no main worktree,
-//!  and a linked worktree placed beside the main checkout is registered itself,
-//!  so its own directory is looked at through its own registration.
+//!  each directory a removal of this repository has written down before a rename,
+//!  and nothing else.
+//!  A removal writes that record before it renames
+//!  (`record_the_place`),
+//!  so the places this look lists are exactly the places this program renamed in,
+//!  and a command never lists a directory no removal of this repository touched.
+//!  What it can no longer find:
+//!  a leftover in a directory whose removal recorded no place,
+//!  which is a rename by a release that wrote no such record,
+//!  before this one.
+//!  A leftover of this release is found even when every record of its delete is lost,
+//!  because the place its removal wrote and the mark on the subvolume both outlive them.
 //!
 //!  How it opens what it finds:
 //!  a directory entry the look did not create is opened once,
@@ -95,9 +96,8 @@ use crate::worktree_removal_leavings_a_command_queues_again::{Attempted, Leaving
 use crate::worktree_removal_leavings_already_reported::{forget_the_report, report_once};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use std::collections::HashSet;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fs::File;
-use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -116,54 +116,28 @@ const THE_ROOT: &str = "/";
 const IDENTIFIER_DIGITS: usize = 16;
 
 /// What:
-///  Every directory a removal of this repository renames a subvolume into:
-///  the directory each of its linked worktrees stands in.
+///  Every directory a removal of this repository has written down before a rename.
 /// Why:
 ///   A removal renames its subvolume inside the directory that holds the worktree,
 ///  in one call on the parent it already holds open,
 ///  so a leftover of one stands beside the worktrees of the same directory.
-///  The registrations of the repository are what names those directories.
-///  The main checkout is not one of them:
-///  no removal of this program renames anything beside it,
-///  because Git removes no main worktree,
-///  and a linked worktree beside it is registered itself and names its own directory.
 ///  A registration is exactly what a removal takes away,
-///  so the registrations alone lose a directory whose last worktree is removed,
-///  which is the ordinary case:
-///  each removal writes down the directory it renames in before it renames
-///  (`record_the_place`),
-///  and those records are read beside the registrations that stand now.
-///  The checkout itself is never a place a removal renames into:
+///  so the registrations that stand now name no directory whose last worktree was removed,
+///  and these records are what a later command reads
+///  (`record_the_place`).
+///  The cost of the look is therefore bounded by the removals of this repository and never by the number of entries in a
+///  directory a person filled: no command lists a directory no removal of this repository renamed in.
+///  The checkout itself is never such a place:
 ///  the files of a worktree are a person's.
-///  A directory that cannot be listed leaves the list empty,
-///  which costs the repair and nothing else.
+///  A directory recorded twice is one place,
+///  and the root names no place a removal renames into.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const places = theDirectoriesARemovalRenamesInside(commonDir); // distinct, never the root, never a checkout
+/// const places = theDirectoriesARemovalRenamesInside(commonDir); // recorded places, distinct, never the root
 /// ```
 fn the_directories_a_removal_renames_inside(common_dir: &Path) -> Vec<PathBuf> {
-    let worktrees: PathBuf = common_dir.join("worktrees");
-    let Ok(registered) = crate::worktree_remove_registry::registered_paths(common_dir, worktrees.as_path()) else {
-        debug(TAG, format!("the worktrees of {} cannot be listed, so no directory a removal renames into is looked at", common_dir.display()).as_str());
-        return Vec::new();
-    };
     let mut places: Vec<PathBuf> = Vec::new();
-    for listed in registered {
-        // The main checkout is no linked worktree, so no removal of this program renames inside its directory.
-        if listed.id.is_none() {
-            continue;
-        }
-        let checkout: PathBuf = PathBuf::from(OsStr::from_bytes(listed.path.as_slice()));
-        let Some(parent) = checkout.parent() else { continue };
-        if parent.as_os_str().is_empty() || parent == Path::new(THE_ROOT) {
-            continue;
-        }
-        if places.iter().any(|seen| { return seen == parent }) {
-            continue;
-        }
-        places.push(parent.to_path_buf());
-    }
     for recorded in crate::worktree_removal_leaving_that_outlives_its_record::the_recorded_places(common_dir) {
         if recorded == Path::new(THE_ROOT) || places.iter().any(|seen| { return seen == &recorded }) {
             continue;
@@ -475,6 +449,21 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, place: &Path, path: &
             debug(TAG, format!("the subvolume {} no leaving record named is recorded and queued for a round's delete", path.display()).as_str());
             forget_the_report(common_dir, path);
             answer.queued = true;
+        }
+        // What: The delete is queued and nothing counted it, so the person reads what could not be read.
+        // Why:  The count was the only reason to hold the delete back, and a count that cannot be read is not a count.
+        Attempted::QueuedWithoutACount(reason) => {
+            forget_the_report(common_dir, path);
+            answer.queued = true;
+            report_once(
+                common_dir,
+                path,
+                format!(
+                    "{SAID} the subvolume {id} this program renamed aside stands at {named}, and its delete is queued again while nothing counts how many times this program has asked for it ({reason}), so `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+                    named = path.display()
+                ),
+                &mut answer.said,
+            );
         }
         Attempted::Spent => report_once(common_dir, path, attempts_are_spent_line(common_dir, path, item.id().as_str()), &mut answer.said),
         Attempted::Failed(reason) => say_not_queued(common_dir, path, id, format!("the delete that would remove it cannot be queued ({reason})"), answer),

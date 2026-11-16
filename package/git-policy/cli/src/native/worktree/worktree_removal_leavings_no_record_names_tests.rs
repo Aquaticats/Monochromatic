@@ -17,7 +17,7 @@ use crate::worktree_remove_hand_over::{delete_subvolume_of, removal_item};
 use crate::fs_beneath::open_root;
 use crate::private_storage::write_private_file_unsynced;
 use crate::worktree_removal_leaving_that_outlives_its_record::{leaving_records, mark_the_leaving, read_the_leaving, record_a_leaving_with_owner};
-use crate::worktree_removal_leaving_attempts::{attempts_taken, forget_the_attempts, mark_the_attempt_made};
+use crate::worktree_removal_leaving_attempts::{attempts_taken, forget_the_attempts, settle_the_asks};
 use crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names;
 use crate::worktree_remove_hand_over::{ToldOfHandOver, hand_over_with};
 use std::sync::{Arc, Barrier};
@@ -79,10 +79,12 @@ fn name_of_the_id(id: u64) -> String {
 }
 
 /// What:
-///  One repository whose single linked worktree stands beside the place a removal renames into.
+///  One repository whose single linked worktree stands beside the place a removal renames into,
+///  with that place recorded as a removal of this release records it before a rename.
 /// Why:
-///   Every control about a leftover of a linked-worktree removal needs that registration,
-///  because the look reads the registrations to know where a removal renames.
+///   Every control about a leftover of a linked-worktree removal needs that place,
+///  because the look reads the places removals recorded to know where a removal renames
+///  (`record_the_place`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,6 +99,7 @@ fn a_place_a_removal_renames_into(name: &str) -> Option<Place> {
     let checkout: PathBuf = place.join("topic");
     std::fs::create_dir(checkout.as_path()).expect("a worktree of the repository");
     std::fs::write(common.join("worktrees").join("one").join("gitdir").as_path(), format!("{}/.git\n", checkout.display()).as_bytes()).expect("the registration's back-link");
+    crate::worktree_removal_leaving_that_outlives_its_record::record_the_place(common.as_path(), place.as_path()).expect("the place a removal renames in, as a removal writes it");
     return Some(Place { root, common, place });
 }
 
@@ -298,6 +301,7 @@ fn a_place_whose_name_is_not_text_is_refused_and_named_once() {
     let mut back_link: Vec<u8> = std::os::unix::ffi::OsStrExt::as_bytes(checkout.as_os_str()).to_vec();
     back_link.extend_from_slice(b"/.git\n");
     std::fs::write(common.join("worktrees").join("one").join("gitdir").as_path(), back_link.as_slice()).expect("the registration's raw bytes");
+    crate::worktree_removal_leaving_that_outlives_its_record::record_the_place(common.as_path(), place.as_path()).expect("the place a removal renames in, as a removal writes it");
     let (_id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.as_path(), "kept.txt", b"held\n");
     let answer: Leavings = queue_the_leavings_a_record_no_longer_names(common.as_path());
     assert!(!answer.queued, "no record can name a path that is not text, so nothing is queued: {:?}", answer.said);
@@ -340,12 +344,10 @@ fn a_pending_delete_found_again_is_told_and_the_wakes_are_bounded() {
         assert!(answer.said.is_empty(), "and says nothing: {:?}", answer.said);
         assert!(owed(&place, &item), "the delete is still the round's to run: {}", item.id());
         assert_eq!(leaving_records(place.common.as_path()).len(), 1, "one leaving names it, written the first time");
-        // What the command that ran the look does with the answer: it makes the wake and then marks the ask it was given
-        // made. The count is the caller's, so this control stands in for that one step.
+        // What the command that ran the look does with the answer: it makes the wake and then settles every ask it was
+        // given. The wake is the caller's, so this control stands in for that one step and none of the marking.
         assert!(!answer.asks.is_empty(), "round {round} asks the service for the round it owes");
-        for (asked_of, asked_for, number) in &answer.asks {
-            mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
-        }
+        assert_eq!(settle_the_asks(answer.asks.as_slice(), Ok(())), None, "round {round} made its wake, so nothing is said about it");
     }
     let spent: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
     assert!(!spent.queued, "the attempts a record may cost are spent, so the service is not woken again");
@@ -501,11 +503,12 @@ fn a_plain_directory_at_a_leaving_name_is_left_as_it_is_and_named_once() {
 
 /// What:
 ///  The place a removal of this release renames in is recorded in the common Git directory,
-///  written before the rename and read beside the live registrations,
+///  written before the rename,
 ///  so a directory whose last registration went is still looked at.
 /// Why:
-///  The scan finds its places in the registrations of the linked worktrees that stand now,
-///  and a removal is exactly what takes one away:
+///  The scan finds its places in the records removals write and never in the registrations of the linked worktrees that
+///  stand now,
+///  because a removal is exactly what takes a registration away:
 ///  where a directory held one worktree, the command that renames its subvolume also removes the last registration,
 ///  and every later command would have no directory to read
 /// (`the_directories_a_removal_renames_inside`).
@@ -599,6 +602,7 @@ fn a_marked_leftover_under_a_parent_whose_name_is_not_text_is_refused_and_named_
     let mut back_link: Vec<u8> = std::os::unix::ffi::OsStrExt::as_bytes(checkout.as_os_str()).to_vec();
     back_link.extend_from_slice(b"/.git\n");
     std::fs::write(common.join("worktrees").join("one").join("gitdir").as_path(), back_link.as_slice()).expect("the registration's raw bytes");
+    crate::worktree_removal_leaving_that_outlives_its_record::record_the_place(common.as_path(), place.as_path()).expect("the place a removal renames in, as a removal writes it");
     let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.as_path(), "kept.txt", b"held\n");
     let held: File = File::open(hidden.as_path()).expect("the subvolume the rename made");
     mark_the_leaving(&held, id).expect("the mark this program sets on a subvolume it renames aside");
@@ -730,11 +734,9 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
                 let _together: std::sync::BarrierWaitResult = shared.wait();
                 let mut answer: Leavings = Leavings { queued: false, asks: Vec::new(), said: Vec::new() };
                 crate::worktree_removal_leavings_a_command_queues_again::wake_a_pending_delete(their_common.as_path(), &leaving, their_target.as_path(), &mut answer);
-                // What the command that runs the look does after the answer: it makes the wake and then marks every ask it
-                // was given made. The control stands in for that one step.
-                for (asked_of, asked_for, number) in &answer.asks {
-                    mark_the_attempt_made(asked_of.as_path(), asked_for.as_str(), *number);
-                }
+                // What the command that runs the look does after the answer: it makes the wake and then settles every ask it
+                // was given. The control stands in for that one step and none of the marking.
+                let _settled: Option<String> = settle_the_asks(answer.asks.as_slice(), Ok(()));
                 let _named: bool = !their_leaving_id.is_empty() && their_common.is_dir();
                 return answer.queued;
             }));
@@ -1089,4 +1091,104 @@ fn every_path_that_acts_on_a_leaving_stays_inside_the_attempt_budget() {
     assert!(!killed_hidden.exists(), "and the directory the name held is gone with it");
     remove(killed.root.as_path());
     assert!(failures.is_empty(), "each path stayed inside the attempts a leaving may cost:\n{}", failures.join("\n"));
+}
+
+/// What:
+///  A leftover standing in a directory whose removal recorded no place is not looked at,
+///  and no command lists that directory.
+/// Why:
+///  The look lists the places removals wrote down and nothing else,
+///  so a command never lists a directory a person filled and no removal of this repository renamed in
+/// (`the_directories_a_removal_renames_inside`).
+///  The cost of that choice is this case:
+///  a leftover in a directory whose removal recorded no place,
+///  which is a rename by a release that wrote no such record,
+///  is not found by the scan.
+///  It is still found while a leaving record or a queue record of its delete stands,
+///  which is what every removal of this release leaves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('scan-no-place-record');
+/// forgetThePlace(place.common, place.place);                       // a removal that wrote no place
+/// const [id, hidden] = aSubvolumeUnderItsOwnLeavingName(place.place, 'kept.txt', b'held\n');
+/// await markTheLeaving(File.open(hidden), id);                      // the proof survives every record
+/// expect(queueTheLeavingsARecordNoLongerNames(place.common)).toEqual({ queued: false, said: [] });
+/// expect(exists(hidden)).toBe(true);
+/// ```
+#[test]
+fn a_leftover_in_a_directory_no_removal_recorded_is_not_looked_at() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-no-place-record") else { return };
+    crate::worktree_removal_leaving_that_outlives_its_record::forget_a_place(place.common.as_path(), place.place.as_path());
+    let (id, hidden): (u64, PathBuf) = a_subvolume_under_its_own_leaving_name(place.place.as_path(), "kept.txt", b"held\n");
+    mark_the_leaving(&File::open(hidden.as_path()).expect("the subvolume the rename made"), id).expect("the mark this program sets before it renames");
+    let item: WorkItem = removal_item(place.common.as_path(), place.place.as_path(), id);
+    let answer: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(!answer.queued, "no place record names that directory, so nothing in it is looked at: {:?}", answer.said);
+    assert!(answer.said.is_empty(), "and nothing is said about what stands there: {:?}", answer.said);
+    assert!(!owed(&place, &item), "no round is given work for it");
+    assert!(hidden.is_dir(), "and the control's own subvolume stands as it was");
+    assert_eq!(std::fs::read(hidden.join("kept.txt").as_path()).expect("the file at the real path"), b"held\n", "with its files");
+    snapshot_destroy_in(&File::open(place.place.as_path()).expect("the place"), hidden.file_name().expect("a name"), hidden.as_path()).expect("the control removes its own subvolume");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  The memory of a line said about an unproved name goes when the place it named does,
+///  and another directory at that name is said again.
+/// Why:
+///   A memory that outlived its place is one file for ever per name a person made and removed,
+///  and the next object at that name would be said nothing about
+/// (`forget_the_reports_of_places_that_moved`).
+///  The memory holds the identity of the object it was said about,
+///  so a place made again at the same name is another one and is named once more.
+///  The directory the memory named goes while the place is still one a removal recorded,
+///  which is the one other directory of the leaving shape standing beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = aPlaceARemovalRenamesInto('scan-unproved-removed');
+/// const said = mkdir(`${place.place}/cli-git-deleting-${nameOfTheId(0)}`);
+/// mkdir(`${place.place}/cli-git-deleting-${nameOfTheId(1)}`);       // keeps the place one to look at
+/// expect(queueTheLeavings(place.common).said.length).toBe(2); expect(memoryFiles(place.common).length).toBe(2);
+/// rmdir(said); expect(queueTheLeavings(place.common).said.length).toBe(0); expect(memoryFiles(place.common).length).toBe(1);
+/// mkdir(said); expect(queueTheLeavings(place.common).said.length).toBe(1);
+/// ```
+#[test]
+fn the_memory_of_a_line_said_about_an_unproved_name_goes_when_the_place_does() {
+    let Some(place): Option<Place> = a_place_a_removal_renames_into("scan-unproved-removed") else { return };
+    let plain: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(0)));
+    let beside: PathBuf = place.place.join(format!("{A_LEAVING_SHAPE}{}", name_of_the_id(1)));
+    std::fs::create_dir(plain.as_path()).expect("a person's directory at a leaving name");
+    std::fs::create_dir(beside.as_path()).expect("another of the person's directories at a leaving name");
+    let folder: PathBuf = place.common.join(crate::worktree_removal_leavings_already_reported::REPORTED_FOLDER);
+    let first: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert_eq!(first.said.len(), 2, "the person reads one line about each directory: {:?}", first.said);
+    assert_eq!(memories(folder.as_path()), 2, "and one file remembers each of them");
+    std::fs::remove_dir(plain.as_path()).expect("the person removes one of the directories");
+    let after: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert!(after.said.is_empty(), "the directory that line named is gone, so nothing is said: {:?}", after.said);
+    assert_eq!(memories(folder.as_path()), 1, "and the memory of it goes with the directory, while the other stands");
+    std::fs::create_dir(plain.as_path()).expect("another directory at the same name");
+    let again: Leavings = queue_the_leavings_a_record_no_longer_names(place.common.as_path());
+    assert_eq!(again.said.len(), 1, "a directory made again at that name is a different place and is said again: {:?}", again.said);
+    std::fs::remove_dir(plain.as_path()).expect("the control removes the directory it made");
+    std::fs::remove_dir(beside.as_path()).expect("and the other one it made");
+    remove(place.root.as_path());
+}
+
+/// What:
+///  How many memories of said lines the folder holds,
+///  which is nothing when no command has said a line about a place that still stands.
+/// Why:
+///   The list of memories is the whole of what grows in a repository whose leftovers a person never acts on,
+///  and how many stand is what these controls measure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const memories = (folder) => { try { return readdirSync(folder).length } catch { return 0 } };
+/// ```
+fn memories(folder: &Path) -> usize {
+    let Ok(listing) = std::fs::read_dir(folder) else { return 0 };
+    return listing.flatten().count();
 }

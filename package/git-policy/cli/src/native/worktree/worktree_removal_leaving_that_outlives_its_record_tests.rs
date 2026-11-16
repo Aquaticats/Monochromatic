@@ -69,7 +69,7 @@ fn the_leaving_record(removal: &Removal) -> Option<Vec<u8>> {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const leaving = await recordALeaving(common, item);
-/// expect(leaving).toEqual({ owner: `${pid}:${birth}`, tries: 0, item });
+/// expect(leaving).toEqual({ owner: `${pid}:${birth}`, adopted: false, item });
 /// expect(readTheLeaving(bytes)).toEqual(leaving);
 /// ```
 #[test]
@@ -77,13 +77,13 @@ fn a_leaving_names_the_path_the_subvolume_and_the_command_that_renamed_it() {
     let removal: Removal = a_removal_of_a_subvolume("leaving-names");
     let recorded: Leaving = record_a_leaving(removal.common.as_path(), &removal.item).expect("the leaving is recorded");
     assert!(recorded.owner.is_some(), "the command names itself, so a later command knows it may still be running");
-    assert_eq!(recorded.tries, 0, "no command has queued a delete for it yet");
+    assert!(!recorded.adopted, "the record names the command that wrote it, so no scan found it");
     assert_eq!(recorded.item, removal.item, "the record holds the delete's own item");
     assert_eq!(removal.item.parent, removal.parent.join(deleting_name(0x2a)).display().to_string(), "the record names the place the rename makes");
     let bytes: Vec<u8> = the_leaving_record(&removal).expect("the record is written");
     let read: Leaving = read_the_leaving(bytes.as_slice()).expect("a record this build wrote is one it reads");
     assert_eq!(read.owner, recorded.owner, "the command is read back");
-    assert_eq!(read.tries, 0, "and the count with it");
+    assert!(!read.adopted, "and whether a scan found it with it");
     assert_eq!(read.item, removal.item, "and the place it names, byte for byte");
     remove(removal.root.as_path());
 }
@@ -143,7 +143,7 @@ fn a_leaving_that_is_finished_is_forgotten_and_the_folder_goes_with_it() {
 /// enqueue(work, item); claim; settle(work, claimed, FAILED);
 /// await queueTheDeleteAgain(common, leaving);
 /// expect(pending(work, item.id())).toBe(true); expect(exists(failed(work, item.id()))).toBe(false);
-/// expect(readTheLeaving(bytes).tries).toBe(1);
+/// expect(readTheLeaving(bytes).owner).toBe('1:ended');
 /// ```
 #[test]
 fn the_delete_of_a_leaving_a_round_gave_up_on_is_queued_again() {
@@ -158,7 +158,7 @@ fn the_delete_of_a_leaving_a_round_gave_up_on_is_queued_again() {
     assert!(state_directory(work.as_path(), PENDING).join(removal.item.id()).is_file(), "a round finds it again");
     assert!(!state_directory(work.as_path(), FAILED).join(removal.item.id()).exists(), "and the record it was is gone, so the queue owes one delete");
     let bytes: Vec<u8> = the_leaving_record(&removal).expect("the record is still there");
-    assert_eq!(read_the_leaving(bytes.as_slice()).expect("its own record").tries, 1, "the count of queueings travels with it");
+    assert_eq!(read_the_leaving(bytes.as_slice()).expect("its own record").owner, leaving.owner, "and the command that renamed the subvolume goes with it");
     remove(removal.root.as_path());
 }
 

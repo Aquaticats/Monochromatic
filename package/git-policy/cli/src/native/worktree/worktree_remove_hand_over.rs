@@ -407,6 +407,11 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         // leaving record above names the directory until a command proves it gone.
         match crate::worktree_removal_leavings_a_command_queues_again::queue_the_delete_as_the_next_attempt(common_dir, &leaving) {
             crate::worktree_removal_leavings_a_command_queues_again::Attempted::Queued => {}
+            // The delete is queued and nothing counted it: the leaving record still names the directory, and the next
+            // command says what could not be read and queues it again.
+            crate::worktree_removal_leavings_a_command_queues_again::Attempted::QueuedWithoutACount(reason) => {
+                warn(TAG, format!("the delete of {} is queued again and nothing counts it ({reason})", target.display()).as_str());
+            }
             crate::worktree_removal_leavings_a_command_queues_again::Attempted::Spent => {
                 warn(
                     TAG,

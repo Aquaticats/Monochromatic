@@ -75,7 +75,12 @@ const TAG: &str = "worktreeRemovalLeaving";
 /// as its process and the identity that tells it from a later process of the same number.
 const OWNER_PREFIX: &str = "owner=";
 
-/// The prefix of the record's line that counts the times a command has queued this leaving's delete again.
+/// The prefix of the record's line that counted the times a command had queued this leaving's delete again.
+/// What reads it:
+/// a record an earlier build of this branch wrote,
+/// which this release accepts and no longer writes,
+/// because the attempts a leaving may cost are counted by its slot files
+/// (`worktree_removal_leaving_attempts.rs`).
 const TRIES_PREFIX: &str = "tries=";
 
 /// The prefix of the record's line that says a command found this leaving by its name alone,
@@ -113,26 +118,27 @@ pub(crate) const RECORD_LIMIT: u64 = 16384;
 ///  One leaving,
 /// as its record holds it:
 ///  the command that renamed the subvolume,
-///  how many times a command has queued its delete again,
+///  whether a scan found it by its name alone,
 ///  and the work item whose path and object name the delete acts on.
 /// Why:
 ///   The item's path is the place the rename made and its object name is the subvolume's own id,
 ///  which together are the proof a delete needs.
 ///   The owner says whether a command may still be between its record and its rename,
 ///  which is the one state a later command may not decide about.
-///   The count is what keeps one stuck leaving from costing this machine's commands a delete attempt for ever.
+///   No count of attempts lives here:
+///  the attempts a leaving may cost are counted by the slot files of its own
+///  (`worktree_removal_leaving_attempts.rs`),
+///  and a second count in the record would be one more number a command reads and writes back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Leaving = { owner?: string; tries: number; item: WorkItem };
+/// type Leaving = { owner?: string; adopted: boolean; item: WorkItem };
 /// ```
 pub struct Leaving {
     /// The command that wrote the record,
     /// as `<pid>:<birth identity>`;
     /// nothing for a record written without one.
     pub owner: Option<String>,
-    /// How many times a command has queued this leaving's delete again.
-    pub tries: u32,
     /// Whether a command found this leaving by its name alone,
     /// no command of this program having renamed anything into it,
     /// which is the one state every command may decide about at once.
@@ -152,10 +158,10 @@ fn record_path(common_dir: &Path, id: &str) -> PathBuf {
 /// What:
 ///  The bytes of one leaving's record:
 ///  the command that wrote it,
-///  the count of queueings,
+///  whether a scan found it,
 ///  and the work item.
 /// Why:
-///   The two short lines come first,
+///   The short lines come first,
 ///  one per line,
 ///  so nothing a path or a repository name holds can be taken for them,
 ///  and everything after them is the item's own JSON.
@@ -163,14 +169,13 @@ fn record_path(common_dir: &Path, id: &str) -> PathBuf {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // `adopted` is written only when it is true, so a record a command renamed into keeps the bytes an earlier reader wrote.
-/// const bytes = (item, owner, tries, adopted) => `${owner ? 'owner=' + owner + '\n' : ''}tries=${tries}\n${adopted ? 'adopted=1\n' : ''}${item.encode()}`;
+/// const bytes = (item, owner, adopted) => `${owner ? 'owner=' + owner + '\n' : ''}${adopted ? 'adopted=1\n' : ''}${item.encode()}`;
 /// ```
-fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32, adopted: bool) -> Vec<u8> {
+fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, adopted: bool) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     if let Some(spelled) = owner {
         bytes.extend_from_slice(format!("{OWNER_PREFIX}{spelled}\n").as_bytes());
     }
-    bytes.extend_from_slice(format!("{TRIES_PREFIX}{tries}\n").as_bytes());
     if adopted {
         bytes.extend_from_slice(format!("{ADOPTED_PREFIX}1\n").as_bytes());
     }
@@ -190,13 +195,13 @@ fn bytes_of_the_leaving(item: &WorkItem, owner: Option<&str>, tries: u32, adopte
 /// ```ts
 /// await replacePrivateFile(join(commonDir, LEAVINGS_FOLDER, item.id()), bytes);
 /// ```
-fn write_the_leaving(common_dir: &Path, item: &WorkItem, owner: Option<&str>, tries: u32, adopted: bool) -> Result<(), String> {
+fn write_the_leaving(common_dir: &Path, item: &WorkItem, owner: Option<&str>, adopted: bool) -> Result<(), String> {
     let folder: PathBuf = common_dir.join(LEAVINGS_FOLDER);
     if let Err(error) = create_private_directory_all(folder.as_path()) {
         return Err(format!("the folder {} cannot be made ({error})", folder.display()));
     }
     let path: PathBuf = record_path(common_dir, item.id().as_str());
-    return match replace_private_file_unsynced(path.as_path(), bytes_of_the_leaving(item, owner, tries, adopted).as_slice()) {
+    return match replace_private_file_unsynced(path.as_path(), bytes_of_the_leaving(item, owner, adopted).as_slice()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("{} cannot be written ({error})", path.display())),
     };
@@ -253,8 +258,8 @@ pub fn record_a_leaving(common_dir: &Path, item: &WorkItem) -> Result<Leaving, S
 ///
 /// The words for a record that cannot be written.
 pub fn record_a_leaving_with_owner(common_dir: &Path, item: &WorkItem, owner: Option<&str>) -> Result<Leaving, String> {
-    write_the_leaving(common_dir, item, owner, 0, false)?;
-    return Ok(Leaving { owner: owner.map(str::to_owned), tries: 0, adopted: false, item: item.clone() });
+    write_the_leaving(common_dir, item, owner, false)?;
+    return Ok(Leaving { owner: owner.map(str::to_owned), adopted: false, item: item.clone() });
 }
 
 /// What:
@@ -282,8 +287,8 @@ pub fn record_a_leaving_with_owner(common_dir: &Path, item: &WorkItem, owner: Op
 ///
 /// The words for a record that cannot be written.
 pub(crate) fn record_a_leaving_found_by_a_scan(common_dir: &Path, item: &WorkItem) -> Result<Leaving, String> {
-    write_the_leaving(common_dir, item, None, 0, true)?;
-    return Ok(Leaving { owner: None, tries: 0, adopted: true, item: item.clone() });
+    write_the_leaving(common_dir, item, None, true)?;
+    return Ok(Leaving { owner: None, adopted: true, item: item.clone() });
 }
 
 /// What:
@@ -533,6 +538,9 @@ fn is_newline(byte: &u8) -> bool {
 /// Why:
 ///   A record a person or another program wrote into this folder must be told apart from this program's own,
 ///  and a record whose count or item cannot be read names nothing a command may act on.
+///   A `tries=` line is a count an earlier build of this branch wrote,
+///  which this release reads and drops:
+///  the attempts a leaving may cost are its slot files' and never a number in its record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -541,7 +549,6 @@ fn is_newline(byte: &u8) -> bool {
 pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
     let mut rest: &[u8] = bytes;
     let mut owner: Option<String> = None;
-    let mut tries: u32 = 0;
     let mut adopted: bool = false;
     loop {
         let Some(split_at) = rest.iter().position(is_newline) else { break };
@@ -559,10 +566,9 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
         }
         match text.strip_prefix(TRIES_PREFIX) {
             Some(spelled) => {
-                let Ok(count) = spelled.parse::<u32>() else {
+                if spelled.parse::<u32>().is_err() {
                     return Err(format!("its count {spelled} is no count of tries"));
-                };
-                tries = count;
+                }
                 rest = after.strip_prefix(b"\n").unwrap_or(after);
             }
             None => break,
@@ -572,7 +578,7 @@ pub(crate) fn read_the_leaving(bytes: &[u8]) -> Result<Leaving, String> {
         Ok(text) => text,
         Err(_not_text) => return Err(String::from("the record of the delete it names is not text")),
     };
-    return Ok(Leaving { owner, tries, adopted, item: WorkItem::decode(item)? });
+    return Ok(Leaving { owner, adopted, item: WorkItem::decode(item)? });
 }
 
 /// What:
@@ -611,7 +617,6 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
     // the work this one owes.
     for name in &ids {
         if requeue_after_giving_up(work.as_path(), name.as_str()) {
-            note_the_attempt(common_dir, leaving);
             return Ok(());
         }
     }
@@ -631,28 +636,7 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
         let _settled_done = std::fs::remove_file(state_directory(work.as_path(), DONE).join(name.as_str()));
         let _settled_failed = std::fs::remove_file(state_directory(work.as_path(), FAILED).join(name.as_str()));
     }
-    note_the_attempt(common_dir, leaving);
     return Ok(());
-}
-
-/// What:
-///  Write one more queueing into the leaving's own record.
-/// Why:
-///   The count is what bounds a delete the kernel keeps refusing:
-///  a command that finds the count spent says the directory and stops queueing it
-///  (`worktree_removal_leavings_a_command_queues_again.rs`).
-///   A count that cannot be written costs one more attempt and nothing else,
-///  which is why the queueing stands whether this write does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await rewriteLeaving({ ...leaving, tries: leaving.tries + 1 });
-/// ```
-pub(crate) fn note_the_attempt(common_dir: &Path, leaving: &Leaving) {
-    let tries: u32 = leaving.tries.saturating_add(1);
-    if let Err(reason) = write_the_leaving(common_dir, &leaving.item, leaving.owner.as_deref(), tries, leaving.adopted) {
-        debug(TAG, format!("{reason}; the delete of {} is queued, and the count of its attempts is not", leaving.item.parent).as_str());
-    }
 }
 
 /// Controls stay out of the release executable.

@@ -1,7 +1,7 @@
 //! What:
 //!  The attempts one leaving may cost:
 //!  a slot taken by the one command that makes the attempt,
-//!  published before the attempt with an exclusive create or an atomic rename,
+//!  published before the attempt with an exclusive create or a rename only one command can win,
 //!  and marked once the attempt is made,
 //!  so a slot a killed command took but never used is taken over by the next command.
 //! Why:
@@ -15,28 +15,35 @@
 //!  So a slot is a file, published atomically **before** the act it counts:
 //!  - `reserved-<leaving>.<n>` holds the command that will make attempt `n`,
 //!    published with an exclusive create so two commands can never take the same number;
-//!  - `claimed-<leaving>.<n>` is a reservation whose command was proved gone before it acted,
-//!    renamed here by the one command that takes the attempt over
-//!    (`renameat2` with `RENAME_NOREPLACE`, so exactly one wins);
-//!  - `made-<leaving>.<n>` is published once the attempt was made.
+//!  - `taking-<leaving>.<n>.<command>` is a slot taken over from a command that was proved gone,
+//!    made by renaming the slot's own name with `renameat2` and `RENAME_NOREPLACE`,
+//!    so exactly one command wins,
+//!    and the name itself carries the taker's identity,
+//!    which is what a later command reads to know whether the taker may still be running;
+//!  - `made-<leaving>.<n>` is published once the attempt was made,
+//!    and it is never removed by the command that made the attempt.
 //!  A slot whose owner may still be running is another command's attempt and is left alone;
 //!  a slot whose owner is proved gone is taken over and its attempt made,
 //!  so a kill between the slot and the act costs the act's lateness and never the delete.
+//!  A slot that names no command this program could have written is not a count at all:
+//!  the caller is told what could not be read and queues the delete anyway
+//!  (`Attempt::Unreadable`), because a count that cannot be read is not a count.
 //!  Nothing here reads a number and writes it back:
 //!  the number a command gets is the name it published, and the budget is the set of names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const slot = takeAnAttempt({ commonDir, id, owner });   // { n } | undefined
-//! if (slot === undefined) return spentWords;
+//! const slot = takeAnAttempt({ commonDir, id, owner });   // { kind: 'took', n } | { kind: 'spent' } | { kind: 'unreadable', reason }
+//! if (slot.kind !== 'took') return slot;
 //! await makeTheAttempt();                                  // queue the delete, or ask the service
-//! markTheAttemptMade({ commonDir, id, n: slot.n });        // after the act
+//! markTheAttemptMade(slot.slot);                           // after the act
 //! ```
 
 use crate::diagnostic_log::{debug, warn};
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
+use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_work::MAX_TRIES;
 use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
+use std::path::{Path, PathBuf};
 
 /// The folder of the common Git directory that holds one file per attempt slot of each leaving.
 pub(crate) const ATTEMPTS_FOLDER: &str = "monochromatic-git-policy-cli/leaving-attempts";
@@ -48,6 +55,10 @@ const TAG: &str = "worktreeRemovalLeavingAttempts";
 /// which is the budget the look promises a person reads of.
 const THE_BUDGET: u32 = MAX_TRIES;
 
+/// The words every line a person reads from this module starts with,
+/// so a terminal shows which program said it.
+const SAID: &str = "monochromatic-git-policy-cli:";
+
 /// What:
 ///  The name of the reservation of attempt `number` of one leaving.
 /// Why:
@@ -56,25 +67,10 @@ const THE_BUDGET: u32 = MAX_TRIES;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const path = join(commonDir, ATTEMPTS_FOLDER, `reserved-${id}.${n}`);
+/// const path = join(attemptsFolder, `reserved-${id}.${n}`);
 /// ```
-fn reserved_path(common_dir: &std::path::Path, id: &str, number: u32) -> std::path::PathBuf {
-    return common_dir.join(ATTEMPTS_FOLDER).join(format!("reserved-{id}.{number}"));
-}
-
-/// What:
-///  The name a reservation takes when a command takes the attempt over.
-/// Why:
-///   The rename is the claim,
-///  and it is published with `RENAME_NOREPLACE`,
-///  so of any number of commands that find the same dead reservation exactly one takes it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const path = join(commonDir, ATTEMPTS_FOLDER, `claimed-${id}.${n}`);
-/// ```
-fn claimed_path(common_dir: &std::path::Path, id: &str, number: u32) -> std::path::PathBuf {
-    return common_dir.join(ATTEMPTS_FOLDER).join(format!("claimed-{id}.{number}"));
+fn reserved_path(folder: &Path, id: &str, number: u32) -> PathBuf {
+    return folder.join(format!("reserved-{id}.{number}"));
 }
 
 /// What:
@@ -85,167 +81,454 @@ fn claimed_path(common_dir: &std::path::Path, id: &str, number: u32) -> std::pat
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const path = join(commonDir, ATTEMPTS_FOLDER, `made-${id}.${n}`);
+/// const path = join(attemptsFolder, `made-${id}.${n}`);
 /// ```
-fn made_path(common_dir: &std::path::Path, id: &str, number: u32) -> std::path::PathBuf {
-    return common_dir.join(ATTEMPTS_FOLDER).join(format!("made-{id}.{number}"));
+fn made_path(folder: &Path, id: &str, number: u32) -> PathBuf {
+    return folder.join(format!("made-{id}.{number}"));
 }
 
 /// What:
-///  The owner line of a slot,
-///  which is the command that took it.
+///  The name a slot takes when this command takes the attempt over,
+///  which carries the taker's own identity.
 /// Why:
-///   A slot whose command is gone without an attempt is the next command's to make,
-///  and a slot whose command may still be running is that command's own.
+///   The rename is the claim,
+///  and it is published with `RENAME_NOREPLACE`,
+///  so of any number of commands that find the same dead slot exactly one takes it.
+///   The name carries the taker because the file it moves holds the dead command's line:
+///  a later command that found that line would take a live command's attempt over,
+///  so what a taker left has to say who the taker is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const owner = readOwner(path); // "pid:birth", or undefined when the file holds none
+/// const name = `taking-${id}.${n}.${hex(owner)}`;
 /// ```
-fn read_owner(path: &std::path::Path) -> Option<String> {
-    let bytes: Vec<u8> = std::fs::read(path).ok()?;
-    let text: String = String::from_utf8(bytes).ok()?;
-    let trimmed: &str = text.trim_end();
-    return (!trimmed.is_empty()).then(|| return trimmed.to_owned());
+fn taking_name(id: &str, number: u32, owner: &str) -> String {
+    return format!("taking-{id}.{number}.{}", crate::hexadecimal_of_bytes::hexadecimal_of_bytes(owner.as_bytes()));
 }
 
 /// What:
-///  Publish `owner` over a slot the caller has just claimed,
-///  and answer whether the slot is now this command's.
+///  One attempt slot this command holds,
+///  named so that only this command may remove it.
 /// Why:
-///   A claimed slot may hold the owner of the command that died,
-///  and two commands can both find it dead:
-///  each publishes its own owner and then reads the slot back,
-///  and only the one whose owner stands there goes on to make the attempt.
-///  The write is the atomic replacing write,
-///  so a slot always holds one command's name and never half of two.
+///   This command holds the slot until the act it counts is made or given back,
+///  and both steps remove the one name it took,
+///  never another command's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mine = await writeOwnerAndVerify(path, owner); // replace, then read back
+/// type Slot = { folder: string; id: string; number: number; holding: string };
 /// ```
-fn write_owner_and_verify(path: &std::path::Path, owner: &str) -> bool {
-    if let Err(error) = replace_private_file_unsynced(path, owner.as_bytes()) {
-        debug(TAG, format!("the attempt slot {} cannot be taken ({error})", path.display()).as_str());
-        return false;
+pub struct Slot {
+    /// The attempts folder the name stands in.
+    folder: PathBuf,
+    /// The leaving the attempt is of.
+    id: String,
+    /// The number of the attempt this slot counts.
+    number: u32,
+    /// The one name this command holds, which is the only name it may remove.
+    holding: PathBuf,
+    /// Whether that name is a taker's, which this command removes when the attempt is made,
+    /// so a leaving whose slot was taken over keeps no file per takeover.
+    taken_over: bool,
+}
+
+
+/// What:
+///  What one call for an attempt came to.
+/// Why:
+///   Three endings need three steps from the caller:
+///  an act that is counted,
+///  the words a person reads when the budget is spent,
+///  and a count that cannot be read,
+///  which is no count at all and costs the act nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Attempt = { kind: 'took'; slot } | { kind: 'spent' } | { kind: 'unreadable'; reason };
+/// ```
+pub(crate) enum Attempt {
+    /// An attempt this command may make, which it must mark or give back.
+    Took(Slot),
+    /// Every attempt this leaving may cost is taken or made.
+    Spent,
+    /// The slots cannot be read or written, with the reason a person reads.
+    Unreadable(String),
+}
+
+/// What:
+///  Whether one name in the attempts folder belongs to this leaving,
+///  what kind of slot it names,
+///  and the token a `taking-` name carries.
+/// Why:
+///   The folder holds the slots of every leaving of the repository,
+///  so a name is read once into what it says and never guessed again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FoundSlot = { kind: 'made' | 'reserved' | 'claimed' | 'taking'; number: number; path: string; token?: string };
+/// ```
+struct FoundSlot {
+    /// Which of the four names this slot stands under.
+    kind: SlotKind,
+    /// The attempt number the name carries.
+    number: u32,
+    /// The file that holds the slot.
+    path: PathBuf,
+    /// The identity an earlier taker wrote into a `taking-` name, or nothing for the other names.
+    token: Option<String>,
+}
+
+/// The four names a slot of one leaving may stand under.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SlotKind {
+    /// A name an earlier release's takeover wrote, whose file holds its owner's line.
+    /// What reads it:
+    /// this release, so that a slot an earlier release left is still counted and still taken over,
+    /// and never written.
+    Claimed,
+    /// A name a command published for itself; its file holds its owner's line.
+    Reserved,
+    /// The name of an attempt that was made.
+    Made,
+    /// A name a taker renamed a dead slot to; the name holds the taker's identity.
+    Taking,
+}
+
+/// What:
+///  The number and the token a slot name carries after `prefix`,
+///  or nothing when the name is not one of this leaving's.
+/// Why:
+///   One shape reads all four names,
+///  and a name of another leaving,
+///  or one a person wrote,
+///  answers nothing and is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const after = name.startsWith(prefix) ? name.slice(prefix.length).split('.') : undefined;
+/// ```
+fn number_and_token(name: &str, prefix: &str) -> Option<(u32, Option<String>)> {
+    let rest: &str = name.strip_prefix(prefix)?;
+    let (number, token): (&str, Option<&str>) = match rest.split_once('.') {
+        Some((number, token)) => (number, Some(token)),
+        None => (rest, None),
+    };
+    return Some((number.parse::<u32>().ok()?, token.map(str::to_owned)));
+}
+
+/// What:
+///  Every slot name of this leaving the folder holds,
+///  or the reason the folder cannot be listed.
+/// Why:
+///   The set of names is the count this module decides on,
+///  so it is read once per call rather than asked name by name,
+///  and a folder that cannot be listed is a count that cannot be read,
+///  which the caller must hear.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slots = readdir(folder).flatMap((name) => slotOf(name, id));
+/// ```
+fn the_slots_of(folder: &Path, id: &str) -> Result<Vec<FoundSlot>, String> {
+    let listing: std::fs::ReadDir = match std::fs::read_dir(folder) {
+        Ok(listing) => listing,
+        // The folder is gone, which is a leaving that has none of its attempts taken or made.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("the folder {} cannot be listed ({error})", folder.display())),
+    };
+    let mut found: Vec<FoundSlot> = Vec::new();
+    for entry in listing.flatten() {
+        let path: PathBuf = entry.path();
+        // A name that is not text is no name this program writes, so it is no slot of this leaving's.
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+        let kinds: [(SlotKind, String); 4] = [
+            (SlotKind::Made, format!("made-{id}.")),
+            (SlotKind::Reserved, format!("reserved-{id}.")),
+            (SlotKind::Claimed, format!("claimed-{id}.")),
+            (SlotKind::Taking, format!("taking-{id}.")),
+        ];
+        for (kind, prefix) in kinds {
+            let Some((number, token)) = number_and_token(name.as_str(), prefix.as_str()) else { continue };
+            found.push(FoundSlot { kind, number, path, token });
+            break;
+        }
     }
-    return read_owner(path).as_deref() == Some(owner);
+    return Ok(found);
 }
 
 /// What:
-///  Rename a dead reservation to its claimed name,
-///  refusing a name that already stands,
-///  and answer whether this command made the rename.
+///  The identity a `taking-` name carries,
+///  or the reason a name under that shape is not one this program wrote.
 /// Why:
-///   The reservation is renamed away by the first command that takes it,
-///  so no other command can take the same attempt,
-///  and a claimed name that already stands is another command's attempt.
+///   A taker's identity is what tells a later command whether the attempt is still being made,
+///  so a `taking-` name whose token is not the hexadecimal form of an identity names nothing this program may read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const claimed = renameNoReplace(reserved, claimedPath); // false when either name is not as expected
+/// const owner = textFromHex(slot.token) ?? throw new Error(`${slot.path} names no command`);
 /// ```
-fn claim_by_rename(reserved: &std::path::Path, claimed: &std::path::Path) -> bool {
-    let Some(directory) = reserved.parent() else { return false };
-    let (Some(from), Some(to)) = (reserved.file_name(), claimed.file_name()) else { return false };
-    let held: std::fs::File = match crate::fs_beneath::open_root(directory) {
-        Ok(opened) => opened,
-        Err(error) => {
-            debug(TAG, format!("{} cannot be opened, so no attempt is taken over ({error})", directory.display()).as_str());
+fn the_taker_of(slot: &FoundSlot) -> Result<String, String> {
+    let decoded: Option<String> = slot.token.as_deref().and_then(owner_of_hexadecimal);
+    return match decoded {
+        Some(owner) => Ok(owner),
+        None => Err(format!("the attempt slot {} names no command that took it", slot.path.display())),
+    };
+}
+
+/// What:
+///  The bytes the hexadecimal digits `digits` spell,
+///  or nothing when they spell no bytes or are no text.
+/// Why:
+///   A taker's identity in a name is hexadecimal so that any identity a platform prints fits a file name,
+///  and this is the one place that spelling is read back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owner = digits.length % 2 === 0 ? Buffer.from(digits, 'hex').toString('utf8') : undefined;
+/// ```
+fn owner_of_hexadecimal(digits: &str) -> Option<String> {
+    if digits.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::with_capacity(digits.len() / 2);
+    for pair in digits.as_bytes().chunks(2) {
+        let text: &str = std::str::from_utf8(pair).ok()?;
+        bytes.push(u8::from_str_radix(text, 16).ok()?);
+    }
+    return String::from_utf8(bytes).ok();
+}
+
+/// What:
+///  The owner line a slot's own file holds,
+///  or the reason it names no command that took it.
+/// Why:
+///   A reservation and a name an earlier release's takeover wrote hold the owner inside the file,
+///  and a file whose line is empty,
+///  is not text,
+///  or carries no process number names no command at all:
+///  it is a count that cannot be read,
+///  and the caller must hear which file it could not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owner = theOwnerInFile(slot.path); // `<pid>:<identity>`, or a reason
+/// ```
+fn the_owner_in_the_file(path: &Path) -> Result<String, String> {
+    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| format!("the attempt slot {} cannot be read ({error})", path.display()))?;
+    let text: &str = std::str::from_utf8(bytes.as_slice()).map_err(|_not_text| format!("the attempt slot {} does not name the command that took it", path.display()))?;
+    let spelled: &str = text.trim_end();
+    let Some((process, _identity)) = spelled.split_once(':') else {
+        return Err(format!("the attempt slot {} does not name the command that took it", path.display()));
+    };
+    if process.parse::<i64>().is_err() {
+        return Err(format!("the attempt slot {} does not name the command that took it", path.display()));
+    }
+    return Ok(spelled.to_owned());
+}
+
+/// What:
+///  The identity of the command that took a slot,
+///  whichever of the four names it stands under,
+///  or the reason the slot cannot be read.
+/// Why:
+///   A live command's slot is its own attempt,
+///  and a dead command's is the next command's to make,
+///  so this is the answer every takeover begins with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owner = slot.kind === 'taking' ? takerFromName(slot) : ownerInFile(slot.path);
+/// ```
+fn the_owner_of(slot: &FoundSlot) -> Result<String, String> {
+    return match slot.kind {
+        SlotKind::Taking => the_taker_of(slot),
+        SlotKind::Reserved | SlotKind::Claimed => the_owner_in_the_file(slot.path.as_path()),
+        SlotKind::Made => Err(format!("the attempt slot {} is a made attempt with no owner", slot.path.display())),
+    };
+}
+
+/// What:
+///  Rename one dead slot's name to the name this command takes it over into,
+///  refusing a name that already stands,
+///  and answer whether this command won the rename.
+/// Why:
+///   The rename is the whole of the claim:
+///  the name it moves away cannot be moved by a second command,
+///  so of any number of commands that find the same dead slot exactly one acts,
+///  and a loser is told so by the same call that failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const won = renameNoReplace(below(folder), slotName, below(folder), takingName); // false when another command won
+/// ```
+fn take_over_by_rename(folder: &Path, from: &Path, to: &Path) -> Result<bool, String> {
+    let (Some(from_name), Some(to_name)) = (from.file_name(), to.file_name()) else {
+        return Err(format!("{} or {} names no file", from.display(), to.display()));
+    };
+    let held: std::fs::File = crate::fs_beneath::open_root(folder).map_err(|error| format!("the folder {} cannot be opened ({error})", folder.display()))?;
+    return match crate::fs_beneath::rename_at(&held, from_name, &held, to_name, false) {
+        Ok(()) => Ok(true),
+        // The name is gone, so another command took the slot over between the look and this rename.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        // A name that already stands is another taker's, which is the same answer as a lost race.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(error) => Err(format!("the attempt slot {} cannot be taken over ({error})", from.display())),
+    };
+}
+
+/// What:
+///  Whether some name other than `ours` says attempt `number` of this leaving is taken or made.
+/// Why:
+///   A command that looked before another took the number publishes its own name afterwards,
+///  and without this second look both would act on one number:
+///  the name that appeared is either the mark of a made attempt or a taker's name,
+///  and either one means this command's look is out of date.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = readdir(folder).some((slot) => slot.number === n && slot.path !== ours && slot.kind !== 'reserved-from-an-earlier-look');
+/// ```
+fn another_command_says_taken(slots: &[FoundSlot], number: u32, ours: &Path) -> bool {
+    return slots.iter().any(|slot| {
+        if slot.number != number || slot.path == ours {
             return false;
         }
-    };
-    return crate::fs_beneath::rename_at(&held, from, &held, to, false).is_ok();
+        return matches!(slot.kind, SlotKind::Made | SlotKind::Taking);
+    });
 }
 
 /// What:
 ///  Take one attempt slot of this leaving for this command,
-///  or answer nothing when every attempt a record may cost was taken or made.
+///  answer that the budget is spent,
+///  or answer what could not be read.
 /// Why:
 ///   The slot is published before the act it counts,
 ///  so a command killed between the two leaves a slot the next command takes over and makes the attempt for,
 ///  and a command killed after the act leaves a slot that is already spent.
 ///  A free number is published exclusively,
-///  a dead reservation is claimed by a rename only one command can win,
-///  and a dead claim is taken by publishing this command's owner over it and reading it back.
+///  a slot whose command is gone is taken over by a rename only one command can win,
+///  and a made number is never taken again because the mark of it is never removed.
+///  A slot that cannot be read is no count:
+///  the caller must hear which name it was and queue the delete without counting it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const slot = takeAnAttempt({ commonDir, id, owner }); // { n } | undefined
+/// const slot = takeAnAttempt({ commonDir, id, owner }); // Took | Spent | Unreadable
 /// ```
-pub(crate) fn take_an_attempt(common_dir: &std::path::Path, id: &str, owner: &str) -> Option<u32> {
-    let folder: std::path::PathBuf = common_dir.join(ATTEMPTS_FOLDER);
+pub(crate) fn take_an_attempt(common_dir: &Path, id: &str, owner: &str) -> Attempt {
+    let folder: PathBuf = common_dir.join(ATTEMPTS_FOLDER);
     if let Err(error) = create_private_directory_all(folder.as_path()) {
-        warn(TAG, format!("the attempts of {id} cannot be taken, because {} cannot be made ({error})", folder.display()).as_str());
-        return None;
+        return Attempt::Unreadable(format!("the folder {} cannot be made ({error})", folder.display()));
     }
+    let slots: Vec<FoundSlot> = match the_slots_of(folder.as_path(), id) {
+        Ok(found) => found,
+        Err(reason) => return Attempt::Unreadable(reason),
+    };
     for number in 1..=THE_BUDGET {
-        if made_path(common_dir, id, number).is_file() {
+        if slots.iter().any(|slot| { return slot.kind == SlotKind::Made && slot.number == number }) {
             continue;
         }
-        let reserved: std::path::PathBuf = reserved_path(common_dir, id, number);
-        let claimed: std::path::PathBuf = claimed_path(common_dir, id, number);
-        if reserved.is_file() {
-            if owner_may_be_running(read_owner(reserved.as_path()).as_ref()) {
-                continue;
+        let holding: Vec<&FoundSlot> = slots.iter().filter(|slot| { return slot.kind != SlotKind::Made && slot.number == number }).collect();
+        if !holding.is_empty() {
+            // What: One name of this number that this command may take over, or nothing when each is a live command's.
+            // Why:  A slot whose owner may still be running is another command's attempt and is never touched.
+            let mut taken_over: Option<PathBuf> = None;
+            for slot in holding {
+                let slot_owner: String = match the_owner_of(slot) {
+                    Ok(spelled) => spelled,
+                    Err(reason) => return Attempt::Unreadable(reason),
+                };
+                if owner_may_be_running(Some(&slot_owner)) {
+                    continue;
+                }
+                let to: PathBuf = folder.join(taking_name(id, number, owner));
+                match take_over_by_rename(folder.as_path(), slot.path.as_path(), to.as_path()) {
+                    Ok(true) => {
+                        taken_over = Some(to);
+                        break;
+                    }
+                    Ok(false) => continue,
+                    Err(reason) => return Attempt::Unreadable(reason),
+                }
             }
-            if !claim_by_rename(reserved.as_path(), claimed.as_path()) {
-                continue;
-            }
-            if !write_owner_and_verify(claimed.as_path(), owner) {
+            let Some(holding_name) = taken_over else { continue };
+            // What: The second look after the takeover, so an attempt another command made meanwhile is never made twice.
+            // Why:  A made mark that appeared after the look above is the one answer that "made" is never removed for.
+            let after: Vec<FoundSlot> = match the_slots_of(folder.as_path(), id) {
+                Ok(found) => found,
+                Err(reason) => {
+                    let _given_back = std::fs::remove_file(&holding_name);
+                    return Attempt::Unreadable(reason);
+                }
+            };
+            if another_command_says_taken(after.as_slice(), number, holding_name.as_path()) {
+                let _given_back = std::fs::remove_file(&holding_name);
                 continue;
             }
             debug(TAG, format!("the attempt {number} of {id} was left by a command that is gone, so it is taken over").as_str());
-            return Some(number);
+            return Attempt::Took(Slot { folder, id: id.to_owned(), number, holding: holding_name, taken_over: true });
         }
-        if claimed.is_file() {
-            if owner_may_be_running(read_owner(claimed.as_path()).as_ref()) {
-                continue;
-            }
-            if !write_owner_and_verify(claimed.as_path(), owner) {
-                continue;
-            }
-            debug(TAG, format!("the attempt {number} of {id} was claimed by a command that is gone, so it is taken over").as_str());
-            return Some(number);
-        }
+        let reserved: PathBuf = reserved_path(folder.as_path(), id, number);
         match write_private_file_unsynced(reserved.as_path(), owner.as_bytes()) {
-            Ok(()) => return Some(number),
+            Ok(()) => {
+                // What: The second look after the publish, which is what keeps a made number from being taken again.
+                // Why:  A command whose look predates another command's made mark publishes its own name once that
+                //       command's reservation is gone, so the mark is read again here, after this command's own name stands.
+                let after: Vec<FoundSlot> = match the_slots_of(folder.as_path(), id) {
+                    Ok(found) => found,
+                    Err(reason) => {
+                        let _given_back = std::fs::remove_file(&reserved);
+                        return Attempt::Unreadable(reason);
+                    }
+                };
+                if another_command_says_taken(after.as_slice(), number, reserved.as_path()) {
+                    let _given_back = std::fs::remove_file(&reserved);
+                    continue;
+                }
+                return Attempt::Took(Slot { folder, id: id.to_owned(), number, holding: reserved, taken_over: false });
+            }
             // Another command took this number between the look and the publish, so the next one is asked for.
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => {
-                warn(TAG, format!("the attempt {number} of {id} cannot be taken ({error})").as_str());
-                return None;
+                return Attempt::Unreadable(format!("the attempt {number} of {id} cannot be taken in {} ({error})", folder.display()));
             }
         }
     }
-    return None;
+    return Attempt::Spent;
 }
 
 /// What:
 ///  Mark the attempt this command took as made,
-///  and drop the slot that named it.
+///  and drop the one name it holds when that name is a taker's.
 /// Why:
 ///   An attempt is counted by the act it counts,
-///  so this is called after the delete is queued or the service is asked,
-///  and a slot a command took but never made stays claimable by the next command.
-///  A slot that cannot be dropped costs one file and nothing else:
-///  the made name is what the budget counts.
+///  so this is called after the delete is queued or the service is asked.
+///   The mark of a made attempt is never removed,
+///  and neither is the reservation a command published,
+///  because a command that looked before the mark and publishes afterwards finds the name still standing
+///  and asks for another number instead of acting twice on one.
+///   A taker's name is removed because only this command holds it,
+///  and a leaving whose slot was taken over would otherwise keep one file per takeover for ever.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// markTheAttemptMade({ commonDir, id, n }); // make made-<id>.<n>, drop reserved- and claimed-
+/// markTheAttemptMade(slot); // made-<id>.<n>, and drop claimed-/taking- names of this command
 /// ```
-pub(crate) fn mark_the_attempt_made(common_dir: &std::path::Path, id: &str, number: u32) {
-    let made: std::path::PathBuf = made_path(common_dir, id, number);
+pub(crate) fn mark_the_attempt_made(slot: &Slot) {
+    let made: PathBuf = made_path(slot.folder.as_path(), slot.id.as_str(), slot.number);
     match write_private_file_unsynced(made.as_path(), b"") {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => {
-            warn(TAG, format!("the made attempt {} of {id} is not recorded ({error})", made.display()).as_str());
+            warn(TAG, format!("the made attempt {} of {} is not recorded ({error})", slot.number, slot.id).as_str());
         }
     }
-    let _dropped_reservation = std::fs::remove_file(reserved_path(common_dir, id, number));
-    let _dropped_claim = std::fs::remove_file(claimed_path(common_dir, id, number));
+    // What: Only a taker's name is dropped here.
+    // Why:  A reservation this command published is the name that stops a command which looked before the mark from
+    //       taking the number again, and a name an earlier release wrote belongs to the attempt that command took.
+    if slot.taken_over {
+        let _dropped_taking = std::fs::remove_file(slot.holding.as_path());
+    }
 }
 
 /// What:
@@ -257,11 +540,45 @@ pub(crate) fn mark_the_attempt_made(common_dir: &std::path::Path, id: &str, numb
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// releaseTheAttempt({ commonDir, id, n }); // drop reserved- and claimed-
+/// releaseTheAttempt(slot); // drop the one name this command holds
 /// ```
-pub(crate) fn release_the_attempt(common_dir: &std::path::Path, id: &str, number: u32) {
-    let _dropped_reservation = std::fs::remove_file(reserved_path(common_dir, id, number));
-    let _dropped_claim = std::fs::remove_file(claimed_path(common_dir, id, number));
+pub(crate) fn release_the_attempt(slot: &Slot) {
+    let _given_back = std::fs::remove_file(slot.holding.as_path());
+}
+
+/// What:
+///  Mark every ask this command took a slot for,
+///  or give them all back when the wake they were for reached no service,
+///  answering the line the person reads when it did not.
+/// Why:
+///   A wake that reached nobody is not an attempt:
+///  a slot spent by it would end in the words that say the delete was given up,
+///  while no service ever tried it.
+///   The person reads the truth either way:
+///  no attempt counted, no given-up words, and the delete still queued for the next command to ask for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = settleTheAsks(asks, await wakeTheService(context, commonDir)); // undefined when the wake was made
+/// ```
+pub(crate) fn settle_the_asks(asks: &[Slot], wake: Result<(), String>) -> Option<String> {
+    return match wake {
+        Ok(()) => {
+            for slot in asks {
+                mark_the_attempt_made(slot);
+            }
+            None
+        }
+        Err(why) => {
+            for slot in asks {
+                release_the_attempt(slot);
+            }
+            debug(TAG, format!("the commit service was not reached ({why}), so no ask is counted as an attempt").as_str());
+            Some(format!(
+                "{SAID} the delete of a removed worktree's subvolume is queued, and the commit service was not reached ({why}), so it stays for the next command of this repository to ask for; nothing here counts that as an attempt."
+            ))
+        }
+    };
 }
 
 /// What:
@@ -269,16 +586,21 @@ pub(crate) fn release_the_attempt(common_dir: &std::path::Path, id: &str, number
 ///  whether they were made or a command that died still holds them.
 /// Why:
 ///   The number is the budget a person reads of,
-///  and it is counted from the names three commands can publish, never from a number one of them wrote.
+///  and it is counted from the names commands can publish, never from a number one of them wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = attemptsTaken(commonDir, id); // made + reserved + claimed
+/// const taken = attemptsTaken(commonDir, id); // one per number any of the four names carries
 /// ```
-pub(crate) fn attempts_taken(common_dir: &std::path::Path, id: &str) -> u32 {
+pub(crate) fn attempts_taken(common_dir: &Path, id: &str) -> u32 {
+    let folder: PathBuf = common_dir.join(ATTEMPTS_FOLDER);
+    let slots: Vec<FoundSlot> = match the_slots_of(folder.as_path(), id) {
+        Ok(found) => found,
+        Err(_unreadable) => return 0,
+    };
     let mut taken: u32 = 0;
     for number in 1..=THE_BUDGET {
-        if made_path(common_dir, id, number).is_file() || reserved_path(common_dir, id, number).is_file() || claimed_path(common_dir, id, number).is_file() {
+        if slots.iter().any(|slot| { return slot.number == number }) {
             taken += 1;
         }
     }
@@ -296,13 +618,18 @@ pub(crate) fn attempts_taken(common_dir: &std::path::Path, id: &str) -> u32 {
 /// ```ts
 /// forgetTheAttempts(commonDir, id);
 /// ```
-pub(crate) fn forget_the_attempts(common_dir: &std::path::Path, id: &str) {
-    for number in 1..=THE_BUDGET {
-        let _made = std::fs::remove_file(made_path(common_dir, id, number));
-        let _reserved = std::fs::remove_file(reserved_path(common_dir, id, number));
-        let _claimed = std::fs::remove_file(claimed_path(common_dir, id, number));
+pub(crate) fn forget_the_attempts(common_dir: &Path, id: &str) {
+    let folder: PathBuf = common_dir.join(ATTEMPTS_FOLDER);
+    if let Ok(listing) = std::fs::read_dir(folder.as_path()) {
+        let prefixes: [String; 4] = [format!("made-{id}."), format!("reserved-{id}."), format!("claimed-{id}."), format!("taking-{id}.")];
+        for entry in listing.flatten() {
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+            if prefixes.iter().any(|prefix| { return name.starts_with(prefix.as_str()) }) {
+                let _removed = std::fs::remove_file(entry.path());
+            }
+        }
     }
-    let _kept = std::fs::remove_dir(common_dir.join(ATTEMPTS_FOLDER));
+    let _kept = std::fs::remove_dir(folder.as_path());
 }
 
 /// Controls stay out of the release executable.
