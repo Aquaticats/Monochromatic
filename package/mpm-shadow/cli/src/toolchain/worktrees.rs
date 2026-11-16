@@ -107,6 +107,20 @@ pub fn worktree_lock_files(runner: &dyn Runner, root: &Path) -> Result<Vec<PathB
                 worktree.directory.display()
             )));
         }
+        // What: a worktree git marks `prunable` whose directory exists but holds no `.git` entry is a worktree whose
+        // disk is not mounted, and the command refuses.
+        // Why: the mount point is an empty directory, so the directory check above passed and the lock was then read as
+        // a file that names nothing; the review of this change watched an install remove the version that lock named.
+        // Skipping it is not an option, because "the disk is gone" and "the disk is not mounted" look the same from
+        // here, and a lock that was not read keeps every version.
+        if worktree.prunable && !worktree.directory.join(".git").exists() {
+            return Err(ToolchainError::failure(format!(
+                "the worktree {} is listed by git as prunable and holds no .git entry, which is what a worktree on a \
+                 disk that is not mounted looks like, so its lock cannot be read; nothing was deleted. Mount it, run \
+                 `git worktree prune` if the worktree is gone, or name its lock with --lock",
+                worktree.directory.display()
+            )));
+        }
         files.push(worktree.directory.join("toolchain.lock.json"));
     }
     return Ok(files);

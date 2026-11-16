@@ -1768,3 +1768,74 @@ fn the_protection_keeps_everything_when_the_process_table_could_not_be_read() {
 }
 
 //endregion
+
+/// What:
+/// A lock with a row whose route this release does not know keeps every version, and the line names the file and the
+/// row.
+/// Why:
+/// The review of 82531265a7 showed such a row pinning nothing, so the cleanup removed the version the row names; a
+/// newer build writes its new route into the same shared lock.
+#[test]
+fn a_route_this_release_does_not_know_keeps_every_version() {
+    let rig = crate::toolchain::fakes::Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let version: PathBuf = root.join("db").join("1.0.0");
+    fs::create_dir_all(&version).expect("make the version");
+    fs::write(version.join("payload"), b"keep me").expect("write the payload");
+    fs::write(
+        rig.scope.lock_file.clone(),
+        r#"{"tools":{"cargo:db":{"version":"1.0.0","route":"a-route-from-a-newer-build","packageId":"db"}}}"#,
+    )
+    .expect("write the lock");
+    fs::write(unfinished_marker(&root), b"").expect("leave the recovery marker");
+
+    let kept_lines: Vec<String> = trim_lines(&rig);
+
+    assert!(version.join("payload").is_file(), "a lock row with an unknown route pinned nothing");
+    assert!(
+        kept_lines.iter().any(|line| return line.contains("a-route-from-a-newer-build") && line.contains("does not know")),
+        "the line names the route it could not read: {kept_lines:?}"
+    );
+}
+
+/// What:
+/// A worktree git calls prunable whose directory exists but holds no `.git` entry stops the cleanup, so a lock on a
+/// disk that is not mounted is never treated as one that names nothing.
+/// Why:
+/// The review of 82531265a7 left an empty mount point in place of a worktree, and the install removed the version that
+/// worktree's lock named.
+#[test]
+fn a_worktree_on_a_disk_that_is_not_mounted_stops_the_cleanup() {
+    let rig = crate::toolchain::fakes::Rig::new();
+    let unmounted: PathBuf = rig.scope.root.join("elsewhere");
+    fs::create_dir_all(&unmounted).expect("an empty mount point");
+    rig.runner.answer(
+        "git -C",
+        &format!(
+            "worktree {}\nHEAD a\n\nworktree {}\nHEAD b\nprunable gitdir file points to non-existent location\n\n",
+            rig.scope.root.display(),
+            unmounted.display()
+        ),
+        0,
+    );
+
+    let listed = crate::toolchain::worktrees::worktree_lock_files(&rig.runner, &rig.scope.root);
+    // The rig's own directory holds no `.git` either, so give it one and ask again: the prunable entry is what refuses.
+    fs::write(rig.scope.root.join(".git"), "gitdir: elsewhere\n").expect("a .git entry for the rig's own worktree");
+    let refused = listed.err().or_else(|| return crate::toolchain::worktrees::worktree_lock_files(&rig.runner, &rig.scope.root).err());
+
+    let message: String = refused.expect("a prunable worktree with no .git entry refuses").message;
+    assert!(message.contains(&unmounted.display().to_string()), "the line names the worktree: {message}");
+    assert!(message.contains("prunable"), "the line says what git reported: {message}");
+    assert!(message.contains("git worktree prune"), "the line says what a person does: {message}");
+}
+
+/// The lines `trim_after_install` printed for this rig, which is what a person reads.
+fn trim_lines(rig: &crate::toolchain::fakes::Rig) -> Vec<String> {
+    let (lines, _unfinished) = finish_removals(
+        std::slice::from_ref(&rig.scope.toolchain_root),
+        &read_named_versions(std::slice::from_ref(&rig.scope.lock_file)),
+        &fixture_run(),
+    );
+    return lines;
+}

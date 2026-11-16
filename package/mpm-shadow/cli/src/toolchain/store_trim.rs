@@ -490,9 +490,15 @@ impl NamedVersions {
                 ));
             };
             let Some(route) = entry.get("route").and_then(Value::as_str).and_then(Route::parse) else {
-                // A route this release does not know keeps its payload somewhere this pass cannot see, and it pins
-                // nothing in a version directory.
-                continue;
+                // What: a route this release does not know makes the whole lock unreadable, and the line names the row.
+                // Why: such a row keeps its payload somewhere this pass cannot map, and a newer build writes its new
+                // route into the same shared lock: the review of this change watched the cleanup remove a version a
+                // lock with an unknown route named, because the row silently pinned nothing.
+                let said: String = entry.get("route").and_then(Value::as_str).unwrap_or("no route").to_string();
+                return Err(format!(
+                    "{} names tools.{id} at route {said}, which this release does not know, so no version can be told from one a lock pins",
+                    origin.display()
+                ));
             };
             // What: a crate `cargo binstall` installs is named by the crate, not by the tool id.
             // Why: its directory is `<root>/cargo/<crate>`, while every other route's directory is named after the id.
