@@ -25,6 +25,7 @@
 use crate::service_messages::{ClientFailure, render};
 use crate::service_host_of_a_worktree::ServiceHost;
 use crate::service_server_start_by_the_wrapper::StartAttempt;
+use std::io::Write;
 use crate::service_socket_directory_only_this_account_may_open::ensure_private;
 
 /// What:
@@ -101,6 +102,15 @@ pub fn make_sure_a_server_exists_within(host: &ServiceHost, wait: std::time::Dur
         crate::service_warn!("the real Git this commit service runs cannot be recorded beside its address ({error}), so a command that finds no Git on PATH has no fallback");
     }
     let server = host.server();
+    // What: A start says once that it is making the service, so a wait that ends at its bound is not a silent wait.
+    // Why:  The review of `e347be3115` (part two-a, finding 6) read a failed start of 10,037 ms in which nothing was printed
+    //       until the failure: a person cannot tell that from a hang.
+    let _said = writeln!(
+        std::io::stderr(),
+        "{}: the commit service of this worktree is not running, so this command starts it; it answers within {}, and this command says why not if it does not.",
+        crate::wrapper_names_old_and_new::PROGRAM.current,
+        bound_in_words(wait)
+    );
     return match crate::service_server_start_by_the_wrapper::start_within(&server, wait) {
         StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => Ok(()),
         StartAttempt::DidNotGreet(log) => Err(ClientFailure::CouldNotStart(format!(

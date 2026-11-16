@@ -312,18 +312,94 @@ pub(crate) fn start_seamed(server: &ServerToStart, wait: Duration, manager_start
             );
         }
     }
-    let detached: Detached = Detached { program: server.program.clone(), arguments: server.arguments(), log: log.clone() };
-    if spawn(&detached).is_err() {
-        return StartAttempt::DidNotGreet(log);
+    // What:
+    //  The base's start, tried again once when the service it spawned ended before it greeted, inside the same bound.
+    // Why:
+    //   A service killed while it started left the commit waiting the whole `START_WAIT` and then failing, with nothing left to
+    //   retry (the review of `e347be3115`, part one, finding 1: 3 of 40 first commands failed, and
+    //   `kill-during-start-fails-the-commit.sh` measured 10,061 ms, exit 1, where `main` had `Restart=on-failure`).
+    //   A commit should never fail because the service it started was killed; one more start costs nothing when the first
+    //   one lives, and it is what a manager's restart did.
+    let deadline: Instant = Instant::now() + wait;
+    let mut attempt: usize = 0;
+    loop {
+        let detached: Detached = Detached { program: server.program.clone(), arguments: server.arguments(), log: log.clone() };
+        let launched: Option<i32> = match spawn(&detached) {
+            Ok(number) => number,
+            Err(_cannot_spawn) => return StartAttempt::DidNotGreet(log),
+        };
+        match waits_for_a_greeting_of(&server.address, deadline, launched) {
+            Waited::Greeted => return StartAttempt::Greeted,
+            // What: A start that did not greet, while the address still takes a connection, is a service that was already there
+            //       and is leaving: the server this command started could not bind and exited, and the caller keeps waiting.
+            // Why:  Failing here would fail a commit whose service is about to be free, and the caller's own ceiling bounds the
+            //       wait.
+            Waited::NotYet if accepts(&server.address) => return StartAttempt::AnotherCommandStartsIt,
+            Waited::NotYet => return StartAttempt::DidNotGreet(log),
+            Waited::Ended => {
+                attempt += 1;
+                if attempt > STARTS_PER_COMMAND {
+                    return StartAttempt::DidNotGreet(log);
+                }
+                // The service this command spawned is gone before it greeted: one more start, inside the same bound, and the
+                //  caller keeps the deadline it started with.
+            }
+        }
     }
-    return match waits_for_a_greeting(&server.address, wait) {
-        true => StartAttempt::Greeted,
-        // What: A start that did not greet, while the address still takes a connection, is a service that was already there and
-        //       is leaving: the server this command started could not bind and exited, and the caller keeps waiting.
-        // Why:  Failing here would fail a commit whose service is about to be free, and the caller's own ceiling bounds the wait.
-        false if accepts(&server.address) => StartAttempt::AnotherCommandStartsIt,
-        false => StartAttempt::DidNotGreet(log),
-    };
+}
+
+/// What:
+///  How many detached starts one command makes when the service it started ends before it greets.
+/// Why:
+///   A second service killed in the same command is a state a third start does not change, and a loop that started one for
+/// ever would be a command that never ends; two cover a service killed while the replacement started.
+const STARTS_PER_COMMAND: usize = 2;
+
+/// What:
+///  What a start's wait for the greeting came to.
+/// Why:
+///  A service that ended before it greeted is a start that can be made again, and one that is merely silent at the bound is the
+/// state the caller reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Waited = 'greeted' | 'ended' | 'not-yet';
+/// ```
+enum Waited {
+    /// The service greeted at the address.
+    Greeted,
+    /// The process this command started ended before it greeted.
+    Ended,
+    /// The bound passed with nothing greeting.
+    NotYet,
+}
+
+/// What:
+///  Waits for a greeting until `deadline`, and ends early when the process this command started is gone.
+/// Why:
+///  The number is the one the middle process reported, so it names the service this command started or nothing;
+/// reading whether it is alive only makes the wait shorter, and a number the kernel hands to another process makes it longer,
+/// which the deadline bounds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitsForAGreetingOf(address, deadline, launched) // 'greeted' | 'ended' | 'not-yet'
+/// ```
+fn waits_for_a_greeting_of(address: &Bind, deadline: Instant, launched: Option<i32>) -> Waited {
+    loop {
+        if answered(address) {
+            return Waited::Greeted;
+        }
+        if let Some(number) = launched
+            && !crate::process_identity::signal_probe(i64::from(number)).unwrap_or(true)
+        {
+            return Waited::Ended;
+        }
+        if Instant::now() >= deadline {
+            return Waited::NotYet;
+        }
+        std::thread::sleep(GREETING_POLL);
+    }
 }
 
 /// What:
