@@ -640,3 +640,48 @@ fn a_service_with_no_place_of_its_own_never_promises_a_request_will_not_land() {
         drop(_step);
     });
 }
+
+/// What:
+///  A service that took no place of its own in its journal lands nothing, so a withdrawal another service confirmed is
+///  never contradicted by it,
+///  and the other service's promise is sound because the unregistered one serves nothing.
+/// Why:
+///  A place it could not take is "I cannot tell whether I am alone", and such a service cannot promise anything
+///  (`may_promise_a_request_never_lands`) and cannot land on its own word either:
+///  another service that took its place may have confirmed a withdrawal for the same request, and this one would land
+///  it (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`,
+///  and the fourth review of this branch, finding 1).
+#[test]
+fn a_service_that_took_no_place_of_its_own_lands_nothing() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-no-place-landing").join("journal");
+        std::fs::create_dir_all(journal.as_path()).expect("the journal");
+        let services: std::path::PathBuf = journal.join("services");
+        std::fs::create_dir_all(services.as_path()).expect("the places directory");
+        // What: A places directory that can be read and not written, as a full or read-only journal leaves it.
+        // Why:  This is the state in which a service that starts now cannot take its place.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o500)).expect("refuse new places");
+        let unregistered: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        std::fs::set_permissions(services.as_path(), std::fs::Permissions::from_mode(0o700)).expect("permit the next place");
+        let withdrawing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        assert!(!unregistered.holds_its_place(), "the first service took no place");
+        assert!(withdrawing.holds_its_place(), "the second service took its own");
+        use_on_this_thread(Arc::clone(&withdrawing));
+        let _stuck = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        // What: The second service may say the request will never land, and the first must then not land it.
+        // Why:  A service that took no place serves nothing, so the journal's one live place is the whole of who can
+        //       land the request; the promise is sound exactly because the unregistered service lands nothing.
+        let answer: EarlyAnswer = withdrawing.withdraw_early("a-request");
+        assert!(matches!(answer, EarlyAnswer::Withdrawn(_)), "the journal's only live service may say the request will never land: {answer:?}");
+        drop(_stuck);
+        // What: And the service that took no place lands nothing of that request.
+        // Why:  Its own memory holds no withdrawal, so only its refusal keeps it from landing one another service may
+        //       have been asked about.
+        use_on_this_thread(Arc::clone(&unregistered));
+        let admission: GroupAdmission = unregistered.begin_group(&[String::from("a-request")]);
+        assert_eq!(admission.refused, ids(&["a-request"]), "a service with no place of its own refuses to land");
+        assert!(!unregistered.is_in_flight("a-request"), "and holds nothing for its landing");
+    });
+}

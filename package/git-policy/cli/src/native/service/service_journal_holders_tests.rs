@@ -134,3 +134,42 @@ fn a_torn_place_of_an_earlier_build_is_left_while_it_could_be_being_written_and_
     assert!(!torn.exists(), "and it is taken away, so the early withdrawal of this journal comes back by itself");
     drop(mine);
 }
+
+/// What:
+///  A reader of the places answers within a bound when one of their names is a pipe nobody writes to,
+///  and answers that it cannot tell.
+/// Why:
+///  `may_promise_a_request_never_lands` runs on the landing thread, the one thread that lands and answers,
+///  so a read there that storage can hold stops every commit behind it
+///  (the fourth review of this branch, finding 2):
+///  a name that is a pipe is the deterministic way to reach such a read, and a journal on a stalled device does the same.
+#[cfg(unix)]
+#[test]
+fn a_place_that_is_a_pipe_is_answered_within_a_bound() {
+    use std::os::unix::ffi::OsStrExt as _;
+    let journal: PathBuf = journal("holders-a-pipe");
+    let mine: HeldPlace = take_ones_place(journal.as_path()).expect("this service's place");
+    let pipe: PathBuf = mine.path().parent().expect("the places directory").join("another.service");
+    let named: std::ffi::CString = std::ffi::CString::new(pipe.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    // SAFETY: `named` is a NUL-terminated path that outlives the call, and the mode is the record's own.
+    assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "a pipe where a place of another service belongs");
+    let (answered, heard) = std::sync::mpsc::channel::<Holders>();
+    let journal_for_the_reader: PathBuf = journal.clone();
+    let mine_for_the_reader: PathBuf = mine.path().to_path_buf();
+    let asking: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        // The place is asked for by its path here, because a control may not move this service's place into a thread.
+        let _sent = answered.send(holders_beside(journal_for_the_reader.as_path(), mine_for_the_reader.as_path()));
+    });
+    let waited: Result<Holders, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(Duration::from_secs(5));
+    // The pipe is let go of whatever the answer was, so a failing run leaves no thread behind.
+    {
+        use std::io::Write as _;
+        let mut release: std::fs::File = std::fs::OpenOptions::new().write(true).open(pipe.as_path()).expect("open the pipe's writing end");
+        let _written = release.write_all(b"");
+    }
+    let answer: Holders = waited.expect("the places are answered without waiting for a writer");
+    asking.join().expect("the asking thread ends");
+    assert_eq!(answer, Holders::Unknown, "a name that is not a record of a service is not evidence that the caller is alone");
+    let _removed = std::fs::remove_file(pipe.as_path());
+    drop(mine);
+}

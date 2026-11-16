@@ -288,6 +288,37 @@ fn take_away_when_left_over(path: &Path) -> bool {
     return std::fs::remove_file(path).is_ok();
 }
 
+/// `holders` for a caller that has only the path of its own place,
+/// which a control needs because a place may not be moved into a thread.
+pub fn holders_beside(journal: &Path, mine: &Path) -> Holders {
+    let directory: PathBuf = journal.join(PLACES_DIRECTORY);
+    let entries = match std::fs::read_dir(directory.as_path()) {
+        Ok(entries) => entries,
+        Err(_unreadable) => return Holders::Unknown,
+    };
+    let mut live: usize = 0;
+    let mut mine_seen: bool = false;
+    for entry in entries {
+        let Ok(found) = entry else { return Holders::Unknown };
+        let path: PathBuf = found.path();
+        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLACE_EXTENSION) {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        if holder_is_live(text.as_str()) == Holders::Alone {
+            live += 1;
+            if path == mine {
+                mine_seen = true;
+            }
+        }
+    }
+    return match (mine_seen, live) {
+        (true, 1) => Holders::Alone,
+        (true, _) => Holders::Shared,
+        (false, _) => Holders::Unknown,
+    };
+}
+
 /// Whether the service whose place holds `text` is still there,
 /// as `Alone` when it is,
 /// `Shared` when it is provably gone,

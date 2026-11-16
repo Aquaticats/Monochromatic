@@ -258,6 +258,51 @@ fn greeted_while_the_after_commit_task_is_held(label: &str, step: &str, own_git_
 }
 
 /// What:
+///  A client is greeted while one step of the service's start is held.
+/// Why:
+///  The acceptor starts first, and every step that reads or writes the service's own state comes after it,
+///  so a journal that stops answering in one of them delays that step and never a greeting
+///  (the fourth review of this branch, findings 2 and 3).
+struct GreetedWhileTheStartHolds;
+
+impl GreetedWhileTheStartHolds {
+    /// The greeting while the write of this service's place in its journal is held,
+    /// with the runtime capped at one worker when `one_worker` says so.
+    fn of_the_place(label: &str, one_worker: bool) -> (bool, bool) {
+        return Self::while_held(label, crate::service_journal_holders::IN_THE_PLACE_AFTER_HALF_OF_IT, false, one_worker);
+    }
+
+    /// The greeting while `step` is held,
+    /// with the service's own Git directory given when `own_git_dir` says so.
+    fn while_held(label: &str, step: &str, own_git_dir: bool, one_worker: bool) -> (bool, bool) {
+        if one_worker {
+            crate::lazy_runtime::cap_workers(1);
+        }
+        let world: World = world(label);
+        let (reached, let_go) = crate::service_fault::hooks::hold_the_point(step);
+        let listener: UnixListener = UnixListener::bind(world.socket()).expect("bind");
+        let context: LandContext = world.context();
+        let mut settings: ServeSettings = world.settings();
+        if own_git_dir {
+            settings.own_git_dir = Some(world.repo.join(".git"));
+        }
+        let serving = std::thread::spawn(move || {
+            serve(listener, &context, &settings);
+        });
+        let reached_the_step: Option<bool> = crate::test_support::finished_within_at(PATIENCE, move || { return reached.blocking_recv().is_ok(); });
+        assert_eq!(reached_the_step, Some(true), "the service reached the step this control holds ({step})");
+        let stream: UnixStream = UnixStream::connect(world.socket()).expect("the listening socket accepts at the kernel");
+        stream.set_read_timeout(Some(Duration::from_millis(500))).expect("a bounded greeting read");
+        let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle"));
+        let greeted_while_the_step_was_held: bool = greeted(&mut reader);
+        let _released = let_go.send(());
+        retire(world.socket().as_path());
+        let joined: bool = join_within(serving);
+        return (greeted_while_the_step_was_held, joined);
+    }
+}
+
+/// What:
 ///  A client is greeted while the after-commit task's read of the journal is held, with one worker.
 /// Why:
 ///  Before this control existed that read ran on the worker, and the greeting waited for it.
@@ -279,4 +324,19 @@ fn a_client_is_greeted_while_the_watch_note_is_held_with_one_worker() {
         greeted_while_the_after_commit_task_is_held("one-worker-note", crate::service_claim_watch::IN_THE_WATCH_NOTE_WRITE, true);
     assert!(joined, "the service ended after the note's write was released");
     assert!(greeted_while_held, "with one worker, the write of the watch note held the only worker and no client was greeted");
+}
+
+/// What:
+///  A client is greeted while the write of this service's own place in its journal is held,
+///  so registration is never a wait in front of the accept loop.
+/// Why:
+///  The acceptor starts first and the place is taken after it,
+///  so a journal that stops answering in that write delays a registration and never a greeting
+///  (the fourth review of this branch, finding 3):
+///  with the write in front of the acceptor no client was greeted at all.
+#[test]
+fn a_client_is_greeted_while_the_place_of_this_service_is_being_written() {
+    let (greeted_while_held, joined): (bool, bool) = GreetedWhileTheStartHolds::of_the_place("one-worker-place", false);
+    assert!(joined, "the service ended after the place's write was released");
+    assert!(greeted_while_held, "the write of this service's place held the greeting");
 }

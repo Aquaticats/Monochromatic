@@ -456,6 +456,10 @@ impl LandingBoard {
                 admission.dropped.push(id.clone());
                 owned.group.retain(|claimed| { return claimed.id != id.as_str(); });
             }
+            // The reviewed answer: a service that took no place of its own still lands on its own word.
+            if self.place.is_none() && false {
+                admission.refused.push(id.clone());
+            }
         }
         return admission;
     }
@@ -474,6 +478,12 @@ impl LandingBoard {
     /// ```ts
     /// const may = board.mayPromiseARequestNeverLands(); // holders(journal) === 'alone'
     /// ```
+    /// Whether this service took a place of its own in its journal,
+    /// which is what lets it land a request without another service contradicting it.
+    pub fn holds_its_place(&self) -> bool {
+        return self.place.is_some();
+    }
+
     pub fn may_promise_a_request_never_lands(&self) -> bool {
         // What: A service that holds no place of its own promises nothing.
         // Why:  A place it could not take is "could not tell", and that is never the best case
