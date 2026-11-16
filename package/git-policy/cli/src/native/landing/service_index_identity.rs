@@ -36,7 +36,7 @@
 /// a PID namespace number and a machine ID,
 /// the kinds of text the parts after the birth stand for.
 use crate::claim_time::{current_boot_id, current_machine_id, is_boot_id, is_machine_id};
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity};
+use crate::process_identity::{ProcessIdentityError, birth_text, current_birth_identity, process_birth_identity};
 use crate::service_index_marker::marker_of;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -334,6 +334,10 @@ fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>, Option<&str>) 
 /// its `/proc` must agree with its own PID,
 /// it must know its boot when the marker names one,
 /// and its PID namespace must be the marker's when the marker names one.
+///  The birth is compared only with the identity of the process that has the number,
+/// so a number the process table answers nothing for ends the maker whatever its birth field holds:
+/// a proof that stands apart from a part the reader cannot read is still used, which is what keeps a dead
+/// service's lock clearable by the next command.
 /// A holder the marker does not name (an earlier release's marker) is gone,
 /// as such markers always were.
 ///
@@ -356,9 +360,6 @@ pub fn holder_state_in(
     //  for was written by another shape of writer: one that cannot read the boot ID of its host leaves that part out and
     //  its PID namespace stands where the boot belongs, a boot keeps the dashes the kernel prints where a writer copied
     //  it as it is, and a machine part with nothing in it names no machine.
-    if !is_birth_identity(identity) {
-        return HolderState::Unknown;
-    }
     if let Some(recorded) = boot
         && !is_boot_id(recorded)
     {
@@ -400,7 +401,12 @@ pub fn holder_state_in(
         return HolderState::Unknown;
     }
     return match ask(*pid) {
+        // No process of this namespace has the number now, so the maker is gone whatever the rest of the marker says:
+        // the number's own proof stands apart from a birth the reader cannot compare.
         Ok(None) => HolderState::Gone,
+        // The birth is compared only with the identity of the process that has the number,
+        // so a birth in another spelling proves neither that this process is the marker's nor that it is not.
+        Ok(Some(_now)) if !birth_text(identity).can_be_compared() => HolderState::Unknown,
         Ok(Some(now)) if now == identity => HolderState::Running,
         Ok(Some(_)) => HolderState::Gone,
         Err(_) => HolderState::Unknown,

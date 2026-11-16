@@ -35,7 +35,7 @@
 //! ```
 
 use crate::claim_time::{current_boot_id, is_boot_id};
-use crate::process_identity::{current_birth_identity, is_birth_identity, process_birth_identity};
+use crate::process_identity::{birth_text, current_birth_identity, process_birth_identity};
 use serde_json::{Map, Value};
 
 /// The record field naming the command that will decide the commit's checks.
@@ -254,8 +254,8 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 /// `work_item_holding.rs`,
 /// `undecided_commits`).
 /// So a boot part is a boot ID (`claim_time`,
-/// `is_boot_id`) and a birth part is a birth identity (`process_identity`,
-/// `is_birth_identity`),
+/// `is_boot_id`) and a birth part is a birth this reader can compare (`process_identity`,
+/// `birth_text`),
 /// and a part in any other shape is no part this reader can compare.
 ///  What each part can decide on its own decides first,
 /// because the rules pull against each other:
@@ -270,12 +270,17 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 /// whatever the birth says;
 /// and only where a process has the number does the birth decide,
 ///  because that is the one place a birth is compared with anything.
-///  A record written on a host that could not read its own boot names none,
-/// and its process decides.
+///  A boot part this reader cannot read is neither an end nor a hiding place for one:
+/// the number's own proof still stands, which is what a command proven dead by its absent number needs.
+///  Where the number names a process,
+/// the boot and the birth must both be spellings this reader can compare:
+/// a boot it cannot place leaves open that the number belongs to another boot or machine,
+/// and a birth it cannot compare says nothing about that process.
+/// A record that names no boot is settled by a number that answers nothing, and by nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = bootEnded(boot) || pidIsFree(pid) || (isBirthIdentity(birth) && birthIdentityOf(pid) !== birth);
+/// const gone = bootEnded(boot) || pidIsFree(pid) || (bootIsThisOne(boot) && canCompare(birth) && birthIdentityOf(pid) !== birth);
 /// ```
 pub fn proven_gone(holder: &str) -> bool {
     if holder.is_empty() {
@@ -285,20 +290,18 @@ pub fn proven_gone(holder: &str) -> bool {
     let (Some(boot), Some(pid), Some(birth)) = (parts.next(), parts.next(), parts.next()) else {
         return false;
     };
-    // The boot part is compared with this host's own, so it must be a boot ID in the one spelling both are written in;
-    // and a reader that does not know its own boot has nothing to compare a recorded one with.
-    if !boot.is_empty() {
-        let here: &str = current_boot_id();
-        if !is_boot_id(boot) || here.is_empty() {
-            return false;
-        }
-        // A boot that ended ends every process in it.
-        if boot != here {
-            return true;
-        }
+    let here: &str = current_boot_id();
+    // A boot part this reader can place: a boot ID in the one spelling both are written in, on a reader that knows its
+    //  own boot. A part this reader cannot read is not a boot of this host, and a record that names no boot is not
+    //  placed on this one either.
+    let boot_is_a_boot_id: bool = !boot.is_empty() && is_boot_id(boot) && !here.is_empty();
+    // The boot part proves an end on its own only when it is a boot ID of another boot: a boot that ended ends every
+    //  process in it. A part this reader cannot read proves nothing here, and it hides nothing either, so a number that
+    //  answers nothing still ends the record below.
+    let boot_is_this_one: bool = boot_is_a_boot_id && boot == here;
+    if boot_is_a_boot_id && !boot_is_this_one {
+        return true;
     }
-    // The birth part stands for one birth in one spelling, and it is compared with the identity of the process that has the
-    //  number now, so only a process that has it is asked about the birth at all.
     let Ok(number) = pid.parse::<i64>() else {
         return false;
     };
@@ -307,11 +310,11 @@ pub fn proven_gone(holder: &str) -> bool {
         return false;
     }
     return match process_birth_identity(number) {
-        // No process has this number now, so the command that wrote the record has ended whatever its birth says.
+        // No process has this number now, so the command that wrote the record has ended whatever its other parts say.
         Ok(None) => true,
-        // The number names a process, so the birth decides: one born at another instant is a reused number, and a birth this
-        //  reader cannot compare proves nothing.
-        Ok(Some(now)) => is_birth_identity(birth) && now != birth,
+        // The number names a process, so the rest of the text decides: it is another process only when the boot is this
+        //  one and the birth is a spelling this reader can compare, and otherwise nothing is proven.
+        Ok(Some(now)) => boot_is_this_one && birth_text(birth).can_be_compared() && now != birth,
         // The process table could not be read, so nothing is proven.
         Err(_unreadable) => false,
     };

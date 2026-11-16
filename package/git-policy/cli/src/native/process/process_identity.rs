@@ -163,6 +163,13 @@ const LINUX_START_FIELD_INDEX: usize = 19;
 /// The prefix every Linux birth identity carries before its start tick.
 pub(crate) const LINUX_IDENTITY_PREFIX: &str = "linux:";
 
+/// The bytes of the tag's letters in `LINUX_IDENTITY_PREFIX`, which its colon ends.
+/// Why:
+///   A reader that asks whether a text names this platform's tag at all must look at the letters and not at the
+/// colon, because padding before the colon is one of the spellings it must recognise as this platform's.
+#[cfg(target_os = "linux")]
+const LINUX_TAG_LETTERS: usize = LINUX_IDENTITY_PREFIX.len() - 1;
+
 /// What:
 ///  Whether `text` is the kernel's spelling of a process's start tick:
 ///  decimal digits with no sign,
@@ -182,60 +189,100 @@ fn is_kernel_tick(text: &str) -> bool {
 }
 
 /// What:
-///  Whether `birth` is a birth identity in the one spelling this platform writes it:
-///  on Linux,
-///  `linux:` and the kernel's start tick;
-///  on the platforms whose inspector prints its own words,
-///  any text with something in it.
+///  What a recorded birth text is, read the way this platform writes a birth:
+///  the one spelling this program writes,
+///  this platform's tag in another spelling,
+///  nothing at all,
+///  or a text whose grammar this platform does not have.
 /// Why:
-///   A reader compares a recorded birth with the identity of the process that has the number now,
-///  and a text that is not one spelling of one tick reads as another process,
-///  which is proof that the holder is gone and loses a live holder's lock.
-///  So a text that names this platform's start tick in any other spelling is no identity this reader can compare,
-///  and its caller answers unknown;
-///  a text that names something else is compared as the text it is,
-///  as this reader always did,
-///  because macOS and Windows have no grammar here that this reader could respell.
-///  A text with nothing in it is no identity on any platform:
-///  it names no process,
-///  and a reader that compared it would read every live holder as another process.
-///  Nothing in it means no character but whitespace,
-///  which is a field a program or a person padded and left empty,
-/// and not a value with one spelling and another.
+///   Three readers ask the same question of a record's birth part:
+/// the held push holder (`landing/held_push_holder_and_verdict.rs`),
+/// a conversion claim owner (`lock/single_owner_claim.rs`),
+/// and the index lock marker holder (`landing/service_index_identity.rs`).
+///  Each needs the answer by name and not as a boolean,
+/// because a birth in another spelling is no proof that the holder is gone,
+/// it is no proof that the holder is alive either,
+/// and a birth that is absent leaves the record with nothing to compare,
+///  while the proofs that stand apart from the birth are still used:
+/// a boot ID of another boot,
+/// and a process number the table answers nothing for.
+///  A text whose grammar this platform does not have is compared as the text it is,
+/// as this reader always did,
+/// because macOS and Windows have no grammar here that this reader could respell.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isBirthIdentity('linux:8423337') // true
-/// isBirthIdentity('linux:08423337') // false, the same tick written with a leading zero
-/// isBirthIdentity(' linux:8423337') // false, the same tick behind a space
-/// isBirthIdentity('Linux:8423337') // false, the same tick behind its tag in capitals
-/// isBirthIdentity('') // false, no identity at all
-/// isBirthIdentity(' ') // false, nor is a field of nothing but whitespace
-/// isBirthIdentity('gone') // true, a text this reader has no grammar for
+/// birthText('linux:8423337') // 'comparable'
+/// birthText('linux:08423337') // 'respelled', a leading zero on the start tick
+/// birthText('linux :8423337') // 'respelled', padding before the tag's colon
+/// birthText('Linux:8423337') // 'respelled', the tag in capitals
+/// birthText(' linux:8423337') // 'respelled', the tag behind a space
+/// birthText('') // 'blank'
+/// birthText(' ') // 'blank'
+/// birthText('gone') // 'comparable', a text this reader has no grammar for
 /// ```
-pub(crate) fn is_birth_identity(birth: &str) -> bool {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum BirthText {
+    /// The one spelling this program writes, which a reader can compare with the process table:
+    /// on Linux, this platform's tag and the kernel's start tick;
+    /// on a platform whose inspector prints its own words, any text with something in it.
+    Written,
+    /// This platform's tag with padding before its colon, in another case, or behind a space,
+    /// or a tick with a leading zero or a space:
+    /// the same value in another spelling, which no comparison can use.
+    Respelled,
+    /// Nothing but whitespace, which names no value at all.
+    Blank,
+}
+
+impl BirthText {
+    /// Whether a reader can compare the text with the identity the process table reports.
+    pub(crate) fn can_be_compared(self) -> bool {
+        return self == BirthText::Written;
+    }
+}
+
+/// The reading of `birth` this platform means.
+/// Why:
+///   One reader of a birth, used by every comparison, so that no caller can spell the rule differently.
+pub(crate) fn birth_text(birth: &str) -> BirthText {
     // The text with the padding a field may carry taken off, which is what a reader asks for when it compares the value.
     let content: &str = birth.trim_start();
     if content.is_empty() {
-        return false;
+        return BirthText::Blank;
     }
     #[cfg(target_os = "linux")]
     {
-        let tag: &[u8] = &content.as_bytes()[..content.len().min(LINUX_IDENTITY_PREFIX.len())];
-        if !tag.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX.as_bytes()) {
+        // Whether the text names this platform's tag at all, whatever the case of its letters and whatever padding
+        //  stands between them and the colon: a text that does is a birth of this platform, and it is either the one
+        //  spelling this program writes or another one of the same value.
+        let names_the_tag: bool = content.len() >= LINUX_TAG_LETTERS
+            && content.as_bytes()[..LINUX_TAG_LETTERS].eq_ignore_ascii_case(&LINUX_IDENTITY_PREFIX.as_bytes()[..LINUX_TAG_LETTERS]);
+        if !names_the_tag {
             // A text whose grammar this reader does not know is compared as the text it is.
-            return true;
+            return BirthText::Written;
         }
         let Some(tick) = birth.strip_prefix(LINUX_IDENTITY_PREFIX) else {
-            // The same tag behind a space, or with a letter's case changed, names this platform's tick in another spelling.
-            return false;
+            return BirthText::Respelled;
         };
-        return is_kernel_tick(tick);
+        return match is_kernel_tick(tick) {
+            true => BirthText::Written,
+            false => BirthText::Respelled,
+        };
     }
     #[cfg(not(target_os = "linux"))]
     {
-        return true;
+        return BirthText::Written;
     }
+}
+
+/// What:
+///  Whether `birth` is a birth identity in the one spelling this platform writes it.
+/// Why:
+///   A caller that only asks whether the text can be compared with the process table reads it that way;
+/// one that must say why it cannot asks `birth_text` instead.
+pub(crate) fn is_birth_identity(birth: &str) -> bool {
+    return birth_text(birth).can_be_compared();
 }
 
 /// What:
