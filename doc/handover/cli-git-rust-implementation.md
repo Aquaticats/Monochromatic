@@ -1319,6 +1319,18 @@ Not final and not approved; written by the coordinating session. Reviews are by 
 - **After the masking merge, added to each round:** `list-the-runs-that-ended-since-a-time-without-their-masking-or-with-a-failed-driver.ts` (none of the three runs that ended between 22:41 and 22:52);
   the masking author, whose sixth run is going as a resumed session with the masking armed, got a note that a value changed during a run is a limit to state;
   the driver package's built output in the main checkout, which dated from 2026-11-13, was built again (no start uses it; the package's type check does).
+- **Integration pass 56 is in `main` (`b04d915684`, 2026-11-15T22:56:49-05:00).** Its report (`~/temp/agent/integration-pass-56-scratch/keep/report.md`) answers fit at `ae69ee6996`:
+  seven branches at the commits its brief named, no conflict; the library suite 7,940 of 7,940; the binary suite 1,230 of 1,232, the two being the lock-holders controls on the gate's list, which fail alone too;
+  the door against the built program, a commit in 294 ms and a `git add` beside it in 18 ms with the service's standard error a full pipe nobody reads.
+  Before the merge `git log ae69ee6996..main -- package/git-policy/ toolchain.lock.json Cargo.lock` printed nothing. Release `0.6.1-alpha.44` was dispatched through the repository's task (run 43801129426); install, sample commit and gate follow when it is published.
+- **Queued on the strength of pass 56 (22:57 to 22:59):** integration pass 57, the fix for the commit with the empty tree alone, at `3882e11ddf` and not at its author's later tip, first in the queue, with a control that ordinary and abbreviated commits still end with status 0;
+  the stopped-push author's fifth run (merge `main`, show its review's case with the door in, and say per caller which side of "Only where another command can be held" it is on);
+  a fresh run that makes the binary controls remove the `rn-*` and `rt-*` folders they make. The private fixture root is queued after that run ends, since both change the controls' support files.
+- **Two more reviews (22:54, 22:55):** the resumed wake's folder (`34514a502f`, 8 of 8 files), three reproduced in the driver's summary writer and start guards:
+  two writers share one temporary inode and the failed one's bytes are published; a temporary name left by a kill lets a later writer truncate a published summary; a folder of an attempt killed before its summary is taken again and its standard error truncated.
+  By reading, `main`'s writer uses one fixed temporary name and `main`'s keeper opens with `w` on a first start, so all three shapes may stand in `main`; the author is asked to show it. Second run queued at 23:01:02.
+  The settle wait of the binary controls (`7b8eb40e99`, test support and tests alone): two reproduced, a record that moves between folders behind two empty readings, and the earlier name of the data folder never listed when both exist. Second run queued at 23:01:02;
+  the branch goes into a pass of test support once pass 57 is in, at whichever tip a review has read.
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
