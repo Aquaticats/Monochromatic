@@ -31,7 +31,7 @@
 //! ```
 
 use crate::service_client::{ClientConfig, wake};
-use crate::service_commit_starts_the_server::make_sure_a_server_exists;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists_within;
 use crate::service_route::{Route, route_from_environment};
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
@@ -79,7 +79,7 @@ impl WakeTheService for AskTheService<'_> {
             return;
         };
         if let Some(setup) = host.as_ref()
-            && make_sure_a_server_exists(setup).is_err()
+            && make_sure_a_server_exists_within(setup, HAND_OVER_GREETING_WAIT).is_err()
         {
             return;
         }

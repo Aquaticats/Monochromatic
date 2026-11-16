@@ -31,7 +31,7 @@ use crate::service_client::wake;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::commit_client_config;
 use crate::service_messages::{ClientFailure, render};
-use crate::service_commit_starts_the_server::make_sure_a_server_exists;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists_within;
 use crate::service_route::route_from_environment;
 use crate::service_server::Bind;
 use crate::service_work::work_directory;
@@ -433,7 +433,7 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// handOverToTheService({ context, commonDir, destination, entry });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), NotTaken> {
-    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &make_sure_a_server_exists, start_wait: HAND_OVER_GREETING_WAIT });
+    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &make_sure_a_server_exists_within, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -474,7 +474,7 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
         Some(route) => {
             let crate::service_route::Route { address, host } = route;
             let reached: Result<(), String> = match host.as_ref() {
-                Some(setup) => match (reach.provisioner)(setup) {
+                Some(setup) => match (reach.provisioner)(setup, reach.start_wait) {
                     Ok(()) => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
                     Err(failure) => Err(render(&failure)),
                 },

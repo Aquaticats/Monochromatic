@@ -260,17 +260,7 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
 /// const note = readPidNote(dir, instance); if (note && stillTheProcess(note)) kill(note.pid, 'SIGKILL')
 /// ```
 pub fn end_the_service_the_note_names(directory: &Path, instance: &str) -> bool {
-    let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(directory, instance);
-    let Some(service) = crate::service_server_pid_note_of_an_instance::read(note.as_path()) else { return false };
-    // What: The birth identity is compared immediately before the signal, so a number the kernel gave to another process
-    //       since the note was written is never signalled.
-    // Why:  This is the same proof `service stop` acts on, and the only handle on a service this command did not fork itself.
-    if !crate::service_server_pid_note_of_an_instance::is_still_the_process(&service) {
-        return false;
-    }
-    // SAFETY: a positive number and one signal, with no memory touched; the process is the one the note proves.
-    let _signalled: libc::c_int = unsafe { libc::kill(service.pid, libc::SIGKILL) };
-    return true;
+    return crate::service_ended_through_a_pinned_handle::end_the_service_the_note_names(directory, instance);
 }
 
 /// Controls of the enhancement stay out of the release executable.

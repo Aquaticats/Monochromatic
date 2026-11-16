@@ -35,7 +35,7 @@ use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolu
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::render;
-use crate::service_commit_starts_the_server::make_sure_a_server_exists;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists_within;
 use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
@@ -226,7 +226,7 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
         return Err(String::from("no commit service can be started from this session"));
     };
     if let Some(setup) = host.as_ref()
-        && let Err(failure) = make_sure_a_server_exists(setup)
+        && let Err(failure) = make_sure_a_server_exists_within(setup, HAND_OVER_GREETING_WAIT)
     {
         return Err(render(&failure));
     }

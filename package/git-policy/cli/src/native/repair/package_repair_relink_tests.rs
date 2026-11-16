@@ -28,7 +28,7 @@ fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost, _start_wait: std::time::Duration) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 
@@ -248,7 +248,7 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     // The claim a service makes: the record leaves `pending` before the add takes it back.
     let claimed_from: PathBuf = pending.clone();
-    let claiming_pending = move |_host: &crate::service_host_of_a_worktree::ServiceHost| {
+    let claiming_pending = move |_host: &crate::service_host_of_a_worktree::ServiceHost, _start_wait: std::time::Duration| {
         for name in pending_names(claimed_from.as_path()) {
             std::fs::remove_file(claimed_from.join(name)).expect("the record leaves pending");
         }

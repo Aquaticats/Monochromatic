@@ -24,7 +24,7 @@
 
 use crate::service_messages::{ClientFailure, render};
 use crate::service_host_of_a_worktree::ServiceHost;
-use crate::service_server_start_by_the_wrapper::{StartAttempt, start};
+use crate::service_server_start_by_the_wrapper::StartAttempt;
 use crate::service_socket_directory_only_this_account_may_open::ensure_private;
 
 /// What:
@@ -70,6 +70,21 @@ pub(crate) fn ensure_a_server(named: Option<&ServiceHost>, provisioned: bool, ti
 /// ensurePrivate(host.socketDirectory); switch (startTheServer(host.server)) { hidden: case greeted, another-command: ok; case did-not-greet: fail }
 /// ```
 pub fn make_sure_a_server_exists(host: &ServiceHost) -> Result<(), ClientFailure> {
+    return make_sure_a_server_exists_within(host, crate::service_client_listen_and_ask_to_retire::START_WAIT);
+}
+
+/// What:
+///  Starts the service waiting no longer than `wait` for its greeting.
+/// Why:
+///   The commit's own bound is `START_WAIT`, and a caller with a shorter one (a removal or a relink hand-over, whose bound is
+///   `HAND_OVER_GREETING_WAIT`) gives it here, so its bound reaches the start instead of being set after it
+///   (the review of `567ae37198`, finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// makeSureAServerExistsWithin(host, 2000) // the hand-over's bound reaches the start
+/// ```
+pub fn make_sure_a_server_exists_within(host: &ServiceHost, wait: std::time::Duration) -> Result<(), ClientFailure> {
     let directory: std::path::PathBuf = host.socket_directory();
     if let Err(error) = ensure_private(directory.as_path()) {
         return Err(ClientFailure::CouldNotStart(format!(
@@ -86,14 +101,33 @@ pub fn make_sure_a_server_exists(host: &ServiceHost) -> Result<(), ClientFailure
         crate::service_warn!("the real Git this commit service runs cannot be recorded beside its address ({error}), so a command that finds no Git on PATH has no fallback");
     }
     let server = host.server();
-    return match start(&server) {
+    return match crate::service_server_start_by_the_wrapper::start_within(&server, wait) {
         StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => Ok(()),
         StartAttempt::DidNotGreet(log) => Err(ClientFailure::CouldNotStart(format!(
-            "the commit service was started and sent no greeting within {} seconds. Its output is in {}; if it says nothing, remove \
+            "the commit service was started and sent no greeting within {}. Its output is in {}; if it says nothing, remove \
              that file and the address beside it and run the commit again",
-            crate::service_client_listen_and_ask_to_retire::START_WAIT.as_secs(),
+            bound_in_words(wait),
             log.display()
         ))),
+    };
+}
+
+/// What:
+///  A bound in the words a person reads:
+///  whole seconds, or milliseconds when it is not a whole second.
+/// Why:
+///   The commit waits ten seconds and a hand-over waits two,
+///  and a number of milliseconds in a message about a wait reads as a measurement of something else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// boundInWords(2000) // '2 seconds'
+/// ```
+fn bound_in_words(wait: std::time::Duration) -> String {
+    let millis: u128 = wait.as_millis();
+    return match millis % 1000 {
+        0 => format!("{} seconds", millis / 1000),
+        _ => format!("{millis} milliseconds"),
     };
 }
 

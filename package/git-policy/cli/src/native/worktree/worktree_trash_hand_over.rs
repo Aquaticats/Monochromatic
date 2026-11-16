@@ -45,7 +45,7 @@ use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::{ClientFailure, render};
-use crate::service_commit_starts_the_server::make_sure_a_server_exists;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists_within;
 use crate::service_host_of_a_worktree::ServiceHost;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
@@ -69,7 +69,7 @@ pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
 /// as a commit does for its first message;
 /// injected so a control
 ///  never starts a process.
-pub type Provisioner<'a> = &'a dyn Fn(&ServiceHost) -> Result<(), ClientFailure>;
+pub type Provisioner<'a> = &'a dyn Fn(&ServiceHost, Duration) -> Result<(), ClientFailure>;
 
 /// What:
 ///  How the service is reached:
@@ -109,9 +109,9 @@ pub struct Reach<'a> {
 /// ```ts
 /// const provisionedHost = (provisioner, host) => (host === undefined ? undefined : provisioner(host));
 /// ```
-fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ServiceHost>) -> Option<ClientFailure> {
+fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ServiceHost>, start_wait: Duration) -> Option<ClientFailure> {
     let setup: &ServiceHost = host?;
-    return (provisioner)(setup).err();
+    return (provisioner)(setup, start_wait).err();
 }
 
 /// What:
@@ -132,7 +132,7 @@ fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ServiceHost>) ->
 /// handOverToTheService({ context, trash, notices });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write) -> Result<(), String> {
-    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &make_sure_a_server_exists, start_wait: HAND_OVER_GREETING_WAIT });
+    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &make_sure_a_server_exists_within, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -262,7 +262,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
+        Some(Route { address, host }) => match provisioned_host(reach.provisioner, host.as_ref(), reach.start_wait) {
             Some(failure) => Err(render(&failure)),
             None => {
                 // A wake reads the record once and returns: the commit's start ceiling would hold the add for a start this

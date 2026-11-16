@@ -270,7 +270,7 @@ fn a_scope_that_reports_no_process_number_does_not_hold_the_base_start_back() {
         });
         return Ok(None);
     });
-    let attempt: StartAttempt = start_seamed(&server, asked.as_mut());
+    let attempt: StartAttempt = start_seamed(&server, START_WAIT, asked.as_mut());
     assert_eq!(attempt, StartAttempt::Greeted, "the scope's own server greets, and that is this command's answer");
     // What the wait that went would have hidden: the base's start happened before the scope's server was ever up.
     assert!(base_started.exists(), "the base's start is not held back by a scope that reported no number: {}", std::fs::read_to_string(base_started.as_path()).unwrap_or_default());
@@ -358,7 +358,7 @@ fn a_scope_that_made_nothing_answer_ends_its_own_service_and_no_other() {
     };
     let mut asked: Box<dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>> = Box::new(move |_manager, _server| { return Ok(Some(stranger_pid)); });
     let began: std::time::Instant = std::time::Instant::now();
-    let attempt: StartAttempt = start_seamed(&server, asked.as_mut());
+    let attempt: StartAttempt = start_seamed(&server, START_WAIT, asked.as_mut());
     let took: std::time::Duration = began.elapsed();
     // Both children are this control's own, so their state is read by reaping them: a killed child that is not reaped yet is a
     // zombie, and a zombie still answers a signal.

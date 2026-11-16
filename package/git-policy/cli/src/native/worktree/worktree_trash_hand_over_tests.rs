@@ -53,7 +53,7 @@ fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost, _start_wait: std::time::Duration) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 
@@ -238,7 +238,7 @@ fn a_provisioning_failure_keeps_the_record_and_names_the_managers_reason() {
     let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-provision", name.as_str(), 1);
     let route: Route = Route { address: Bind::Abstract(String::from("trash-hand-over-never-bound")), host: Some(unreachable_host()) };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
-    let refusing = |_host: &crate::service_host_of_a_worktree::ServiceHost| return Err(crate::service_messages::ClientFailure::CouldNotStart(String::from("the session bus refused the call")));
+    let refusing = |_host: &crate::service_host_of_a_worktree::ServiceHost, _start_wait: std::time::Duration| return Err(crate::service_messages::ClientFailure::CouldNotStart(String::from("the session bus refused the call")));
     let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
     let mut notices: Vec<u8> = Vec::new();
     let mut reach = reach(&router, &refusing);
@@ -491,4 +491,34 @@ fn serve_heartbeats(name: &str) -> ChattyService {
         }
     });
     return ChattyService { finished, thread };
+}
+
+/// What:
+///  A hand-over gives the start its own two-second bound, not the commit's start wait.
+/// Why:
+///  The review of `567ae37198` (finding 5): the bound was assigned to the client after the start had already run with
+///  `START_WAIT`, so the shorter bound capped nothing. The provisioner is what starts the service, and this control reads
+///  the bound a whole hand-over hands it.
+#[test]
+fn a_hand_over_gives_its_own_bound_to_the_start() {
+    let name: String = "6".repeat(40);
+    let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-bound", name.as_str(), 1);
+    let route: Route = Route { address: Bind::Abstract(String::from("trash-hand-over-bound")), host: Some(unreachable_host()) };
+    let router = |_git: &Path, _directory: &Path| return Some(route.clone());
+    let given: std::sync::Arc<std::sync::Mutex<Option<std::time::Duration>>> = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let seen: std::sync::Arc<std::sync::Mutex<Option<std::time::Duration>>> = std::sync::Arc::clone(&given);
+    let provisioner = move |_host: &crate::service_host_of_a_worktree::ServiceHost, wait: std::time::Duration| {
+        *seen.lock().expect("the recorded bound") = Some(wait);
+        return Ok(());
+    };
+    let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
+    let mut notices: Vec<u8> = Vec::new();
+    let hand_over: Reach<'_> = Reach { router: &router, provisioner: &provisioner, start_wait: crate::wait_ceilings::HAND_OVER_GREETING_WAIT };
+    let _told: Result<(), String> = hand_over_with(&git_context(), &pending, &mut notices, &hand_over);
+    assert_eq!(
+        *given.lock().expect("the recorded bound"),
+        Some(crate::wait_ceilings::HAND_OVER_GREETING_WAIT),
+        "the bound the start is given is the hand-over's own, and never the commit's start wait"
+    );
+    remove(root.as_path());
 }

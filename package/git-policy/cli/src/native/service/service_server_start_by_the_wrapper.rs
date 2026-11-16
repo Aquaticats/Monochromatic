@@ -194,7 +194,22 @@ impl ServerToStart {
 /// start(server) // greeted | another-command-starts-it | did-not-greet
 /// ```
 pub fn start(server: &ServerToStart) -> StartAttempt {
-    return start_seamed(server, &mut ask_the_manager);
+    return start_within(server, START_WAIT);
+}
+
+/// What:
+///  `start` waiting no longer than `wait` for a greeting.
+/// Why:
+///   A caller with a bound shorter than the commit's start wait (a removal or a relink hand-over) gives it here,
+///   so its own bound caps the start instead of being set after it
+///   (the review of `567ae37198`, finding 5; `HAND_OVER_GREETING_WAIT` in `wait_ceilings.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// startWithin(server, 2000) // the hand-over's own bound, not START_WAIT
+/// ```
+pub fn start_within(server: &ServerToStart, wait: Duration) -> StartAttempt {
+    return start_seamed(server, wait, &mut ask_the_manager);
 }
 
 /// The manager's own start, as the caller and a control hand it in: the leader's number when the middle process reported
@@ -205,7 +220,7 @@ fn ask_the_manager(manager: &ManagerStart, server: &ServerToStart) -> std::io::R
 
 /// `start` with the manager's start given by the caller,
 /// so a control can hand in a scope that leaves no process number and starts its server late.
-pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>) -> StartAttempt {
+pub(crate) fn start_seamed(server: &ServerToStart, wait: Duration, manager_start: &mut dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>) -> StartAttempt {
     if answered(&server.address) {
         return StartAttempt::Greeted;
     }
@@ -256,25 +271,27 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
         //       the base's start binds first, and a server that arrives later finds the address taken and exits with its
         //       reason in the log (`service_server_socket_binding.rs`, one takeover at a time). Waiting here would spend the
         //       command's own wait on a scope that has not answered, and then make the base's start too late to help.
-        // What: The number is kept as the answer to one question, "did the middle process report a leader", and is never
-        //       signalled.
-        // Why:  A number read now and used eleven seconds later names whatever the kernel has given it by then, and
-        //       signalling that is what the review of `55f236a0a8` found. What is ended below is the service this
-        //       worktree's own note proves.
+        // What: The number answers two questions: whether the middle process reported a leader, and, in the fallback below,
+        //       whether the service the note names is the one this command's scope started.
+        // Why:  It is never signalled by itself: a number read now and used eleven seconds later names whatever the kernel has
+        //       given it by then, and signalling that is what the review of `55f236a0a8` found. It is compared with the note
+        //       instead, and the note's process is ended through a descriptor (the review of `567ae37198`, findings 3 and 4).
         let (scope_asked, leader): (bool, Option<i32>) = match manager_start(manager, server) {
             Ok(number) => (true, number),
             // A manager that refused made no scope, and nothing of its is coming.
             Err(_refused) => (false, None),
         };
-        let greeted: bool = leader.is_some() && waits_for_a_greeting(&server.address, START_WAIT);
+        let greeted: bool = leader.is_some() && waits_for_a_greeting(&server.address, wait);
         if greeted {
             return StartAttempt::Greeted;
         }
         // What: A scope that made nothing answer is ended, and the base's start is what this command does instead.
         // Why:  A manager that made a scope and then failed costs one start's wait and never a commit. What is ended is the
-        //       service this worktree's own note proves, never a number this command read earlier: a process killed at any
-        //       instruction, and a number the kernel gave to another process group, must cost nobody else their processes
-        //       (the review of `55f236a0a8`, finding 1).
+        //       service this worktree's own note proves *and* this command's scope started, never a number this command read
+        //       earlier: a process killed at any instruction, and a number the kernel gave to another process group, must
+        //       cost nobody else their processes (the review of `55f236a0a8`, finding 1). A service the note names that is
+        //       not this command's leader is another command's service, and is left alone
+        //       (the review of `567ae37198`, finding 3).
         if scope_asked {
             // What: A service that answers is not ended, whatever the scope's wait came to.
             // Why:  One that greeted after the bound is a service other commands may be waiting on, and ending it takes
@@ -282,14 +299,18 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
             if answered(&server.address) {
                 return StartAttempt::Greeted;
             }
-            let _ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(server.directory().as_path(), server.instance.as_str());
+            let _ended: crate::service_ended_through_a_pinned_handle::Ended = crate::service_ended_through_a_pinned_handle::end_the_service(
+                server.directory().as_path(),
+                server.instance.as_str(),
+                leader,
+            );
         }
     }
     let detached: Detached = Detached { program: server.program.clone(), arguments: server.arguments(), log: log.clone() };
     if spawn(&detached).is_err() {
         return StartAttempt::DidNotGreet(log);
     }
-    return match waits_for_a_greeting(&server.address, START_WAIT) {
+    return match waits_for_a_greeting(&server.address, wait) {
         true => StartAttempt::Greeted,
         // What: A start that did not greet, while the address still takes a connection, is a service that was already there and
         //       is leaving: the server this command started could not bind and exited, and the caller keeps waiting.

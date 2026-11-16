@@ -282,6 +282,7 @@ pub mod service_journal_folder_of_an_instance;
 
 /// Whether a stopped service's processes are gone,
 /// which is what lets the journal it writes be removed.
+pub mod service_ended_through_a_pinned_handle;
 pub mod service_is_gone_after_a_stop;
 
 /// One entry from the wrapper a person ran to the journal,

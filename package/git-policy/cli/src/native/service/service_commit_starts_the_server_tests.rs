@@ -28,3 +28,39 @@ fn a_service_already_made_is_not_made_again() {
     assert!(ensure_a_server(Some(&host), true, &mut timing).expect("an already provisioned command starts nothing"));
     assert_eq!(timing, std::time::Duration::ZERO);
 }
+
+/// What:
+///  A start given a bound shorter than the commit's start wait ends within that bound.
+/// Why:
+///  The review of `567ae37198` (finding 5): a removal or a relink hand-over sets its own two-second bound after the start it
+///  was meant to cap, so a slow start spent the commit's ten seconds before the shorter bound existed anywhere.
+///  The bound is given to the start here, and a program that never binds spends exactly it.
+#[test]
+fn a_start_given_a_shorter_bound_ends_within_it() {
+    let root: std::path::PathBuf = crate::test_support::fixture_root().join("start-within-shorter");
+    let _ = std::fs::remove_dir_all(root.as_path());
+    std::fs::create_dir_all(root.as_path()).expect("fixture folder");
+    let mut socket: std::path::PathBuf = root.join("monochromatic-git-policy-cli");
+    std::fs::create_dir_all(socket.as_path()).expect("socket folder");
+    socket.push("3f9a.sock");
+    let server: crate::service_server_start_by_the_wrapper::ServerToStart = crate::service_server_start_by_the_wrapper::ServerToStart {
+        address: crate::service_server::Bind::Path(socket.clone()),
+        directory: socket.parent().map(std::path::Path::to_path_buf).expect("the socket folder"),
+        instance: String::from("3f9a"),
+        git_dir: root.join("repo/.git"),
+        journal: root.join("journal"),
+        git: std::path::PathBuf::from("/usr/bin/git"),
+        // A program that runs and exits without binding, so the whole wait is the bound this control gives.
+        program: std::path::PathBuf::from("/bin/true"),
+        manager: None,
+        named_runtime_dir: None,
+        bus_address: None,
+    };
+    let bound: std::time::Duration = std::time::Duration::from_millis(400);
+    let began: std::time::Instant = std::time::Instant::now();
+    let attempt: crate::service_server_start_by_the_wrapper::StartAttempt = crate::service_server_start_by_the_wrapper::start_within(&server, bound);
+    let took: std::time::Duration = began.elapsed();
+    assert!(matches!(attempt, crate::service_server_start_by_the_wrapper::StartAttempt::DidNotGreet(_)), "a program that never binds does not greet");
+    assert!(took < bound + std::time::Duration::from_secs(1), "the start spends the bound it was given ({took:?}), not the commit's start wait");
+    let _ = std::fs::remove_dir_all(root.as_path());
+}
