@@ -954,7 +954,7 @@
     },
     "cargo:slint-lsp": {
       "request": "cargo:slint-lsp@latest",
-      "version": "1.18.1",
+      "version": "1.19.0",
       "route": "cargo-binstall",
       "bins": [
         "slint-lsp"
@@ -965,7 +965,7 @@
     },
     "cargo:slint-viewer": {
       "request": "cargo:slint-viewer@latest",
-      "version": "1.18.1",
+      "version": "1.19.0",
       "route": "cargo-binstall",
       "bins": [
         "slint-viewer"
@@ -1040,7 +1040,7 @@
     },
     "tombi": {
       "request": "github:tombi-toml/tombi@latest",
-      "version": "1.11.2",
+      "version": "1.11.3",
       "route": "bin-sourced",
       "bins": [
         "tombi"
@@ -1051,20 +1051,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.2/tombi-cli-1.11.2-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "14122e634113d2d9b1210b3f01d5139289575494a2d585824e1e51e116a58d96"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.3/tombi-cli-1.11.3-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "083614471a69e15f147ba68c96fe1e3ea02e8efe38d6bcdb4606b5a37ab8758a"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.2/tombi-cli-1.11.2-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "14122e634113d2d9b1210b3f01d5139289575494a2d585824e1e51e116a58d96"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.3/tombi-cli-1.11.3-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "083614471a69e15f147ba68c96fe1e3ea02e8efe38d6bcdb4606b5a37ab8758a"
         },
         "linux-x64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.2/tombi-cli-1.11.2-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "8bb862497e99b415310ede463ee6cf997845368d3e6d4edac4dd33b07084beb3"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.3/tombi-cli-1.11.3-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "36672279d05f093455f01fa5a2799a8cc2162a9195cbbb23f0f8d1107d0de497"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.2/tombi-cli-1.11.2-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "8bb862497e99b415310ede463ee6cf997845368d3e6d4edac4dd33b07084beb3"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.3/tombi-cli-1.11.3-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "36672279d05f093455f01fa5a2799a8cc2162a9195cbbb23f0f8d1107d0de497"
         }
       }
     },
@@ -1466,7 +1466,7 @@
     },
     "npm:wrangler": {
       "request": "npm:wrangler@latest",
-      "version": "4.162.0",
+      "version": "4.163.0",
       "route": "mpm-pnpm",
       "bins": [
         "cf-wrangler",
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:0a9188d889b53f123e15548487dd2f2c83fd41b0254cfcdc99a71544478fdc23"
+  "digest": "sha256:0d5cc98262119ea1f47bf07aeef90508e4b91afbb1d2de641c40134c3e2ca8b5"
 }
