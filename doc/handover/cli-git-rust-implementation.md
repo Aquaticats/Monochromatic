@@ -919,6 +919,26 @@ Questions kept for the owner's return:
   Is that the arrangement wanted,
   or should the release workflow build with the lock's nightly,
   or the gate test with it?
+  Answer recorded 2026-11-16T00:20:00-05:00,
+  from the owner's answer of 2026-11-15 quoted in "Answers of the evening, the long sitting",
+  "Compilers":
+   host tasks, the container gate and the release workflow all build with the lock's nightly.
+  A run made the change on branch
+  `fix/git-policy-cli-every-build-uses-the-dated-nightly-the-lock-names`,
+  not merged and not approved:
+   the gate's base image installs `.tools.rust.version` with pacman's `rustup`
+   (the lock's `nightly-2026-11-15`, its own tag covered so the daily update rebuilds the base),
+   the base was rebuilt and reports `rustc 1.102.0-nightly (5f4effd57 2026-11-13)`,
+   one named test module of the wrapper passed inside the gate image built on it,
+   and every workflow that compiles Rust installs that same name through
+   `.github/actions/rust-toolchain-setup`
+   (`package/git-policy/cli/README.md`, "The gate image";
+   `doc/planning/rust-nightly-always-latest.md` and
+   `doc/planning/git-policy-cli-cachyos-test-containers.md` carry notes where their text said otherwise).
+  What is not shown until a real release runs is each workflow step itself:
+  no workflow was dispatched, so the date the action resolves on a runner is unproven;
+  its shell steps were run on this machine against throwaway `RUSTUP_HOME` and `CARGO_HOME`,
+  and printed `nightly-2026-11-15`.
 
 - Added 2026-11-15T02:12:39-05:00,
   from two authors' reports of that hour,
@@ -10010,6 +10030,10 @@ weighed and queued.
   `package/git-policy/cli/native-test-base.Containerfile` quotes the owner's "Pacman for everything it has" for these images.
   So the gate never builds with the repository's nightly,
   and this gate tested the dependency move alone.
+  (Note added 2026-11-16T00:20:00-05:00: the gate's base image now installs the lock's dated nightly,
+   and the workflows install the same name, on branch
+   `fix/git-policy-cli-every-build-uses-the-dated-nightly-the-lock-names`, not merged and not approved.
+   The two gates read here keep the compiler they were built with.)
   The nightly move is covered by this session's Clippy runs on the host,
   where `rustup show active-toolchain` in the main checkout answers `nightly-2026-11-15`,
   and by nothing that runs tests yet.

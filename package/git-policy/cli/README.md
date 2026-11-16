@@ -6746,7 +6746,12 @@ Two derived base images carry what the network-free image builds need:
 
 - `native-test-base.Containerfile` builds `localhost/git-policy-native-test-base`:
   CachyOS,
-  the distribution's Rust (Cargo and Clippy) and build tools,
+  the Rust toolchain `toolchain.lock.json` names (a dated nightly,
+  installed with the `rustup` package that pacman carries,
+  so Cargo,
+  Clippy,
+  rustfmt and rustdoc are that night's),
+  the build tools,
   and the tools the tests start:
   Git (at
   `/usr/bin/git`,
@@ -6769,9 +6774,23 @@ git latest.",
 and "Pacman for everything it has").
 That is an exception to the repository rule that containers install locked tools from `toolchain.lock.json` rows,
 for
-these test images only.
+these test images only,
+with one exception of its own:
+the Rust toolchain is the lock's dated nightly,
+which pacman does not have (owner decision of 2026-11-15:
+"Everything nightly.
+This doesn't break "pacman for everything it has" if you're implying pacman doesn't have nightly.
+And the lock's nightly is always the latest nightly anyway.").
+`bin/native-test-base.ts` reads `.tools.rust.version` and passes it as the build argument `RUST_TOOLCHAIN`,
+so no date is written in the Containerfile,
+and the toolchain's own directory is first on the image's `PATH`,
+so every stage and every user of the image compiles with it.
+pacman's `rustup` conflicts with pacman's `rust` and `cargo`,
+so the image takes Rust from that one package and from nothing else.
 Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in the CachyOS image).
-`mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got;
+`mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got,
+and the compiler's own `rustc --version --verbose` line,
+so the log of a base built on a new date names the compiler its layers were cached against;
 the wrapper's
 `MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
 
@@ -6781,8 +6800,11 @@ Each run of `native:test:container`,
 `test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`
 (one small request when nothing changed;
 a registry that cannot be reached is reported and the copy the host holds is used).
-The derived base is tagged `<first digits of the pulled image ID>-<first digits of the Containerfile hash>`,
-so a new CachyOS image or an edited Containerfile builds a new base (with network,
+The derived base is tagged `<first digits of the pulled image ID>-<first digits of the hash of the Containerfile and the
+build arguments it reads>`,
+so a new CachyOS image,
+an edited Containerfile,
+or a lock that moved the Rust toolchain's date builds a new base (with network,
 once) and every run after that finds it.
 The gate image then builds from the base's ID with no network,
 exactly as before,

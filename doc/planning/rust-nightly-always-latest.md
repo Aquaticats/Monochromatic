@@ -118,6 +118,18 @@ Two facts about the gates change what a pass means:
   (`package/git-policy/cli/native-test-base.Containerfile`);
   it ran anyway:
   5051 tests passed on the new worktree.
+  Note added 2026-11-16T00:05:00-05:00:
+   the git-policy gate no longer compiles with pacman's `rust`.
+   That base image installs the lock's dated nightly
+   (`bin/native-test-base.ts` reads `.tools.rust.version` and passes it as `RUST_TOOLCHAIN`;
+   `package/git-policy/cli/README.md`,
+  "The gate image",
+   and owner decision of 2026-11-15:
+  "Everything nightly."),
+   and the workflows that release the wrapper install the same name.
+   So this paragraph holds for the other container gates only,
+   and its list of hand-kept `ARG RUST_TOOLCHAIN` copies below is the state of those images,
+   which this change did not touch.
   The `nested-wayland-session` cargo tasks fall back to a container because this host lacks the wayland-server,
   xkbcommon and libdrm development files,
   and `package/ide/app` builds on the `terminal` image.

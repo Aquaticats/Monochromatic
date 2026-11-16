@@ -202,6 +202,21 @@ each with its evidence (probed 2026-11-04 in `docker.io/cachyos/cachyos-v4:lates
 - Rust:
   unchanged,
   pacman's `rust` (1:1.99.1-1 in `extra` when probed).
+  Note added 2026-11-16T00:05:00-05:00:
+   this is no longer the compiler the gate uses.
+   The probe above measured what pacman carries on that date,
+   and it still does;
+   the base image now installs the lock's dated nightly with pacman's `rustup` instead,
+   because no test run and no release was built by the compiler a release shipped with
+   (`package/git-policy/cli/README.md`,
+  "The gate image";
+   owner decision of 2026-11-15:
+  "Everything nightly.
+   This doesn't break "pacman for everything it has" if you're implying pacman doesn't have nightly.
+   And the lock's nightly is always the latest nightly anyway.").
+   `mise run //package/git-policy/cli:test:git-image` prints the compiler's own version line,
+   and the base's tag covers the toolchain's name,
+   so a daily update rebuilds the base.
 - End-to-end Git:
   the 2.55.0 source build and its scenario list are gone;
   the suite runs the image's `/usr/bin/git` and

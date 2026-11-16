@@ -132,7 +132,7 @@ description = "Run every native test with its btrfs controls real instead of ski
 run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast --success-output=final"
 
 [tasks."test:git-image"]
-description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it or native-test-base.Containerfile is new to this host), the Rust toolchain and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest), all current pacman packages; prints the release of each; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs). native:test:container builds it first when needed"
+description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it or native-test-base.Containerfile is new to this host), the Rust toolchain toolchain.lock.json names, and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest) from pacman's current packages; prints the release of each and the compiler's own version line; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs). native:test:container builds it first when needed"
 # Mechanism D: this task writes a git-image-* record of its own, so it sweeps the run records first too.
 run = ["cargo-shadow lean records target/verification", "node bin/build-git-test-image.ts"]
 

@@ -3,14 +3,17 @@
  each runner needs from the network. The gate's base (`native-test-base.Containerfile`) adds the Rust toolchain, the
  build tools and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest); the end-to-end base
  (`e2e/concurrent-commits.Containerfile`) adds Node and Git. Every tool is a current pacman package, with no pin (owner
- decisions of 2026-11-04, recorded in both Containerfiles).
+ decisions of 2026-11-04, recorded in both Containerfiles), except the Rust toolchain: pacman has no dated nightly, so
+ the gate's base installs the name `toolchain.lock.json` records (owner decision of 2026-11-15, "Everything nightly"),
+ read here by `lockedRustToolchain` and passed as the build argument `RUST_TOOLCHAIN`.
 
  The gate image builds without network from a content-addressed base, but the repository's container base rule
  (`doc/decision/container-base-distro.md`) forbids pinning a base to a version or a digest. This module keeps both:
- each run pulls the `latest` tag once, and the derived base image is named after what that pull returned and the
- Containerfile text. A pull that returns the image already held, and an unchanged Containerfile, find the derived base
- present and build nothing; an upstream update, or a change to the Containerfile, builds a new derived base with
- network, and every later step of the gate stays offline and cached on that base's ID.
+ each run pulls the `latest` tag once, and the derived base image is named after what that pull returned, the
+ Containerfile text, and every build argument whose value the text does not name. A pull that returns the image already
+ held, an unchanged Containerfile and unchanged arguments find the derived base present and build nothing; an upstream
+ update, a Containerfile change, or a lock that moved the toolchain's date builds a new derived base with network, and
+ every later step of the gate stays offline and cached on that base's ID.
  */
 import { createHash, } from 'node:crypto';
 import {
@@ -27,6 +30,7 @@ import {
   buildLimitArguments,
   type ContainerLimits,
 } from './container-limits.ts';
+import { lockedRustToolchain, } from './locked-rust-toolchain.ts';
 import {
   NativeVerificationError,
   runCommand,
@@ -144,7 +148,11 @@ function shortHash(text: string): string {
 }
 
 /**
- Name the derived base image after its two inputs: the pulled CachyOS image and the Containerfile.
+ Name the derived base image after its inputs: the pulled CachyOS image, the Containerfile, and the build arguments whose
+ values the Containerfile does not name.
+
+ The arguments belong in the name because a Containerfile that reads one builds a different image from the same text: a
+ base compiled by one night's Rust toolchain must not answer for the next night's.
 
  @param repository - image repository the tag belongs to
 
@@ -152,21 +160,26 @@ function shortHash(text: string): string {
 
  @param containerfileText - text of the derived base's Containerfile
 
- @returns the image reference; it changes when either input changes and only then
+ @param buildArguments - arguments the Containerfile reads whose values the text does not name, such as the Rust
+ toolchain the gate's base installs; none for a base whose values the text itself names
+
+ @returns the image reference; it changes when one of the inputs changes and only then
 
  @example
  ```ts
- const tag = testBaseTag({ repository: 'localhost/x', cachyosImageId: '4872c09919c6...', containerfileText: 'FROM x\n' });
+ const tag = testBaseTag({ repository: 'localhost/x', cachyosImageId: '4872c09919c6...', containerfileText: 'FROM x\n', buildArguments: { RUST_TOOLCHAIN: 'nightly-2026-11-15' } });
  ```
  */
 export function testBaseTag({
   repository,
   cachyosImageId,
   containerfileText,
+  buildArguments = {},
 }: {
   readonly repository: string;
   readonly cachyosImageId: string;
   readonly containerfileText: string;
+  readonly buildArguments?: Readonly<Record<string, string>>;
 },): string {
   /**
    Image ID digits, so the same image is named the same with or without the `sha256:` prefix.
@@ -174,10 +187,42 @@ export function testBaseTag({
   const digits = cachyosImageId.startsWith(digestPrefix)
     ? cachyosImageId.slice(digestPrefix.length)
     : cachyosImageId;
+  /**
+   The arguments as the text the hash covers, empty when the base takes none.
+   */
+  const argumentsText = buildArgumentsText(buildArguments,);
+  /**
+   What the hash covers: the Containerfile's text, and the arguments beside it only when there are some, so a base that
+   takes none keeps the tag it had before arguments were part of the name.
+   */
+  const hashedText = argumentsText === ''
+    ? containerfileText
+    : `${containerfileText}\n${argumentsText}`;
   return `${repository}:${digits.slice(
     0,
     tagHashLength,
-  )}-${shortHash(containerfileText)}`;
+  )}-${shortHash(hashedText)}`;
+}
+
+/**
+ The build arguments as the text the tag hashes: one `<name>=<value>` line per argument, in name order.
+
+ @param buildArguments - argument names and the values they are given
+
+ @returns the lines, each ending in a line break, and nothing when no argument is passed
+
+ @example
+ ```ts
+ const text = buildArgumentText({ RUST_TOOLCHAIN: 'nightly-2026-11-15' }); // 'RUST_TOOLCHAIN=nightly-2026-11-15\n'
+ ```
+ */
+export function buildArgumentsText(buildArguments: Readonly<Record<string, string>>,): string {
+  return Object.keys(buildArguments,)
+    .toSorted()
+    .map(function assignment(name) {
+      return `${name}=${buildArguments[name] ?? ''}\n`;
+    },)
+    .join('',);
 }
 
 /**
@@ -301,9 +346,11 @@ export async function pullCachyosLatest(): Promise<PulledCachyos> {
 
  @param tag - reference to give the image
 
- @param containerfilePath - Containerfile that reads the base through a build argument
+ @param containerfilePath - Containerfile that reads the base and the tools' names through build arguments
 
  @param cachyosImage - CachyOS image reference passed as the Containerfile's base argument
+
+ @param buildArguments - further arguments the Containerfile reads, such as the Rust toolchain's name
 
  @param limits - container limits of the build
 
@@ -313,11 +360,13 @@ async function buildDerivedImage({
   tag,
   containerfilePath,
   cachyosImage,
+  buildArguments,
   limits,
 }: {
   readonly tag: string;
   readonly containerfilePath: string;
   readonly cachyosImage: string;
+  readonly buildArguments: Readonly<Record<string, string>>;
   readonly limits: ContainerLimits;
 },): Promise<void> {
   // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -351,6 +400,14 @@ async function buildDerivedImage({
       '--pull=never',
       '--build-arg',
       `CACHYOS_IMAGE=${cachyosImage}`,
+      ...Object.keys(buildArguments,)
+        .toSorted()
+        .flatMap(function argument(name) {
+          return [
+            '--build-arg',
+            `${name}=${buildArguments[name] ?? ''}`,
+          ];
+        },),
       ...buildLimitArguments(limits),
       '--tag',
       tag,
@@ -368,6 +425,9 @@ async function buildDerivedImage({
 
  @param containerfilePath - Containerfile the derived image is built from
 
+ @param buildArguments - arguments the Containerfile reads whose values the text does not name, which the tag therefore
+ covers
+
  @param source - the CachyOS image the derived image starts from
 
  @param limits - container limits of a build, if one is needed
@@ -379,16 +439,18 @@ async function buildDerivedImage({
 async function ensureDerivedImage({
   repository,
   containerfilePath,
+  buildArguments = {},
   source,
   limits,
 }: {
   readonly repository: string;
   readonly containerfilePath: string;
+  readonly buildArguments?: Readonly<Record<string, string>>;
   readonly source: PulledCachyos;
   readonly limits: ContainerLimits;
 },): Promise<TestBase> {
   /**
-   Reference of the derived image for these two inputs.
+   Reference of the derived image for these inputs.
    */
   const tag = testBaseTag({
     repository,
@@ -397,6 +459,7 @@ async function ensureDerivedImage({
       containerfilePath,
       'utf8',
     ),
+    buildArguments,
   });
   /**
    ID of a derived image an earlier run built, when there is one.
@@ -414,6 +477,7 @@ async function ensureDerivedImage({
     tag,
     containerfilePath,
     cachyosImage: source.cachyosImage,
+    buildArguments,
     limits,
   });
   /**
@@ -433,13 +497,17 @@ async function ensureDerivedImage({
 /**
  Make sure the gate's base image for the registry's current CachyOS image exists, and return its ID.
 
+ The image compiles with the Rust toolchain the lock names, which is passed as the build argument `RUST_TOOLCHAIN`; the
+ base's tag covers that value, so a lock that moved the date builds a base rather than reusing the night before's.
+
  @param limits - container limits of a build, if one is needed
 
  @param source - the pulled CachyOS image; pulled now when absent
 
  @returns the gate's base image and whether this run built it
 
- @throws NativeVerificationError when the host is not x86-64, the pull fails with no local copy, or the build fails
+ @throws NativeVerificationError when the lock records no usable Rust toolchain, the host is not x86-64, the pull fails
+ with no local copy, or the build fails
 
  @example
  ```ts
@@ -457,6 +525,7 @@ export async function ensureTestBase({
   return ensureDerivedImage({
     repository: gateRepository,
     containerfilePath: gateContainerfilePath,
+    buildArguments: { RUST_TOOLCHAIN: await lockedRustToolchain(), },
     source: source ?? await pullCachyosLatest(),
     limits,
   });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- Build the gate's base image: the newest CachyOS image on its `latest` tag with the Rust toolchain, Git, Node, pnpm, `strace` and
- cargo-nextest, all current pacman packages, and report which release of each the image got.
+ Build the gate's base image: the newest CachyOS image on its `latest` tag with the Rust toolchain the repository lock
+ names, Git, Node, pnpm, `strace` and cargo-nextest, and report which release of each the image got.
 
  `native:test:container` does the same before it builds the gate image, so this runner exists to build the base ahead of
  time, to rebuild it after a CachyOS update with chosen limits, and to prove what it holds. It pulls the `latest` tag and
@@ -34,7 +34,9 @@ const jsonIndent = 2;
 
 /**
  Pacman packages whose installed releases the build reports: the tools the tests run, taken from the distribution as
- it is (the owner chose no pins, 2026-11-04), so the release each run got is evidence worth keeping.
+ it is (the owner chose no pins, 2026-11-04), so the release each run got is evidence worth keeping. `rustup` is one of
+ them because it is the package pacman has for Rust: the toolchain it installed is reported separately, from the
+ compiler's own version line (`bin/locked-rust-toolchain.ts`).
  */
 const reportedPackages = [
   'git',
@@ -42,7 +44,7 @@ const reportedPackages = [
   'pnpm',
   'strace',
   'cargo-nextest',
-  'rust',
+  'rustup',
 ] as const;
 
 /**
@@ -133,6 +135,39 @@ const version = gitReported.stdout
   .trim();
 if (!version.startsWith('git version '))
   throw new NativeVerificationError(`The base image returned an unexpected Git version line: ${version}`);
+/**
+ Result of asking the base's compiler what it is, in a container without network: the release, the commit it was built
+ from and its host, from the toolchain the lock named when the base was built.
+ */
+const compilerReported = await runCommand({
+  command: 'podman',
+  args: [
+    'run',
+    '--rm',
+    '--init',
+    '--network=none',
+    ...runLimitArguments({
+      limits: containerLimits,
+      withPidsLimit: true,
+    }),
+    base.id,
+    'rustc',
+    '--version',
+    '--verbose',
+  ],
+  capture: true,
+});
+/**
+ The lines the base's `rustc` printed about itself.
+ */
+const compiler = compilerReported.stdout
+  .trim();
+if (!compiler.startsWith('rustc '))
+  throw new NativeVerificationError(`The base image returned an unexpected rustc version line: ${compiler}`);
+/**
+ The compiler's first line, the release and its commit, which the summary names.
+ */
+const [compilerRelease = compiler,] = compiler.split('\n',);
 await writeFile(
   join(
     evidence,
@@ -142,10 +177,11 @@ await writeFile(
     {
       ...base,
       version,
+      compiler,
       packages,
     },
     null,
     jsonIndent,
   )}\n`,
 );
-console.log(`${base.built ? 'Built' : 'Found'} the gate base ${base.tag} (${base.id}) on ${base.cachyosImage} (${base.cachyosImageId}); ${version}; ${packages.join(', ')}; evidence ${evidence}`);
+console.log(`${base.built ? 'Built' : 'Found'} the gate base ${base.tag} (${base.id}) on ${base.cachyosImage} (${base.cachyosImageId}); ${version}; ${compilerRelease}; ${packages.join(', ')}; evidence ${evidence}`);
