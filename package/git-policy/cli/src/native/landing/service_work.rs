@@ -55,7 +55,6 @@ use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use crate::work_item_holding::{BlockedVerdict, blocked_verdicts};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -440,6 +439,25 @@ async fn branch_tip_awaiting(git: &PushGit, branch_ref: &str) -> Option<String> 
     return (!named.is_empty()).then_some(named);
 }
 
+/// What:
+///  The words a push answers with when a gate record it must read before it sends anything did not answer within the ceiling.
+/// Why:
+///   Nothing of the branch was sent, so the commit is neither reported as made nor lost:
+/// the item keeps its place for the next round,
+///  and the retry plan the service keeps names the pause to the person
+///  (`service_work_settling_a_verdict.rs`).
+/// The words say what did not answer,
+///  because a record that cannot be read is a verdict nobody knows,
+/// which is not the same as no verdict.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = unreadGateRecords(oid, 'the verdicts a gate kept for this worktree were not read');
+/// ```
+fn unread_gate_records(oid: &str, what: &str) -> String {
+    return format!("the commit {oid} was not pushed: {what}. Nothing of this branch was sent, and the push is tried again");
+}
+
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
     fn push(&self, items: &[WorkItem]) -> Verdict {
@@ -471,12 +489,21 @@ impl WorkHandlers for GitHandlers {
             };
         };
         // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
-        //  gate refused, however far the branch has moved since.
+        //  gate refused, however far the branch has moved since. Both readings below are jobs of the blocking pool awaited within
+        //  the after-commit work's state ceiling (`gate_records_read_off_the_runtime.rs`): the records can wait in the kernel on a
+        //  mount that stopped answering, and a read that ran on this worker would hold the thread the runtime needs.
         let work: PathBuf = work_directory(newest.git_dir.as_path());
-        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work.as_path());
+        let Ok(blocked) = crate::gate_records_read_off_the_runtime::blocked_verdicts_awaiting(work.as_path()).await else {
+            // A refusal that could not be read may be the one that keeps this very commit local, so nothing is sent: the push is
+            //  tried again by the service's retry plan, which names the pause to the person, and the commit is neither lost nor
+            //  reported as made.
+            return Verdict::Retry(unread_gate_records(newest.oid.as_str(), "the verdicts a gate kept for this worktree were not read"));
+        };
         // A commit whose own gate still runs is not decided either, and a push of the branch sends every commit up to the tip: the
         //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
-        let undecided: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), newest.branch_ref.as_str());
+        let Ok(undecided) = crate::gate_records_read_off_the_runtime::undecided_commits_awaiting(work.as_path(), newest.branch_ref.as_str()).await else {
+            return Verdict::Retry(unread_gate_records(newest.oid.as_str(), "the held records that say which commits of this branch a gate still holds were not read"));
+        };
         let mut output: Vec<u8> = Vec::new();
         return match push_once_awaiting(&git, newest.branch_ref.as_str(), sent_up_to.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
