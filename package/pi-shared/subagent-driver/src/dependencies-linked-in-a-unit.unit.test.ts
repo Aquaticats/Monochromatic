@@ -193,6 +193,34 @@ async function settledBy<Answer>({ call, }: { readonly call: () => Promise<Answe
 }
 
 /**
+ The folder a manager fixture keeps its socket under, which is the harness's scratch root unless that would make a socket path the
+ kernel refuses.
+
+ Why: a Unix socket address is a fixed 108-byte field, and `listen` answers `EINVAL` for a longer path. The harness's scratch root is
+ short on this machine and long under a review's own folder, so a fixture that always used it would fail for the folder's length
+ rather than for the code it tests. The user's runtime directory is the one short folder every session on such a machine has.
+
+ @param scratch - the harness's scratch root
+
+ @returns the folder to make the fixture's folder in
+
+ @example
+ ```ts
+ const base = socketBase({ scratch: '/home/a/.cache/monochromatic-dev/test-scratch', });
+ ```
+ */
+function socketBase({ scratch }: { readonly scratch: string },): string {
+  /**
+   The longest path this fixture may hand `listen`: the kernel's field less a NUL, less the fixture's own folder name and the socket
+   path inside it.
+   */
+  const longest = 108 - 1 - 'pi-manager-XXXXXX/runtime/systemd/private'.length;
+  return (join(scratch, 'pi-manager-XXXXXX', 'runtime', 'systemd', 'private',).length <= longest)
+    ? scratch
+    : join('/run/user', String(process.getuid?.() ?? 1_000,),);
+}
+
+/**
  What a fixture says the machine has: a manager whose socket is there, or one whose socket and units are not.
  */
 type ManagerFixture = {
@@ -234,10 +262,11 @@ async function makeManagerFixture({
   readonly withSocket: boolean;
 },): Promise<ManagerFixture> {
   /**
-   The fixture's own folder, made short on purpose: a Unix socket's path may not pass the length the kernel keeps for it, and the
-   harness's scratch root is already long.
+   The folder the fixture's socket lives in, which must be short: a Unix socket's path may not pass the length the kernel keeps for
+   it, and a harness scratch root under a long folder would pass it.
    */
-  const path = await mkdtemp(join(scratchRoot(), 'pi-manager-',),);
+  const shortBase = socketBase({ scratch: scratchRoot(), },);
+  const path = await mkdtemp(join(shortBase, 'pi-manager-',),);
   /**
    The folder the manager keeps its socket in.
    */
