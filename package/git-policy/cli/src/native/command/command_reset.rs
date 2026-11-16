@@ -44,6 +44,9 @@ pub const HARD: u16 = 3;
 pub const MERGE: u16 = 4;
 /// `--keep`.
 pub const KEEP: u16 = 5;
+/// `--recurse-submodules` and `--no-recurse-submodules`:
+///  whether a hard reset also moves each submodule to the commit the target tree records.
+pub const RESET_RECURSE_SUBMODULES: u16 = 6;
 
 /// What:
 ///  Rows of `options[]` in `cmd_reset` (builtin/reset.c:350-382),
@@ -68,7 +71,7 @@ pub const RESET_TABLE: &[OptionSpec] = &[
     row(MERGE, None, Some("merge"), Arity::None, false),
     row(KEEP, None, Some("keep"), Arity::None, false),
     row(
-        UNREAD,
+        RESET_RECURSE_SUBMODULES,
         None,
         Some("recurse-submodules"),
         Arity::Optional,

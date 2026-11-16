@@ -210,6 +210,26 @@ impl RepositoryFacts for ScriptedFacts {
         return self.in_the_way.clone();
     }
 
+    /// What:
+    ///  A scripted repository registers no submodule, so these three questions answer "nothing there".
+    /// Why:
+    ///  A control scripts what a form writes and what stands in its way;
+    ///  a submodule is a worktree of its own and no control here makes one,
+    ///  so the answers are the ones a repository without `.gitmodules` gives.
+    ///  The question is not logged in `asked`: the controls comparing that list name the questions they
+    ///  script, and this one answers the same for every script.
+    fn holds_submodules(&mut self) -> Result<bool, String> {
+        return Ok(false);
+    }
+
+    fn submodule_recurse_configured(&mut self) -> Result<bool, String> {
+        return Ok(false);
+    }
+
+    fn uncommitted_changes_inside_submodules(&mut self, _written: &WrittenPaths) -> Result<Vec<String>, String> {
+        return Ok(Vec::<String>::new());
+    }
+
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
         self.asked.push(String::from("stash"));
         return self.stash.clone();

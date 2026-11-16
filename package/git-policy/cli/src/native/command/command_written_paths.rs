@@ -22,7 +22,9 @@
 use crate::command_checkout_index_table::{
     CHECKOUT_INDEX_ALL, CHECKOUT_INDEX_PREFIX, CHECKOUT_INDEX_STDIN, CHECKOUT_INDEX_TABLE,
 };
-use crate::command_checkout_table::{CHECKOUT_TABLE, FORCE, GUESS, PATHSPEC_FILE_NUL, PATHSPEC_FROM_FILE, SWITCH_TABLE};
+use crate::command_checkout_table::{
+    CHECKOUT_TABLE, FORCE, GUESS, PATHSPEC_FILE_NUL, PATHSPEC_FROM_FILE, RECURSE_SUBMODULES, SWITCH_TABLE,
+};
 use crate::command_discard::{
     READ_TREE_DEBUG_UNPACK, READ_TREE_DRY_RUN, READ_TREE_MERGE, READ_TREE_PREFIX, READ_TREE_RESET, READ_TREE_TABLE,
     READ_TREE_UPDATE,
@@ -36,10 +38,10 @@ use crate::command_options_query::{is_enabled, last_occurrence, positional_token
 use crate::command_mv_table::MV_TABLE;
 /// The command's own table of `git restore`, and the rows of the values it reads.
 use crate::command_restore_table::{
-    RESTORE_PATHSPEC_FILE_NUL, RESTORE_PATHSPEC_FROM_FILE, RESTORE_SOURCE, RESTORE_STAGED, RESTORE_TABLE,
-    RESTORE_WORKTREE,
+    RESTORE_PATHSPEC_FILE_NUL, RESTORE_PATHSPEC_FROM_FILE, RESTORE_RECURSE_SUBMODULES, RESTORE_SOURCE, RESTORE_STAGED,
+    RESTORE_TABLE, RESTORE_WORKTREE,
 };
-use crate::command_reset::{RESET_TABLE, ResetMode, parse_reset_region};
+use crate::command_reset::{RESET_RECURSE_SUBMODULES, RESET_TABLE, ResetMode, parse_reset_region};
 /// The forms the linked-worktree policy guards.
 use crate::rule_linked_worktree::GuardedCommand;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
@@ -330,6 +332,48 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
         GuardedCommand::CheckoutIndex => return checkout_index_written_paths(region),
         _ => return None,
     }
+}
+
+/// What:
+///  What one form's own words say about recursing into submodules:
+///  `Some(false)` when it says not to,
+///  `Some(true)` when it says to,
+///  and nothing when it says neither,
+///  which leaves the repository's `submodule.recurse` setting to answer.
+/// Why:
+///  A recursive form moves each submodule to the commit the target tree records,
+///  writing that submodule's own worktree, where a person's uncommitted changes may stand;
+///  and the setting switches the same recursion on without any word of the form
+///  (`git -c submodule.recurse=true checkout -f other` replaced a submodule edit, and so did the option,
+///  measured on this host with native Git 2.56.0, 2026-11-16).
+///  The last spelling wins, as Git reads it: `--no-recurse-submodules` is Git's own negation,
+///  and the optional value `no` turns it off as well.
+///  `read-tree`'s `--recurse-submodules=check` only checks and writes no file inside a submodule,
+///  so a form that carries it asks nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recurses = (command, region) => lastOption(region, command.table, RECURSE_SUBMODULES)?.value !== 'no';
+/// ```
+pub fn asks_to_recurse_into_submodules(command: GuardedCommand, region: &[OsString]) -> Option<bool> {
+    let (table, id): (&[OptionSpec], u16) = match command {
+        GuardedCommand::CheckoutPaths => (CHECKOUT_TABLE, RECURSE_SUBMODULES),
+        GuardedCommand::SwitchForce => (SWITCH_TABLE, RECURSE_SUBMODULES),
+        GuardedCommand::ResetHard => (RESET_TABLE, RESET_RECURSE_SUBMODULES),
+        GuardedCommand::RestoreWorktree | GuardedCommand::RestoreStaged => (RESTORE_TABLE, RESTORE_RECURSE_SUBMODULES),
+        _ => return None,
+    };
+    let parsed: ParsedOptions = parse_options(region, table, DEFAULT_MODE, &[]).ok()?;
+    let occurrence: Occurrence = last_occurrence(&parsed, id)?;
+    if occurrence.negated {
+        return Some(false);
+    }
+    let Some(value) = occurrence.value else {
+        return Some(true);
+    };
+    let written: &[u8] = value_bytes(region, value);
+    // `check` is read-tree's own mode and asks Git to refuse a submodule that is not up to date, writing nothing.
+    return Some(written != b"no" && written != b"check");
 }
 
 /// What:

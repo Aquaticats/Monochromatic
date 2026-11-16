@@ -165,6 +165,35 @@ pub fn overwritten_refusal_message(overwritten: Overwritten<'_>) -> String {
 }
 
 /// What:
+///  The refusal of a form that recurses into a submodule whose own worktree holds uncommitted changes,
+///  naming each change and the one command that runs the form anyway.
+///  `&[String]` borrows the changes as this worktree spells them.
+/// Why:
+///  A submodule's worktree holds a person's files as much as the outer one,
+///  and a recursive checkout, switch, reset or restore moves each submodule to the commit the target
+///  tree records, replacing what that submodule's repository does not hold.
+///  The sentence cannot say "Git did not put them in this worktree", which is true of an untracked
+///  file: Git did put these there, and it is the person's uncommitted change to them that goes,
+///  so the refusal says that instead and names each one with the submodule in its name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// submoduleChangesRefusalMessage({ command: 'checkout-paths', region: ['-f','--recurse-submodules','other'], paths: ['sub/f.txt'] });
+/// ```
+pub fn submodule_changes_refusal_message(overwritten: Overwritten<'_>) -> String {
+    let them: &str = if overwritten.paths.len() == 1 { "it" } else { "them" };
+    return format!(
+        "monochromatic-git-policy-cli: git {} is rejected because it recurses into a submodule and would replace \
+         the uncommitted changes {} inside it, which that submodule's own repository does not hold. Nothing in your \
+         worktree was changed. If you have decided to lose {them} on purpose, run `{}`, and the command runs exactly as \
+         real Git runs it, moving each submodule to the commit the target records.",
+        subcommand(overwritten.command),
+        listed(overwritten.paths),
+        hatch_command(overwritten.command, overwritten.region),
+    );
+}
+
+/// What:
 ///  The refusal of a form whose written paths the guard could not read,
 ///  naming what could not be read and the command that runs it anyway.
 ///  `&str` borrows the cause,

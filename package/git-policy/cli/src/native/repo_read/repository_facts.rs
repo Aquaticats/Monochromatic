@@ -150,6 +150,22 @@ pub trait RepositoryFacts {
     /// The `Option<&Path>` is the directory Git runs the shell of a `!` alias in,
     ///  because the form's relative words mean that directory and not the caller's.
     fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String>;
+    /// Whether this worktree registers any submodule at all,
+    ///  asked before a form that writes paths asks anything about them.
+    /// A repository without `.gitmodules` has nothing a recursive form could reach inside,
+    ///  so the two questions below cost a process start only where they can mean something.
+    fn holds_submodules(&mut self) -> Result<bool, String>;
+    /// Whether this repository's configuration turns submodule recursion on,
+    ///  which `submodule.recurse=true` does for the forms that honour it.
+    /// Asked only when the form writes paths,
+    ///  the worktree registers submodules and the form carries no recursion option of its own.
+    fn submodule_recurse_configured(&mut self) -> Result<bool, String>;
+    /// The uncommitted tracked changes inside the submodules a recursive form would write,
+    ///  each named as this worktree spells it.
+    /// Asked only for a form that recurses and writes paths a submodule lies at or below,
+    ///  because a submodule's own worktree holds a person's files as much as the outer one and
+    ///  `submodule.<name>.ignore` keeps its changes out of every status the outer repository answers.
+    fn uncommitted_changes_inside_submodules(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String>;
     /// Whether the repository holds a stash entry.
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
@@ -622,6 +638,18 @@ impl RepositoryFacts for GitFacts {
     fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
         // The queries over the written paths live beside this provider for the same reason.
         return crate::repository_facts_paths_in_the_way::paths_in_the_way(self, written);
+    }
+
+    fn holds_submodules(&mut self) -> Result<bool, String> {
+        return crate::repository_facts_submodules::holds_submodules(self);
+    }
+
+    fn submodule_recurse_configured(&mut self) -> Result<bool, String> {
+        return crate::repository_facts_submodules::submodule_recurse_configured(self);
+    }
+
+    fn uncommitted_changes_inside_submodules(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        return crate::repository_facts_submodules::uncommitted_changes_inside_submodules(self, written);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

@@ -12,18 +12,22 @@
 //! // entriesAFormWouldWriteOver({ facts, command: 'reset-hard', region: ['--hard'] }) === ['b.txt']
 //! ```
 
-use super::{WrittenOverRequest, entries_a_form_would_write_over};
+use super::{EntriesInTheWay, WrittenOverRequest, entries_a_form_would_write_over};
 use crate::command_test_support::os_arguments;
 use crate::policy_test_support::scripted_facts;
 use crate::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsString;
 
 /// The entries the question answers for one form over one region.
-fn ask(command: GuardedCommand, region: &[&str], in_the_way: Result<Vec<String>, String>) -> (Result<Vec<String>, String>, Vec<String>) {
+fn ask(
+    command: GuardedCommand,
+    region: &[&str],
+    in_the_way: Result<Vec<String>, String>,
+) -> (Result<EntriesInTheWay, String>, Vec<String>) {
     let tokens: Vec<OsString> = os_arguments(region);
     let mut facts = scripted_facts();
     facts.in_the_way = in_the_way;
-    let answer: Result<Vec<String>, String> = entries_a_form_would_write_over(WrittenOverRequest {
+    let answer: Result<EntriesInTheWay, String> = entries_a_form_would_write_over(WrittenOverRequest {
         facts: &mut facts,
         command,
         region: tokens.as_slice(),
@@ -37,7 +41,7 @@ fn ask(command: GuardedCommand, region: &[&str], in_the_way: Result<Vec<String>,
 fn every_clean_asks_nothing() {
     for command in [GuardedCommand::Clean, GuardedCommand::CleanIgnored, GuardedCommand::CleanIgnoredOnly] {
         let (answer, asked) = ask(command, &["-f", "-d"], Ok(vec![String::from("b.txt")]));
-        assert_eq!(answer, Ok(Vec::<String>::new()), "{command:?}");
+        assert!(answer.is_ok_and(|found| found.entries.is_empty()), "{command:?}");
         assert!(asked.is_empty(), "{command:?} asked {asked:?}");
     }
 }
@@ -53,7 +57,7 @@ fn forms_that_write_no_tree_ask_nothing() {
         GuardedCommand::ResetMixed,
     ] {
         let (answer, asked) = ask(command, &["--force", "a.txt"], Ok(vec![String::from("b.txt")]));
-        assert_eq!(answer, Ok(Vec::<String>::new()), "{command:?}");
+        assert!(answer.is_ok_and(|found| found.entries.is_empty()), "{command:?}");
         assert!(asked.is_empty(), "{command:?} asked {asked:?}");
     }
 }
@@ -73,7 +77,9 @@ fn a_written_tree_or_path_asks_and_names_what_stands_there() {
     ] {
         let found: Vec<String> = vec![String::from("b.txt"), String::from("nested/")];
         let (answer, asked) = ask(command, region.as_slice(), Ok(found.clone()));
-        assert_eq!(answer, Ok(found), "{command:?} {region:?}");
+        let answered: EntriesInTheWay = answer.expect("the answer");
+        assert_eq!(answered.entries, found, "{command:?} {region:?}");
+        assert!(answered.inside_submodules.is_empty(), "{command:?} {region:?}");
         assert_eq!(asked, vec![format!("paths-in-the-way:{kind}")], "{command:?} {region:?}");
     }
 }
@@ -84,7 +90,7 @@ fn a_written_tree_or_path_asks_and_names_what_stands_there() {
 fn the_merge_and_keep_modes_ask_about_the_ignored_entries() {
     for mode in ["--merge", "--keep"] {
         let (answer, asked) = ask(GuardedCommand::ResetHard, &[mode, "other"], Ok(Vec::<String>::new()));
-        assert_eq!(answer, Ok(Vec::<String>::new()), "{mode}");
+        assert!(answer.is_ok_and(|found| found.entries.is_empty()), "{mode}");
         assert_eq!(asked, vec![String::from("paths-in-the-way:tree-of-ignored-entries")], "{mode}");
     }
 }
@@ -98,5 +104,5 @@ fn a_reading_that_failed_is_the_failure() {
         &["--hard"],
         Err(String::from("Git could not read the paths the index holds: fatal")),
     );
-    assert_eq!(answer, Err(String::from("Git could not read the paths the index holds: fatal")));
+    assert_eq!(answer.err(), Some(String::from("Git could not read the paths the index holds: fatal")));
 }

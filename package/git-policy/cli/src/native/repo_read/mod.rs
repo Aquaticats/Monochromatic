@@ -59,6 +59,10 @@ pub mod repository_facts_written_paths;
 /// The edits the index's own assume-unchanged mark hides from every status Git answers.
 pub mod repository_facts_edits_the_status_hides;
 
+/// What a form that recurses into submodules would replace inside their own worktrees,
+///  read beside the provider so its interface file stays within its line bound.
+pub mod repository_facts_submodules;
+
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
 

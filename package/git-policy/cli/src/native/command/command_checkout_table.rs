@@ -71,6 +71,10 @@ pub const PATHSPEC_FROM_FILE: u16 = 12;
 /// `--pathspec-file-nul`:
 /// that file separates its entries with NUL bytes.
 pub const PATHSPEC_FILE_NUL: u16 = 13;
+/// `--recurse-submodules` and `--no-recurse-submodules`:
+///  whether the form moves each submodule to the commit the target tree records,
+///  which writes that submodule's own worktree.
+pub const RECURSE_SUBMODULES: u16 = 15;
 /// `--ignore-skip-worktree-bits`:
 /// the person asks Git to write the files a `skip-worktree` mark names.
 pub const IGNORE_SKIP_WORKTREE_BITS: u16 = 14;
@@ -100,7 +104,7 @@ pub const CHECKOUT_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("auto-advance"), Arity::None, true),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
     row(
-        UNREAD,
+        RECURSE_SUBMODULES,
         None,
         Some("recurse-submodules"),
         Arity::Optional,
@@ -180,7 +184,7 @@ pub const SWITCH_TABLE: &[OptionSpec] = &[
     row(DISCARD_CHANGES, None, Some("discard-changes"), Arity::None, true),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
     row(
-        UNREAD,
+        RECURSE_SUBMODULES,
         None,
         Some("recurse-submodules"),
         Arity::Optional,

@@ -1430,7 +1430,7 @@ fn read_tree_paths(
 /// ```ts
 /// const root = worktreeRootOf(facts); // '/abs/worktree'
 /// ```
-fn worktree_root_of(facts: &mut GitFacts) -> Result<PathBuf, String> {
+pub(super) fn worktree_root_of(facts: &mut GitFacts) -> Result<PathBuf, String> {
     let location: crate::repository_location::RepositoryLocation = facts.location()?;
     return match worktree_root(&location.identity) {
         Some(root) => Ok(root.to_path_buf()),

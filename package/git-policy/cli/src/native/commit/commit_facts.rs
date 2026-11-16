@@ -146,6 +146,18 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.paths_in_the_way(written);
     }
 
+    fn holds_submodules(&mut self) -> Result<bool, String> {
+        return self.inner.holds_submodules();
+    }
+
+    fn submodule_recurse_configured(&mut self) -> Result<bool, String> {
+        return self.inner.submodule_recurse_configured();
+    }
+
+    fn uncommitted_changes_inside_submodules(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        return self.inner.uncommitted_changes_inside_submodules(written);
+    }
+
     fn clean_require_force(&mut self) -> Result<bool, String> {
         return self.inner.clean_require_force();
     }
@@ -227,6 +239,18 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
         return (**self).paths_in_the_way(written);
+    }
+
+    fn holds_submodules(&mut self) -> Result<bool, String> {
+        return (**self).holds_submodules();
+    }
+
+    fn submodule_recurse_configured(&mut self) -> Result<bool, String> {
+        return (**self).submodule_recurse_configured();
+    }
+
+    fn uncommitted_changes_inside_submodules(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        return (**self).uncommitted_changes_inside_submodules(written);
     }
 
     fn clean_require_force(&mut self) -> Result<bool, String> {

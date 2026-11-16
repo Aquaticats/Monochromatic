@@ -58,6 +58,9 @@ pub const RESTORE_MERGE: u16 = 7;
 /// `--overlay`/`--no-overlay`:
 ///  whether a path the source tree does not hold is deleted.
 pub const RESTORE_OVERLAY: u16 = 8;
+/// `--recurse-submodules` and `--no-recurse-submodules`:
+///  whether a restore also writes inside the submodules it reaches.
+pub const RESTORE_RECURSE_SUBMODULES: u16 = 9;
 
 /// What:
 ///  The rows of `git restore`,
@@ -82,7 +85,7 @@ pub const RESTORE_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("ignore-unmerged"), Arity::None, true),
     row(RESTORE_OVERLAY, None, Some("overlay"), Arity::None, true),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
-    row(UNREAD, None, Some("recurse-submodules"), Arity::Optional, true),
+    row(RESTORE_RECURSE_SUBMODULES, None, Some("recurse-submodules"), Arity::Optional, true),
     row(UNREAD, None, Some("progress"), Arity::None, true),
     row(RESTORE_MERGE, Some(b'm'), Some("merge"), Arity::None, true),
     row(UNREAD, None, Some("conflict"), Arity::Required, true),

@@ -45,7 +45,9 @@ use crate::discard_audit_facts::AuditFact;
 use crate::policy_engine::PolicyOutcome;
 /// Every worktree entry a form would write over or delete,
 ///  which nothing else holds.
-use crate::policy_linked_worktree_refused_overwrite::{WrittenOverRequest, entries_a_form_would_write_over};
+use crate::policy_linked_worktree_refused_overwrite::{
+    EntriesInTheWay, WrittenOverRequest, entries_a_form_would_write_over,
+};
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
@@ -54,7 +56,7 @@ use crate::policy_checks::{clean, rejected};
 use crate::rule_linked_worktree::{GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE};
 /// The refusal that names those entries and the option that runs the command anyway.
 use crate::rule_linked_worktree_refused_overwrite_messages::{
-    Overwritten, overwritten_refusal_message, tree_reading_failed_message,
+    Overwritten, overwritten_refusal_message, submodule_changes_refusal_message, tree_reading_failed_message,
 };
 /// The Git directories of an identity,
 ///  for naming the worktree the paths are below.
@@ -249,7 +251,7 @@ pub(crate) struct AllowedForm<'a> {
 /// ```
 pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
     // Every form that writes a tree or a path of one is refused while an entry nothing else holds stands in its way.
-    let in_the_way: Vec<String> = match entries_a_form_would_write_over(WrittenOverRequest {
+    let in_the_way: EntriesInTheWay = match entries_a_form_would_write_over(WrittenOverRequest {
         facts: form.facts,
         command: form.command,
         region: form.region,
@@ -265,14 +267,25 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
             );
         }
     };
-    if !in_the_way.is_empty() {
+    if !in_the_way.inside_submodules.is_empty() {
+        record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, form.dirty);
+        return rejected(
+            LINKED_WORKTREE_REQUIRED_CODE,
+            submodule_changes_refusal_message(Overwritten {
+                command: form.command,
+                region: form.region,
+                paths: in_the_way.inside_submodules.as_slice(),
+            }),
+        );
+    }
+    if !in_the_way.entries.is_empty() {
         record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, form.dirty);
         return rejected(
             LINKED_WORKTREE_REQUIRED_CODE,
             overwritten_refusal_message(Overwritten {
                 command: form.command,
                 region: form.region,
-                paths: in_the_way.as_slice(),
+                paths: in_the_way.entries.as_slice(),
             }),
         );
     }

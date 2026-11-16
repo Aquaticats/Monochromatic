@@ -30,7 +30,7 @@
 
 /// The builder of the written paths,
 ///  which decides whether this form writes anything at all.
-use crate::command_written_paths::{WrittenPaths, written_paths};
+use crate::command_written_paths::{WrittenPaths, asks_to_recurse_into_submodules, written_paths};
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
 /// The guarded form being judged.
@@ -76,19 +76,58 @@ pub(crate) struct WrittenOverRequest<'a> {
 /// ```ts
 /// function entriesAFormWouldWriteOver(request): string[]; // throws
 /// ```
-pub(crate) fn entries_a_form_would_write_over(request: WrittenOverRequest<'_>) -> Result<Vec<String>, String> {
+pub(crate) fn entries_a_form_would_write_over(request: WrittenOverRequest<'_>) -> Result<EntriesInTheWay, String> {
     // A clean deletes what its own dry run names, and the nested repositories it deletes keep their own
     //  recorded answer.
     if matches!(
         request.command,
         GuardedCommand::Clean | GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly
     ) {
-        return Ok(Vec::<String>::new());
+        return Ok(EntriesInTheWay::default());
     }
     let Some(written): Option<WrittenPaths> = written_paths(request.command, request.region) else {
-        return Ok(Vec::<String>::new());
+        return Ok(EntriesInTheWay::default());
     };
-    return request.facts.paths_in_the_way(&written);
+    let entries: Vec<String> = request.facts.paths_in_the_way(&written)?;
+    // A form that recurses writes inside the submodules the tree records,
+    //  where a person's uncommitted work stands and the outer status never names it.
+    //  The three questions cost a process start only where a submodule can be reached at all.
+    let Some(asked) = asks_to_recurse_into_submodules(request.command, request.region) else {
+        if !request.facts.holds_submodules()? || !request.facts.submodule_recurse_configured()? {
+            return Ok(EntriesInTheWay { entries, inside_submodules: Vec::<String>::new() });
+        }
+        let inside_submodules: Vec<String> = request.facts.uncommitted_changes_inside_submodules(&written)?;
+        return Ok(EntriesInTheWay { entries, inside_submodules });
+    };
+    if !asked || !request.facts.holds_submodules()? {
+        return Ok(EntriesInTheWay { entries, inside_submodules: Vec::<String>::new() });
+    }
+    let inside_submodules: Vec<String> = request.facts.uncommitted_changes_inside_submodules(&written)?;
+    return Ok(EntriesInTheWay { entries, inside_submodules });
+}
+
+/// What:
+///  Everything one discarding form would lose that no repository holds:
+///  the worktree entries at the paths it writes,
+///  and the uncommitted changes inside the submodules it recurses into.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The two are different losses and the refusal says so in different words:
+///  an entry at a written path is a file Git did not put there and this repository holds no copy of,
+///  while a submodule's change is work its own repository does not hold either,
+///  and a sentence about "Git did not put it there" would misdescribe it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const found = { entries: ['b.txt'], insideSubmodules: ['sub/f.txt'] };
+/// ```
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct EntriesInTheWay {
+    /// The worktree entries at the written paths, as Git printed them.
+    pub(crate) entries: Vec<String>,
+    /// The uncommitted changes inside the submodules the form recurses into,
+    ///  each named as this worktree spells it.
+    pub(crate) inside_submodules: Vec<String>,
 }
 
 /// The entries a form would overwrite, read through `written_paths`, and the places a rejection comes from.

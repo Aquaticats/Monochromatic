@@ -51,6 +51,7 @@ const GUARD_FILES: &[&str] = &[
     "policy/policy_transforms.rs",
     "repo_read/repository_facts_edits_the_status_hides.rs",
     "repo_read/repository_facts_paths_in_the_way.rs",
+    "repo_read/repository_facts_submodules.rs",
     "repo_read/repository_facts_written_paths.rs",
 ];
 
