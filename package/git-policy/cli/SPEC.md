@@ -19033,6 +19033,43 @@ This is the hole of both guards, stated once here:
 `-c 'alias.wipe=!git' wipe reset --hard` run a hard reset with no refusal, no notice and no line,
 and so does every other `!` alias,
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
+The same words typed directly are refused:
+where `git reset --hard` in a linked worktree holding an uncommitted edit stops with a refusal and
+names the file,
+the alias that runs it discards the edit and prints nothing about it,
+and the same holds for every discarding form this SPEC guards,
+so a person who lost an edit this way lost it to the shell command their alias names, not to a refusal
+that was skipped.
+
+A submodule's worktree is read for the recursive forms.
+It holds a person's files as much as the outer one,
+and `submodule.<name>.ignore` keeps its changes out of every status the outer repository answers.
+A form that recurses into submodules,
+by `--recurse-submodules` or by `submodule.recurse=true`,
+moves each submodule to the commit the target tree records,
+which replaces the work that submodule's repository does not hold.
+So the guard reads into it:
+the submodules this worktree registers come from `ls-files --stage` (mode `160000`),
+each one the form reaches is asked its own `status --porcelain=v1 --untracked-files=no`,
+and an uncommitted change there is refused by name, `<submodule>/<path>`, with the opt-out that runs the
+form as Git runs it.
+Measured on this host with native Git 2.56.0, 2026-11-16:
+`git checkout -f --recurse-submodules other`, `git switch -f --recurse-submodules other`,
+`git reset --hard --recurse-submodules other` and the same checkout with `submodule.recurse=true`
+each replaced a tracked edit inside the submodule while `submodule.sub.ignore=all` kept the outer
+status empty,
+and each left the submodule's untracked and ignored files where they were,
+which is why the question is about tracked changes alone
+(the ninth review's fifth finding).
+The recursion switch is the option's own last spelling,
+so `--recurse-submodules=no` and `--no-recurse-submodules` answer no and
+`read-tree`'s `--recurse-submodules=check` writes nothing inside and asks nothing;
+a form that carries no such word leaves the setting to answer.
+A repository without `.gitmodules` pays a metadata lookup and no process start,
+and one beyond `SUBMODULES_ASKED_AT_MOST` submodules in the way is refused rather than read.
+The axis `a_recursive_form_never_replaces_a_submodules_uncommitted_work`
+runs the four recursive forms over an edited submodule and over a clean one,
+with the two spellings that turn the recursion off as the control.
 A shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so a `git` inside it is real Git and not this wrapper,
@@ -19401,10 +19438,17 @@ while `reset --hard`,
 and a plain `git rm -f s.txt` is Git's own refusal of a path outside the sparse definition.
 The scope `DirtyScope::TrackedAndSkipWorktreeEdits` is asked by exactly those readings,
 and a form that answers the question itself keeps the mark out of it:
-`--ignore-skip-worktree-bits` tells Git to ignore the mark,
-so Git writes that file by the person's own instruction and the guard does not refuse it,
-and `git rm --cached` removes the index entry and leaves the worktree file, so it asks the plain
-question.
+`git rm --cached` removes the index entry and leaves the worktree file, so it asks the plain question.
+`--ignore-skip-worktree-bits` is the other way round: it tells Git to write the entries the marks
+hide,
+so the edit is one the form replaces and the guard refuses it,
+whether the option is the reason (a whole-tree or index write carrying it) or the written paths are
+(`git checkout-index -f --ignore-skip-worktree-bits -a`,
+`git checkout --ignore-skip-worktree-bits -- a.txt` and
+`git restore --ignore-skip-worktree-bits -- a.txt` each replaced `PRECIOUS EDIT`,
+measured on this host with native Git 2.56.0, 2026-11-16, and the axis
+`every_option_of_every_guarded_table_leaves_the_hidden_edit_alone_or_is_refused` walks every option of
+every guarded table against it).
 An edit a mark hides is compared by its bytes, never by its stat.
 Equal size, nanosecond modification time and mode do not make equal content:
 the seventh review replaced `base\n` with `evil\n`, put the time back, saw an empty status, and a
@@ -19460,8 +19504,15 @@ a forced `switch`,
 a `reset` in the hard,
 merge and keep modes,
 and the index's own paths for a restore without a source write a whole tree,
-read with `git ls-tree -r -z --name-only <revision>`,
-`HEAD` when the form names no tree.
+read with `git ls-tree -r -z --name-only --full-tree <revision>`,
+`HEAD` when the form names no tree,
+while a form that names paths is read with `git ls-files --with-tree=<revision>`,
+because `ls-tree` matches a pathspec literally and refuses its magic:
+`git checkout -f other -- 'a*'` wrote over an untracked `ab.txt` while
+`ls-tree -- 'a*'` printed no path and `ls-tree -- ':(glob)a*'` answered
+`pathspec magic not supported by this command`
+(measured on this host with native Git 2.56.0, 2026-11-16).
+Both readings print the worktree root's own names, so no directory prefix is written before an answer.
 Three more readings complete the table,
 each measured on this host with native Git 2.56.0:
 a forced `git mv` writes what Git writes for its shape
@@ -19512,8 +19563,26 @@ and a `restore` with an empty list is Git's own `you must specify path(s) to res
 An empty entry is Git's `empty string is not a valid pathspec`,
 and a quote Git cannot read is its `line is badly quoted`,
 so both are refusals here too.
-Each entry is passed to `ls-tree`/`ls-files` as a pathspec so its magic means what Git means by it,
+Each entry is passed to `ls-files --with-tree`/`ls-files` as a pathspec so its magic means what Git
+means by it,
 and a file that cannot be read is a `fact-unavailable` refusal rather than an empty answer.
+The caller's global pathspec mode reaches the guard's own reads,
+so each read says how its own words are read:
+the reads the guard makes are Git starts that inherit whatever the caller wrote before the subcommand
+or set in the environment,
+and a magic pathspec the guard writes itself must turn the literal mode off in the same start.
+Under `--literal-pathspecs`, or `GIT_LITERAL_PATHSPECS`, `:(top)` and `:(top,literal)` are file names
+that match nothing,
+the answers are empty and the files they would have named go unwatched
+(`git --literal-pathspecs restore a.txt` restored over an `assume-unchanged` edit, and
+`git --literal-pathspecs checkout-index -f --prefix=out/ -a` wrote over an untracked `out/a.txt`,
+the ninth review's second and third findings).
+Every such read therefore carries `--no-literal-pathspecs` before its subcommand,
+while a pathspec that came from the person is left under the caller's own mode,
+so it matches what the command matches.
+The axis `every_read_of_the_guard_answers_the_same_under_every_global_pathspec_mode`
+runs the four variables and the four options against seven reads,
+each row against real Git on the same fixture.
 The read is bounded by `PATHSPEC_FILE_READ_CEILING` (five seconds,
 `service/wait_ceilings.rs`, with the measurement it rests on):
 Git itself waits with no end for a named pipe nobody writes to
@@ -19771,9 +19840,19 @@ and a word the reading cannot place is a refusal that names the word
 (`the_place_a_word_names`).
 The word is placed where Git writes it:
 joined to the directory the command runs in,
-every link resolved as far as the path exists and every `.` and `..` applied there,
-so an absolute path inside the worktree is that entry and a path through a link is the file the link
-reaches.
+every link on the way resolved as far as the path exists and every `.` and `..` applied there,
+so an absolute path inside the worktree is that entry and a link on the way reaches the file it leads
+to.
+The last component is kept as the person spelled it,
+because Git writes the entry at a name and never through it:
+`git mv -f a.txt dest.txt` with `dest.txt -> target.txt` replaced the link and left `target.txt`
+untouched,
+and `checkout -f`, `restore`, `reset --hard`, `read-tree --reset -u` and `checkout-index -f` each
+replaced a link standing at a tracked path
+(measured on this host with native Git 2.56.0, 2026-11-16).
+Resolving that component named the file the link reaches,
+which Git does not touch,
+and left the link the person made unwatched: the ninth review's fourth finding.
 A file outside the worktree is a person's file as much as one inside it,
 and the repository holds nothing there,
 so every entry standing at such a place,

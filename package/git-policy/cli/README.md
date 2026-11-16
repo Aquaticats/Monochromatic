@@ -2763,6 +2763,24 @@ The rule is:
   and does not count for the forms Git keeps it for (`git reset --hard`, `git checkout --force`,
   `git read-tree --reset -u`),
   so the wrapper does not refuse a command over a file Git leaves alone.
+  `--ignore-skip-worktree-bits` is the other side of that mark: it tells Git to write the entries the
+  marks hide,
+  so `git checkout-index -f --ignore-skip-worktree-bits -a`,
+  `git checkout --ignore-skip-worktree-bits -- <path>` and
+  `git restore --ignore-skip-worktree-bits -- <path>` are refused while such an edit stands there,
+  because the edit in the file is gone either way.
+  A form that recurses into submodules is refused while a submodule it reaches holds uncommitted work:
+  the wrapper asks each submodule's own repository, where `submodule.<name>.ignore` does not hide it,
+  and names the change as `<submodule>/<path>`,
+  so `git checkout -f --recurse-submodules <branch>` and the same form with `submodule.recurse=true`
+  stop when a submodule holds an edit, and still run when the submodule is clean.
+  A file outside the worktree is guarded where it lies,
+  and a link standing at a name the form writes is the entry it replaces: Git writes the name and
+  never through it.
+  A subtree a form names is read with Git's own pathspec engine, so a pattern reaches what your command
+  reaches,
+  and the reads the wrapper makes of its own say how their pathspecs are read, so a global
+  `--literal-pathspecs` of yours changes your command's meaning and not the wrapper's answers.
   The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
@@ -2869,6 +2887,12 @@ and `SPEC.md` states it once:
 `-c 'alias.wipe=!git reset --hard' wipe` and `-c 'alias.wipe=!git' wipe reset --hard` run a hard reset
 with no refusal, no notice and no line,
 and so does every other `!` alias.
+The same words typed directly are refused:
+`git reset --hard` in a linked worktree holding an uncommitted edit stops, names the file and changes
+nothing,
+while the alias that runs it discards the edit and says nothing about it.
+So an edit lost this way was discarded by the shell command your alias names,
+and no refusal was skipped that would have run the same command.
 The wrapper forwards your own words byte for byte,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
 which a substituted argument list would lose.
