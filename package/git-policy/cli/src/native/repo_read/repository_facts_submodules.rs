@@ -200,11 +200,12 @@ pub(super) fn uncommitted_changes_inside_submodules(
             ));
         }
         for entry in status.stdout.split(|byte| return *byte == 0) {
-            // Each entry is `<XY> <path>`; the two status letters come first.
-            let Some(space) = entry.iter().position(|byte| return *byte == b' ') else {
+            // Each entry is `<two status letters><space><path>`, so the name starts at the fourth byte:
+            //  the first status letter is a space for an unstaged change (` M f.txt`).
+            if entry.len() < 4 || entry.get(2) != Some(&b' ') {
                 continue;
-            };
-            let change: &[u8] = &entry[space + 1..];
+            }
+            let change: &[u8] = &entry[3..];
             let mut named: Vec<u8> = path.clone();
             named.push(b'/');
             named.extend_from_slice(change);
