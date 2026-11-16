@@ -93,7 +93,19 @@
     ],
     "baselineReceipt": "doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz",
     "futureOutcomeOrParityClaim": false,
-    "preparedSourceByteBoundary": "Same original public GNU source/tasks/tool setup; checkout lfs:false is retained, with no materialized-media equivalence claim"
+    "preparedSourceByteBoundary": "Same original public GNU source/tasks/tool setup; checkout lfs:false is retained, with no materialized-media equivalence claim",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 208b7da9a5532a2c4b136cc285f4e165a9696911:doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "conditionalCorrection": {
     "maximumJobs": 1,
@@ -134,6 +146,18 @@
     "sources": [
       "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
       "doc/planning/depot-included-allowance-reconciliation.md"
+    ],
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
     ]
   },
   "publication": {

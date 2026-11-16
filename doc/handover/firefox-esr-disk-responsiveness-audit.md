@@ -90,6 +90,14 @@ Retained evidence sits beside the report:
 - `firefox-esr-disk-responsiveness.browser.json.gz`
 - `firefox-esr-disk-responsiveness.external.json`
 - `firefox-esr-disk-responsiveness.render.json`
+  `firefox-esr-disk-responsiveness.browser.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `firefox-esr-disk-responsiveness.candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `firefox-esr-disk-responsiveness.inventory.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `firefox-esr-disk-responsiveness.sources.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The browser check matched `205` Firefox source selections to the pinned local source.
 GitHub virtualizes long files;

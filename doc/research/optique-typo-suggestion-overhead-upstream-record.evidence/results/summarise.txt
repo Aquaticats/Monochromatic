@@ -1,0 +1,171 @@
+issue988     issue988 n=1000 1.1.1              median= 964.2565ms min= 924.5404ms max=1299.8595ms roundSpread=0.0796 ok=true
+issue988     issue988 n=1000 1.3.1              median= 952.0347ms min= 895.3593ms max=1211.7331ms roundSpread=0.2154 ok=true
+issue988     issue988 n=1000 1.3.2              median= 111.0924ms min=  98.6909ms max= 150.8266ms roundSpread=0.2118 ok=true
+issue988     issue988 n=1000 1.3.6              median= 109.2763ms min=   97.157ms max= 172.9485ms roundSpread=0.3239 ok=true
+issue988     issue988 n=1000 1.4.0-dev.2664     median=  147.783ms min=  130.492ms max= 218.4791ms roundSpread=0.1374 ok=true
+issue988     issue988 n=1000 1.4.0-dev.2665     median=  83.0187ms min=   73.744ms max= 104.5791ms roundSpread=0.1702 ok=true
+issue988     issue988 n=1000 1.4.0-dev.2667     median=  80.3002ms min=  74.4015ms max= 110.9144ms roundSpread=0.1768 ok=true
+issue988     issue988 n=1000 1.4.0-dev.2971     median=  86.2087ms min=  72.3633ms max=  145.752ms roundSpread=0.2889 ok=true
+no-separator real  n=   1 1.1.1              median=   2.7487ms min=   2.3755ms max=   4.7013ms roundSpread=0.3604 ok=true
+no-separator real  n=   1 1.3.1              median=   2.9974ms min=   2.5248ms max=   6.2255ms roundSpread=0.7774 ok=true
+no-separator real  n=   1 1.3.2              median=    0.867ms min=   0.6196ms max=   2.5864ms roundSpread=0.7756 ok=true
+no-separator real  n=   1 1.3.6              median=   1.0246ms min=   0.6585ms max=   2.1257ms roundSpread=0.8402 ok=true
+no-separator real  n=   1 1.4.0-dev.2664     median=   1.0893ms min=   0.7278ms max=   2.9718ms roundSpread=0.9199 ok=true
+no-separator real  n=   1 1.4.0-dev.2665     median=    0.791ms min=   0.4049ms max=   1.7655ms roundSpread=0.4736 ok=true
+no-separator real  n=   1 1.4.0-dev.2667     median=   0.7431ms min=   0.4077ms max=   1.6184ms roundSpread=0.4778 ok=true
+no-separator real  n=   1 1.4.0-dev.2971     median=   0.5262ms min=   0.4137ms max=   1.8707ms roundSpread=0.6298 ok=true
+no-separator real  n=   1 owned-4879a44e     median=    0.038ms min=   0.0177ms max=   0.0807ms roundSpread=0.7166 ok=true
+no-separator real  n=  10 1.1.1              median=  21.4786ms min=  20.5488ms max=  26.0455ms roundSpread=0.0928 ok=true
+no-separator real  n=  10 1.3.1              median=  21.7702ms min=  20.6867ms max=  34.8476ms roundSpread=0.0958 ok=true
+no-separator real  n=  10 1.3.2              median=   2.6579ms min=   1.9756ms max=   4.7938ms roundSpread=0.7152 ok=true
+no-separator real  n=  10 1.3.6              median=   2.4857ms min=    1.943ms max=   8.0814ms roundSpread=0.9062 ok=true
+no-separator real  n=  10 1.4.0-dev.2664     median=   3.4573ms min=   2.5146ms max=   7.5006ms roundSpread=0.6114 ok=true
+no-separator real  n=  10 1.4.0-dev.2665     median=   1.6847ms min=   0.9607ms max=   5.0589ms roundSpread=0.2279 ok=true
+no-separator real  n=  10 1.4.0-dev.2667     median=      1.7ms min=   0.9586ms max=   3.6186ms roundSpread=0.9487 ok=true
+no-separator real  n=  10 1.4.0-dev.2971     median=   2.1456ms min=   1.0238ms max=   3.8932ms roundSpread=0.5624 ok=true
+no-separator real  n=  10 owned-4879a44e     median=    0.032ms min=   0.0224ms max=   0.0878ms roundSpread=0.8237 ok=true
+no-separator real  n= 100 1.1.1              median= 150.1039ms min= 143.5936ms max=  224.193ms roundSpread=0.3843 ok=true
+no-separator real  n= 100 1.3.1              median= 151.1288ms min= 141.2512ms max= 201.7502ms roundSpread=0.1071 ok=true
+no-separator real  n= 100 1.3.2              median=  24.8977ms min=  21.5918ms max=  48.3416ms roundSpread=0.2895 ok=true
+no-separator real  n= 100 1.3.6              median=  23.4136ms min=  21.4182ms max=  32.7244ms roundSpread=0.1847 ok=true
+no-separator real  n= 100 1.4.0-dev.2664     median=  27.5849ms min=  24.8049ms max=  35.2973ms roundSpread=0.1102 ok=true
+no-separator real  n= 100 1.4.0-dev.2665     median=   9.6242ms min=   7.9535ms max=  14.1374ms roundSpread=0.1224 ok=true
+no-separator real  n= 100 1.4.0-dev.2667     median=  10.4099ms min=   7.7392ms max=  32.5969ms roundSpread=1.0277 ok=true
+no-separator real  n= 100 1.4.0-dev.2971     median=   10.389ms min=   7.8126ms max=  16.4042ms roundSpread=0.5045 ok=true
+no-separator real  n= 100 owned-4879a44e     median=   0.0499ms min=   0.0335ms max=   0.1045ms roundSpread=0.7692 ok=true
+no-separator real  n=1000 1.1.1              median=2695.6632ms min=2574.6409ms max=3898.9153ms roundSpread=0.2187 ok=true
+no-separator real  n=1000 1.3.1              median=2706.6892ms min=2570.4563ms max=2985.1971ms roundSpread=0.0674 ok=true
+no-separator real  n=1000 1.3.2              median= 180.0329ms min= 166.3436ms max= 206.0316ms roundSpread= 0.108 ok=true
+no-separator real  n=1000 1.3.6              median= 184.2749ms min= 172.8463ms max= 228.5296ms roundSpread=0.1733 ok=true
+no-separator real  n=1000 1.4.0-dev.2664     median= 229.0457ms min= 206.5937ms max= 294.5732ms roundSpread=  0.16 ok=true
+no-separator real  n=1000 1.4.0-dev.2665     median=   90.195ms min=  80.4963ms max= 115.0345ms roundSpread= 0.278 ok=true
+no-separator real  n=1000 1.4.0-dev.2667     median=  96.8134ms min=   84.447ms max= 114.7657ms roundSpread=0.1868 ok=true
+no-separator real  n=1000 1.4.0-dev.2971     median=  94.9621ms min=  83.5519ms max= 242.6396ms roundSpread= 0.239 ok=true
+no-separator real  n=1000 owned-4879a44e     median=   0.1764ms min=   0.0892ms max=   1.3187ms roundSpread=0.4102 ok=true
+no-separator short n=   1 1.1.1              median=   0.7368ms min=   0.6329ms max=   1.5084ms roundSpread=0.1626 ok=true
+no-separator short n=   1 1.3.1              median=   0.8564ms min=   0.6854ms max=   1.6112ms roundSpread=0.1111 ok=true
+no-separator short n=   1 1.3.2              median=   0.9716ms min=   0.6407ms max=   3.5601ms roundSpread=0.5261 ok=true
+no-separator short n=   1 1.3.6              median=   0.9111ms min=   0.6324ms max=   2.2418ms roundSpread=0.2662 ok=true
+no-separator short n=   1 1.4.0-dev.2664     median=   1.0319ms min=   0.7092ms max=   2.1891ms roundSpread=0.1318 ok=true
+no-separator short n=   1 1.4.0-dev.2665     median=   0.8033ms min=   0.4524ms max=   3.0901ms roundSpread=0.3904 ok=true
+no-separator short n=   1 1.4.0-dev.2667     median=   0.7409ms min=   0.4468ms max=   1.4088ms roundSpread=0.1699 ok=true
+no-separator short n=   1 1.4.0-dev.2971     median=   0.7844ms min=   0.4194ms max=   1.5618ms roundSpread=0.1914 ok=true
+no-separator short n=   1 owned-4879a44e     median=   0.0398ms min=   0.0172ms max=    0.122ms roundSpread=0.5069 ok=true
+no-separator short n=  10 1.1.1              median=   2.9595ms min=   2.5826ms max=   7.4702ms roundSpread=0.6371 ok=true
+no-separator short n=  10 1.3.1              median=   3.1587ms min=   2.7183ms max=   4.7769ms roundSpread=0.1362 ok=true
+no-separator short n=  10 1.3.2              median=   2.3221ms min=   1.9808ms max=    9.585ms roundSpread=0.2356 ok=true
+no-separator short n=  10 1.3.6              median=   2.3222ms min=   1.9202ms max=    4.453ms roundSpread=0.1545 ok=true
+no-separator short n=  10 1.4.0-dev.2664     median=   2.7717ms min=   2.3348ms max=    3.883ms roundSpread=0.1677 ok=true
+no-separator short n=  10 1.4.0-dev.2665     median=   1.2775ms min=   1.0164ms max=   3.9358ms roundSpread=0.1921 ok=true
+no-separator short n=  10 1.4.0-dev.2667     median=   1.2794ms min=   0.9892ms max=   3.0134ms roundSpread=0.1594 ok=true
+no-separator short n=  10 1.4.0-dev.2971     median=   1.4318ms min=   0.9903ms max=   2.8122ms roundSpread=0.1655 ok=true
+no-separator short n=  10 owned-4879a44e     median=   0.0332ms min=   0.0173ms max=   0.2437ms roundSpread=0.7305 ok=true
+no-separator short n= 100 1.1.1              median=  27.1369ms min=  25.8505ms max=  44.2501ms roundSpread= 0.129 ok=true
+no-separator short n= 100 1.3.1              median=  27.5602ms min=  25.5399ms max=  36.9953ms roundSpread=0.1845 ok=true
+no-separator short n= 100 1.3.2              median=  16.9814ms min=  15.7774ms max=  19.5736ms roundSpread=0.1503 ok=true
+no-separator short n= 100 1.3.6              median=  17.1538ms min=   15.371ms max=   27.624ms roundSpread= 0.359 ok=true
+no-separator short n= 100 1.4.0-dev.2664     median=  21.2054ms min=  18.8317ms max=  27.9712ms roundSpread=0.1425 ok=true
+no-separator short n= 100 1.4.0-dev.2665     median=  10.9348ms min=    7.587ms max=  17.3236ms roundSpread=0.5105 ok=true
+no-separator short n= 100 1.4.0-dev.2667     median=  11.3605ms min=   7.4826ms max=  19.5954ms roundSpread=0.5686 ok=true
+no-separator short n= 100 1.4.0-dev.2971     median=  10.5725ms min=   7.8672ms max=  16.2129ms roundSpread=0.4362 ok=true
+no-separator short n= 100 owned-4879a44e     median=   0.0497ms min=   0.0324ms max=   0.1456ms roundSpread=1.0778 ok=true
+no-separator short n=1000 1.1.1              median=  303.909ms min= 285.0846ms max= 446.8688ms roundSpread= 0.094 ok=true
+no-separator short n=1000 1.3.1              median= 300.3482ms min= 287.2777ms max=  450.874ms roundSpread= 0.222 ok=true
+no-separator short n=1000 1.3.2              median= 185.2589ms min= 169.6682ms max= 226.2323ms roundSpread=0.1274 ok=true
+no-separator short n=1000 1.3.6              median= 184.0296ms min= 170.8845ms max= 211.7995ms roundSpread=0.1145 ok=true
+no-separator short n=1000 1.4.0-dev.2664     median= 228.5906ms min= 209.5462ms max= 368.7154ms roundSpread= 0.117 ok=true
+no-separator short n=1000 1.4.0-dev.2665     median=  91.8245ms min=  84.7091ms max= 152.3271ms roundSpread=0.6436 ok=true
+no-separator short n=1000 1.4.0-dev.2667     median=  90.1426ms min=   82.133ms max= 145.9895ms roundSpread=0.4549 ok=true
+no-separator short n=1000 1.4.0-dev.2971     median=  89.6678ms min=  82.7491ms max= 124.9006ms roundSpread=0.3124 ok=true
+no-separator short n=1000 owned-4879a44e     median=   0.1653ms min=   0.1012ms max=   0.3244ms roundSpread=0.1811 ok=true
+separator    real  n=   1 1.1.1              median=   0.5376ms min=   0.3496ms max=   1.6442ms roundSpread=0.4139 ok=true
+separator    real  n=   1 1.3.1              median=   0.6292ms min=   0.4238ms max=   1.8892ms roundSpread=0.1599 ok=true
+separator    real  n=   1 1.3.2              median=   0.6661ms min=   0.4506ms max=      1.6ms roundSpread= 0.207 ok=true
+separator    real  n=   1 1.3.6              median=   0.7053ms min=   0.5132ms max=    1.265ms roundSpread=0.3062 ok=true
+separator    real  n=   1 1.4.0-dev.2664     median=   0.7141ms min=   0.5724ms max=   1.5903ms roundSpread=0.2377 ok=true
+separator    real  n=   1 1.4.0-dev.2665     median=   0.5469ms min=   0.3167ms max=    1.761ms roundSpread=0.3284 ok=true
+separator    real  n=   1 1.4.0-dev.2667     median=   0.5646ms min=   0.3194ms max=   1.1071ms roundSpread=0.2308 ok=true
+separator    real  n=   1 1.4.0-dev.2971     median=   0.5476ms min=    0.326ms max=   1.1884ms roundSpread=0.1517 ok=true
+separator    real  n=   1 owned-4879a44e     median=   0.0376ms min=   0.0232ms max=   0.0664ms roundSpread=0.3068 ok=true
+separator    real  n=  10 1.1.1              median=   0.5224ms min=   0.3356ms max=   1.4348ms roundSpread=0.4564 ok=true
+separator    real  n=  10 1.3.1              median=    0.625ms min=   0.4133ms max=   2.4867ms roundSpread=0.2661 ok=true
+separator    real  n=  10 1.3.2              median=   0.6582ms min=   0.5101ms max=   1.4711ms roundSpread=0.5574 ok=true
+separator    real  n=  10 1.3.6              median=   0.6872ms min=   0.4958ms max=   2.3417ms roundSpread=1.6021 ok=true
+separator    real  n=  10 1.4.0-dev.2664     median=   0.7304ms min=   0.5508ms max=   1.7686ms roundSpread=0.4457 ok=true
+separator    real  n=  10 1.4.0-dev.2665     median=   0.5321ms min=   0.3043ms max=   1.1805ms roundSpread=0.4475 ok=true
+separator    real  n=  10 1.4.0-dev.2667     median=   0.5516ms min=    0.312ms max=   1.4814ms roundSpread=0.4539 ok=true
+separator    real  n=  10 1.4.0-dev.2971     median=   0.5458ms min=     0.33ms max=   1.3319ms roundSpread=0.5425 ok=true
+separator    real  n=  10 owned-4879a44e     median=   0.0365ms min=   0.0245ms max=   0.0931ms roundSpread=0.7138 ok=true
+separator    real  n= 100 1.1.1              median=   0.5348ms min=   0.3463ms max=   1.5579ms roundSpread=0.3278 ok=true
+separator    real  n= 100 1.3.1              median=   0.5963ms min=   0.4194ms max=   1.8359ms roundSpread=0.0611 ok=true
+separator    real  n= 100 1.3.2              median=   0.6497ms min=   0.5033ms max=   1.2492ms roundSpread=0.4482 ok=true
+separator    real  n= 100 1.3.6              median=   0.6888ms min=   0.5114ms max=   1.5178ms roundSpread=0.6544 ok=true
+separator    real  n= 100 1.4.0-dev.2664     median=   0.7402ms min=   0.5605ms max=   1.9136ms roundSpread=0.3374 ok=true
+separator    real  n= 100 1.4.0-dev.2665     median=   0.5738ms min=   0.3252ms max=   1.1838ms roundSpread=0.1506 ok=true
+separator    real  n= 100 1.4.0-dev.2667     median=    0.554ms min=   0.3122ms max=   1.2367ms roundSpread=0.1274 ok=true
+separator    real  n= 100 1.4.0-dev.2971     median=   0.5448ms min=   0.3446ms max=   1.2236ms roundSpread=0.2618 ok=true
+separator    real  n= 100 owned-4879a44e     median=   0.0423ms min=   0.0261ms max=   0.1204ms roundSpread=0.3659 ok=true
+separator    real  n=1000 1.1.1              median=   0.5598ms min=   0.3642ms max=   1.7784ms roundSpread=0.1285 ok=true
+separator    real  n=1000 1.3.1              median=    0.672ms min=   0.4432ms max=   2.1529ms roundSpread=0.1483 ok=true
+separator    real  n=1000 1.3.2              median=   0.6348ms min=   0.5211ms max=   1.7311ms roundSpread=0.3192 ok=true
+separator    real  n=1000 1.3.6              median=   0.6402ms min=   0.5357ms max=   2.1542ms roundSpread=0.4116 ok=true
+separator    real  n=1000 1.4.0-dev.2664     median=   0.7796ms min=   0.5727ms max=     3.57ms roundSpread=0.8141 ok=true
+separator    real  n=1000 1.4.0-dev.2665     median=   0.6387ms min=   0.3649ms max=   1.4514ms roundSpread=0.5597 ok=true
+separator    real  n=1000 1.4.0-dev.2667     median=   0.6213ms min=    0.333ms max=   1.0966ms roundSpread=0.3398 ok=true
+separator    real  n=1000 1.4.0-dev.2971     median=   0.3943ms min=    0.336ms max=   1.4098ms roundSpread=0.4793 ok=true
+separator    real  n=1000 owned-4879a44e     median=   0.1597ms min=   0.0382ms max=   0.5877ms roundSpread=0.5467 ok=true
+separator    short n=   1 1.1.1              median=   0.5599ms min=   0.3327ms max=   1.9345ms roundSpread=0.4816 ok=true
+separator    short n=   1 1.3.1              median=   0.6905ms min=   0.4192ms max=    1.985ms roundSpread=0.7543 ok=true
+separator    short n=   1 1.3.2              median=   0.8839ms min=   0.5176ms max=     1.92ms roundSpread=0.6414 ok=true
+separator    short n=   1 1.3.6              median=   0.6339ms min=   0.5215ms max=    1.771ms roundSpread=0.7219 ok=true
+separator    short n=   1 1.4.0-dev.2664     median=   0.8487ms min=   0.5616ms max=   1.9181ms roundSpread=0.2637 ok=true
+separator    short n=   1 1.4.0-dev.2665     median=   0.5372ms min=   0.3149ms max=   0.9693ms roundSpread=0.1458 ok=true
+separator    short n=   1 1.4.0-dev.2667     median=   0.5755ms min=   0.3092ms max=   1.8405ms roundSpread=1.0847 ok=true
+separator    short n=   1 1.4.0-dev.2971     median=   0.5748ms min=   0.3389ms max=   1.2723ms roundSpread=0.4656 ok=true
+separator    short n=   1 owned-4879a44e     median=   0.0461ms min=   0.0205ms max=   0.0745ms roundSpread=0.4583 ok=true
+separator    short n=  10 1.1.1              median=   0.6219ms min=    0.335ms max=   1.6765ms roundSpread=0.6426 ok=true
+separator    short n=  10 1.3.1              median=   0.6276ms min=   0.4058ms max=   2.1387ms roundSpread=0.5713 ok=true
+separator    short n=  10 1.3.2              median=     0.78ms min=   0.4899ms max=   2.1611ms roundSpread=0.3485 ok=true
+separator    short n=  10 1.3.6              median=   0.6286ms min=   0.4941ms max=   1.7751ms roundSpread= 0.836 ok=true
+separator    short n=  10 1.4.0-dev.2664     median=   0.8399ms min=     0.55ms max=   1.6711ms roundSpread= 0.526 ok=true
+separator    short n=  10 1.4.0-dev.2665     median=   0.5601ms min=   0.3219ms max=    1.592ms roundSpread=0.6056 ok=true
+separator    short n=  10 1.4.0-dev.2667     median=   0.5498ms min=   0.3112ms max=   2.3697ms roundSpread=0.4748 ok=true
+separator    short n=  10 1.4.0-dev.2971     median=   0.5725ms min=   0.3463ms max=   1.3082ms roundSpread=0.6576 ok=true
+separator    short n=  10 owned-4879a44e     median=   0.0342ms min=   0.0231ms max=   0.0794ms roundSpread=0.8353 ok=true
+separator    short n= 100 1.1.1              median=   0.6389ms min=   0.3444ms max=   1.7664ms roundSpread=0.5073 ok=true
+separator    short n= 100 1.3.1              median=   0.5807ms min=   0.4115ms max=   1.8545ms roundSpread= 0.306 ok=true
+separator    short n= 100 1.3.2              median=   0.9653ms min=   0.4832ms max=   2.4128ms roundSpread=0.6506 ok=true
+separator    short n= 100 1.3.6              median=   0.6315ms min=   0.4846ms max=   2.0531ms roundSpread= 0.742 ok=true
+separator    short n= 100 1.4.0-dev.2664     median=   0.8837ms min=   0.5619ms max=   2.5687ms roundSpread=0.5037 ok=true
+separator    short n= 100 1.4.0-dev.2665     median=   0.5692ms min=    0.318ms max=   1.2409ms roundSpread=0.2468 ok=true
+separator    short n= 100 1.4.0-dev.2667     median=   0.5394ms min=   0.3165ms max=   1.0157ms roundSpread=0.2177 ok=true
+separator    short n= 100 1.4.0-dev.2971     median=    0.572ms min=   0.3611ms max=   1.2275ms roundSpread= 0.286 ok=true
+separator    short n= 100 owned-4879a44e     median=   0.0412ms min=   0.0231ms max=   0.0896ms roundSpread=0.6569 ok=true
+separator    short n=1000 1.1.1              median=   0.6489ms min=   0.3726ms max=   1.9097ms roundSpread= 0.552 ok=true
+separator    short n=1000 1.3.1              median=   0.6234ms min=   0.4316ms max=   1.7508ms roundSpread= 0.259 ok=true
+separator    short n=1000 1.3.2              median=   0.8151ms min=   0.4907ms max=   1.9232ms roundSpread=0.4654 ok=true
+separator    short n=1000 1.3.6              median=    0.722ms min=    0.508ms max=   1.7076ms roundSpread=0.5813 ok=true
+separator    short n=1000 1.4.0-dev.2664     median=   0.8253ms min=   0.5812ms max=   2.0322ms roundSpread=0.5215 ok=true
+separator    short n=1000 1.4.0-dev.2665     median=   0.6923ms min=   0.3755ms max=   1.1336ms roundSpread=0.1765 ok=true
+separator    short n=1000 1.4.0-dev.2667     median=   0.6997ms min=   0.3787ms max=   1.0327ms roundSpread=0.1711 ok=true
+separator    short n=1000 1.4.0-dev.2971     median=   0.6221ms min=   0.3359ms max=   1.1117ms roundSpread=0.2165 ok=true
+separator    short n=1000 owned-4879a44e     median=   0.1695ms min=   0.0391ms max=   1.2768ms roundSpread=0.2654 ok=true
+
+behavior issue988|issue988|1000: distinctResults=1
+behavior no-separator|real|1: distinctResults=1
+behavior no-separator|real|10: distinctResults=1
+behavior no-separator|real|100: distinctResults=1
+behavior no-separator|real|1000: distinctResults=1
+behavior no-separator|short|1: distinctResults=1
+behavior no-separator|short|10: distinctResults=1
+behavior no-separator|short|100: distinctResults=1
+behavior no-separator|short|1000: distinctResults=1
+behavior separator|real|1: distinctResults=1
+behavior separator|real|10: distinctResults=1
+behavior separator|real|100: distinctResults=1
+behavior separator|real|1000: distinctResults=1
+behavior separator|short|1: distinctResults=1
+behavior separator|short|10: distinctResults=1
+behavior separator|short|100: distinctResults=1
+behavior separator|short|1000: distinctResults=1
+allOk=true records=1064

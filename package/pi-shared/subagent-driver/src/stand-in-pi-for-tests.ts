@@ -9,7 +9,11 @@
 
 import { spawn, } from 'node:child_process';
 import { close, } from 'node:fs';
-import { appendFile, } from 'node:fs/promises';
+import {
+  appendFile,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
 import process, {
   argv,
   env,
@@ -22,6 +26,7 @@ import { createInterface, } from 'node:readline';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
 import { NESTED_RUN_VARIABLE, } from './driver-constants.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 import type { PiRecord, } from './driver-types.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import {
@@ -31,12 +36,21 @@ import {
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
 import {
+  armTheStandInMasking,
+  answerCommands,
+  sessionHoldsAValue,
+  type StandInMasking,
+} from './stand-in-pi-masking-fixture.ts';
+import {
   CRASH_STATUS,
   playPrompt,
 } from './stand-in-pi-prompt-plays-fixture.ts';
 import {
   answer,
+  answerAndExit,
   emit,
+  START_FAILURE_ADVICE,
+  START_FAILURE_TEXT,
   STANDARD_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
 
@@ -54,6 +68,16 @@ const STAY_MILLISECONDS = 300_000;
 const LATE_EXIT_MILLISECONDS = 1_000;
 
 /**
+ Status a stand-in that will not start leaves with, which is what a real Pi leaves when an extension cannot be loaded.
+ */
+const START_FAILURE_STATUS = 1;
+
+/**
+ The code the operating system gives a path that is not there.
+ */
+const MISSING_PATH_CODE = 'ENOENT';
+
+/**
  Seconds the tool started by `keeps-output-open` lives, so a failed test cannot leave it running.
  */
 const TOOL_SECONDS = '30';
@@ -69,6 +93,16 @@ const log = env.STAND_IN_PI_LOG ?? '/dev/null';
 const closeDescriptor = promisify(close,);
 
 /**
+ The session Pi was told to resume, which is the word after `--session` in its own arguments.
+ */
+const sessionArgumentAt = argv.indexOf('--session',);
+
+/**
+ That session, when the run named one, or the file this stand-in reports for a session of its own.
+ */
+const sessionFile = (sessionArgumentAt === (-1)) ? env.STAND_IN_PI_SESSION_FILE : argv[sessionArgumentAt + 1];
+
+/**
  What Pi answers each ordinary command with, so a run's state, its command names and its statistics all have shapes to read.
  */
 const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord>([
@@ -77,6 +111,8 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
     {
       model: { id: 'stand-in-model', },
       thinkingLevel: 'xhigh',
+      // Pi's own `get_state` answer names the session file it keeps, which is where this run's masking finds it at rest.
+      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
     },
   ],
   [
@@ -89,11 +125,70 @@ const ORDINARY_ANSWERS: ReadonlyMap<string, PiRecord> = new Map<string, PiRecord
   [
     'get_session_stats',
     {
-      sessionFile: 'stand-in-session.jsonl',
+      sessionFile: sessionFile ?? 'stand-in-session.jsonl',
       cost: 0.5,
     },
   ],
 ]);
+
+/**
+ Counts this start among the starts of one run, in a file the several stand-in processes of one run share.
+
+ @returns which start this is, counting from one
+
+ @throws Error when the run gave the stand-in no file to count them in
+ */
+async function countStarts(): Promise<number> {
+  /**
+   Where the count is kept, which the test names for the run.
+   */
+  const file = env.STAND_IN_PI_START_COUNT_FILE;
+  if (file === undefined) {
+    throw new Error('a scenario that counts starts needs STAND_IN_PI_START_COUNT_FILE',);
+  }
+  /**
+   How many starts the run made before this one.
+   */
+  let before = 0;
+  try {
+    before = Number(await readFile(
+      file,
+      'utf8',
+    ),);
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
+      throw error;
+    }
+  }
+  /**
+   How many starts the run has made, this one included.
+   */
+  const started = before + 1;
+  await writeFile(
+    file,
+    String(started,),
+  );
+  return started;
+}
+
+/**
+ Leaves before the prompt is read, as a Pi whose extensions would not load does, writing Pi's own words to its standard error
+ first.
+
+ The `once` scenario leaves that way only on the run's first start, so a test sees a start that failed and the one after it, and
+ `always` leaves that way on every start, which is a condition that stands. A start that does not leave goes on as any other.
+ */
+async function leaveBeforeThePrompt(): Promise<void> {
+  /**
+   Which start this is, counting from one.
+   */
+  const started = await countStarts();
+  if ((scenario === 'exits-before-prompt-always') || (started === 1)) {
+    stderr.write(`${START_FAILURE_TEXT}\n${START_FAILURE_ADVICE}\n`,);
+    exit(START_FAILURE_STATUS,);
+  }
+}
 
 /**
  Leaves after a delay, for a Pi that answers nothing and leaves before the answer bound the driver ships.
@@ -163,8 +258,16 @@ async function startToolHoldingOutput(id: unknown,): Promise<void> {
  Acts on one command.
 
  @param line - command as written
+
+ @param masking - what this stand-in's Pi armed, which its command list answers with
  */
-async function actOnCommand(line: string,): Promise<void> {
+async function actOnCommand({
+  line,
+  masking,
+}: {
+  readonly line: string;
+  readonly masking: StandInMasking;
+},): Promise<void> {
   /**
    The command, of any shape.
    */
@@ -199,6 +302,13 @@ async function actOnCommand(line: string,): Promise<void> {
     await wait(STAY_MILLISECONDS,);
     return;
   }
+  if (parsed.type === 'get_commands') {
+    answerCommands({
+      id: parsed.id,
+      masking,
+    },);
+    return;
+  }
   if (parsed.type === 'extension_ui_response') {
     /**
      Only the dialog the scenario asked for, declined, ends the run: any other answer proves the driver declined something else.
@@ -216,11 +326,33 @@ async function actOnCommand(line: string,): Promise<void> {
     if ((parsed.type === 'steer') && (scenario === 'crash-on-steer')) {
       exit(CRASH_STATUS,);
     }
+    if (scenario === 'exits-after-prompt') {
+      answerAndExit({
+        id: parsed.id,
+        status: CRASH_STATUS,
+      },);
+      return;
+    }
     await playPrompt(parsed.id,);
     return;
   }
   if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
     exit(CRASH_STATUS,);
+  }
+  // A Pi whose own answers name no session file at all, which is what makes a run fall back to a path of its own choice.
+  if ((scenario === 'sessionless') && ((parsed.type === 'get_state') || (parsed.type === 'get_session_stats'))) {
+    /**
+     Everything that answer holds, less the session file.
+     */
+    const {
+      sessionFile: _unreported,
+      ...rest
+    } = ORDINARY_ANSWERS.get(parsed.type,) ?? {};
+    answer({
+      id: parsed.id,
+      data: rest,
+    },);
+    return;
   }
   if ((parsed.type === 'get_session_stats') && (scenario === 'statless')) {
     emit({
@@ -250,8 +382,36 @@ await appendFile(
   `environment-names ${JSON.stringify(Object.keys(env,)
     .toSorted(),)}\n`,
 );
+/**
+ What this stand-in's Pi armed, read before any scenario runs so the descriptor is closed before a tool could inherit it.
+ */
+const masking: StandInMasking = armTheStandInMasking({ scenario, },);
+// Names only, and how many: a test learns that the driver handed values over without a value reaching a log or a model provider.
+await appendFile(
+  log,
+  `secret-value-names ${JSON.stringify(masking.values
+    .map(function nameOf(value,) {
+    return value.name;
+  },),)}\n`,
+);
+/**
+ Whether the session Pi was handed holds an armed value as Pi starts, which is a yes or a no and never a value.
+ */
+const sessionValue = await sessionHoldsAValue({
+  masking,
+  ...(sessionFile === undefined ? {} : { sessionFile, }),
+},);
+if ((typeof sessionValue) === 'string') {
+  await appendFile(
+    log,
+    `marker ${sessionValue}\n`,
+  );
+}
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);
+}
+if ((scenario === 'exits-before-prompt-once') || (scenario === 'exits-before-prompt-always')) {
+  await leaveBeforeThePrompt();
 }
 if (scenario === 'stderr-note') {
   writeToStandardError();
@@ -268,7 +428,10 @@ if (scenario === 'ignores-sigterm') {
   );
 }
 for await (const line of createInterface({ input: stdin, },)) {
-  await actOnCommand(line,);
+  await actOnCommand({
+    line,
+    masking,
+  },);
 }
 if ((scenario === 'ignores-input-close') || (scenario === 'ignores-sigterm')) {
   await wait(STAY_MILLISECONDS,);

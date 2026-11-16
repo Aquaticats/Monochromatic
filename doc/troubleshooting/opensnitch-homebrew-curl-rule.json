@@ -1,0 +1,18 @@
+{
+  "created": "2026-11-14T14:00:44.871Z",
+  "updated": "2026-11-14T14:00:44.871Z",
+  "name": "000-allow-homebrew-curl",
+  "description": "Permanent Homebrew curl network allowance across Cellar version updates; requested 2026-11-14.",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "process.path",
+    "data": "^/(?:var/)?home/linuxbrew/\\.linuxbrew/(?:Cellar/curl/[^/]+|opt/curl)/bin/curl$",
+    "type": "regexp",
+    "list": [],
+    "sensitive": true
+  },
+  "enabled": true,
+  "precedence": true,
+  "nolog": false
+}

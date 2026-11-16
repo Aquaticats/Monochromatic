@@ -4,13 +4,17 @@
 //! and text that derives from the named constants.
 
 use super::*;
+use std::collections::BTreeSet;
 
 /// One sample of every failure,
 /// and every platform,
 /// so a new variant cannot go unrendered.
 fn samples() -> Vec<ClientFailure> {
     let mut all: Vec<ClientFailure> = vec![
-        ClientFailure::DidNotStart,
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::State(String::from("failed")), asked: RequestedStart::ResetAndStart },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::NotHeld, asked: RequestedStart::Start },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::State(String::from("activating")), asked: RequestedStart::Nothing },
+        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Restart },
         ClientFailure::NothingAnswered { address: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"), waited: Duration::from_secs(10) },
         ClientFailure::OtherAccount,
         ClientFailure::MayNotHaveLanded,
@@ -62,13 +66,14 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
         ClientFailure::ContentPruned,
-        ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("a landing behind another program's index lock")) },
-        ClientFailure::Interrupted { signal: libc::SIGTERM, blocker: None },
-        ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, blocker: None },
-        ClientFailure::InterruptedNotKnown { signal: libc::SIGTERM, blocker: Some(String::from("the commit service has been inside a write for 21 minutes and has not heard back")) },
         ClientFailure::ServiceGoneNotLanded { blocker: None },
         ClientFailure::ServiceGoneNotLanded { blocker: Some(String::from("a landing behind another program's index lock")) },
         ClientFailure::ServiceGoneUnconfirmed { blocker: None },
+        ClientFailure::ManagerDidNotAnswer { waited: Duration::from_secs(20) },
+        ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(4242), blocker: Some(String::from("a landing behind another program's index lock")) },
+        ClientFailure::Interrupted { signal: libc::SIGTERM, sender: None, blocker: None },
+        ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, sender: None, blocker: None },
+        ClientFailure::InterruptedNotKnown { signal: libc::SIGTERM, sender: Some(4242), blocker: Some(String::from("the commit service has been inside a write for 21 minutes and has not heard back")) },
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
         all.push(ClientFailure::NoActivation(platform));
@@ -76,49 +81,90 @@ fn samples() -> Vec<ClientFailure> {
     return all;
 }
 
-/// Compile-time proof that `samples` covers every variant:
-/// adding one breaks this match until a sample exists.
-fn variant_index(failure: &ClientFailure) -> usize {
-    return match failure {
-        ClientFailure::DidNotStart => 0,
-        ClientFailure::NoActivation(_) => 1,
-        ClientFailure::OtherAccount => 2,
-        ClientFailure::MayNotHaveLanded => 3,
-        ClientFailure::NoCommonVersion => 4,
-        ClientFailure::RepositoryFull(_) => 5,
-        ClientFailure::RepositoryReadOnly(_) => 6,
-        ClientFailure::BranchKeepsChanging { .. } => 7,
-        ClientFailure::ServiceSilent => 8,
-        ClientFailure::ServiceSilentAfterPreparing { .. } => 24,
-        ClientFailure::Refused => 9,
-        ClientFailure::IndexInUse(_) => 10,
-        ClientFailure::ReferenceLocked { .. } => 25,
-        ClientFailure::Unavailable => 11,
-        ClientFailure::ProgramMissing(_) => 12,
-        ClientFailure::CouldNotStart(_) => 13,
-        ClientFailure::UnitInTheWay(_) => 15,
-        ClientFailure::WorkNotHandedOver(_) => 14,
-        ClientFailure::BranchMoved { .. } => 16,
-        ClientFailure::BranchMovedMessageSaved { .. } => 17,
-        ClientFailure::OtherRelease => 18,
-        ClientFailure::BranchSwitched { .. } => 19,
-        ClientFailure::ContentPruned => 23,
-        ClientFailure::PermissionDenied(_) => 27,
-        ClientFailure::RepositoryFrozen(_) => 25,
-        ClientFailure::ConclusionStateChanged { .. } => 26,
-        ClientFailure::StepTooSlow => 22,
-        ClientFailure::StillWithService { .. } => 20,
-        ClientFailure::WithdrawalUnconfirmed { .. } => 21,
-        ClientFailure::SocketPathTooLong { .. } => 28,
-        ClientFailure::ServiceElsewhere { .. } => 29,
-        ClientFailure::NothingAnswered { .. } => 32,
-        ClientFailure::Interrupted { .. } => 30,
-        ClientFailure::InterruptedNotKnown { .. } => 31,
-        ClientFailure::ServiceNotReading { .. } => 33,
-        ClientFailure::ServiceGoneNotLanded { .. } => 34,
-        ClientFailure::ServiceGoneUnconfirmed { .. } => 35,
+//region One line for each variant of `ClientFailure`: the name this file knows it by, and the path of the variant.
+
+/// What:
+///  Every variant of `ClientFailure` on a line of its own:
+///  the name this file knows it by,
+/// and the path of the variant.
+/// Why:
+///   The macro writes the pattern around that path,
+/// so `ClientFailure::RepositoryFrozen` becomes `ClientFailure::RepositoryFrozen { .. }`,
+/// and a line can only ever match one variant:
+///  neither an or-pattern (`A | B`) nor a catch-all (`_`) is a path,
+/// so `each_failure_variant!` does not accept one,
+/// and counting two variants as one does not compile.
+/// The compiler also checks that the lines cover every variant of the enum,
+/// so a variant added to `ClientFailure` breaks this file until it has a line here.
+/// The name sits on the line of the path it names,
+/// so there is no number,
+/// and no second list,
+/// to keep in step.
+///  A number two variants shared is what let `every_failure_variant_is_rendered` pass
+///  with the sample of `RepositoryFrozen` taken away (measured 2026-11-14).
+///  Writing the name out keeps a repeated name expressible,
+/// which is the mistake that test has to catch.
+///  The two forms the path closes were reproduced against the pattern-taking macro on 2026-11-14:
+///  folding two lines into one or-pattern arm passed the test,
+///  and so did a catch-all,
+///  because neither repeated a name and the match stayed exhaustive.
+macro_rules! each_failure_variant {
+    ( $( $name:literal => $variant:path ),* $(,)? ) => {
+        /// The name of `failure`'s variant.
+        fn variant_name(failure: &ClientFailure) -> &'static str {
+            return match failure {
+                $( $variant { .. } => $name, )*
+            };
+        }
+
+        /// Every name `variant_name` can give,
+        /// one for each variant of `ClientFailure`.
+        const VARIANT_NAMES: &[&str] = &[ $( $name ),* ];
     };
 }
+
+each_failure_variant! {
+    "DidNotStart" => ClientFailure::DidNotStart,
+    "NothingAnswered" => ClientFailure::NothingAnswered,
+    "NoActivation" => ClientFailure::NoActivation,
+    "ManagerDidNotAnswer" => ClientFailure::ManagerDidNotAnswer,
+    "OtherAccount" => ClientFailure::OtherAccount,
+    "MayNotHaveLanded" => ClientFailure::MayNotHaveLanded,
+    "NoCommonVersion" => ClientFailure::NoCommonVersion,
+    "OtherRelease" => ClientFailure::OtherRelease,
+    "RepositoryFull" => ClientFailure::RepositoryFull,
+    "RepositoryReadOnly" => ClientFailure::RepositoryReadOnly,
+    "PermissionDenied" => ClientFailure::PermissionDenied,
+    "RepositoryFrozen" => ClientFailure::RepositoryFrozen,
+    "BranchKeepsChanging" => ClientFailure::BranchKeepsChanging,
+    "BranchMoved" => ClientFailure::BranchMoved,
+    "ConclusionStateChanged" => ClientFailure::ConclusionStateChanged,
+    "BranchMovedMessageSaved" => ClientFailure::BranchMovedMessageSaved,
+    "BranchSwitched" => ClientFailure::BranchSwitched,
+    "ServiceSilent" => ClientFailure::ServiceSilent,
+    "ServiceNotReading" => ClientFailure::ServiceNotReading,
+    "ServiceSilentAfterPreparing" => ClientFailure::ServiceSilentAfterPreparing,
+    "StillWithService" => ClientFailure::StillWithService,
+    "WithdrawalUnconfirmed" => ClientFailure::WithdrawalUnconfirmed,
+    "Interrupted" => ClientFailure::Interrupted,
+    "InterruptedNotKnown" => ClientFailure::InterruptedNotKnown,
+    "StepTooSlow" => ClientFailure::StepTooSlow,
+    "Refused" => ClientFailure::Refused,
+    "IndexInUse" => ClientFailure::IndexInUse,
+    "ReferenceLocked" => ClientFailure::ReferenceLocked,
+    "Unavailable" => ClientFailure::Unavailable,
+    "ProgramMissing" => ClientFailure::ProgramMissing,
+    "CouldNotStart" => ClientFailure::CouldNotStart,
+    "SocketPathTooLong" => ClientFailure::SocketPathTooLong,
+    "ServiceElsewhere" => ClientFailure::ServiceElsewhere,
+    "UnitInTheWay" => ClientFailure::UnitInTheWay,
+    "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver,
+    "ContentPruned" => ClientFailure::ContentPruned,
+    "ServiceGoneNotLanded" => ClientFailure::ServiceGoneNotLanded,
+    "ServiceGoneUnconfirmed" => ClientFailure::ServiceGoneUnconfirmed,
+}
+
+//endregion
 
 /// The text without the parts between backticks,
 /// which quote commands the user types.
@@ -154,16 +200,31 @@ fn contains_whole(text: &str, word: &str) -> bool {
     return false;
 }
 
-/// Every variant has a sample,
-/// and every sample is a variant of its own:
-/// a number two variants share would let one of them go unrendered.
-/// The highest number is the last one,
-/// so a sample added without a number of its own fails here.
+/// What:
+///  Every variant of `ClientFailure` has a sample of its own,
+/// and no two variants are counted as one.
+/// Why:
+///   `samples` promises one of every failure and the other tests here read it as if it did,
+/// so a variant no sample names would go unrendered.
+/// The names,
+/// and how many there are,
+/// come from the one line each variant has above:
+/// nothing here is a number or a list kept in step by hand,
+/// and since a line matches one variant only the count is the number of variants.
+///  Measured 2026-11-14:
+///  with the sample of `RepositoryFrozen` taken away,
+///  the numbered form of this test passed.
 #[test]
 fn every_failure_variant_is_rendered() {
-    let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::ServiceGoneUnconfirmed { blocker: None }) + 1;
-    assert_eq!(covered.len(), expected);
+    let covered: BTreeSet<&'static str> = samples().iter().map(variant_name).collect();
+    let expected: BTreeSet<&'static str> = VARIANT_NAMES.iter().copied().collect();
+    let unsampled: Vec<&str> = expected.difference(&covered).copied().collect();
+    assert!(unsampled.is_empty(), "these variants of `ClientFailure` have no sample: {unsampled:?}");
+    assert_eq!(
+        covered.len(),
+        VARIANT_NAMES.len(),
+        "two variants of `ClientFailure` share one name, so one of them could go unrendered; the samples gave these names: {covered:?}",
+    );
 }
 
 /// No failure text contains a term from the denylist,
@@ -272,9 +333,16 @@ fn every_message_gives_an_action() {
 #[test]
 fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
-    assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
+    assert!(render(&ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing }).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
+    // What: The failure that a program other than this release answers names the link whose pointing decides it.
+    // Why:  A link that cannot be pointed is what keeps that program being started, and a person can only look at it by name.
+    assert!(
+        render(&ClientFailure::OtherRelease).contains(crate::service_instance::PROGRAM_LINK),
+        "the ending names the link: {}",
+        render(&ClientFailure::OtherRelease)
+    );
     assert!(render(&ClientFailure::NoCommonVersion).contains(STOP_COMMAND));
     let unsure: String = render(&ClientFailure::MayNotHaveLanded);
     for command in CHECK_COMMANDS {
@@ -348,6 +416,8 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
                 | ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made | WhatTheBranchShows::Unread | WhatTheBranchShows::NotMade }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
                 | ClientFailure::InterruptedNotKnown { .. }
+                // The command's connection met only silence and asked the service to drop the request; a service that wakes may
+                //  still land the one it holds, so these words may not claim that nothing changed.
                 | ClientFailure::ServiceGoneUnconfirmed { .. }
                 | ClientFailure::WorkNotHandedOver(_)
         );
@@ -360,8 +430,10 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
 /// Why:
 ///  The review of this change showed the landing's client-gone check losing to the connection writer's heartbeat,
 ///  so a service that wakes can land a request whose command is gone:
-/// the branch read shows "not made" only at the moment it was read, and the words may say no more than that.
-///  A commit whose request never arrived whole is the other case, and its words say the reason that is true.
+/// the branch read shows "not made" only at the moment it was read,
+/// and the words may say no more than that.
+///  A commit whose request never arrived whole is the other case,
+/// and its words say the reason that is true.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -385,6 +457,40 @@ fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_lan
         assert!(words.contains("framing newline"), "{never_arrived:?} says a request is read only when its newline arrived: {words}");
         assert!(!words.contains("dropped before it lands"), "{never_arrived:?} claims no drop: {words}");
     }
+}
+
+/// What:
+///  The words for a manager that answered nothing give the step that ends it,
+///  and name the status command only for the reader whose answer it helps.
+/// Why:
+///  Run in a fixture with no service up,
+/// `git monochromatic-git-policy-cli service status` answers
+///  "The commit service of this worktree does not answer here ... if a commit fails,
+/// its message says what to do",
+///  which sends a reader of this message straight back to it;
+///  in a fixture with a service up it answers whether that service answers and names its unit.
+///  So the command is named under the one condition where the second answer is the true one,
+///  and the step every reader gets is the one that always works:
+/// run the commit again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(render({ kind: 'manager-did-not-answer', waited: 20s })).toContain('was already running before this commit')
+/// ```
+#[test]
+fn a_manager_that_did_not_answer_names_the_status_command_only_for_a_reader_it_helps() {
+    let waited: Duration = Duration::from_secs(20);
+    let words: String = render(&ClientFailure::ManagerDidNotAnswer { waited });
+    assert!(words.contains("did not answer within the 20 seconds"), "the words name the time the exchange was given: {words}");
+    assert!(words.contains("says nothing about whether the manager is there"), "they do not claim the manager is absent: {words}");
+    assert!(words.contains("nothing of it was written") && words.contains("nothing that could land later by itself"), "they say what became of the commit: {words}");
+    assert!(words.contains("Run the commit again"), "the step that always works is named: {words}");
+    // One mention, in the sentence that says which reader it is for.
+    assert_eq!(words.matches(STATUS_COMMAND).count(), 1, "the status command is named once: {words}");
+    let named_at: usize = words.find(STATUS_COMMAND).expect("named");
+    let before: &str = &words[..named_at];
+    assert!(before.contains("was already running before this commit"), "the command is named for the reader whose service was already running: {words}");
+    assert!(!words.contains(LINGER_COMMAND), "an account with user services is not told to turn them on: {words}");
 }
 
 /// Queue notices count the commits ahead.

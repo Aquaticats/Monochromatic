@@ -25,6 +25,11 @@
 //! A failed install never fails the add:
 //! it prints the reason and
 //!  `mise run toolchain:install`.
+//! A launcher record whose name the worktree's own lock declares nowhere is a copy of a layout an earlier release
+//!  had:
+//! no install rewrites it,
+//! so the relink removes it instead of reporting a stale record that no install can ever answer,
+//! and the success is counted over the records the lock does declare.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,12 +42,566 @@ use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
 use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file_through_links};
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+/// The bytes of a `toolchain.lock.json` this repair reads, past which the lock is no lock it can read.
+///  Measured on this repository on 2026-11-13: its lock is 63,625 bytes, so this bound is sixteen times it,
+/// and a lock that large would declare some three thousand tools.
+///  A longer lock is refused rather than read,
+/// and a refusal is the answer an unreadable lock already gets:
+/// every launcher record stays counted.
+const LONGEST_LOCK: u64 = SMALL_FILE_LIMIT;
+
+/// What:
+///  The launcher names this worktree's lock declares,
+///  which are the names an install may rewrite a record for,
+///  or nothing when the lock cannot be read as one carrying names.
+/// Why:
+///   `mpm-shadow install` writes a launcher and its record for each bin the lock declares and touches nothing else,
+///  so a record for any other name is a copy of a layout an earlier release had and no install answers for it.
+///   A lock this release cannot read leaves every record something an install answers,
+///  which keeps the check as strict as it was before the names were read at all.
+///  The lock is read the way the record beside it is: only a plain file is opened and only so many bytes of it are read,
+///  so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
+///  and a runaway file cannot be read into memory whole.
+///  A lock behind a link of the person's own is read, because that is the lock the worktree means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const declared = (destination) => { const lock = JSON.parse(readPlainFileThroughLinks(join(destination, 'toolchain.lock.json'), SMALL_FILE_LIMIT)); return new Set(Object.values(lock.tools).flatMap((tool) => tool.bins ?? [])); };
+/// ```
+fn declared_launcher_names(destination: &Path) -> Option<HashSet<String>> {
+    let bytes: Vec<u8> = read_plain_file_through_links(destination.join(LOCK_FILE).as_path(), LONGEST_LOCK).ok()?;
+    let lock: serde_json::Value = serde_json::from_slice::<serde_json::Value>(bytes.as_slice()).ok()?;
+    let tools: &serde_json::Map<String, serde_json::Value> = lock.get("tools")?.as_object()?;
+    let mut names: HashSet<String> = HashSet::new();
+    for tool in tools.values() {
+        for bin in tool.get("bins").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            if let Some(name) = bin.as_str() {
+                names.insert(name.to_owned());
+            }
+        }
+    }
+    return (!names.is_empty()).then_some(names);
+}
+
+/// What:
+///  The launcher name a record belongs to:
+///  its own file name without the record's extension.
+/// Why:
+///   The launcher beside a record is named exactly so,
+///  and the lock declares those names,
+///  so this is what tells a record an install rewrites from a copy no install rewrites.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const launcherName = (record) => basename(record, '.launch');
+/// ```
+fn launcher_name(record: &Path) -> Option<String> {
+    return record.file_stem()?.to_str().map(str::to_owned);
+}
+
+/// What:
+///  This worktree's own `toolchain.lock.json`,
+///  as its path is written and as the filesystem resolves it,
+///  so a record that names either spelling of it is not a copy of another checkout's.
+/// Why:
+///  One read of that pair serves every record of a pass,
+///  and the removal asks the same question again of the bytes it holds,
+///  so the two answers cannot be given by different comparisons.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const own = (destination) => ({ own: join(destination, 'toolchain.lock.json'), real: realpath(destination) + '/toolchain.lock.json' });
+/// ```
+struct ThisWorktreesLock {
+    /// The lock as a record spells it.
+    own: PathBuf,
+    /// The same lock as the filesystem resolves it, for a name whose object cannot be read.
+    real: Option<PathBuf>,
+    /// The object the worktree's own lock is, when it is there.
+    identity: Option<Identity>,
+}
+
+impl ThisWorktreesLock {
+    /// The lock of `destination`.
+    fn of(destination: &Path) -> ThisWorktreesLock {
+        let own: PathBuf = destination.join(LOCK_FILE);
+        let real: Option<PathBuf> = match std::fs::canonicalize(destination) {
+            Ok(resolved) => Some(resolved.join(LOCK_FILE)),
+            Err(_) => None,
+        };
+        let identity: Option<Identity> = identity_following_links_of(own.as_path());
+        return ThisWorktreesLock { own, real, identity };
+    }
+
+    /// Whether `record` names a lock other than this worktree's:
+    /// `Some(true)` when it does,
+    /// `Some(false)` when it names this one,
+    /// and nothing when it cannot be read as a record holding a lock.
+    /// Why:
+    ///   One file has many spellings, and a record may name this worktree's lock through a link to the worktree,
+    ///  a path that walks into a directory and back out of it, or a bind mount of the same folder:
+    ///  every one of them resolves to the same object, and only the object's identity tells that from a copy of another
+    ///  checkout's lock.
+    ///  Comparing spellings deleted a record an install had just written, which is why the comparison is the object's.
+    ///  A name whose object cannot be read (a lock that is gone) falls back to the two spellings this release writes.
+    fn names_another_lock(&self, record: &Path) -> Option<bool> {
+        let named: PathBuf = lock_named_by_record(record)?;
+        if let (Some(mine), Some(theirs)) = (self.identity, identity_following_links_of(named.as_path())) {
+            return Some(mine != theirs);
+        }
+        let mine: bool = named == self.own || Some(&named) == self.real.as_ref();
+        return Some(!mine);
+    }
+}
+
+/// What:
+///  A launcher record and the launcher beside it,
+///  as one pass classified them:
+///  a copy of an earlier release's layout that no install rewrites.
+/// Why:
+///   The removal proves what it deletes,
+///   and a launcher has no bytes that say whether an install wrote it:
+///   the object that was beside the record when the pass read the directory is the only thing to compare,
+///   because a launcher another command writes is another object under the same name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Copy = { record: string; launcher: string; name?: string; launcherIdentity?: Identity };
+/// ```
+struct CopyOfAnEarlierLayout {
+    /// The record.
+    record: PathBuf,
+    /// The object the record was when the pass judged it:
+    /// another command that writes its own record at that name writes another object, which this pass may not take.
+    record_identity: Option<Identity>,
+    /// The launcher beside it, whether or not there was one.
+    launcher: PathBuf,
+    /// The launcher's name the lock is asked about.
+    name: Option<String>,
+    /// The object that was at the launcher's name.
+    launcher_identity: Option<Identity>,
+}
+
+/// What:
+///  The object a name held:
+///  its device and inode, its size, and the moment it was written.
+/// Why:
+///   A launcher a concurrent install writes is a new object under the same name
+///   (`mpm-shadow` places it with a rename),
+///   so an object equal in all four is the one the pass classified and no other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Identity = { device: bigint; inode: bigint; size: bigint; modified: [bigint, bigint] };
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct Identity {
+    /// The device the object is on.
+    device: u64,
+    /// Its inode.
+    inode: u64,
+    /// Its size in bytes.
+    size: u64,
+    /// When it was last written, in whole seconds since the epoch.
+    modified_seconds: i64,
+    /// And the nanoseconds of that moment.
+    modified_nanoseconds: i64,
+}
+
+/// What:
+///  The object `path` names now,
+///  or nothing when it is not there.
+/// Why:
+///   A launcher is compared with the object the pass classified, and an absent one was removed by someone else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = (path) => { const s = statSync(path); return [s.dev, s.ino, s.size, s.mtime]; };
+/// ```
+fn identity_of(path: &Path) -> Option<Identity> {
+    return identity_from(std::fs::symlink_metadata(path).ok()?);
+}
+
+/// What:
+///  The object `path` names once every link and relative segment on the way is resolved.
+/// Why:
+///   A record's `lockFile` may name one file through any spelling, so what is compared is the object and not the text:
+///  a link to the worktree, a path through `..` and a bind mount of the same folder all resolve to one object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identityFollowingLinks = (path) => { const s = statSync(path); return [s.dev, s.ino, s.size, s.mtime]; };
+/// ```
+fn identity_following_links_of(path: &Path) -> Option<Identity> {
+    return identity_from(std::fs::metadata(path).ok()?);
+}
+
+/// What:
+///  The identity of one looked-up object.
+/// Why:
+///   Both looks above hand the same four numbers on, so the comparison between them cannot differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identityFrom = (found) => ({ device: found.dev, inode: found.ino, size: found.size, modified: found.mtime });
+/// ```
+fn identity_from(found: std::fs::Metadata) -> Option<Identity> {
+    use std::os::unix::fs::MetadataExt as _;
+    return Some(Identity {
+        device: found.dev(),
+        inode: found.ino(),
+        size: found.size(),
+        modified_seconds: found.mtime(),
+        modified_nanoseconds: found.mtime_nsec(),
+    });
+}
+
+/// What:
+///  What a worktree's launcher directory holds:
+///  the records an install rewrites,
+///  and the copies of an earlier release's layout beside them.
+/// Why:
+///  The two are answered differently:
+///  a stale record an install rewrites is a failure when the install leaves it stale,
+///  while no install can rewrite a record for a name the lock declares nowhere,
+///  so failing over it would report work no tool of this release can do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Launchers = { stale: string[]; unrewritable: string[] };
+/// ```
+struct Launchers {
+    /// Records naming another lock that the worktree's own lock declares a launcher for.
+    stale: Vec<PathBuf>,
+    /// Records naming another lock for a name the worktree's own lock declares nowhere, and what they were read beside.
+    unrewritable: Vec<CopyOfAnEarlierLayout>,
+}
+
+/// What:
+///  The two kinds of stale launcher record of `destination`,
+/// read from the launcher directory and the lock alone.
+/// Why:
+///   Both faces of the repair decide the install from this,
+///  and the count after the install asks it again,
+///  so the rule that tells an install's work from a copy lives in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const launchersOf = (destination) => { const declared = declaredLauncherNames(destination); return { stale: namedAnother.filter((r) => declared?.has(launcherName(r)) ?? true), unrewritable: declared ? namedAnother.filter((r) => !declared.has(launcherName(r))) : [] }; };
+/// ```
+fn launchers_of(destination: &Path) -> Launchers {
+    let named_another: Vec<PathBuf> = stale_launch_records(destination);
+    let Some(declared) = declared_launcher_names(destination) else {
+        return Launchers { stale: named_another, unrewritable: Vec::new() };
+    };
+    let mut stale: Vec<PathBuf> = Vec::new();
+    let mut unrewritable: Vec<CopyOfAnEarlierLayout> = Vec::new();
+    for record in named_another {
+        let name: Option<String> = launcher_name(record.as_path());
+        if name.as_ref().is_some_and(|launcher| return declared.contains(launcher)) {
+            stale.push(record);
+            continue;
+        }
+        let launcher: PathBuf = record.with_extension("");
+        let record_identity: Option<Identity> = identity_of(record.as_path());
+        let launcher_identity: Option<Identity> = identity_of(launcher.as_path());
+        unrewritable.push(CopyOfAnEarlierLayout { record, record_identity, launcher, name, launcher_identity });
+    }
+    return Launchers { stale, unrewritable };
+}
+
+/// What:
+///  Remove the launcher records, and the launchers beside them,
+///  that this worktree's lock declares nowhere,
+///  once the bytes being removed are proved to be that copy and not what another command wrote.
+/// Why:
+///   They are copies of a layout an earlier release had,
+///  carried in by the copy that made the worktree,
+///  and they name another checkout's lock file,
+///  which is the state this repair exists to end.
+///  No install rewrites them and nothing runs them,
+///  so leaving them would keep a record that names another checkout in every worktree copied from this one.
+///  A record that cannot be removed is said and left:
+///  it is no install's work, so the relink neither fails nor waits on it.
+///  The classification reads the lock and the directory once,
+///  and a person's `toolchain:update` and install can write a correct record and launcher for a name the lock
+///  declares after that read,
+///  so each record is taken aside only when it is the object this pass judged,
+///  read again under that name,
+///  and put back when the install declared its name meanwhile or its bytes name this worktree's own lock;
+///  the launcher goes only when it is the object this pass read beside the record.
+///  Nothing taken aside is ever discarded unread:
+///  a pass killed with a record aside leaves it for the next pass, which reads it and puts it back,
+///  or keeps it and names it for the person when the record's own name holds another record by then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// restoreWhatAKillLeft(destination); if (!copies.length) return;
+/// for (const copy of copies) { const aside = takeAside(copy); if (!aside) continue; if (!stillACopy(destination, aside, copy.name)) { putBack(aside, copy.record); continue; } unlink(aside); if (identityOf(copy.launcher) === copy.launcherIdentity) unlink(copy.launcher); }
+/// ```
+fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlierLayout]) {
+    // A control's own concurrent `toolchain:update` and install, run once as the removal begins: the window a
+    //  classification cannot see lies between its read and the removal, and a control has to stand in it to show what
+    //  the pass does when something is written there. Taken out, so it runs once; only a control build has it.
+    #[cfg(test)]
+    if let Some(write) = WHEN_THE_REMOVAL_BEGINS.with(|cell| return cell.borrow_mut().take()) {
+        write();
+    }
+    // What a killed pass left aside is read and put back before this pass decides anything, whether or not it has a copy
+    //  of its own to remove: a record an install wrote is not discarded with the pass that took it.
+    restore_what_a_kill_left_aside(destination);
+    if copies.is_empty() {
+        return;
+    }
+    let own: ThisWorktreesLock = ThisWorktreesLock::of(destination);
+    // The lock as it stands after the classification, read once for the whole removal: a name it declares now is one an
+    //  install has just taken on, and a record the pass holds for it may not go. Reading it once per record would read
+    //  the whole lock a thousand times in a worktree carrying a thousand copies.
+    let declared_now: Option<HashSet<String>> = declared_launcher_names(destination);
+    for copy in copies {
+        let Some(aside) = take_aside(copy) else { continue };
+        // A control's own kill, at the one instruction a record is out of its place: nothing after this line runs, which
+        //  is what a killed pass leaves. Only a control build has it.
+        #[cfg(test)]
+        if KILLED_AFTER_THE_RECORD_IS_ASIDE.with(std::cell::Cell::get) {
+            return;
+        }
+        if !still_a_copy_of_an_earlier_layout(aside.as_path(), copy.name.as_deref(), &own, declared_now.as_ref()) {
+            // Another command declared this name or wrote its own record there: the bytes are not a copy any more,
+            //  and a name that holds a newer file keeps it.
+            put_back(aside.as_path(), copy.record.as_path());
+            continue;
+        }
+        match std::fs::remove_file(aside.as_path()) {
+            Ok(()) => debug(TAG, format!("{}: removed {}, whose launcher name {} declares nowhere", destination.display(), copy.record.display(), LOCK_FILE).as_str()),
+            Err(error) => {
+                debug(TAG, format!("{}: {} is no record any install rewrites and it could not be removed ({error})", destination.display(), aside.display()).as_str());
+                continue;
+            }
+        }
+        // The launcher beside the record goes with it, and only the object this pass read: an install that wrote its own
+        //  launcher meanwhile leaves a different object, which is not this pass's to remove.
+        if copy.launcher_identity.is_none() {
+            continue;
+        }
+        if identity_of(copy.launcher.as_path()) != copy.launcher_identity {
+            debug(TAG, format!("{}: {} was written by another command and is left", destination.display(), copy.launcher.display()).as_str());
+            continue;
+        }
+        match std::fs::remove_file(copy.launcher.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => debug(TAG, format!("{}: {} could not be removed ({error})", destination.display(), copy.launcher.display()).as_str()),
+        }
+    }
+}
+
+/// What:
+///  Take one record out of the way of anything else writing it,
+///  under a name only this pass writes,
+///  or nothing when the record at that name is not the one this pass judged.
+/// Why:
+///  The name is ours alone (this process's number and a count),
+///  so no other command can write what is read there,
+///  which is what makes the deletion provable:
+///  whatever is at the record's own name afterwards was written by that other command and is left.
+///  A record another command wrote at that name since the classification is another object,
+///  and taking it would put an install's record out of its place for a reason that was not about it;
+///  the object is looked at before the take and again after it, because a name can be written between the two.
+///  A record put back after that second look is restored by a name taken only when it is free,
+///  and one that cannot be restored stays kept for the next pass, which reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const takeAside = (copy) => { if (identityOf(copy.record) !== copy.recordIdentity) return undefined; const aside = renameAside(copy.record); if (identityOf(aside) !== copy.recordIdentity) { restore(aside, copy.record); return undefined; } return aside; };
+/// ```
+fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let record: &Path = copy.record.as_path();
+    let Some(judged) = copy.record_identity else {
+        debug(TAG, format!("{} was not the same object even when this pass judged it, so it is left", record.display()).as_str());
+        return None;
+    };
+    if identity_of(record) != Some(judged) {
+        debug(TAG, format!("{} is another record than the one this pass judged, so it is left", record.display()).as_str());
+        return None;
+    }
+    let token: u32 = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let name: String = format!("{}.removing-{}-{token}", record.file_name()?.to_string_lossy(), std::process::id());
+    let aside: PathBuf = record.with_file_name(name);
+    match std::fs::rename(record, aside.as_path()) {
+        Ok(()) => {}
+        Err(error) => {
+            debug(TAG, format!("{} could not be taken aside ({error}), so it is left", record.display()).as_str());
+            return None;
+        }
+    }
+    if identity_of(aside.as_path()) == Some(judged) {
+        return Some(aside);
+    }
+    // A name written between the look and the rename: what is in this pass's hand is that other command's record, and it
+    //  goes back where it was. A name that is taken meanwhile keeps it, and the next pass reads it and puts it back.
+    match std::fs::hard_link(aside.as_path(), record) {
+        Ok(()) => {
+            let _removed = std::fs::remove_file(aside.as_path());
+        }
+        Err(error) => debug(TAG, format!("{} was written as this pass took the name, and could not be put back yet ({error}); the next pass reads it", record.display()).as_str()),
+    }
+    return None;
+}
+
+/// What:
+///  Put a record this pass read aside back under its name,
+///  unless another command has written one there meanwhile.
+/// Why:
+///   A rename would replace whatever that command wrote;
+///   a name taken only when it is free leaves the newer record and drops the copy this pass holds,
+///   whose bytes this pass has read and judged a copy of another checkout's layout.
+///   A record that cannot be put back stays where it is, and the next pass reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const putBack = (aside, record) => { if (link(aside, record) fails with EEXIST) unlink(aside); else if (it succeeds) unlink(aside); };
+/// ```
+fn put_back(aside: &Path, record: &Path) {
+    match std::fs::hard_link(aside, record) {
+        Ok(()) => {
+            let _removed = std::fs::remove_file(aside);
+            debug(TAG, format!("{} was written by another command and is left", record.display()).as_str());
+        }
+        // A record another command wrote is newer than the copy in this pass's hand, which is dropped here.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let _removed = std::fs::remove_file(aside);
+        }
+        Err(error) => debug(TAG, format!("{} could not be put back from {} ({error}); the next pass reads it and puts it back", record.display(), aside.display()).as_str()),
+    }
+}
+
+/// What:
+///  Whether the record this pass took aside still says it is a copy no install rewrites:
+///  it names a lock other than this worktree's,
+///  and the worktree's lock, as the removal read it, declares no launcher of its name.
+/// Why:
+///   The record is read again here because it may have changed since the classification,
+///   and a record an install has just written for a name the lock declares is not this pass's to remove.
+///   A lock that cannot be read keeps the rule the classification used: every record counts as one an install answers,
+///  so a copy is still a copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillACopy = (aside, name, own) => own.namesAnotherLock(aside) === true && (name === undefined || !(declaredLauncherNames(destination)?.has(name) ?? false));
+/// ```
+fn still_a_copy_of_an_earlier_layout(aside: &Path, name: Option<&str>, own: &ThisWorktreesLock, declared_now: Option<&HashSet<String>>) -> bool {
+    match own.names_another_lock(aside) {
+        Some(true) => {}
+        Some(false) | None => return false,
+    }
+    let Some(launcher) = name else { return true };
+    return match declared_now {
+        Some(declared) => !declared.contains(launcher),
+        None => true,
+    };
+}
+
+/// What:
+///  Put back every record a killed pass left aside,
+///  reading it first,
+///  and keep and name the ones whose own name holds another record by now.
+/// Why:
+///   A pass killed between taking a record aside and removing or putting it back leaves that name behind,
+///   and nothing else would read it:
+///   it may be a copy of an earlier layout, which a later pass removes under its own proof,
+///   or the record a concurrent install had just written, which nothing else would recreate.
+///   So it is read and put back by a name taken only when it is free,
+///   and one whose name is taken by then is kept rather than replaced or discarded, and named for the person.
+///   A name whose process still runs is a pass in flight and is left to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const entry of readdir(launchers)) if (isAnAsideOfADeadPass(entry)) { if (!readableRecord(entry)) continue; if (link(entry, nameOf(entry))) unlink(entry); else nameForThePerson(entry, nameOf(entry)); }
+/// ```
+fn restore_what_a_kill_left_aside(destination: &Path) {
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    let Ok(listing) = std::fs::read_dir(launchers.as_path()) else { return };
+    for item in listing.flatten() {
+        let name: std::ffi::OsString = item.file_name();
+        let Some(text) = name.to_str() else { continue };
+        let Some((record_name, owner)) = text.rsplit_once(".removing-") else { continue };
+        let Some((written_pid, _token)) = owner.split_once('-') else { continue };
+        let Ok(pid) = written_pid.parse::<u32>() else { continue };
+        if std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
+            continue;
+        }
+        let aside: PathBuf = item.path();
+        // Nothing is put back from a file this release cannot read as a record, and nothing is discarded unseen either.
+        if lock_named_by_record(aside.as_path()).is_none() {
+            debug(TAG, format!("{} is no record this release reads, so it is left", aside.display()).as_str());
+            continue;
+        }
+        let record: PathBuf = launchers.join(record_name);
+        match std::fs::hard_link(aside.as_path(), record.as_path()) {
+            Ok(()) => {
+                let _removed = std::fs::remove_file(aside.as_path());
+                debug(TAG, format!("{}: put back {} from what a killed pass left", destination.display(), record.display()).as_str());
+            }
+            Err(error) => {
+                debug(TAG, format!("{}: {} could not be put back from what a killed pass left ({error}), so it is named for the person", destination.display(), record.display()).as_str());
+                name_what_a_killed_pass_kept(destination, aside.as_path(), record.as_path(), &error);
+            }
+        }
+    }
+}
+
+/// What:
+///  Leave one line for the person about a record a killed pass kept aside,
+///  naming the file and the command that puts it back.
+/// Why:
+///   The wrapper could not put it back because the record's own name holds another record by then,
+///   and it may not replace that one, nor discard what it holds:
+///   the person is the one who can say which record their worktree needs.
+///   The line waits in the worktree's own Git directory, where the next command there shows it once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = (worktree, aside, record, why) => recordNotice(gitDirOf(worktree), `toolchain-kept-${basename(aside)}`, `...kept ${aside}... mv ${aside} ${record}`);
+/// ```
+fn name_what_a_killed_pass_kept(destination: &Path, aside: &Path, record: &Path, why: &std::io::Error) {
+    let words: String = format!(
+        "monochromatic-git-policy-cli: a relink of {} was stopped with a launcher record set aside, and the wrapper could not put it back at {} ({why}), so it kept it at {} instead of discarding it. If it is the record this worktree needs, run `mv -- {} {}`; otherwise remove it.",
+        destination.display(),
+        record.display(),
+        aside.display(),
+        crate::shell_quote::shell_quote(aside.as_os_str().as_encoded_bytes()),
+        crate::shell_quote::shell_quote(record.as_os_str().as_encoded_bytes())
+    );
+    let Some(git_dir) = crate::package_repair_relink_notice::git_dir_of_a_worktree(destination) else {
+        crate::service_error!("the record kept at {} could not be named for the person, because {} has no Git directory this release can read: {words}", aside.display(), destination.display());
+        return;
+    };
+    let id: String = format!("toolchain-kept-{}", aside.file_name().map_or(String::from("a-record"), |name| return name.to_string_lossy().into_owned()));
+    if let Err(problem) = crate::package_repair_relink_notice::record_notice(git_dir.as_path(), id.as_str(), words.as_str()) {
+        crate::service_error!("the record kept at {} could not be named for the person: {problem}", aside.display());
+    }
+}
+
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairToolchain";
+
+// What a control writes inside the removal pass, taken out when it runs so it runs once, and absent in a release build;
+// and a control's own kill at the one instruction a record is out of its place.
+#[cfg(test)]
+thread_local! {
+    /// The writer a control stands in the classification-to-removal window with.
+    pub(crate) static WHEN_THE_REMOVAL_BEGINS: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+    /// Whether this thread's removal stops once a record is aside, which no release build can do.
+    pub(crate) static KILLED_AFTER_THE_RECORD_IS_ASIDE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 
 /// Where mpm-shadow keeps the launchers and their records,
 /// relative to a worktree.
@@ -86,11 +645,7 @@ pub const MANUAL_COMMAND: &str = "mise run toolchain:install";
 /// ```
 pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(destination.join(LAUNCHERS)) else { return Vec::new() };
-    let own: PathBuf = destination.join(LOCK_FILE);
-    let own_real: Option<PathBuf> = match std::fs::canonicalize(destination) {
-        Ok(real) => Some(real.join(LOCK_FILE)),
-        Err(_) => None,
-    };
+    let own: ThisWorktreesLock = ThisWorktreesLock::of(destination);
     let mut stale: Vec<PathBuf> = Vec::new();
     for item in listing.flatten() {
         let path: PathBuf = item.path();
@@ -101,13 +656,10 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
         if !is_record {
             continue;
         }
-        let named: Option<PathBuf> = lock_named_by_record(&path);
-        let Some(lock) = named else {
-            debug(TAG, format!("{} names no lock file and is left alone", path.display()).as_str());
-            continue;
-        };
-        if lock != own && Some(&lock) != own_real.as_ref() {
-            stale.push(path);
+        match own.names_another_lock(path.as_path()) {
+            Some(true) => stale.push(path),
+            Some(false) => {}
+            None => debug(TAG, format!("{} names no lock file and is left alone", path.display()).as_str()),
         }
     }
     stale.sort();
@@ -270,20 +822,22 @@ async fn prepare_install_within_the_budget(destination: &Path, environment: &Rep
 }
 
 /// What:
-///  How many launcher records still name another lock file,
+///  How many launcher records the worktree's lock declares still name another lock file,
 /// as a job of the process's blocking pool.
 /// Why:
 ///  The records are read again after the install,
 /// on the same task the install was awaited from,
 /// so the same rule holds:
 /// no storage read of the launcher directory runs on the task that polls the repairs.
+///  The count leaves out the copies no install rewrites,
+///  because an install that did everything the lock asks of it is not a failed relink.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const left = await countStaleWithinTheBudget(destination);
 /// ```
 fn count_stale_in_a_job(destination: PathBuf) -> usize {
-    return stale_launch_records(destination.as_path()).len();
+    return launchers_of(destination.as_path()).stale.len();
 }
 
 /// What:
@@ -307,6 +861,8 @@ async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, Bloc
 /// Why:
 ///  Both faces decide it the same way before they wait,
 /// so neither can start a tool the other would not.
+///  A launcher record whose name this worktree's lock declares nowhere is removed here,
+///  so every face that asks what the worktree needs also leaves it holding nothing another checkout wrote.
 /// This face runs on the caller's own thread,
 /// which polls no wait of the repair,
 /// so its reads need no place of the pool;
@@ -317,9 +873,13 @@ async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, Bloc
 /// function prepareInstall(destination: string, environment: RepairEnvironment): ToolchainRepair;
 /// ```
 fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
-    let stale: Vec<PathBuf> = stale_launch_records(destination);
-    if stale.is_empty() {
-        debug(TAG, format!("{}: every launcher record names this worktree", destination.display()).as_str());
+    let launchers: Launchers = launchers_of(destination);
+    // A copy of an earlier release's layout is removed rather than reported: no install rewrites it, and it names another
+    //  checkout's lock until it goes. The removal proves the bytes it deletes again, because a concurrent update and
+    //  install can write a correct record and launcher for a name the lock declares between the two.
+    remove_what_no_install_rewrites(destination, launchers.unrewritable.as_slice());
+    if launchers.stale.is_empty() {
+        debug(TAG, format!("{}: every launcher record this worktree's lock declares names this worktree", destination.display()).as_str());
         return ToolchainRepair::NothingToDo;
     }
     let own_link: PathBuf = destination.join(OWN_LINK);
@@ -470,7 +1030,7 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
                 // No install was made, and the runtime's own reason is what the person is told.
                 Err(refusal) => run_refused(work.program.as_path(), started, &refusal),
             };
-            install_finding(&work, &run, Ok(stale_launch_records(work.destination.as_path()).len()))
+            install_finding(&work, &run, Ok(launchers_of(work.destination.as_path()).stale.len()))
         }
     };
 }

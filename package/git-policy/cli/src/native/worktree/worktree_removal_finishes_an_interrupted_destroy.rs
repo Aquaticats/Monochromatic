@@ -65,12 +65,15 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 ///  finish.
 /// A process number alone can be reused,
 /// so the birth identity written beside it decides.
+///  A record of a leaving a removal renamed aside is read the same way and for the same reason:
+///  that command writes the record before the rename,
+///  so a command that decided in that window would drop the only record of a directory about to appear.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const running = recordOwnerMayBeRunning(record.owner); // true when nothing proves the owner left
+/// const running = ownerMayBeRunning(record.owner); // true when nothing proves the owner left
 /// ```
-fn record_owner_may_be_running(owner: Option<&String>) -> bool {
+pub(crate) fn owner_may_be_running(owner: Option<&String>) -> bool {
     let Some(spelled) = owner else { return true };
     let Some((spelled_pid, identity)) = spelled.split_once(':') else { return true };
     let Ok(pid) = spelled_pid.parse::<i64>() else { return true };
@@ -241,7 +244,7 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
             return;
         }
     };
-    if !read.destroyed && record_owner_may_be_running(read.owner.as_ref()) {
+    if !read.destroyed && owner_may_be_running(read.owner.as_ref()) {
         // Another command is removing that worktree now, and its record is what it marks when the kernel call returns, so
         // nothing here reads, decides or forgets anything yet. A marked record is finished even while its owner lives: the
         // call it names has returned, and the owner's own removal of the registration is what finishing completes.

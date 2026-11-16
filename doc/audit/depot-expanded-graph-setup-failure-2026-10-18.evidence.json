@@ -27,7 +27,19 @@
   "sourceArchive": {
     "path": "doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz",
     "bytes": 2184,
-    "sha256": "caf8e72e975d2bba895c4e734f617d16ea3c2de4b6b13d06d633d987e4a06f01"
+    "sha256": "caf8e72e975d2bba895c4e734f617d16ea3c2de4b6b13d06d633d987e4a06f01",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show eabb44a5e6ac03320cbbb488ed643c2d995e2877:doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "rows": [
     {

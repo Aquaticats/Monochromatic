@@ -1,0 +1,11 @@
+deno 2.9.8 (stable, release, x86_64-unknown-linux-gnu)
+== no-config
+[0m[32mDownload[0m https://registry.npmjs.org/@optique/core/-/core-1.3.6.tgz
+{"script":"commit-paths","runtime":"deno","runtimeVersion":"2.9.8","library":"file:///deno-cache/npm/registry.npmjs.org/@optique/core/1.3.6/dist/primitives.js","paths":2,"separator":false,"runs":1,"warmup":0,"parsedPaths":2,"medianMs":7.239,"minMs":7.239,"maxMs":7.239}
+== DENO_NO_PACKAGE_JSON
+{"script":"commit-paths","runtime":"deno","runtimeVersion":"2.9.8","library":"file:///deno-cache/npm/registry.npmjs.org/@optique/core/1.3.6/dist/primitives.js","paths":2,"separator":false,"runs":1,"warmup":0,"parsedPaths":2,"medianMs":7.463,"minMs":7.463,"maxMs":7.463}
+== node-modules-dir=auto
+[0m[32mInitialize[0m @optique/core@1.3.6
+{"script":"commit-paths","runtime":"deno","runtimeVersion":"2.9.8","library":"file:///repo/node_modules/.deno/@optique+core@1.3.6/node_modules/@optique/core/dist/primitives.js","paths":2,"separator":false,"runs":1,"warmup":0,"parsedPaths":2,"medianMs":6.357,"minMs":6.357,"maxMs":6.357}
+== after npm install, no map
+{"script":"commit-paths","runtime":"deno","runtimeVersion":"2.9.8","library":"file:///arm/1.3.6/node_modules/@optique/core/dist/primitives.js","paths":2,"separator":false,"runs":1,"warmup":0,"parsedPaths":2,"medianMs":8.017,"minMs":8.017,"maxMs":8.017}

@@ -24,7 +24,9 @@ named `arm64-repository-functional`,
 with API size `31598` bytes.
 Its original ZIP and actual consumer results are independently validated in the
 [functional receipt](../audit/depot-arm64-functional-2026-10-18.evidence.json)
-and [retained source archive](../audit/depot-arm64-functional-2026-10-18.sources.json.gz).
+and retained source archive (`../audit/depot-arm64-functional-2026-10-18.sources.json.gz`).
+`depot-arm64-functional-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The parent admitted one bounded Linux ARM64 profile from frozen application source
 `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.

@@ -312,3 +312,65 @@ fn a_line_said_inside_a_blocking_job_reaches_the_consumer_as_it_happens() {
     let expected: Vec<String> = vec![String::from("begin 0"), String::from("line 0 halfway"), String::from("end 0 0")];
     assert_eq!(seen.seen, expected, "the line of a job of the blocking pool did not reach the consumer as it happened");
 }
+
+/// The item of the lane that panics,
+/// and the one behind it in that same lane.
+const THE_INDEX_THAT_PANICS: usize = 0;
+
+/// Items that record the index whose work began,
+/// and panic at `THE_INDEX_THAT_PANICS`.
+/// Why:
+///   A lane task that panics is the one case this runner still answers with `OrderedRunError`,
+/// and what the runner must not do is run the item behind it,
+/// as if the lane had finished.
+struct PanicAtTheFirst {
+    /// The indexes whose work began,
+    /// in the order the lanes reached them.
+    ran: Arc<Mutex<Vec<usize>>>,
+}
+
+impl OrderedAwaitingWork<u64, u64> for PanicAtTheFirst {
+    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+        let ran: Arc<Mutex<Vec<usize>>> = Arc::clone(&self.ran);
+        return Box::pin(async move {
+            ran.lock().expect("the indexes that began").push(index);
+            assert!(index != THE_INDEX_THAT_PANICS, "a step of this run panicked, which is what the control measures");
+            return index as u64;
+        });
+    }
+}
+
+/// What:
+///  A lane task that panics ends the run with `OrderedRunError::Panicked`,
+///  the item behind it in that lane is never run,
+///  and the item of another lane runs.
+/// Why:
+///   The drain guards every item of a wave (`a_panic_that_ends_one_item.rs`),
+/// so a handler's own panic is that item's answer and no longer reaches this runner;
+/// what still reaches it is a panic in a lane's own code,
+/// and a caller told nothing about it reads the silence as a round that covered every directory.
+///  The lane of this control holds two items,
+/// so the item behind the one that panicked would run if the lane went on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ran = []; const finished = await run({ lanes: [[0, 1], [2]], work: panicsAt(0, ran) }); expect(finished).toEqual({ panicked: true }); expect(ran).not.toContain(1); expect(ran).toContain(2)
+/// ```
+#[test]
+fn a_lane_task_that_panics_ends_the_run_and_the_item_behind_it_is_not_run() {
+    let ran: Arc<Mutex<Vec<usize>>> = Arc::new(Mutex::new(Vec::new()));
+    let work: Arc<PanicAtTheFirst> = Arc::new(PanicAtTheFirst { ran: Arc::clone(&ran) });
+    let mut seen: SeenText = SeenText::default();
+    let finished: Result<(), OrderedRunError> = crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+        items: Arc::from(vec![0, 1, 2]),
+        lanes: Arc::from(vec![vec![0, 1], vec![2]]),
+        workers: 2,
+        work,
+        on_event: &mut seen,
+    }))
+    .expect("the runtime");
+    let began: Vec<usize> = ran.lock().expect("the indexes that began").clone();
+    assert!(matches!(finished, Err(OrderedRunError::Panicked)), "the run names the step that panicked: {finished:?}");
+    assert!(began.contains(&THE_INDEX_THAT_PANICS) && began.contains(&2), "the item of the other lane ran: {began:?}");
+    assert!(!began.contains(&1), "the item behind the one that stopped its lane was run as if the lane had finished: {began:?}");
+}

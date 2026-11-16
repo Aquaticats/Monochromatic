@@ -32,7 +32,8 @@ use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, SERVICE_LOG_FILE, direct, fixture, git, repository, service_log, start_fixture_service};
 use git_policy_cli::service_client_listen_and_ask_to_retire::ask_to_retire;
 use git_policy_cli::service_hold_a_step_for_a_control::{HOLD_DIRECTORY_VARIABLE, HOLD_VARIABLE, INSIDE_A_SCRATCH_REMOVAL, INSIDE_A_SYNC, let_go_file, reached_file};
-use git_policy_cli::service_instance::socket_for;
+use git_policy_cli::service_address_of_a_worktree::socket_address_of;
+use git_policy_cli::service_instance::instance_of;
 use git_policy_cli::service_provision::RETIREMENT_WAIT;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -94,9 +95,9 @@ impl Setup {
         return self.repo.join(".git");
     }
 
-    /// The socket the wrapper reaches this repository's service at.
-    fn socket(&self) -> PathBuf {
-        return socket_for(self.service.runtime.as_path(), self.git_dir().as_path());
+    /// The address the wrapper reaches this repository's service at.
+    fn address(&self) -> git_policy_cli::service_server::Bind {
+        return socket_address_of(self.service.runtime.as_path(), instance_of(self.git_dir().as_path()).as_str());
     }
 
     /// Whether the service has reached the step `point` the control holds.
@@ -243,7 +244,7 @@ fn retire_with_a_batch_waiting_behind_the_lane(setup: &Setup) -> Option<Duration
     // A newer release's client asks the service of this one to retire, and that ask waits for no bound of its own:
     // the greeting, the one line, and the client is gone.
     let ask_began: Instant = Instant::now();
-    ask_to_retire(setup.socket().as_path());
+    ask_to_retire(&setup.address());
     eprintln!("MEASURE the_ask_itself_ms={}", ask_began.elapsed().as_millis());
     // The wait a newer release gives the service it asked: `RETIREMENT_WAIT`, and not one moment more.
     let asked: Instant = Instant::now();
@@ -326,7 +327,7 @@ fn a_service_asked_to_retire_leaves_at_its_bound_when_a_sync_itself_does_not_end
     eprintln!("MEASURE commit_whose_sync_is_held_ms={} landed={landed}", made_ms.as_millis());
     wait_until("the background sync of the landing was reached", &|| { return setup.reached(INSIDE_A_SYNC); });
     let ask_began: Instant = Instant::now();
-    ask_to_retire(setup.socket().as_path());
+    ask_to_retire(&setup.address());
     eprintln!("MEASURE the_ask_itself_ms={}", ask_began.elapsed().as_millis());
     let asked: Instant = Instant::now();
     let mut ended: Option<Duration> = None;

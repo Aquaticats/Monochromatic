@@ -1,0 +1,27 @@
+Keep the state of multiple() in a persistent vector
+
+`multiple()` extended its state by rebuilding the array it had plus the item
+it just accepted, once per accepted item, so a parse of N repeated items
+copied 1 + 2 + ... + N states.  The state is a public type (the state of
+`multiple()` is `readonly TState[]`) and `complete()`, `suggest()` and the
+phase-two seed walk index it, so the array type stays and the copy goes: past
+a threshold the state is an array view over an immutable vector, appending or
+dropping its last item copies only the nodes on the path to it, and every
+state obtained earlier still reads as it did.  Below the threshold the state
+stays a plain array and the expression it had before.
+
+That last part is what backtracking needs.  A failed alternative discards its
+context and the parse resumes from an earlier one; a state that edited the
+storage two contexts share would show one of them an item the other added.
+The tests check that property for the sync and async parse paths, that two
+thousand states built one item at a time each read back as their own prefix,
+and that the vector matches a plain array over random append and drop
+sequences with every intermediate version checked.
+
+Measured on Deno 2.9.8, medians of five rounds whose arm order rotated, with
+the parse of one option and a run of positional arguments: 8,000 tokens go
+from 132 ms to 71 ms, 32,000 from 5,559 ms to 852 ms, and the fitted exponent
+of time against token count falls from 1.88 to 1.22.  What remains at 32,000
+tokens is the input buffer's per-token copy, which is a separate change.
+
+Assisted-by: Pi:deepseek-v4.1-flash

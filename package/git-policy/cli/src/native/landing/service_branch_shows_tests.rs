@@ -58,6 +58,9 @@ fn a_commit_a_later_commit_sits_on_top_of_was_made() {
 
 /// The three answers say different things,
 /// and the one that says the commit was made offers nothing to fix.
+/// The words are the ones a give-up carries since the exchange with the service was bounded
+/// (`landing/service_messages_of_a_service_that_stopped.rs`),
+/// which say what did not answer and for how long before they say what the branch shows.
 #[test]
 fn the_silence_message_states_what_the_branch_shows() {
     let made: String = crate::service_messages::render(&crate::service_messages::ClientFailure::ServiceSilentAfterPreparing {
@@ -69,10 +72,11 @@ fn the_silence_message_states_what_the_branch_shows() {
     let unread: String = crate::service_messages::render(&crate::service_messages::ClientFailure::ServiceSilentAfterPreparing {
         shows: crate::service_messages::WhatTheBranchShows::Unread,
     });
-    assert!(made.contains("the commit was made"), "{made}");
-    assert!(!made.contains("it is not known whether the commit was made"), "{made}");
-    assert!(not_made.contains("it was not made") && not_made.contains("may still land"), "{not_made}");
-    assert!(unread.contains("it is not known whether the commit was made"), "{unread}");
+    assert!(made.contains("The commit was made"), "{made}");
+    assert!(!made.contains("not known"), "the answer that shows the commit was made claims no doubt: {made}");
+    assert!(made.contains("There is nothing to run"), "the answer that shows the commit was made offers nothing to run: {made}");
+    assert!(not_made.contains("this commit was not made by this command") && not_made.contains("may still land"), "{not_made}");
+    assert!(unread.contains("whether the commit was made is not known"), "{unread}");
 }
 
 /// What:

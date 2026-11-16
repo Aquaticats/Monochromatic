@@ -40,6 +40,7 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { code: 0, },
         },),).toBe('idle',);
         expect(finalEndReason({
@@ -47,6 +48,7 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { code: 0, },
         },),).toBe('stop-file',);
       },
@@ -59,6 +61,7 @@ await describe({
           stopped: false,
           modelError: failed('no key',),
           feedProblem: failed('EISDIR',),
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { code: 1, },
         },),).toBe('wall-clock',);
       },
@@ -71,6 +74,7 @@ await describe({
           stopped: false,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: {},
         },),).toBe('pi-not-stopped',);
       },
@@ -83,6 +87,7 @@ await describe({
           stopped: true,
           modelError: failed('no key',),
           feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { code: 0, },
         },),).toBe('model-error',);
       },
@@ -95,6 +100,7 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { code: 3, },
         },),).toBe('pi-exited',);
       },
@@ -107,6 +113,7 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { signal: 'SIGTERM', },
         },),).toBe('stop-file',);
       },
@@ -119,6 +126,7 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: failed('EISDIR',),
+          sessionAtRest: NO_RUN_FAILURE,
           piExit: { code: 0, },
         },),).toBe('driver-failed',);
       },

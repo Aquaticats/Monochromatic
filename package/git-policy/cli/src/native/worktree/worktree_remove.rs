@@ -54,7 +54,7 @@ use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{Boundary, empty_directory, find_boundary_below_except, verify_below};
 use crate::transaction_git::GitContext;
-use crate::worktree_clean::check_clean;
+use crate::worktree_clean::{check_clean, check_clean_by_content};
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::{clear_the_pools_ahead_of_a_worktree, data_folders};
@@ -74,66 +74,25 @@ pub(crate) const TAG: &str = "worktreeRemove";
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 
-/// What:
-///  The line the command prints on standard error whenever a removed worktree was a btrfs subvolume.
+/// The four lines a destroy leaves,
+///  and the one place that chooses between them,
+///  re-exported where every caller already names them.
 /// Why:
-///  The subvolume leaves the person's path in one step that cannot be undone,
-/// and its files are deleted by the commit
-///  service after the command returned,
-/// so a person who looks for the files has to be told which of the two happened and
-///  why nothing of theirs was lost:
-/// what went is what another process wrote or locked in the moments since the last check,
-/// which is the same risk
-///  `git worktree remove` takes.
-pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the worktree in one step, and the commit service deletes the files after this command returns, in its own round (a later command of the repository wakes it); this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
+///   The words of a destroy are one subject
+/// (`worktree_remove_notices.rs`),
+/// and the removal's own file reached the repository's length limit with them in it,
+/// so the subject
+///  moved and the names did not.
+pub use crate::worktree_remove_notices::{DESTROY_FORCED_HERE_NOTICE, DESTROY_FORCED_NOTICE, DESTROY_HERE_NOTICE, DESTROY_NOTICE, destroy_notice};
 
-/// What:
-///  The line the command prints on standard error when a removed worktree was a btrfs subvolume and the person forced the removal.
+/// How one attempt to remove a worktree ended,
+///  re-exported where every caller already names it.
 /// Why:
-///   `--force` is the one form that removes a worktree holding changes,
-/// and the destroy cannot be undone,
-/// so the
-///  line has to say that nothing was checked for changes before it,
-///  and the files leave later than the path does,
-/// because the same commit service the unforced line names deletes them after this command returns.
-pub const DESTROY_FORCED_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the forced removal in one step, without checking it for changes first, as `--force` asks, and the commit service deletes the files after this command returns, in its own round (a later command of the repository wakes it); this cannot be undone, and everything the worktree held went with it, which is the set `git worktree remove --force` deletes (the risk of git worktree remove, here faster).";
-
-/// What:
-///  How one attempt to remove a worktree with a subvolume destroy ended.
-/// Why:
-///   Four endings need four different next steps:
-/// Git removes it (nothing changed),
-/// the work is done,
-/// the wrapper refuses
-///  because something beside the worktree would be left behind by a removal,
-/// or the files are gone and the registration
-///  is not,
-/// which only the person can finish and which must never reach Git.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RemoveOutcome = { kind: 'left-to-git' } | { kind: 'removed' } | { kind: 'refused'; report: string } | { kind: 'incomplete'; report: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum RemoveOutcome {
-    /// Nothing was changed;
-    /// real Git removes the worktree or states its refusal.
-    LeftToGit,
-    /// The subvolume and the administrative directory are gone.
-    Removed,
-    /// The worktree and its registration are gone,
-    /// and what someone else put inside it stands where it was,
-    /// with the directories that lead to it.
-    ///
-    /// The report is for standard error and says what is left and what frees the path.
-    RemovedAround(Vec<Boundary>),
-    /// The removal is refused and nothing was changed;
-    /// the report is for standard error and says what stands in the way and how to clear it.
-    Refused(String),
-    /// The subvolume was destroyed but the registration could not be removed;
-    /// the report is for standard error.
-    Incomplete(String),
-}
+///   The four endings are one subject (`worktree_remove_outcome.rs`),
+/// and the removal's own file reached the repository's
+///  length limit with them in it,
+/// so the subject moved and the name did not.
+pub use crate::worktree_remove_outcome::RemoveOutcome;
 
 /// What:
 ///  What one removal is asked to do and in which repository.
@@ -189,6 +148,13 @@ pub trait RemoveOperations {
     /// The proof that the worktree is clean,
     /// or the reason it is not proven.
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String>;
+    /// The proof of the same state that settles by reading a file whatever its stat data cannot vouch for,
+    /// or the reason it is not proven;
+    /// a stand-in proves nothing by content,
+    /// so a state it refuses stays refused.
+    fn check_clean_by_content(&self, _request: &RemoveRequest<'_>, _admin: &Path, _common_dir: &Path) -> Result<(), String> {
+        return Err(String::from("this stand-in proves no file by content, so the state stays unproven"));
+    }
     /// Destroy the subvolume that `held` holds,
     /// and nothing else.
     fn destroy(&self, held: &Held) -> Result<(), String>;
@@ -237,6 +203,13 @@ impl RemoveOperations for LinuxOperations {
 
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
         return match check_clean(request.context, request.plan.target.as_path(), admin, common_dir) {
+            Ok(_proof) => Ok(()),
+            Err(refusal) => Err(refusal.reason),
+        };
+    }
+
+    fn check_clean_by_content(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
+        return match check_clean_by_content(request.context, request.plan.target.as_path(), admin, common_dir) {
             Ok(_proof) => Ok(()),
             Err(refusal) => Err(refusal.reason),
         };
@@ -425,7 +398,17 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
             return RemoveOutcome::LeftToGit;
         }
-        return crate::worktree_remove_around::refusal_beside_a_volume(request, target, &registration, foreign.as_slice(), continuation, reason.as_str());
+        // The state a worktree is in the moment it was added makes the stat fields of its entries prove nothing, by Git's own
+        // racy rule (a whole-second modification time that is not older than the index's), and the proof then refuses a tree
+        // Git itself finds unchanged. Git settles such an entry by comparing it with the commit, and so does this program's own
+        // proof that reads the files: the state is proven the same way this repository proves a conversion's tree, and no
+        // worktree is removed on a cleanliness that was never proven.
+        match operations.check_clean_by_content(request, registration.admin.as_path(), request.common_dir) {
+            Ok(()) => debug(TAG, format!("the stat fields of {} proved nothing and its files are the ones the index names; the proof holds by content", target.display()).as_str()),
+            Err(by_content) => {
+                return crate::worktree_remove_around::refusal_beside_a_volume(request, target, &registration, foreign.as_slice(), continuation, by_content.as_str());
+            }
+        }
     }
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
@@ -550,6 +533,11 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // record, which is what the next command finishes.
     if outcome == RemoveOutcome::Removed {
         forget_destroy(request.common_dir, registration.id.as_os_str());
+        // The files went in this command, not in a later round of the commit service, so the ending says which of the two
+        // happened: the hand-over's line promises a delete on this path that nobody will make.
+        if marked {
+            return RemoveOutcome::DestroyedInPlace;
+        }
     }
     return outcome;
 }

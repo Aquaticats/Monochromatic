@@ -31,6 +31,9 @@ pub(crate) enum WhyWithdrawn {
     Interrupted {
         /// The signal the person sent.
         signal: i32,
+        /// The process that sent it,
+        /// where the kernel named one.
+        sender: Option<i32>,
     },
     /// Every send of the request met a service that said nothing, and the request is given up so that the person is told
     ///  what became of it instead of a silence.
@@ -51,7 +54,7 @@ impl WhyWithdrawn {
     pub(crate) fn it_will_not_land(&self, blocker: Option<String>) -> ClientFailure {
         return match self {
             Self::Ceiling { minutes } => ClientFailure::StillWithService { minutes: *minutes, blocker },
-            Self::Interrupted { signal } => ClientFailure::Interrupted { signal: *signal, blocker },
+            Self::Interrupted { signal, sender } => ClientFailure::Interrupted { signal: *signal, sender: *sender, blocker },
             Self::ServiceGone => ClientFailure::ServiceGoneNotLanded { blocker },
         };
     }
@@ -70,7 +73,7 @@ impl WhyWithdrawn {
     pub(crate) fn not_known(&self, blocker: Option<String>) -> ClientFailure {
         return match self {
             Self::Ceiling { .. } => ClientFailure::WithdrawalUnconfirmed { blocker },
-            Self::Interrupted { signal } => ClientFailure::InterruptedNotKnown { signal: *signal, blocker },
+            Self::Interrupted { signal, sender } => ClientFailure::InterruptedNotKnown { signal: *signal, sender: *sender, blocker },
             Self::ServiceGone => ClientFailure::ServiceGoneUnconfirmed { blocker },
         };
     }
