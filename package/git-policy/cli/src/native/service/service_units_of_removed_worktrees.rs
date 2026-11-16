@@ -596,6 +596,19 @@ fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
 /// ```ts
 /// if (readNote(note)?.pid !== process.pid) return; unlink(socket); unlink(note)
 /// ```
+/// What:
+///  Removes the socket file of one instance this process serves,
+///  and keeps its note until this process has ended.
+/// Why:
+///   The note is the one fact a sweep can read to know a service is still a writer:
+///   it names this process, and a process cannot remove its own note after it can no longer write.
+///   Removing the note here, while the serving function had not returned and its after-commit task could still write a
+///   watch, a retry plan or a record, made the sweep read the instance as stopped and delete its journal under it
+///   (the review of `567ae37198`, finding 1; and the sixth review of issue 6293, finding 2, which answered it there).
+///   The address stops answering, which is what a service of a gone worktree owes;
+///   the note goes with this process's own end (`service_server_files_of_a_running_instance.rs`, by identity),
+///   and a killed service's note outlives it and names no process, which is one fact `service_is_gone_after_a_stop.rs`
+///   reads beside the address.
 fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
     use crate::service_server_pid_note_of_an_instance::{is_still_the_process, read as read_note};
     let directory: PathBuf = folders.runtime_dir.join(SOCKET_DIRECTORY);
@@ -605,7 +618,6 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
         return;
     }
     let _removed = std::fs::remove_file(socket_path(folders.runtime_dir, instance));
-    remove_pid_note(note.as_path());
 }
 
 /// What:
