@@ -175,6 +175,35 @@ pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<Service
 }
 
 /// What:
+///  How much of what this end sent the other end has not taken out of the connection,
+/// or nothing where the system cannot be asked.
+/// Why:
+///   A service that read a line has taken its bytes out of the connection,
+/// and one that read nothing of it leaves them queued:
+/// the kernel charges the sender for what the peer has not consumed,
+/// so an empty queue is the evidence that the whole line reached the service's process.
+///  That is what tells a service that read the line and closed nothing from a service that stopped reading,
+///  which the close alone cannot do
+/// (`service_client.rs`,
+/// `wake`;
+/// measured on this host,
+/// 2026-11-13:
+/// a line of 95 bytes queued 768 bytes while nothing read it,
+/// and 0 once the other end read it).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notTaken = (stream) => ioctl(stream.fd, TIOCOUTQ) // { queued } | undefined
+/// ```
+pub(crate) fn bytes_not_taken(stream: &UnixStream) -> Option<libc::c_int> {
+    let mut queued: libc::c_int = 0;
+    // SAFETY: `TIOCOUTQ` reads the number of bytes the peer has not consumed and writes that one `int` through the pointer
+    //  it is given, which is `queued`.
+    let asked: libc::c_int = unsafe { libc::ioctl(stream.as_raw_fd(), libc::TIOCOUTQ, &raw mut queued) };
+    return if asked == 0 { Some(queued) } else { None };
+}
+
+/// What:
 ///  Reads one line from the service and says whether it was a message,
 /// a close,
 /// or silence,

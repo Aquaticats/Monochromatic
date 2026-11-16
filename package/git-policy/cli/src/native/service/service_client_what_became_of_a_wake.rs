@@ -39,7 +39,7 @@ use crate::service_protocol::FailureCode;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // 'taken' | { refused: FailureCode } | 'nothing-taken' | 'part-taken' | 'unwitnessed'
+/// // 'taken' | { refused: FailureCode } | 'nothing-taken' | 'part-taken' | 'buffered'
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Woken {
@@ -57,10 +57,11 @@ pub enum Woken {
     NothingTaken,
     /// The service took part of the line, and the whole of it did not go in within the ceiling of a write.
     PartTaken,
-    /// Every byte of the line went into the connection, and the service closed nothing within the time this command
-    /// waits for a service's silence:
-    /// nothing witnessed it read the line.
-    Unwitnessed,
+    /// Every byte of the line went into the connection,
+    ///  the service closed nothing within the time this command waits for a service's silence,
+    ///  and the connection still holds bytes of the line:
+    /// the service has not read it.
+    Buffered,
 }
 
 impl Woken {
@@ -99,9 +100,7 @@ impl Woken {
             Self::Refused { code } => format!("the commit service read the wake and refused it ({})", refusal_words(*code)),
             Self::NothingTaken => String::from("the commit service took no byte of the wake, so it has stopped reading what is sent to it"),
             Self::PartTaken => String::from("the commit service took part of the wake and not the whole of it within the time a write is given"),
-            Self::Unwitnessed => String::from(
-                "the commit service did not close the connection after the wake, so nothing witnessed it read the line and no one may say it holds the record",
-            ),
+            Self::Buffered => String::from("the wake stands in the connection unread, so the commit service has not read the line that names the record"),
         };
     }
 }

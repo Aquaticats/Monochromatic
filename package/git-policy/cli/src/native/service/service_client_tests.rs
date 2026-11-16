@@ -437,6 +437,16 @@ fn a_service_that_reads_nothing(name: &str, after: AfterGreeting) -> std::thread
                 // Not one byte of the line is read, and the connection is left open: what a service that stopped reading
                 //  leaves a wake to find.
                 AfterGreeting::Nothing => std::thread::sleep(STAND_IN_PATIENCE),
+                // The whole line is read and the connection kept open and busy, which is a service that has the line and
+                //  breaks the protocol by never closing.
+                AfterGreeting::ReadingTheLineAndTalking => {
+                    use std::io::BufRead;
+                    let mut line: String = String::new();
+                    std::io::BufReader::new(&stream).read_line(&mut line).expect("the client sends its line");
+                    for _ in 0..STAND_IN_PATIENCE.as_secs() {
+                        std::thread::sleep(Duration::from_millis(500));
+                    }
+                }
                 // The whole line is read and the connection closed without a word, which is what a service does once it has
                 //  taken a work line.
                 AfterGreeting::ReadingTheLine => {
@@ -477,6 +487,8 @@ enum AfterGreeting {
     Nothing,
     /// Reads the client's one line and closes the connection silently.
     ReadingTheLine,
+    /// Reads the client's one line and holds the connection open, sending nothing and closing nothing.
+    ReadingTheLineAndTalking,
     /// Drains everything the connection holds every pause, and never finishes the line.
     Draining,
     /// Reads the client's one line and answers it with a refusal.
@@ -506,9 +518,31 @@ fn a_wake_the_service_read_nothing_of_is_no_answer_that_it_holds_the_record() {
     let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), std::path::Path::new("/nowhere/.git"), None, &mut std::io::sink());
     let took: Duration = began.elapsed();
     drop(serving);
-    assert_eq!(woken, Ok(Woken::Unwitnessed), "the service greeted and closed nothing, so nothing witnessed it read the line");
+    assert_eq!(woken, Ok(Woken::Buffered), "the whole line went in and the connection still holds it, so the service never read it");
     assert!(took >= Duration::from_millis(200), "the answer came once the close bound passed, not before ({took:?})");
     assert!(took < Duration::from_secs(2), "and within the bound a wake has ({took:?})");
+}
+
+/// What:
+///  A service that read the line and then keeps talking without closing is work it holds,
+///  because the connection holds none of the line any more.
+/// Why:
+///   The control of the control above:
+///  a service that never closes is told from one that never read by the bytes it took out of the connection,
+///  and a wake reported as unread there would take work out of a service that has it.
+///  The whole hand-over this answers for returns at its own bound whatever the service keeps sending
+///  (`worktree_trash_hand_over_tests.rs`,
+///  `a_service_that_keeps_talking_does_not_hold_the_hand_over`).
+#[test]
+fn a_wake_the_service_read_and_closed_nothing_of_is_work_it_holds() {
+    let name: String = an_address("wake-read-chatty");
+    let serving = a_service_that_reads_nothing(name.as_str(), AfterGreeting::ReadingTheLineAndTalking);
+    let began: Instant = Instant::now();
+    let woken: Result<Woken, ClientFailure> = wake(&reach_settings(name.as_str()), std::path::Path::new("/nowhere/.git"), None, &mut std::io::sink());
+    let took: Duration = began.elapsed();
+    drop(serving);
+    assert_eq!(woken, Ok(Woken::Taken), "the service took every byte of the line out of the connection, so it holds the record");
+    assert!(took >= Duration::from_millis(200), "the bound still ends the wait for a close that never comes ({took:?})");
 }
 
 /// What:

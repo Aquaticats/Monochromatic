@@ -581,8 +581,14 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     loop {
         let left: Duration = closed_by.saturating_duration_since(Instant::now());
         if left.is_zero() {
-            debug(TAG, format!("the service did not close the connection within {:?} of the line being written", config.heartbeat_silence).as_str());
-            return Ok(Woken::Unwitnessed);
+            // What: The close did not come, so whether the service read the line is asked of the connection itself.
+            // Why:  A service that read a work line takes its bytes out of the connection and closes it; one that stopped
+            //       reading leaves them queued, and the two look the same from this end until the kernel is asked
+            //       (`bytes_not_taken`). A service that kept talking without closing has read the line, and reporting it as
+            //       one that did not would take the work out of its hands and put it in the command's.
+            let queued: Option<libc::c_int> = crate::service_client_listen_and_ask_to_retire::bytes_not_taken(reader.get_ref());
+            debug(TAG, format!("the service did not close the connection within {:?} of the line being written; the connection holds {queued:?} bytes of it", config.heartbeat_silence).as_str());
+            return Ok(if queued == Some(0) { Woken::Taken } else { Woken::Buffered });
         }
         // No read waits past the bound, whatever the service sends.
         let _timeout = reader.get_ref().set_read_timeout(Some(left));

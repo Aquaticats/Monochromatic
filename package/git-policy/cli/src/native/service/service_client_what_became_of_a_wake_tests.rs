@@ -17,7 +17,7 @@ fn only_the_service_reading_the_line_is_work_it_holds() {
     for (woken, what) in [
         (Woken::NothingTaken, "no byte of the wake"),
         (Woken::PartTaken, "part of the wake"),
-        (Woken::Unwitnessed, "did not close the connection"),
+        (Woken::Buffered, "stands in the connection unread"),
         (Woken::Refused { code: FailureCode::Rejected }, "refused it"),
     ] {
         assert!(!woken.holds_the_work(), "{woken:?} is no answer that the service holds the record");
