@@ -13,8 +13,10 @@
 //! and with the shipped ceilings it outlasts the five seconds of silence a client allows
 //! (`doc/planning/git-policy-cli-full-tokio.md`, a blocking call runs on the blocking pool and never on a worker).
 //!  The door is this service's own spelling of that:
-//! the job goes to the pool through `run_a_job_once_awaited_no_longer_than`,
-//! which waits for it with the runtime's timer and gives its place of the budget back when it ends,
+//! the job goes to the pool through `run_a_slow_job_once_awaited_no_longer_than`,
+//! which takes one of the places kept for slow work, awaits the job with the runtime's timer, and gives the place back
+//! when it ends,
+//! so a job that does not return takes neither a worker nor the place the steps that answer a client need,
 //!  and a job that gives no answer within its ceiling is left behind with one line in the journal.
 //!  Every caller says what the step is and what the service does at the ceiling,
 //! because "nothing should ever wait forever" asks for the answer as well as the bound
@@ -27,7 +29,7 @@
 //! const answer = await offTheWorkers({ what: 'the read of the plan', ceiling, work: () => readThePlan() }); // answer ?? nothing
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_once_awaited_no_longer_than};
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_slow_job_once_awaited_no_longer_than};
 use std::time::Duration;
 
 /// What a name of a step of the service reads like,
@@ -60,7 +62,7 @@ where
     T: Send + 'static,
     Work: FnOnce() -> T + Send + 'static,
 {
-    let answer: TheAnswerOfAJobAwaited<T> = run_a_job_once_awaited_no_longer_than(step.ceiling, work).await;
+    let answer: TheAnswerOfAJobAwaited<T> = run_a_slow_job_once_awaited_no_longer_than(step.ceiling, work).await;
     return match answer {
         TheAnswerOfAJobAwaited::Ran(value) => Some(value),
         TheAnswerOfAJobAwaited::NotRun => {

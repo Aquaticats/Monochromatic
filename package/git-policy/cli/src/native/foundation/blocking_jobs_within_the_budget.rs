@@ -344,6 +344,34 @@ where
 }
 
 /// What:
+///  Run `job` with a place for slow work held and await it no longer than `ceiling`.
+/// Why:
+///   Work of the after-commit loop touches files and nobody waits for it,
+/// and a job that does not return must neither hold the workers nor take the place the steps that answer a client need
+/// (`places_a_round_may_take`):
+///  the slow places are those steps' reserve,
+/// and the ceiling is the caller's own bound on its wait.
+///  A place that does not come within the ceiling, or a job that gives no answer in it, is `NotRun`/`NoAnswer`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runASlowJobOnceAwaitedNoLongerThan(ceiling, job);
+/// ```
+pub async fn run_a_slow_job_once_awaited_no_longer_than<T, J>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
+    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(slow_places()).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
+        Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
+    };
+    let answer: TheAnswerOfAJobAwaited<T> = run_a_job_once_awaited_no_longer_than(ceiling, job).await;
+    drop(slow);
+    return answer;
+}
+
+/// What:
 ///  Run `work(state)` as a job of the blocking pool with a place for slow work held,
 /// or run it in turn here where the system refused a thread.
 /// Why:

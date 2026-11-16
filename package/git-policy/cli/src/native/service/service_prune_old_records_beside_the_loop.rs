@@ -75,7 +75,11 @@ pub fn prune_old_records_where_the_loop_stands(journal: PathBuf, board: Arc<Land
 /// on a job of the blocking pool,
 /// with a line when it could not run.
 async fn prune(journal: PathBuf, board: Arc<LandingBoard>) {
-    let removal = crate::blocking_job::run_blocking_job(move || { return prune_old_records_where_the_loop_stands(journal, board); }).await;
+    // What: The removal takes a place kept for slow work, never the place a step that answers a client needs.
+    // Why:  The record this service holds in its journal is a job of the pool, and a job that does not return must not
+    //       leave the landing's own storage steps without a place
+    //       (`blocking_jobs_within_the_budget.rs`, `places_a_round_may_take`).
+    let removal = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || { return prune_old_records_where_the_loop_stands(journal, board); }).await;
     if let Err(error) = removal {
         crate::service_warn!("the records of old finished batches could not be removed: {error}");
     }
