@@ -423,6 +423,13 @@ mod catalog_specifiers;
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
+/// A stage claim whose owner's process entry the platform will not report on:
+/// `git worktree add` makes its worktree and exits 0,
+/// the claim stays,
+/// and past the patience the words name it and the stage it leaves behind.
+#[path = "binary_stage_claim_unreadable_process_tests.rs"]
+mod stage_claim_unreadable_process;
+
 /// What a record of an interrupted copy does to the next command when a crash left it empty or cut short:
 /// it is moved aside,
 /// and the command runs.
