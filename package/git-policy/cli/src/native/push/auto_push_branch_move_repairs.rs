@@ -33,7 +33,7 @@
 //! The questions below are asked of the checkout, in this order.
 
 use crate::auto_push_branch_move_record::{
-    BRANCH_MOVE_SCHEMA_VERSION, list_branch_moves, parse_branch_move,
+    BRANCH_MOVE_SCHEMA_VERSION, BranchMove, list_branch_moves, parse_branch_move,
 };
 use crate::auto_push_reconcile_basics_and_limits::argv;
 use crate::json_record::{ObjectWriter, parse_object, safe_integer_field, string_field};
@@ -175,30 +175,85 @@ pub fn the_repair_owner(git_dir: &Path, owner: &TransactionOwner) -> Option<ARep
 pub fn the_repair_owner_after_its_owner_died(
     git_dir: &Path,
     owner: &TransactionOwner,
-    dead: &Path,
+    dead_path: &Path,
     the_dead_owner: &TransactionOwner,
 ) -> Option<ARepairInHand> {
-    let aside: PathBuf = dead.with_extension(format!("taken-{}", owner.transaction_id));
-    // The rename is the compare: exactly one taker of this dead record can move it.
-    std::fs::rename(dead, aside.as_path()).ok()?;
-    // What: the record that was moved aside must be the very dead one this command judged.
-    // Why: another command may have moved the dead record out and put its own live one in the place this
-    // command read a moment ago; taking that one away would give two commands the same place
-    //  (a review of commit `777c491325`, its finding 2).
-    let moved: Option<TransactionOwner> = the_owner_named_by(aside.as_path());
-    if !moved.is_some_and(|found| return found.transaction_id == the_dead_owner.transaction_id) {
-        // A live owner's record was in that place when this command renamed it: it goes back and nothing is taken.
-        let _restored: std::io::Result<()> = std::fs::rename(aside.as_path(), dead);
-        return None;
+    // What: a claim made only once, under a name made from the dead owner's own identity.
+    // Why:  the claim is the whole of the mutual exclusion for taking this dead record: only the command that
+    // created it may remove the dead record, and no live record can appear at that path while the dead one
+    // stands there, because creating a record there is exclusive. So the removal below never takes a live
+    // record, and nothing is moved aside and put back
+    //  (a review of commit `7aef6368e7`, its finding 4).
+    let claim: PathBuf = dead_path.with_extension(format!("claim-{}", the_dead_owner.transaction_id));
+    match claim_the_take(claim.as_path(), owner) {
+        Ok(()) => {}
+        Err(ClaimRefused::TakenByAnother) => {
+            // A claimant that is gone leaves its claim; the next command clears that one and tries once more.
+            let claimant: Option<TransactionOwner> = the_owner_named_by(claim.as_path());
+            match claimant.as_ref().map(|named| return crate::transaction_owner::classify_transaction_owner_record(named, claim.as_path())) {
+                Some(Ok(crate::transaction_owner::OwnerLiveness::Dead)) => {
+                    let _cleared: std::io::Result<()> = std::fs::remove_file(claim.as_path());
+                    claim_the_take(claim.as_path(), owner).ok()?;
+                }
+                // A live claimant, one that cannot be judged, or one that cannot be read: nothing is taken.
+                _ => return None,
+            }
+        }
+        Err(ClaimRefused::CannotWrite(error)) => {
+            let _why = error;
+            return None;
+        }
     }
-    let taken: Option<ARepairInHand> = the_repair_owner(git_dir, owner);
-    if taken.is_none() {
-        // The place was taken by another command in the instant since; the dead record goes back where it was.
-        let _restored: std::io::Result<()> = std::fs::rename(aside.as_path(), dead);
-        return None;
-    }
-    let _removed: std::io::Result<()> = std::fs::remove_file(aside.as_path());
+    // What: the dead record goes only while this command holds the claim, and only if it is still the dead one.
+    // Why:  no live record can stand here while the dead one does, so the content check is the second witness and
+    // not the only one.
+    let still_the_dead_one: bool = the_owner_named_by(dead_path)
+        .is_some_and(|found| return found.transaction_id == the_dead_owner.transaction_id);
+    let taken: Option<ARepairInHand> = if still_the_dead_one {
+        let _removed: std::io::Result<()> = std::fs::remove_file(dead_path);
+        the_repair_owner(git_dir, owner)
+    } else {
+        None
+    };
+    let _released: std::io::Result<()> = std::fs::remove_file(claim.as_path());
     return taken;
+}
+
+/// Why a claim on one dead repair record was not made.
+enum ClaimRefused {
+    /// Another command holds the claim.
+    TakenByAnother,
+    /// The claim could not be written at all.
+    CannotWrite(std::io::Error),
+}
+
+/// What:
+///  Claim the right to take one dead repair owner's record,
+/// in a step exactly one command can win.
+/// Why:
+///   The claim is one file created exclusively, whose name is the dead owner's own transaction id, so the
+/// command that creates it is the only one that may remove that dead record.
+///  It never touches the repair place itself, so a live record there is never moved or replaced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeExclusiveSynced(claim, encode(owner)) // exactly one of two commands succeeds
+/// ```
+fn claim_the_take(claim: &Path, owner: &TransactionOwner) -> Result<(), ClaimRefused> {
+    let mut writer: ObjectWriter = ObjectWriter::new();
+    writer
+        .integer("schemaVersion", BRANCH_MOVE_SCHEMA_VERSION)
+        .string("state", "repair-claim")
+        .string("transactionId", owner.transaction_id.as_str())
+        .integer("ownerPid", owner.owner_pid)
+        .string("ownerIdentity", owner.owner_identity.as_str())
+        .string("createdAt", owner.created_at.as_str());
+    let text: String = format!("{}\n", writer.finish());
+    return match write_exclusive_synced(claim, text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(ClaimRefused::TakenByAnother),
+        Err(error) => Err(ClaimRefused::CannotWrite(error)),
+    };
 }
 
 /// What:
@@ -251,11 +306,14 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
     // Why: a record of another branch is another worktree's to finish, and reading one file is what that
     //      costs: no Git is started for the ordinary case of a repository with a record it does not own
     //      (a review of commit `4ca7aebcdb`, its finding 4).
-    let Some(git_dir) = the_git_directory_of(git) else {
-        return Ok(Settled::Yes);
+    let git_dir: PathBuf = match the_git_directory_of(git) {
+        Ok(Some(directory)) => directory,
+        Ok(None) => return Ok(Settled::Yes),
+        Err(why) => return Ok(Settled::Unknown { why }),
     };
-    let Some(shown) = the_branch_this_worktree_shows(git_dir.as_path()) else {
-        return Ok(Settled::Yes);
+    let shown: Option<String> = match the_branch_this_worktree_shows(git_dir.as_path()) {
+        Ok(branch) => branch,
+        Err(why) => return Ok(Settled::Unknown { why }),
     };
     let mut settled: Settled = Settled::Yes;
     for record in records {
@@ -270,10 +328,6 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                 record.display()
             ));
         };
-        if movement.target_ref != shown {
-            // Another worktree shows this branch, and only that worktree's own commands write its checkout.
-            continue;
-        }
         let asked = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{}^{{commit}}", movement.target_ref).as_str()])).await;
         let tip: String = match asked {
             Ok(printed) if printed.code == Some(0) => String::from_utf8_lossy(&printed.stdout).trim().to_owned(),
@@ -295,6 +349,23 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                 .finish(crate::auto_push_branch_move_record::AFinishedRecord::NeverMoved);
             continue;
         }
+        // What: whether this worktree is one the record is about, asked now that the move is known to have
+        // happened.
+        // Why:  the record is a record of the index and files of whichever worktree took the moved branch, and a
+        // worktree's HEAD can change between any two of this command's questions: keying the question to the
+        // branch HEAD names left a switch away from the branch with a reversal nothing repaired
+        //  (a review of commit `7aef6368e7`, its findings 1 and 3).
+        let ours: bool = match this_worktree_holds_what_the_move_wrote(git, &movement).await {
+            Ok(holds) => holds,
+            Err(why) => {
+                debug_line(out, &format!("this worktree's files could not be read ({why}), so the record {} is left", record.display()));
+                settled = Settled::Unknown { why };
+                continue;
+            }
+        };
+        if !ours {
+            continue;
+        }
         // What: one repair of this checkout at a time, taken by one exclusively created record.
         // Why: two repairs at once put two writes on one index, and the second would fail on Git's own lock,
         //      which a command about to commit must not do
@@ -306,18 +377,21 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
         let brought: crate::auto_push_reconcile_branch_checkout::Brought =
             crate::auto_push_reconcile_branch_checkout::bring_the_checkout_to_its_branch_awaiting(
                 git,
-                movement.target_ref.as_str(),
                 movement.old_oid.as_str(),
-                tip.as_str(),
+                movement.new_oid.as_str(),
             )
             .await;
         match brought {
             crate::auto_push_reconcile_branch_checkout::Brought::NoOldTip { a_persons } => {
-                // What: the repair answered that no path of the move holds what the branch moved from, and that
-                // is the proof the record ends on.
-                // Why: the person's own changes, if any, are theirs to commit, which is the rule the gate keeps too
-                //      (a review of commit `777c491325`, its findings 3 to 5).
+                // What: the repair answered that no path of the move holds what the branch moved from; the record
+                // ends on that proof only in the worktree that shows the moved branch, which is the one that took it.
+                // Why:  a worktree that shows another branch was repaired for that branch's sake, and its answer
+                // says nothing about the worktree the move is for
+                //  (a review of commit `777c491325`, its findings 3 to 5, and commit `7aef6368e7`, its finding 3).
                 repair.finish();
+                if shown.as_deref() != Some(movement.target_ref.as_str()) {
+                    continue;
+                }
                 crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement.clone())
                     .finish(crate::auto_push_branch_move_record::AFinishedRecord::TheCheckoutHoldsTheTip(
                         crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip::from_the_checkout(
@@ -364,6 +438,48 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
 }
 
 /// What:
+///  Whether this worktree is one a record is about:
+/// does its index or its files hold an entry the move wrote there, on a path where that entry differs from the
+/// one this worktree's HEAD names now.
+/// Why:
+///   A record is a record of the index and files of whichever worktree took the moved branch, and not of a
+/// branch name in a worktree.
+///  Asking it of HEAD's tree is what keeps a worktree that legitimately stands at the moved-from tip (its own
+/// branch is there) out of it: nothing of the move is left on a path its HEAD does not already hold.
+///  A read that failed is an error and never "this worktree is not ours", because the answer lets a command go
+/// on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const end of [old, new]) for (const path of diff(end, HEAD)) if (indexHolds(end, path) || fileHolds(end, path)) return true
+/// ```
+async fn this_worktree_holds_what_the_move_wrote(git: &PushGit, movement: &BranchMove) -> Result<bool, String> {
+    let target: String = crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git)
+        .await
+        .map_err(|error| format!("this worktree's HEAD could not be read: {error}"))?;
+    for end in [movement.old_oid.as_str(), movement.new_oid.as_str()] {
+        let paths: Vec<Vec<u8>> = crate::auto_push_reconcile_branch_checkout::the_moves_paths_awaiting(git, end, target.as_str())
+            .await
+            .map_err(|error| format!("the paths of the move could not be read: {error}"))?;
+        if paths.is_empty() {
+            continue;
+        }
+        let in_the_index: Vec<Vec<u8>> =
+            crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, end, paths.as_slice())
+                .await
+                .map_err(|error| format!("this worktree's index could not be read: {error}"))?;
+        let in_the_file: Vec<Vec<u8>> =
+            crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, end, paths.as_slice())
+                .await
+                .map_err(|error| format!("this worktree's files could not be read: {error}"))?;
+        if !in_the_index.is_empty() || !in_the_file.is_empty() {
+            return Ok(true);
+        }
+    }
+    return Ok(false);
+}
+
+/// What:
 ///  This worktree's own Git directory,
 /// read from the `.git` entry at its root.
 /// Why:
@@ -375,17 +491,26 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
 /// ```ts
 /// const entry = join(cwd, '.git'); const meta = statSync(entry); if (meta.isDirectory()) return entry; const named = readFileSync(entry,'utf8').trim().slice('gitdir: '.length); return resolve(cwd, named);
 /// ```
-fn the_git_directory_of(git: &PushGit) -> Option<PathBuf> {
+fn the_git_directory_of(git: &PushGit) -> Result<Option<PathBuf>, String> {
     let entry: PathBuf = git.cwd.join(".git");
     match std::fs::metadata(entry.as_path()) {
-        Ok(meta) if meta.is_dir() => return Some(entry),
+        Ok(meta) if meta.is_dir() => return Ok(Some(entry)),
         Ok(_) => {}
-        Err(_) => return None,
+        // What: a `.git` that cannot be read is a read that failed, and never "this is no repository".
+        // Why: the sweep's answer lets a command go on, so a state that could not be read must not be taken for a
+        // state that needs nothing
+        //  (a review of commit `7aef6368e7`, its finding 2).
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            return Err(format!("this worktree's .git could not be read: {error}"));
+        }
+        Err(_) => return Ok(None),
     }
-    let text: String = std::fs::read_to_string(entry.as_path()).ok()?;
-    let named: &str = text.trim().strip_prefix("gitdir: ")?;
+    let text: String = std::fs::read_to_string(entry.as_path()).map_err(|error| format!("this worktree's .git could not be read: {error}"))?;
+    let Some(named) = text.trim().strip_prefix("gitdir: ") else {
+        return Err(format!("this worktree's .git does not name a Git directory: {}", entry.display()));
+    };
     let directory: PathBuf = PathBuf::from(named);
-    return if directory.is_absolute() { Some(directory) } else { Some(git.cwd.join(directory)) };
+    return Ok(Some(if directory.is_absolute() { directory } else { git.cwd.join(directory) }));
 }
 
 /// What:
@@ -400,10 +525,14 @@ fn the_git_directory_of(git: &PushGit) -> Option<PathBuf> {
 /// ```ts
 /// const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim(); return head.startsWith('ref: ') ? head.slice(5) : undefined;
 /// ```
-fn the_branch_this_worktree_shows(git_dir: &Path) -> Option<String> {
-    let head: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
-    let named: &str = head.trim().strip_prefix("ref: ")?;
-    return if named.starts_with("refs/heads/") { Some(String::from(named)) } else { None };
+fn the_branch_this_worktree_shows(git_dir: &Path) -> Result<Option<String>, String> {
+    let path: PathBuf = git_dir.join("HEAD");
+    let head: String = std::fs::read_to_string(path.as_path()).map_err(|error| format!("{} could not be read: {error}", path.display()))?;
+    let Some(named) = head.trim().strip_prefix("ref: ") else {
+        // A detached HEAD names no branch, which is an answer.
+        return Ok(None);
+    };
+    return Ok(if named.starts_with("refs/heads/") { Some(String::from(named)) } else { None });
 }
 
 /// What:

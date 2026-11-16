@@ -34,14 +34,10 @@ use crate::auto_push_dirty_paths::diff_paths;
 use crate::auto_push_reconcile_basics_and_limits::argv;
 /// The questions about a checkout's files: what the branch lacks, what holds the merge's bytes, where
 /// the checkout disagrees with its branch, and which paths still hold the old tip's.
-use crate::auto_push_reconcile_branch_checkout_files::{
-    the_paths_still_holding_the_old_tip_awaiting, the_paths_the_checkout_disagrees_with_its_branch_awaiting,
-    the_paths_whose_index_holds_awaiting,
-};
+use crate::auto_push_reconcile_branch_checkout_files::the_paths_the_checkout_disagrees_with_its_branch_awaiting;
 /// The branch a checkout shows,
 /// asked in one place for both the repair and the report.
 pub(crate) use crate::auto_push_reconcile_branch_checkout_files::shows_awaiting;
-use std::ffi::OsString;
 
 /// What:
 ///  What became of the checkout a move wrote.
@@ -91,7 +87,7 @@ pub(crate) enum Checkout {
 /// ```ts
 /// const paths = diffPaths((await git(['diff','--name-only','-z','--no-renames',local,merge])).stdout);
 /// ```
-async fn the_moves_paths_awaiting(
+pub(crate) async fn the_moves_paths_awaiting(
     git: &PushGit,
     local: &str,
     merge_oid: &str,
@@ -104,44 +100,6 @@ async fn the_moves_paths_awaiting(
     if listed.code != Some(0) {
         return Err(SingleFlightError::Git {
             arguments: format!("diff --name-only -z --no-renames {local} {merge_oid}"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    return Ok(diff_paths(&listed.stdout));
-}
-
-/// What:
-///  Run `git diff-index --cached --name-only -z --no-renames HEAD -- <paths>`
-/// and answer the paths the index holds unlike the tree of the branch the checkout shows.
-/// Why:
-///   These are exactly the paths where the checkout disagrees with its own branch,
-/// restricted to the ones this move wrote:
-///  the carried difference of a switch,
-/// or the merge's content on a checkout that is still on the pushed branch.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const staged = diffPaths((await git(['diff-index','--cached','--name-only','-z','--no-renames','HEAD','--',...paths])).stdout);
-/// ```
-async fn the_paths_held_unlike_the_branch_awaiting(
-    git: &PushGit,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let mut arguments: Vec<OsString> = argv(&[
-        "diff-index",
-        "--cached",
-        "--name-only",
-        "-z",
-        "--no-renames",
-        "HEAD",
-        "--",
-    ]);
-    arguments.extend(paths.iter().map(|path| return crate::path_bytes::os_from_path_bytes(path.as_slice())));
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: String::from("diff-index --cached --name-only -z --no-renames HEAD"),
             code: listed.code,
             stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
         });
@@ -208,13 +166,8 @@ pub(crate) enum Brought {
 /// ```ts
 /// async function bringTheCheckoutToItsBranch({ git, branchRef, local, mergeOid }): Promise<Brought>;
 /// ```
-pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    old_oid: &str,
-    tip_oid: &str,
-) -> Brought {
-    return match the_checkout_brought_awaiting(git, branch_ref, old_oid, tip_oid).await {
+pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(git: &PushGit, old_oid: &str, tip_oid: &str) -> Brought {
+    return match the_checkout_brought_awaiting(git, old_oid, tip_oid).await {
         Ok(brought) => brought,
         // A read or a write that failed is not an answer, so nothing follows from it and a record stays.
         Err(error) => Brought::CouldNotTell {
@@ -228,83 +181,126 @@ pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
 /// Why:
 ///   The value that says whether a record may end is built only from an answer, never from a failure:
 /// a failure here can be neither `NoOldTip` nor `OldTipLeft`, because neither was observed.
-async fn the_checkout_brought_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    old_oid: &str,
-    tip_oid: &str,
-) -> Result<Brought, SingleFlightError> {
-    let paths: Vec<Vec<u8>> = the_moves_paths_awaiting(git, old_oid, tip_oid).await?;
-    if paths.is_empty() {
-        return Ok(Brought::NoOldTip { a_persons: Vec::new() });
-    }
-    // What: the tree the checkout must hold, and the tree it may still hold, from the branch it shows.
-    // Why:  a checkout on the pushed branch holds the moved-from tree on these paths and needs the tip's;
-    // one a switch took elsewhere holds the tip's carried content and needs that branch's own tree,
-    // which is the moved-from tree
-    //  (a review of commit `b0c133f42b`, its finding).
-    let shows: Option<String> = shows_awaiting(git).await?;
-    // What: whether the checkout shows the branch this record moved, or another one.
-    // Why:  the two ask different questions of it. On the record's branch the moved-from tree is what the
-    // checkout may still hold, and each path of it can be brought forward by itself. On another branch the
-    // merge's carried content is what may stand there, and it is put back whole, never path by path: that
-    // branch's own tree is what it holds, so no path of it is a leftover of this record.
-    let on_its_branch: bool = shows.as_deref() == Some(branch_ref);
-    let (from, to): (&str, &str) = if on_its_branch { (old_oid, tip_oid) } else { (tip_oid, old_oid) };
-    let mut why: String = String::new();
-    #[cfg(test)]
-    play_in_the_window(Window::WhileTheCheckoutIsRepaired);
-    // What: the pair write first, which is one atomic `read-tree` under Git's index lock.
-    // Why: when the index and the files both stand where the move left them, this writes the whole
-    // difference and refuses every path a person has touched.
-    if !the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
-        for _attempt in 0..2 {
-            let written = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", from, to])).await?;
-            if written.code != Some(0) {
-                why = crate::auto_push_reconcile_branch_advance::refusal_of(&written.stderr);
-                break;
-            }
-            crate::inner_git_words::record_streams(&["read-tree", "-u", "-m", from, to], &written.stdout, &written.stderr);
-            if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
-                break;
+///
+/// What the repair is about, in one paragraph: the index and the files of the worktree it runs in, on the
+/// paths where the record's own move wrote something, and nothing else.
+///  A path is the record's leftover when its index entry or its file holds an entry the move itself wrote
+/// there, which is the tip the branch moved from or the merge it moved to;
+/// such a path is written with the entry this worktree's HEAD names **now**, and HEAD is read again at each
+/// attempt, because a `git switch` can land between any two of this command's questions and a cached reading
+/// of HEAD is a reading of another branch's checkout
+///  (a review of commit `7aef6368e7`, its findings 1 and 3).
+///  A path holding anything else is a person's and is left, and the answer says so.
+async fn the_checkout_brought_awaiting(git: &PushGit, old_oid: &str, tip_oid: &str) -> Result<Brought, SingleFlightError> {
+    let mut from: [String; 2] = [old_oid.to_owned(), tip_oid.to_owned()];
+    let mut differing: Vec<Vec<u8>> = Vec::new();
+    for attempt in 0..2 {
+        let target: String = crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git).await?;
+        // What: for each end of the move, the paths where that end differs from the tree this worktree's HEAD names.
+        // Why:  a path where the two agree holds nothing of the move that this checkout needs changed, and asking
+        // the question of each end alone is what keeps the end the checkout is *supposed* to hold out of the answer
+        //  (a review of commit `7aef6368e7`, its findings 1 and 3).
+        let mut mine: Vec<(String, Vec<Vec<u8>>)> = Vec::new();
+        for end in from.iter() {
+            // What: the paths where this end differs from HEAD, kept to the paths the record's own move wrote.
+            // Why:  a path outside them is not this record's to write, and a person's staged entry there can
+            // happen to hold an entry the move also holds; writing it would take their change
+            //  (a review of commit `7aef6368e7`, its findings 1 and 3).
+            let paths: Vec<Vec<u8>> = the_move_paths_awaiting(git, end.as_str(), target.as_str(), old_oid, tip_oid).await?;
+            if !paths.is_empty() {
+                mine.push((end.clone(), paths));
             }
         }
-    }
-    if on_its_branch {
-        // What: what still stands where the branch moved from, in the index and in the files, brought forward
-        // path by path.
-        // Why:  the pair write refuses whole when one path holds a person's edit, and a path that holds none of
-        // theirs can still be brought forward by itself whatever stands on the others
-        //  (a review of commit `777c491325`, its finding 3).
-        let _refused: Vec<String> = bring_the_paths_forward_awaiting(git, from, to, paths.as_slice()).await?;
-        let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, from, paths.as_slice()).await?;
-        let in_the_file: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, from, paths.as_slice()).await?;
+        if mine.is_empty() {
+            return Ok(Brought::NoOldTip { a_persons: Vec::new() });
+        }
+        if attempt == 0 {
+            #[cfg(test)]
+            play_in_the_window(Window::WhileTheCheckoutIsRepaired);
+        }
+        // What: each path that holds an end this move wrote, the entry this worktree's HEAD has now.
+        // Why:  the path-by-path act refuses the path it no longer recognises, so a person's edit made since
+        // the move is never replaced, and a path of the move is brought forward whatever stands on the others
+        //  (a review of commit `777c491325`, its finding 3, and commit `7aef6368e7`, its finding 1).
+        let mut refused: Vec<String> = Vec::new();
         let mut left: Vec<Vec<u8>> = Vec::new();
-        for path in in_the_index.iter().chain(in_the_file.iter()) {
-            if !left.contains(path) {
-                left.push(path.clone());
+        let mut all: Vec<Vec<u8>> = Vec::new();
+        for (end, paths) in mine.iter() {
+            for path in paths {
+                if !all.contains(path) {
+                    all.push(path.clone());
+                }
+            }
+            refused.extend(bring_the_paths_forward_awaiting(git, end.as_str(), target.as_str(), paths.as_slice()).await?);
+            // What: what still holds this end, asked after the write.
+            // Why:  that is the question the gate's and the record's proof is about, and it is asked at the moment
+            // it is answered.
+            let in_the_index: Vec<Vec<u8>> =
+                crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, end.as_str(), paths.as_slice()).await?;
+            let in_the_file: Vec<Vec<u8>> =
+                crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, end.as_str(), paths.as_slice())
+                    .await?;
+            for path in in_the_index.iter().chain(in_the_file.iter()) {
+                if !left.contains(path) {
+                    left.push(path.clone());
+                }
             }
         }
-        if !left.is_empty() {
-            if why.is_empty() {
-                why = String::from("the branch's own files could not be written over what the checkout holds");
-            }
-            return Ok(Brought::OldTipLeft { paths: left, why });
+        differing = the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, all.as_slice()).await?;
+        let why: String = if refused.is_empty() {
+            String::from("the checkout still holds what the branch moved from, and nothing was written over it")
+        } else {
+            format!("the write refused those paths: {}", refused.join("; "))
+        };
+        // What: HEAD is read again after every write, and a branch that changed under it gets one more attempt.
+        // Why:  the write that raced a switch wrote what the branch showed before, and the branch it shows now
+        // needs its own entry: the checkout would be left holding another branch's files, which is what a commit
+        // there would record
+        //  (a review of commit `7aef6368e7`, its finding 1).
+        let shows_again: String = crate::auto_push_reconcile_branch_checkout_files::the_head_commit_awaiting(git).await?;
+        if attempt == 0 && shows_again != target {
+            from = if target == tip_oid {
+                [target, old_oid.to_owned()]
+            } else {
+                [target, tip_oid.to_owned()]
+            };
+            continue;
         }
-    }
-    // What: what still differs from the branch it shows is not what this record moved from, so it is a change
-    // of the person's, or, on another branch, the merge's carried content the pair write could not put back.
-    let differing: Vec<Vec<u8>> = the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths.as_slice()).await?;
-    if !on_its_branch {
-        let left: Vec<Vec<u8>> = the_paths_still_holding_the_old_tip_awaiting(git, tip_oid, differing.as_slice()).await?;
-        if !left.is_empty() {
-            if why.is_empty() {
-                why = String::from("the merge's content is still staged on the branch this checkout shows");
-            }
-            return Ok(Brought::OldTipLeft { paths: left, why });
+        if left.is_empty() {
+            return Ok(Brought::NoOldTip { a_persons: differing });
         }
+        return Ok(Brought::OldTipLeft { paths: left, why });
     }
     return Ok(Brought::NoOldTip { a_persons: differing });
+}
+
+/// What:
+///  The paths of `end` where `end` differs from `target`, kept to the paths where the record's own move wrote
+/// something (`moves_from` against `moves_to`).
+/// Why:
+///   The repair writes only what the record's move can account for: a path outside that move is not this
+/// command's, and a person's change there is never mistaken for a leftover of the move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wrote = await pathsOf(move_from, move_to); return (await pathsOf(end, target)).filter((path) => wrote.includes(path))
+/// ```
+async fn the_move_paths_awaiting(
+    git: &PushGit,
+    end: &str,
+    target: &str,
+    move_from: &str,
+    move_to: &str,
+) -> Result<Vec<Vec<u8>>, SingleFlightError> {
+    let wrote: Vec<Vec<u8>> = the_moves_paths_awaiting(git, move_from, move_to).await?;
+    let differ: Vec<Vec<u8>> = the_moves_paths_awaiting(git, end, target).await?;
+    let mut mine: Vec<Vec<u8>> = Vec::new();
+    for path in differ {
+        if wrote.contains(&path) {
+            mine.push(path);
+        }
+    }
+    return Ok(mine);
 }
 
 /// What:
@@ -321,9 +317,10 @@ async fn bring_the_paths_forward_awaiting(
     to: &str,
     paths: &[Vec<u8>],
 ) -> Result<Vec<String>, SingleFlightError> {
-    let in_the_index: Vec<Vec<u8>> = the_paths_whose_index_holds_awaiting(git, from, paths).await?;
+    let in_the_index: Vec<Vec<u8>> =
+        crate::auto_push_reconcile_branch_checkout_files::the_paths_whose_index_holds_awaiting(git, from, paths).await?;
     let mut in_the_file_only: Vec<Vec<u8>> = Vec::new();
-    for path in &the_paths_still_holding_the_old_tip_awaiting(git, from, paths).await? {
+    for path in &crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, from, paths).await? {
         if !in_the_index.contains(path) {
             in_the_file_only.push(path.clone());
         }
@@ -453,7 +450,7 @@ pub(crate) async fn the_checkout_after_the_move_awaiting(
 ) -> Result<Checkout, SingleFlightError> {
     #[cfg(test)]
     play_in_the_window(Window::AfterTheBranchMoved);
-    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await;
+    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await;
     // What: the branch the checkout shows is read after the repair, never reused from before it.
     // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows, which is a
     //      wrong report although every write stayed content-guarded

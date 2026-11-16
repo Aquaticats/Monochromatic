@@ -3870,14 +3870,14 @@ fn a_record_whose_branch_never_moved_is_removed_by_the_next_command() {
 
 /// What:
 ///  A switch and a reset in the window before the branch moves leave the merge's bytes in the worktree,
-///  and the move says so rather than reporting the checkout as having gone elsewhere.
+///  and the repair puts that branch's own files back and says which branch the checkout shows.
 /// Why:
 ///  The index can be made to agree with anything by a reset, so a repair that trusts it reports "nothing of the
 /// merge remains" while `git commit -am` would record the merge's content on the other branch
 ///  (a review of commit `36cae084ae`, its finding 4).
 #[test]
 fn a_reset_before_the_repair_is_reported_and_not_taken_for_a_finished_checkout() {
-    use crate::auto_push_reconcile_branch_advance::{Checkout, Moved};
+    use crate::auto_push_reconcile_branch_advance::Moved;
     use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
     let s = scenario("ar-reset-before-the-checkout-repair");
     advance_remote(&s, "a.txt", "remote\n");
@@ -3898,12 +3898,13 @@ fn a_reset_before_the_repair_is_reported_and_not_taken_for_a_finished_checkout()
     ))
     .expect("git");
     drop(_played);
-    let Ok(Moved { checkout: Checkout::Holding { paths, .. }, .. }) = moved else {
-        panic!("the report says the worktree still holds the merge: {moved:?}")
-    };
-    assert_eq!(paths, vec![b"a.txt".to_vec()], "and names the path");
-    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "the bytes are the merge's");
-    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "M a.txt", "and they are the branch's own difference");
+    // What: the merge's carried content is put back, so the checkout shows the branch it is on.
+    // Why: leaving it staged on a branch that does not hold the merge is what a commit there would publish, and the
+    // repair writes that branch's own tree over the paths the move wrote
+    //  (a review of commit `7aef6368e7`, its findings 1 and 3).
+    assert_eq!(moved, Ok(went_to("refs/heads/topic")), "the report says which branch the checkout shows");
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "the bytes are that branch's own");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "and nothing of the merge is staged on it");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the pushed branch still moved");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "and no other branch moved");
     remove(&s.root);
@@ -4906,6 +4907,182 @@ fn the_input_query_ends_at_a_total_ceiling() {
         started.elapsed()
     );
     assert!(started.elapsed() < std::time::Duration::from_secs(30), "and the wait was bounded: {:?}", started.elapsed());
+    remove(root.as_path());
+}
+
+//endregion
+
+//region The ninth review's controls: the record is about a worktree's index and files, and only one command takes a dead owner's place.
+
+/// What:
+///  A switch to an existing branch that lands inside the repair leaves that branch's checkout as it was,
+///  and a commit there records its own tree.
+/// Why:
+///  The repair kept the `HEAD` it read at the start, applied the move's patch to the branch that had been
+///  switched to, and read the result as a person's edits, so the merge was staged on an unrelated branch
+///  (a review of commit `7aef6368e7`, its finding 1).
+#[test]
+fn a_switch_to_an_existing_branch_during_the_repair_leaves_it_clean() {
+    use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    use crate::auto_push_reconcile_branch_checkout::{Window as CheckoutWindow, in_the_window_in_a_control as in_the_checkout_window};
+    let s = nowhere("ar-switch-to-an-existing-branch-during-the-repair");
+    git(&s.scenario.local, &["branch", "other", s.local_tip.as_str()]);
+    let other_before: String = text_of(&s.scenario.local, &["rev-parse", "refs/heads/other^{tree}"]);
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let taken: PathBuf = taker.clone();
+    let _early = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
+        let made = git(&adding, &["worktree", "add", "--quiet", taken.to_str().expect("utf-8"), "topic"]);
+        assert!(made.status.success(), "the racing worktree is made");
+    });
+    let switching: PathBuf = taker.clone();
+    let _during = in_the_checkout_window(CheckoutWindow::WhileTheCheckoutIsRepaired, move || {
+        let switched = git(&switching, &["switch", "--quiet", "other"]);
+        assert!(switched.status.success(), "the concurrent switch completes");
+    });
+    let _advanced = await_it(advance_pushed_branch_awaiting(
+        &push_git(&s.scenario.local),
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the move runs");
+    drop(_during);
+    drop(_early);
+    assert_eq!(text_of(&taker, &["symbolic-ref", "--short", "HEAD"]), "other", "the checkout shows the branch the switch chose");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and nothing of the merge is staged on it");
+    git(&taker, &["commit", "--quiet", "--allow-empty", "-m", "commit after the racing switch"]);
+    assert_eq!(
+        text_of(&taker, &["rev-parse", "HEAD^{tree}"]),
+        other_before,
+        "the commit on the unrelated branch records its own tree"
+    );
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A `symbolic-ref` that failed changes nothing about what the repair writes:
+///  the checkout is brought to its own branch's tree, and the commit after it records that tree.
+/// Why:
+///  Every non-zero status of that question was read as a detached `HEAD`, and the repair then took the direction
+///  for another branch and classed the moved-from tree as a person's, so the record went and a commit recorded a
+/// reversal
+///  (a review of commit `7aef6368e7`, its finding 2).
+///  The repair reads the commit HEAD names now, so the answer to this question decides only what the report says
+///  about a branch.
+#[test]
+fn a_symbolic_ref_that_failed_changes_nothing_the_repair_writes() {
+    use crate::auto_push_branch_move_record::record_branch_move;
+    use crate::auto_push_branch_move_repairs::{Settled, finish_branch_moves};
+    let s = nowhere("ar-symbolic-ref-that-failed-changes-nothing");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
+    git(&taker, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    let common: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (record, movement) = record_branch_move(common.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("the record");
+    let mut handed = movement.clone();
+    handed.owner_left_it = true;
+    std::fs::write(record.as_path(), crate::auto_push_branch_move_record::encode_branch_move(&handed)).expect("the record left to anyone");
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    let shim: PathBuf = s.scenario.root.join("symbolic-ref-fails.ts");
+    std::fs::write(
+        shim.as_path(),
+        "#!/var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node\nimport { spawnSync } from 'node:child_process'\nconst args = process.argv.slice(2)\nif (args.includes('symbolic-ref')) process.exit(128)\nconst result = spawnSync('/usr/bin/git', args, { stdio: 'inherit' })\nprocess.exit(result.status ?? 1)\n",
+    )
+    .expect("the shim");
+    std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o700)).expect("shim mode");
+    let mut failing = push_git(&taker);
+    failing.real_git = shim;
+    let mut stderr: Vec<u8> = Vec::new();
+    let settled = finish_branch_moves(&failing, common.as_path(), &mut stderr).expect("the sweep answers");
+    assert!(matches!(settled, Settled::Yes), "the checkout is settled: {settled:?} / {}", String::from_utf8_lossy(&stderr));
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and it holds its own branch's tree");
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
+        "remote side\n",
+        "which is the merge the branch names"
+    );
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A switch away before the repair's first read is finished by the next command in that worktree,
+///  whichever branch it shows by then, and the commit after it records that branch's own tree.
+/// Why:
+///  The repair returned when the checkout no longer showed the pushed branch, and every later sweep skipped the
+///  record because its branch was not the one shown, so a commit on the branch the switch chose recorded the
+///  moved-from tree
+///  (a review of commit `7aef6368e7`, its finding 3).
+#[test]
+fn a_switch_away_before_the_first_repair_read_is_finished_by_the_next_command() {
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{Settled, finish_branch_moves};
+    let s = nowhere("ar-switch-away-before-the-first-read");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
+    git(&taker, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    let common: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (record, movement) = record_branch_move(common.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("the record");
+    let mut handed = movement.clone();
+    handed.owner_left_it = true;
+    std::fs::write(record.as_path(), crate::auto_push_branch_move_record::encode_branch_move(&handed)).expect("the record left to anyone");
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    // What: the switch creates the branch at the moved tip and keeps the moved-from index and files as a staged
+    // reversal, which is the state the review's script makes.
+    // Why: that reversal is what a commit on that branch would record.
+    git(&taker, &["switch", "--quiet", "--create", "other"]);
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "A  local.txt\nD  remote.txt", "the reversal is staged on the new branch");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr).expect("the sweep answers");
+    assert!(matches!(settled, Settled::Yes), "the sweep settles the checkout it is in: {settled:?} / {}", String::from_utf8_lossy(&stderr));
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout holds its own branch's tree");
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
+        "remote side\n",
+        "the file the branch names is there"
+    );
+    assert_eq!(list_branch_moves(common.as_path()).expect("the records").len(), 1, "the record waits for the worktree that shows its branch");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  One dead repair owner's record is taken by one command, and a third command that arrives while the first
+///  holds the place gets nothing, so two live owners never exist.
+/// Why:
+///  Taking the place renamed whatever stood at the fixed path, so a stale taker moved a live record, a third
+///  command created its own at the freed path, and the stale taker's put-back replaced it
+///  (a review of commit `7aef6368e7`, its finding 4).
+#[test]
+fn one_dead_repair_owner_is_taken_by_one_command_even_with_a_third() {
+    use crate::auto_push_branch_move_repairs::{REPAIR_OWNER_SUFFIX, the_repair_owner, the_repair_owner_after_its_owner_died};
+    let root: PathBuf = fixture("ar-one-taker-even-with-a-third");
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir(git_dir.as_path()).expect("Git directory");
+    let dead_owner = current_owner();
+    let dead = the_repair_owner(git_dir.as_path(), &dead_owner).expect("the dead record");
+    let dead_path: PathBuf = dead.record_path().to_path_buf();
+    std::mem::forget(dead);
+    let mut first_owner = current_owner();
+    first_owner.transaction_id = String::from("first-live-owner");
+    let mut first = the_repair_owner_after_its_owner_died(git_dir.as_path(), &first_owner, dead_path.as_path(), &dead_owner).expect("the first takeover");
+    let mut second_owner = current_owner();
+    second_owner.transaction_id = String::from("second-live-owner");
+    let second = the_repair_owner_after_its_owner_died(git_dir.as_path(), &second_owner, dead_path.as_path(), &dead_owner);
+    assert!(second.is_none(), "the second command takes nothing");
+    let mut third_owner = current_owner();
+    third_owner.transaction_id = String::from("third-live-owner");
+    let third = the_repair_owner(git_dir.as_path(), &third_owner);
+    assert!(third.is_none(), "and a third command that arrives while the first holds the place takes nothing");
+    let held: String = std::fs::read_to_string(first.record_path()).expect("the first owner's record");
+    assert!(held.contains("first-live-owner"), "the place still names the one command that took it");
+    first.finish();
+    assert!(!first.record_path().exists(), "the holder's finish gives the place back");
+    let mut fourth_owner = current_owner();
+    fourth_owner.transaction_id = String::from("fourth-live-owner");
+    let fourth = the_repair_owner(git_dir.as_path(), &fourth_owner).expect("the place is free");
+    assert!(fourth.record_path().to_string_lossy().ends_with(REPAIR_OWNER_SUFFIX), "and the next command takes it");
+    drop(fourth);
     remove(root.as_path());
 }
 

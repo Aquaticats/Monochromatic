@@ -247,7 +247,7 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
             // Why: the reference has not moved yet, so a refusal here leaves the branch where it was and the checkout as the switch
             //      left it, and the report says the branch is not at the merge.
             if !still_on_the_branch(git, branch_ref, local).await? {
-                match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await {
+                match bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await {
                     Brought::NoOldTip { .. } => {}
                     Brought::OldTipLeft { paths, why } => {
                         return Ok(Err(format!(

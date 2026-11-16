@@ -36,11 +36,49 @@ use std::ffi::OsString;
 /// ```
 pub(crate) async fn shows_awaiting(git: &PushGit) -> Result<Option<String>, SingleFlightError> {
     let asked = run_query_awaiting(git, &argv(&["symbolic-ref", "--quiet", "HEAD"])).await?;
-    if asked.code != Some(0) {
-        return Ok(None);
+    // What: `symbolic-ref --quiet` answers 1 for a detached HEAD, and 128 for a read that failed.
+    // Why:  taking every failure for "detached" turned a failed read into an answer, and the repair then took
+    // the direction for another branch and classed this branch's own moved-from entries as a person's, so the
+    // record went and a commit recorded the reversal
+    //  (a review of commit `7aef6368e7`, its finding 2).
+    match asked.code {
+        Some(0) => {}
+        Some(1) => return Ok(None),
+        other => {
+            return Err(SingleFlightError::Git {
+                arguments: String::from("symbolic-ref --quiet HEAD"),
+                code: other,
+                stderr: String::from_utf8_lossy(&asked.stderr).into_owned(),
+            });
+        }
     }
     let name: String = String::from_utf8_lossy(&asked.stdout).trim().to_owned();
     return Ok(if name.is_empty() { None } else { Some(name) });
+}
+
+/// What:
+///  The commit this worktree's HEAD names,
+/// asked again at every attempt of a repair.
+/// Why:
+///   A `git switch` can finish between any two of this command's questions, so the tree a checkout must hold
+/// is the one its own HEAD names now, never one read earlier and cached
+///  (a review of commit `7aef6368e7`, its findings 1 and 3).
+///  A failure here is a read that failed and not an answer: the caller keeps the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = await git(['rev-parse','--verify','HEAD^{commit}']); // status 0, or a read that failed
+/// ```
+pub(crate) async fn the_head_commit_awaiting(git: &PushGit) -> Result<String, SingleFlightError> {
+    let asked = run_query_awaiting(git, &argv(&["rev-parse", "--verify", "HEAD^{commit}"])).await?;
+    if asked.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: String::from("rev-parse --verify HEAD^{commit}"),
+            code: asked.code,
+            stderr: String::from_utf8_lossy(&asked.stderr).into_owned(),
+        });
+    }
+    return Ok(String::from_utf8_lossy(&asked.stdout).trim().to_owned());
 }
 
 /// What:

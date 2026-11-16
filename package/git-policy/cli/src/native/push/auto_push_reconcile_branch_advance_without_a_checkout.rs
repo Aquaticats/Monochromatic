@@ -291,7 +291,7 @@ async fn finish_the_checkout_that_raced_the_move(
     // Why: the repair writes the merge's content path by path, so a kill inside it leaves some paths written and the
     //      rest holding the pushed tip; the next command in that worktree reads the record and finishes them
     //      (`a_stop_inside_the_repair_leaves_a_record_the_next_command_finishes`).
-    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(&there, branch_ref, local, merge_oid).await;
+    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(&there, local, merge_oid).await;
     // What: the branch the checkout shows is read again, after the repair, and never reused from before it.
     // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows
     //      (a review of commit `c15fc5a7b1`, its finding 5).
