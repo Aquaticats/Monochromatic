@@ -37,7 +37,6 @@ import {
   gitRunnerOf,
   linkDependenciesInAUnit,
   makeTheFoldersAToolMakesIn,
-  managerPresenceIn,
   runCommandWithChildProcess,
   StartRefusedError,
 } from '../dist/final/node/index.mjs';
@@ -457,8 +456,6 @@ await describe({
               taskCount: 100,
               pathOfMiseEnvironment: '/bin',
               home: '/home/a',
-              managerRuntimeDirectory: manager.runtimeDirectory,
-              cgroupFile: manager.cgroupFile,
               run: async function recorder(request,): Promise<CommandOutput> {
                 asked.push({
                   command: request.command,
@@ -501,13 +498,9 @@ await describe({
           },
         },),
         it({
-          name: 'refuses the start, naming the socket and both answers, when a manager that is there does not answer, rather than running the install unconfined',
+          name: 'refuses the start, naming both answers, when this machine manager does not answer, rather than running the install with the launcher access',
           fn: async () => {
             await using folder = await makeFolder();
-            /**
-             What this machine has, as a fixture: a manager's socket is there.
-             */
-            await using manager = await makeManagerFixture({ withSocket: true, },);
             /**
              The run's own folder.
              */
@@ -535,8 +528,6 @@ await describe({
                   taskCount: 100,
                   pathOfMiseEnvironment: '/bin',
                   home: '/home/a',
-                  managerRuntimeDirectory: manager.runtimeDirectory,
-                  cgroupFile: manager.cgroupFile,
                   run: async function recorder(request,): Promise<CommandOutput> {
                     asked.push(request.command,);
                     if (request.command === 'bash') {
@@ -549,121 +540,23 @@ await describe({
             },);
             expect(refused.error,).toBeInstanceOf(StartRefusedError,);
             /**
-             What the refusal says.
+             What the refusal says, which names what was asked and both answers.
              */
             const words = (refused.error as Error).message;
-            expect(words,).toContain(join(manager.runtimeDirectory, 'systemd', 'private',),);
+            expect(words,).toContain('systemctl --user show --property=Version',);
             expect(words,).toContain('a manager that did not answer',);
-            // Asked twice, because a manager that missed one answer is not a missing manager, and then refused rather than
-            // running the branch's install scripts with the launcher's access.
+            expect(words,).toContain('asked 1: status 1',);
+            expect(words,).toContain('asked 2: status 1',);
+            // Asked twice, because a manager that missed one answer is not a missing manager.
             expect(asked.filter(function isTheQuestion(command,) {
               return command === 'systemctl';
             },).length,).toBe(2,);
+            // The install never ran, and no record was written: nothing happened for a run that cannot start.
             expect(asked,).not.toContain('/bin/mise',);
             expect(await isThere({ path: join(runFolder, DEPENDENCIES_RECORD_NAME,), },),).toBe(false,);
           },
         },),
-        it({
-          name: 'degrades where this machine has no manager at all, and records in the run folder that the install ran with the launcher\'s access',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             What this machine has, as a fixture: no socket, and no unit of a manager in its cgroup.
-             */
-            await using manager = await makeManagerFixture({ withSocket: false, },);
-            /**
-             The run's own folder.
-             */
-            const runFolder = join(folder.path, 'runs', 'a-1',);
-            /**
-             A file of the checkout an install script writes to, which is what a run lacks protection from in this case.
-             */
-            const written = join(folder.path, 'written-by-the-install',);
-            /**
-             Every request this step made.
-             */
-            const asked: string[] = [];
-            /**
-             What linking answered.
-             */
-            const linked = await linkDependenciesInAUnit({
-              runName: 'probe-no-manager',
-              checkoutFolder: '/repo',
-              worktree: '/repo/.claude/worktrees/pi-a',
-              runFolder,
-              fileSystem: {
-                foldersAUnitCannotWrite: ['/repo',],
-                foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-a',],
-              },
-              cpuPercent: 100,
-              memory: '1G',
-              taskCount: 100,
-              pathOfMiseEnvironment: '/bin',
-              home: '/home/a',
-              managerRuntimeDirectory: manager.runtimeDirectory,
-              cgroupFile: manager.cgroupFile,
-              run: async function recorder(request,): Promise<CommandOutput> {
-                asked.push(request.command,);
-                if (request.command === 'bash') {
-                  return { status: 0, stdout: '/bin/mise\n', stderr: '', };
-                }
-                await writeFile(written, 'written by an install script\n',);
-                return { status: 0, stdout: 'installed\n', stderr: '', };
-              },
-            },);
-            expect(linked.confined,).toBe(false,);
-            expect(await readFile(written, 'utf8',),).toBe('written by an install script\n',);
-            // The question about the manager is never asked where the machine has none: what decides is what the machine has, not
-            // one answer to one question.
-            expect(asked,).not.toContain('systemctl',);
-            expect(linked.why,).toContain('no user manager',);
-            expect(linked.why,).toContain('/repo',);
-            /**
-             What the run's own folder records about this.
-             */
-            const record = JSON.parse(await readFile(join(runFolder, DEPENDENCIES_RECORD_NAME,), 'utf8',),) as {
-              readonly status: number;
-              readonly confined: boolean;
-              readonly why?: string;
-            };
-            expect(record.confined,).toBe(false,);
-            expect(record.status,).toBe(0,);
-            expect(record.why,).toBe(linked.why,);
-          },
-        },),
-        it({
-          name: 'reads what the machine has from its socket or from the unit the launcher runs in, never from one answer to one question',
-          fn: async () => {
-            /**
-             A machine whose manager's socket is there.
-             */
-            await using withSocket = await makeManagerFixture({ withSocket: true, },);
-            expect(await managerPresenceIn({
-              runtimeDirectory: withSocket.runtimeDirectory,
-              cgroupFile: withSocket.cgroupFile,
-            },),).toEqual({ there: true, evidence: `the manager's socket is ${join(withSocket.runtimeDirectory, 'systemd', 'private',)}`, },);
-            /**
-             A machine whose socket is gone but whose cgroup names a unit of a manager.
-             */
-            await using cgroupOnly = await makeManagerFixture({ withSocket: false, },);
-            /**
-             A cgroup file naming the unit of this user's own manager, which is where a manager's own units sit.
-             */
-            const withAManager = join(cgroupOnly.runtimeDirectory, 'cgroup-with-a-manager',);
-            await writeFile(withAManager, '0::/user.slice/user-1000.slice/user@1000.service/app.slice/probe.service\n',);
-            expect(await managerPresenceIn({
-              runtimeDirectory: cgroupOnly.runtimeDirectory,
-              cgroupFile: withAManager,
-            },),).toEqual({ there: true, evidence: `this launcher runs in a unit of a manager (${withAManager})`, },);
-            /**
-             A machine with neither.
-             */
-            expect((await managerPresenceIn({
-              runtimeDirectory: cgroupOnly.runtimeDirectory,
-              cgroupFile: cgroupOnly.cgroupFile,
-            },)).there,).toBe(false,);
-          },
-        },),
+
       ],
     },),
   ],

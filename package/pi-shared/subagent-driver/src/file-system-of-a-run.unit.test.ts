@@ -323,6 +323,38 @@ async function makeRunFolder({ folder, }: { readonly folder: string },): Promise
   return runFolder;
 }
 
+/**
+ The folders a run with a worktree may not write: the checkout, and the entries of its shared Git directory a run never writes,
+ each as systemd reads it.
+
+ @param request - the checkout and the Git directory every worktree of it shares
+
+ @param request.checkoutFolder - the checkout a start names
+
+ @param request.commonDirectory - the Git directory every worktree of the checkout shares
+
+ @returns the folders, in the order this package names them
+
+ @example
+ ```ts
+ const folders = readOnlyFoldersOf({ checkoutFolder: '/repo', commonDirectory: '/repo/.git', });
+ ```
+ */
+function readOnlyFoldersOf({
+  checkoutFolder,
+  commonDirectory,
+}: {
+  readonly checkoutFolder: string;
+  readonly commonDirectory: string;
+},): readonly string[] {
+  return [
+    checkoutFolder,
+    ...['HEAD', 'index', 'config', 'config.worktree', 'hooks', 'info', 'worktrees',].map(function inside(entry,) {
+      return `-${join(commonDirectory, entry,)}`;
+    },),
+  ];
+}
+
 await describe({
   name: '',
   children: [
@@ -361,7 +393,10 @@ await describe({
               runFolder,
               worksInTheCheckoutItself: false,
             },);
-            expect(fileSystem.foldersAUnitCannotWrite,).toEqual([made.checkoutFolder,],);
+            expect(fileSystem.foldersAUnitCannotWrite,).toEqual(readOnlyFoldersOf({
+              checkoutFolder: made.checkoutFolder,
+              commonDirectory: made.commonDirectory,
+            },),);
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
               worktree,
               made.commonDirectory,
@@ -651,6 +686,9 @@ await describe({
             },);
             expect(fileSystemPropertiesOf(fileSystem,),).toEqual([
               `--property=ReadOnlyPaths="${made.checkoutFolder}"`,
+              ...['HEAD', 'index', 'config', 'config.worktree', 'hooks', 'info', 'worktrees',].map(function inside(entry,) {
+                return `--property=ReadOnlyPaths=-"${join(made.commonDirectory, entry,)}"`;
+              },),
               `--property=ReadWritePaths="${worktree}"`,
               `--property=ReadWritePaths="${made.commonDirectory}"`,
               `--property=ReadWritePaths="${cacheFolder}"`,

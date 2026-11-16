@@ -34,9 +34,16 @@ import {
   mkdir,
   realpath,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  join,
+  sep,
+} from 'node:path';
 import { answerWithinABound, } from './an-answer-within-a-bound.ts';
-import { gitFoldersOf, } from './checkout-of-a-command.ts';
+import {
+  GitFolderAboveTheCheckoutError,
+  gitFoldersOf,
+  gitPathFromAnswer,
+} from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import type { GitRunner, } from './worktree-of-a-run.ts';
 import { pathInAUnitProperty, } from './path-in-a-unit-property.ts';
@@ -68,6 +75,27 @@ export const CANONICAL_PATH_MILLISECONDS: number = 30_000;
  ```
  */
 export type RealPathOf = (path: string) => Promise<string>;
+
+/**
+ The entries of a shared Git directory that a run never needs to write: the checkout's own `HEAD` and index, its configuration, its
+ hooks, its `info` folder, and the Git directory of every other worktree.
+
+ Why they are named apart from the Git directory a run does write: a run's commit needs its own worktree's state, new objects, and
+ its branch's ref, and it asks Git to write those; it does not need to retarget the checkout, replace its index, plant a hook that a
+ later plain `git` in the checkout would run, add configuration, or write into another run's Git directory. A review measured all of
+ those being granted when the whole shared directory was writable, a review later than it measured that a read-only path nested in a
+ writable one wins. This is the list of names, each taken as `-` so that a name a repository does not have is skipped rather than
+ stopping the unit.
+ */
+const ENTRIES_A_RUN_NEVER_WRITES: readonly string[] = [
+  'HEAD',
+  'index',
+  'config',
+  'config.worktree',
+  'hooks',
+  'info',
+  'worktrees',
+];
 
 /**
  The folder of the checkout this repository's tools cache their binaries and guards in.
@@ -266,6 +294,22 @@ export async function fileSystemOfARun({
     folder: checkoutFolder,
   },);
   /**
+   The Git directory the run's own worktree was given, which Git names when it is asked about that worktree and holds the index and
+   the `HEAD` of the run's own checkout.
+
+   Why it is asked for apart from the checkout's: the checkout's Git directory is the shared one, and a worktree's own directory is a
+   folder inside its `worktrees` folder, which this package keeps read-only so that no run writes another run's. Naming the run's own
+   is what makes it the most specific path there, and so the one systemd makes writable.
+   */
+  const worktreeGitDirectory = worksInTheCheckoutItself
+    ? undefined
+    : await gitPathFromAnswer({
+      git,
+      folder: worktree,
+      word: '--absolute-git-dir',
+      what: 'the Git directory of the run worktree',
+    },);
+  /**
    The checkout and its Git folders as the file system names them, so that a path reached through a symbolic link and the same
    path written as its target compare equal.
    */
@@ -280,6 +324,11 @@ export async function fileSystemOfARun({
       readRealPath,
       milliseconds: canonicalPathMilliseconds,
     },),
+    worktreeGitDirectory: await canonicalPathOf({
+      path: worktreeGitDirectory ?? gitFolders.gitDirectory,
+      readRealPath,
+      milliseconds: canonicalPathMilliseconds,
+    },),
     commonDirectory: await canonicalPathOf({
       path: gitFolders.commonDirectory,
       readRealPath,
@@ -287,17 +336,45 @@ export async function fileSystemOfARun({
     },),
   };
   /**
-   The Git folders this run's unit writes: a run with a worktree of its own commits there, so its own Git directory and the one
-   every worktree shares must be writable wherever they lie. A run that works in the checkout itself has nothing of its own to
-   commit: its worktree is the checkout, the checkout is read-only, and a writable Git directory would let it write `HEAD` and the
-   refs of a checkout it cannot change otherwise, which is how a run that could not edit one file still moved `main`.
+   The Git folders this run's unit writes: a run with a worktree of its own commits there, so the Git directory every worktree
+   shares is writable wherever it lies, and its own worktree's Git directory is writable inside the shared one. A run that works in
+   the checkout itself has nothing of its own to commit: its worktree is the checkout, the checkout is read-only, and a writable Git
+   directory would let it write `HEAD` and the refs of a checkout it cannot change otherwise, which is how a run that could not edit
+   one file still moved `main`.
    */
   const gitFoldersTheRunWrites: readonly string[] = worksInTheCheckoutItself
     ? []
     : [
-      canonical.gitDirectory,
       canonical.commonDirectory,
+      canonical.gitDirectory,
+      canonical.worktreeGitDirectory,
     ];
+  /**
+   The shared Git directory's entries a run never writes, made read-only inside the folder it does write, each joined onto that
+   folder and skipped when a repository does not have it.
+
+   Why a read-only path here and not simply a smaller writable list: Git writes a ref by renaming a lock file in the folder that
+   holds it, and it packs refs, deletes branches and runs its own housekeeping in the root of the shared directory, so a grant that
+   kept the root writable and named nothing else would let a run do all of it. What a run may not do is retarget `HEAD`, replace the
+   index, plant hooks, add configuration or write another worktree's Git directory, and those are names inside that root.
+   */
+  const gitEntriesTheRunNeverWrites: readonly string[] = (worksInTheCheckoutItself
+    ? []
+    : ENTRIES_A_RUN_NEVER_WRITES.map(function insideTheSharedGitDirectory(entry,) {
+      return `-${join(
+        canonical.commonDirectory,
+        entry,
+      )}`;
+    },));
+  if ((worktreeGitDirectory !== undefined)
+    && (worktreeGitDirectory !== canonical.commonDirectory)
+    && (!worktreeGitDirectory.startsWith(`${canonical.commonDirectory}${sep}`,))) {
+    // A worktree whose Git directory is outside the checkout's is a layout this package cannot grant without writing into a folder
+    // nobody asked about, so a start refuses it in words rather than guessing.
+    throw new GitFolderAboveTheCheckoutError(
+      `Git names ${worktreeGitDirectory} as the Git directory of the run's worktree ${worktree}, and that folder is not inside the checkout's Git directory ${canonical.commonDirectory}, so this start cannot say which folders the run's commits write. Name the checkout with --checkout-folder, or unset GIT_DIR if it names a repository elsewhere.`,
+    );
+  }
   /**
    The folders this run must write, in the order a reader needs them: where it works, where its Git data is, where this
    repository's tools install themselves, and where the driver writes it.
@@ -315,10 +392,12 @@ export async function fileSystemOfARun({
   return {
     // A folder that is a Git directory of the run is not read-only, even when it is the checkout: a bare repository holds the
     // run's commits and nothing a run could edit, so its read-only view would only block them. A run with no worktree of its own
-    // writes no Git folder, so its checkout stays read-only and every ref in it stays where it was.
-    foldersAUnitCannotWrite: [canonical.checkout,].filter(function isNoGitFolder(path,) {
-      return !gitFoldersTheRunWritesSet.has(path,);
-    },),
+    // writes no Git folder, so its checkout stays read-only and every ref in it stays where it was. The entries of the shared Git
+    // directory a run never writes are read-only inside it, which is the most specific path and so the one systemd applies.
+    foldersAUnitCannotWrite: [
+      ...(gitFoldersTheRunWritesSet.has(canonical.checkout,) ? [] : [canonical.checkout,]),
+      ...gitEntriesTheRunNeverWrites,
+    ],
     foldersAUnitMustWrite: namedOnce(wanted,),
   };
 }
@@ -451,12 +530,41 @@ export function fileSystemPropertiesOf({
 }: FileSystemOfARun,): readonly string[] {
   return [
     ...foldersAUnitCannotWrite.map(function readOnlyWord(path,) {
-      return `--property=ReadOnlyPaths=${pathInAUnitProperty({ path, },)}`;
+      return `--property=ReadOnlyPaths=${itemOf({ path, },)}`;
     },),
     ...foldersAUnitMustWrite.map(function writableWord(path,) {
-      return `--property=ReadWritePaths=${pathInAUnitProperty({ path, },)}`;
+      return `--property=ReadWritePaths=${itemOf({ path, },)}`;
     },),
   ];
+}
+
+/**
+ Writes one folder as the item of a path property, reading a leading `-` as systemd's own "skip this one when it is not there".
+
+ Why the convention lives here: a repository does not always have every entry a run never writes (a `config.worktree`, an `info`
+ folder), and a path property naming one that is absent refuses the whole unit, so those entries are marked optional instead of
+ checked one by one against a file system that may disagree a moment later.
+
+ @param path - the folder, with a leading `-` when systemd may skip it
+
+ @returns the item, quoted and prefixed as systemd reads it
+
+ @throws PathThatIsNotAbsoluteError when what follows the prefix is not an absolute path
+
+ @example
+ ```ts
+ const item = itemOf({ path: '-/repo/.git/index', });
+ ```
+ */
+function itemOf({ path }: { readonly path: string },): string {
+  /**
+   Whether the path is one systemd may skip when it is not there.
+   */
+  const ignoredWhenMissing = path.startsWith('-',);
+  return pathInAUnitProperty({
+    path: ignoredWhenMissing ? path.slice('-'.length,) : path,
+    ignoredWhenMissing,
+  },);
 }
 
 /**

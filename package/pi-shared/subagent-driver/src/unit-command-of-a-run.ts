@@ -16,6 +16,7 @@ import {
   fileSystemPropertiesOf,
 } from './file-system-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
+import { runtimeDirectoryTheManagerKeepsItsSocketIn, } from './the-user-manager-this-machine-has.ts';
 
 /**
  How long the unit may outlive the run's own wall clock, in seconds: the driver's own teardown after the wall clock, which
@@ -175,6 +176,10 @@ export function unitCommandOf(request: UnitCommandRequest,): {
     words: [
       '--user',
       '--wait',
+      // Every path this unit is given is handed over as it is written: a checkout folder holding `$` or `${HOME}` is a folder
+      // name, and a run's driver would otherwise receive a path that names something else. Measured on systemd 262: without this,
+      // `--run-folder=/w/$HOME/x` reaches the program as `/w/<the home folder>/x`.
+      '--expand-environment=no',
       `--unit=${unitNameOfGiven({ name: request.runName, },)}`,
       '--collect',
       `--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({ wallSeconds: request.wallSeconds, },),)}`,
@@ -201,4 +206,62 @@ export function unitCommandOf(request: UnitCommandRequest,): {
       ...((request.session === undefined) ? [] : [`--session=${request.session}`,]),
     ],
   };
+}
+/**
+ The request to ask about a runtime directory with, which names one only when the launcher was given one.
+
+ @param launcherRuntimeDirectory - the runtime directory the launcher itself was given
+
+ @returns the request, with that folder when the launcher has one
+
+ @example
+ ```ts
+ const request = withTheLaunchersRuntimeDirectory({ launcherRuntimeDirectory: '/run/user/1000', });
+ ```
+ */
+function withTheLaunchersRuntimeDirectory({
+  launcherRuntimeDirectory,
+}: {
+  /**
+   The runtime directory the launcher itself was given.
+   */
+  readonly launcherRuntimeDirectory?: string;
+},): { readonly runtimeDirectory?: string } {
+  return ((launcherRuntimeDirectory === undefined) ? {} : { runtimeDirectory: launcherRuntimeDirectory, });
+}
+
+/**
+ Builds the command that starts one run's unit, naming the launcher's runtime directory only when the manager's socket is in it.
+
+ Why the question is asked here: a unit whose `XDG_RUNTIME_DIR` is not the manager's cannot start the scopes every brief on this
+ machine asks a run for, so a launcher that was itself given a disposable runtime directory would break every run it starts. Where
+ the socket is not in that folder the unit is given no runtime directory at all and inherits the manager's own, which is what a start
+ did before this question existed.
+
+ @param request - what the unit holds and runs, and the runtime directory the launcher itself was given
+
+ @returns the program and its arguments, each kept whole
+
+ @example
+ ```ts
+ const unit = await runUnitOf({ runName: 'copy-route', cpuPercent: 800, memory: '12G', taskCount: 3_000, wallSeconds: 7_200, pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', driverEntry: '/pkg/src/drive-pi-subagent.ts', runFolder: '/runs/copy-route-4', workingFolder: '/repo/.claude/worktrees/pi-copy-route', promptFile: '/runs/copy-route-prompt.md', provider: 'neuralwatt', model: 'deepseek-v4.1-flash', idleSeconds: 120, turnCap: 400, fileSystem: { foldersAUnitCannotWrite: ['/repo'], foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-copy-route', '-/repo/.cache'], }, launcherRuntimeDirectory: '/run/user/1000', });
+ ```
+ */
+export async function runUnitOf(request: UnitCommandRequest & {
+  /**
+   The runtime directory the launcher itself was given, which is named in the unit only when the manager's socket is in it.
+   */
+  readonly launcherRuntimeDirectory?: string;
+},): Promise<{
+  readonly command: string;
+  readonly words: readonly string[];
+}> {
+  /**
+   What this machine's manager keeps its socket in, as far as this launcher can see.
+   */
+  const runtime: { readonly runtimeDirectory?: string } = await runtimeDirectoryTheManagerKeepsItsSocketIn(withTheLaunchersRuntimeDirectory(request,),);
+  return unitCommandOf({
+    ...request,
+    ...runtime,
+  },);
 }

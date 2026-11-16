@@ -337,14 +337,21 @@ On 2026-11-11 that refusal ended all ten starts of a batch before any of them ma
 
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
-
 The unit carries the runtime directory the launcher itself reached the manager through,
+but only when the manager's own socket is in it,
 because every brief on this machine tells a run to put its commands into a
 `systemd-run --user --scope` of their own,
 and a scope reaches the manager through that folder.
-A unit that inherits it from the manager's environment starts scopes on a machine whose manager was started with it,
-and says nothing on a machine whose manager was not,
-which is why it is named.
+A launcher whose `XDG_RUNTIME_DIR` is not the manager's (a disposable one,
+an ssh session,
+a login session's scope)
+would otherwise hand the run a folder whose scopes cannot reach the manager at all:
+measured,
+a scope there ends `Failed to connect to user scope bus via local transport`,
+and a commit through this repository's Git wrapper ends by failing to find the wrapper's commit service.
+Where the socket is not in that folder the unit is given no runtime directory,
+and inherits the manager's own,
+which is what a start did before this question existed.
 A review read the bus client's `Argument list too long` from a scope inside a run's unit as a fault of these properties,
 and it was not one:
 with the unit's own runtime directory the same properties start a scope,
@@ -391,6 +398,52 @@ On 2026-11-14 two runs wrote into the main checkout:
 one wrote twenty new files and four edits there over fifty minutes while its own worktree was empty,
 because its brief named main-checkout paths to read and nothing stopped the same paths from being written.
 
+What this confinement does not reach,
+measured on 2026-11-16 with a stand-in unit of this package and a review of it,
+so that nobody takes it for more than it is.
+A run with a worktree can still move another branch's ref.
+Git writes a ref by renaming a lock file in the folder that holds it,
+so a run that may write its own branch may write `refs/heads` with it,
+and a folder list cannot say "this branch and no other".
+Measured:
+`git update-ref refs/heads/main <older commit>` inside the unit ends zero,
+and `main` moves.
+Protecting `refs/heads/main` itself as a read-only path does not stop it,
+because the rename replaces the file.
+A run that works in the checkout itself writes no Git folder at all,
+so its refs stay where they are.
+The checkout's `.cache` stays writable and holds the programs this session runs.
+This repository's tools install their launchers there,
+and a tool that makes the folder itself would be refused without the grant.
+Measured:
+a real `mise run …:build` and `…:lint:types` pass with `.cache` read-only,
+so the grant is wider than the build needs.
+A run could still overwrite `<checkout>/.cache/toolchain-bin/<tool>`,
+and a session that runs that tool afterwards runs the run's text.
+A run can ask the user manager for a transient unit and that unit is not confined.
+A `systemd-run --user --unit=<name> …` started inside the unit is a service,
+which the manager starts in the host's mount namespace,
+so it can write anywhere its user can,
+the checkout included,
+from a run with a worktree and from a run without one.
+A scope stays in the caller's namespace and is confined as the run is.
+This is a limit of confining one unit:
+the manager is outside it,
+and a run needs the manager for the scopes every brief asks of it.
+Measured:
+the file an inner service wrote into the checkout was there afterwards.
+Filesystem calls before any unit exists are not all bounded.
+Reading a folder as the file system names it and reading an ordinary file are bounded.
+`access`,
+`stat`,
+`mkdir`,
+`readdir` and `writeFile` on the paths a start reads before it asks for the unit are not,
+so a filesystem that stops answering can still stop a start there.
+A run's driver is given a path systemd would expand only if the unit did not say otherwise,
+and the unit now says otherwise:
+it carries `--expand-environment=no`,
+so a checkout folder holding `${HOME}` reaches the driver as written.
+
 Every path in those two properties is quoted as one systemd item,
 and only a backslash or a double quote inside it is escaped,
 because systemd reads each property as a space-separated list:
@@ -413,6 +466,28 @@ The folders Git names as its own are writable wherever they lie,
 the checkout's files being what is read-only:
 a bare repository's Git directory is the checkout itself,
 and a commit there fails if that folder stays read-only.
+Inside that Git directory a run writes its own worktree's state,
+new objects,
+its branch's ref,
+the reflogs,
+and what Git's own housekeeping needs,
+and seven names inside it are read-only instead:
+`HEAD`,
+`index`,
+`config`,
+`config.worktree`,
+`hooks`,
+`info`,
+and `worktrees`,
+which is held read-only with the run's own worktree directory carved out of it.
+That is what a run does not need and a review measured a run doing when the whole directory was writable:
+retargeting the checkout,
+replacing its index,
+planting a hook a later plain `git` there would run,
+adding configuration,
+and writing into another run's Git directory.
+Those names carry systemd's `-` prefix,
+so a repository that has no `info` folder or no `config.worktree` still starts.
 The checkout and those folders are compared as the file system names them,
 with symbolic links resolved,
 so a path reached through a link and the same path written as its target are one folder.
@@ -451,21 +526,23 @@ An install that failed stops the start,
 naming its status and what it printed,
 because an agent that began against a half-installed tree would build,
 test and commit on it.
-Where this machine has no user manager at all,
-the install still happens with the launcher's access,
-the line the launcher prints says so,
-and the run's own folder keeps it as `dependencies.json`,
-so a reader of the run knows what protection it lacked and why.
-What says the machine has none is what the machine has,
-not one answer to one question:
-the manager's own socket under the launcher's runtime directory,
-or a cgroup naming a unit of this user's manager.
-A machine that *has* a manager and did not answer is another case,
-and it refuses the start:
-the question is asked twice,
+Where this machine's user manager does not answer,
+the start is refused before it makes anything:
+no worktree,
+no install,
+no run folder,
+and words that name the question and both answers,
+because a run's driver only ever runs as a unit of that manager,
+so a machine without one cannot start a run at all.
+The question is `systemctl --user show --property=Version`,
+asked twice,
 because a manager that missed one answer on a loaded machine is not a missing manager,
-and two failures are a manager that is there and is not answering,
-whose install could only have run with the launcher's access.
+and it is asked before the worktree is made rather than after the install:
+an install that ran for a start that can only fail would have run the branch's own lifecycle scripts with the launcher's access.
+The install itself asks the same question and refuses in the same words,
+so a caller that runs that step on its own gets the same answer.
+What the run's own folder keeps as `dependencies.json` is the status the install ended with,
+which is zero for any run that starts.
 What runs outside those units runs no branch code:
 the git questions,
 the mise environment questions,

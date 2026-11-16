@@ -354,6 +354,9 @@ await describe({
             expect(command.words,).toEqual([
               '--user',
               '--wait',
+              // Every path the unit is given reaches it as it is written, so a checkout folder holding `$` or `${HOME}` is a
+              // folder name rather than a variable systemd expands.
+              '--expand-environment=no',
               '--unit=pi-copy-route.service',
               '--collect',
               `--property=RuntimeMaxSec=${String(7_200 + UNIT_GRACE_SECONDS,)}`,

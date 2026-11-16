@@ -61,7 +61,7 @@ import {
   finishedTurnsIn,
   turnCapSizing,
 } from './turn-cap-of-finished-runs.ts';
-import { unitCommandOf, } from './unit-command-of-a-run.ts';
+import { runUnitOf, } from './unit-command-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
 import {
   launcherEndedLineOf,
@@ -304,9 +304,9 @@ if (!readOnlyInMain) {
 const turnCap = options.turnCap ?? await sizedTurnCap();
 
 /**
- The unit that runs the driver, with the `PATH` and the node a mise environment gives Pi.
+ The unit that runs the driver, with the `PATH`, the node and the driver's own entry point a mise environment gives this package.
  */
-const unit = unitCommandOf({
+const unit = await runUnitOf({
   runName: options.name,
   cpuPercent: options.cpuPercent,
   memory: options.memory,
@@ -340,7 +340,7 @@ const unit = unitCommandOf({
   idleSeconds: options.idleSeconds,
   turnCap,
   fileSystem,
-  ...((env.XDG_RUNTIME_DIR === undefined) ? {} : { runtimeDirectory: env.XDG_RUNTIME_DIR, }),
+  ...((env.XDG_RUNTIME_DIR === undefined) ? {} : { launcherRuntimeDirectory: env.XDG_RUNTIME_DIR, }),
   ...(options.session === undefined ? {} : { session: options.session, }),
 },);
 

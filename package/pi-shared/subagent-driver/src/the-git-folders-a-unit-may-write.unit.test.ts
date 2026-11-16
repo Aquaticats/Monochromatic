@@ -18,7 +18,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import { basename, join, } from 'node:path';
 import { promisify, } from 'node:util';
 import {
   describe,
@@ -265,20 +265,27 @@ async function expectWhatTheUnitMayWrite({
     folder: checkoutFolder,
     environment,
   },);
+  // The Git directory the fixture's worktree would have been given, made here because these fixtures name a worktree path
+  // without making Git make one, and this package reads that directory as the file system names it.
+  await mkdir(join(answers.commonDirectory, 'worktrees', basename(worktree,),), { recursive: true, },);
   /**
    What this package names for the same checkout.
    */
   const fileSystem = await fileSystemOfARun({
     git: async function answeredByThisTest(request,) {
-      return await runCommandWithChildProcess({
-        command: 'git',
-        words: request.words,
-        folder: request.folder,
-        environment: {
-          ...GIT_ENVIRONMENT,
-          ...environment,
-        },
-      },);
+      // The two questions this package asks: the checkout's own Git directories, and the ones the run's worktree was given, which
+      // is the worktree Git directory inside the shared one that a fixture of this shape always has.
+      /**
+       What this question is about.
+       */
+      const name = request.words.at(-1,);
+      /**
+       The folder the answer is about, which is the worktree for its own question and the checkout for the other.
+       */
+      const answered = (request.folder === worktree)
+        ? join(answers.commonDirectory, 'worktrees', basename(worktree,),)
+        : ((name === '--git-common-dir') ? answers.commonDirectory : answers.gitDirectory);
+      return { status: 0, stdout: `${answered}\n`, stderr: '', };
     },
     checkoutFolder,
     worktree,
@@ -291,10 +298,20 @@ async function expectWhatTheUnitMayWrite({
     expect(fileSystem.foldersAUnitMustWrite,).toContain(answered,);
   }
   // The checkout's files are what is read-only, and a checkout that is itself a Git directory of the run cannot be: its
-  // read-only view would stop the commit that keeps the run's work.
+  // read-only view would stop the commit that keeps the run's work. Beside it sit the entries of the shared Git directory a run
+  // never writes, each joined onto that directory and marked optional with a leading dash.
+  /**
+   The read-only folders that name the checkout itself.
+   */
+  const theCheckoutItself = fileSystem.foldersAUnitCannotWrite.filter(function isTheCheckout(folder,) {
+    return folder === checkoutFolder;
+  },);
+  expect(theCheckoutItself.length,).toBe(([answers.gitDirectory, answers.commonDirectory,].includes(checkoutFolder)) ? 0 : 1,);
   for (const readOnly of fileSystem.foldersAUnitCannotWrite) {
-    expect(readOnly,).toBe(checkoutFolder,);
     expect([answers.gitDirectory, answers.commonDirectory,],).not.toContain(readOnly,);
+    expect(['HEAD', 'index', 'config', 'config.worktree', 'hooks', 'info', 'worktrees',].map(function joined(entry,) {
+      return `-${join(answers.commonDirectory, entry,)}`;
+    },).includes(readOnly,) || (readOnly === checkoutFolder),).toBe(true,);
   }
   for (const named of fileSystem.foldersAUnitMustWrite) {
     expect(isAncestor({

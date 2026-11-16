@@ -35,6 +35,7 @@ import {
   rememberPiStartCheck,
 } from './pi-start-check.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
+import { managerProblemIn, } from './the-user-manager-this-machine-has.ts';
 
 export {
   PI_LOAD_FAILURE_TEXT,
@@ -400,7 +401,7 @@ export async function startRefusalsIn({
   /**
    What the three checks about the run itself found, in the order a reader needs them.
    */
-  const [promptAnswer, baseAnswer, nameAnswer, markerAnswer] = await Promise.all([
+  const [promptAnswer, baseAnswer, nameAnswer, markerAnswer, managerAnswer] = await Promise.all([
     promptProblemIn({ path: promptFile, },),
     baseProblemIn({
       git,
@@ -412,6 +413,10 @@ export async function startRefusalsIn({
       runName,
     },),
     markerProblemIn({ checkoutFolder, },),
+    managerProblemIn({
+      run,
+      folder: checkoutFolder,
+    },),
   ],);
   /**
    What the question about Pi answered, which is asked even when another check refuses, so a reader fixes them all at once.
@@ -432,6 +437,7 @@ export async function startRefusalsIn({
     baseAnswer,
     nameAnswer,
     markerAnswer,
+    managerAnswer,
     absoluteFolderProblemIn({
       folder: checkoutFolder,
       what: 'checkout folder',

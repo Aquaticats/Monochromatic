@@ -132,13 +132,12 @@ export {
   DEPENDENCIES_RECORD_NAME,
   DEPENDENCIES_UNIT_SECONDS,
   type DependenciesUnitRequest,
-  type ManagerPresence,
   dependenciesUnitCommandOf,
   dependenciesUnitNameOf,
   linkDependenciesInAUnit,
   linkDependenciesOrRefuse,
-  managerPresenceIn,
 } from './dependencies-linked-in-a-unit.ts';
+export * from './index-of-the-user-manager.ts';
 export {
   PI_LOAD_FAILURE_TEXT,
   PI_START_CHECK_MEMORY_SECONDS,
@@ -182,6 +181,7 @@ export {
   UNIT_IO_WEIGHT,
   type UnitCommandRequest,
   runtimeMaxSecondsOf,
+  runUnitOf,
   unitCommandOf,
 } from './unit-command-of-a-run.ts';
 export {

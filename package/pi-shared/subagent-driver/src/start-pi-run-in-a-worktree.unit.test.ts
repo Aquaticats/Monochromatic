@@ -1445,8 +1445,8 @@ await describe({
           body: `printf '%s\\n' "$*" >> '${unitLog}'\nexit 0\n`,
         },);
         /**
-         The manager that does not answer whether it is there, while this machine has one: the socket and the unit this
-         launcher runs in are what says so, and neither is a stand-in's to hide.
+         The manager that does not answer whether it is there, which is a machine where no run can be started: the driver only ever
+         runs as a unit of that manager.
          */
         await writeProgram({
           folder: launcherBin,
@@ -1481,16 +1481,15 @@ await describe({
           branch: 'probe-branch',
           base: 'a-commit',
         },);
-        // A manager that is there and did not answer refuses the start: the install could only have run with the launcher's
-        // access, and the branch's own lifecycle scripts would have written wherever the launcher may.
+        // A machine whose manager does not answer refuses the start before it makes anything: no worktree, no install, no unit,
+        // and words that say what to do about it.
         expect(ended.code,).not.toBe(0,);
-        expect(ended.stderr,).toContain('was not started: ');
-        expect(ended.stderr,).toContain('did not answer it twice');
-        // The install never ran, and no unit was asked for. What the launcher did ask is where its mise is, which is a question
-        // about this machine and no branch code.
-        /**
-         What the launcher asked the programs it ran.
-         */
+        expect(ended.stderr,).toContain('no user manager answered');
+        expect(ended.stderr,).toContain('asked 1: status 1');
+        expect(ended.stderr,).toContain('asked 2: status 1');
+        expect(ended.stderr,).toContain('Nothing was made and no run happened');
+        // The worktree is not made, the install never ran, and no unit was asked for.
+        await expect(access(worktree,),).rejects.toThrow();
         /**
          What the launcher asked the programs it ran, or nothing when it asked none.
          */
