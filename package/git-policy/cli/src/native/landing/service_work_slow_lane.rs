@@ -217,6 +217,9 @@ async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(look
 /// for await (const wake of inbox) { busy.add(1); let left = [wake, ...drain(inbox)]; while (left.length) { left = await lookOnce(housekeeping, left) } busy.sub(1) }
 /// ```
 async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) {
+    // The repositories whose look is still running beside this lane, one entry each, so a second look at one of them is not
+    //  started while the first still holds its claims.
+    let looking: Arc<tokio::sync::Mutex<std::collections::HashSet<PathBuf>>> = Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
     loop {
         let Some(first) = inbox.recv().await else { return };
         // The count is this frame's until the looks it covers end, and a look that panicked gives it back too.
@@ -239,31 +242,63 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                     keys.insert(git_dir.clone(), key);
                 }
                 // What:
-                //  One look at one repository ends within `LANE_LOOK_CEILING`, and a look that outlasts it is left behind.
+                //  One look at one repository is waited for within `LANE_LOOK_CEILING`, and a look that outlasts it is left
+                //  running: the lane goes on to the next repository, and the work the look started keeps its records.
                 // Why:
                 //  A call into storage cannot be taken back once it is made: a trash's prepare, its removal or its settle
                 //  that stops on the disk would otherwise hold this lane, and the lane is one task that serves every
                 //  repository in turn (the review of `e1a615aab0`, F7).
-                //  The look is dropped, its records keep their lease, and the lane goes on and says so.
-                let looking = async {
-                    return match tokio::time::timeout(
-                        crate::wait_ceilings::lane_look_ceiling(),
-                        drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping, lease),
-                    )
-                    .await
-                    {
-                        Ok(settled) => settled,
-                        Err(_no_end) => {
-                            crate::service_warn!(
-                                "the look at {} did not end within {:?}, so it is left behind and the lane goes on to the next repository; the records it claimed keep their lease",
+                //  A dropped look also ends its claim renewal, so the record went back on its lease while its work still ran
+                //  and a second look started the same record again, both jobs holding a slow place
+                //  (the review of `04b80a66cb`, half one finding 1 and half one B finding 9). The look is therefore run as
+                //  its own task: the ceiling ends the lane's wait, never the work's claim on its record, and a repository
+                //  whose look is still running is not looked at again until it ends.
+                let ceiling: Duration = crate::wait_ceilings::lane_look_ceiling();
+                let looking_at_the_same_one: bool = looking.lock().await.contains(&git_dir);
+                if looking_at_the_same_one {
+                    crate::service_log!(
+                        "the look at {} is still running from an earlier round, so it is left to finish and looked at again after {:?}; the records it claimed stay with it",
+                        git_dir.display(),
+                        crate::wait_ceilings::A_SETTLE_WITHIN_A_LOOK
+                    );
+                    soonest = Some(match soonest {
+                        Some(already) => already.min(crate::wait_ceilings::A_SETTLE_WITHIN_A_LOOK),
+                        None => crate::wait_ceilings::A_SETTLE_WITHIN_A_LOOK,
+                    });
+                    left.push((git_dir, review_key));
+                    continue;
+                }
+                let round: GitHandlers = handlers.for_round(keys);
+                let directory: PathBuf = git_dir.clone();
+                let still_looking: Arc<tokio::sync::Mutex<std::collections::HashSet<PathBuf>>> = Arc::clone(&looking);
+                let (told, heard) = tokio::sync::oneshot::channel::<Option<Duration>>();
+                {
+                    looking.lock().await.insert(git_dir.clone());
+                }
+                let running: tokio::task::JoinHandle<()> = tokio::spawn(async move {
+                    let answer: Option<Duration> = drain_the_slow_work_awaiting(directory.as_path(), &round, housekeeping, lease).await;
+                    still_looking.lock().await.remove(&directory);
+                    let _sent: Result<(), Option<Duration>> = told.send(answer);
+                });
+                let the_look = async {
+                    return match tokio::time::timeout(ceiling, heard).await {
+                        // The look ended inside its bound, and its own answer is the moment to come back for.
+                        Ok(Ok(answer)) => answer,
+                        // The look ended without telling the answer, which is a look that panicked: its records keep their lease.
+                        Ok(Err(_silent)) => Some(LOOK_AGAIN_AFTER_DEFERRING),
+                        Err(_still_running) => {
+                            crate::service_log!(
+                                "the look at {} is still running after {:?}, so the lane goes on to the next repository and the work it started keeps its records; it is looked at again after {:?}",
                                 git_dir.display(),
-                                crate::wait_ceilings::lane_look_ceiling()
+                                ceiling,
+                                crate::wait_ceilings::A_SETTLE_WITHIN_A_LOOK
                             );
-                            Some(LOOK_AGAIN_AFTER_DEFERRING)
+                            Some(crate::wait_ceilings::A_SETTLE_WITHIN_A_LOOK)
                         }
                     };
                 };
-                if let Some(wait) = a_look_that_may_panic(looking).await {
+                let _kept: tokio::task::JoinHandle<()> = running;
+                if let Some(wait) = a_look_that_may_panic(the_look).await {
                     soonest = Some(match soonest {
                         Some(already) => already.min(wait),
                         None => wait,

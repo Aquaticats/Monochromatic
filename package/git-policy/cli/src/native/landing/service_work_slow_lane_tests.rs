@@ -1253,3 +1253,52 @@ fn waits_past_their_ceiling_keep_their_slow_places_and_the_work_that_needs_none_
     remove(staged.root.as_path());
     remove(holds.as_path());
 }
+
+/// The lease this control gives the claim its look takes: shorter than the look's ceiling and the reading below,
+/// so a look that was dropped would hand the record on while its work still ran.
+const A_LEASE_SHORTER_THAN_THE_LOOK: Duration = Duration::from_millis(600);
+
+/// The trash the held look runs, so the control knows which record to read.
+const THE_TRASH_A_CUT_LOOK_HOLDS: &str = "7777777777777777777777777777777777777777";
+
+/// What:
+///  A record a look claimed stays with that look while its work runs, and no second look starts it again.
+/// Why:
+///  A look that was dropped at its ceiling ended its claim renewal, so the record went back on its lease while its work
+///  still ran and the next look started the same record a second time, both jobs holding a slow place
+///  (the review of `04b80a66cb`, half one finding 1 and half one B finding 9). The ceiling ends the lane's wait, never
+///  the work's claim on its record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdInsideATrash(); lane.ask(); await reached; sleep(ceiling + lease); lane.ask(); sleep; expect(claimed).toBe(1); expect(pending).toBe(0); expect(tries).toBe(0)
+/// ```
+#[test]
+fn a_record_a_cut_look_claimed_stays_with_it_and_is_never_on_two_workers() {
+    crate::wait_ceilings::hold_the_lane_look_to(A_LOOK_A_CONTROL_WAITS_OUT);
+    let world: Stage = stage("slow-lane-a-cut-look-keeps-its-record");
+    let git_dir: PathBuf = world.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &a_trash_record(&world, THE_TRASH_A_CUT_LOOK_HOLDS)).expect("the trash is written");
+    let held: HeldTrash = hold_inside_a_trash();
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move {
+        return SlowLane::start_with_slice_and_lease(&handlers, busy, HOUSEKEEPING_OF_ONE_ROUND, A_LEASE_SHORTER_THAN_THE_LOOK);
+    });
+    lane.ask((git_dir.clone(), None));
+    assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the trash");
+    // Past the look's ceiling and past the lease: a look that was dropped at its ceiling has handed the record on by now.
+    std::thread::sleep(A_LOOK_A_CONTROL_WAITS_OUT + A_LEASE_SHORTER_THAN_THE_LOOK + A_LOOK_A_CONTROL_WAITS_OUT);
+    let still_claimed: Vec<String> = names_in_at(work.as_path(), CLAIMED);
+    assert_eq!(still_claimed.len(), 1, "the record the running look claimed is no longer claimed: claimed={still_claimed:?} pending={:?}", names_in_at(work.as_path(), PENDING));
+    assert!(names_in_at(work.as_path(), PENDING).is_empty(), "a record whose work still runs went back to the queue, so a second look may start it: {:?}", names_in_at(work.as_path(), PENDING));
+    // A wake for the same repository while that look still runs starts nothing, and the record is still the same one.
+    lane.ask((git_dir.clone(), None));
+    std::thread::sleep(A_LOOK_A_CONTROL_WAITS_OUT + A_LOOK_A_CONTROL_WAITS_OUT);
+    assert_eq!(names_in_at(work.as_path(), CLAIMED).len(), 1, "the record left the look that holds it while its work ran");
+    assert!(names_in_at(work.as_path(), PENDING).is_empty(), "a second look started the record of a running one: {:?}", names_in_at(work.as_path(), PENDING));
+    let _let_go = held.let_go.send(());
+    drop(lane);
+    remove(world.root.as_path());
+}
