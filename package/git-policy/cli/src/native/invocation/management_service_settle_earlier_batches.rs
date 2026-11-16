@@ -215,6 +215,12 @@ fn program_sentences(holding: &Holding) -> String {
 /// What:
 ///  The sentences that name the program behind a hold whose folder this check could not resolve,
 /// or nothing.
+/// Why the words name the working folder of the program when its `--journal` word is relative:
+///   A relative word is read in the folder the program itself was started in,
+/// so a person who
+///  looks the word up in their own folder would find nothing where this check looked,
+/// and a working folder that
+///  cannot be read is the one thing that stopped the check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -226,9 +232,9 @@ fn unsure_program_sentences(holding: &Holding) -> String {
     };
     let pid: u32 = program.pid;
     let folder: &str = program.journal_word.as_str();
-    let relative: String = if program.journal_word_is_relative { format!(" (a relative path, looked up in the working directory of process {pid})") } else { String::new() };
+    let relative: String = if program.journal_word_is_relative { format!(" (a relative path, which is read in the working folder of process {pid})") } else { String::new() };
     return format!(
-        " That program is process {pid}, running `{}` (its other arguments are not shown, because any of them can be a secret). This check looked up the folder its `--journal` option names, `{folder}`{relative}, and the system answered: {}. A folder that cannot be looked up cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
+        " That program is process {pid}, running `{}` (its other arguments are not shown, because any of them can be a secret). This check could not resolve the folder its `--journal` option names, `{folder}`{relative}: {}. A folder that cannot be resolved cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
         program.program, program.reason
     );
 }

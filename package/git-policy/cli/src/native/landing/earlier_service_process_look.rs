@@ -43,8 +43,15 @@
 //!    because the same folder has several spellings (a symbolic link such as `/home` for `/var/home`,
 //!    a
 //!    relative path).
+//!    A relative word is read in the working folder of the program itself (`/proc/<pid>/cwd`),
+//!    which a
+//!    program of this account shows,
+//!    not in the folder this command runs in;
+//!    a working folder
+//!    that cannot be read leaves the word unresolved,
+//!    because nothing then says which folder it names.
 //!    When that folder is not there,
-//!    the word is compared by the path it spells,
+//!    the word is compared by the path it names,
 //!    resolved as far as the file system
 //!    knows it,
 //!    because an earlier helper of the worktree shows its journal word before it makes the folder;
@@ -195,7 +202,7 @@ enum ServiceFound {
     /// so it may be one:
     /// the word,
     /// whether it is relative,
-    /// and the system's answer.
+    /// and what stopped the resolution.
     Unsure { word: Vec<u8>, relative: bool, reason: String },
 }
 
@@ -215,8 +222,8 @@ enum JournalWord {
     /// The word names one of the earlier journals,
     /// of the kind the reason names.
     Names(Hold),
-    /// The word is an absolute path whose folder is not there,
-    /// and the path it spells,
+    /// The folder the word names is not there,
+    /// and the path it names,
     /// resolved as far as the file system knows it,
     /// is no earlier journal's.
     AbsentAndElsewhere,
@@ -226,7 +233,7 @@ enum JournalWord {
     /// so it may name one:
     /// the word,
     /// whether it is relative,
-    /// and the system's answer.
+    /// and what stopped the resolution.
     Unsure { word: Vec<u8>, relative: bool, reason: String },
 }
 
@@ -301,6 +308,37 @@ fn hold_of_journal_at(index: usize) -> Hold {
 }
 
 /// What:
+///  The folder a journal word names:
+/// the word itself when it is absolute,
+/// and the word read in the working folder of the program when it is relative,
+/// which `/proc/<pid>/cwd` gives for a program of this account.
+/// Why:
+///   A program started with a relative journal word keeps that word,
+/// and the folder it names is the one in the working folder that program was started in,
+///  not in the folder this command runs in.
+/// The kernel follows the link,
+///  so a link the program was started through is answered here too.
+///  A working folder that cannot be read (the program hid it,
+/// or ended while it was looked at) settles nothing about the
+///  folder the word names,
+/// so it comes back with what the kernel answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = spelled.isAbsolute ? spelled : (readlinkSync(`${process}/cwd`) + '/' + spelled)
+/// ```
+#[cfg(unix)]
+fn folder_a_word_names(process: &Path, spelled: &Path) -> Result<PathBuf, String> {
+    if spelled.is_absolute() {
+        return Ok(spelled.to_path_buf());
+    }
+    return match std::fs::read_link(process.join("cwd")) {
+        Ok(working) => Ok(working.join(spelled)),
+        Err(error) => Err(format!("its working folder could not be read ({error})")),
+    };
+}
+
+/// What:
 ///  Which earlier journal a journal word of a command line names:
 /// the instance's own (the first of the look's journals),
 /// the
@@ -316,14 +354,15 @@ fn hold_of_journal_at(index: usize) -> Hold {
 /// a
 ///  relative word means the folder in the working directory of the process that was started with it,
 /// which `/proc/<pid>/cwd`
-///  gives (the kernel follows it).
+///  gives (the kernel follows it),
+/// and a working directory that cannot be read leaves the word unresolved.
 /// A stat that fails for a reason other than the folder being absent says nothing about which folder the word names,
 ///  and neither does a relative word whose working directory cannot be read:
 /// an open question must
 ///  not start a second service on the journal.
-/// An absolute word whose folder is not there is the one case that is settled without the folder:
+/// A word whose folder is not there is the one case that is settled without the folder:
 /// it is
-///  compared by the path it spells,
+///  compared by the path it names,
 /// and a folder that is not there holds no batch of this worktree,
 /// so the
 ///  word alone holds nothing back.
@@ -337,7 +376,7 @@ fn hold_of_journal_at(index: usize) -> Hold {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const journalWord = (word: string, names: JournalNames): JournalWord => names.find(j => spelled(j) === word)?.hold ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (!resolvable(word) ? unsure(word, whyNot(word)) : !absent(word) ? { elsewhere: true } : samePathAs(resolvedSoFar(word))?.hold ?? { absentAndElsewhere: true })
+/// const journalWord = (word: string, names: JournalNames): JournalWord => names.find(j => spelled(j) === word)?.hold ?? sameFolderAs(folder(word, names.process)) ?? (!resolvable(word) ? unsure(word, whyNot(word)) : !absent(word) ? { elsewhere: true } : samePathAs(resolvedSoFar(folder(word, names.process)))?.hold ?? { absentAndElsewhere: true })
 /// ```
 #[cfg(unix)]
 fn journal_word_names(names: &JournalNames, word: &[u8]) -> JournalWord {
@@ -349,17 +388,19 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> JournalWord {
         }
     }
     let spelled: &Path = Path::new(std::ffi::OsStr::from_bytes(word));
-    let absolute: bool = spelled.is_absolute();
-    let resolved: PathBuf = if absolute { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
+    let resolved: PathBuf = match folder_a_word_names(names.process, spelled) {
+        Ok(named) => named,
+        Err(reason) => return JournalWord::Unsure { word: word.to_vec(), relative: !spelled.is_absolute(), reason },
+    };
     let found = match std::fs::metadata(resolved.as_path()) {
         Ok(found) => found,
-        // An absolute word whose folder is not there names a folder that holds no batch now,
+        // A folder that is not there holds no batch now,
         // and a starting earlier helper of the worktree is in that state until it makes its folder:
-        // the path it spells says whether it is one of this worktree's journals.
-        Err(error) if absolute && error.kind() == std::io::ErrorKind::NotFound => {
-            let named: PathBuf = match resolved_as_far_as_the_file_system_knows(spelled) {
+        // the path the word names says whether it is one of this worktree's journals.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let named: PathBuf = match resolved_as_far_as_the_file_system_knows(resolved.as_path()) {
                 Ok(named) => named,
-                Err(unknown) => return JournalWord::Unsure { word: word.to_vec(), relative: false, reason: unknown.to_string() },
+                Err(unknown) => return JournalWord::Unsure { word: word.to_vec(), relative: !spelled.is_absolute(), reason: unknown.to_string() },
             };
             for (index, journal) in names.spellings.iter().enumerate() {
                 if journal.is_absolute() && matches!(resolved_as_far_as_the_file_system_knows(journal), Ok(known) if known == named) {
@@ -368,7 +409,7 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> JournalWord {
             }
             return JournalWord::AbsentAndElsewhere;
         }
-        Err(error) => return JournalWord::Unsure { word: word.to_vec(), relative: !absolute, reason: error.to_string() },
+        Err(error) => return JournalWord::Unsure { word: word.to_vec(), relative: !spelled.is_absolute(), reason: error.to_string() },
     };
     for (index, journal) in names.spellings.iter().enumerate() {
         if matches!(std::fs::metadata(journal), Ok(known) if (known.dev(), known.ino()) == (found.dev(), found.ino())) {

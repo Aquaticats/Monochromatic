@@ -57,7 +57,10 @@ pub struct UnsureProgram {
     /// Whether that word is a relative path,
     /// which is looked up in the working directory of the program itself.
     pub journal_word_is_relative: bool,
-    /// What the system answered when the folder was looked up (`No such file or directory (os error 2)`).
+    /// What stopped the folder being resolved:
+    /// what the system answered when it was looked up (`No such file or directory (os error 2)`),
+    /// or that the working folder of the program itself could not be read,
+    /// which a relative word is read in.
     pub reason: String,
 }
 
