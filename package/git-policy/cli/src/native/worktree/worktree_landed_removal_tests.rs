@@ -974,6 +974,19 @@ fn a_landed_worktree_with_a_process_inside_stays_when_its_process_table_cannot_b
         "the reason names the table that could not be read: {}",
         sweep.kept[0].why
     );
+    // The line a person reads says why it was kept and what they can do, which is the whole of what a kept
+    // worktree owes them.
+    let lines: Vec<String> = crate::worktree_landed_sweep_notice::landed_sweep_lines(&sweep);
+    let kept_lines: Vec<&String> = lines.iter().filter(|line| { return line.contains("left the worktree"); }).collect();
+    assert_eq!(kept_lines.len(), 1, "the sweep says what it left in one line: {lines:?}");
+    assert!(
+        kept_lines[0].contains("nothing proves no process is working in it"),
+        "the line says why it was kept: {lines:?}"
+    );
+    assert!(
+        kept_lines[0].contains("Remove it with `git worktree remove "),
+        "the line says what a person can do: {lines:?}"
+    );
     assert!(landed.worktree.exists(), "the worktree a process is working in stands");
 }
 
