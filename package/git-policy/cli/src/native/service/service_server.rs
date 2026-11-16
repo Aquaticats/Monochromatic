@@ -46,7 +46,7 @@ use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
-use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
+use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING, THE_EXITS_SYNCS_ARE_MADE_WITHIN};
 use crate::service_protocol::{
     FailureCode, RELEASE, ServiceMessage,
 };
@@ -409,8 +409,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             Received::Timeout if own_worktree_gone_now(settings, until_idle) => {
                 let instance: &str = settings.instance.as_deref().unwrap_or_default();
                 let _asked = (settings.own_units_stop)(instance, context.journal.as_path());
-                // Leaving as the idle exit does, so the syncs of the landings that were answered are made first.
-                crate::service_durable::drain();
+                // Leaving as the idle exit does, so the syncs of the landings that were answered are made first, within
+                // `THE_EXITS_SYNCS_ARE_MADE_WITHIN` and whatever the lane of slow work holds.
+                say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
                 log(exit_line(ExitReason::WorktreeGone, serving_since.elapsed()).as_str());
                 return;
             }
@@ -422,14 +423,16 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             // The interval of a service whose worktree is known, and that worktree is still there: serve on.
             Received::Timeout if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check => continue,
             Received::Timeout => {
-                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
-                crate::service_durable::drain();
+                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for
+                // them), within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`.
+                say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
                 log(exit_line(ExitReason::Idle, serving_since.elapsed()).as_str());
                 return;
             }
             Received::Closed => {
-                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
-                crate::service_durable::drain();
+                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for
+                // them), within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`.
+                say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
                 log(exit_line(ExitReason::Error, serving_since.elapsed()).as_str());
                 return;
             }
@@ -565,8 +568,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             return;
         }
     }
-    // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
-    crate::service_durable::drain();
+    // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them),
+    // within `THE_EXITS_SYNCS_ARE_MADE_WITHIN`.
+    say_what_the_exits_syncs_came_to(crate::service_durable::drain_at_the_exit_within(THE_EXITS_SYNCS_ARE_MADE_WITHIN));
     log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
 }
 
@@ -638,6 +642,31 @@ fn released_trees<'a>(
         released.push(tree);
     }
     return released;
+}
+
+/// What:
+///  Says in the service's log when an exit left the syncs of its last landings to the operating system's write-back.
+/// Why:
+///   The exit is bounded (`THE_EXITS_SYNCS_ARE_MADE_WITHIN`),
+/// so a leaving service sometimes gives up on records it answered,
+/// and a run must say so rather than look like one whose records all reached the disk.
+///   What that leaves is what a kill at that instruction leaves:
+/// the commit is in the repository and on its branch,
+/// and its records reach the disk with the write-back
+/// (`landing/service_durable.rs`, `drain_at_the_exit_within`).
+/// A quiet exit says nothing, so a healthy service logs no line for this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (cameTo === 'leftToTheWriteBack') warn('the exit left the syncs of its last landings to the write-back');
+/// ```
+fn say_what_the_exits_syncs_came_to(came_to: crate::service_durable::TheSyncsOfTheLastLandings) {
+    if came_to == crate::service_durable::TheSyncsOfTheLastLandings::Made {
+        return;
+    }
+    crate::service_warn!(
+        "the service is leaving with the syncs of its last landings still waiting, so those records reach the disk with the operating system's own write-back and the commits they belong to are in the repository"
+    );
 }
 
 /// Socket controls stay out of the release executable.

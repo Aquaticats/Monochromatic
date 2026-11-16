@@ -352,6 +352,48 @@ where
 }
 
 /// What:
+///  Runs `job` on the blocking pool while one of the places for slow work is held,
+///  or at once when `leaving` says the service is on its way out and no place came first.
+/// Why:
+///   A job nobody waits for asks for a place of slow work so that the work a person waits for keeps its own
+/// (`run_a_slow_job_within_the_budget`),
+/// and the job that asks here is the background sync of a landing's records,
+/// which the service's exit waits for (`service_durable::drain`).
+/// A lane held by slow work would make that exit as late as the slow work,
+/// and would have no end where a slow job of that lane is stopped in the kernel,
+/// so the wait for the place stops when the process says it is leaving:
+/// nothing a person waits for is left then,
+/// because the loop that lands commits has ended and can begin no other.
+///   Leaving is a `Notify` the exit sets before it starts waiting,
+/// and a permit it stores, so a batch that reaches the wait after that call also stops waiting for a place.
+/// The place is this frame's and is given back when this call returns,
+/// which is what the lane promises every other caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = await Promise.race([slowPlaces.acquire(), leaving.notified()]); try { return await runBlockingJobWithinTheBudget(job); } finally { place?.release(); }
+/// ```
+pub async fn run_a_slow_job_within_the_budget_or_at_once_when_leaving<T, J>(leaving: &tokio::sync::Notify, job: J) -> Result<T, BlockingJobError>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
+    let places: Arc<Semaphore> = Arc::clone(slow_places());
+    let place: Option<tokio::sync::OwnedSemaphorePermit> = tokio::select! {
+        given = places.acquire_owned() => match given {
+            Ok(taken) => Some(taken),
+            // The semaphore lives as long as the process, so a closed one is a defect rather than a state: the work runs
+            //  without a place instead of being left undone, which is what the exit is for.
+            Err(_closed) => None,
+        },
+        _ = leaving.notified() => None,
+    };
+    let answer: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(job).await;
+    drop(place);
+    return answer;
+}
+
+/// What:
 ///  Run `work(state)` as a job of the blocking pool with a place for slow work held,
 /// or run it in turn here where the system refused a thread.
 /// Why:

@@ -987,6 +987,34 @@ pub const A_FINISHED_RECORD_IS_READ: Duration =
 /// Open to the owner's veto.
 pub const SERVICE_GONE_AFTER_A_STOP: Duration = Duration::from_secs(2);
 
+/// How long the commit service goes on making the syncs of the landings it answered,
+/// once it has begun to leave:
+/// two seconds.
+/// Why it is a bound at all:
+///  the exit waits for the background syncs of the landings it answered,
+///  and a batch of those waits for a place of the lane of slow work,
+///  so a service asked to retire while slow work held that lane ended as late as the slow work,
+///  and had no end where a slow job of that lane was stopped in the kernel.
+///  Nothing is lost at the bound that a kill at that instruction does not lose:
+///  the commit is in the repository and on its branch,
+///  and the records still waiting reach the disk with the operating system's own write-back
+///  (`landing/service_durable.rs`, `drain_at_the_exit_within`).
+///  Measured:
+///  the control `binary/binary_a_service_asked_to_retire_leaves_within_a_bound_tests.rs` had the service still there
+///  ten seconds after the ask, with both places of the lane held by the removals of two landings' scratch trees,
+///  and it ended only when the control killed it (2026-11-15).
+///  A batch of a landing's records took 2 to 70 ms on this host (`the background sync of N records of a landing took X ms`
+///  in that control's log, 2026-11-15), one batch of six records took 646 ms, and one took 24,062 ms while other sessions
+///  of this machine ran,
+///  so the bound is hundreds of a usual batch and still well under the one a busy device makes:
+///  a sync that slow delays no exit of this service either.
+///  Chosen against the wait that gives it its room:
+///  a newer release gives the service it asked `RETIREMENT_WAIT` (ten seconds) to leave before it stops the unit and fails
+///  the commit (`service_provision_earlier_service_retirement.rs`),
+///  so this bound is a fifth of it and leaves the rest to the manager's stop and the next instance's start.
+///  Open to the owner's veto.
+pub const THE_EXITS_SYNCS_ARE_MADE_WITHIN: Duration = Duration::from_secs(2);
+
 /// How long a commit waits before the wrapper says where it stands:
 /// the place the service reported,
 /// or that the service has not started on it,
@@ -1020,7 +1048,7 @@ pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 
 /// The longest the service's round may go on emptying one trash:
 /// two minutes,
-/// which is half of the claim lease,
+/// which is the whole of the claim lease,
 /// so a trash a round leaves goes on with the next look that finds it and one item costs a round at most one lease.
 /// Why it is a bound at all:
 ///  a round's housekeeping slice bounds only what a round *starts*
@@ -1034,8 +1062,9 @@ pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 /// and the next round removes what is left.
 /// A round now ends within its slice plus one item's bound plus one wave of a trash's entries.
 /// Unmeasured as a duration:
-/// the number is the claim lease's half,
-/// because the lease is what a record left by a round waits for before another round may take it.
+/// the number is the claim lease (`CLAIM_LEASE`, two minutes, `landing/service_work.rs`),
+/// because the lease is what a record left by a round waits for before another round may take it,
+/// so one lease is the longest an item holds a round and the round after it takes that record up again one lease later.
 pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
 
 /// The environment variable that sets one trash item's bound in whole seconds,

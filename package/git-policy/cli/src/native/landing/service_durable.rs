@@ -36,6 +36,11 @@
 //!  `core.fsync` names the index (`ConfigSnapshot::hardens_index`).
 //!  Nothing here changes what a killed process leaves:
 //! the page cache keeps every write whether or not it was synced.
+//! A service on its way out makes the syncs of the landings it answered at once rather than behind the lane of slow work,
+//!  and waits for them no longer than `THE_EXITS_SYNCS_ARE_MADE_WITHIN`
+//! (`drain_at_the_exit_within`):
+//! the records a bound gives up on reach the disk with the operating system's own write-back,
+//!  which is what a kill at that instruction leaves, and the commit itself is in the repository either way.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -51,7 +56,8 @@ use std::fs::File;
 use std::thread::Scope;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget;
+use crate::blocking_job::BlockingJobError;
+use crate::blocking_jobs_within_the_budget::{run_a_slow_job_within_the_budget_or_at_once_when_leaving, run_blocking_job_within_the_budget};
 use crate::service_durable_syncs::SyncFigure;
 use crate::lazy_runtime::spawn_on_runtime;
 use std::sync::mpsc::{Sender, channel};
@@ -81,6 +87,20 @@ enum Job {
 /// The sender of the one background task,
 /// started by the first landing that publishes.
 static BACKGROUND: OnceLock<UnboundedSender<Job>> = OnceLock::new();
+
+/// Whether the service is on its way out,
+/// so the batches of the landings it answered are synced at once rather than behind a place of the lane of slow work.
+/// Why:
+///   Those places are kept for the work a person waits for,
+/// and an exit has none left to keep them for:
+/// the loop that lands commits has ended (`service_server.rs`) and no other can begin,
+/// so a batch that waited for a place would make the exit as late as the slow work that holds the lane.
+static THE_SERVICE_IS_LEAVING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The wake the exit gives a task that is already waiting for a place of the lane of slow work.
+/// A permit is stored and not only handed over,
+/// so a batch that reaches that wait after the exit announced it stops waiting too.
+static THE_LEAVE_ANNOUNCED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
 /// How many syncs the background task has made,
 /// for a control that waits for them.
@@ -195,7 +215,15 @@ async fn background(mut jobs: UnboundedReceiver<Job>) {
                     crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
                     sync_batch(batch);
                 };
-                if let Err(error) = run_a_slow_job_within_the_budget(holding_and_syncing).await {
+                // A batch asks for a place of slow work while the service is serving, because the work a person waits for keeps
+                //  its own places free of it; an exit has no such work left, and waiting there would make it as late as the slow
+                //  work that holds the lane.
+                let answer: Result<(), BlockingJobError> = if THE_SERVICE_IS_LEAVING.load(std::sync::atomic::Ordering::SeqCst) {
+                    run_blocking_job_within_the_budget(holding_and_syncing).await
+                } else {
+                    run_a_slow_job_within_the_budget_or_at_once_when_leaving(&THE_LEAVE_ANNOUNCED, holding_and_syncing).await
+                };
+                if let Err(error) = answer {
                     // Nobody waits for this: the records are as a power cut leaves them, which the next landing or restart handles.
                     crate::service_warn!("the background sync of a landing's records could not run: {error}");
                 }
@@ -239,11 +267,79 @@ fn start_background() -> UnboundedSender<Job> {
 /// Waits until every sync handed to the background task so far is done.
 ///  A control uses it to see the queue empty;
 /// the service does not wait for it on a commit's path.
+/// It waits no longer than the patience of a control (`PHASE_PATIENCE`), because nothing in this program waits without an
+///  end:
+/// the service's own exits wait through `drain_at_the_exit_within`, which also says the service is leaving.
 pub fn drain() {
+    let _made: bool = drain_within(crate::wait_ceilings::PHASE_PATIENCE);
+}
+
+/// What became of the syncs of the landings a leaving service answered.
+/// Why:
+///   The two ends are not the same and the log says which one it is:
+/// either every record handed to the background task reached the disk,
+/// or the ones still waiting reach it with the operating system's own write-back, which is what a kill at that instruction
+///  leaves of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheSyncsOfTheLastLandings = 'made' | 'leftToTheWriteBack';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TheSyncsOfTheLastLandings {
+    /// Every sync handed to the background task was made before this call returned.
+    Made,
+    /// The bound ran out with syncs still to make, so what is left reaches the disk with the operating system's write-back.
+    LeftToTheWriteBack,
+}
+
+/// What:
+///  Says the service is leaving,
+///  and waits no longer than `ceiling` for the syncs of the landings it answered.
+/// Why:
+///   Those records are why the exit waits at all,
+/// and a batch of them waits for a place of the lane of slow work,
+/// so the wait here is bounded and the work it gives up on is left where a kill would have left it:
+/// the commit is in the repository and on its branch either way, and its records reach the disk with the operating system's
+///  write-back.
+///  The service is said to be leaving before the wait begins,
+/// so a batch already waiting for a place of that lane stops waiting for it and is synced now
+/// (`blocking_jobs_within_the_budget.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// leaving = true; leaveAnnounced.notifyOne(); return await drainTheSyncsWithin(ceiling) ? 'made' : 'leftToTheWriteBack';
+/// ```
+pub fn drain_at_the_exit_within(ceiling: Duration) -> TheSyncsOfTheLastLandings {
+    THE_SERVICE_IS_LEAVING.store(true, std::sync::atomic::Ordering::SeqCst);
+    THE_LEAVE_ANNOUNCED.notify_one();
+    return if drain_within(ceiling) { TheSyncsOfTheLastLandings::Made } else { TheSyncsOfTheLastLandings::LeftToTheWriteBack };
+}
+
+/// What:
+///  Waits until every sync handed to the background task so far is done,
+///  or until `ceiling` has passed.
+/// Why:
+///   A barrier answers when every job handed over before it has ended,
+/// so the wait is the queue's own order and not a poll;
+/// a queue no task took is answered back by the send itself, and nothing is waited for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sent = barriered(); return sent ? answered.recvTimeout(ceiling) : false;
+/// ```
+fn drain_within(ceiling: Duration) -> bool {
     let (done, answered) = channel::<()>();
-    if sender().send(Job::Barrier(done)).is_ok() {
-        let _waited = answered.recv();
+    if sender().send(Job::Barrier(done)).is_err() {
+        // No task takes the queue, so the records reach the disk with the operating system's own write-back and there is
+        //  nothing to wait for.
+        return false;
     }
+    return match answered.recv_timeout(ceiling) {
+        Ok(()) => true,
+        // The bound ran out, or the task ended without answering: what is left is the write-back's.
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout | std::sync::mpsc::RecvTimeoutError::Disconnected) => false,
+    };
 }
 
 /// What a landing holds while it runs:
