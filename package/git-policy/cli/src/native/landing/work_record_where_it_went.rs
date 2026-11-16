@@ -179,7 +179,7 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str) -> Result<String,
     }
     // The claim's own directory: the file the move was for, or another instance's claim of the same record.
     let mut another: Option<String> = None;
-    let claims = entries_oldest_first_or_the_error(work_dir, CLAIMED).map_err(|error| the_claim_directory_could_not_be_read(claimed.as_path(), id, &error))?;
+    let claims = entries_oldest_first_or_the_error(work_dir, CLAIMED).map_err(|error| { return the_claim_directory_could_not_be_read(claimed.as_path(), id, &error); })?;
     for (name, _modified) in claims {
         if id_of_entry(name.as_str()) != id {
             continue;
@@ -202,7 +202,7 @@ fn where_the_record_is(work_dir: &Path, id: &str, token: &str) -> Result<String,
     match is_a_directory(recovering.as_path()) {
         Ok(true) => {
             let taking = entries_oldest_first_or_the_error(work_dir, RECOVERING)
-                .map_err(|error| a_directory_that_could_not_be_read(recovering.as_path(), id, &error))?;
+                .map_err(|error| { return a_directory_that_could_not_be_read(recovering.as_path(), id, &error); })?;
             for (name, _modified) in taking {
                 if id_of_entry(name.as_str()) != id {
                     continue;

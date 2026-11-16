@@ -2385,11 +2385,11 @@ fn a_claim_whose_directory_could_not_be_listed_is_kept_and_said_not_taken_over()
     remove(repo.root.as_path());
     assert!(kept, "a look that failed marked the claim taken over and let it go");
     assert!(
-        entries.iter().any(|entry| entry.message.contains(CLAIMED) && entry.message.contains("could not be read")),
+        entries.iter().any(|entry| { return entry.message.contains(CLAIMED) && entry.message.contains("could not be read"); }),
         "the drain says the directory could not be read: {entries:?}"
     );
     assert!(
-        !entries.iter().any(|entry| entry.message.contains("another instance took the work over")),
+        !entries.iter().any(|entry| { return entry.message.contains("another instance took the work over"); }),
         "the look failed, but the drain named a takeover: {entries:?}"
     );
 }

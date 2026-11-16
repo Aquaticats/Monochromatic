@@ -174,9 +174,9 @@ pub(crate) fn entries_oldest_first_or_the_error(work_dir: &Path, state: &str) ->
     #[cfg(test)]
     count_listing();
     let mut found: Vec<(String, SystemTime)> = Vec::new();
-    for entry in std::fs::read_dir(state_directory(work_dir, state))? {
+    for listed in std::fs::read_dir(state_directory(work_dir, state))? {
         // An entry the directory refused is a listing that failed, not one that holds fewer names.
-        let entry: std::fs::DirEntry = entry?;
+        let entry: std::fs::DirEntry = listed?;
         // An entry whose time cannot be read counts as the oldest.
         let modified: SystemTime = match entry.metadata() {
             Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
