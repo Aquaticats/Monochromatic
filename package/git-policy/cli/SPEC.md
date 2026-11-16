@@ -17288,6 +17288,18 @@ and a tree whose removal never ran is collected by the age sweep of the reposito
 Before the capture reads the index it checks that the file is there:
 `git write-tree` answers with the empty tree for an index that is gone,
 which would rebuild the commit as a deletion of every file and report a conflict naming paths it never changed.
+The commit Git built is held against the tree the command's own index names,
+and a command that takes only the named paths is held against the tree real Git builds for it:
+the base's tree with the working copies of those paths,
+so an entry the command does not name stays as the base holds it and stays staged.
+The whole index's tree is not that tree,
+and a stopped revert's staged result always differs from it,
+so holding such a commit against the whole index refused commits real Git makes
+(`takes_only_the_named_paths` and `the_tree_the_named_paths_take`
+in `src/native/landing/service_native.rs`;
+measured with Git 2.56.0:
+`git commit -- <path>` lands the working copy of that path with the other entries left as the base holds them,
+and a pathless `-o` names no path, so its commit holds the base's tree alone and the staged change stays staged).
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
 while the time since its first build is under the ceiling;
