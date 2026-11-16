@@ -4994,6 +4994,11 @@ fn a_symbolic_ref_that_failed_changes_nothing_the_repair_writes() {
     std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o700)).expect("shim mode");
     let mut failing = push_git(&taker);
     failing.real_git = shim;
+    // What: the third answer of the question itself: 1 is a detached HEAD, and every other failure is a read
+    // that failed.
+    // Why: taking the failure for "detached" is what made the repair choose another branch's direction.
+    let shows = await_it(crate::auto_push_reconcile_branch_checkout_files::shows_awaiting(&failing));
+    assert!(shows.is_err(), "a failed symbolic-ref is a read that failed, and not a detached HEAD: {shows:?}");
     let mut stderr: Vec<u8> = Vec::new();
     let settled = finish_branch_moves(&failing, common.as_path(), &mut stderr).expect("the sweep answers");
     assert!(matches!(settled, Settled::Yes), "the checkout is settled: {settled:?} / {}", String::from_utf8_lossy(&stderr));
