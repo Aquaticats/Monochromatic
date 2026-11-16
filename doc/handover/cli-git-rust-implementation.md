@@ -738,6 +738,18 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T22:56:00-05:00, about the rotation of the credentials, to be settled before the owner rotates:
+  - A run that is going when a value is changed does not know the new value (the driver reads the values once, at a run's start).
+    So "rotate when the last run from before the merge has ended" still leaves every run going at that moment unmasked for the new values.
+    Two courses, neither stopping a run: starts are held (the filling unit stopped between two rounds) and the going runs are left to end by themselves before the owner rotates,
+    which costs up to a run's wall clock with nothing new started; or the owner rotates with runs going and accepts that one of them may print a new value.
+    A third, a driver that reads the values again during a run, is a change to the masking and against "keep the masking work narrow".
+  - While the owner edits the store, a start that meets a half-written `.env.local.json` is refused (a store that is there and cannot be read stops the run),
+    and the scratch starter has already taken the entry off the queue. The session stops the filling unit between two rounds for the edit, starts one canary run after it, and starts the unit again;
+    the owner's word before and after the edit is what this needs.
+  - Every place that holds each value, names only (38 values, 34 of them held in more than one place):
+    `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/every-place-that-holds-each-value-names-only-2026-11-15T2254.md`.
+    A key changed in one place and left in another keeps a dead key there.
 - Added 2026-11-15T22:34:53-05:00,
   from the run on the automatic push of a branch never pushed
   (tip `c11272e4b6`, six controls and no product change:
@@ -1300,6 +1312,13 @@ Not final and not approved; written by the coordinating session. Reviews are by 
 - **The review brief's template** (author's sixth run, `cc2e91e8d8`): review queued at 22:48:55 (23 code files).
   Its two open points are adopted as built, open to veto: a plain line after a sentence saying the review stopped counts by the grammar; a header inside a code fence is refused.
   Whether that refusal names the fence in its words is left with the author's next change, since a diagnostic names its cause.
+- **Commit does not wait behind the service's writes** (`6d67fbc5fb`, 16 of 16 files): three reproduced by probes against the library, each with a positive control.
+  A service whose registration was refused goes on with a board of its own, a second service sees itself alone and confirms a withdrawal the first then lands (the probe showed the confirmation and the request still held; the step into the landing is by reading);
+  the check behind a withdrawal reads holder files on the one landing thread with no bound (a FIFO with no writer held it for good);
+  the registration's `sync_all` runs before the service accepts clients. Fifth run queued at 22:54:45, also asked why its own guard listed none of the three.
+- **After the masking merge, added to each round:** `list-the-runs-that-ended-since-a-time-without-their-masking-or-with-a-failed-driver.ts` (none of the three runs that ended between 22:41 and 22:52);
+  the masking author, whose sixth run is going as a resumed session with the masking armed, got a note that a value changed during a run is a limit to state;
+  the driver package's built output in the main checkout, which dated from 2026-11-13, was built again (no start uses it; the package's type check does).
 - **Done on the owner's ticked answers:** the install folder of 0.5.34 (`~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/`, two programs of the old name, 18 MiB, no process inside) is deleted with the link that pointed at it;
   three old-name launcher files of the global store that led into it are moved to the scratch folder that holds the checkout's;
   no unit of the old name `cli-git@` exists in the user manager any more (all 68 wrapper units carry the new name), so there was none to remove.
@@ -39523,6 +39542,10 @@ Round twenty (asked and answered at about 22:47, written here at 2026-11-15T22:5
   `~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/units-that-became-active-before-the-masking-merge.txt`).
   Until the owner says the values are rotated, the sessions the scan names stay untouched and are not resumed.
 - The owner then wrote: "I'm going to be away for a few hours. Don't block on me." No question is put while the owner is away; what needs the owner goes into the kept list.
+- **A sentence of that question is withdrawn (2026-11-15T22:56-05:00).** The option the owner chose said that once the last run from before the merge has ended "no new value can reach an unmasked run, so one rotation is enough". That is wrong.
+  The driver reads the values once, when a run starts (`package/pi-shared/subagent-driver/README.md`, "The values are read once in the driver's own process."; `supervise-pi-run.ts` line 262 is the only call), so every run that is going at the moment a value is changed, masked or not,
+  holds the old value armed and does not know the new one. A new value such a run reads from a file all runs share (`~/.pi/agent/auth.json`, `models.json`, `.bashrc`) or from a store its worktree merged goes through unmasked until that run ends.
+  The owner's choice stands as made (wait for the last run from before the merge); what is added is in the kept list, first entry, and is said again when the watch ends. A second pass by the advisor found this, not the session.
 
 Adopted from the same prepared batch without asking, each because a recorded rule or an earlier answer decides it, each open to veto:
 
