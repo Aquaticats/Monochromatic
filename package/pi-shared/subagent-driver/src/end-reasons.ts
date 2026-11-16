@@ -217,7 +217,8 @@ export function whatTheEndingTook(
    */
   const signals = signalsSent.join(' and ',);
   /**
-   The refused signal, as a reader has to know it: a signal the operating system refused is no answer that Pi went.
+   The refused signal, as a reader has to know it: a signal the operating system refused is no answer that Pi went, and it
+   explains an ending that outlasted its own bounds.
    */
   const refused = (refusedSignal === undefined) ? '' : `, and a signal had failed: ${refusedSignal}`;
   if (!stopped) {
@@ -230,7 +231,7 @@ export function whatTheEndingTook(
   }
   if (outlivedTheLastBound) {
     return {
-      problem: `Pi stayed after its input closed${(signalsSent.length === 0) ? '' : `, the driver sent ${signals}`}, and the driver's last bound ran out before it saw Pi leave.`,
+      problem: `Pi stayed after its input closed${(signalsSent.length === 0) ? '' : `, the driver sent ${signals}`}, and the driver's last bound ran out before it saw Pi leave${refused}.`,
       ranOutOfABound: true,
     };
   }
@@ -238,7 +239,7 @@ export function whatTheEndingTook(
     return { ranOutOfABound: false, };
   }
   return {
-    problem: `Pi stayed after its input closed and left after the driver sent ${signals}.`,
+    problem: `Pi stayed after its input closed and left after the driver sent ${signals}${refused}.`,
     ranOutOfABound: false,
   };
 }

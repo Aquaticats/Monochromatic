@@ -302,6 +302,18 @@ await describe({
           problem: `Pi was still running ${String(SHUTDOWN_GRACE_MILLISECONDS,)} ms after SIGKILL, and a signal had failed: the operating system refused SIGKILL.`,
           ranOutOfABound: true,
         },);
+        // A Pi that left after the refused signal is named with that refusal too: it is what a reader needs to know why the
+        // ending outlasted its own bounds.
+        expect(whatTheEndingTook({
+          stopped: true,
+          signalsSent: ['SIGTERM',],
+          stageMilliseconds: SHUTDOWN_GRACE_MILLISECONDS,
+          outlivedTheLastBound: true,
+          refusedSignal: 'the operating system refused SIGKILL',
+        },),).toEqual({
+          problem: `Pi stayed after its input closed, the driver sent SIGTERM, and the driver's last bound ran out before it saw Pi leave, and a signal had failed: the operating system refused SIGKILL.`,
+          ranOutOfABound: true,
+        },);
       },
     },),
   ],

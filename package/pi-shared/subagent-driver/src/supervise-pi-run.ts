@@ -392,9 +392,11 @@ export async function supervisePiRun(
    What masking the session at rest found.
    */
   /**
-   Whether Pi has been reaped, which is what makes this run the last writer of its own session file.
+   Whether Pi has been reaped, which is what makes this run the last writer of its own session file. What the ending's own bounds
+   said is not asked: a process whose leaving was seen cannot write the file, whether the ending saw that inside its stages or
+   once they were spent.
    */
-  const piIsGone = putAway.stopped && lastConnection.hasExited();
+  const piIsGone = lastConnection.hasExited();
   /**
    What masking the session at rest found.
    */
