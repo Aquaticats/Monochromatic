@@ -103,3 +103,70 @@ fn a_lock_made_after_the_records_are_read_is_cleared_and_its_record_is_used() {
     assert!(!folder.exists(), "and the folder with the last record it held");
     remove(common.parent().expect("the fixture root"));
 }
+
+/// A process this control started and will end: a stand-in for the writer of a record and for the Git it starts.
+fn a_running_stand_in() -> std::process::Child {
+    return std::process::Command::new("sleep")
+        .arg("60")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("the stand-in starts");
+}
+
+/// What:
+///  A record the writer's own child appended its line to after the pass read it is not removed on that older reading,
+///  because the standing lock names the child.
+/// Why:
+///  The removal decided on the snapshot's holders alone,
+///  and the snapshot was taken before the child line existed,
+///  so a live Git's line was unlinked together with the file:
+///  the only proof that could identify the lock that Git left when it was killed
+///  (a review of `b0ea691cc1`,
+/// finding 3).
+///  The order is made here without a clock: the snapshot is a value,
+///  the append is this control's own write,
+///  and the lock's PID companion is written before the removal is asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const snapshot = everyRecord(common); appendChildLine(record, liveGit); const pids = [liveGitPid];
+/// stop(writer); removeRecordsNoOneNeeds(common, snapshot, pids); expect(existsSync(record)).toBe(true)
+/// ```
+#[test]
+fn a_record_a_live_child_appended_to_after_the_reading_is_not_removed() {
+    use crate::lock_holder_records::{identity_of_process, record_line};
+    let root: PathBuf = fixture("record-stale-snapshot");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the Git directory");
+    let folder: PathBuf = folder_of(common.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the record folder");
+    let mut writer: std::process::Child = a_running_stand_in();
+    let writer_pid: i64 = i64::from(writer.id());
+    let writer_identity: String = identity_of_process(writer_pid).expect("the writer's identity");
+    let record: PathBuf = folder.join(format!("{writer_pid}.record"));
+    std::fs::write(record.as_path(), record_text(&[(SELF_KIND, writer_pid, writer_identity)]).as_bytes()).expect("the writer's own line");
+    let snapshot: Vec<crate::lock_holder_record_reads::Record> = crate::lock_holder_record_reads::every_record(common.as_path());
+    assert_eq!(snapshot.len(), 1, "the reading names the one record");
+    assert_eq!(snapshot[0].holders.len(), 1, "the reading predates the child line");
+    // The writer's Git appends its own line, after the reading, as the record's design has it.
+    let mut git: std::process::Child = a_running_stand_in();
+    let git_pid: i64 = i64::from(git.id());
+    let git_identity: String = identity_of_process(git_pid).expect("the Git's identity");
+    let mut appended: std::fs::File = std::fs::OpenOptions::new().append(true).open(record.as_path()).expect("the record opens for the writer's append");
+    std::io::Write::write_all(&mut appended, record_line(CHILD_KIND, git_pid, git_identity.as_str()).as_bytes()).expect("the child's line is appended");
+    drop(appended);
+    // The Git holds a lock: its PID companion names the number the record's new line names.
+    let lock: PathBuf = common.join("refs/heads/main.lock");
+    std::fs::create_dir_all(common.join("refs/heads").as_path()).expect("the references folder");
+    std::fs::write(lock.as_path(), b"a half-written reference\n").expect("the live Git's lock");
+    make_pid_file_after_the_lock(lock.as_path(), git_pid);
+    let _killed = writer.kill();
+    let _waited = writer.wait().expect("the writer is reaped");
+    crate::lock_holder_record_reads::remove_records_no_one_needs(common.as_path(), snapshot.as_slice(), &[git_pid]);
+    assert!(record.exists(), "a record a live holder's lock still needs is not removed on a reading older than its last line");
+    let _killed_git = git.kill();
+    let _waited_git = git.wait().expect("the Git is reaped");
+    remove(root.as_path());
+}

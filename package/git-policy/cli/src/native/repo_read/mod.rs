@@ -75,6 +75,11 @@ pub mod git_directory_roots;
 /// The one proof that a folder is the Git directory of the command, resolved with no link in its path.
 pub mod git_directory_proof;
 
+/// Controls of that proof, judged against real Git over generated `HEAD` contents.
+#[cfg(test)]
+#[path = "git_directory_proof_tests.rs"]
+mod git_directory_proof_tests;
+
 /// Controls of the one answer to which repository a command works on, checked against real Git for every spelling.
 #[cfg(test)]
 #[path = "git_directory_roots_tests.rs"]

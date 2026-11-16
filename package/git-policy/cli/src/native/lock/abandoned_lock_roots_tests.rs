@@ -565,3 +565,40 @@ fn a_folder_named_as_the_git_directory_that_is_no_repository_gets_no_pass_and_no
     assert!(record.exists(), "and the record of the process that is gone is left where it was, because no pass was made");
     remove(root.as_path());
 }
+
+/// What:
+///  A root the walk refuses because it is a link leaves the walk incomplete,
+///  so the record of the process that left a lock beyond that link is not removed.
+/// Why:
+///  The proof follows `refs` as Git does and accepts the folder,
+///  while the walk refuses a link at the root:
+///  a refusal that did not say "I could not see inside" was read as a complete walk,
+///  and the record of the lock sitting beyond the link was unlinked as litter,
+///  so after the person replaced the link with the real folder no pass could ever clear that lock
+///  (a review of `b0ea691cc1`,
+/// finding 4).
+///  The positive control is the `refs` row of
+///  `a_root_is_cleared_when_it_is_really_there_and_never_reached_through_a_link`:
+///  the same lock in a folder reached without a link is cleared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(linkedRefs, join(common, 'refs')); writeFileSync(join(linkedRefs, 'heads/main.lock'), bytes); writePidCompanion(gone);
+/// meetTheLocks(repository); expect(existsSync(lock)).toBe(true); expect(existsSync(record)).toBe(true)
+/// ```
+#[test]
+fn a_root_refused_as_a_link_leaves_the_walk_incomplete_so_its_record_stays() {
+    let (root, repository, gone, record): (PathBuf, CommandRepository, i64, PathBuf) = split_repository("lock-roots-a-link-keeps-its-record");
+    let common: PathBuf = repository.common_dir.clone().expect("the common directory");
+    let linked: PathBuf = root.join("linked-references");
+    std::fs::create_dir_all(linked.join("heads").as_path()).expect("the folder the link points at");
+    std::fs::remove_dir_all(common.join("refs").as_path()).expect("the real reference folder gives way to the link");
+    std::os::unix::fs::symlink(linked.as_path(), common.join("refs").as_path()).expect("the link at refs");
+    let lock: PathBuf = linked.join("heads/main.lock");
+    std::fs::write(lock.as_path(), b"a half-written reference\n").expect("the abandoned lock beyond the link");
+    make_pid_file_after_the_lock(lock.as_path(), gone);
+    meet_the_locks_of_the_repository_the_command_works_on(&repository);
+    assert!(lock.exists(), "a root reached through a link is no folder this pass opens");
+    assert!(record.exists(), "and the record of the process that left the lock beyond it is not called litter");
+    remove(root.as_path());
+}

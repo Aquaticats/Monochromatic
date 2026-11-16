@@ -519,3 +519,49 @@ fn a_folder_past_the_bound_answers_unknown_and_keeps_the_lock() {
     assert!(lock.exists(), "the lock is kept, because the proof could not show it saw every record");
     remove(root.as_path());
 }
+
+/// What:
+///  A record folder that is a link is never written through by the child a start arms:
+///  the person's file the link points at keeps its bytes.
+/// Why:
+///  The parent refuses a folder that is not a real directory,
+///  but the child was armed before that reading and its `mkdir` accepted `AlreadyExists` without asking what exists,
+///  so both of its opens traversed the link in the folder component:
+///  a person's file outside the repository gained this Git's `child <pid>` line
+///  (a review of `b0ea691cc1`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(outside, folderOf(common)); writeFileSync(join(outside, nameOf(record)), original);
+/// await spawnNamingItsChild(sh('exit 0')); expect(readFileSync(join(outside, nameOf(record)))).toEqual(original)
+/// ```
+#[test]
+fn a_record_folder_that_is_a_link_is_never_written_through_by_the_child() {
+    let root: PathBuf = fixture("record-folder-is-a-link");
+    let common: PathBuf = root.join(".git");
+    crate::test_support::make_it_a_git_directory(common.as_path());
+    let outside: PathBuf = root.join("outside-the-repository");
+    std::fs::create_dir_all(outside.as_path()).expect("the folder the link points at");
+    let folder: PathBuf = folder_of(common.as_path());
+    std::os::unix::fs::symlink(outside.as_path(), folder.as_path()).expect("the record folder is a link");
+    let record_name: std::ffi::OsString = this_process_record_path(common.as_path())
+        .expect("this process's record path")
+        .file_name()
+        .expect("a record file name")
+        .to_os_string();
+    let persons_file: PathBuf = outside.join(record_name);
+    let persons_bytes: &[u8] = b"a person's own bytes at the record's name\n";
+    std::fs::write(persons_file.as_path(), persons_bytes).expect("the person's file");
+    crate::lock_holder_records::remember_repository(common.as_path());
+    let mut command: std::process::Command = std::process::Command::new("/bin/sh");
+    command.arg("-c").arg("exit 0");
+    let mut child: std::process::Child = crate::forwarding::spawn_naming_its_child(&mut command).expect("the child starts");
+    let _ended = child.wait().expect("the child ends");
+    assert_eq!(
+        std::fs::read(persons_file.as_path()).expect("the person's file is still there"),
+        persons_bytes,
+        "the child wrote nothing through a record folder that is a link"
+    );
+    remove(root.as_path());
+}
